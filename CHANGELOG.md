@@ -1,5 +1,317 @@
 # Changelog
 
+## v0.1.15 — Round 21 (snapshot tests + onboarding tint + profile reorder)
+
+- **Snapshot tests** (21a) — 6 new test files producing 18 DOM snapshots
+  across Sparkline (3 variants), Toasts (3 kinds), UpdaterBanner (4 states:
+  idle/available/downloading/error), Sidebar (4: expanded × no-tint vs
+  orange tint × collapsed × collapsed-with-tint), StatusBar
+  (3: disconnected/connected/local-running), AboutDialog (1: open with
+  mocked gateway+version+nav). Stabilization layer: fixed ids, mocked
+  Tauri `app.getVersion`, pinned `navigator.userAgent` + `screen.width/height`,
+  Map-shimmed `localStorage` (Vitest 4's default is broken). Three
+  `$app/*` stubs under `tests/__mocks__/` + 3 alias lines in
+  `vitest.config.ts` so the SvelteKit virtual modules resolve under jsdom.
+  Total tests: 126 → 150.
+- **Onboarding tint preview** (21b) — Step 1 "Personalize" section with
+  6-swatch tint picker (signal/cyan/violet/orange/teal/rose). Live
+  preview via `$effect` that writes `--v2-accent` vars on
+  `documentElement` + a scoped style block rebinding Tailwind's
+  `accent-cyan` utilities (and `/5,/10,/20,/30,/40` alphas, hover,
+  focus variants) to the chosen tint. Selected swatch gets a 3px ring
+  in its own tint. Persists across Back navigation; baked into the
+  active profile on Finish.
+- **Profile reorder** (21c) — drag-handle (6-dot grip SVG) on each
+  profile row in Settings (20×24px) and Sidebar popover (14×24px,
+  tighter). HTML5 native drag-drop with `opacity: 0.5` on the dragged
+  row + 2px cyan line at the insertion point. Drop position
+  determined by clientY vs row midpoint. Only the grip element is
+  draggable so cmd-click-for-new-window (R15b) still works. New
+  `reorderProfiles(orderedIds)` method on settings store: type-checks
+  the array, validates length match + no duplicates + every id
+  exists, no-ops on identity order, saves + broadcasts via the
+  existing `settings-changed` BroadcastChannel. 6 new tests for
+  reorder validation.
+
+All gates green: 463 files, 0 svelte-check errors, 150/150 tests,
+`cargo check` clean, `cargo clippy` clean.
+
+## v0.1.14 — Round 20 (presets + cron + tray notifs + bundle tooling)
+
+- **Workspace presets** (20a) — new `PresetStore` + `PresetsModal`.
+  Captures current state (active path, current thread, panel widths,
+  sidebar collapsed, tray badge, status bar visible) → saves as a
+  named preset. Apply restores all via localStorage writes +
+  `goto(activePath)` + cross-route nav remount re-hydrates from
+  storage. **Cmd+Shift+P** opens the modal. New CommandPalette
+  actions: "Workspace presets" + "Save current workspace as preset…".
+- **Visual cron parser + preview** (20b) — new `cron.ts` util parses
+  5-field cron + `@hourly`/`@daily`/etc aliases + IronClaw's
+  `every 5m` shorthand + tolerates multi-space/tab/whitespace.
+  Returns human readable ("Every weekday at 9:00 AM", "On the 1st
+  of every month at 9 AM"). New `CronPreview.svelte` component
+  shows preview inline (muted gold for valid, red for invalid).
+  Wired under Schedule column in routines table + DetailPanel header.
+  44 new tests; total 126.
+- **Tray menu recent notifications** (20c) — notifications store
+  gains a 10-item rolling history (TTL 24h, persisted to localStorage
+  in a separate slot so `clearHistory` doesn't touch prefs). Rust
+  tray rebuilds the "Recent" submenu when JS invokes
+  `update_tray_recent` with the top 5. Click → `tray:open-notification`
+  event routes by category (chat→/, routine→/routines, sidecar→
+  /settings). "Clear all" item dismisses. Disabled "No recent
+  notifications" placeholder when empty.
+- **Bundle analyzer + perf snapshot** (20d) — `scripts/analyze-bundle.sh`
+  walks `build/_app/immutable/` for per-file raw+gzip+line counts,
+  per-node totals, top-5. `scripts/bundle-baseline.json` captures
+  current state (46 files, 958 KB raw / 293 KB gzip, 30.6% ratio).
+  `scripts/bundle-compare.sh` diffs vs baseline, exits 3 on regression
+  (>10% total gzip or >25% on any stable file). `scripts/perf-snapshot.sh`
+  spins up vite dev server + curl-probes 5 routes for TTFB / total
+  time / size / critical resource counts. README appended a
+  "Bundle analysis" section.
+
+All gates green: 454 files, 0 errors, 126/126 tests, cargo clean.
+
+## v0.1.13 — Round 19 (UX polish + chat v3 + comprehensive docs)
+
+- **UX polish + a11y deep pass** (19a) — global focus-visible cyan
+  ring in `app.css` for buttons/links/`[role=*]` elements (was missing
+  everywhere, relying on dim default browser outline). Added
+  `role="tablist"`/`tab`/`aria-selected` to Admin (3 tabs) +
+  Extensions (Installed/Registry). Modal semantics (`role="dialog"`,
+  `aria-modal="true"`) on slide-in detail panels (Routines/Jobs/
+  Missions). Improved chat empty state to distinguish
+  disconnected-vs-empty-but-ready. 28 P2/P3 findings documented in
+  `UX_NOTES.md` for follow-up sweeps.
+- **Chat v3** (19b) — three composer/surface upgrades:
+  - **Image lightbox** — click any image (attachment or markdown img)
+    → backdrop-dimmed overlay, capped 90vw/90vh, dismiss on
+    backdrop/Esc/close. Event delegation on the scroll container
+    so attachment thumbnails AND assistant-rendered images both
+    open the same modal.
+  - **Voice input** — Web Speech API (`webkitSpeechRecognition`
+    fallback for Safari/Tauri WebKit). Mic button pulses red while
+    listening, interim transcript streams into the textarea
+    anchored at the user's caret position, finals bake additively,
+    3s silence auto-stops. Disabled with tooltip on Firefox.
+  - **Conversation branching** — each assistant bubble gets a
+    hover-revealed branch button → confirm dialog → spawns new
+    thread. Probed `/api/chat/threads/<id>/branch` returns 404 —
+    fallback seeds the new thread with "Forked from <id> at turn N.
+    Original context:" + concatenated history, so the agent gets
+    context as part of the first user turn. Re-probes cached
+    per-session for when upstream adds native branching.
+- **Documentation pass** (19c) — `ARCHITECTURE.md` (878 lines) with
+  4 Mermaid diagrams covering the Tauri shell, store dependencies,
+  multi-window broadcast sync, sidecar spawn sequence. Full security
+  model documented (Keychain scoping, capability allowlist, redact
+  pipeline, CSP punt with reasoning). All Rust modules, every store
+  with line counts, the markdown pipeline (marked → DOMPurify →
+  highlight.js 12 curated languages), sidecar lifecycle per backend.
+  `CONTRIBUTING.md` (637 lines): prereqs/install/dev, the 4 CI gates
+  with failure criteria, end-to-end recipes for new API methods +
+  new surfaces + new icons, release flow including the keypair
+  setup. `README` gained a "Quick tour" section with the 7 core
+  chords and Cmd+1..9 surface table.
+
+All gates green: 449 files, 0 errors, 82/82 tests, build clean.
+
+## v0.1.12 — Round 18 (settings search + quick capture + 48 more tests)
+
+- **Settings search** (18a) — sticky search bar at top of settings
+  page, 200ms debounced, walks 17 section cards via
+  `data-section-id` + `data-section-title` attributes. Dim
+  non-matching cards (`opacity-30` + transition), thin cyan ring
+  around matches. Result list under the bar with click-to-scroll.
+  Inline gold-tint highlight only in the result-list labels (titles
+  are safe text); card bodies stay uninstrumented to avoid breaking
+  form bindings / live components. Cmd+F focuses the search input
+  when on `/settings`; doesn't conflict with chat's Cmd+F (mounted
+  only on chat route).
+- **Quick capture mini-chat overlay** (18b) — **Cmd+Shift+N** opens
+  a ~500×180 floating modal. 3-row auto-grow textarea (up to 8
+  rows). Cmd+Enter sends; bare Enter inserts newline (different
+  from chat — gives time to refine). Auto-discovers or creates a
+  "Quick captures" thread on first send. Toast on success
+  ("Captured to Quick captures"), keep modal open with content on
+  error. Available via CommandPalette "Quick capture" action too.
+  Disabled when offline. Esc with non-empty content fires native
+  discard confirm.
+- **Component test coverage** (18c) — 6 new test files, +48 tests,
+  total 82 across 10 files:
+  - **MarkdownView** (9): h1/h2/h3 ids, code highlighting, GFM
+    tables, callout blockquotes, `<script>` + `on*` +
+    `javascript:` strip, `data:image/*` pass-through.
+  - **MaskedValue** (6): mask/reveal/hide/empty/non-secret/locked.
+  - **Sparkline** (8): empty/single/flat series, bars/line/area
+    variants, negatives, custom dimensions.
+  - **Toasts** (5): show, 3500ms auto-dismiss, manual dismiss,
+    stack, kind classes (`vi.useFakeTimers`).
+  - **notifications store** (13): `isInQuietHours` wrap/disabled/
+    same-day/start==end cases, quiet-hours setters, `unseenCount`
+    triggers + `markAllSeen` + broadcast emit.
+  - **pins store** (7): pin/unpin/isPinned/idempotent/cap/all/
+    persistence.
+
+  Vitest 4's localStorage is partial; per-test Map-backed shim
+  installed in `beforeEach` since `vitest.setup.ts` was off-limits.
+
+All gates green: 448 files, 0 errors, 82/82 tests, build clean.
+
+## v0.1.11 — Round 17 (broadcast sync + Cmd+T switcher + doc TOC + pins)
+
+- **Cross-window BroadcastChannel sync** (17a) — new
+  `broadcast.svelte.ts` rune store opens channel
+  `ironclaw:state-sync`. Settings changes in one window broadcast
+  `settings-changed`; receiving windows call
+  `connection.reloadSettings()` without re-pinging the gateway or
+  cycling the sidecar. `notification-seen` clears unseen across
+  windows. Two-layer loop prevention: windowId (`crypto.randomUUID`
+  on module load) stamped on every send + opt-out flag on local
+  `markAllSeen` so receivers don't re-emit. Reserved hooks for
+  `profile-switched` / `connection-event` / `sidecar-status`.
+- **Cmd+T quick thread switcher** (17b) — new `ThreadSwitcher.svelte`
+  modal — fuzzy substring search, gold mark highlight, two-tier
+  sort (last-selected desc → updated_at desc), recent threads
+  section when input empty, tint dot per row. Cmd+T binding uses
+  `e.code === 'KeyT'` for non-QWERTY layouts. Added "Switch thread"
+  action to CommandPalette. Recent threads tracked via
+  `threads.svelte.ts.recordRecentThread` (dedupe-cap-10, persisted
+  to localStorage).
+- **Document outline / TOC** (17c) — DocViewer's right rail renders
+  a 200px wide TOC when MarkdownView produces 3+ h1/h2/h3 headings.
+  Walks rendered DOM via `$effect` + `tick`, indents by level
+  (8/20/32px), click smooth-scrolls to anchor, active section
+  determined by `getBoundingClientRect` at 16px-from-top threshold.
+  Hides below 1100px viewport, hides in edit mode. Collapse button
+  persists state to localStorage. Reads slugger IDs from
+  MarkdownView's existing renderer override.
+- **Pin/favorite across surfaces** (17d) — new `pins.svelte.ts`
+  rune singleton tracking pinned items per surface (skill/routine/
+  knowledge/thread/extension). Per-surface star toggles (Skill
+  cards, Extension cards, Routine action column, hover-revealed
+  on chat thread rows). Pinned items hoist to top of each surface
+  via stable sort. CommandPalette gains a "Pinned" category +
+  pill that aggregates across all surfaces; gold-accented headers
+  signal pinned state.
+
+All gates green: 440 files, 34/34 tests, build clean.
+
+## v0.1.10 — Round 16 (sparkline + drag-drop knowledge + search filters + tints)
+
+- **Sparkline component** (16a) — new reusable `Sparkline.svelte`
+  with line/bars/area variants, auto-normalize, negative handling,
+  single-point centering, threshold ref-line. Pure SVG primitives,
+  zero deps. Adopted in: routines summary (24h bars, replacing
+  hand-rolled flex-bars), admin usage dashboard (per-row
+  `call_count` bars under "LLM calls (30d)" card), engine thread
+  detail (cumulative-tokens area chart in header beside the Tokens
+  scalar).
+- **Drag-drop file import to Knowledge** (16b) — drop `.md`/`.txt`/
+  `.json` files anywhere on the `/knowledge` route → batch-import
+  modal with per-file editable paths (default `imports/<filename>`),
+  JSON pretty-print, depth-counter for `dragenter`/`leave` (no
+  strobing), `MAX_FILES=20`, `MAX_SIZE=1MB`, MIME allowlist
+  (`text/markdown`, `text/plain`, `application/json`, plus
+  extension-fallback for empty-MIME drops). Sequential `writeMemory`
+  + aggregate summary toast (all-ok / partial / all-failed). Modal
+  stays open if every write failed for retry.
+- **GlobalSearch surface-filter chips** (16c) — pill row above
+  results — All / Knowledge / Threads / Jobs / Skills / Routines /
+  Extensions. Each pill shows result count. Active pill cyan.
+  Number-key 1–7 shortcuts when input empty. sessionStorage
+  persistence. Filtered view drops per-section headers (since
+  they'd all be one surface). Knowledge `$effect` short-circuits
+  when scope excludes Knowledge.
+- **Per-profile theme tint** (16d) — new optional `tint` field on
+  `ProfileConfig` — signal (default cyan-blue), cyan (old
+  IronClaw), violet, orange, teal, rose. CSS variables
+  (`--v2-accent` and friends) repaint live via `$effect` on
+  `document.documentElement`. Visual signals in Sidebar (brand
+  glyph + wordmark + profile popover dots), StatusBar
+  (profile-section dot when connected), Settings (per-profile
+  6-swatch radiogroup picker). Each window can have a different
+  tint when multi-window is open, so visually distinguishing
+  profiles.
+
+All gates green: 436 files, 0 errors, 34/34 tests, cargo clean.
+
+## v0.1.9 — Round 15 (query-param deep-links + multi-window + status bar)
+
+- **Deep-link wiring** (15a) — chat reads `?thread=`, jobs reads
+  `?open=`, skills reads `?focus=`, extensions reads `?focus=` on
+  mount. Match → open the target item (select thread, open
+  job/skill drawer, expand+scroll-into-view extension card). Stale
+  links toast "X not found" and clear the param via SvelteKit
+  `goto` with `replaceState`. Closes 4 TODOs from R14b
+  GlobalSearch.
+- **Multi-window per profile** (15b) — new `src-tauri/src/windows.rs`
+  with `open_profile_window` + `list_open_profile_windows` commands.
+  Window label = `profile-<sanitized-id>`; existing label focused,
+  not duplicated. Capability whitelist uses `profile-*` glob + new
+  `core:webview:allow-create-webview-window` permission. Connection
+  store reads `?profile=<id>` on init and overrides
+  `activeProfileId` per-window so windows can scope to different
+  profiles simultaneously. Settings + Sidebar (cmd-click) trigger
+  the spawn.
+- **Bottom status bar** (15c) — new `StatusBar.svelte` with three
+  sections: left = profile + Remote/Local + port, center =
+  provider · model, right = jobs queue (pulse when >0) + tokens
+  today (admin) + latency. **Cmd+/** toggles visibility (persisted
+  to localStorage). Below 900px shows only the left section. Click
+  sections to navigate to Settings / Jobs.
+- **Onboarding auto-detect** (15d) — persist accepted URL to active
+  profile immediately. Step 3 auto-tests on mount with "Skip LLM
+  test" link. Port scan extended to 6 ports
+  (`3100`/`18789`/`3334`/`8080`/`22821`/`3000`) via
+  `Promise.allSettled` + 2s timeout per port. Fingerprint banner
+  upgrades to show detected IronClaw version + LLM backend.
+  Detection state survives Back/Next navigation within the wizard.
+
+All gates green: 434 svelte files / 0 errors, 34/34 tests,
+`cargo check` + clippy clean.
+
+## v0.1.8 — Round 14 (tests + global search + resize panels + CI guards)
+
+- **Testing infrastructure** (14a) — vitest +
+  `@testing-library/svelte` + `@testing-library/jest-dom` + jsdom
+  + mocked Tauri IPC. 34 starter tests across 4 files covering
+  `redact` utility (Bearer / `sk-` / `api-key` / JWT / JSON walk /
+  preserveTips), `IronClawClient` parsers (`getHistory`
+  turns→messages expansion, `listThreads` `turn_count`→
+  `message_count`, `gatewayStatus` `uptime_secs`, `getSettings`
+  array→map fold), settings store migrations (empty→defaults,
+  legacy flat→profile, orphan re-anchor), Icon component (known
+  names, fallback). Hooked into `.github/workflows/check.yml`
+  between `npm run check` and `build`.
+- **Cross-surface global search** (14b) — **Cmd+Shift+F** opens a
+  full-width top-of-viewport modal that searches across knowledge /
+  threads / jobs / skills / routines / extensions in parallel via
+  `Promise.allSettled`. 300ms debounce, gold-tint substring
+  highlight, recent-searches in localStorage, arrow-nav + Enter
+  routing. Also reachable via Cmd+K → "Search everywhere" action.
+- **Drag-to-resize panels** (14c) — new `ResizeHandle` component
+  (4px vertical strip, double-click resets). Wired into chat
+  (rail + inspector), knowledge (tree), missions (projects).
+  Widths persist to localStorage per-pane. Below 900px viewport,
+  handles auto-disable and panes revert to defaults (persisted
+  values retained).
+- **CI guards + endpoint probe** (14f) —
+  `scripts/probe-blocked-endpoints.sh` checks if upstream IronClaw
+  has shipped the server-blocked endpoints we currently stub
+  (thread delete, routine create, memory delete, signout,
+  recent-runs). Green = still blocked, yellow = now responding
+  (wire UI!). `.github/workflows/style-guard.yml` fails PRs
+  introducing hardcoded `#00d4ff` / `#4ca7e6` / `#2882c8` /
+  `#00bcd4` outside the design-token allowlist
+  (`tailwind.config.js`, `app.css`, `icons/`).
+
+## v0.1.7 — Round 12 (audit follow-ups + tray badges + thread virtualization)
+
+Audit-v2 follow-ups (post-R6λ): tray badges, thread virtualization,
+plus a host of correctness fixes from the R12d audit pass.
+
 ## v0.1.6 (unreleased) — Rounds 7–11 (post-R6λ audit)
 
 Builds on the v0.1.0 surfaces below. ~10 K LoC across five rounds (Round 7

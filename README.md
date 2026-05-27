@@ -8,12 +8,13 @@ IronClaw ships with a TUI and a web UI served by its own gateway. This app gives
 
 ## Quick tour
 
-Every surface is one chord away. Memorize these six and you have the app:
+Every surface is one chord away. Memorize these seven and you have the app:
 
 - **Cmd+K** — command palette. Fuzzy search across navigation, threads, skills, routines, docs, and one-shot actions.
 - **Cmd+Shift+F** — global search across surfaces (knowledge, skills, routines, threads).
 - **Cmd+T** — quick thread switcher. Biased toward the last ten threads you opened.
 - **Cmd+Shift+N** — quick capture. Drop a thought into a dedicated "Quick captures" thread without leaving the current surface.
+- **Cmd+Shift+P** — workspace presets. Save and restore active path, current thread, panel widths, sidebar collapse, tray badge, status bar visibility.
 - **Cmd+/** — toggle the bottom status bar (gateway / profile / sidecar state).
 - **Cmd+,** — Settings (macOS convention).
 

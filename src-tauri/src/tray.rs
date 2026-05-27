@@ -331,7 +331,7 @@ fn compose_recent_label(title: &str, body: &str) -> String {
     const MAX_BODY: usize = 60;
     let trimmed = if body.chars().count() > MAX_BODY {
         let mut s: String = body.chars().take(MAX_BODY).collect();
-        s.push_str("…");
+        s.push('…');
         s
     } else {
         body.to_string()

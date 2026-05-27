@@ -964,9 +964,9 @@
     }))
   );
 
-  // TODO(routines): `/routines/+page.svelte` should read `?open=<id>` on
-  // mount and open the matching detail panel. Currently this just navigates
-  // to the list — the param is set but unused.
+  // `/routines/+page.svelte` reads `?open=<id>` on mount and opens the
+  // matching detail panel (wired in R15a). It also strips the param from the
+  // URL after consumption so a refresh doesn't re-trigger the open.
   const routineItems = $derived<Item[]>(
     (routinesCache ?? []).map((r) => ({
       id: `routine:${r.id}`,
@@ -980,9 +980,9 @@
     }))
   );
 
-  // TODO(knowledge): `/knowledge/+page.svelte` should read `?path=<encoded>`
-  // on mount and select the matching tree node + open the viewer. Currently
-  // this just navigates to the root — the param is set but unused.
+  // `/knowledge/+page.svelte` reads `?path=<encoded>` on mount and selects
+  // the matching tree node + opens the viewer (wired in R15a). Param is
+  // stripped after consumption so a refresh doesn't re-trigger the select.
   const docItems = $derived<Item[]>(
     (docsCache ?? []).map((d) => ({
       id: `doc:${d.path}`,
