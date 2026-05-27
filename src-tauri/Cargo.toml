@@ -1,0 +1,23 @@
+[package]
+name = "ironclaw-desktop"
+version = "0.1.0"
+description = "IronClaw Desktop Client"
+authors = ["OpenClaw"]
+edition = "2021"
+rust-version = "1.80"
+
+[lib]
+name = "ironclaw_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.2", features = ["macos-private-api"] }
+tauri-plugin-shell = "2.2"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[features]
+custom-protocol = ["tauri/custom-protocol"]
