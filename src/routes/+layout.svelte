@@ -13,6 +13,7 @@
   import AboutDialog from '$lib/components/AboutDialog.svelte';
   import StatusBar from '$lib/components/StatusBar.svelte';
   import PresetsModal from '$lib/components/PresetsModal.svelte';
+  import TemplatesModal from '$lib/components/TemplatesModal.svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
   import { globalSearch } from '$lib/stores/global-search.svelte';
@@ -28,7 +29,10 @@
   import { pins } from '$lib/stores/pins.svelte';
   import { threadRename } from '$lib/stores/thread-rename.svelte';
   import { presets, presetsModal } from '$lib/stores/presets.svelte';
+  import { templates, templatesModal } from '$lib/stores/templates.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
+  import { telemetry } from '$lib/stores/telemetry.svelte';
+  import { invoke } from '@tauri-apps/api/core';
 
   let { children } = $props();
 
@@ -161,6 +165,21 @@
       return;
     }
 
+    // Cmd+Shift+T → prompt-templates modal. Mnemonic: T for Template.
+    // Distinct from the bare Cmd+T thread switcher (defined further
+    // below): the Shift modifier disambiguates, and we run this
+    // BEFORE the bare-Cmd+T branch so the Shift variant can't fall
+    // through to the thread switcher. Onboarding gate matches the
+    // preset/quick-capture chords — the wizard owns the screen and
+    // the user has no saved templates yet, so the modal's own render
+    // gate at the bottom of the layout keeps the toggle a no-op even
+    // if invoked here.
+    if (mod && e.shiftKey && e.key.toLowerCase() === 't' && !isOnboarding) {
+      e.preventDefault();
+      templatesModal.toggle();
+      return;
+    }
+
     if (mod && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       palette.togglePalette();
@@ -262,10 +281,7 @@
   // $effect so it reacts to BOTH adminMode flips and route changes (both
   // are tracked because they read from $state-backed sources).
   $effect(() => {
-    if (
-      connection.settings.adminMode === false &&
-      page.url.pathname.startsWith('/admin')
-    ) {
+    if (connection.settings.adminMode === false && page.url.pathname.startsWith('/admin')) {
       void goto('/settings');
     }
   });
@@ -289,10 +305,7 @@
   // sitting on the route, bounce them to /settings so they don't see a
   // stranded page.
   $effect(() => {
-    if (
-      connection.settings.engineV2Enabled !== true &&
-      page.url.pathname.startsWith('/missions')
-    ) {
+    if (connection.settings.engineV2Enabled !== true && page.url.pathname.startsWith('/missions')) {
       void goto('/settings');
     }
   });
@@ -315,6 +328,12 @@
     // first open of the modal (Cmd+Shift+P or palette action) sees the
     // user's saved list without a flash of empty state.
     presets.init();
+    // Same shape for the prompt-templates store. First-run also seeds
+    // a few sample templates so the modal's empty state is friendly
+    // rather than a blank wall. Cheap localStorage read — wired here
+    // so the slash autocomplete + palette + modal all see the same
+    // hydrated list on first render.
+    templates.init();
     // Wire the menu-bar tray listeners (Show window, Open settings,
     // Restart sidecar). Safe outside the Tauri webview — the store
     // detects that and no-ops.
@@ -325,6 +344,15 @@
     // with `broadcast.teardown()` in the cleanup return below so
     // remounts (HMR, layout pivot) don't stack listeners.
     broadcast.init();
+    // Hydrate the opt-in telemetry store. Off by default; init() reads
+    // localStorage for the saved toggle + endpoint and arms the flush
+    // timer if both are set. Safe outside Tauri — no IPC at boot.
+    telemetry.init();
+    // First boot of the session — fire one launch event so the
+    // anonymous-usage counts have a baseline. Gated by telemetry's own
+    // enabled/endpoint check so it's a no-op when the user has opted
+    // out (or hasn't opted in yet).
+    telemetry.recordEvent('app:launched');
 
     void connection.init().then(() => {
       if (
@@ -362,17 +390,75 @@
     // SvelteKit `handleError` hook (which only fires for load/render)
     // AND any per-call try/catch. We don't navigate or destroy state —
     // the route-level `+error.svelte` already handles catastrophic
-    // render failures. Here we just surface a toast so the user knows
-    // something went sideways, and log so devtools has the full trace.
+    // render failures. Here we surface a toast, log to console, AND
+    // persist a JSON-line entry to `app_data_dir/crashes.jsonl` via
+    // the Rust crash log so post-mortem debugging has the same view
+    // the user did. The Rust write + the optional telemetry event are
+    // both wrapped in try/catch — crash reporting must never crash the
+    // app it's reporting on.
+    function recordCrashSafe(
+      type: 'error' | 'rejection' | 'tauri-panic',
+      message: string,
+      stack: string | undefined
+    ): void {
+      // Snapshot context up front. `window.location.pathname` is the
+      // current route; profile id comes from the live connection store;
+      // user agent + app version are stable per session.
+      const entry = {
+        timestamp: new Date().toISOString(),
+        type,
+        message,
+        stack,
+        route: typeof window !== 'undefined' ? window.location.pathname : undefined,
+        profileId: connection.activeProfile?.id,
+        userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+        appVersion: '__APP_VERSION__'
+      };
+      // Best-effort persistence. The invoke is async but we don't await —
+      // a crash handler shouldn't block the toast, and we have nothing
+      // useful to do with a failed write here beyond the console log
+      // we've already emitted. Outside Tauri (dev preview, tests) the
+      // mocked invoke resolves to undefined, which is the right shape.
+      try {
+        void invoke('record_crash', { entry }).catch(() => {
+          // Swallowed — the toast already told the user. A failed
+          // crash-log write must not raise a new crash that loops us
+          // back through these handlers.
+        });
+      } catch {
+        // Defensive: synchronous throws (rare; missing global) shouldn't
+        // bubble back to the caller.
+      }
+      // Mirror to the opt-in telemetry queue so post-launch usage
+      // metrics include a crash count. We never put `stack` or
+      // `message` on the wire — the telemetry event carries the `type`
+      // only so counts can be charted without leaking content.
+      try {
+        telemetry.recordEvent('crash:captured', { type });
+      } catch {
+        // Same defensive swallow as the invoke path above.
+      }
+    }
+
     function onWindowError(e: ErrorEvent) {
       // eslint-disable-next-line no-console
       console.error('[ironclaw] window error:', e.error ?? e.message);
       toasts.show('An error occurred — check console for details.', 'error');
+      const err = e.error instanceof Error ? e.error : null;
+      recordCrashSafe('error', err?.message ?? e.message ?? 'Unknown window error', err?.stack);
     }
     function onUnhandledRejection(e: PromiseRejectionEvent) {
       // eslint-disable-next-line no-console
       console.error('[ironclaw] unhandled rejection:', e.reason);
       toasts.show('An error occurred — check console for details.', 'error');
+      const reason = e.reason;
+      const err = reason instanceof Error ? reason : null;
+      // Reason can be anything (a thrown string, a plain object, …).
+      // Normalise to a single message string so the crash entry's
+      // `message` field stays load-bearing.
+      const message =
+        err?.message ?? (typeof reason === 'string' ? reason : JSON.stringify(reason ?? null));
+      recordCrashSafe('rejection', message, err?.stack);
     }
     window.addEventListener('error', onWindowError);
     window.addEventListener('unhandledrejection', onUnhandledRejection);
@@ -466,4 +552,12 @@
      wizard completes. -->
 {#if !isOnboarding}
   <PresetsModal />
+{/if}
+
+<!-- Prompt templates modal (Cmd+Shift+T). Manages reusable prompt
+     bodies that splice into the chat composer (immediately, or after
+     a variable-input prompt for templates with {placeholders}).
+     Same onboarding gate as the other layout modals. -->
+{#if !isOnboarding}
+  <TemplatesModal />
 {/if}

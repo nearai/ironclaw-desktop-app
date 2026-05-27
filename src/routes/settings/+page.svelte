@@ -56,12 +56,9 @@
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { relativeTime, updater, type UpdaterCadence } from '$lib/stores/updater.svelte';
-  import {
-    notifications,
-    SOUND_CHOICES,
-    type SoundChoice
-  } from '$lib/stores/notifications.svelte';
+  import { notifications, SOUND_CHOICES, type SoundChoice } from '$lib/stores/notifications.svelte';
   import { aboutStore } from '$lib/stores/about.svelte';
+  import { telemetry } from '$lib/stores/telemetry.svelte';
   import MaskedValue from '$lib/components/MaskedValue.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { redactJsonObject } from '$lib/utils/redact';
@@ -422,9 +419,7 @@
     if (!activeProfile) return;
     settings = {
       ...settings,
-      profiles: settings.profiles.map((p) =>
-        p.id === activeProfile.id ? { ...p, ...patch } : p
-      )
+      profiles: settings.profiles.map((p) => (p.id === activeProfile.id ? { ...p, ...patch } : p))
     };
   }
 
@@ -540,10 +535,7 @@
     if (connection.sidecarStatus !== 'running') {
       const ok = await connection.startSidecar();
       if (!ok) {
-        toasts.show(
-          `Could not start sidecar: ${connection.sidecarError ?? 'unknown'}`,
-          'error'
-        );
+        toasts.show(`Could not start sidecar: ${connection.sidecarError ?? 'unknown'}`, 'error');
         return;
       }
     }
@@ -580,10 +572,7 @@
     }
     try {
       await shellOpen(`http://127.0.0.1:${connection.sidecarPort}/`);
-      toasts.show(
-        'Opened IronClaw — sign out from the web UI, then click Refresh',
-        'info'
-      );
+      toasts.show('Opened IronClaw — sign out from the web UI, then click Refresh', 'info');
     } catch (err) {
       toasts.show(`Could not open browser: ${(err as Error).message}`, 'error');
     }
@@ -625,10 +614,7 @@
       // (sidebar item, +layout shortcut + redirect). Refresh so the field
       // there matches what we just wrote.
       await connection.refresh();
-      toasts.show(
-        next ? 'Admin surfaces enabled' : 'Admin surfaces hidden',
-        'info'
-      );
+      toasts.show(next ? 'Admin surfaces enabled' : 'Admin surfaces hidden', 'info');
     } catch (err) {
       toasts.show(`Save failed: ${(err as Error).message}`, 'error');
     }
@@ -654,10 +640,7 @@
         console.warn('set_tray_visible failed', err);
       }
       await connection.refresh();
-      toasts.show(
-        next ? 'Menu-bar icon shown' : 'Menu-bar icon hidden',
-        'info'
-      );
+      toasts.show(next ? 'Menu-bar icon shown' : 'Menu-bar icon hidden', 'info');
     } catch (err) {
       toasts.show(`Save failed: ${(err as Error).message}`, 'error');
     }
@@ -677,9 +660,7 @@
       await saveSettings(draft);
       settings = draft;
       toasts.show(
-        next
-          ? 'Responses API streaming enabled'
-          : 'Pinned to legacy /api/chat streaming',
+        next ? 'Responses API streaming enabled' : 'Pinned to legacy /api/chat streaming',
         'info'
       );
     } catch (err) {
@@ -702,10 +683,7 @@
       await saveSettings(draft);
       settings = draft;
       await connection.refresh();
-      toasts.show(
-        next ? 'Engine v2 surface enabled' : 'Engine v2 surface hidden',
-        'info'
-      );
+      toasts.show(next ? 'Engine v2 surface enabled' : 'Engine v2 surface hidden', 'info');
     } catch (err) {
       toasts.show(`Save failed: ${(err as Error).message}`, 'error');
     }
@@ -809,7 +787,7 @@
         // this; the toast repeats it so the user can't miss the
         // re-entry step on the destination machine.
         toasts.show(
-          'Settings exported. Note: API tokens stay in Keychain; you\'ll re-enter them on import.',
+          "Settings exported. Note: API tokens stay in Keychain; you'll re-enter them on import.",
           'success'
         );
       }
@@ -886,9 +864,7 @@
     }
     // Local-mode profile — scroll to the LLM provider card. The
     // data-section-id query lands on the wrapper around LlmProviderPicker.
-    const localEl = document.querySelector<HTMLElement>(
-      '[data-section-id="llm-provider"]'
-    );
+    const localEl = document.querySelector<HTMLElement>('[data-section-id="llm-provider"]');
     localEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
@@ -905,10 +881,143 @@
       tokenInputEl.focus();
     } else {
       // Local-mode profile — jump to the provider picker instead.
-      const localEl = document.querySelector<HTMLElement>(
-        '[data-section-id="llm-provider"]'
-      );
+      const localEl = document.querySelector<HTMLElement>('[data-section-id="llm-provider"]');
       localEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }
+
+  // ---- Privacy & Telemetry ----------------------------------------------
+  //
+  // Crash log lives in `app_data_dir/crashes.jsonl` (Rust-owned, see
+  // `src-tauri/src/crashes.rs`). We display the entry count for the last
+  // 30 days; older entries are still in the file but the headline number
+  // stays a useful proxy for "is the app crashy this month?".
+  //
+  // Telemetry is the opt-in usage-metrics layer (`telemetry.svelte.ts`).
+  // Off by default; endpoint defaults to empty so the wire stays cold
+  // until the user explicitly configures one. Toggling on without an
+  // endpoint queues events in memory but never transmits — the UI
+  // surfaces that state with a "Disabled — no endpoint configured" line.
+
+  /** Snapshot of recent crashes for the Privacy card. Loaded on mount
+   *  and refreshed after "Clear crash log". `null` while we haven't
+   *  asked yet so the card can render "Checking…" without flashing 0. */
+  let crashCount = $state<number | null>(null);
+  /** Number of crashes from the last 30 days (subset of crashCount). */
+  let recentCrashCount = $state<number | null>(null);
+  /** Resolved path to crashes.jsonl. Cached so the "Reveal in Finder"
+   *  button doesn't re-IPC on every click. */
+  let crashLogPath = $state<string | null>(null);
+  /** Local mirror of the telemetry endpoint input so the user can edit
+   *  without persisting on every keystroke; persisted on blur via
+   *  `telemetry.setEndpoint`. */
+  let telemetryEndpointDraft = $state('');
+  /** Expander state for the "What's collected" details section. */
+  let telemetryDetailsOpen = $state(false);
+  /** Inline confirmation for the destructive "Clear crash log" button.
+   *  Two-tap pattern — the second click within 4s wipes the log. */
+  let clearCrashesConfirm = $state(false);
+
+  async function refreshCrashStats() {
+    // Pull up to 1000 entries — enough headroom for any plausibly
+    // useful headline; the file is capped at 5 MB by the Rust side so
+    // there's a hard upper bound. Failures are non-fatal; the count
+    // stays whatever it was so a transient IPC blip doesn't blank the
+    // card.
+    try {
+      const list = await invoke<unknown[]>('list_crashes', { limit: 1000 });
+      crashCount = list.length;
+      // 30-day window. We parse the `timestamp` field defensively —
+      // anything that doesn't shape-check is treated as "old" so it
+      // doesn't inflate the recent count.
+      const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+      recentCrashCount = list.filter((e) => {
+        if (typeof e !== 'object' || e === null) return false;
+        const ts = (e as { timestamp?: unknown }).timestamp;
+        if (typeof ts !== 'string') return false;
+        const parsed = Date.parse(ts);
+        return Number.isFinite(parsed) && parsed >= cutoff;
+      }).length;
+    } catch {
+      // ignore — Tauri may not be running (dev preview); leave the
+      // counts as whatever they were.
+    }
+    try {
+      crashLogPath = await invoke<string>('crashes_file_path');
+    } catch {
+      crashLogPath = null;
+    }
+  }
+
+  async function onViewCrashLog() {
+    if (!crashLogPath) {
+      toasts.show('Crash log path unavailable', 'error');
+      return;
+    }
+    if ((crashCount ?? 0) === 0) {
+      toasts.show('No crashes recorded yet', 'info');
+      return;
+    }
+    try {
+      // shellOpen on a file path uses the OS default text editor.
+      // On macOS that's TextEdit unless the user has remapped .jsonl.
+      await shellOpen(crashLogPath);
+    } catch (err) {
+      toasts.show(`Failed to open: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  async function onRevealCrashLog() {
+    if (!crashLogPath) {
+      toasts.show('Crash log path unavailable', 'error');
+      return;
+    }
+    try {
+      await revealInFinder(crashLogPath);
+    } catch (err) {
+      toasts.show(`Failed to reveal: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  async function onClearCrashLog() {
+    if (!clearCrashesConfirm) {
+      clearCrashesConfirm = true;
+      // Auto-revert the confirm state after 4s so a stray click later
+      // doesn't quietly wipe the log.
+      setTimeout(() => {
+        clearCrashesConfirm = false;
+      }, 4000);
+      return;
+    }
+    clearCrashesConfirm = false;
+    try {
+      await invoke('clear_crashes');
+      toasts.show('Crash log cleared', 'success');
+      await refreshCrashStats();
+    } catch (err) {
+      toasts.show(`Failed to clear: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  function onToggleTelemetry(next: boolean) {
+    telemetry.setEnabled(next);
+    if (next && !telemetry.endpoint) {
+      // Loud hint that the toggle is on but nothing will go anywhere
+      // until the endpoint is set. Avoids the silent-no-op trap.
+      toasts.show('Telemetry on, but no endpoint configured — events queue locally.', 'info');
+    } else if (next) {
+      toasts.show('Anonymous usage metrics enabled', 'success');
+    } else {
+      toasts.show('Telemetry disabled', 'info');
+    }
+  }
+
+  function onTelemetryEndpointBlur() {
+    const trimmed = telemetryEndpointDraft.trim();
+    if (trimmed === telemetry.endpoint) return;
+    telemetry.setEndpoint(trimmed);
+    if (trimmed) {
+      toasts.show('Telemetry endpoint saved', 'success');
     }
   }
 
@@ -935,10 +1044,7 @@
         return;
       }
       bulkExportProgress = { done: 0, total: allThreads.length };
-      progressToastId = toasts.show(
-        `Exporting 0 of ${allThreads.length}…`,
-        'info'
-      );
+      progressToastId = toasts.show(`Exporting 0 of ${allThreads.length}…`, 'info');
 
       const out: BulkExportShape['threads'] = new Array(allThreads.length);
       let cursor = 0;
@@ -953,19 +1059,13 @@
             out[i] = buildThreadJsonShape(t, msgs);
           } catch (err) {
             console.warn('bulk export: history failed', t.id, err);
-            out[i] = buildThreadJsonShape(
-              { ...t, title: `${t.title} [history fetch failed]` },
-              []
-            );
+            out[i] = buildThreadJsonShape({ ...t, title: `${t.title} [history fetch failed]` }, []);
           }
           done += 1;
           bulkExportProgress = { done, total: allThreads.length };
           if (progressToastId !== null) {
             toasts.dismiss(progressToastId);
-            progressToastId = toasts.show(
-              `Exporting ${done} of ${allThreads.length}…`,
-              'info'
-            );
+            progressToastId = toasts.show(`Exporting ${done} of ${allThreads.length}…`, 'info');
           }
         }
       };
@@ -1051,8 +1151,7 @@
         serverSettingsError =
           "This profile's token doesn't have admin role. Switch profile or use an admin token.";
       } else if (status === 404) {
-        serverSettingsError =
-          'Server-side settings endpoint is not available on this gateway.';
+        serverSettingsError = 'Server-side settings endpoint is not available on this gateway.';
       } else {
         serverSettingsError = (err as Error).message;
       }
@@ -1064,10 +1163,7 @@
     if (serverSettingsStatus === 'ok') {
       toasts.show('Server-side settings refreshed', 'info');
     } else if (serverSettingsStatus === 'error') {
-      toasts.show(
-        `Refresh failed: ${serverSettingsError ?? 'unknown error'}`,
-        'error'
-      );
+      toasts.show(`Refresh failed: ${serverSettingsError ?? 'unknown error'}`, 'error');
     }
   }
 
@@ -1082,12 +1178,7 @@
    *  rather than the JSON-block branch (objects/arrays). null → primitive
    *  too, rendered as the literal "null". */
   function isPrimitiveLeaf(v: unknown): boolean {
-    return (
-      v === null ||
-      typeof v === 'string' ||
-      typeof v === 'number' ||
-      typeof v === 'boolean'
-    );
+    return v === null || typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
   }
 
   /** Stable list view derived from the raw object so the template can
@@ -1147,9 +1238,7 @@
   function sidecarLabel(s: SidecarStatus): string {
     switch (s) {
       case 'running':
-        return connection.sidecarPort
-          ? `running on :${connection.sidecarPort}`
-          : 'running';
+        return connection.sidecarPort ? `running on :${connection.sidecarPort}` : 'running';
       case 'starting':
         return 'starting…';
       case 'exited':
@@ -1343,9 +1432,7 @@
 
   const createNameTrimmed = $derived(createName.trim());
   const createNameTooLong = $derived(createNameTrimmed.length > 64);
-  const canCreate = $derived(
-    createNameTrimmed.length > 0 && !createNameTooLong && !creating
-  );
+  const canCreate = $derived(createNameTrimmed.length > 0 && !createNameTooLong && !creating);
 
   /** Stable derived list — newest first, courtesy of the client's sort. */
   const tokensRows = $derived(tokens);
@@ -1387,8 +1474,7 @@
         tokensError =
           'This gateway does not expose /api/tokens. Upgrade IronClaw to manage user tokens.';
       } else if (status === 401 || status === 403) {
-        tokensError =
-          'Not authorised to list tokens. Check the active profile is signed in.';
+        tokensError = 'Not authorised to list tokens. Check the active profile is signed in.';
       } else {
         tokensError = (err as Error).message;
       }
@@ -1459,10 +1545,7 @@
     copyBusy = true;
     try {
       await navigator.clipboard.writeText(createdToken);
-      toasts.show(
-        'Token copied — treat as a secret; do not paste anywhere public.',
-        'info'
-      );
+      toasts.show('Token copied — treat as a secret; do not paste anywhere public.', 'info');
     } catch (err) {
       toasts.show(`Copy failed: ${(err as Error).message}`, 'error');
     } finally {
@@ -1743,25 +1826,6 @@
   });
 </script>
 
-<style>
-  /* Brief flash on the target card after a result-list click. Fades the
-     accent border in then back out so the user's eye lands cleanly. */
-  :global(.search-flash) {
-    animation: settings-search-flash 1.2s ease-out;
-  }
-  @keyframes settings-search-flash {
-    0% {
-      box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
-    }
-    20% {
-      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.5);
-    }
-    100% {
-      box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
-    }
-  }
-</style>
-
 <section class="p-8 h-full overflow-auto">
   <header class="mb-6">
     <h1 class="text-2xl font-semibold text-text-primary">Settings</h1>
@@ -1786,7 +1850,15 @@
           class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
           aria-hidden="true"
         >
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <svg
+            viewBox="0 0 24 24"
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg
+          >
         </span>
         <input
           bind:this={searchInputRef}
@@ -1816,7 +1888,9 @@
              substring highlighted; clicking a row smooth-scrolls to that
              section. Suppressed when the filter is off so the search bar
              stays a single thin line for the common no-filter case. -->
-        <div class="mt-2 max-h-48 overflow-auto rounded-md border border-border-subtle bg-bg-surface">
+        <div
+          class="mt-2 max-h-48 overflow-auto rounded-md border border-border-subtle bg-bg-surface"
+        >
           {#if matchedSectionRows.length === 0}
             <div class="px-3 py-2 text-xs text-text-muted italic">
               No settings match "{searchQueryDebounced}"
@@ -1832,7 +1906,9 @@
                   >
                     {#each highlightSegments(row.title) as seg, i (i)}
                       {#if seg.hit}
-                        <mark class="bg-accent-gold/30 text-accent-gold rounded px-0.5">{seg.text}</mark>
+                        <mark class="bg-accent-gold/30 text-accent-gold rounded px-0.5"
+                          >{seg.text}</mark
+                        >
                       {:else}{seg.text}{/if}
                     {/each}
                   </button>
@@ -1858,15 +1934,12 @@
         class="rounded-md border border-accent-gold/40 bg-accent-gold/5 px-4 py-3 flex items-start gap-3"
         role="status"
       >
-        <Icon
-          name="warning"
-          class="w-4 h-4 text-accent-gold shrink-0 mt-0.5"
-        />
+        <Icon name="warning" class="w-4 h-4 text-accent-gold shrink-0 mt-0.5" />
         <div class="flex-1 min-w-0">
           <p class="text-sm text-text-primary font-semibold">Welcome back.</p>
           <p class="text-xs text-text-muted mt-0.5">
-            Re-enter your gateway tokens to reconnect. They live in the
-            macOS Keychain on this machine and don't ride along with
+            Re-enter your gateway tokens to reconnect. They live in the macOS Keychain on this
+            machine and don't ride along with
             <code class="font-mono text-text-primary">settings.json</code>.
           </p>
         </div>
@@ -1880,7 +1953,9 @@
           </button>
           <button
             type="button"
-            onclick={() => { welcomeBackDismissed = true; }}
+            onclick={() => {
+              welcomeBackDismissed = true;
+            }}
             aria-label="Dismiss welcome-back banner"
             class="px-2 py-1.5 rounded-md text-text-muted hover:text-text-primary transition-colors text-xs"
           >
@@ -1901,19 +1976,12 @@
         class:ring-accent-cyan={isSectionMatched('active-profile')}
       >
         <div>
-          <div class="text-xs uppercase tracking-wider text-text-muted">
-            Active profile
-          </div>
+          <div class="text-xs uppercase tracking-wider text-text-muted">Active profile</div>
           <div class="text-base font-semibold text-text-primary mt-0.5">
             {activeProfile.name}
           </div>
         </div>
-        <a
-          href="#profiles"
-          class="text-xs text-accent-cyan hover:underline"
-        >
-          Manage profiles
-        </a>
+        <a href="#profiles" class="text-xs text-accent-cyan hover:underline"> Manage profiles </a>
       </div>
 
       <!-- Connection mode -->
@@ -1938,9 +2006,7 @@
             />
             <div>
               <div class="text-sm text-text-primary">Remote</div>
-              <div class="text-xs text-text-muted">
-                HTTPS to a remote IronClaw gateway.
-              </div>
+              <div class="text-xs text-text-muted">HTTPS to a remote IronClaw gateway.</div>
             </div>
           </label>
 
@@ -1983,8 +2049,7 @@
               id="remoteUrl"
               type="text"
               value={activeProfile.remoteBaseUrl}
-              oninput={(e) =>
-                patchActiveProfile({ remoteBaseUrl: e.currentTarget.value })}
+              oninput={(e) => patchActiveProfile({ remoteBaseUrl: e.currentTarget.value })}
               placeholder="http://127.0.0.1:3100"
               class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[44px]"
             />
@@ -2000,12 +2065,29 @@
             </button>
             {#if saveStatus === 'saved'}
               <span class="text-xs text-accent-cyan flex items-center gap-1">
-                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+                >
                 {saveMessage}
               </span>
             {:else if saveStatus === 'error'}
               <span class="text-xs text-red-400 flex items-center gap-1">
-                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+                >
                 {saveMessage}
               </span>
             {/if}
@@ -2054,12 +2136,29 @@
             </button>
             {#if tokenStatus === 'saved' || tokenStatus === 'cleared'}
               <span class="text-xs text-accent-cyan flex items-center gap-1">
-                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+                >
                 {tokenMessage}
               </span>
             {:else if tokenStatus === 'error'}
               <span class="text-xs text-red-400 flex items-center gap-1">
-                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+                >
                 {tokenMessage}
               </span>
             {/if}
@@ -2237,7 +2336,9 @@
             The sidecar stores its libSQL database, memory, skills, and routine state here.
           </p>
           <div class="flex items-center gap-3">
-            <code class="flex-1 text-xs font-mono text-text-primary bg-bg-deep border border-border-subtle rounded-md px-3 py-2 min-h-[44px] flex items-center break-all">
+            <code
+              class="flex-1 text-xs font-mono text-text-primary bg-bg-deep border border-border-subtle rounded-md px-3 py-2 min-h-[44px] flex items-center break-all"
+            >
               {dataDir ?? '—'}
             </code>
             <button
@@ -2269,7 +2370,8 @@
                 connection.sidecarStatus === 'exited'}
               class:bg-text-muted={connection.sidecarStatus === 'idle'}
             ></span>
-            <span class="font-mono text-text-primary">{sidecarLabel(connection.sidecarStatus)}</span>
+            <span class="font-mono text-text-primary">{sidecarLabel(connection.sidecarStatus)}</span
+            >
             {#if connection.sidecarError && connection.sidecarStatus === 'error'}
               <span class="text-red-400" title={connection.sidecarError}>
                 — {connection.sidecarError.slice(0, 80)}
@@ -2299,8 +2401,7 @@
                 Starting…
               </button>
             {:else}
-              {@const providerId =
-                activeProfile.llmProviderId ?? activeProfile.llmBackend}
+              {@const providerId = activeProfile.llmProviderId ?? activeProfile.llmBackend}
               {@const canStart =
                 providerId === 'nearai' ||
                 (providerId === 'openrouter' && openRouterStored) ||
@@ -2313,9 +2414,7 @@
                 onclick={onStartSidecar}
                 disabled={!canStart}
                 class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-50 min-h-[44px]"
-                title={canStart
-                  ? ''
-                  : 'Save the provider credential in the picker above first'}
+                title={canStart ? '' : 'Save the provider credential in the picker above first'}
               >
                 Start
               </button>
@@ -2342,12 +2441,29 @@
             </button>
             {#if saveStatus === 'saved'}
               <span class="text-xs text-accent-cyan flex items-center gap-1">
-                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+                >
                 {saveMessage}
               </span>
             {:else if saveStatus === 'error'}
               <span class="text-xs text-red-400 flex items-center gap-1">
-                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+                >
                 {saveMessage}
               </span>
             {/if}
@@ -2375,12 +2491,29 @@
           </button>
           {#if testStatus === 'ok'}
             <span class="text-xs text-accent-cyan flex items-center gap-1">
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              <svg
+                viewBox="0 0 24 24"
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+              >
               {testMessage}
             </span>
           {:else if testStatus === 'fail'}
             <span class="text-xs text-red-400 flex items-center gap-1">
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <svg
+                viewBox="0 0 24 24"
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+              >
               {testMessage}
             </span>
           {/if}
@@ -2423,7 +2556,8 @@
           {@const rowTint = resolveTint(profile.tint)}
           {@const currentTintKey = (profile.tint ?? 'signal') as ProfileTint}
           {@const isDragging = draggedProfileId === profile.id}
-          {@const isDropTarget = dropTargetProfileId === profile.id && draggedProfileId !== profile.id}
+          {@const isDropTarget =
+            dropTargetProfileId === profile.id && draggedProfileId !== profile.id}
           {@const canReorder = settings.profiles.length > 1}
           <!-- The drop indicator is a 2px cyan line on the top or bottom
                edge of the row, painted via Tailwind border utilities. The
@@ -2470,12 +2604,7 @@
                 role="button"
                 tabindex="-1"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  class="w-3.5 h-4"
-                  fill="currentColor"
-                  aria-hidden="true"
-                >
+                <svg viewBox="0 0 24 24" class="w-3.5 h-4" fill="currentColor" aria-hidden="true">
                   <circle cx="9" cy="6" r="1.5" />
                   <circle cx="15" cy="6" r="1.5" />
                   <circle cx="9" cy="12" r="1.5" />
@@ -2539,8 +2668,7 @@
                 </button>
                 <div class="text-[10px] text-text-muted font-mono mt-0.5 truncate">
                   {profile.mode === 'local'
-                    ? 'local · ' +
-                      (profile.llmProviderId ?? profile.llmBackend ?? 'nearai')
+                    ? 'local · ' + (profile.llmProviderId ?? profile.llmBackend ?? 'nearai')
                     : 'remote · ' + profile.remoteBaseUrl}
                 </div>
               {/if}
@@ -2565,10 +2693,7 @@
                   class="hidden sm:inline-flex items-center gap-1.5 shrink-0 text-[10px] font-semibold text-text-muted"
                   title="Gateway token stored in macOS Keychain"
                 >
-                  <span
-                    class="w-1.5 h-1.5 rounded-full bg-green-500"
-                    aria-hidden="true"
-                  ></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden="true"></span>
                   Token: set
                 </span>
               {:else}
@@ -2578,10 +2703,7 @@
                   class="hidden sm:inline-flex items-center gap-1.5 shrink-0 text-[10px] font-semibold text-red-300 hover:text-red-200 transition-colors"
                   title="No gateway token stored — click to enter one"
                 >
-                  <span
-                    class="w-1.5 h-1.5 rounded-full bg-red-500"
-                    aria-hidden="true"
-                  ></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-red-500" aria-hidden="true"></span>
                   Token: missing
                 </button>
               {/if}
@@ -2673,9 +2795,7 @@
           <div class="flex justify-between">
             <dt class="text-text-muted">Provider</dt>
             <dd class="text-text-primary font-mono">
-              {activeProfile.llmProviderId ??
-                activeProfile.llmBackend ??
-                'nearai'}
+              {activeProfile.llmProviderId ?? activeProfile.llmBackend ?? 'nearai'}
             </dd>
           </div>
         {/if}
@@ -2743,7 +2863,9 @@
           <!-- Inline error row + Retry. Sits below the main row so a
                long error message wraps without pushing the cadence
                control off-screen. -->
-          <div class="flex items-start gap-3 p-2.5 rounded-md bg-red-950/40 border border-red-800/60">
+          <div
+            class="flex items-start gap-3 p-2.5 rounded-md bg-red-950/40 border border-red-800/60"
+          >
             <p class="text-xs text-red-200 flex-1 break-words">
               {updater.error ?? 'Update check failed'}
             </p>
@@ -2760,9 +2882,7 @@
         <!-- Cadence dropdown. Persists via the store (localStorage) and
              re-arms the recheck timer; "never" clears it. -->
         <div class="flex items-center gap-3 flex-wrap">
-          <label for="updater-cadence" class="text-xs text-text-muted">
-            Check for updates
-          </label>
+          <label for="updater-cadence" class="text-xs text-text-muted"> Check for updates </label>
           <select
             id="updater-cadence"
             value={updater.cadence}
@@ -2813,9 +2933,7 @@
         class:ring-accent-cyan={isSectionMatched('server-settings')}
       >
         <div class="flex items-center justify-between gap-3 flex-wrap">
-          <h2 class="text-sm font-semibold text-text-primary">
-            Server-side settings
-          </h2>
+          <h2 class="text-sm font-semibold text-text-primary">Server-side settings</h2>
           <button
             type="button"
             onclick={() => void onRefreshServerSettings()}
@@ -2835,9 +2953,7 @@
             Not connected to a gateway. Configure a profile above and reconnect.
           </div>
         {:else if serverSettingsStatus === 'loading' && !serverSettings}
-          <div class="text-xs text-text-muted italic">
-            Loading server-side settings…
-          </div>
+          <div class="text-xs text-text-muted italic">Loading server-side settings…</div>
         {:else if serverSettingsStatus === 'error'}
           <div class="px-3 py-2 rounded-md bg-red-950/40 border border-red-800/60">
             <p class="text-xs text-red-200 break-words">
@@ -2845,9 +2961,7 @@
             </p>
           </div>
         {:else if serverSettingsRows.length === 0 && serverSettingsStatus === 'ok'}
-          <div class="text-xs text-text-muted italic">
-            Gateway returned no settings.
-          </div>
+          <div class="text-xs text-text-muted italic">Gateway returned no settings.</div>
         {:else if serverSettings}
           <!-- Key/value rows. Primitives go through MaskedValue (tap to
                reveal); objects/arrays are pretty-printed JSON with their
@@ -2883,14 +2997,15 @@
                         </button>
                       </div>
                       {#if showRaw}
-                        <div class="px-2 py-1 rounded-md border border-red-500/60 bg-red-500/10 text-[11px] text-red-300 flex items-start gap-2">
+                        <div
+                          class="px-2 py-1 rounded-md border border-red-500/60 bg-red-500/10 text-[11px] text-red-300 flex items-start gap-2"
+                        >
                           <span aria-hidden="true">⚠</span>
                           <span class="flex-1">Tokens visible</span>
                         </div>
                       {/if}
                       <pre
-                        class="bg-bg-deep border border-border-subtle rounded-md p-2 overflow-auto font-mono text-[11px] text-text-primary max-h-64 whitespace-pre-wrap break-all"
-                      >{showRaw
+                        class="bg-bg-deep border border-border-subtle rounded-md p-2 overflow-auto font-mono text-[11px] text-text-primary max-h-64 whitespace-pre-wrap break-all">{showRaw
                           ? JSON.stringify(value, null, 2)
                           : JSON.stringify(redactJsonObject(value), null, 2)}</pre>
                     </div>
@@ -2916,9 +3031,8 @@
     >
       <h2 class="text-sm font-semibold text-text-primary">Notifications</h2>
       <p class="text-xs text-text-muted">
-        Desktop alerts for chat replies (while you're focused elsewhere),
-        completed routines, and sidecar exits. Toggles persist locally;
-        the OS-level permission is granted on first send.
+        Desktop alerts for chat replies (while you're focused elsewhere), completed routines, and
+        sidecar exits. Toggles persist locally; the OS-level permission is granted on first send.
       </p>
 
       <!-- Per-category sound dropdowns. Each row maps to one of the
@@ -2937,8 +3051,7 @@
           <select
             id="notif-sound-chat"
             value={notifications.chatReplySound}
-            onchange={(e) =>
-              notifications.setChatReplySound(e.currentTarget.value as SoundChoice)}
+            onchange={(e) => notifications.setChatReplySound(e.currentTarget.value as SoundChoice)}
             class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1.5 text-sm text-text-primary min-h-[40px] min-w-[160px] focus:outline-none focus:border-accent-cyan"
           >
             {#each SOUND_CHOICES as choice}
@@ -2966,8 +3079,7 @@
           <select
             id="notif-sound-routine"
             value={notifications.routineSound}
-            onchange={(e) =>
-              notifications.setRoutineSound(e.currentTarget.value as SoundChoice)}
+            onchange={(e) => notifications.setRoutineSound(e.currentTarget.value as SoundChoice)}
             class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1.5 text-sm text-text-primary min-h-[40px] min-w-[160px] focus:outline-none focus:border-accent-cyan"
           >
             {#each SOUND_CHOICES as choice}
@@ -2995,8 +3107,7 @@
           <select
             id="notif-sound-sidecar"
             value={notifications.sidecarSound}
-            onchange={(e) =>
-              notifications.setSidecarSound(e.currentTarget.value as SoundChoice)}
+            onchange={(e) => notifications.setSidecarSound(e.currentTarget.value as SoundChoice)}
             class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1.5 text-sm text-text-primary min-h-[40px] min-w-[160px] focus:outline-none focus:border-accent-cyan"
           >
             {#each SOUND_CHOICES as choice}
@@ -3029,12 +3140,61 @@
           <div class="flex-1">
             <div class="text-sm text-text-primary">Show unseen count in menu bar</div>
             <div class="text-xs text-text-muted mt-0.5">
-              Displays a small number next to the tray icon when there are
-              unseen notifications from the last 5 minutes. Clears when you
-              focus the window or click the tray icon.
+              Displays a small number next to the tray icon when there are unseen notifications from
+              the last 5 minutes. Clears when you focus the window or click the tray icon.
             </div>
           </div>
         </label>
+      </div>
+
+      <!-- Notification grouping. App-level. When ON, repeats within 30s
+           of the same category coalesce into one banner with a running
+           "(+ N more)" suffix; the tray badge still counts each event
+           individually. -->
+      <div class="pt-3 border-t border-border-subtle space-y-2">
+        <label class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none">
+          <input
+            type="checkbox"
+            checked={notifications.groupingEnabled}
+            onchange={(e) => notifications.setGroupingEnabled(e.currentTarget.checked)}
+            class="mt-1 accent-accent-cyan w-4 h-4"
+          />
+          <div class="flex-1">
+            <div class="text-sm text-text-primary">Group nearby notifications (last 30s)</div>
+            <div class="text-xs text-text-muted mt-0.5">
+              When a second notification of the same category fires within 30 seconds, update the
+              existing banner instead of stacking a new one. The tray badge still counts every
+              event.
+            </div>
+          </div>
+        </label>
+        <!-- Worked example. Two columns rendered as plain divs so the
+             diagram stays compact + theme-aware (dark surfaces, muted
+             borders, accent-cyan for the "ON" column header). -->
+        <div class="pl-7 grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div class="rounded-md border border-border-subtle bg-bg-deep p-2 space-y-1">
+            <div class="text-[10px] uppercase tracking-wide text-accent-cyan font-semibold">
+              Grouping ON
+            </div>
+            <div class="text-xs text-text-muted">3 routine completions in 20s →</div>
+            <div class="text-xs text-text-primary font-mono">
+              Routine 'daily-report' completed (+ 2 more)
+            </div>
+            <div class="text-[10px] text-text-muted">1 banner · badge +3</div>
+          </div>
+          <div class="rounded-md border border-border-subtle bg-bg-deep p-2 space-y-1">
+            <div class="text-[10px] uppercase tracking-wide text-text-muted font-semibold">
+              Grouping OFF
+            </div>
+            <div class="text-xs text-text-muted">3 routine completions in 20s →</div>
+            <div class="text-xs text-text-primary font-mono leading-tight">
+              Routine 'daily-report' completed<br />
+              Routine 'health-check' completed<br />
+              Routine 'cleanup' completed
+            </div>
+            <div class="text-[10px] text-text-muted">3 banners · badge +3</div>
+          </div>
+        </div>
       </div>
 
       <!-- Quiet hours (DND). During the window we still show banners but
@@ -3050,9 +3210,8 @@
           <div class="flex-1">
             <div class="text-sm text-text-primary">Quiet hours</div>
             <div class="text-xs text-text-muted mt-0.5">
-              During the window below, notifications still appear but stay
-              silent. Overnight ranges work — e.g. 22 → 7 mutes from 22:00
-              to 06:59.
+              During the window below, notifications still appear but stay silent. Overnight ranges
+              work — e.g. 22 → 7 mutes from 22:00 to 06:59.
             </div>
           </div>
         </label>
@@ -3065,8 +3224,7 @@
               max="23"
               step="1"
               value={notifications.quietHours.startHour}
-              onchange={(e) =>
-                notifications.setQuietHoursStart(Number(e.currentTarget.value))}
+              onchange={(e) => notifications.setQuietHoursStart(Number(e.currentTarget.value))}
               disabled={!notifications.quietHours.enabled}
               class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1 text-sm text-text-primary w-20 focus:outline-none focus:border-accent-cyan disabled:opacity-50"
             />
@@ -3080,8 +3238,7 @@
               max="23"
               step="1"
               value={notifications.quietHours.endHour}
-              onchange={(e) =>
-                notifications.setQuietHoursEnd(Number(e.currentTarget.value))}
+              onchange={(e) => notifications.setQuietHoursEnd(Number(e.currentTarget.value))}
               disabled={!notifications.quietHours.enabled}
               class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1 text-sm text-text-primary w-20 focus:outline-none focus:border-accent-cyan disabled:opacity-50"
             />
@@ -3101,12 +3258,29 @@
         </button>
         {#if testNotifyStatus === 'sent'}
           <span class="text-xs text-accent-cyan flex items-center gap-1">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"><polyline points="20 6 9 17 4 12" /></svg
+            >
             {testNotifyMessage}
           </span>
         {:else if testNotifyStatus === 'denied' || testNotifyStatus === 'error'}
           <span class="text-xs text-red-400 flex items-center gap-1">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg
+            >
             {testNotifyMessage}
           </span>
         {/if}
@@ -3129,8 +3303,8 @@
     >
       <h2 class="text-sm font-semibold text-text-primary">Data</h2>
       <p class="text-xs text-text-muted">
-        Export every conversation in this profile as a single JSON file.
-        Includes thread metadata and full message history.
+        Export every conversation in this profile as a single JSON file. Includes thread metadata
+        and full message history.
       </p>
       <div class="flex items-center gap-3 flex-wrap">
         <button
@@ -3177,16 +3351,12 @@
           class="rounded-md border border-accent-gold/40 bg-accent-gold/5 px-3 py-2 flex items-start gap-2"
           role="note"
         >
-          <Icon
-            name="warning"
-            class="w-3.5 h-3.5 text-accent-gold shrink-0 mt-0.5"
-          />
+          <Icon name="warning" class="w-3.5 h-3.5 text-accent-gold shrink-0 mt-0.5" />
           <p class="text-xs text-text-primary leading-relaxed">
             <span class="font-semibold">Tokens not included.</span>
             <span class="text-text-muted">
-              They stay in the macOS Keychain on this machine. On the
-              destination machine you'll re-enter each profile's gateway
-              token.
+              They stay in the macOS Keychain on this machine. On the destination machine you'll
+              re-enter each profile's gateway token.
             </span>
           </p>
         </div>
@@ -3234,8 +3404,8 @@
         <div>
           <h2 class="text-sm font-semibold text-text-primary">API tokens</h2>
           <p class="text-xs text-text-muted mt-0.5">
-            Grant external apps access to your IronClaw instance without
-            sharing your sign-in. Revoke any time.
+            Grant external apps access to your IronClaw instance without sharing your sign-in.
+            Revoke any time.
           </p>
         </div>
         <button
@@ -3258,7 +3428,9 @@
       {:else if tokensStatus === 'loading' && tokens.length === 0}
         <div class="text-xs text-text-muted italic">Loading tokens…</div>
       {:else if tokensStatus === 'error'}
-        <div class="px-3 py-2 rounded-md bg-red-950/40 border border-red-800/60 flex items-start gap-3">
+        <div
+          class="px-3 py-2 rounded-md bg-red-950/40 border border-red-800/60 flex items-start gap-3"
+        >
           <p class="text-xs text-red-200 flex-1 break-words">
             {tokensError ?? 'Failed to load tokens.'}
           </p>
@@ -3272,10 +3444,11 @@
         </div>
       {:else if tokensRows.length === 0}
         <!-- Empty-state copy from the brief. -->
-        <div class="px-3 py-4 rounded-md bg-bg-deep border border-border-subtle text-xs text-text-muted">
-          You haven't created any API tokens yet. Click "Create new token"
-          to make one. Tokens let you grant external apps access to your
-          IronClaw instance without sharing your sign-in.
+        <div
+          class="px-3 py-4 rounded-md bg-bg-deep border border-border-subtle text-xs text-text-muted"
+        >
+          You haven't created any API tokens yet. Click "Create new token" to make one. Tokens let
+          you grant external apps access to your IronClaw instance without sharing your sign-in.
         </div>
       {:else}
         <ul class="space-y-2">
@@ -3385,12 +3558,8 @@
       class:ring-accent-cyan={isSectionMatched('advanced')}
     >
       <h2 class="text-sm font-semibold text-text-primary">Advanced</h2>
-      <p class="text-xs text-text-muted">
-        Reveal experimental and admin-only surfaces.
-      </p>
-      <label
-        class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none"
-      >
+      <p class="text-xs text-text-muted">Reveal experimental and admin-only surfaces.</p>
+      <label class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none">
         <input
           type="checkbox"
           checked={settings.adminMode}
@@ -3400,9 +3569,8 @@
         <div class="flex-1">
           <div class="text-sm text-text-primary">Show admin surfaces</div>
           <div class="text-xs text-text-muted mt-0.5">
-            Adds the Admin section to the sidebar (Cmd+7) for editing the
-            multi-tenant tool policy and admin SYSTEM.md. Requires a
-            bearer token with the admin role on the active profile.
+            Adds the Admin section to the sidebar (Cmd+7) for editing the multi-tenant tool policy
+            and admin SYSTEM.md. Requires a bearer token with the admin role on the active profile.
           </div>
         </div>
       </label>
@@ -3411,9 +3579,7 @@
            icon is global chrome. Defaults to on; toggling off hides the
            icon immediately and persists so the next launch starts
            hidden. Toggling back on restores the icon without a relaunch. -->
-      <label
-        class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none"
-      >
+      <label class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none">
         <input
           type="checkbox"
           checked={settings.trayEnabled !== false}
@@ -3423,9 +3589,8 @@
         <div class="flex-1">
           <div class="text-sm text-text-primary">Show in menu bar</div>
           <div class="text-xs text-text-muted mt-0.5">
-            Adds an IronClaw status icon to the macOS menu bar. Click to
-            toggle the window; right-click for quick actions (Restart
-            sidecar, Settings, Quit).
+            Adds an IronClaw status icon to the macOS menu bar. Click to toggle the window;
+            right-click for quick actions (Restart sidecar, Settings, Quit).
           </div>
         </div>
       </label>
@@ -3438,9 +3603,7 @@
            a cheap method-mismatch probe). Pinning OFF forces the legacy
            path on every send, useful for debugging issues that only
            reproduce on one transport. -->
-      <label
-        class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none"
-      >
+      <label class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none">
         <input
           type="checkbox"
           checked={settings.useResponsesApi !== false}
@@ -3453,9 +3616,9 @@
           </div>
           <div class="text-xs text-text-muted mt-0.5">
             Streams assistant replies via <code class="text-text-primary">/api/v1/responses</code>
-            with real incremental deltas. Older IronClaw gateways without
-            this endpoint fall back automatically to <code class="text-text-primary">/api/chat</code>.
-            Turn off to pin every send to the legacy pipeline.
+            with real incremental deltas. Older IronClaw gateways without this endpoint fall back automatically
+            to <code class="text-text-primary">/api/chat</code>. Turn off to pin every send to the
+            legacy pipeline.
           </div>
         </div>
       </label>
@@ -3468,9 +3631,7 @@
            contract as `adminMode`. Engine v2 is still developer-facing
            and the gateway returns 404 on /api/engine/* against older
            builds, which is why we gate it behind an explicit opt-in. -->
-      <label
-        class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none"
-      >
+      <label class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none">
         <input
           type="checkbox"
           checked={settings.engineV2Enabled === true}
@@ -3478,14 +3639,12 @@
           class="mt-1 accent-accent-cyan w-4 h-4"
         />
         <div class="flex-1">
-          <div class="text-sm text-text-primary">
-            Show Engine v2 surface (missions, projects)
-          </div>
+          <div class="text-sm text-text-primary">Show Engine v2 surface (missions, projects)</div>
           <div class="text-xs text-text-muted mt-0.5">
-            Adds the Missions section to the sidebar (Cmd+9) for browsing
-            Engine v2 projects, missions, and their engine threads. Requires
-            an IronClaw gateway with <code class="text-text-primary">engine_v2_enabled</code>;
-            older builds return 404 on the underlying endpoints.
+            Adds the Missions section to the sidebar (Cmd+9) for browsing Engine v2 projects,
+            missions, and their engine threads. Requires an IronClaw gateway with <code
+              class="text-text-primary">engine_v2_enabled</code
+            >; older builds return 404 on the underlying endpoints.
           </div>
         </div>
       </label>
@@ -3554,19 +3713,14 @@
             Create new token
           </h2>
           <p class="text-xs text-text-muted">
-            Give the token a memorable name (which app, which machine).
-            Optionally restrict it to specific scopes.
+            Give the token a memorable name (which app, which machine). Optionally restrict it to
+            specific scopes.
           </p>
         </header>
 
         <form onsubmit={onSubmitCreate} class="space-y-4">
           <div>
-            <label
-              for="new-token-name"
-              class="block text-xs text-text-muted mb-1"
-            >
-              Name
-            </label>
+            <label for="new-token-name" class="block text-xs text-text-muted mb-1"> Name </label>
             <input
               id="new-token-name"
               type="text"
@@ -3579,17 +3733,12 @@
               class:border-red-500={createNameTooLong}
             />
             {#if createNameTooLong}
-              <p class="text-xs text-red-400 mt-1">
-                Name must be 64 characters or fewer.
-              </p>
+              <p class="text-xs text-red-400 mt-1">Name must be 64 characters or fewer.</p>
             {/if}
           </div>
 
           <div role="group" aria-labelledby="new-token-scopes-legend">
-            <div
-              id="new-token-scopes-legend"
-              class="text-xs text-text-muted mb-2"
-            >
+            <div id="new-token-scopes-legend" class="text-xs text-text-muted mb-2">
               Scopes
               <span class="text-text-muted/70">(optional — leave empty for server defaults)</span>
             </div>
@@ -3605,7 +3754,7 @@
                 >
                   <input
                     type="checkbox"
-                    checked={checked}
+                    {checked}
                     onchange={() => toggleScope(scope)}
                     class="accent-accent-cyan w-3.5 h-3.5"
                   />
@@ -3641,8 +3790,7 @@
             Your new token
           </h2>
           <p class="text-xs text-text-muted">
-            Copy this value now and store it somewhere safe (password
-            manager, 1Password, etc.).
+            Copy this value now and store it somewhere safe (password manager, 1Password, etc.).
           </p>
         </header>
 
@@ -3666,24 +3814,18 @@
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          <p class="text-xs text-red-200 font-semibold">
-            Save this now. You won't see it again.
-          </p>
+          <p class="text-xs text-red-200 font-semibold">Save this now. You won't see it again.</p>
         </div>
 
         <!-- Token plaintext. BIG mono with break-all so the user can
              eyeball the full string before copying. -->
         <div>
-          <label
-            for="created-token-value"
-            class="block text-xs text-text-muted mb-1"
-          >
+          <label for="created-token-value" class="block text-xs text-text-muted mb-1">
             Token
           </label>
           <pre
             id="created-token-value"
-            class="bg-bg-deep border border-accent-cyan rounded-md p-3 text-base font-mono text-accent-gold break-all whitespace-pre-wrap select-all"
-            >{createdToken}</pre>
+            class="bg-bg-deep border border-accent-cyan rounded-md p-3 text-base font-mono text-accent-gold break-all whitespace-pre-wrap select-all">{createdToken}</pre>
         </div>
 
         <div class="flex items-center justify-between gap-3">
@@ -3737,8 +3879,7 @@
           <span class="font-mono text-accent-gold break-all">{revokeTarget.name}</span>?
         </h2>
         <p class="text-xs text-text-muted">
-          This cannot be undone. Apps using this token will lose access
-          immediately.
+          This cannot be undone. Apps using this token will lose access immediately.
         </p>
       </header>
 
@@ -3798,17 +3939,14 @@
       <header class="space-y-1">
         <div class="flex items-center gap-2">
           <Icon name="check" class="w-5 h-5 text-accent-cyan" />
-          <h2
-            id="import-success-title"
-            class="text-lg font-semibold text-text-primary"
-          >
+          <h2 id="import-success-title" class="text-lg font-semibold text-text-primary">
             Settings imported
           </h2>
         </div>
         <p class="text-xs text-text-muted">
           {importedNeeds.length}
-          profile{importedNeeds.length === 1 ? '' : 's'} restored. Tokens
-          stay in the macOS Keychain — re-enter them per profile below.
+          profile{importedNeeds.length === 1 ? '' : 's'} restored. Tokens stay in the macOS Keychain —
+          re-enter them per profile below.
         </p>
       </header>
 
@@ -3818,9 +3956,7 @@
            body without scrolling; longer lists scroll inside the surface
            thanks to the overflow-auto wrapper. -->
       <div class="space-y-2">
-        <p
-          class="text-[11px] uppercase tracking-wider text-text-muted font-semibold"
-        >
+        <p class="text-[11px] uppercase tracking-wider text-text-muted font-semibold">
           Credentials to re-enter
         </p>
         <ul
@@ -3856,3 +3992,22 @@
     </div>
   </div>
 {/if}
+
+<style>
+  /* Brief flash on the target card after a result-list click. Fades the
+     accent border in then back out so the user's eye lands cleanly. */
+  :global(.search-flash) {
+    animation: settings-search-flash 1.2s ease-out;
+  }
+  @keyframes settings-search-flash {
+    0% {
+      box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+    }
+    20% {
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.5);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+    }
+  }
+</style>

@@ -7,6 +7,7 @@
 
 import type { Thread } from '$lib/api/types';
 import { connection } from './connection.svelte';
+import { telemetry } from './telemetry.svelte';
 
 // -- recently-selected thread tracking (localStorage) -----------------------
 //
@@ -94,7 +95,7 @@ class ThreadStore {
   );
 
   current = $derived<Thread | null>(
-    this.currentId ? this.threads.find((t) => t.id === this.currentId) ?? null : null
+    this.currentId ? (this.threads.find((t) => t.id === this.currentId) ?? null) : null
   );
 
   async loadThreads(): Promise<void> {
@@ -148,6 +149,8 @@ class ThreadStore {
       // Mirror selectThread's recent-tracking so a freshly-created thread
       // shows up at the top of the Cmd+T switcher's Recent section.
       this.recent = recordRecentThread(id);
+      // Opt-in telemetry — no thread id or title on the wire, just a count.
+      telemetry.recordEvent('chat:thread_created');
       return id;
     } catch (err) {
       this.error = (err as Error).message;
@@ -161,9 +164,7 @@ class ThreadStore {
    * the persisted variant once the server adds PATCH /api/chat/threads/{id}.
    */
   renameLocal(id: string, title: string): void {
-    this.threads = this.threads.map((t) =>
-      t.id === id ? { ...t, title } : t
-    );
+    this.threads = this.threads.map((t) => (t.id === id ? { ...t, title } : t));
   }
 }
 

@@ -34,6 +34,12 @@
   import { saveSettings } from '$lib/stores/settings.svelte';
   import { pins, type PinSurface } from '$lib/stores/pins.svelte';
   import { presetsModal } from '$lib/stores/presets.svelte';
+  import {
+    composerInsert,
+    templates,
+    templatesModal,
+    type PromptTemplate
+  } from '$lib/stores/templates.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import type { Extension, MemoryNode, Routine, Skill, Thread } from '$lib/api/types';
 
@@ -47,6 +53,7 @@
     | 'Threads'
     | 'Skills'
     | 'Routines'
+    | 'Templates'
     | 'Docs';
 
   /** Icon key used for inline SVG rendering. Recent rows persist this so the
@@ -70,7 +77,8 @@
     | 'copy'
     | 'logs'
     | 'info'
-    | 'layers';
+    | 'layers'
+    | 'template';
 
   interface Item {
     id: string;
@@ -137,6 +145,7 @@
     | 'Threads'
     | 'Skills'
     | 'Routines'
+    | 'Templates'
     | 'Docs';
   const PILL_KEYS: PillFilter[] = [
     'All',
@@ -146,6 +155,7 @@
     'Threads',
     'Skills',
     'Routines',
+    'Templates',
     'Docs'
   ];
   let activePill = $state<PillFilter>(loadPillFilter());
@@ -271,8 +281,7 @@
         // Actions are stateful — if the underlying state isn't applicable
         // (e.g. "Disconnect" recorded while connected, then re-attempted
         // while disconnected), surface a toast rather than silently failing.
-        return () =>
-          toasts.show('Action no longer available in this state.', 'info');
+        return () => toasts.show('Action no longer available in this state.', 'info');
       default:
         return () => {
           /* no-op */
@@ -482,10 +491,7 @@
       };
       await saveSettings(draft);
       await connection.refresh();
-      toasts.show(
-        next ? 'Admin surfaces enabled.' : 'Admin surfaces hidden.',
-        'info'
-      );
+      toasts.show(next ? 'Admin surfaces enabled.' : 'Admin surfaces hidden.', 'info');
     } catch (err) {
       toasts.show(`Save failed: ${(err as Error).message}`, 'error');
     }
@@ -505,10 +511,7 @@
         console.warn('set_tray_visible failed', err);
       }
       await connection.refresh();
-      toasts.show(
-        next ? 'Menu-bar icon shown.' : 'Menu-bar icon hidden.',
-        'info'
-      );
+      toasts.show(next ? 'Menu-bar icon shown.' : 'Menu-bar icon hidden.', 'info');
     } catch (err) {
       toasts.show(`Save failed: ${(err as Error).message}`, 'error');
     }
@@ -552,10 +555,7 @@
     try {
       await navigator.clipboard.writeText(value);
       if (warn) {
-        toasts.show(
-          `${label} copied — treat as a secret; do not paste anywhere public.`,
-          'info'
-        );
+        toasts.show(`${label} copied — treat as a secret; do not paste anywhere public.`, 'info');
       } else {
         toasts.show(`${label} copied to clipboard.`, 'success');
       }
@@ -590,14 +590,7 @@
           label: 'Reload current surface',
           subtitle: 'Refetch data for this view',
           icon: 'refresh' as const,
-          keywords: [
-            'reload',
-            'refresh',
-            'refetch',
-            'surface',
-            'current',
-            'view'
-          ],
+          keywords: ['reload', 'refresh', 'refetch', 'surface', 'current', 'view'],
           keybind: '⌘R',
           run: () => {
             palette.closePalette();
@@ -682,15 +675,7 @@
           label: 'Quick capture',
           subtitle: 'New message to the Quick captures thread',
           icon: 'thread' as const,
-          keywords: [
-            'quick',
-            'capture',
-            'note',
-            'jot',
-            'inbox',
-            'thought',
-            'scratch'
-          ],
+          keywords: ['quick', 'capture', 'note', 'jot', 'inbox', 'thought', 'scratch'],
           keybind: '⌘⇧N',
           run: () => {
             palette.closePalette();
@@ -749,9 +734,7 @@
           id: 'action:toggle-admin',
           category: 'Actions' as const,
           label: admin ? 'Hide admin surfaces' : 'Show admin surfaces',
-          subtitle: admin
-            ? 'Retract /admin route and Cmd+7'
-            : 'Reveal /admin route and Cmd+7',
+          subtitle: admin ? 'Retract /admin route and Cmd+7' : 'Reveal /admin route and Cmd+7',
           icon: 'eye' as const,
           keywords: ['admin', 'toggle', 'show', 'hide'],
           run: () => void actToggleAdmin(!admin)
@@ -845,15 +828,7 @@
           label: 'Workspace presets',
           subtitle: 'Save, apply, rename, or delete layout snapshots',
           icon: 'layers' as const,
-          keywords: [
-            'preset',
-            'presets',
-            'workspace',
-            'layout',
-            'snapshot',
-            'save',
-            'restore'
-          ],
+          keywords: ['preset', 'presets', 'workspace', 'layout', 'snapshot', 'save', 'restore'],
           keybind: '⌘⇧P',
           run: () => {
             palette.closePalette();
@@ -871,19 +846,51 @@
           label: 'Save current workspace as preset…',
           subtitle: 'Capture route, thread, panel widths, sidebar state',
           icon: 'layers' as const,
-          keywords: [
-            'save',
-            'preset',
-            'snapshot',
-            'workspace',
-            'capture',
-            'layout'
-          ],
+          keywords: ['save', 'preset', 'snapshot', 'workspace', 'capture', 'layout'],
           run: () => {
             palette.closePalette();
             presetsModal.show('save');
           }
-        }
+        },
+        // Prompt templates — opens the modal at the layout level. Same
+        // close-then-show ordering as the preset action. Keybind matches
+        // the layout-level Cmd+Shift+T chord. Per-template entries also
+        // appear under the Templates category section below so a user
+        // can search for a specific template name and hit Enter without
+        // picking this generic row first.
+        {
+          id: 'action:templates',
+          category: 'Actions' as const,
+          label: 'Prompt templates',
+          subtitle: 'Manage and insert saved composer prompts',
+          icon: 'template' as const,
+          keywords: ['template', 'templates', 'prompt', 'composer', 'snippet', 'macro'],
+          keybind: '⌘⇧T',
+          run: () => {
+            palette.closePalette();
+            templatesModal.show();
+          }
+        },
+        // Component playground — dev-only. Surfaced only when Vite's
+        // `import.meta.env.DEV` is true so production builds never offer
+        // the entry point. The route itself also enforces the guard via
+        // a redirect, so a stale bookmark to `/dev/playground` in a prod
+        // build bounces to `/` with a toast — but hiding the palette row
+        // keeps the surface clean for non-contributor users.
+        import.meta.env.DEV
+          ? {
+              id: 'action:open-playground',
+              category: 'Actions' as const,
+              label: 'Open component playground (dev)',
+              subtitle: '/dev/playground — Storybook-lite for $lib/components',
+              icon: 'layers' as const,
+              keywords: ['playground', 'storybook', 'components', 'dev', 'stories', 'preview'],
+              run: () => {
+                palette.closePalette();
+                void goto('/dev/playground');
+              }
+            }
+          : null
       ];
 
       return rows.filter((r): r is Item => r !== null);
@@ -1067,6 +1074,48 @@
     }))
   );
 
+  /**
+   * Per-template palette entries. Each saved template gets a row
+   * prefixed "Template: <name>" so it's distinguishable from skills
+   * and from the generic "Prompt templates" action above. Insertion
+   * semantics mirror the modal's flow:
+   *   - Template with no variables → push body straight to the
+   *     composer bus and navigate to chat.
+   *   - Template with variables    → open the templates modal scoped
+   *     to that template so the user fills the inline variable-input
+   *     view (same UX as picking from the modal directly).
+   * Templates are read off the live store so the list reflects the
+   * latest saves without a cache hop.
+   */
+  const templateItems = $derived<Item[]>(
+    templates.templates.map((t: PromptTemplate) => ({
+      id: `template:${t.id}`,
+      category: 'Templates' as const,
+      label: `Template: ${t.name}`,
+      subtitle:
+        t.variables.length > 0
+          ? `${t.variables.length} variable${t.variables.length === 1 ? '' : 's'} · ${t.useCount} use${t.useCount === 1 ? '' : 's'}`
+          : `${t.useCount} use${t.useCount === 1 ? '' : 's'}`,
+      icon: 'template' as const,
+      run: () => {
+        if (t.variables.length > 0) {
+          // Route into the modal so the user gets the variable-input
+          // view rather than landing in a half-rendered prompt.
+          templatesModal.show(t.id);
+        } else {
+          // No variables → drop the body straight into the composer
+          // bus and navigate to chat. The chat page's $effect picks up
+          // the bus on its next mount (or immediately if already on /).
+          composerInsert.push(t.body, t.id);
+          templates.recordUse(t.id);
+          if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+            void goto('/');
+          }
+        }
+      }
+    }))
+  );
+
   /** Everything searchable (excluding the Recent and Pinned virtual
    *  categories). Recent + Pinned rows live alongside but never
    *  participate in fuzzy ranking — they're rendered as static sections
@@ -1077,6 +1126,7 @@
     ...threadItems,
     ...skillItems,
     ...routineItems,
+    ...templateItems,
     ...docItems
   ]);
 
@@ -1146,6 +1196,7 @@
       'Threads',
       'Skills',
       'Routines',
+      'Templates',
       'Docs'
     ];
     const buckets = new Map<Category, Item[]>();
@@ -1156,15 +1207,12 @@
     // by label so the user can search within their pins.
     const pillIsPinned = activePill === 'Pinned';
     const showPinned =
-      pinnedItems.length > 0 &&
-      ((query.trim() === '' && activePill === 'All') || pillIsPinned);
+      pinnedItems.length > 0 && ((query.trim() === '' && activePill === 'All') || pillIsPinned);
     if (showPinned) {
       const q = query.trim().toLowerCase();
       const pinnedSlice = q
         ? pinnedItems.filter(
-            (p) =>
-              p.label.toLowerCase().includes(q) ||
-              (p.subtitle ?? '').toLowerCase().includes(q)
+            (p) => p.label.toLowerCase().includes(q) || (p.subtitle ?? '').toLowerCase().includes(q)
           )
         : pinnedItems;
       if (pinnedSlice.length > 0) {
@@ -1206,9 +1254,7 @@
   $effect(() => {
     void activeIndex;
     void tick().then(() => {
-      const el = listEl?.querySelector(
-        `[data-row-index="${activeIndex}"]`
-      ) as HTMLElement | null;
+      const el = listEl?.querySelector(`[data-row-index="${activeIndex}"]`) as HTMLElement | null;
       el?.scrollIntoView({ block: 'nearest' });
     });
   });
@@ -1264,8 +1310,7 @@
     }
     if (e.key === 'ArrowUp') {
       e.preventDefault();
-      if (flat.length > 0)
-        activeIndex = activeIndex === 0 ? flat.length - 1 : activeIndex - 1;
+      if (flat.length > 0) activeIndex = activeIndex === 0 ? flat.length - 1 : activeIndex - 1;
       return;
     }
     if (e.key === 'Enter') {
@@ -1297,17 +1342,11 @@
   // Boost multipliers (applied after raw score):
   //   - Recent items                     → ×1.5 (the "+0.5" boost)
   //   - Action keyword match (verb hits) → small additive
-  function rankAndFilter(
-    items: Item[],
-    q: string,
-    pill: PillFilter
-  ): Item[] {
+  function rankAndFilter(items: Item[], q: string, pill: PillFilter): Item[] {
     const needle = q.trim().toLowerCase();
     // Scope by pill first so we don't waste scoring work on filtered-out
     // categories.
-    const scoped = items.filter((item) =>
-      pillCategoryAllowed(pill, item.category)
-    );
+    const scoped = items.filter((item) => pillCategoryAllowed(pill, item.category));
 
     if (!needle) return scoped.slice(0, RESULT_CAP);
 
@@ -1396,7 +1435,6 @@
     // Nothing to do — opening triggers data fetches via $effect. We could
     // pre-warm here, but the user may never hit Cmd+K in a given session.
   });
-
 </script>
 
 {#if palette.open}
@@ -1504,8 +1542,7 @@
             {:else if activePill === 'Pinned' && pinnedItems.length === 0}
               <!-- Explicit empty-state for the Pinned pill so the user
                    knows the section is intentional, not a load failure. -->
-              No pinned items yet. Tap the star on a skill, routine,
-              thread, or extension to pin it here.
+              No pinned items yet. Tap the star on a skill, routine, thread, or extension to pin it here.
             {:else if query.trim()}
               No matches for <span class="text-text-primary">{query}</span>
             {:else}
@@ -1564,9 +1601,7 @@
                         stroke-linecap="round"
                         stroke-linejoin="round"
                       >
-                        <path
-                          d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-                        />
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
                       </svg>
                     {:else if item.icon === 'skill'}
                       <svg
@@ -1606,9 +1641,7 @@
                         stroke-linejoin="round"
                       >
                         <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                        <path
-                          d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
-                        />
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
                       </svg>
                     {:else if item.icon === 'signin'}
                       <svg
@@ -1665,9 +1698,7 @@
                         stroke-linejoin="round"
                       >
                         <polyline points="23 4 23 10 17 10" />
-                        <path
-                          d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"
-                        />
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
                       </svg>
                     {:else if item.icon === 'eye'}
                       <svg
@@ -1679,9 +1710,7 @@
                         stroke-linecap="round"
                         stroke-linejoin="round"
                       >
-                        <path
-                          d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
-                        />
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                         <circle cx="12" cy="12" r="3" />
                       </svg>
                     {:else if item.icon === 'tray'}
@@ -1720,9 +1749,7 @@
                         stroke-linecap="round"
                         stroke-linejoin="round"
                       >
-                        <path
-                          d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"
-                        />
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                         <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                       </svg>
                     {:else if item.icon === 'copy'}
@@ -1736,9 +1763,7 @@
                         stroke-linejoin="round"
                       >
                         <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                        <path
-                          d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                        />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                       </svg>
                     {:else if item.icon === 'logs'}
                       <svg
@@ -1779,7 +1804,9 @@
                         stroke-linecap="round"
                         stroke-linejoin="round"
                       >
-                        <path d="M20.5 11h-4V7a3 3 0 0 0-3-3 3 3 0 0 0-3 3v4H3.5v3a2 2 0 0 0 2 2h1.5a1 1 0 1 1 0 4H3.5v3h13a2 2 0 0 0 2-2v-3a2 2 0 0 0 2 2 2 2 0 0 0 0-4 2 2 0 0 0-2 2v-3h2v-3a2 2 0 0 0-2-2Z" />
+                        <path
+                          d="M20.5 11h-4V7a3 3 0 0 0-3-3 3 3 0 0 0-3 3v4H3.5v3a2 2 0 0 0 2 2h1.5a1 1 0 1 1 0 4H3.5v3h13a2 2 0 0 0 2-2v-3a2 2 0 0 0 2 2 2 2 0 0 0 0-4 2 2 0 0 0-2 2v-3h2v-3a2 2 0 0 0-2-2Z"
+                        />
                       </svg>
                     {:else if item.icon === 'pin'}
                       <!-- Star glyph for the cross-surface Pinned section
@@ -1793,7 +1820,9 @@
                         stroke-linecap="round"
                         stroke-linejoin="round"
                       >
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        <polygon
+                          points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                        />
                       </svg>
                     {:else if item.icon === 'layers'}
                       <!-- Stacked-rect glyph for workspace presets — a
@@ -1811,6 +1840,24 @@
                         <polygon points="12 2 2 7 12 12 22 7 12 2" />
                         <polyline points="2 17 12 22 22 17" />
                         <polyline points="2 12 12 17 22 12" />
+                      </svg>
+                    {:else if item.icon === 'template'}
+                      <!-- File-with-text glyph for prompt templates —
+                           reads as a reusable snippet without competing
+                           with the doc / skill / layers vocabulary. -->
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="8" y1="13" x2="16" y2="13" />
+                        <line x1="8" y1="17" x2="14" y2="17" />
                       </svg>
                     {/if}
                   </span>

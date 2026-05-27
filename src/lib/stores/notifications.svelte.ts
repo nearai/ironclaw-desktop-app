@@ -140,6 +140,64 @@ const LS_KEY = 'ironclaw:notifications:v1';
  *  sound choices or quiet-hours config). */
 const LS_HISTORY_KEY = 'ironclaw-notification-history';
 
+/**
+ * Notification grouping window. Within this many ms of the last
+ * notification in a given category, fresh notify() calls do NOT fire a
+ * second OS banner — they roll into the existing group, increment the
+ * counter, and update the banner body in place.
+ */
+const GROUP_WINDOW_MS = 30 * 1000;
+
+/** GC interval for expired groups. Spec calls for "every 5s". */
+const GROUP_GC_TICK_MS = 5 * 1000;
+
+/**
+ * Per-category id seeds. macOS's UserNotifications framework coalesces
+ * incoming requests by `id` — sending a second `sendNotification` with
+ * the same numeric id replaces the previous banner in Notification
+ * Center rather than stacking a fresh one. We exploit this to update
+ * the grouped banner's body without a flicker.
+ *
+ * Must fit in a signed 32-bit int (Tauri's Options.id is i32). The
+ * seeds are stable across launches so a notification that survives an
+ * app relaunch (Notification Center keeps it) still groups correctly.
+ */
+const GROUP_ID_SEEDS: Record<NotifyCategory, number> = {
+  chat: 0x11000001,
+  routine: 0x11000002,
+  sidecar: 0x11000003,
+  error: 0x11000004
+};
+
+/**
+ * Snapshot of an active grouping window. We track the original (first)
+ * body so the "+ N more" suffix is appended to a stable string rather
+ * than the last-seen body (which would compound into nonsense on a
+ * burst). `lastTs` is bumped on every group hit so the window slides
+ * with activity — matching the spec ("30s of no new events in that
+ * category" is the close condition).
+ */
+interface ActiveGroup {
+  /** Stable OS notification id used to update-in-place. */
+  id: number;
+  /** Number of events folded into this group, including the first one. */
+  count: number;
+  /** Body of the first notification in the group, used as the prefix
+   *  for the running "(+ N more)" suffix. */
+  firstBody: string;
+  /** Title of the first notification — preserved so updates don't
+   *  rewrite the title when the second event has a different one. */
+  firstTitle: string;
+  /** Epoch ms of the most recent notify() that landed in this group.
+   *  GC drops the group once Date.now() - lastTs ≥ GROUP_WINDOW_MS. */
+  lastTs: number;
+  /** Sound resolved for the first event — replayed verbatim when we
+   *  update in place. macOS plays the sound on a re-fire with the same
+   *  id; we keep it consistent across the group so the user doesn't
+   *  hear chat-reply → sidecar-exit on the same banner. */
+  sound: string | undefined;
+}
+
 /** Rolling-window length for the unseen-notification badge. */
 const RECENT_WINDOW_MS = 5 * 60 * 1000;
 
@@ -171,6 +229,8 @@ interface PersistedPrefs {
   quietHours: QuietHours;
   /** Badge counter on the menu-bar tray icon. Defaults to true. */
   trayBadgeEnabled: boolean;
+  /** Collapse bursts of same-category notifications into one banner. */
+  groupingEnabled: boolean;
 }
 
 const DEFAULT_PREFS: PersistedPrefs = {
@@ -183,15 +243,13 @@ const DEFAULT_PREFS: PersistedPrefs = {
   sidecarSound: 'default',
   errorSound: 'default',
   quietHours: { enabled: false, startHour: 22, endHour: 7 },
-  trayBadgeEnabled: true
+  trayBadgeEnabled: true,
+  groupingEnabled: true
 };
 
 /** Type guard so we don't trust raw JSON. */
 function isSoundChoice(v: unknown): v is SoundChoice {
-  return (
-    typeof v === 'string' &&
-    SOUND_CHOICES.some((c) => c.value === v)
-  );
+  return typeof v === 'string' && SOUND_CHOICES.some((c) => c.value === v);
 }
 
 function loadPrefs(): PersistedPrefs {
@@ -207,9 +265,7 @@ function loadPrefs(): PersistedPrefs {
     return {
       enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : DEFAULT_PREFS.enabled,
       chatReplies:
-        typeof parsed.chatReplies === 'boolean'
-          ? parsed.chatReplies
-          : DEFAULT_PREFS.chatReplies,
+        typeof parsed.chatReplies === 'boolean' ? parsed.chatReplies : DEFAULT_PREFS.chatReplies,
       routineCompletions:
         typeof parsed.routineCompletions === 'boolean'
           ? parsed.routineCompletions
@@ -227,9 +283,7 @@ function loadPrefs(): PersistedPrefs {
       sidecarSound: isSoundChoice(parsed.sidecarSound)
         ? parsed.sidecarSound
         : DEFAULT_PREFS.sidecarSound,
-      errorSound: isSoundChoice(parsed.errorSound)
-        ? parsed.errorSound
-        : DEFAULT_PREFS.errorSound,
+      errorSound: isSoundChoice(parsed.errorSound) ? parsed.errorSound : DEFAULT_PREFS.errorSound,
       quietHours:
         qh && typeof qh === 'object'
           ? {
@@ -244,7 +298,13 @@ function loadPrefs(): PersistedPrefs {
       trayBadgeEnabled:
         typeof parsed.trayBadgeEnabled === 'boolean'
           ? parsed.trayBadgeEnabled
-          : DEFAULT_PREFS.trayBadgeEnabled
+          : DEFAULT_PREFS.trayBadgeEnabled,
+      // Same opt-OUT shape as trayBadgeEnabled — a missing field on an
+      // older prefs blob round-trips to the new-install default (on).
+      groupingEnabled:
+        typeof parsed.groupingEnabled === 'boolean'
+          ? parsed.groupingEnabled
+          : DEFAULT_PREFS.groupingEnabled
     };
   } catch {
     return { ...DEFAULT_PREFS };
@@ -258,12 +318,7 @@ function clampHour(v: unknown, fallback: number): number {
   return n;
 }
 
-const CATEGORIES: ReadonlySet<NotifyCategory> = new Set([
-  'chat',
-  'routine',
-  'sidecar',
-  'error'
-]);
+const CATEGORIES: ReadonlySet<NotifyCategory> = new Set(['chat', 'routine', 'sidecar', 'error']);
 
 function isCategory(v: unknown): v is NotifyCategory {
   return typeof v === 'string' && CATEGORIES.has(v as NotifyCategory);
@@ -328,6 +383,21 @@ function makeNotificationId(): string {
 }
 
 /**
+ * Format the body of a grouped banner. The first body is kept as the
+ * prefix so a burst doesn't compound — e.g. event 1 = "Routine A
+ * finished", event 2 = "Routine B finished" renders as "Routine A
+ * finished (+ 1 more)" rather than rewriting to "Routine B finished".
+ * We surface the most recent body on hover via the tray "Recent"
+ * submenu instead. Pluralizes naively (1 → "1 more", N>1 → "N more").
+ */
+export function composeGroupedBody(firstBody: string, count: number): string {
+  if (count <= 1) return firstBody;
+  const extra = count - 1;
+  const suffix = `(+ ${extra} more)`;
+  return firstBody.length > 0 ? `${firstBody} ${suffix}` : suffix;
+}
+
+/**
  * Decide if the current hour falls inside a quiet-hours window. We
  * support overnight wraps (e.g. 22 → 7 means "anytime between 22:00
  * and 06:59 inclusive"). When start equals end we treat the window as
@@ -377,6 +447,30 @@ class NotificationStore {
   trayBadgeEnabled = $state<boolean>(true);
 
   /**
+   * Collapse same-category notifications that fire within
+   * `GROUP_WINDOW_MS` into one OS banner. The unseen badge still
+   * counts each event individually — grouping only affects how many
+   * banners macOS draws.
+   *
+   * When false, every notify() that clears gating fires its own
+   * banner (the original pre-grouping behaviour).
+   */
+  groupingEnabled = $state<boolean>(true);
+
+  /**
+   * Active grouping windows keyed by category. A category has at most
+   * one entry — when a second notify() of the same category lands
+   * within `GROUP_WINDOW_MS`, we update the existing entry's counter
+   * and re-send the OS notification with the same id so macOS replaces
+   * the banner in place. The garbage-collector tick clears stale
+   * entries every `GROUP_GC_TICK_MS`.
+   *
+   * Exposed as `$state` (not private) because tests poke it directly
+   * — same convention used for `triggers` above.
+   */
+  activeGroups = $state<Partial<Record<NotifyCategory, ActiveGroup>>>({});
+
+  /**
    * Timestamps (epoch ms) for notification triggers that landed while the
    * window was unfocused and inside the per-category enable rules. We
    * keep these instead of a single counter so the rolling 5-minute
@@ -421,6 +515,9 @@ class NotificationStore {
   private hydrated = false;
   private permissionRequested = false;
   private recentTickHandle: ReturnType<typeof setInterval> | null = null;
+  /** GC handle for expired group windows. Set in hydrate(); fires
+   *  every `GROUP_GC_TICK_MS` and prunes anything past the window. */
+  private groupGcHandle: ReturnType<typeof setInterval> | null = null;
   private badgePushInFlight = false;
   private badgePushQueued: number | null = null;
   /** Last value we pushed to Rust. Suppresses redundant IPC. */
@@ -449,6 +546,7 @@ class NotificationStore {
     this.errorSound = p.errorSound;
     this.quietHours = p.quietHours;
     this.trayBadgeEnabled = p.trayBadgeEnabled;
+    this.groupingEnabled = p.groupingEnabled;
     // Rehydrate the tray-history ring + immediately push the seeded
     // values into the menu so the submenu shows last session's
     // notifications until a fresh trigger replaces them. If the load
@@ -478,6 +576,39 @@ class NotificationStore {
       this.triggers = this.triggers.filter((t) => t >= cutoff);
       this.recentTick++;
     }, RECENT_TICK_MS);
+
+    // GC tick for grouping windows. Fires every 5s; drops any group
+    // whose lastTs is older than GROUP_WINDOW_MS so the next event in
+    // that category starts a fresh banner. The notify() path also
+    // checks expiry before reusing a group, so this is purely a
+    // memory-cleanliness pass — without it long-running sessions
+    // would accumulate one stale entry per category.
+    this.groupGcHandle = setInterval(() => {
+      this.gcExpiredGroups();
+    }, GROUP_GC_TICK_MS);
+  }
+
+  /**
+   * Drop any active groups whose window has expired. Pulled out of the
+   * interval body so tests can drive expiry deterministically without
+   * waiting on the timer. Idempotent — calling it when nothing is
+   * expired is a noop.
+   */
+  gcExpiredGroups(now: number = Date.now()): void {
+    const next: Partial<Record<NotifyCategory, ActiveGroup>> = {};
+    let changed = false;
+    for (const key of Object.keys(this.activeGroups) as NotifyCategory[]) {
+      const g = this.activeGroups[key];
+      if (!g) continue;
+      if (now - g.lastTs < GROUP_WINDOW_MS) {
+        next[key] = g;
+      } else {
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.activeGroups = next;
+    }
   }
 
   /**
@@ -660,7 +791,8 @@ class NotificationStore {
       sidecarSound: this.sidecarSound,
       errorSound: this.errorSound,
       quietHours: { ...this.quietHours },
-      trayBadgeEnabled: this.trayBadgeEnabled
+      trayBadgeEnabled: this.trayBadgeEnabled,
+      groupingEnabled: this.groupingEnabled
     };
     try {
       window.localStorage.setItem(LS_KEY, JSON.stringify(payload));
@@ -814,9 +946,14 @@ class NotificationStore {
    *   - the quiet-hours window — during quiet hours we still show the
    *     banner but force the sound to `'none'` so the user gets the
    *     visual cue without the audible one.
+   *   - notification grouping (when `groupingEnabled`): repeats within
+   *     `GROUP_WINDOW_MS` reuse the existing OS banner and surface a
+   *     "(+ N more)" suffix instead of firing a fresh banner. Badge +
+   *     history still count each event individually.
    *
    * Callers that pass no category (legacy) still get the master toggle
-   * + OS-default sound, matching pre-v1 behaviour.
+   * + OS-default sound, matching pre-v1 behaviour. Grouping requires a
+   * category to key on, so legacy callers always fire their own banner.
    */
   async notify(opts: NotifyOptions): Promise<void> {
     if (!this.enabled) return;
@@ -833,28 +970,88 @@ class NotificationStore {
     }
     const sound = SOUND_PATHS[choice];
 
-    try {
-      sendNotification({
-        title: opts.title,
-        body: opts.body,
-        icon: opts.icon,
-        // `sound` on the Options type is a string (OS sound name or path)
-        // or undefined. We pre-resolved that in SOUND_PATHS.
-        sound
-      });
-    } catch (err) {
-      console.warn('sendNotification failed', err);
+    // Decide grouping. Sound previews (soundOverride) and category-less
+    // legacy callers always fire a fresh banner — grouping is keyed on
+    // category, and previewing should never coalesce with real events.
+    const cat = opts.category;
+    const canGroup = this.groupingEnabled && cat !== undefined && opts.soundOverride === undefined;
+    const now = Date.now();
+    const existing = canGroup ? this.activeGroups[cat] : undefined;
+    const reuseGroup = existing !== undefined && now - existing.lastTs < GROUP_WINDOW_MS;
+
+    if (reuseGroup && existing && cat) {
+      // Coalesce path. Increment counter, rebuild the body with the
+      // running "(+ N more)" suffix, re-send with the same numeric id
+      // so macOS's UserNotifications framework replaces the existing
+      // banner in place. The first body is preserved as the prefix so
+      // a burst doesn't compound into a nonsensical chain.
+      const nextCount = existing.count + 1;
+      const updatedBody = composeGroupedBody(existing.firstBody, nextCount);
+      this.activeGroups = {
+        ...this.activeGroups,
+        [cat]: {
+          ...existing,
+          count: nextCount,
+          lastTs: now
+        }
+      };
+      try {
+        sendNotification({
+          // Same id → macOS coalesces in place. v1 trusts the
+          // same-id update path on darwin; if Tauri ever ships a
+          // platform where re-sending stacks instead of replacing,
+          // the fallback is removeActive([{id}]) then a fresh send
+          // (NOTE: removeActive is documented in
+          // @tauri-apps/plugin-notification and would brief-flicker).
+          id: existing.id,
+          title: existing.firstTitle,
+          body: updatedBody,
+          icon: opts.icon,
+          sound: existing.sound
+        });
+      } catch (err) {
+        console.warn('sendNotification (grouped update) failed', err);
+      }
+    } else {
+      // Fresh banner path. Either grouping is off, no category was
+      // supplied, the previous group expired, or there's no prior
+      // group for this category yet.
+      const id = canGroup && cat ? GROUP_ID_SEEDS[cat] : undefined;
+      try {
+        sendNotification({
+          ...(id !== undefined ? { id } : {}),
+          title: opts.title,
+          body: opts.body,
+          icon: opts.icon,
+          // `sound` on the Options type is a string (OS sound name or path)
+          // or undefined. We pre-resolved that in SOUND_PATHS.
+          sound
+        });
+      } catch (err) {
+        console.warn('sendNotification failed', err);
+      }
+      if (canGroup && cat) {
+        this.activeGroups = {
+          ...this.activeGroups,
+          [cat]: {
+            id: GROUP_ID_SEEDS[cat],
+            count: 1,
+            firstBody: opts.body ?? '',
+            firstTitle: opts.title,
+            lastTs: now,
+            sound
+          }
+        };
+      }
     }
 
-    // History accounting. We track every notification that actually
-    // shipped (i.e. cleared gating + permission + Tauri runtime checks)
-    // and is NOT a sound-preview / in-app override AND not silenced by
-    // the quiet-hours mute (the latter means the user explicitly opted
-    // out of audible alerts for this window; surfacing them in the tray
-    // menu still respects that, but spec says skip them). `silent` here
-    // is the `choice === 'none'` resolution above; we recompute against
-    // `sound` since `choice` may have been mutated by the quiet-hours
-    // branch already.
+    // History accounting. We track every notification event that
+    // cleared gating + permission + Tauri runtime checks (even when
+    // grouped into a single banner — the user wants the full count in
+    // the tray "Recent" submenu). We still exclude sound previews
+    // (soundOverride) and the quiet-hours silenced bucket, matching
+    // the original behaviour. `silent` recomputes against `sound`
+    // because `choice` may have been mutated by the quiet-hours branch.
     const silent = sound === undefined;
     const inQuiet = !opts.soundOverride && isInQuietHours(this.quietHours);
     if (!opts.soundOverride && !inQuiet && !silent) {
@@ -863,7 +1060,7 @@ class NotificationStore {
         title: opts.title,
         body: opts.body ?? '',
         category: opts.category,
-        ts: Date.now(),
+        ts: now,
         link: opts.link
       });
     }
@@ -874,6 +1071,11 @@ class NotificationStore {
     // unread" badge after a chat reply you watched stream in would be
     // noisy. `soundOverride` is the in-app preview path (settings →
     // sound preview button + test notification); those never count.
+    //
+    // Grouping note: each event bumps the badge by one even when N
+    // events fold into one banner. Spec ("if 3 routine completions
+    // group into 1 banner, unseen count goes up by 3") is what drives
+    // this — the tray icon reflects raw event volume.
     if (!opts.soundOverride && !windowFocus.focused) {
       this.recordTrigger();
       void this.pushBadge();
@@ -887,6 +1089,18 @@ class NotificationStore {
     this.trayBadgeEnabled = v;
     this.persist();
     void this.pushBadge();
+  }
+
+  /**
+   * Setter for the notification-grouping toggle. Persists + clears any
+   * active groups so the next notify() starts fresh — leaving stale
+   * group state around would surface as "Routine X (+ 1 more)" after
+   * the user disabled grouping mid-session and then re-enabled it.
+   */
+  setGroupingEnabled(v: boolean) {
+    this.groupingEnabled = v;
+    this.activeGroups = {};
+    this.persist();
   }
 }
 

@@ -36,6 +36,94 @@ The menu-bar tray gives you Show/Hide, Restart sidecar, Open Settings, Quit even
 
 For the wiring underneath all this, see [`ARCHITECTURE.md`](ARCHITECTURE.md). For how to contribute a change, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+## Workflows
+
+The four flows below cover ~95% of how people use the app. Pick the one that matches your setup.
+
+### 1. Connecting to a remote IronClaw
+
+The common case: IronClaw already runs on a server you control (baremetal3, abby, a teammate's machine). The app is a thin client that talks to that gateway over HTTP.
+
+![Onboarding step 1 — Welcome](docs/screenshots/01-onboarding-welcome.png)
+
+1. **Forward the gateway port over SSH.** IronClaw binds to `127.0.0.1` on the server, so you need a tunnel. The bundled helper handles it (see [SSH tunnel helper](#ssh-tunnel-helper) below):
+
+   ```bash
+   bash scripts/tunnel.sh open       # opens default tunnel to ironclaw-nearai:18789
+   ```
+
+   Or roll your own:
+
+   ```bash
+   ssh -L 18789:127.0.0.1:3100 user@your-server
+   ```
+
+2. **Launch the app**, pick **Remote** on the welcome screen, then enter the local end of the tunnel as the Base URL and paste your gateway token.
+
+   ![Onboarding step 2 — Remote config](docs/screenshots/02-onboarding-remote-config.png)
+
+   The token never touches disk in plain text — it's written to the macOS Keychain under `ironclaw-desktop:<profile-id>`. On re-launch the app reads from the Keychain, so you only paste once per profile.
+
+3. **Step 3 runs a health check** against the URL you entered. If it fails, you'll see a "Failed to fetch" panel with **Try again** / **Finish anyway**. Pick **Finish anyway** if you know the tunnel isn't open yet — you can re-test from Settings later.
+
+   ![Onboarding step 3 — Health check](docs/screenshots/04-onboarding-step3.png)
+
+Once connected, Cmd+1 lands you in Chat and the bottom status bar shows the gateway URL + a green dot.
+
+### 2. Running the bundled local sidecar
+
+For users without a remote IronClaw. The `.app` ships a ~120MB IronClaw binary inside `Contents/Resources/binaries/` (universal — both Apple Silicon and Intel slices). The app spawns + manages it for you.
+
+1. **Launch the app**, pick **Local** on the welcome screen.
+
+2. **Step 2 sets the inference backend.** NEAR.AI Cloud is recommended — it's free during private preview, no API key needed. You'll OAuth into your NEAR account once the sidecar starts. OpenRouter is the advanced alternative (paste a key, picks any model on OpenRouter).
+
+   ![Onboarding step 2 — Local config](docs/screenshots/03-onboarding-local-config.png)
+
+3. **Step 3 spawns the sidecar.** First spawn takes ~3 seconds (binary unpack, libSQL DB init). The app polls `http://127.0.0.1:<port>` until it answers, then drops you into Chat.
+
+4. **Sign in to NEAR.AI Cloud.** IronClaw opens its web UI in your browser on first inference request — OAuth flow lives there, not in the desktop app. Once you approve, the sidecar caches the token and the desktop client keeps talking to it normally.
+
+The sidecar PID and port are tracked by the app — quitting the app stops the sidecar cleanly. If the sidecar dies unexpectedly, the tray icon flips to "disconnected" and a notification fires (controllable in Settings → Notifications).
+
+### 3. Switching profiles
+
+For users with multiple IronClaw instances (e.g. work + personal, prod + staging).
+
+- The **sidebar profile chip** at the top opens a picker. Each profile has its own connection settings, its own Keychain entry, and its own active thread/draft state.
+- **Cmd+click any profile** in the picker to open it in a new window — both windows poll independently, both show separate tray status, and tokens stay scoped to the profile they were entered for.
+- **New profile**: sidebar chip → "+ New profile". The dialog asks for name, mode (Local/Remote), URL, and token. Save and the new profile shows in the chip menu.
+
+> TODO: capture sidebar profile chip screenshot once Tauri shell is running. The chip lives at the top of the left rail; the open-state dropdown shows all profiles with mode badges + last-seen indicator. [Screenshot: Sidebar profile chip open with two profiles]
+
+### 4. Slash commands + templates
+
+The chat composer treats `/` as a special prefix.
+
+- `/skill-name` — invoke a bundled skill directly. Autocompletes against installed skills (the 30+ that ship + anything you've added). Hit Tab to accept; the skill runs against the current thread.
+- `/template-name` — expand a saved prompt template into the composer. Templates are JSON files in the workspace, edited via Settings → Templates (or `Cmd+Shift+T`).
+- **`Cmd+Shift+T`** opens the templates modal directly — search, preview, insert.
+
+> TODO: capture slash-autocomplete and templates modal once Tauri shell is running. The slash menu pops above the composer with a fuzzy-matched list; templates modal is a centered dialog with split-pane preview. [Screenshot: Slash autocomplete dropdown]
+
+### 5. Cross-surface global search
+
+**`Cmd+Shift+F`** opens the global search. One input, six sources: **knowledge**, **threads**, **skills**, **routines**, **jobs**, **extensions**.
+
+- **Filter pills** above the results let you scope to one source.
+- **Number-key shortcuts** (1-6) toggle pills without leaving the keyboard.
+- **Enter** jumps to the highlighted result; **Cmd+Enter** opens it in a new pane.
+
+> TODO: capture global search with results spanning multiple surfaces once Tauri shell is running. Should show: filter pills along the top, mixed-source results grouped by type, keyboard-focus indicator on the first result. [Screenshot: Cmd+Shift+F global search]
+
+### 6. Engine v2 (advanced)
+
+Engine v2 is the next-generation execution surface — multi-step missions with planner, executor, and verifier roles. It's gated off by default while it bakes.
+
+To enable: **Settings → Advanced → "Show Engine v2 surface"**. After flipping the toggle, `Cmd+9` reveals the Missions tab.
+
+> TODO: capture Settings → Advanced panel with the Engine v2 toggle once Tauri shell is running. [Screenshot: Settings Advanced — Engine v2 toggle]
+
 ## What's inside
 
 - **Chat** — streaming conversations with markdown rendering, code-block copy, retry on failure, draft persistence per thread
@@ -76,6 +164,16 @@ RUST_LOG=ironclaw_desktop_lib=trace,tauri=debug npm run tauri dev   # finer-grai
 ```
 
 Targets used in our code: `ironclaw_tray`, `ironclaw_sidecar`, `ironclaw_keychain`. The keychain target logs slot names only — never the underlying secret.
+
+## Pre-commit hooks
+
+`simple-git-hooks` runs `prettier --check` on changed files before commit (via `lint-staged` — see the `lint-staged` block in `package.json`). Pre-push runs the full `npm run check` + `npm run test` suite, which mirrors what CI runs in `.github/workflows/check.yml`.
+
+Hooks auto-install on fresh clones: `npm install` triggers the `prepare` script, which runs `simple-git-hooks` and wires `.git/hooks/pre-commit` and `.git/hooks/pre-push`.
+
+To bypass a hook in a one-off (don't make a habit of this), prefix with `SKIP_SIMPLE_GIT_HOOKS=1`. For Rust formatting, run `cargo fmt --manifest-path src-tauri/Cargo.toml` manually — it's deliberately not in the JS hook to keep toolchains separate.
+
+The codebase has NOT been mass-formatted; prettier only touches files as you change them. Don't run `npx prettier --write .` unless you intend a separate, isolated reformat commit.
 
 ## Build
 
@@ -178,6 +276,21 @@ npm run tauri build
 
 Produces unsigned `.app` + `.dmg` at `src-tauri/target/release/bundle/`. Mount the DMG, drag to Applications, right-click → Open (first launch only — Gatekeeper warns about unsigned apps).
 
+### SSH tunnel helper
+
+If your IronClaw runs on a remote host, the desktop client needs the
+gateway port forwarded locally. The bundled helper handles open/close/
+status for you:
+
+```
+bash scripts/tunnel.sh open       # opens default tunnel to ironclaw-nearai:18789
+bash scripts/tunnel.sh status     # reports state + gateway health
+bash scripts/tunnel.sh close      # kills the tunnel
+bash scripts/tunnel.sh restart    # close + open
+```
+
+Override defaults via env: `IRONCLAW_SSH_ALIAS` + `IRONCLAW_TUNNEL_PORT`.
+
 ### Probing server-blocked endpoints
 
 Our client has stubbed methods for endpoints the gateway doesn't yet expose
@@ -227,6 +340,20 @@ UPDATE_BASELINE=1 bash scripts/bundle-compare.sh
 TODO: wire `bundle-compare.sh` into the PR workflow under
 `.github/workflows/` so each PR posts a bundle diff comment against
 `main`'s baseline. For v1 the scripts are local-only.
+
+## Troubleshooting
+
+| Symptom | Fix |
+| ------- | --- |
+| Status bar shows **Disconnected** even though the server is up | Check the SSH tunnel is still alive (`bash scripts/tunnel.sh status`). If the gateway port shifted, re-enter the URL under **Settings → Profile → Base URL**. Re-paste the token under **Settings → Profile → Gateway token** to refresh the Keychain entry. |
+| macOS warns **"App can't be opened because it is from an unidentified developer"** | The DMG is unsigned. Right-click the `.app` in Finder → **Open** → confirm in the dialog. macOS remembers the exception per binary, so subsequent launches work normally. Or strip the quarantine attribute: `xattr -d com.apple.quarantine /Applications/IronClaw.app`. |
+| Local sidecar fails to spawn on launch | Most often a NEAR.AI Cloud sign-in problem — open the IronClaw web UI (button in **Settings → Local sidecar**) and re-authenticate. If you're on the OpenRouter backend, check the OpenRouter key is set under **Settings → Profile → LLM backend**. Logs live at `~/Library/Application Support/com.ironclaw.desktop/sidecar.log`. |
+| Tray icon missing from the menu bar | **Settings → Advanced → "Show in menu bar"**. The toggle is on by default; if it ever flips off it usually means a startup crash before tray init. Restart the app, then re-toggle. |
+| **Cmd+K** (or any other chord) doesn't open the palette | The shortcut only fires when the app window has focus. Cmd+Tab into IronClaw first, then try again. The tray "Show window" item brings it forward even when hidden. |
+| Sidecar dies repeatedly with "port already in use" | Another IronClaw process is bound to the local port. Open Activity Monitor, kill stray `ironclaw` processes, then **Settings → Local sidecar → Restart**. If the conflict is with a different service, change the local port in **Settings → Local sidecar → Port**. |
+| Updater banner says "signature verification failed" | Means the release wasn't signed with the pubkey wired into your build. Either update to a release built after signing landed, or download the new DMG manually from the GitHub Releases page. |
+
+For anything not covered here, capture the full log with `RUST_LOG=debug npm run tauri dev` (see [Develop](#develop)) and open an issue with the trace.
 
 ## License
 

@@ -23,6 +23,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { IronClawClient } from '$lib/api/ironclaw';
 import { notifications } from './notifications.svelte';
+import { telemetry } from './telemetry.svelte';
 import {
   DEFAULT_SETTINGS,
   getActiveProfile,
@@ -38,20 +39,10 @@ import {
   type ProfileConfig
 } from './settings.svelte';
 
-export type ConnectionStatus =
-  | 'idle'
-  | 'connecting'
-  | 'connected'
-  | 'disconnected'
-  | 'error';
+export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error';
 
 /** Lifecycle of the bundled sidecar (only relevant when mode === 'local'). */
-export type SidecarStatus =
-  | 'idle'
-  | 'starting'
-  | 'running'
-  | 'exited'
-  | 'error';
+export type SidecarStatus = 'idle' | 'starting' | 'running' | 'exited' | 'error';
 
 const HEALTH_INTERVAL_MS = 30_000;
 
@@ -211,9 +202,7 @@ class ConnectionStore {
    * Anyone using `client` must handle the null case.
    */
   client = $derived<IronClawClient | null>(
-    this.token
-      ? new IronClawClient({ baseUrl: this.baseUrl, token: this.token })
-      : null
+    this.token ? new IronClawClient({ baseUrl: this.baseUrl, token: this.token }) : null
   );
 
   /** Load settings + token and start the health-poll loop. Safe to call repeatedly. */
@@ -326,13 +315,15 @@ class ConnectionStore {
       // Forward both the legacy backend tag and the new provider id so
       // the Rust side can prefer the richer field when present and fall
       // back to the binary enum otherwise.
-      const port = await startSidecar(
-        profile.id,
-        profile.llmBackend,
-        profile.llmProviderId
-      );
+      const port = await startSidecar(profile.id, profile.llmBackend, profile.llmProviderId);
       this.sidecarPort = port;
       this.setSidecarStatus('running');
+      // Opt-in telemetry — `provider` is the identifier the user
+      // picked (NEAR.AI, OpenRouter, etc) so we can chart adoption
+      // across the four wired backends. No api keys, no port.
+      telemetry.recordEvent('sidecar:started', {
+        provider: profile.llmProviderId ?? profile.llmBackend ?? 'unknown'
+      });
       // Rebind the token to the auto-generated local bearer (global,
       // not per-profile — there's one sidecar per install).
       this.token = await getOrCreateLocalToken();
@@ -348,6 +339,13 @@ class ConnectionStore {
       this.sidecarPort = null;
       this.status = 'error';
       this.lastError = this.sidecarError;
+      // Opt-in telemetry — we never put the raw error message on the
+      // wire (could include filesystem paths or env content). Just a
+      // count + the provider so we can chart failure rates per
+      // backend.
+      telemetry.recordEvent('sidecar:failed', {
+        provider: this.activeProfile.llmProviderId ?? this.activeProfile.llmBackend ?? 'unknown'
+      });
       return false;
     }
   }

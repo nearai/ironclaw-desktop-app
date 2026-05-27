@@ -15,6 +15,12 @@
   import { untrack } from 'svelte';
   import type { Skill } from '$lib/api/types';
   import { slashUsage } from '$lib/stores/slash-usage.svelte';
+  import {
+    composerInsert,
+    templates,
+    templatesModal,
+    type PromptTemplate
+  } from '$lib/stores/templates.svelte';
 
   /**
    * Weight applied to the usage score when blending with the
@@ -38,11 +44,7 @@
      * `value[0..start] + text + value[end..]` and moves the caret to
      * `start + text.length`.
      */
-    onPick: (
-      start: number,
-      end: number,
-      text: string
-    ) => void;
+    onPick: (start: number, end: number, text: string) => void;
   }
 
   let { anchor, value, caret, skills, onPick }: Props = $props();
@@ -55,10 +57,7 @@
    * `/` is the FIRST character of the buffer or is preceded by whitespace,
    * and the query so far contains no whitespace.
    */
-  function findSlashToken(
-    text: string,
-    pos: number
-  ): { start: number; query: string } | null {
+  function findSlashToken(text: string, pos: number): { start: number; query: string } | null {
     if (pos <= 0 || pos > text.length) return null;
     // Walk backwards from the caret looking for the `/` that anchors this
     // token. Stop at any whitespace, which would terminate the token.
@@ -100,20 +99,78 @@
     return j === q.length ? idx : null;
   }
 
-  interface Match {
-    skill: Skill;
-    /** Display label — usage_hint preferred, falls back to `/${name}`. */
-    label: string;
-    /** Highlighted indices on the label. */
-    labelMatches: number[];
-    /** Match-tightness rank — lower is better (rooted in `rankMatch`). */
-    rank: number;
-    /** Raw usage score from the slash-usage store; 0 when never run. */
-    usageScore: number;
-    /** Blended sort key — lower wins. Combines `rank` with a usage
-     *  bonus so a frequently-run skill floats over a marginally
-     *  tighter subsequence match. */
-    sortKey: number;
+  /**
+   * Tagged-union match record so a single ranked list can hold skill
+   * AND template rows without losing type information on the way out
+   * to the template renderer + pick handler. Templates carry the
+   * full PromptTemplate so the variable-resolution path doesn't have
+   * to re-look it up against the store on pick.
+   */
+  type Match =
+    | {
+        kind: 'skill';
+        skill: Skill;
+        /** Display label — usage_hint preferred, falls back to `/${name}`. */
+        label: string;
+        /** Highlighted indices on the label. */
+        labelMatches: number[];
+        /** Match-tightness rank — lower is better (rooted in `rankMatch`). */
+        rank: number;
+        /** Raw usage score from the slash-usage store; 0 when never run. */
+        usageScore: number;
+        /** Blended sort key — lower wins. Combines `rank` with a usage
+         *  bonus so a frequently-run skill floats over a marginally
+         *  tighter subsequence match. */
+        sortKey: number;
+      }
+    | {
+        kind: 'template';
+        template: PromptTemplate;
+        /** Display label — `/<slug>` derived from the template name. */
+        label: string;
+        /** Highlighted indices on the label. */
+        labelMatches: number[];
+        rank: number;
+        /** Templates carry their own usage score: a count × recency
+         *  blend on `useCount` + `lastUsedAt`, mirroring the
+         *  slash-usage formula. */
+        usageScore: number;
+        sortKey: number;
+      };
+
+  /**
+   * Convert a template's display name into the `/slug` form the user
+   * types into the composer. Drops punctuation other than dash/underscore
+   * and collapses whitespace to single dashes so the resulting label is
+   * a safe matcher target. Case-folded to lowercase since the matcher
+   * already lowercases on both sides.
+   */
+  function templateSlug(name: string): string {
+    const slug = name
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-');
+    return slug || 'untitled';
+  }
+
+  /**
+   * Recency-decayed usage score for a template — same shape as the
+   * slash-usage formula but operating on the template's own
+   * `useCount` + `lastUsedAt`. 7-day half-life mirrors slash-usage
+   * (so ranking parity holds when both kinds compete for the same
+   * sort slot). Returns 0 when there's no use record yet.
+   */
+  function templateUsageScore(t: PromptTemplate): number {
+    if (t.useCount <= 0 || !t.lastUsedAt) return 0;
+    const last = Date.parse(t.lastUsedAt);
+    if (Number.isNaN(last)) return 0;
+    const ageMs = Date.now() - last;
+    if (ageMs < 0) return t.useCount;
+    const ageDays = ageMs / 86400000;
+    const ZERO_DAYS = 14;
+    if (ageDays >= ZERO_DAYS) return 0;
+    return t.useCount * (1 - ageDays / ZERO_DAYS);
   }
 
   function rankMatch(
@@ -144,7 +201,8 @@
         // label target. For name matches we don't highlight on the label
         // (the label is the primary display, but the name fallback only
         // fires when the labels were ALL non-matching, so this is rare).
-        const labelMatches = target === stripped ? m.map((i) => i + (label.startsWith('/') ? 1 : 0)) : [];
+        const labelMatches =
+          target === stripped ? m.map((i) => i + (label.startsWith('/') ? 1 : 0)) : [];
         best = { matches: labelMatches, rank };
       }
     }
@@ -163,20 +221,48 @@
   // see no penalty (sortKey == rank) and frequently-run skills nudge
   // upward as their usage score grows.
   const matches = $derived<Match[]>(
-    !token
-      ? []
-      : skills
-          .map((s) => {
-            const label = s.usage_hint && s.usage_hint.startsWith('/') ? s.usage_hint : `/${s.name}`;
-            const { matches: m, rank } = rankMatch(label, s.name, token.query);
-            if (m === null) return null;
-            const usageScore = slashUsage.score(s.name);
-            const sortKey = rank - usageScore * USAGE_WEIGHT;
-            return { skill: s, label, labelMatches: m, rank, usageScore, sortKey };
-          })
-          .filter((m): m is Match => m !== null)
-          .sort((a, b) => a.sortKey - b.sortKey)
-          .slice(0, 8)
+    (() => {
+      if (!token) return [];
+      const out: Match[] = [];
+      for (const s of skills) {
+        const label = s.usage_hint && s.usage_hint.startsWith('/') ? s.usage_hint : `/${s.name}`;
+        const { matches: m, rank } = rankMatch(label, s.name, token.query);
+        if (m === null) continue;
+        const usageScore = slashUsage.score(s.name);
+        const sortKey = rank - usageScore * USAGE_WEIGHT;
+        out.push({
+          kind: 'skill',
+          skill: s,
+          label,
+          labelMatches: m,
+          rank,
+          usageScore,
+          sortKey
+        });
+      }
+      // Mix in templates under the same `/<slug>` matcher. Templates
+      // outrank skills only when their tightness is genuinely tighter
+      // OR when usage has nudged them above; we don't seed them with
+      // a positional bonus so existing skill ranking stays stable.
+      for (const t of templates.templates) {
+        const label = `/${templateSlug(t.name)}`;
+        const { matches: m, rank } = rankMatch(label, t.name, token.query);
+        if (m === null) continue;
+        const usageScore = templateUsageScore(t);
+        const sortKey = rank - usageScore * USAGE_WEIGHT;
+        out.push({
+          kind: 'template',
+          template: t,
+          label,
+          labelMatches: m,
+          rank,
+          usageScore,
+          sortKey
+        });
+      }
+      out.sort((a, b) => a.sortKey - b.sortKey);
+      return out.slice(0, 8);
+    })()
   );
 
   // -- keyboard navigation ---------------------------------------------------
@@ -250,12 +336,37 @@
     if (!token) return;
     const m = matches[i];
     if (!m) return;
-    // Replace [token.start .. caret] with the canonical label. Append a
-    // trailing space so the user can keep typing arguments without
-    // re-triggering the dropdown.
-    const replacement = `${m.label} `;
-    onPick(token.start, caret, replacement);
+    if (m.kind === 'skill') {
+      // Replace [token.start .. caret] with the canonical label. Append
+      // a trailing space so the user can keep typing arguments without
+      // re-triggering the dropdown.
+      const replacement = `${m.label} `;
+      onPick(token.start, caret, replacement);
+      dismissed = true;
+      return;
+    }
+    // Template branch. Pick semantics differ from skills: skills splice
+    // their label into the composer for the user to keep typing
+    // arguments after; templates REPLACE the slash token with the
+    // rendered body. Templates with `{vars}` route through the modal so
+    // the user can fill the variable inputs inline, matching the modal's
+    // own variable-input flow. Templates without variables splice their
+    // body directly via the composer bus.
+    const tpl = m.template;
+    // First, clear the slash token from the composer so the inserted
+    // text doesn't end up appended to a stray `/foo` fragment.
+    onPick(token.start, caret, '');
     dismissed = true;
+    if (tpl.variables.length > 0) {
+      // Defer to the modal so the user gets the same inline
+      // variable-input view (one input per `{var}`) they'd see from
+      // Cmd+Shift+T. The modal handles `templates.recordUse()` and
+      // the composer-bus push itself.
+      templatesModal.show(tpl.id);
+    } else {
+      composerInsert.push(tpl.body, tpl.id);
+      templates.recordUse(tpl.id);
+    }
   }
 
   function truncate(s: string | undefined, n: number): string {
@@ -302,9 +413,13 @@
     aria-label="Slash commands"
   >
     <ul class="py-1">
-      {#each matches as m, i (m.skill.name)}
+      {#each matches as m, i (m.kind === 'skill' ? `s:${m.skill.name}` : `t:${m.template.id}`)}
         {@const isActive = i === active}
         {@const segs = highlightSegments(m.label, m.labelMatches)}
+        {@const subtitle =
+          m.kind === 'skill'
+            ? (m.skill.description ?? '')
+            : `Template${m.template.variables.length > 0 ? ` · ${m.template.variables.length} var${m.template.variables.length === 1 ? '' : 's'}` : ''}`}
         <!--
           "recent" badge — surfaces on the FIRST result with a non-zero
           usage score so the user has a subtle cue that ranking has
@@ -347,17 +462,15 @@
               <line x1="12" y1="19" x2="20" y2="19" />
             </svg>
             <div class="flex-1 min-w-0">
-              <div class="font-mono text-xs truncate flex items-center gap-1.5"
+              <div
+                class="font-mono text-xs truncate flex items-center gap-1.5"
                 class:text-bg-deep={isActive}
                 class:text-accent-cyan={!isActive}
               >
                 <span class="truncate">
                   {#each segs as seg, idx (idx)}
                     {#if seg.hit}
-                      <span
-                        class="font-bold"
-                        class:underline={isActive}
-                      >{seg.text}</span>
+                      <span class="font-bold" class:underline={isActive}>{seg.text}</span>
                     {:else}
                       <span>{seg.text}</span>
                     {/if}
@@ -375,8 +488,8 @@
                     class:text-accent-gold={!isActive}
                     class:border-accent-gold={!isActive}
                     aria-label="Recently used"
-                    title="Recently used"
-                  >recent</span>
+                    title="Recently used">recent</span
+                  >
                 {/if}
               </div>
               <div
@@ -384,7 +497,7 @@
                 class:text-bg-deep={isActive}
                 class:text-text-muted={!isActive}
               >
-                {truncate(m.skill.description, 60)}
+                {truncate(subtitle, 60)}
               </div>
             </div>
           </button>

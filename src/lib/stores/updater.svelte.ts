@@ -45,6 +45,8 @@ export interface UpdateInfo {
   date?: string;
 }
 
+import { telemetry } from './telemetry.svelte';
+
 const LS_SKIP = 'ironclaw-updater-skip';
 const LS_CADENCE = 'ironclaw-updater-cadence';
 const LS_LAST_CHECK = 'ironclaw-updater-last-check';
@@ -182,6 +184,9 @@ class UpdaterStore {
           lsDel(LS_SKIP);
         }
         this.status = 'available';
+        // Opt-in telemetry — the target version is interesting for
+        // adoption-rate charts; no other context surfaces here.
+        telemetry.recordEvent('update:available', { version: result.version });
       } else {
         pendingUpdate = null;
         this.update = null;
@@ -235,6 +240,11 @@ class UpdaterStore {
       // renders the restart prompt.
       this.status = 'installing';
       this.progress = 100;
+      // Opt-in telemetry — fires once per install completion. Same
+      // version-only shape as `update:available` above.
+      telemetry.recordEvent('update:installed', {
+        version: this.update?.version ?? 'unknown'
+      });
     } catch (err) {
       this.status = 'error';
       this.error = (err as Error).message ?? String(err);

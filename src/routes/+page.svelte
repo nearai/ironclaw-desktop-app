@@ -16,6 +16,8 @@
   import { pins } from '$lib/stores/pins.svelte';
   import { threadRename } from '$lib/stores/thread-rename.svelte';
   import { slashUsage } from '$lib/stores/slash-usage.svelte';
+  import { composerInsert } from '$lib/stores/templates.svelte';
+  import { telemetry } from '$lib/stores/telemetry.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { windowFocus } from '$lib/stores/window-focus.svelte';
   import { loadSettings } from '$lib/stores/settings.svelte';
@@ -58,18 +60,12 @@
   /** Tracks window inner width via a `resize` listener wired in onMount.
    *  Below `NARROW_VIEWPORT_PX` the resize handles are hidden and the
    *  layout uses the fixed defaults regardless of the persisted value. */
-  let viewportWidth = $state<number>(
-    typeof window === 'undefined' ? 1280 : window.innerWidth
-  );
+  let viewportWidth = $state<number>(typeof window === 'undefined' ? 1280 : window.innerWidth);
   const resizeEnabled = $derived(viewportWidth >= NARROW_VIEWPORT_PX);
   /** Effective rail width — defaults when resizing is disabled, otherwise
    *  whatever the user dragged to / hydrated from localStorage. */
-  const effectiveThreadRailWidth = $derived(
-    resizeEnabled ? threadRailWidth : THREAD_RAIL_DEFAULT
-  );
-  const effectiveInspectorWidth = $derived(
-    resizeEnabled ? inspectorWidth : INSPECTOR_DEFAULT
-  );
+  const effectiveThreadRailWidth = $derived(resizeEnabled ? threadRailWidth : THREAD_RAIL_DEFAULT);
+  const effectiveInspectorWidth = $derived(resizeEnabled ? inspectorWidth : INSPECTOR_DEFAULT);
 
   // -- local state ------------------------------------------------------------
   let composerEl = $state<HTMLTextAreaElement | null>(null);
@@ -189,12 +185,7 @@
   // `text/plain` once the gateway's vision/text pipelines surface them
   // back through the model — current /api/chat/send accepts any mime but
   // only images are wired through `image_analyze`.
-  const ALLOWED_MIME = new Set([
-    'image/png',
-    'image/jpeg',
-    'image/gif',
-    'image/webp'
-  ]);
+  const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
   const MAX_ATTACHMENTS = 5;
   const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
@@ -334,13 +325,17 @@
   const threadWindow = $derived.by(() => {
     const total = sortedThreads.length;
     if (!threadsVirtualized || total === 0 || threadViewportHeight === 0) {
-      return { first: 0, last: -1, items: [] as Array<{ thread: typeof sortedThreads[number]; index: number }> };
+      return {
+        first: 0,
+        last: -1,
+        items: [] as Array<{ thread: (typeof sortedThreads)[number]; index: number }>
+      };
     }
     const rough = Math.floor(threadScrollTop / THREAD_ITEM_HEIGHT);
     const visibleCount = Math.ceil(threadViewportHeight / THREAD_ITEM_HEIGHT);
     const first = Math.max(0, rough - THREAD_OVERSCAN);
     const last = Math.min(total - 1, rough + visibleCount + THREAD_OVERSCAN);
-    const items: Array<{ thread: typeof sortedThreads[number]; index: number }> = [];
+    const items: Array<{ thread: (typeof sortedThreads)[number]; index: number }> = [];
     for (let i = first; i <= last; i++) items.push({ thread: sortedThreads[i], index: i });
     return { first, last, items };
   });
@@ -351,7 +346,7 @@
   /** Bottom spacer = rows skipped below the window (last is inclusive). */
   const threadBottomSpacer = $derived(
     threadsVirtualized
-      ? Math.max(0, (sortedThreads.length - threadWindow.last - 1)) * THREAD_ITEM_HEIGHT
+      ? Math.max(0, sortedThreads.length - threadWindow.last - 1) * THREAD_ITEM_HEIGHT
       : 0
   );
 
@@ -502,18 +497,12 @@
         const railRaw = localStorage.getItem(THREAD_RAIL_STORAGE_KEY);
         const railParsed = railRaw === null ? NaN : Number.parseInt(railRaw, 10);
         if (Number.isFinite(railParsed)) {
-          threadRailWidth = Math.min(
-            Math.max(railParsed, THREAD_RAIL_MIN),
-            THREAD_RAIL_MAX
-          );
+          threadRailWidth = Math.min(Math.max(railParsed, THREAD_RAIL_MIN), THREAD_RAIL_MAX);
         }
         const insRaw = localStorage.getItem(INSPECTOR_STORAGE_KEY);
         const insParsed = insRaw === null ? NaN : Number.parseInt(insRaw, 10);
         if (Number.isFinite(insParsed)) {
-          inspectorWidth = Math.min(
-            Math.max(insParsed, INSPECTOR_MIN),
-            INSPECTOR_MAX
-          );
+          inspectorWidth = Math.min(Math.max(insParsed, INSPECTOR_MIN), INSPECTOR_MAX);
         }
       }
     } catch {
@@ -581,7 +570,14 @@
       // Tear down any in-flight dictation so the mic isn't held open after
       // the chat surface unmounts (route change, profile switch, etc.).
       if (voiceRec) {
-        try { voiceRec.onresult = null; voiceRec.onend = null; voiceRec.onerror = null; voiceRec.stop(); } catch { /* ignore */ }
+        try {
+          voiceRec.onresult = null;
+          voiceRec.onend = null;
+          voiceRec.onerror = null;
+          voiceRec.stop();
+        } catch {
+          /* ignore */
+        }
         voiceRec = null;
       }
       if (voiceSilenceTimer) {
@@ -885,6 +881,58 @@
     });
   }
 
+  /**
+   * Replace the composer's current input with a fully-rendered prompt
+   * template body. Distinct from `applySlashPick` because templates
+   * are meant to *replace* whatever scratch text is in the composer
+   * (the user explicitly picked a template — they don't want to
+   * splice it into a mid-typed sentence). Caret lands at the end so
+   * the user can keep editing after the insertion. Auto-grows the
+   * textarea and triggers the draft save so the inserted text
+   * survives a thread switch.
+   */
+  function applyTemplateInsert(text: string) {
+    input = text;
+    const pos = text.length;
+    void tick().then(() => {
+      if (!composerEl) return;
+      composerEl.focus();
+      composerEl.setSelectionRange(pos, pos);
+      caret = pos;
+      autoGrow();
+      scheduleDraftSave();
+    });
+  }
+
+  /**
+   * Drain the composer-insert bus whenever the templates modal pushes
+   * a payload. Same shape across mount + later pushes: read the
+   * pending text, replace the composer input via `applyTemplateInsert`,
+   * and (if a template id was attached) bump its use stats. Bus is
+   * drained atomically — `consume()` clears the rune so the next
+   * read sees null and this effect doesn't re-fire on its own.
+   *
+   * Why an effect (not just onMount): the user can press
+   * Cmd+Shift+T → Insert while already on the chat route, in which
+   * case there's no remount to anchor the consume against. The
+   * effect re-runs every time `composerInsert.pending` flips, so
+   * same-route inserts land too.
+   *
+   * The `untrack` on `composerEl` keeps the effect from re-running
+   * when the textarea reference changes (HMR / first mount) — only
+   * the bus payload should drive it.
+   */
+  $effect(() => {
+    // Touch the reactive field so this effect re-runs on every push.
+    const pending = composerInsert.pending;
+    if (pending === null) return;
+    untrack(() => {
+      const payload = composerInsert.consume();
+      if (!payload) return;
+      applyTemplateInsert(payload.text);
+    });
+  });
+
   function autoGrow() {
     if (!composerEl) return;
     composerEl.style.height = 'auto';
@@ -989,7 +1037,11 @@
       if (a.id === id) {
         // Revoke the blob URL so the browser can release the underlying
         // bytes. Safe to call even if the URL has already been revoked.
-        try { URL.revokeObjectURL(a.previewUrl); } catch { /* ignore */ }
+        try {
+          URL.revokeObjectURL(a.previewUrl);
+        } catch {
+          /* ignore */
+        }
         return false;
       }
       return true;
@@ -999,7 +1051,11 @@
 
   function clearAttachments(): void {
     for (const a of attachments) {
-      try { URL.revokeObjectURL(a.previewUrl); } catch { /* ignore */ }
+      try {
+        URL.revokeObjectURL(a.previewUrl);
+      } catch {
+        /* ignore */
+      }
     }
     attachments = [];
   }
@@ -1100,9 +1156,7 @@
    */
   function cleanUserDisplay(text: string): string {
     if (!text) return text;
-    return text
-      .replace(/\n*<attachments>[\s\S]*?<\/attachments>\s*/u, '')
-      .trim();
+    return text.replace(/\n*<attachments>[\s\S]*?<\/attachments>\s*/u, '').trim();
   }
 
   /** True when the cleaned user content contains markdown image syntax —
@@ -1175,6 +1229,12 @@
       // Append the optimistic user message — keep its id so we can mark it
       // failed (and offer retry) if the send/stream pair errors out.
       const localId = messages.appendUserMessage(threadId, optimisticContent);
+      // Opt-in telemetry — single-line counter. No content, no thread id.
+      // The `hasAttachments` flag lets us chart attachment usage
+      // independently of total sends.
+      telemetry.recordEvent('chat:message_sent', {
+        hasAttachments: pendingAttachments.length > 0
+      });
 
       // Clear the composer + persisted draft. Suppress the debounced save
       // that would otherwise fire from the `input = ''` write.
@@ -1287,8 +1347,9 @@
           // and use (or the probe was wrong about this build). Fall back
           // to the legacy path so the user's send doesn't drop on the floor.
           const msg = (err as Error).message;
-          const isMissing =
-            /\b(404|405|not[- ]?found|method not allowed|not available)\b/i.test(msg);
+          const isMissing = /\b(404|405|not[- ]?found|method not allowed|not available)\b/i.test(
+            msg
+          );
           if (!signal.aborted && isMissing) {
             // eslint-disable-next-line no-console
             console.info(
@@ -1561,11 +1622,7 @@
   let exportButtonEl = $state<HTMLButtonElement | null>(null);
   let exportPopoverEl = $state<HTMLDivElement | null>(null);
 
-  const canExport = $derived(
-    !!currentThread &&
-      connection.status === 'connected' &&
-      !exporting
-  );
+  const canExport = $derived(!!currentThread && connection.status === 'connected' && !exporting);
 
   function toggleExportMenu() {
     if (!canExport && !exportOpen) return;
@@ -1816,7 +1873,11 @@
       voiceSilenceTimer = null;
     }
     if (voiceRec) {
-      try { voiceRec.stop(); } catch { /* ignore */ }
+      try {
+        voiceRec.stop();
+      } catch {
+        /* ignore */
+      }
       voiceRec = null;
     }
     voiceListening = false;
@@ -2014,10 +2075,20 @@
         type="button"
         onclick={onNewChat}
         disabled={!connection.client}
-        title={connection.client ? 'Start a new chat' : 'Configure the IronClaw connection in Settings first.'}
+        title={connection.client
+          ? 'Start a new chat'
+          : 'Configure the IronClaw connection in Settings first.'}
         class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed min-h-[40px]"
       >
-        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <svg
+          viewBox="0 0 24 24"
+          class="w-4 h-4"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
@@ -2079,7 +2150,10 @@
               >
                 <span class="truncate block">
                   {displayTitle}
-                  {#if isRenamed}<span class="text-accent-gold text-[10px] ml-1" title="Locally renamed">✏</span>{/if}
+                  {#if isRenamed}<span
+                      class="text-accent-gold text-[10px] ml-1"
+                      title="Locally renamed">✏</span
+                    >{/if}
                 </span>
                 <span class="text-[10px] text-text-muted">{relativeTime(t.updated_at)}</span>
               </button>
@@ -2117,7 +2191,9 @@
                   stroke-linejoin="round"
                   aria-hidden="true"
                 >
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  <polygon
+                    points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                  />
                 </svg>
               </button>
             </li>
@@ -2160,9 +2236,14 @@
               >
                 <span class="truncate block">
                   {displayTitle}
-                  {#if isRenamed}<span class="text-accent-gold text-[10px] ml-1" title="Locally renamed">✏</span>{/if}
+                  {#if isRenamed}<span
+                      class="text-accent-gold text-[10px] ml-1"
+                      title="Locally renamed">✏</span
+                    >{/if}
                 </span>
-                <span class="text-[10px] text-text-muted">{relativeTime(row.thread.updated_at)}</span>
+                <span class="text-[10px] text-text-muted"
+                  >{relativeTime(row.thread.updated_at)}</span
+                >
               </button>
               <button
                 type="button"
@@ -2192,7 +2273,9 @@
                   stroke-linejoin="round"
                   aria-hidden="true"
                 >
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                  <polygon
+                    points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                  />
                 </svg>
               </button>
             </li>
@@ -2268,8 +2351,8 @@
                     role="tooltip"
                     class="absolute right-0 top-full mt-1 z-30 w-64 rounded-md border border-border-subtle bg-bg-deep text-xs text-text-muted shadow-lg p-2"
                   >
-                    Renames are local to this device. The server doesn't
-                    support thread renaming yet.
+                    Renames are local to this device. The server doesn't support thread renaming
+                    yet.
                   </div>
                 </div>
               {/if}
@@ -2331,7 +2414,16 @@
                 aria-label="Thread title options"
                 title="Thread title options"
               >
-                <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-3.5 h-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
                   <circle cx="12" cy="5" r="1" />
                   <circle cx="12" cy="12" r="1" />
                   <circle cx="12" cy="19" r="1" />
@@ -2378,8 +2470,18 @@
         aria-label="Toggle tool inspector"
         title="Tool inspector"
       >
-        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+        <svg
+          viewBox="0 0 24 24"
+          class="w-4 h-4"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path
+            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+          />
         </svg>
       </button>
 
@@ -2397,9 +2499,20 @@
           aria-haspopup="menu"
           aria-expanded={exportOpen}
           aria-label="Export conversation"
-          title={canExport ? 'Export this conversation' : 'Connect and select a conversation to export'}
+          title={canExport
+            ? 'Export this conversation'
+            : 'Connect and select a conversation to export'}
         >
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <polyline points="7 10 12 15 17 10" />
             <line x1="12" y1="15" x2="12" y2="3" />
@@ -2419,7 +2532,16 @@
               onclick={() => void onExportThread('markdown')}
               class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors"
             >
-              <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-text-muted" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5 text-text-muted"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
               </svg>
@@ -2431,7 +2553,16 @@
               onclick={() => void onExportThread('json')}
               class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle"
             >
-              <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 text-text-muted" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <svg
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5 text-text-muted"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                 <polyline points="14 2 14 8 20 8" />
                 <path d="M8 17v-4M12 17v-4M16 17v-4" />
@@ -2451,47 +2582,54 @@
            without pushing the layout. -->
       {#if searchOpen}
         <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 w-full max-w-md px-3">
-          <ChatSearch
-            scrollRoot={scrollEl}
-            {contentVersion}
-            onClose={() => (searchOpen = false)}
-          />
+          <ChatSearch scrollRoot={scrollEl} {contentVersion} onClose={() => (searchOpen = false)} />
         </div>
       {/if}
-    <!-- Event-delegated <img> click handler — opens the lightbox for any
+      <!-- Event-delegated <img> click handler — opens the lightbox for any
          image inside the stream (sent attachments, optimistic blob previews,
          or markdown-rendered assistant content). svelte's a11y rule is
          relaxed because the actual interactive targets (images) are tagged
          with role + tabindex when they're rendered through MarkdownView /
          the user bubble. -->
-    <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <div
-      bind:this={scrollEl}
-      onscroll={onScroll}
-      onclick={onStreamClick}
-      class="absolute inset-0 overflow-y-auto px-6 py-5"
-    >
-      {#if !currentThread && history.length === 0 && !streamingBuffer}
-        <div class="h-full flex flex-col items-center justify-center text-center">
-          <svg viewBox="0 0 24 24" class="w-12 h-12 text-accent-cyan/30 mb-4" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-            <path d="M4 7l8-4 8 4-8 4-8-4z" stroke-linejoin="round" />
-            <path d="M4 12l8 4 8-4" stroke-linejoin="round" />
-            <path d="M4 17l8 4 8-4" stroke-linejoin="round" />
-          </svg>
-          {#if !connection.client}
-            <p class="text-sm text-text-primary">IronClaw is offline</p>
-            <p class="text-xs text-text-muted mt-1">
-              <a href="/settings" class="text-accent-cyan hover:underline">Configure the gateway in Settings</a> to start chatting.
-            </p>
-          {:else}
-            <p class="text-sm text-text-muted">Start a conversation</p>
-            <p class="text-xs text-text-muted mt-1">Press Enter to send, Shift+Enter for newline</p>
-          {/if}
-        </div>
-      {:else}
-        <div class="max-w-4xl mx-auto space-y-4">
-          <!--
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <div
+        bind:this={scrollEl}
+        onscroll={onScroll}
+        onclick={onStreamClick}
+        class="absolute inset-0 overflow-y-auto px-6 py-5"
+      >
+        {#if !currentThread && history.length === 0 && !streamingBuffer}
+          <div class="h-full flex flex-col items-center justify-center text-center">
+            <svg
+              viewBox="0 0 24 24"
+              class="w-12 h-12 text-accent-cyan/30 mb-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              aria-hidden="true"
+            >
+              <path d="M4 7l8-4 8 4-8 4-8-4z" stroke-linejoin="round" />
+              <path d="M4 12l8 4 8-4" stroke-linejoin="round" />
+              <path d="M4 17l8 4 8-4" stroke-linejoin="round" />
+            </svg>
+            {#if !connection.client}
+              <p class="text-sm text-text-primary">IronClaw is offline</p>
+              <p class="text-xs text-text-muted mt-1">
+                <a href="/settings" class="text-accent-cyan hover:underline"
+                  >Configure the gateway in Settings</a
+                > to start chatting.
+              </p>
+            {:else}
+              <p class="text-sm text-text-muted">Start a conversation</p>
+              <p class="text-xs text-text-muted mt-1">
+                Press Enter to send, Shift+Enter for newline
+              </p>
+            {/if}
+          </div>
+        {:else}
+          <div class="max-w-4xl mx-auto space-y-4">
+            <!--
             Lazy-history indicator. Renders only while a paginated fetch is
             in flight. The container scroll position is anchored around the
             prepend in maybeLoadMore(), so this row appears briefly, the new
@@ -2499,130 +2637,151 @@
             pushed down by the inserted height — the user's view stays
             fixed on the message they were reading.
           -->
-          {#if isLoadingMore}
-            <div class="flex justify-center py-2">
-              <span class="inline-flex items-center gap-2 text-xs text-text-muted">
-                <span class="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse" aria-hidden="true"></span>
-                Loading older messages…
-              </span>
-            </div>
-          {/if}
-          {#each history as msg (msg.id)}
-            {#if msg.role === 'user'}
-              {@const meta = messages.getMeta(msg.id)}
-              {@const failed = !!meta.failed}
-              {@const userDisplay = cleanUserDisplay(msg.content)}
-              {@const userHasImage = userHasInlineImage(userDisplay)}
-              <div class="flex flex-col items-end gap-1">
-                <div
-                  class="search-target max-w-[75%] rounded-lg border px-4 py-2.5 text-sm text-text-primary"
-                  class:whitespace-pre-wrap={!userHasImage}
-                  style={failed
-                    ? 'background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.45);'
-                    : 'background:rgba(76,167,230,0.10);border-color:rgba(251,191,36,0.4);'}
-                >
-                  {#if userHasImage}
-                    <MarkdownView markdown={userDisplay} />
-                  {:else}
-                    {userDisplay}
+            {#if isLoadingMore}
+              <div class="flex justify-center py-2">
+                <span class="inline-flex items-center gap-2 text-xs text-text-muted">
+                  <span
+                    class="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"
+                    aria-hidden="true"
+                  ></span>
+                  Loading older messages…
+                </span>
+              </div>
+            {/if}
+            {#each history as msg (msg.id)}
+              {#if msg.role === 'user'}
+                {@const meta = messages.getMeta(msg.id)}
+                {@const failed = !!meta.failed}
+                {@const userDisplay = cleanUserDisplay(msg.content)}
+                {@const userHasImage = userHasInlineImage(userDisplay)}
+                <div class="flex flex-col items-end gap-1">
+                  <div
+                    class="search-target max-w-[75%] rounded-lg border px-4 py-2.5 text-sm text-text-primary"
+                    class:whitespace-pre-wrap={!userHasImage}
+                    style={failed
+                      ? 'background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.45);'
+                      : 'background:rgba(76,167,230,0.10);border-color:rgba(251,191,36,0.4);'}
+                  >
+                    {#if userHasImage}
+                      <MarkdownView markdown={userDisplay} />
+                    {:else}
+                      {userDisplay}
+                    {/if}
+                  </div>
+                  {#if failed && currentId}
+                    {@const isRetrying = !!retryingIds[msg.id]}
+                    <div class="flex items-center gap-2 text-[11px] text-red-300 max-w-[75%]">
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-3 h-3 shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                      </svg>
+                      <span>Failed to send</span>
+                      <button
+                        type="button"
+                        onclick={() => void onRetry(currentId!, msg.id)}
+                        disabled={isRetrying || sending || isStreaming}
+                        class="px-2 py-0.5 rounded border border-red-500/50 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Retry sending this message"
+                      >
+                        {isRetrying ? 'Retrying…' : 'Retry'}
+                      </button>
+                    </div>
                   {/if}
                 </div>
-                {#if failed && currentId}
-                  {@const isRetrying = !!retryingIds[msg.id]}
-                  <div class="flex items-center gap-2 text-[11px] text-red-300 max-w-[75%]">
-                    <svg viewBox="0 0 24 24" class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="8" x2="12" y2="12" />
-                      <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
-                    <span>Failed to send</span>
-                    <button
-                      type="button"
-                      onclick={() => void onRetry(currentId!, msg.id)}
-                      disabled={isRetrying || sending || isStreaming}
-                      class="px-2 py-0.5 rounded border border-red-500/50 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Retry sending this message"
-                    >
-                      {isRetrying ? 'Retrying…' : 'Retry'}
-                    </button>
-                  </div>
-                {/if}
-              </div>
-            {:else if msg.role === 'assistant'}
-              <!-- Group wrapper exposes the Branch button on hover (focus-
+              {:else if msg.role === 'assistant'}
+                <!-- Group wrapper exposes the Branch button on hover (focus-
                    visible too, for keyboard users). The fork-aware button
                    pops the confirm dialog rather than acting directly so
                    the user can back out without losing intent. -->
-              <div class="flex justify-start">
-                <div class="group relative max-w-[85%]">
-                  <div
-                    class="search-target rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
-                  >
-                    <MarkdownView markdown={msg.content} />
-                  </div>
-                  <button
-                    type="button"
-                    onclick={() => openBranchConfirm(msg.id)}
-                    disabled={branching || sending || isStreaming}
-                    class="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded text-text-muted bg-bg-deep/80 border border-border-subtle hover:text-accent-cyan hover:border-accent-cyan/50 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                    aria-label="Fork from this message"
-                    title="Fork from this message"
-                  >
-                    <!-- Inline branch glyph (not in Icon.svelte's set; v2
+                <div class="flex justify-start">
+                  <div class="group relative max-w-[85%]">
+                    <div
+                      class="search-target rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
+                    >
+                      <MarkdownView markdown={msg.content} />
+                    </div>
+                    <button
+                      type="button"
+                      onclick={() => openBranchConfirm(msg.id)}
+                      disabled={branching || sending || isStreaming}
+                      class="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded text-text-muted bg-bg-deep/80 border border-border-subtle hover:text-accent-cyan hover:border-accent-cyan/50 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                      aria-label="Fork from this message"
+                      title="Fork from this message"
+                    >
+                      <!-- Inline branch glyph (not in Icon.svelte's set; v2
                          design vocabulary). Two parallel lines diverging
                          to suggest a split. -->
-                    <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                      <circle cx="6" cy="6" r="2" />
-                      <circle cx="18" cy="6" r="2" />
-                      <circle cx="12" cy="18" r="2" />
-                      <path d="M6 8v3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V8" />
-                      <line x1="12" y1="14" x2="12" y2="16" />
-                    </svg>
-                  </button>
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <circle cx="6" cy="6" r="2" />
+                        <circle cx="18" cy="6" r="2" />
+                        <circle cx="12" cy="18" r="2" />
+                        <path d="M6 8v3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V8" />
+                        <line x1="12" y1="14" x2="12" y2="16" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
-              </div>
-            {:else}
-              <!-- tool message (rare today; gateway doesn't emit these in history) -->
+              {:else}
+                <!-- tool message (rare today; gateway doesn't emit these in history) -->
+                <div class="flex justify-start">
+                  <div
+                    class="search-target max-w-[85%] rounded-md border border-border-subtle bg-bg-deep px-3 py-2 text-xs text-text-muted font-mono"
+                  >
+                    tool · {msg.content}
+                  </div>
+                </div>
+              {/if}
+            {/each}
+
+            <!-- in-flight assistant turn -->
+            {#if isStreaming || streamingBuffer}
               <div class="flex justify-start">
                 <div
-                  class="search-target max-w-[85%] rounded-md border border-border-subtle bg-bg-deep px-3 py-2 text-xs text-text-muted font-mono"
+                  class="search-target max-w-[85%] rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
                 >
-                  tool · {msg.content}
+                  {#if streamingBuffer}
+                    <MarkdownView markdown={streamingBuffer} />
+                  {:else}
+                    <span class="inline-flex items-center gap-1.5 text-text-muted">
+                      <span class="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"></span>
+                      <span class="text-xs">Thinking…</span>
+                    </span>
+                  {/if}
                 </div>
               </div>
             {/if}
-          {/each}
 
-          <!-- in-flight assistant turn -->
-          {#if isStreaming || streamingBuffer}
-            <div class="flex justify-start">
-              <div
-                class="search-target max-w-[85%] rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
-              >
-                {#if streamingBuffer}
-                  <MarkdownView markdown={streamingBuffer} />
-                {:else}
-                  <span class="inline-flex items-center gap-1.5 text-text-muted">
-                    <span class="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"></span>
-                    <span class="text-xs">Thinking…</span>
-                  </span>
-                {/if}
+            {#if streamError}
+              <div class="flex justify-start">
+                <div
+                  class="max-w-[85%] rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+                >
+                  {streamError}
+                </div>
               </div>
-            </div>
-          {/if}
-
-          {#if streamError}
-            <div class="flex justify-start">
-              <div
-                class="max-w-[85%] rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300"
-              >
-                {streamError}
-              </div>
-            </div>
-          {/if}
-        </div>
-      {/if}
-    </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
 
       <!-- scroll-to-bottom FAB — shown when new content arrives off-screen -->
       {#if showScrollFab}
@@ -2633,7 +2792,16 @@
           aria-label="Scroll to newest message"
           title="Jump to bottom"
         >
-          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
             <line x1="12" y1="5" x2="12" y2="19" />
             <polyline points="19 12 12 19 5 12" />
           </svg>
@@ -2680,10 +2848,7 @@
              takes its own row so longer file names don't squeeze the
              textarea. Visible only when at least one attachment is staged. -->
         {#if attachments.length > 0}
-          <div
-            class="flex flex-wrap gap-2 mb-2"
-            aria-label="Pending attachments"
-          >
+          <div class="flex flex-wrap gap-2 mb-2" aria-label="Pending attachments">
             {#each attachments as a (a.id)}
               <div
                 class="group flex items-center gap-2 bg-bg-deep border border-border-subtle rounded-md pl-1 pr-2 py-1 hover:border-accent-cyan/50 transition-colors"
@@ -2705,7 +2870,15 @@
                   aria-label={`Remove ${a.name}`}
                   title="Remove"
                 >
-                  <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
@@ -2731,7 +2904,15 @@
               ? `Max ${MAX_ATTACHMENTS} attachments per message`
               : 'Attach image (PNG/JPEG/GIF/WebP, max 5 MB each)'}
           >
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
@@ -2754,11 +2935,7 @@
             class:hover:text-accent-cyan={!voiceListening && voiceSupported}
             class:text-red-400={voiceListening}
             class:animate-pulse={voiceListening}
-            style={voiceListening
-              ? 'background:rgba(239,68,68,0.10);'
-              : voiceSupported
-                ? ''
-                : ''}
+            style={voiceListening ? 'background:rgba(239,68,68,0.10);' : voiceSupported ? '' : ''}
             aria-label={voiceListening ? 'Stop dictation' : 'Start dictation'}
             aria-pressed={voiceListening}
             title={!voiceSupported
@@ -2767,7 +2944,16 @@
                 ? 'Stop dictation (click or pause for 3s)'
                 : 'Dictate (Web Speech API)'}
           >
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill={voiceListening ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill={voiceListening ? 'currentColor' : 'none'}
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
               <rect x="9" y="3" width="6" height="11" rx="3" />
               <path d="M5 11a7 7 0 0 0 14 0" />
               <line x1="12" y1="18" x2="12" y2="22" />
@@ -2816,7 +3002,15 @@
               aria-label="Send"
               title="Send (Enter)"
             >
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <line x1="22" y1="2" x2="11" y2="13" />
                 <polygon points="22 2 15 22 11 13 2 9 22 2" />
               </svg>
@@ -2833,13 +3027,23 @@
             aria-hidden="true"
           >
             <div class="flex flex-col items-center gap-1.5 text-accent-cyan">
-              <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <svg
+                viewBox="0 0 24 24"
+                class="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <polyline points="17 8 12 3 7 8" />
                 <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
               <span class="text-sm font-semibold">Drop files here</span>
-              <span class="text-[11px] text-text-muted">Images only · up to {MAX_ATTACHMENTS} · 5 MB each</span>
+              <span class="text-[11px] text-text-muted"
+                >Images only · up to {MAX_ATTACHMENTS} · 5 MB each</span
+              >
             </div>
           </div>
         {/if}
@@ -2867,7 +3071,9 @@
       class="shrink-0 h-full border-l border-border-subtle bg-bg-base/40 flex flex-col"
       style="width: {effectiveInspectorWidth}px;"
     >
-      <div class="h-12 shrink-0 px-4 flex items-center justify-between border-b border-border-subtle">
+      <div
+        class="h-12 shrink-0 px-4 flex items-center justify-between border-b border-border-subtle"
+      >
         <span class="text-xs font-semibold text-text-primary uppercase tracking-wide">
           Tool Calls
         </span>
@@ -2877,7 +3083,14 @@
           class="p-1 rounded text-text-muted hover:text-text-primary"
           aria-label="Close"
         >
-          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+          >
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
@@ -2920,12 +3133,20 @@
               <div class="border-t border-border-subtle px-3 py-2 space-y-2">
                 <div>
                   <div class="text-[10px] uppercase tracking-wider text-text-muted mb-1">Args</div>
-                  <pre class="text-[11px] font-mono text-text-primary whitespace-pre-wrap break-all bg-bg-base/60 rounded p-2 overflow-x-auto">{fmtJson(t.args)}</pre>
+                  <pre
+                    class="text-[11px] font-mono text-text-primary whitespace-pre-wrap break-all bg-bg-base/60 rounded p-2 overflow-x-auto">{fmtJson(
+                      t.args
+                    )}</pre>
                 </div>
                 {#if t.done}
                   <div>
-                    <div class="text-[10px] uppercase tracking-wider text-text-muted mb-1">Result</div>
-                    <pre class="text-[11px] font-mono text-text-primary whitespace-pre-wrap break-all bg-bg-base/60 rounded p-2 overflow-x-auto">{fmtJson(t.result)}</pre>
+                    <div class="text-[10px] uppercase tracking-wider text-text-muted mb-1">
+                      Result
+                    </div>
+                    <pre
+                      class="text-[11px] font-mono text-text-primary whitespace-pre-wrap break-all bg-bg-base/60 rounded p-2 overflow-x-auto">{fmtJson(
+                        t.result
+                      )}</pre>
                   </div>
                 {:else}
                   <div class="text-[11px] text-accent-gold">Running…</div>
@@ -2982,7 +3203,8 @@
           Fork this conversation?
         </h2>
         <p class="text-xs text-text-muted">
-          A new thread will be created with messages up to here. The original conversation stays intact.
+          A new thread will be created with messages up to here. The original conversation stays
+          intact.
         </p>
       </header>
       <div class="flex items-center justify-end gap-3">

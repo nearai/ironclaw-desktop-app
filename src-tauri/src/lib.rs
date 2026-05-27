@@ -15,12 +15,14 @@
 // binary as a child process. Lifecycle is managed via `SidecarState`,
 // exposed through `start_sidecar` / `stop_sidecar` / `sidecar_status`.
 
+mod crashes;
 mod keychain;
 mod settings;
 mod sidecar;
 mod tray;
 mod windows;
 
+use crashes::CrashEntry;
 use serde::Deserialize;
 use settings::AppSettings;
 use sidecar::{BackendConfig, SidecarState, SidecarStatus};
@@ -488,6 +490,35 @@ async fn show_main_window(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// ---- Local crash log -----------------------------------------------------
+//
+// Always on, always local. The frontend's last-resort window error +
+// unhandledrejection handlers append entries here; Settings → Privacy
+// shows the count and lets the user open / reveal / clear the file.
+//
+// No transmission happens from this side — opt-in telemetry is a
+// separate JS-side store (`src/lib/stores/telemetry.svelte.ts`).
+
+#[tauri::command]
+async fn record_crash(app: AppHandle, entry: CrashEntry) -> Result<(), String> {
+    crashes::write(&app, entry)
+}
+
+#[tauri::command]
+async fn list_crashes(app: AppHandle, limit: usize) -> Result<Vec<CrashEntry>, String> {
+    crashes::list(&app, limit)
+}
+
+#[tauri::command]
+async fn clear_crashes(app: AppHandle) -> Result<(), String> {
+    crashes::clear(&app)
+}
+
+#[tauri::command]
+async fn crashes_file_path(app: AppHandle) -> Result<String, String> {
+    crashes::file_path(&app)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Initialize env_logger before the Tauri builder so every `log::*` call
@@ -574,6 +605,10 @@ pub fn run() {
             update_status_and_count,
             update_tray_recent,
             show_main_window,
+            record_crash,
+            list_crashes,
+            clear_crashes,
+            crashes_file_path,
             windows::open_profile_window,
             windows::list_open_profile_windows,
         ])
