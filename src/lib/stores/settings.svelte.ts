@@ -27,6 +27,12 @@ export type ConnectionMode = 'remote' | 'local';
  * NEAR.AI Cloud inference; OAuth handled by IronClaw itself on first
  * connect, no key required upfront. `openrouter` is the advanced path:
  * bring your own OpenRouter key.
+ *
+ * Retained for backward compatibility — `llmProviderId` (a free-form
+ * provider id from the gateway's `/api/llm/providers` registry) is the
+ * forward-going field. New installs default to `llmProviderId: 'nearai'`
+ * and `llmBackend: 'nearai'`; older settings without `llmProviderId` fall
+ * back to deriving it from `llmBackend`.
  */
 export type LlmBackend = 'nearai' | 'openrouter';
 
@@ -46,8 +52,15 @@ export interface ProfileConfig {
   remoteBaseUrl: string;
   /** Base URL for the local sidecar gateway (auto-discovered port wins). */
   localBaseUrl: string;
-  /** Local-mode LLM backend (defaults to NEAR.AI Cloud). */
+  /** Local-mode LLM backend (defaults to NEAR.AI Cloud).
+   *  Legacy field — kept for backward compatibility with the binary
+   *  NEAR.AI / OpenRouter sidecar selector. New code should consult
+   *  `llmProviderId`; `llmBackend` is derived from it on save. */
   llmBackend: LlmBackend;
+  /** Local-mode LLM provider id (from the gateway's `/api/llm/providers`
+   *  registry). New field — supersedes `llmBackend` for the richer
+   *  provider switcher. Defaults to `'nearai'` for new installs. */
+  llmProviderId?: string;
 }
 
 export interface AppSettings {
@@ -128,7 +141,9 @@ function defaultProfile(overrides?: Partial<ProfileConfig>): ProfileConfig {
     mode: overrides?.mode ?? 'remote',
     remoteBaseUrl: overrides?.remoteBaseUrl ?? 'http://127.0.0.1:3100',
     localBaseUrl: overrides?.localBaseUrl ?? 'http://127.0.0.1:3100',
-    llmBackend: overrides?.llmBackend ?? 'nearai'
+    llmBackend: overrides?.llmBackend ?? 'nearai',
+    llmProviderId:
+      overrides?.llmProviderId ?? (overrides?.llmBackend ?? 'nearai')
   };
 }
 
@@ -181,14 +196,24 @@ function migrateLoaded(
   // Case 3 + 2 share the same input — `profiles` being a non-empty array
   // is the discriminator.
   if (Array.isArray(raw.profiles) && raw.profiles.length > 0) {
-    const profiles = raw.profiles.map((p) => ({
-      id: p.id || newProfileId(),
-      name: p.name || 'Untitled',
-      mode: (p.mode === 'local' ? 'local' : 'remote') as ConnectionMode,
-      remoteBaseUrl: p.remoteBaseUrl || 'http://127.0.0.1:3100',
-      localBaseUrl: p.localBaseUrl || 'http://127.0.0.1:3100',
-      llmBackend: (p.llmBackend === 'openrouter' ? 'openrouter' : 'nearai') as LlmBackend
-    }));
+    const profiles = raw.profiles.map((p) => {
+      const llmBackend = (p.llmBackend === 'openrouter' ? 'openrouter' : 'nearai') as LlmBackend;
+      return {
+        id: p.id || newProfileId(),
+        name: p.name || 'Untitled',
+        mode: (p.mode === 'local' ? 'local' : 'remote') as ConnectionMode,
+        remoteBaseUrl: p.remoteBaseUrl || 'http://127.0.0.1:3100',
+        localBaseUrl: p.localBaseUrl || 'http://127.0.0.1:3100',
+        llmBackend,
+        // Derive from the legacy field if the new one wasn't stored yet,
+        // so existing installs land on the matching provider without a
+        // user round-trip.
+        llmProviderId:
+          typeof p.llmProviderId === 'string' && p.llmProviderId.length > 0
+            ? p.llmProviderId
+            : llmBackend
+      };
+    });
     const activeId =
       raw.activeProfileId && profiles.some((p) => p.id === raw.activeProfileId)
         ? raw.activeProfileId
@@ -218,13 +243,15 @@ function migrateLoaded(
   // lines up. If even the legacy fields are empty (fresh install via
   // get_settings's `{}` first-run response), we still produce one default
   // profile so the rest of the app has something to render.
+  const legacyBackend = raw.llmBackend ?? 'nearai';
   const profile = defaultProfile({
     id: DEFAULT_PROFILE_ID,
     name: 'Default',
     mode: raw.mode ?? 'remote',
     remoteBaseUrl: raw.remoteBaseUrl ?? 'http://127.0.0.1:3100',
     localBaseUrl: raw.localBaseUrl ?? 'http://127.0.0.1:3100',
-    llmBackend: raw.llmBackend ?? 'nearai'
+    llmBackend: legacyBackend,
+    llmProviderId: legacyBackend
   });
   return {
     activeProfileId: DEFAULT_PROFILE_ID,
@@ -347,13 +374,20 @@ export function validateImportedSettings(raw: string): ImportValidationResult {
         error: `profiles[${i}].llmBackend must be "nearai" or "openrouter" (got ${JSON.stringify(pp.llmBackend)})`
       };
     }
+    // llmProviderId is optional in the wire — if missing/non-string we
+    // derive it from llmBackend so older backups round-trip cleanly.
+    const llmProviderId =
+      typeof pp.llmProviderId === 'string' && pp.llmProviderId.length > 0
+        ? pp.llmProviderId
+        : pp.llmBackend;
     profiles.push({
       id: pp.id,
       name: pp.name,
       mode: pp.mode,
       remoteBaseUrl: pp.remoteBaseUrl,
       localBaseUrl: pp.localBaseUrl,
-      llmBackend: pp.llmBackend
+      llmBackend: pp.llmBackend,
+      llmProviderId
     });
   }
 
@@ -611,15 +645,79 @@ export interface SidecarStatusPayload {
 
 export async function startSidecar(
   profileId: string,
-  backend?: LlmBackend
+  backend?: LlmBackend,
+  providerId?: string
 ): Promise<number> {
   if (!inTauri()) throw new Error('startSidecar requires the Tauri runtime');
   // Forward the chosen backend; the Rust side defaults to NEAR.AI if
   // omitted. Passing it explicitly keeps the spawn deterministic across
   // tabs/processes. The profileId scopes the OpenRouter-key lookup.
+  //
+  // `providerId` is the new, richer field from the LlmProviderPicker.
+  // When supplied it wins over `backend` on the Rust side; when absent
+  // Rust falls back to the legacy `backend` enum so older callers keep
+  // working without churn.
   return invoke<number>('start_sidecar', {
     backend: backend ?? 'nearai',
+    providerId,
     profileId
+  });
+}
+
+// ---- Per-provider credential Keychain (LLM picker) -----------------------
+//
+// Credentials live in `llm-<provider-id>:<profile-id>` slots so each
+// provider keeps its own secret per profile (matching the prompt's spec).
+// The OpenRouter slot is handled separately so the legacy NEAR.AI /
+// OpenRouter radio + the new picker can co-exist without stepping on
+// each other — when the user picks `openrouter` in the new picker its
+// input writes into the same `openrouter-key:<profile>` slot via the
+// dedicated set/clear OpenRouter helpers.
+
+export async function getLlmProviderCredential(
+  profileId: string,
+  providerId: string
+): Promise<string | null> {
+  if (!inTauri()) return null;
+  try {
+    const v = await invoke<string | null>('get_llm_provider_credential', {
+      profileId,
+      providerId
+    });
+    return v ?? null;
+  } catch (err) {
+    console.warn('getLlmProviderCredential failed', err);
+    return null;
+  }
+}
+
+export async function setLlmProviderCredential(
+  profileId: string,
+  providerId: string,
+  value: string
+): Promise<void> {
+  if (!inTauri()) {
+    console.warn('setLlmProviderCredential called outside Tauri; no-op');
+    return;
+  }
+  await invoke('set_llm_provider_credential', {
+    profileId,
+    providerId,
+    value
+  });
+}
+
+export async function deleteLlmProviderCredential(
+  profileId: string,
+  providerId: string
+): Promise<void> {
+  if (!inTauri()) {
+    console.warn('deleteLlmProviderCredential called outside Tauri; no-op');
+    return;
+  }
+  await invoke('delete_llm_provider_credential', {
+    profileId,
+    providerId
   });
 }
 

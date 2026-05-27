@@ -28,8 +28,14 @@ const HEALTH_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const HEALTH_POLL_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Selects which LLM provider env block we feed the sidecar at spawn.
-/// Mirrors `settings::LlmBackend` but kept local so `sidecar::spawn` is
+/// Mirrors the JS `llmProviderId` but kept local so `sidecar::spawn` is
 /// independent of the on-disk settings shape.
+///
+/// v1 only wires four provider env blocks (per the LlmProviderPicker
+/// scope-down). New providers should add a variant + a `match` arm in
+/// the per-backend env section below. TODO(sidecar.rs): wire the other
+/// 20+ providers from the gateway's catalog — bedrock, google, vertex,
+/// ollama, groq, mistral, cohere, fireworks, together, etc.
 #[derive(Debug, Clone)]
 pub enum BackendConfig {
     /// NEAR.AI Cloud — IronClaw's built-in inference. No API key at spawn;
@@ -38,6 +44,10 @@ pub enum BackendConfig {
     Nearai,
     /// OpenRouter (openai-compatible). Requires a non-empty API key.
     Openrouter { api_key: String },
+    /// OpenAI native API. Requires a non-empty API key.
+    OpenAi { api_key: String },
+    /// Anthropic native API. Requires a non-empty API key.
+    Anthropic { api_key: String },
 }
 
 /// Shared state held by Tauri's manager. Only one sidecar is supported at
@@ -67,12 +77,32 @@ pub async fn spawn(
     gateway_token: String,
 ) -> Result<u16, String> {
     // Per-backend validation. NEAR.AI needs no upfront secret — IronClaw
-    // handles auth via its own onboard/login flow on first connect.
-    if let BackendConfig::Openrouter { ref api_key } = backend {
-        if api_key.trim().is_empty() {
-            return Err(
-                "Set your OpenRouter API key in Settings before starting local mode".into(),
-            );
+    // handles auth via its own onboard/login flow on first connect. The
+    // other three v1 providers all require a non-empty API key.
+    match &backend {
+        BackendConfig::Nearai => {}
+        BackendConfig::Openrouter { api_key } => {
+            if api_key.trim().is_empty() {
+                return Err(
+                    "Set your OpenRouter API key in Settings before starting local mode"
+                        .into(),
+                );
+            }
+        }
+        BackendConfig::OpenAi { api_key } => {
+            if api_key.trim().is_empty() {
+                return Err(
+                    "Set your OpenAI API key in Settings before starting local mode".into(),
+                );
+            }
+        }
+        BackendConfig::Anthropic { api_key } => {
+            if api_key.trim().is_empty() {
+                return Err(
+                    "Set your Anthropic API key in Settings before starting local mode"
+                        .into(),
+                );
+            }
         }
     }
     if gateway_token.trim().is_empty() {
@@ -100,8 +130,8 @@ pub async fn spawn(
     ];
 
     // Per-backend env. NEAR.AI Cloud uses IronClaw's native `nearai`
-    // backend; OpenRouter goes through the openai-compatible backend
-    // (matching what the live IronClaw on baremetal3 does).
+    // backend; OpenRouter, OpenAI, and Anthropic each get their own env
+    // block matching the gateway's catalog entries.
     match &backend {
         BackendConfig::Nearai => {
             envs.extend([
@@ -131,6 +161,22 @@ pub async fn spawn(
                     "deepseek/deepseek-chat-v3-0324".into(),
                 ),
                 ("OPENROUTER_API_KEY".into(), api_key.clone()),
+            ]);
+        }
+        BackendConfig::OpenAi { api_key } => {
+            envs.extend([
+                ("LLM_BACKEND".into(), "openai".into()),
+                ("LLM_BASE_URL".into(), "https://api.openai.com/v1".into()),
+                ("LLM_MODEL".into(), "gpt-4o-mini".into()),
+                ("OPENAI_API_KEY".into(), api_key.clone()),
+            ]);
+        }
+        BackendConfig::Anthropic { api_key } => {
+            envs.extend([
+                ("LLM_BACKEND".into(), "anthropic".into()),
+                ("LLM_BASE_URL".into(), "https://api.anthropic.com".into()),
+                ("LLM_MODEL".into(), "claude-3-5-sonnet-latest".into()),
+                ("ANTHROPIC_API_KEY".into(), api_key.clone()),
             ]);
         }
     }

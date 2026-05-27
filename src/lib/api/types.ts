@@ -446,6 +446,218 @@ export interface ExtensionSetupSchema {
 }
 
 /**
+ * Admin usage summary — `GET /api/admin/usage/summary`.
+ *
+ * Wire shape verified against IronClaw 0.28.2 (2026-05-27):
+ *   {
+ *     "users":    { "total": 1, "active": 1, "suspended": 0, "admins": 1 },
+ *     "jobs":     { "total": 0 },
+ *     "usage_30d":{ "llm_calls": 0, "input_tokens": 0, "output_tokens": 0,
+ *                   "total_cost": "0" },
+ *     "uptime_seconds": 341446
+ *   }
+ *
+ * The prompt's initial sketch flattened `users` to a number and combined
+ * `input_tokens` + `output_tokens` into a single `tokens`. We surface the
+ * wire's richer breakdown verbatim and additionally fold `tokens` so
+ * callers that want a single number don't have to add the two halves.
+ *
+ * `total_cost` is a STRING on the wire (the server formats e.g. "0" or
+ * "0.0312") — kept as `string` so we don't lose precision on cents.
+ */
+export interface UsageSummary {
+  /** User counts. Wire `users: {total, active, suspended, admins}`. */
+  users?: {
+    total?: number;
+    active?: number;
+    suspended?: number;
+    admins?: number;
+  };
+  /** Job counts. Wire `jobs: {total}`. */
+  jobs?: { total?: number };
+  /** 30-day rolling LLM usage window. Wire `usage_30d`. */
+  usage_30d?: {
+    llm_calls?: number;
+    input_tokens?: number;
+    output_tokens?: number;
+    /** Sum of `input_tokens + output_tokens` (client-derived convenience). */
+    tokens?: number;
+    /** Server formats as a string (e.g. "0", "0.0312"). */
+    total_cost?: string;
+  };
+  /** Gateway uptime in seconds. Wire `uptime_seconds`. */
+  uptime?: number;
+}
+
+/**
+ * Single row returned by `GET /api/admin/usage`.
+ *
+ * Wire shape (`AdminUsageEntry` in the gateway):
+ *   { user_id, model, call_count, input_tokens, output_tokens, total_cost }
+ *
+ * The list endpoint envelope is `{period, since, usage: AdminUsageEntry[]}`
+ * — we surface only the rows here; the period/since values are summary
+ * metadata callers don't typically display.
+ *
+ * Each row is a pre-aggregated bucket (one entry per <user, model> pair
+ * in the queried period), NOT a per-call event. The prompt's `ts` field
+ * does not exist on the wire and is left out so callers don't expect one.
+ *
+ * `cost` is the client-side numeric coercion of `total_cost` for charting;
+ * `total_cost` is preserved verbatim as the source-of-truth string.
+ */
+export interface UsageEvent {
+  user_id?: string;
+  model?: string;
+  /** Number of LLM calls in this <user, model> bucket. */
+  call_count?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  /** `input_tokens + output_tokens` (client-derived). */
+  tokens?: number;
+  /** Server-formatted cost string (verbatim from wire). */
+  total_cost?: string;
+  /** Numeric coercion of `total_cost`, or 0 if unparseable. */
+  cost?: number;
+}
+
+/**
+ * LLM provider catalog entry from `GET /api/llm/providers`.
+ *
+ * Wire shape (verified 2026-05-27) — each provider returns 16+ fields,
+ * most of which the desktop UI doesn't yet render. We surface the ones
+ * the prompt asked for plus the wire fields that materially affect
+ * configuration (`adapter`, `base_url`, `can_list_models`, `has_credentials`).
+ *
+ * Wire fields the gateway emits:
+ *   - `id`, `name`, `adapter`, `builtin`
+ *   - `base_url`, `base_url_required`
+ *   - `default_model`, `env_base_url`, `env_model`
+ *   - `api_key_required`, `accepts_api_key`, `has_api_key`
+ *   - `credential_kind`, `has_credentials`, `can_list_models`
+ *
+ * The client maps `has_credentials || has_api_key` onto `configured` so
+ * the UI can render a "Configured" badge without caring about the auth
+ * mode. Description is reserved (not currently emitted by the wire).
+ */
+export interface LlmProvider {
+  /** Stable identifier, e.g. "nearai", "openrouter", "openai". */
+  id: string;
+  /** Display name for the configure dialog, e.g. "NEAR AI". */
+  name: string;
+  /** Description (reserved; gateway does not emit this today). */
+  description?: string;
+  /** True if any auth mode is satisfied — covers API key, session token,
+   *  device-code OAuth, Bedrock profile, etc. */
+  configured?: boolean;
+  /** Default model id for first-run, e.g. "gpt-5-mini". */
+  default_model?: string;
+  /** Wire adapter discriminator — needed for `test_connection` and
+   *  `list_models` request bodies. e.g. "open_ai_completions", "anthropic". */
+  adapter?: string;
+  /** Default base URL when the registry pins one (Ollama, Groq, etc.).
+   *  Empty string for providers that take a host from the user. */
+  base_url?: string;
+  /** True if the user MUST supply a base URL (openai_compatible only). */
+  base_url_required?: boolean;
+  /** True when the registry knows how to query a `/models` endpoint. */
+  can_list_models?: boolean;
+  /** Wire-stable credential discriminator: "api_key", "session_token",
+   *  "o_auth_device_code", "file_based_credentials", "aws_credentials",
+   *  "ollama", "open_ai_compatible". */
+  credential_kind?: string;
+  /** True when the provider has an API key vaulted in secrets. */
+  has_api_key?: boolean;
+  /** Whether the provider is shipped builtin or user-defined. */
+  builtin?: boolean;
+}
+
+/**
+ * LLM model returned by `POST /api/llm/list_models`.
+ *
+ * The wire's `list_models` endpoint emits a flat string array of model ids
+ * (e.g. `["llama3", "mistral"]`) wrapped in `{ok, models, message}`. The
+ * gateway does NOT currently emit context windows, pricing, or descriptions
+ * — those fields are reserved for forward compat in case the server grows
+ * a richer catalog (similar to how Anthropic's `/v1/models` returns
+ * `{display_name, max_tokens}` per model).
+ *
+ * The client maps each bare string onto `{id: <string>, name: <string>}` so
+ * the UI can render a consistent list shape regardless of richness.
+ */
+export interface LlmModel {
+  /** Model identifier passed to the API (e.g. "gpt-5-mini"). */
+  id: string;
+  /** Display name; defaults to `id` when the wire only ships an id. */
+  name?: string;
+  description?: string;
+  /** Reserved — not emitted by today's gateway. */
+  context_window?: number;
+  /** Reserved — not emitted by today's gateway. */
+  pricing?: { input: number; output: number };
+}
+
+/**
+ * Per-tool permission as exposed by `GET /api/settings/tools`.
+ *
+ * The wire's three states are `'ask_each_time'`, `'always_allow'`, and
+ * `'disabled'` (the prompt's initial sketch called the third state
+ * `'locked'`, but that's actually the wire's per-entry `locked: bool` flag
+ * — a separate axis that gates whether the user is ALLOWED to set
+ * `always_allow`, not a state in its own right). The union below includes
+ * `'locked'` as a forward-compat alias and tolerates any string so a
+ * future server-side state doesn't break rendering.
+ *
+ * "Locked" tools (`locked: true`, e.g. `file_undo`, `pairing_approve`)
+ * reject `always_allow` via 400 with `{error: "Tool '<name>' always
+ * requires approval and cannot be set to always_allow"}`. Setting them
+ * to `ask_each_time` or `disabled` works fine.
+ */
+export type ToolPermission =
+  | 'ask_each_time'
+  | 'always_allow'
+  | 'disabled'
+  | 'locked'
+  | string;
+
+/**
+ * One row of the per-tool permission list.
+ *
+ * Wire shape (verified 2026-05-27):
+ *   {
+ *     "name": "echo",
+ *     "description": "Echoes back the input message...",
+ *     "current_state": "always_allow",
+ *     "default_state": "always_allow",
+ *     "locked": false,
+ *     "locked_reason": "<present only when locked: true>"
+ *   }
+ *
+ * The client surfaces `current_state` as `permission` for naming parity
+ * with the prompt; `default_state`, `locked`, and `locked_reason` are
+ * preserved verbatim so an editor can render the lock indicator and
+ * "reset to default" affordance.
+ */
+export interface ToolPermissionEntry {
+  /** Tool name (registry key, e.g. "apply_patch", "shell"). */
+  name: string;
+  /** Current effective state — maps to wire's `current_state`. */
+  permission: ToolPermission;
+  description?: string;
+  /** Whether this tool is destructive enough to default to ask-each-time.
+   *  Reserved — not emitted by the wire today; left optional so the type
+   *  doesn't force a placeholder value. */
+  destructive?: boolean;
+  /** Server's seeded default. `disabled` for nothing today; usually
+   *  `ask_each_time` or `always_allow`. */
+  default_state?: ToolPermission;
+  /** True if the user cannot escalate this tool to `always_allow`. */
+  locked?: boolean;
+  /** Human-readable lock rationale (e.g. "always requires approval"). */
+  locked_reason?: string;
+}
+
+/**
  * Active user identity, returned by GET /api/profile.
  *
  * Wire shape today (verified against IronClaw 0.28.2 on baremetal3):

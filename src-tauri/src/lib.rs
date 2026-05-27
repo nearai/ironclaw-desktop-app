@@ -89,6 +89,43 @@ async fn delete_openrouter_key(_app: AppHandle, profile_id: String) -> Result<()
     keychain::delete_openrouter_key(&profile_id)
 }
 
+// ---- Per-provider LLM credentials (LLM picker) ---------------------------
+//
+// Sister surface to `*_openrouter_key` but keyed on the provider id from
+// the gateway's catalog. Used by the LlmProviderPicker for providers
+// that aren't NEAR.AI (session-token) or OpenRouter (which keeps its own
+// dedicated slot for backward compatibility with the old radio).
+//
+// Slot format: `llm-<provider-id>:<profile-id>` (see keychain.rs).
+
+#[tauri::command]
+async fn get_llm_provider_credential(
+    _app: AppHandle,
+    profile_id: String,
+    provider_id: String,
+) -> Result<Option<String>, String> {
+    keychain::get_llm_provider_credential(&profile_id, &provider_id)
+}
+
+#[tauri::command]
+async fn set_llm_provider_credential(
+    _app: AppHandle,
+    profile_id: String,
+    provider_id: String,
+    value: String,
+) -> Result<(), String> {
+    keychain::set_llm_provider_credential(&profile_id, &provider_id, &value)
+}
+
+#[tauri::command]
+async fn delete_llm_provider_credential(
+    _app: AppHandle,
+    profile_id: String,
+    provider_id: String,
+) -> Result<(), String> {
+    keychain::delete_llm_provider_credential(&profile_id, &provider_id)
+}
+
 #[tauri::command]
 async fn get_or_create_local_token(_app: AppHandle) -> Result<String, String> {
     keychain::get_or_create_local_token()
@@ -101,6 +138,7 @@ async fn start_sidecar(
     app: AppHandle,
     state: State<'_, SidecarState>,
     backend: Option<BackendKind>,
+    provider_id: Option<String>,
     profile_id: String,
 ) -> Result<u16, String> {
     // Default to NEAR.AI Cloud — IronClaw's built-in inference path. The
@@ -112,11 +150,21 @@ async fn start_sidecar(
     // its own credentials. The local-gateway bearer is global — there is
     // one bundled sidecar per app install regardless of how many profiles
     // are configured.
-    let backend_cfg = match backend.unwrap_or(BackendKind::Nearai) {
-        BackendKind::Nearai => BackendConfig::Nearai,
-        BackendKind::Openrouter => {
-            // Read the key server-side so it never crosses the IPC
-            // boundary. The frontend only needs to know that a key is set.
+    //
+    // `provider_id` is the richer field from the new LlmProviderPicker.
+    // When present (and non-empty) it wins over the binary `backend`
+    // enum; when absent we fall through to `backend`. This v1 wires
+    // four providers explicitly: nearai, openrouter, openai, anthropic
+    // (per the prompt's scoped-down option). Other ids fall through to
+    // an "unsupported provider" error so misconfiguration surfaces
+    // loudly rather than silently spawning NEAR.AI.
+    let provider = provider_id
+        .as_deref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    let backend_cfg = match provider {
+        Some("nearai") => BackendConfig::Nearai,
+        Some("openrouter") => {
             let api_key = keychain::get_openrouter_key(&profile_id)?
                 .filter(|s| !s.is_empty())
                 .ok_or_else(|| {
@@ -125,6 +173,42 @@ async fn start_sidecar(
                 })?;
             BackendConfig::Openrouter { api_key }
         }
+        Some("openai") => {
+            let api_key = keychain::get_llm_provider_credential(&profile_id, "openai")?
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| {
+                    "Set your OpenAI API key in Settings before starting local mode"
+                        .to_string()
+                })?;
+            BackendConfig::OpenAi { api_key }
+        }
+        Some("anthropic") => {
+            let api_key = keychain::get_llm_provider_credential(&profile_id, "anthropic")?
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| {
+                    "Set your Anthropic API key in Settings before starting local mode"
+                        .to_string()
+                })?;
+            BackendConfig::Anthropic { api_key }
+        }
+        Some(other) => {
+            return Err(format!(
+                "LLM provider \"{other}\" is not yet wired in the desktop sidecar. \
+                 Supported providers: nearai, openrouter, openai, anthropic."
+            ));
+        }
+        None => match backend.unwrap_or(BackendKind::Nearai) {
+            BackendKind::Nearai => BackendConfig::Nearai,
+            BackendKind::Openrouter => {
+                let api_key = keychain::get_openrouter_key(&profile_id)?
+                    .filter(|s| !s.is_empty())
+                    .ok_or_else(|| {
+                        "Set your OpenRouter API key in Settings before starting local mode"
+                            .to_string()
+                    })?;
+                BackendConfig::Openrouter { api_key }
+            }
+        },
     };
     let gateway_token = keychain::get_or_create_local_token()?;
     sidecar::spawn(app, state, backend_cfg, gateway_token).await
@@ -385,6 +469,9 @@ pub fn run() {
             get_openrouter_key,
             set_openrouter_key,
             delete_openrouter_key,
+            get_llm_provider_credential,
+            set_llm_provider_credential,
+            delete_llm_provider_credential,
             get_or_create_local_token,
             start_sidecar,
             stop_sidecar,

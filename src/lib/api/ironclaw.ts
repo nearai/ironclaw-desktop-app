@@ -17,6 +17,8 @@ import type {
   JobEvent,
   JobFile,
   JobSummary,
+  LlmModel,
+  LlmProvider,
   LogEntry,
   LogLevel,
   MemoryHit,
@@ -27,8 +29,12 @@ import type {
   RoutineSummary,
   Skill,
   Thread,
+  ToolPermission,
+  ToolPermissionEntry,
   ToolPolicy,
   ToolPolicyAction,
+  UsageEvent,
+  UsageSummary,
   UserProfile
 } from './types';
 
@@ -1988,9 +1994,613 @@ export class IronClawClient {
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }
+
+  // ---- Admin: usage / cost --------------------------------------------------
+  //
+  // Two endpoints, both admin-scoped:
+  //   - GET /api/admin/usage/summary  → system-wide rollup tile
+  //   - GET /api/admin/usage          → per-<user, model> aggregated rows
+  //
+  // The wire shape (verified 2026-05-27 against IronClaw 0.28.2) is richer
+  // than the prompt's initial sketch:
+  //   summary  → {users: {total, active, suspended, admins},
+  //               jobs:  {total},
+  //               usage_30d: {llm_calls, input_tokens, output_tokens,
+  //                           total_cost: <string>},
+  //               uptime_seconds: <number>}
+  //   list     → {period, since, usage: AdminUsageEntry[]}  where each entry is
+  //               {user_id, model, call_count, input_tokens, output_tokens,
+  //                total_cost: <string>}
+  //
+  // The list is NOT per-call events — it's a pre-aggregated grouping the
+  // gateway does server-side. There is no individual-event endpoint today.
+  // Querying with no LLM activity returns `usage: []` (verified — current
+  // server has not logged any calls yet).
+  //
+  // Defensive shape: both methods accept absent fields and tolerate the
+  // prompt's flatter sketch (`users` as a bare number, `tokens` instead of
+  // input/output split, etc.) so a future server-side flattening lands
+  // without a client refactor.
+
+  /**
+   * Fetch the admin usage summary rollup.
+   *
+   * Returns the wire shape mapped onto `UsageSummary` — see types.ts for
+   * the field-by-field documentation. `tokens` is client-derived as
+   * `input_tokens + output_tokens` so the UI can show a single "tokens"
+   * tile without juggling the breakdown.
+   *
+   * `uptime` mirrors wire `uptime_seconds` (admin endpoint emits the long
+   * name; the gateway-status endpoint emits the short `uptime_secs`. We
+   * map both onto seconds in their respective callers).
+   *
+   * Returns `null` on any failure (network, 401, 403, 5xx) so the admin
+   * tile can render an "unavailable" state without poisoning the panel.
+   */
+  async getUsageSummary(): Promise<UsageSummary | null> {
+    try {
+      const raw = await this.request<{
+        users?:
+          | number
+          | {
+              total?: number;
+              active?: number;
+              suspended?: number;
+              admins?: number;
+            };
+        jobs?: number | { total?: number };
+        usage_30d?: {
+          llm_calls?: number;
+          tokens?: number;
+          input_tokens?: number;
+          output_tokens?: number;
+          total_cost?: number | string;
+        };
+        uptime?: number;
+        uptime_seconds?: number;
+      }>('GET', '/api/admin/usage/summary');
+
+      if (!raw) return null;
+
+      // `users` may be the wire's struct or the prompt's flat number.
+      const users = (() => {
+        if (typeof raw.users === 'number') {
+          return { total: raw.users };
+        }
+        if (raw.users && typeof raw.users === 'object') {
+          return {
+            total: raw.users.total ?? 0,
+            active: raw.users.active ?? 0,
+            suspended: raw.users.suspended ?? 0,
+            admins: raw.users.admins ?? 0
+          };
+        }
+        return undefined;
+      })();
+
+      // Same trick for `jobs` — wire is `{total}`, prompt sketch was a
+      // flat number.
+      const jobs = (() => {
+        if (typeof raw.jobs === 'number') return { total: raw.jobs };
+        if (raw.jobs && typeof raw.jobs === 'object') {
+          return { total: raw.jobs.total ?? 0 };
+        }
+        return undefined;
+      })();
+
+      const usage = raw.usage_30d;
+      let usage30d: UsageSummary['usage_30d'];
+      if (usage && typeof usage === 'object') {
+        const input = typeof usage.input_tokens === 'number' ? usage.input_tokens : 0;
+        const output =
+          typeof usage.output_tokens === 'number' ? usage.output_tokens : 0;
+        const totalCost =
+          typeof usage.total_cost === 'string'
+            ? usage.total_cost
+            : typeof usage.total_cost === 'number'
+              ? String(usage.total_cost)
+              : undefined;
+        usage30d = {
+          llm_calls: usage.llm_calls ?? 0,
+          input_tokens: input,
+          output_tokens: output,
+          // Convenience: prefer wire `tokens` if a future server emits it,
+          // otherwise fold input + output into a single number.
+          tokens: typeof usage.tokens === 'number' ? usage.tokens : input + output,
+          total_cost: totalCost
+        };
+      }
+
+      return {
+        users,
+        jobs,
+        usage_30d: usage30d,
+        // Server emits `uptime_seconds`; the prompt's sketch called it
+        // `uptime`. Accept either.
+        uptime: raw.uptime_seconds ?? raw.uptime
+      };
+    } catch (err) {
+      console.warn('[ironclaw] getUsageSummary failed:', err);
+      return null;
+    }
+  }
+
+  /**
+   * List per-<user, model> usage aggregates.
+   *
+   * Wire envelope is `{period, since, usage: AdminUsageEntry[]}`. The
+   * gateway accepts `period=hour|day|week|month|year` and `user_id=...`;
+   * `since` is computed server-side from `period` and is NOT honored as
+   * a query parameter (verified 2026-05-27: passing `since=...` returns
+   * `period: "day"` regardless). We expose `limit` and `since` from the
+   * prompt's signature anyway:
+   *   - `since` is mapped onto `period`: anything ≥30 days ago → "month",
+   *     ≥7 days → "week", ≥1 day → "day", otherwise "hour". This gives
+   *     the caller a stable "events since timestamp T" interface without
+   *     forcing them to know the wire's bucket vocabulary.
+   *   - `limit` is applied client-side after the response.
+   *
+   * Returns `[]` on any failure so the admin route can render an empty
+   * state without throwing.
+   */
+  async getUsageEvents(opts?: {
+    limit?: number;
+    since?: string;
+  }): Promise<UsageEvent[]> {
+    try {
+      // Map `since` → period bucket.
+      const period = sinceToPeriod(opts?.since);
+
+      const params = new URLSearchParams();
+      if (period) params.set('period', period);
+
+      const path = params.toString()
+        ? `/api/admin/usage?${params.toString()}`
+        : '/api/admin/usage';
+
+      const raw = await this.request<{
+        period?: string;
+        since?: string;
+        usage?: Array<{
+          user_id?: string;
+          model?: string;
+          call_count?: number;
+          input_tokens?: number;
+          output_tokens?: number;
+          tokens?: number;
+          total_cost?: string | number;
+          cost?: number;
+        }>;
+      }>('GET', path);
+
+      const rows = Array.isArray(raw?.usage) ? raw.usage : [];
+
+      const mapped: UsageEvent[] = rows.map((row) => {
+        const input = typeof row.input_tokens === 'number' ? row.input_tokens : 0;
+        const output = typeof row.output_tokens === 'number' ? row.output_tokens : 0;
+        const totalCost =
+          typeof row.total_cost === 'string'
+            ? row.total_cost
+            : typeof row.total_cost === 'number'
+              ? String(row.total_cost)
+              : undefined;
+        const numericCost = (() => {
+          if (typeof row.cost === 'number') return row.cost;
+          if (totalCost === undefined) return 0;
+          const n = Number(totalCost);
+          return Number.isFinite(n) ? n : 0;
+        })();
+        return {
+          user_id: row.user_id,
+          model: row.model,
+          call_count: row.call_count ?? 0,
+          input_tokens: input,
+          output_tokens: output,
+          tokens: typeof row.tokens === 'number' ? row.tokens : input + output,
+          total_cost: totalCost,
+          cost: numericCost
+        };
+      });
+
+      const limit = opts?.limit;
+      if (typeof limit === 'number' && limit > 0 && mapped.length > limit) {
+        return mapped.slice(0, limit);
+      }
+      return mapped;
+    } catch (err) {
+      console.warn('[ironclaw] getUsageEvents failed:', err);
+      return [];
+    }
+  }
+
+  // ---- LLM providers / models -----------------------------------------------
+  //
+  // Three endpoints, all admin-scoped:
+  //   - GET  /api/llm/providers       → registry catalog (always public to admins)
+  //   - POST /api/llm/test_connection → probe a provider with given creds
+  //   - POST /api/llm/list_models     → enumerate models for a provider
+  //
+  // The wire request body for the POST endpoints is:
+  //   {adapter, base_url, model, api_key?, provider_id?, provider_type?}
+  // — `adapter` and `base_url` are REQUIRED on every call; `model` is
+  // required for `test_connection` only. The prompt's looser signature
+  // (`testLlmConnection(provider, config)`) is preserved on the client
+  // surface, but the implementation pulls `adapter` and `base_url` out of
+  // the catalog entry so the caller only has to pass the provider id +
+  // any user-supplied overrides (api key, custom base url).
+  //
+  // Defensive shape: failing list/test calls surface as
+  // `{ok: false, message}` rather than throwing, so the configure UI can
+  // present the error inline.
+
+  /**
+   * Fetch the LLM provider catalog (`GET /api/llm/providers`).
+   *
+   * Wire is a flat array of provider entries — 16+ fields each. We map
+   * onto `LlmProvider` and fold `has_credentials || has_api_key` into a
+   * single `configured` boolean so the configure dialog has a stable
+   * "is this provider ready" gate without caring about which auth mode.
+   *
+   * Returns `[]` on any failure.
+   */
+  async listLlmProviders(): Promise<LlmProvider[]> {
+    try {
+      const raw = await this.request<unknown>('GET', '/api/llm/providers');
+      const arr = Array.isArray(raw) ? raw : [];
+
+      const out: LlmProvider[] = [];
+      for (const entry of arr) {
+        if (!entry || typeof entry !== 'object') continue;
+        const e = entry as Record<string, unknown>;
+        const id = typeof e.id === 'string' ? e.id : undefined;
+        if (!id) continue;
+        const hasApiKey = e.has_api_key === true;
+        const hasCreds = e.has_credentials === true;
+        out.push({
+          id,
+          name: typeof e.name === 'string' ? e.name : id,
+          description:
+            typeof e.description === 'string' ? e.description : undefined,
+          configured: hasCreds || hasApiKey,
+          default_model:
+            typeof e.default_model === 'string' ? e.default_model : undefined,
+          adapter: typeof e.adapter === 'string' ? e.adapter : undefined,
+          base_url: typeof e.base_url === 'string' ? e.base_url : undefined,
+          base_url_required: e.base_url_required === true,
+          can_list_models: e.can_list_models === true,
+          credential_kind:
+            typeof e.credential_kind === 'string' ? e.credential_kind : undefined,
+          has_api_key: hasApiKey,
+          builtin: e.builtin === true
+        });
+      }
+      return out;
+    } catch (err) {
+      console.warn('[ironclaw] listLlmProviders failed:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Test the connection to a provider with the supplied credentials.
+   *
+   * The wire body requires `{adapter, base_url, model, api_key?}`. Callers
+   * pass `provider` (the catalog id) plus `config` containing any subset
+   * of those fields. If `adapter` / `base_url` / `model` aren't supplied
+   * in `config`, the client falls through to `provider_id` / `provider_type`
+   * so the gateway can resolve adapter + base URL from its registry and
+   * pull the vaulted API key from secrets.
+   *
+   * Even when `provider_id` is used, the gateway STILL deserializes the
+   * body as `{adapter, base_url, model}` — so we synthesize sensible
+   * defaults (empty strings; the gateway responds with a clear error if
+   * `base_url` ends up empty for a base-url-required provider).
+   *
+   * Response shape (wire): `{ok: bool, message: string}`. We expose
+   * `error` as a convenience mirror of `message` when `ok=false`, and
+   * `model` is reserved for forward compat (the server may eventually
+   * echo back which model the test ran against).
+   */
+  async testLlmConnection(
+    provider: string,
+    config: Record<string, unknown>
+  ): Promise<{ ok: boolean; error?: string; model?: string }> {
+    try {
+      const body: Record<string, unknown> = {
+        // Adapter / base_url / model can be passed explicitly by the
+        // caller; otherwise the gateway resolves via provider_id +
+        // provider_type. The wire requires these keys regardless, so we
+        // emit empty strings as a fallback.
+        adapter: typeof config.adapter === 'string' ? config.adapter : '',
+        base_url: typeof config.base_url === 'string' ? config.base_url : '',
+        model: typeof config.model === 'string' ? config.model : '',
+        // The catalog id maps onto wire `provider_id`; let the caller
+        // override either name.
+        provider_id:
+          typeof config.provider_id === 'string' ? config.provider_id : provider,
+        provider_type:
+          typeof config.provider_type === 'string'
+            ? config.provider_type
+            : 'builtin'
+      };
+      if (typeof config.api_key === 'string') {
+        body.api_key = config.api_key;
+      }
+
+      const res = await this.request<{
+        ok?: boolean;
+        message?: string;
+        model?: string;
+      }>('POST', '/api/llm/test_connection', body);
+
+      const ok = res?.ok === true;
+      return {
+        ok,
+        error: ok ? undefined : (res?.message ?? 'Connection test failed'),
+        model: res?.model
+      };
+    } catch (err) {
+      console.warn('[ironclaw] testLlmConnection failed:', err);
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Connection test failed'
+      };
+    }
+  }
+
+  /**
+   * List models available for a provider (`POST /api/llm/list_models`).
+   *
+   * Wire response is `{ok: bool, models: string[], message: string}` —
+   * each model is a bare string id, not a richer object. We wrap each one
+   * onto `{id, name}` so the UI has a consistent list shape regardless of
+   * whether a future server emits richer per-model metadata (display
+   * name, context window, pricing).
+   *
+   * Request body requires `{adapter, base_url, api_key?}`. The client
+   * pulls `adapter` and `base_url` from the catalog if available;
+   * otherwise the caller can pass them via a custom overload (not exposed
+   * here — the prompt's signature is just `(provider)`).
+   *
+   * Note: this method has to fetch the provider catalog first to resolve
+   * adapter + base_url. If the catalog fetch fails we still attempt the
+   * call with empty strings — the gateway responds with a clear error.
+   *
+   * Returns `[]` on any failure or when the wire reports `ok: false`.
+   */
+  async listLlmModels(provider: string): Promise<LlmModel[]> {
+    try {
+      // Resolve adapter + base_url from the catalog. If the catalog is
+      // unavailable, fall back to empty strings; the gateway answers
+      // with a clear `ok:false` message that we surface as `[]`.
+      let adapter = '';
+      let base_url = '';
+      const catalog = await this.listLlmProviders();
+      const match = catalog.find((p) => p.id === provider);
+      if (match) {
+        adapter = match.adapter ?? '';
+        base_url = match.base_url ?? '';
+      }
+
+      const body: Record<string, unknown> = {
+        adapter,
+        base_url,
+        provider_id: provider,
+        provider_type: 'builtin'
+      };
+
+      const res = await this.request<{
+        ok?: boolean;
+        models?: unknown[];
+        message?: string;
+      }>('POST', '/api/llm/list_models', body);
+
+      if (res?.ok !== true) {
+        if (res?.message) {
+          console.warn(`[ironclaw] listLlmModels(${provider}): ${res.message}`);
+        }
+        return [];
+      }
+
+      const models = Array.isArray(res.models) ? res.models : [];
+      const out: LlmModel[] = [];
+      for (const m of models) {
+        // Wire emits bare strings today; tolerate a future object shape
+        // with {id, name, description, context_window, pricing}.
+        if (typeof m === 'string' && m.length > 0) {
+          out.push({ id: m, name: m });
+        } else if (m && typeof m === 'object') {
+          const obj = m as Record<string, unknown>;
+          const id =
+            typeof obj.id === 'string'
+              ? obj.id
+              : typeof obj.name === 'string'
+                ? obj.name
+                : undefined;
+          if (!id) continue;
+          const pricing = (() => {
+            if (
+              obj.pricing &&
+              typeof obj.pricing === 'object' &&
+              typeof (obj.pricing as Record<string, unknown>).input === 'number' &&
+              typeof (obj.pricing as Record<string, unknown>).output === 'number'
+            ) {
+              const p = obj.pricing as Record<string, number>;
+              return { input: p.input, output: p.output };
+            }
+            return undefined;
+          })();
+          out.push({
+            id,
+            name: typeof obj.name === 'string' ? obj.name : id,
+            description:
+              typeof obj.description === 'string' ? obj.description : undefined,
+            context_window:
+              typeof obj.context_window === 'number'
+                ? obj.context_window
+                : undefined,
+            pricing
+          });
+        }
+      }
+      return out;
+    } catch (err) {
+      console.warn('[ironclaw] listLlmModels failed:', err);
+      return [];
+    }
+  }
+
+  // ---- Per-tool permissions (3-state) ---------------------------------------
+  //
+  // Sister surface to the binary `getToolPolicy`/`setToolPolicy` admin API.
+  // This surface is per-USER (not admin global) and exposes a 3-state
+  // permission model: `ask_each_time`, `always_allow`, `disabled`.
+  //
+  // Wire shape (verified 2026-05-27 against IronClaw 0.28.2):
+  //   GET  /api/settings/tools
+  //     → {tools: [{name, description, current_state, default_state,
+  //                  locked, locked_reason?}, …]}
+  //   PUT  /api/settings/tools/:name body {state: "ask_each_time" |
+  //                                          "always_allow" | "disabled"}
+  //     → echoes the updated ToolPermissionEntry on 200.
+  //     → 400 if tool is locked AND state is "always_allow".
+  //     → 404 if tool name unknown.
+  //     → 422 if state string is not one of the three valid values.
+  //
+  // The prompt's third state was called `locked`, but the wire's third
+  // state is actually `disabled`; `locked` on the wire is a separate
+  // per-entry boolean flag indicating whether the user is allowed to
+  // ESCALATE the tool to `always_allow`. We translate `'locked'` →
+  // `'disabled'` on write so callers using the prompt's name still hit
+  // the right wire value.
+  //
+  // The two surfaces (admin tool-policy vs per-tool settings) coexist —
+  // the README note in this client points out that they cover different
+  // axes. The admin disabled_tools list is a global deny-list that
+  // overrides everything; the per-tool settings layer is the user's own
+  // 3-state preference for tools that aren't globally disabled.
+
+  /**
+   * Fetch the user's per-tool permission state.
+   *
+   * Returns the wire shape mapped onto `ToolPermissionEntry[]`. Sorted
+   * alphabetically by name for stable rendering.
+   *
+   * Returns `[]` on any failure so the editor can render empty rather
+   * than throw.
+   */
+  async listToolPermissions(): Promise<ToolPermissionEntry[]> {
+    try {
+      const res = await this.request<{
+        tools?: Array<{
+          name?: unknown;
+          description?: unknown;
+          current_state?: unknown;
+          default_state?: unknown;
+          locked?: unknown;
+          locked_reason?: unknown;
+          destructive?: unknown;
+        }>;
+      }>('GET', '/api/settings/tools');
+
+      const rows = Array.isArray(res?.tools) ? res.tools : [];
+      const out: ToolPermissionEntry[] = [];
+      for (const row of rows) {
+        const name = typeof row.name === 'string' ? row.name : '';
+        if (!name) continue;
+        const permission: ToolPermission =
+          typeof row.current_state === 'string' ? row.current_state : 'ask_each_time';
+        const defaultState =
+          typeof row.default_state === 'string'
+            ? (row.default_state as ToolPermission)
+            : undefined;
+        out.push({
+          name,
+          permission,
+          description:
+            typeof row.description === 'string' ? row.description : undefined,
+          destructive: row.destructive === true ? true : undefined,
+          default_state: defaultState,
+          locked: row.locked === true,
+          locked_reason:
+            typeof row.locked_reason === 'string' ? row.locked_reason : undefined
+        });
+      }
+      return out.sort((a, b) => a.name.localeCompare(b.name));
+    } catch (err) {
+      console.warn('[ironclaw] listToolPermissions failed:', err);
+      return [];
+    }
+  }
+
+  /**
+   * Set a single tool's permission state.
+   *
+   * The wire's three valid states are `ask_each_time`, `always_allow`,
+   * `disabled`. The prompt's `ToolPermission` union also accepts `locked`
+   * — we translate `'locked'` → `'disabled'` so callers using the
+   * prompt's name still hit the right wire value.
+   *
+   * Returns `{ok: false}` on any failure (network, 400 for locked
+   * tools, 404 for unknown names, 422 for invalid state). The error
+   * detail is dropped on the floor here — the editor should refresh
+   * via `listToolPermissions()` afterwards to see the canonical state.
+   * If you need the error string, catch via the underlying `request`.
+   */
+  async setToolPermission(
+    name: string,
+    permission: ToolPermission
+  ): Promise<{ ok: boolean }> {
+    try {
+      // Map the prompt's `'locked'` alias onto the wire's `'disabled'`.
+      const wireState = permission === 'locked' ? 'disabled' : permission;
+      await this.request<unknown>(
+        'PUT',
+        `/api/settings/tools/${encodeURIComponent(name)}`,
+        { state: wireState }
+      );
+      return { ok: true };
+    } catch (err) {
+      console.warn(`[ironclaw] setToolPermission(${name}) failed:`, err);
+      return { ok: false };
+    }
+  }
 }
 
 // ---- Helpers ----------------------------------------------------------------
+
+/**
+ * Map an ISO-8601 `since` timestamp onto the wire's coarse `period` bucket.
+ *
+ * The gateway's `/api/admin/usage` endpoint computes `since` server-side
+ * from `period` (one of `hour`, `day`, `week`, `month`, `year`) and
+ * ignores any caller-supplied `since=` parameter. We pick the smallest
+ * bucket that brackets the caller's requested cutoff so the response
+ * contains "everything since T" without overshooting too far.
+ *
+ *   T ≥ now-1h  → "hour"
+ *   T ≥ now-1d  → "day"
+ *   T ≥ now-7d  → "week"
+ *   T ≥ now-30d → "month"
+ *   otherwise   → "year"
+ *
+ * Returns `undefined` for unparseable input so the request falls back to
+ * the gateway's default ("day").
+ */
+function sinceToPeriod(since: string | undefined): string | undefined {
+  if (!since) return undefined;
+  const t = Date.parse(since);
+  if (!Number.isFinite(t)) return undefined;
+  const now = Date.now();
+  const ageMs = Math.max(0, now - t);
+  const hour = 60 * 60 * 1000;
+  const day = 24 * hour;
+  if (ageMs <= hour) return 'hour';
+  if (ageMs <= day) return 'day';
+  if (ageMs <= 7 * day) return 'week';
+  if (ageMs <= 30 * day) return 'month';
+  return 'year';
+}
 
 function normalizeLogLevel(raw: unknown): LogLevel {
   const s = String(raw ?? '').toLowerCase();

@@ -1,10 +1,12 @@
 <script lang="ts">
   // /admin — admin-only surface for the active IronClaw profile.
   //
-  // Two tabs: Tool Policy (per-tool 3-way allow/prompt/deny editor) and
-  // System Prompt (admin-scoped SYSTEM.md). Both require the active
-  // profile's bearer to carry the admin role; the gateway returns 401/403
-  // otherwise and we surface a clear message instead of a stack trace.
+  // Three tabs: Tool Policy (per-tool 3-way allow/prompt/deny editor),
+  // System Prompt (admin-scoped SYSTEM.md), and Usage (the 30-day cost
+  // dashboard + per-<user, model> breakdown). All three require the
+  // active profile's bearer to carry the admin role; the gateway returns
+  // 401/403 otherwise and each editor surfaces a clear message instead
+  // of a stack trace.
   //
   // Visibility: this route is mounted unconditionally, but the sidebar
   // entry + Cmd+7 shortcut + a redirect-out guard in `+layout.svelte`
@@ -14,8 +16,9 @@
   import { connection } from '$lib/stores/connection.svelte';
   import ToolPolicyEditor from './ToolPolicyEditor.svelte';
   import SystemPromptEditor from './SystemPromptEditor.svelte';
+  import UsageDashboard from './UsageDashboard.svelte';
 
-  type Tab = 'tool-policy' | 'system-prompt';
+  type Tab = 'tool-policy' | 'system-prompt' | 'usage';
   let activeTab = $state<Tab>('tool-policy');
 
   // The profile-name header mirrors what Settings shows so the admin
@@ -62,15 +65,30 @@
     >
       System prompt
     </button>
+    <button
+      type="button"
+      onclick={() => (activeTab = 'usage')}
+      class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition"
+      class:border-accent-cyan={activeTab === 'usage'}
+      class:text-accent-cyan={activeTab === 'usage'}
+      class:border-transparent={activeTab !== 'usage'}
+      class:text-text-muted={activeTab !== 'usage'}
+      class:hover:text-text-primary={activeTab !== 'usage'}
+    >
+      Usage
+    </button>
   </div>
 
-  <!-- Body. Both editors render full-height inside the flex container.
+  <!-- Body. All three editors render full-height inside the flex container.
        Mounted via #if rather than just toggling visibility so each
        editor re-runs its load when the user re-enters the tab — that
-       picks up server-side edits between visits without a manual refresh. -->
+       picks up server-side edits between visits without a manual refresh.
+       Usage also relies on the unmount path to clear its 60s poll timer. -->
   {#if activeTab === 'tool-policy'}
     <ToolPolicyEditor />
-  {:else}
+  {:else if activeTab === 'system-prompt'}
     <SystemPromptEditor />
+  {:else}
+    <UsageDashboard />
   {/if}
 </section>

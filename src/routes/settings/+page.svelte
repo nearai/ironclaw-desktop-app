@@ -29,7 +29,6 @@
   } from '$lib/api/files';
   import {
     addProfile,
-    deleteOpenRouterKey,
     deleteProfile,
     deleteToken,
     getOpenRouterKey,
@@ -40,12 +39,10 @@
     localDataDir,
     revealInFinder,
     saveSettings,
-    setOpenRouterKey,
     setToken,
     updateProfile,
     type AppSettings,
     type ConnectionMode,
-    type LlmBackend,
     type ProfileConfig
   } from '$lib/stores/settings.svelte';
   import { connection, type SidecarStatus } from '$lib/stores/connection.svelte';
@@ -56,6 +53,7 @@
   import { aboutStore } from '$lib/stores/about.svelte';
   import MaskedValue from '$lib/components/MaskedValue.svelte';
   import { redactJsonObject } from '$lib/utils/redact';
+  import LlmProviderPicker from './LlmProviderPicker.svelte';
 
   // ---- Page state -------------------------------------------------------
   //
@@ -95,11 +93,14 @@
   let apiInfo = $state<string>('—');
 
   // ---- Local-mode state -------------------------------------------------
+  //
+  // The legacy NEAR.AI / OpenRouter radio + its dedicated key input was
+  // replaced by <LlmProviderPicker />; the picker owns its own form
+  // state. `openRouterStored` is still tracked here so the sidecar
+  // "Start" button can disable when no OpenRouter key is on disk yet
+  // (one of the two backward-compat paths in the Rust sidecar layer).
 
-  let openRouterInput = $state('');
   let openRouterStored = $state(false);
-  let openRouterStatus = $state<'idle' | 'saving' | 'saved' | 'cleared' | 'error'>('idle');
-  let openRouterMessage = $state<string | null>(null);
 
   let dataDir = $state<string | null>(null);
 
@@ -177,7 +178,6 @@
       return;
     }
     tokenInput = '';
-    openRouterInput = '';
     const t = await getToken(id);
     tokenStored = !!t;
     const or = await getOpenRouterKey(id);
@@ -299,55 +299,6 @@
     }
   }
 
-  async function onSaveOpenRouterKey() {
-    if (!activeProfile) return;
-    const k = openRouterInput.trim();
-    if (!k) {
-      openRouterStatus = 'error';
-      openRouterMessage = 'Key is empty.';
-      toasts.show('OpenRouter key is empty', 'error');
-      return;
-    }
-    openRouterStatus = 'saving';
-    openRouterMessage = null;
-    try {
-      await setOpenRouterKey(activeProfile.id, k);
-      openRouterStored = true;
-      openRouterInput = '';
-      openRouterStatus = 'saved';
-      openRouterMessage = 'Stored in Keychain.';
-      toasts.show('OpenRouter key stored', 'success');
-      // Make sure the local-gateway token also exists, so the sidecar can
-      // be started cleanly on the next "Start" click.
-      await getOrCreateLocalToken();
-    } catch (err) {
-      openRouterStatus = 'error';
-      openRouterMessage = (err as Error).message;
-      toasts.show(`OpenRouter key save failed: ${openRouterMessage}`, 'error');
-    }
-  }
-
-  async function onClearOpenRouterKey() {
-    if (!activeProfile) return;
-    openRouterStatus = 'saving';
-    openRouterMessage = null;
-    try {
-      await deleteOpenRouterKey(activeProfile.id);
-      openRouterStored = false;
-      openRouterInput = '';
-      if (connection.sidecarStatus === 'running') {
-        await connection.stopSidecar();
-      }
-      openRouterStatus = 'cleared';
-      openRouterMessage = 'Cleared.';
-      toasts.show('OpenRouter key cleared', 'success');
-    } catch (err) {
-      openRouterStatus = 'error';
-      openRouterMessage = (err as Error).message;
-      toasts.show(`OpenRouter key clear failed: ${openRouterMessage}`, 'error');
-    }
-  }
-
   async function onTestConnection() {
     if (!activeProfile) return;
     testStatus = 'testing';
@@ -388,31 +339,6 @@
       testStatus = 'fail';
       testMessage = (err as Error).message;
       toasts.show(`Test connection failed: ${testMessage}`, 'error');
-    }
-  }
-
-  /** Swap the local-mode LLM backend on the active profile. Persists
-   *  immediately + restarts the sidecar if it's currently running, so the
-   *  new env block takes effect without the user hitting Save explicitly. */
-  async function onBackendChange(b: LlmBackend) {
-    if (!activeProfile || activeProfile.llmBackend === b) return;
-    patchActiveProfile({ llmBackend: b });
-    try {
-      await saveSettings($state.snapshot(settings));
-      toasts.show(
-        b === 'nearai'
-          ? 'Switched provider to NEAR.AI Cloud'
-          : 'Switched provider to OpenRouter',
-        'info'
-      );
-      if (connection.sidecarStatus === 'running') {
-        await connection.stopSidecar();
-        if (b === 'nearai' || openRouterStored) {
-          await connection.startSidecar();
-        }
-      }
-    } catch (err) {
-      toasts.show(`Save failed: ${(err as Error).message}`, 'error');
     }
   }
 
@@ -1153,74 +1079,20 @@
           </div>
         </div>
       {:else}
-        <!-- Local mode: LLM provider picker + (provider-specific creds) + data dir + sidecar control -->
-        <div class="surface p-5 space-y-4">
-          <h2 class="text-sm font-semibold text-text-primary">LLM provider</h2>
-          <p class="text-xs text-text-muted">
-            Pick which inference backend the local sidecar talks to.
-          </p>
+        <!-- Local mode: registry-driven LLM provider picker.
+             Replaces the legacy binary NEAR.AI / OpenRouter radio. Pulls
+             the full provider catalog from /api/llm/providers and lets
+             the user choose any registered backend; credentials are
+             stored per-provider in the macOS Keychain. -->
+        <LlmProviderPicker />
 
-          <div class="space-y-2">
-            <!-- NEAR.AI Cloud (default, recommended) -->
-            <label class="flex items-start gap-3 cursor-pointer min-h-[44px]">
-              <input
-                type="radio"
-                name="llmBackend"
-                value="nearai"
-                checked={activeProfile.llmBackend === 'nearai'}
-                onchange={() => void onBackendChange('nearai')}
-                class="mt-1 accent-accent-cyan"
-              />
-              <div class="flex-1">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm text-text-primary">NEAR.AI Cloud</span>
-                  <span
-                    class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/30"
-                  >
-                    Recommended
-                  </span>
-                </div>
-                <div class="text-xs text-text-muted mt-0.5">
-                  Free during private preview. Authenticate with your NEAR account on first connect.
-                </div>
-              </div>
-            </label>
-
-            <!-- OpenRouter (advanced) -->
-            <label class="flex items-start gap-3 cursor-pointer min-h-[44px]">
-              <input
-                type="radio"
-                name="llmBackend"
-                value="openrouter"
-                checked={activeProfile.llmBackend === 'openrouter'}
-                onchange={() => void onBackendChange('openrouter')}
-                class="mt-1 accent-accent-cyan"
-              />
-              <div class="flex-1">
-                <div class="flex items-center gap-2">
-                  <span class="text-sm text-text-primary">OpenRouter</span>
-                  <span
-                    class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-accent-gold/10 text-accent-gold border border-accent-gold/30"
-                  >
-                    Advanced
-                  </span>
-                </div>
-                <div class="text-xs text-text-muted mt-0.5">
-                  Use your own OpenRouter API key. Pay per token directly.
-                </div>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        {#if activeProfile.llmBackend === 'nearai'}
-          <!-- NEAR.AI auth status + sign-in handoff. Status is sourced
-               from the signIn store, which probes /api/profile against
-               the running sidecar — that's the only ground truth for
-               whether the NEAR sign-in flow actually completed. The
-               sidecar-not-running case still falls through to a "Start
-               the sidecar first" hint so a user who hits this surface
-               cold knows what's missing. -->
+        <!-- NEAR.AI sign-in status (only relevant when the picker
+             landed on NEAR.AI). The signIn store probes /api/profile
+             against the running sidecar — kept as a dedicated card here
+             because it covers the bilateral status (signed-in/-out) +
+             the explicit Sign out affordance that the picker's compact
+             "Sign in" button doesn't try to replicate. -->
+        {#if activeProfile.llmProviderId === 'nearai' || (!activeProfile.llmProviderId && activeProfile.llmBackend === 'nearai')}
           <div class="surface p-5 space-y-4">
             <h2 class="text-sm font-semibold text-text-primary">NEAR.AI authentication</h2>
             <p class="text-xs text-text-muted">
@@ -1230,9 +1102,6 @@
 
             <div class="flex items-center gap-2 text-xs">
               {#if !sidecarUp}
-                <!-- Sidecar isn't running — the profile probe would be
-                     meaningless. Render a neutral status that matches
-                     the start-sidecar control below. -->
                 <span class="w-2 h-2 rounded-full bg-text-muted"></span>
                 <span class="text-text-muted">
                   Sidecar not running — start it to check sign-in status
@@ -1307,54 +1176,6 @@
               {/if}
             </div>
           </div>
-        {:else}
-          <!-- OpenRouter API key -->
-          <div class="surface p-5 space-y-4">
-            <h2 class="text-sm font-semibold text-text-primary">OpenRouter API key</h2>
-            <p class="text-xs text-text-muted">
-              Used by the local sidecar to reach DeepSeek v3 (or any compatible model)
-              via OpenRouter. Stored per-profile in the macOS Keychain.
-            </p>
-
-            <div>
-              <label for="orkey" class="block text-xs text-text-muted mb-1">Key</label>
-              <input
-                id="orkey"
-                type="password"
-                bind:value={openRouterInput}
-                placeholder={openRouterStored ? '•••• stored in macOS Keychain' : 'sk-or-...'}
-                class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[44px]"
-              />
-            </div>
-
-            <div class="flex items-center gap-3">
-              <button
-                onclick={onSaveOpenRouterKey}
-                disabled={openRouterStatus === 'saving'}
-                class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-50 min-h-[44px]"
-              >
-                Save
-              </button>
-              <button
-                onclick={onClearOpenRouterKey}
-                disabled={!openRouterStored || openRouterStatus === 'saving'}
-                class="px-4 py-2 rounded-md border border-border-subtle text-sm text-text-primary hover:border-accent-gold hover:text-accent-gold transition disabled:opacity-30 min-h-[44px]"
-              >
-                Clear
-              </button>
-              {#if openRouterStatus === 'saved' || openRouterStatus === 'cleared'}
-                <span class="text-xs text-accent-cyan flex items-center gap-1">
-                  <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  {openRouterMessage}
-                </span>
-              {:else if openRouterStatus === 'error'}
-                <span class="text-xs text-red-400 flex items-center gap-1">
-                  <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  {openRouterMessage}
-                </span>
-              {/if}
-            </div>
-          </div>
         {/if}
 
         <!-- Data directory -->
@@ -1419,13 +1240,23 @@
                 Starting…
               </button>
             {:else}
+              {@const providerId =
+                activeProfile.llmProviderId ?? activeProfile.llmBackend}
               {@const canStart =
-                activeProfile.llmBackend === 'nearai' || openRouterStored}
+                providerId === 'nearai' ||
+                (providerId === 'openrouter' && openRouterStored) ||
+                // For other providers the picker stores creds in its own
+                // slot; we can't cheaply check them here without an IPC
+                // round-trip, so let the Rust side gate with a clean
+                // error if the slot is empty.
+                (providerId !== 'openrouter' && providerId !== 'nearai')}
               <button
                 onclick={onStartSidecar}
                 disabled={!canStart}
                 class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-50 min-h-[44px]"
-                title={canStart ? '' : 'Save an OpenRouter API key first'}
+                title={canStart
+                  ? ''
+                  : 'Save the provider credential in the picker above first'}
               >
                 Start
               </button>
@@ -1562,7 +1393,8 @@
                 </button>
                 <div class="text-[10px] text-text-muted font-mono mt-0.5 truncate">
                   {profile.mode === 'local'
-                    ? 'local · ' + (profile.llmBackend === 'nearai' ? 'NEAR.AI' : 'OpenRouter')
+                    ? 'local · ' +
+                      (profile.llmProviderId ?? profile.llmBackend ?? 'nearai')
                     : 'remote · ' + profile.remoteBaseUrl}
                 </div>
               {/if}
@@ -1616,9 +1448,9 @@
           <div class="flex justify-between">
             <dt class="text-text-muted">Provider</dt>
             <dd class="text-text-primary font-mono">
-              {activeProfile.llmBackend === 'nearai'
-                ? 'NEAR.AI Cloud'
-                : 'OpenRouter (DeepSeek)'}
+              {activeProfile.llmProviderId ??
+                activeProfile.llmBackend ??
+                'nearai'}
             </dd>
           </div>
         {/if}

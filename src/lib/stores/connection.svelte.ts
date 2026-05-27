@@ -198,7 +198,14 @@ class ConnectionStore {
     this.sidecarError = null;
     try {
       const profile = this.activeProfile;
-      const port = await startSidecar(profile.id, profile.llmBackend);
+      // Forward both the legacy backend tag and the new provider id so
+      // the Rust side can prefer the richer field when present and fall
+      // back to the binary enum otherwise.
+      const port = await startSidecar(
+        profile.id,
+        profile.llmBackend,
+        profile.llmProviderId
+      );
       this.sidecarPort = port;
       this.setSidecarStatus('running');
       // Rebind the token to the auto-generated local bearer (global,

@@ -25,6 +25,11 @@ const SERVICE: &str = "com.openclaw.ironclaw-desktop";
 const ACCOUNT_GATEWAY_PREFIX: &str = "gateway-token";
 const ACCOUNT_OPENROUTER_PREFIX: &str = "openrouter-key";
 const ACCOUNT_LOCAL_TOKEN: &str = "local-gateway-token";
+/// Prefix for per-LLM-provider credentials stored by the desktop's
+/// LlmProviderPicker. Combined with the provider id and profile id this
+/// produces `llm-<provider-id>:<profile-id>` slots (e.g.
+/// `llm-openai:default`, `llm-anthropic:abc-123`).
+const ACCOUNT_LLM_PROVIDER_PREFIX: &str = "llm";
 
 /// Profile id used by the JS migration when wrapping an old flat-shape
 /// settings file into a single profile. Must stay in sync with the JS
@@ -122,6 +127,47 @@ pub fn set_openrouter_key(profile_id: &str, key: &str) -> Result<(), String> {
 
 pub fn delete_openrouter_key(profile_id: &str) -> Result<(), String> {
     delete_secret(&account_for(ACCOUNT_OPENROUTER_PREFIX, profile_id))
+}
+
+// ---- Per-provider LLM credentials (LlmProviderPicker) --------------------
+//
+// The picker stores each provider's API key / token in its own slot so
+// the user can switch between providers without losing their other
+// configured credentials. The OpenRouter case still flows through the
+// dedicated `*_openrouter_key` helpers above so the legacy
+// `openrouter-key:<profile>` slot continues to work.
+
+fn llm_account_for(provider_id: &str, profile_id: &str) -> String {
+    // Sanitize the provider id defensively: keyring entries treat the
+    // account string as opaque but we still want a predictable layout
+    // and no embedded colons (which we use as the profile separator).
+    let safe_provider: String = provider_id
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    format!("{ACCOUNT_LLM_PROVIDER_PREFIX}-{safe_provider}:{profile_id}")
+}
+
+pub fn get_llm_provider_credential(
+    profile_id: &str,
+    provider_id: &str,
+) -> Result<Option<String>, String> {
+    get_secret(&llm_account_for(provider_id, profile_id))
+}
+
+pub fn set_llm_provider_credential(
+    profile_id: &str,
+    provider_id: &str,
+    value: &str,
+) -> Result<(), String> {
+    set_secret(&llm_account_for(provider_id, profile_id), value)
+}
+
+pub fn delete_llm_provider_credential(
+    profile_id: &str,
+    provider_id: &str,
+) -> Result<(), String> {
+    delete_secret(&llm_account_for(provider_id, profile_id))
 }
 
 // ---- Local gateway token (auto-generated if missing) ----------------------
