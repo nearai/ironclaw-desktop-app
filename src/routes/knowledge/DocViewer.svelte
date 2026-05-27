@@ -8,8 +8,18 @@
   // into a full-height monospace textarea, Save POSTs to /api/memory/write
   // via the parent's `onsave` callback (the parent then reloads the doc
   // and toasts), and Cancel reverts with an unsaved-changes confirm.
+  //
+  // Document outline (TOC) rail (2026-05-27): in read mode for markdown
+  // docs only, walks the rendered DOM for h1/h2/h3 ids (set by
+  // MarkdownView's heading renderer override — same slug we'd land on
+  // from `#slug`) and renders a 200px-wide rail to the right of the
+  // content. Active section is the heading closest to (but not above)
+  // the scroll viewport top, tracked via a scroll listener on the
+  // surface scroll container. Hidden when the outline is short (< 3
+  // entries), the viewport is narrow (< 1100px), or we're in edit mode.
 
   import MarkdownView from '$lib/components/MarkdownView.svelte';
+  import { onMount, tick } from 'svelte';
 
   interface Props {
     path: string;
@@ -134,6 +144,166 @@
   // confirm dialog ("Delete this document? This can't be undone."), then
   // call `ondelete(path)`; the parent (knowledge/+page.svelte) clears
   // `selectedPath`, refreshes the tree, and toasts.
+
+  // ---- Document outline (TOC) -----------------------------------------
+
+  interface OutlineEntry {
+    level: 1 | 2 | 3;
+    text: string;
+    id: string;
+  }
+
+  /** Hide the TOC rail entirely if the doc has fewer entries than this. */
+  const MIN_OUTLINE_ENTRIES = 3;
+  /** Viewport width breakpoint below which the TOC rail is hidden. */
+  const TOC_MIN_VIEWPORT = 1100;
+  /** localStorage key for the collapsed/expanded state of the TOC rail. */
+  const TOC_COLLAPSED_KEY = 'ironclaw-knowledge-toc-collapsed';
+
+  /** Wrapper around the MarkdownView so we can query its rendered DOM. */
+  let mdWrapperEl: HTMLDivElement | undefined = $state();
+  /** The scroll container that wraps the doc body (.surface).
+   *  Captured via `bind:this` so we can attach a scroll listener + scroll
+   *  to anchor targets. */
+  let scrollContainerEl: HTMLDivElement | undefined = $state();
+
+  let outline = $state<OutlineEntry[]>([]);
+  let activeId = $state<string>('');
+  let viewportWide = $state(false);
+  let tocCollapsed = $state(false);
+
+  onMount(() => {
+    // Initial collapsed state from localStorage. We swallow access errors —
+    // localStorage can throw in some sandboxed contexts (e.g. private mode)
+    // and the TOC is a non-critical enhancement.
+    try {
+      tocCollapsed = window.localStorage.getItem(TOC_COLLAPSED_KEY) === '1';
+    } catch {
+      /* noop */
+    }
+    // Track viewport width via matchMedia — cheaper than a resize listener
+    // and fires only on threshold crossings.
+    const mql = window.matchMedia(`(min-width: ${TOC_MIN_VIEWPORT}px)`);
+    viewportWide = mql.matches;
+    const onChange = (e: MediaQueryListEvent) => (viewportWide = e.matches);
+    // `addEventListener('change', …)` is the modern API; supported in all
+    // current webviews including Tauri's wry/WKWebView.
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  });
+
+  /** Rebuild the outline by walking the rendered markdown DOM for h1/h2/h3.
+   *  MarkdownView's renderer override stamps each heading with an `id`
+   *  matching the in-doc anchor slug; we reuse those verbatim so clicks
+   *  land on the same `#slug` target the inline anchor handle would. */
+  async function rebuildOutline() {
+    // Wait one tick so the `{@html}` content from MarkdownView is mounted
+    // before we walk it.
+    await tick();
+    if (!mdWrapperEl || !isMarkdown || editing) {
+      outline = [];
+      return;
+    }
+    const heads = mdWrapperEl.querySelectorAll<HTMLElement>(
+      'h1.md-heading, h2.md-heading, h3.md-heading'
+    );
+    const next: OutlineEntry[] = [];
+    heads.forEach((h) => {
+      const id = h.id;
+      if (!id) return;
+      // The visible text lives inside the `<span>` sibling of the anchor
+      // handle (see MarkdownView's heading renderer). Falling back to
+      // `textContent` would pull in the SVG's accessible name; the span
+      // path is cleaner and matches what the user actually reads.
+      const span = h.querySelector('span');
+      const text = (span?.textContent ?? h.textContent ?? '').trim();
+      if (!text) return;
+      const depth = Number(h.tagName.slice(1));
+      if (depth !== 1 && depth !== 2 && depth !== 3) return;
+      next.push({ level: depth as 1 | 2 | 3, text, id });
+    });
+    outline = next;
+    // After the outline rebuilds, recompute the active heading once so the
+    // highlight isn't stale on path switch.
+    updateActive();
+  }
+
+  /** Active heading = last heading whose top is at or above a small offset
+   *  from the scroll-container's top. Falls back to the first entry when
+   *  nothing has scrolled past yet. */
+  function updateActive() {
+    if (!mdWrapperEl || !scrollContainerEl || outline.length === 0) {
+      activeId = '';
+      return;
+    }
+    const containerTop = scrollContainerEl.getBoundingClientRect().top;
+    // Small offset so a heading flips active just before it touches the
+    // very top — matches what feels right when reading.
+    const threshold = containerTop + 16;
+    let current = outline[0].id;
+    for (const entry of outline) {
+      const el = mdWrapperEl.querySelector<HTMLElement>(`#${CSS.escape(entry.id)}`);
+      if (!el) continue;
+      const top = el.getBoundingClientRect().top;
+      if (top <= threshold) {
+        current = entry.id;
+      } else {
+        break;
+      }
+    }
+    activeId = current;
+  }
+
+  // Rebuild whenever the doc content changes or we toggle out of edit
+  // mode. `content`, `path`, `editing`, and `isMarkdown` are all reactive
+  // — touching them inside the effect wires up the dependency graph.
+  $effect(() => {
+    void content;
+    void path;
+    void editing;
+    void isMarkdown;
+    void rebuildOutline();
+  });
+
+  // Attach a scroll listener to the surface container. Passive + scoped
+  // to the container; the listener is cheap (one DOM walk over <= a few
+  // dozen headings) and fires only while the user is actually scrolling
+  // this panel. We use a scroll listener rather than IntersectionObserver
+  // because we need the deterministic "last heading whose top is above
+  // viewport top" rule — IO's threshold-based callback timing makes that
+  // logic harder to get right across rapid scroll + smooth-scroll cases.
+  $effect(() => {
+    const el = scrollContainerEl;
+    if (!el) return;
+    const onScroll = () => updateActive();
+    el.addEventListener('scroll', onScroll, { passive: true });
+    return () => el.removeEventListener('scroll', onScroll);
+  });
+
+  function scrollToHeading(id: string) {
+    if (!mdWrapperEl) return;
+    const el = mdWrapperEl.querySelector<HTMLElement>(`#${CSS.escape(id)}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Optimistically mark this entry active so the highlight flips
+    // immediately; the scroll listener will reconcile once smooth-scroll
+    // settles.
+    activeId = id;
+  }
+
+  function toggleToc() {
+    tocCollapsed = !tocCollapsed;
+    try {
+      window.localStorage.setItem(TOC_COLLAPSED_KEY, tocCollapsed ? '1' : '0');
+    } catch {
+      /* noop */
+    }
+  }
+
+  /** Whether to render the TOC rail at all. */
+  const showToc = $derived(
+    !editing && !loading && !error && isMarkdown && viewportWide && outline.length >= MIN_OUTLINE_ENTRIES
+  );
 </script>
 
 <svelte:window onkeydown={handleKey} />
@@ -249,44 +419,139 @@
     {/if}
   </div>
 
-  <div class="surface flex-1 min-h-0 overflow-auto p-6">
-    {#if loading}
-      <div class="flex items-center justify-center gap-2 py-12 text-text-muted text-sm">
-        <svg
-          viewBox="0 0 24 24"
-          class="w-4 h-4 animate-spin text-accent-cyan"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+  <!--
+    Body row: doc content (scrolling) + optional TOC rail (fixed within
+    the viewer). The TOC is rendered as a sibling of the scroll container
+    so it stays put while the user scrolls the doc.
+  -->
+  <div class="flex-1 min-h-0 flex gap-3 min-w-0">
+    <div bind:this={scrollContainerEl} class="surface flex-1 min-w-0 min-h-0 overflow-auto p-6">
+      {#if loading}
+        <div class="flex items-center justify-center gap-2 py-12 text-text-muted text-sm">
+          <svg
+            viewBox="0 0 24 24"
+            class="w-4 h-4 animate-spin text-accent-cyan"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="9" stroke-opacity="0.25" />
+            <path d="M21 12a9 9 0 0 0-9-9" />
+          </svg>
+          Loading…
+        </div>
+      {:else if error}
+        <div class="text-sm text-red-400">{error}</div>
+      {:else if editing}
+        <!--
+          Edit mode: full-height monospace textarea, no border so the surface
+          provides the chrome. Padding is deliberately zero on the textarea
+          because the surrounding .surface already gives 24px of breathing room.
+        -->
+        <textarea
+          bind:this={textareaEl}
+          value={draft}
+          oninput={(e) => (draft = (e.currentTarget as HTMLTextAreaElement).value)}
+          spellcheck="false"
+          class="block w-full h-[70vh] bg-bg-deep text-text-primary text-xs font-mono leading-relaxed resize-none border-0 focus:outline-none focus:ring-0 px-3 py-2 rounded-md"
+        ></textarea>
+      {:else if isMarkdown}
+        <!--
+          Wrapper exists so we can query the rendered headings (`h1.md-heading`,
+          etc.) without reaching into MarkdownView. MarkdownView stamps each
+          heading with an id matching the in-doc anchor slug; the TOC uses
+          those ids verbatim.
+        -->
+        <div bind:this={mdWrapperEl}>
+          <MarkdownView markdown={content} />
+        </div>
+      {:else}
+        <pre
+          class="text-xs font-mono text-text-primary whitespace-pre-wrap break-words leading-relaxed">{content}</pre>
+      {/if}
+    </div>
+
+    {#if showToc}
+      {#if tocCollapsed}
+        <!-- Collapsed: thin gold strip, click anywhere to expand. -->
+        <button
+          type="button"
+          onclick={toggleToc}
+          aria-label="Show document outline"
+          aria-expanded="false"
+          title="Show outline"
+          class="shrink-0 w-2 self-stretch rounded-md bg-accent-gold/40 hover:bg-accent-gold/70 transition cursor-pointer"
+        ></button>
+      {:else}
+        <aside
+          aria-label="Document outline"
+          class="shrink-0 w-[200px] self-start max-h-full overflow-y-auto surface px-3 py-3 text-xs"
         >
-          <circle cx="12" cy="12" r="9" stroke-opacity="0.25" />
-          <path d="M21 12a9 9 0 0 0-9-9" />
-        </svg>
-        Loading…
-      </div>
-    {:else if error}
-      <div class="text-sm text-red-400">{error}</div>
-    {:else if editing}
-      <!--
-        Edit mode: full-height monospace textarea, no border so the surface
-        provides the chrome. Padding is deliberately zero on the textarea
-        because the surrounding .surface already gives 24px of breathing room.
-      -->
-      <textarea
-        bind:this={textareaEl}
-        value={draft}
-        oninput={(e) => (draft = (e.currentTarget as HTMLTextAreaElement).value)}
-        spellcheck="false"
-        class="block w-full h-[70vh] bg-bg-deep text-text-primary text-xs font-mono leading-relaxed resize-none border-0 focus:outline-none focus:ring-0 px-3 py-2 rounded-md"
-      ></textarea>
-    {:else if isMarkdown}
-      <MarkdownView markdown={content} />
-    {:else}
-      <pre
-        class="text-xs font-mono text-text-primary whitespace-pre-wrap break-words leading-relaxed">{content}</pre>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-[10px] uppercase tracking-wider text-text-muted font-semibold">
+              On this page
+            </span>
+            <button
+              type="button"
+              onclick={toggleToc}
+              aria-label="Collapse outline"
+              aria-expanded="true"
+              title="Collapse outline"
+              class="inline-flex items-center justify-center w-5 h-5 rounded text-text-muted hover:text-accent-cyan transition"
+            >
+              <!-- Chevron-right: indicates "collapse to the right". -->
+              <svg
+                viewBox="0 0 24 24"
+                class="w-3 h-3"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="9 6 15 12 9 18" />
+              </svg>
+            </button>
+          </div>
+          <ul class="space-y-0.5">
+            {#each outline as entry (entry.id)}
+              <li>
+                <button
+                  type="button"
+                  onclick={() => scrollToHeading(entry.id)}
+                  class="toc-link block w-full text-left py-1 pr-1 border-l-2 transition truncate"
+                  class:toc-link--active={activeId === entry.id}
+                  style:padding-left="{8 + (entry.level - 1) * 12}px"
+                  title={entry.text}
+                >
+                  {entry.text}
+                </button>
+              </li>
+            {/each}
+          </ul>
+        </aside>
+      {/if}
     {/if}
   </div>
 </div>
+
+<style>
+  /* TOC entry: muted by default, cyan on hover, cyan + left border when
+     active. Border slot reserved on every row so the active state doesn't
+     shift the text 2px to the right. */
+  .toc-link {
+    border-left-color: transparent;
+    color: #9ca3af;
+    background: transparent;
+  }
+  .toc-link:hover {
+    color: #4ca7e6;
+  }
+  .toc-link--active {
+    color: #4ca7e6;
+    border-left-color: #4ca7e6;
+  }
+</style>
 

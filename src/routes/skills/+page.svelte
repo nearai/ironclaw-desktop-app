@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import { pins } from '$lib/stores/pins.svelte';
   import type { Skill, SkillTrust } from '$lib/api/types';
   import SkillCard from './SkillCard.svelte';
   import SkillDrawer from './SkillDrawer.svelte';
@@ -216,30 +217,57 @@
   });
 
   /**
-   * Flat-view sections — splits the result list into a "Recently used"
-   * pinned section and an "All skills" section. The pinned section only
-   * renders when there's at least one filtered recent skill.
+   * Flat-view sections — splits the result list into up to three
+   * sections: explicitly pinned skills (gold-starred via the per-card
+   * button), recently-used skills, and the rest. Pinned takes priority
+   * over recently-used so a user who pinned a skill always sees it at
+   * the top even if they ran something else more recently.
+   *
+   * Each section is restricted to the post-filter set, so search /
+   * sort modes still apply (you can search within your pinned skills).
+   * Both pinned and recents preserve their insertion order
+   * (pin-chronological / launch-chronological respectively) so the
+   * section reads predictably.
    */
   const flatSections = $derived.by<Section[]>(() => {
     if (viewMode !== 'flat') return [];
-    // Recents — restrict to skills that are (a) actually in the loaded
-    // catalog and (b) survive the current filter. We preserve the order
-    // in recentNames so the pinned section reads chronologically.
     const filteredSet = new Set(filteredSkills.map((s) => s.name));
-    const pinned: Skill[] = [];
-    for (const name of recentNames) {
+    // Explicit pins — first, in insertion order, restricted to skills
+    // that survive the current filter (and that still exist in the
+    // catalog so the section never renders ghost entries).
+    const pinnedList: Skill[] = [];
+    for (const name of pins.pins.skill) {
       if (!filteredSet.has(name)) continue;
       const found = filteredSkills.find((s) => s.name === name);
-      if (found) pinned.push(found);
+      if (found) pinnedList.push(found);
     }
-    const pinnedNames = new Set(pinned.map((s) => s.name));
-    const rest = sortedSkills.filter((s) => !pinnedNames.has(s.name));
+    const pinnedNames = new Set(pinnedList.map((s) => s.name));
+    // Recents — skip anything already surfaced as a pin so a skill
+    // never appears in two sections at once.
+    const recentList: Skill[] = [];
+    for (const name of recentNames) {
+      if (!filteredSet.has(name)) continue;
+      if (pinnedNames.has(name)) continue;
+      const found = filteredSkills.find((s) => s.name === name);
+      if (found) recentList.push(found);
+    }
+    const recentNamesSet = new Set(recentList.map((s) => s.name));
+    const rest = sortedSkills.filter(
+      (s) => !pinnedNames.has(s.name) && !recentNamesSet.has(s.name)
+    );
     const out: Section[] = [];
-    if (pinned.length > 0) {
-      out.push({ id: 'recent', label: 'Recently used', items: pinned });
+    if (pinnedList.length > 0) {
+      out.push({ id: 'pinned', label: 'Pinned', items: pinnedList });
+    }
+    if (recentList.length > 0) {
+      out.push({ id: 'recent', label: 'Recently used', items: recentList });
+    }
+    if (out.length > 0) {
       out.push({ id: 'all', label: 'All skills', items: rest });
     } else {
-      // No recents → single unlabeled section (existing behavior).
+      // Neither pins nor recents — single unlabeled section (existing
+      // behavior preserved so the grid layout doesn't shift for users
+      // who haven't engaged with either affordance yet).
       out.push({ id: 'all', label: '', items: sortedSkills });
     }
     return out;
@@ -654,13 +682,34 @@
         {/each}
       </div>
     {:else}
-      <!-- Flat view: optional Recently-used pinned section, then All skills. -->
+      <!-- Flat view: optional Pinned section, optional Recently-used,
+           then All skills. Pinned header uses the gold accent so users
+           can find their explicit-favorites bucket at a glance — it's
+           the only place gold is used in section chrome on this page. -->
       <div class="space-y-6 pb-4">
         {#each flatSections as section (section.id)}
           <div>
             {#if section.label}
               <div class="flex items-baseline justify-between mb-3">
-                <h2 class="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                <h2
+                  class="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5"
+                  class:text-accent-gold={section.id === 'pinned'}
+                  class:text-text-muted={section.id !== 'pinned'}
+                >
+                  {#if section.id === 'pinned'}
+                    <svg
+                      viewBox="0 0 24 24"
+                      class="w-3 h-3"
+                      fill="currentColor"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                    </svg>
+                  {/if}
                   {section.label}
                 </h2>
                 {#if section.id === 'recent'}

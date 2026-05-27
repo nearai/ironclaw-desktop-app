@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Skill } from '$lib/api/types';
+  import { pins } from '$lib/stores/pins.svelte';
 
   type Props = {
     skill: Skill;
@@ -25,6 +26,18 @@
     onArrowKey,
     focusId
   }: Props = $props();
+
+  // Whether this skill is in the user's pinned set. Reactive against
+  // the pins store so toggling from any surface (this card, palette,
+  // future bulk-action menus) flips the star instantly.
+  const pinned = $derived(pins.isPinned('skill', skill.name));
+
+  /** Toggle pin from the star button. Stops propagation so the card's
+   *  onclick doesn't open the drawer at the same time. */
+  function handlePinClick(event: MouseEvent) {
+    event.stopPropagation();
+    pins.toggle('skill', skill.name, skill.name);
+  }
 
   /** DOM ref so the parent can imperatively .focus() this card. */
   let el = $state<HTMLDivElement | null>(null);
@@ -139,32 +152,63 @@
   onfocus={handleFocus}
   class="group relative flex flex-col rounded-lg border border-border-subtle bg-bg-surface p-4 cursor-pointer transition-colors hover:bg-[#1a2233] hover:border-[#2a3548] focus:outline-none focus-visible:outline-none focus-visible:border-accent-cyan focus-visible:ring-2 focus-visible:ring-accent-cyan/60 focus-visible:ring-offset-0 min-h-[160px]"
 >
-  {#if trustBadge}
-    <span
-      class={`absolute top-3 right-3 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${trustBadge.classes}`}
-      title={trustBadge.warn
-        ? 'Unverified skill — review the source before running on production data.'
-        : `Trust level: ${trustBadge.label}`}
+  <!-- Pin star. Sits top-right; when a trust badge is present, the badge
+       renders inline next to the star so neither overlaps the other.
+       Gold-filled when pinned, hollow + muted when not. Hover lifts the
+       muted state to gold for affordance. -->
+  <div class="absolute top-3 right-3 flex items-center gap-1.5">
+    {#if trustBadge}
+      <span
+        class={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border ${trustBadge.classes}`}
+        title={trustBadge.warn
+          ? 'Unverified skill — review the source before running on production data.'
+          : `Trust level: ${trustBadge.label}`}
+      >
+        {#if trustBadge.warn}
+          <svg
+            viewBox="0 0 24 24"
+            class="w-2.5 h-2.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        {/if}
+        {trustBadge.label}
+      </span>
+    {/if}
+    <button
+      type="button"
+      onclick={handlePinClick}
+      title={pinned ? 'Unpin this skill' : 'Pin this skill'}
+      aria-label={pinned ? `Unpin ${skill.name}` : `Pin ${skill.name}`}
+      aria-pressed={pinned}
+      class="inline-flex items-center justify-center w-5 h-5 rounded transition-colors hover:bg-bg-deep"
+      class:text-accent-gold={pinned}
+      class:text-text-muted={!pinned}
+      class:hover:text-accent-gold={!pinned}
     >
-      {#if trustBadge.warn}
-        <svg
-          viewBox="0 0 24 24"
-          class="w-2.5 h-2.5"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-          <line x1="12" y1="9" x2="12" y2="13" />
-          <line x1="12" y1="17" x2="12.01" y2="17" />
-        </svg>
-      {/if}
-      {trustBadge.label}
-    </span>
-  {/if}
+      <svg
+        viewBox="0 0 24 24"
+        class="w-3.5 h-3.5"
+        fill={pinned ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+    </button>
+  </div>
+
 
   <div class="mb-2 pr-20">
     <h3 class="text-sm font-semibold text-accent-cyan break-words">

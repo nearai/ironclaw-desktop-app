@@ -20,6 +20,8 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
+import { broadcast } from './broadcast.svelte';
+
 export type ConnectionMode = 'remote' | 'local';
 
 /**
@@ -436,9 +438,18 @@ export async function saveSettings(s: AppSettings): Promise<void> {
   cached = structuredClone(s);
   if (!inTauri()) {
     console.warn('saveSettings called outside Tauri; no-op');
+    // Still notify siblings so the dev/browser harness can exercise
+    // the fanout — `broadcast.send` no-ops without an open channel,
+    // so this is free in non-test runs.
+    broadcast.send({ kind: 'settings-changed' });
     return;
   }
   await invoke('save_settings', { settings: s });
+  // Fan the change out to every sibling window so their
+  // `connection.settings` rune refreshes from disk. Fires AFTER the
+  // IPC resolves so peers never read stale on-disk state. Loop-safe:
+  // peers call `connection.reloadSettings()` (no save), so no echo.
+  broadcast.send({ kind: 'settings-changed' });
 }
 
 // ---- Settings backup (import validation) ---------------------------------

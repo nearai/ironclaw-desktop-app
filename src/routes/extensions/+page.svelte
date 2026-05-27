@@ -4,6 +4,7 @@
   import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import { pins } from '$lib/stores/pins.svelte';
   import type { Extension, ExtensionTool } from '$lib/api/types';
   import ExtensionCard from './ExtensionCard.svelte';
   import SetupDrawer from './SetupDrawer.svelte';
@@ -156,6 +157,20 @@
         (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name)
       );
     }
+    // Pin-first hoist: stable-sort so explicitly pinned extensions float
+    // to the top of the grid regardless of the underlying sort. Pinned
+    // entries preserve their pin-chronological order (insertion order in
+    // the store), then unpinned entries follow in whatever order the
+    // primary sort produced. Reading `pins.pins.extension` here keeps
+    // the derived list reactive to pin toggles from any surface.
+    const pinIndex = new Map<string, number>();
+    pins.pins.extension.forEach((name, i) => pinIndex.set(name, i));
+    out.sort((a, b) => {
+      const ai = pinIndex.has(a.name) ? pinIndex.get(a.name)! : Number.POSITIVE_INFINITY;
+      const bi = pinIndex.has(b.name) ? pinIndex.get(b.name)! : Number.POSITIVE_INFINITY;
+      if (ai === bi) return 0; // both pinned at same rank (impossible) or both unpinned → keep primary order
+      return ai - bi;
+    });
     return out;
   }
 

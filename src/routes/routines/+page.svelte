@@ -8,6 +8,7 @@
   import Sparkline from '$lib/components/Sparkline.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
+  import { pins } from '$lib/stores/pins.svelte';
   import { relativeTime } from './time';
 
   const POLL_INTERVAL_MS = 30_000;
@@ -195,6 +196,32 @@
     return applySort(
       routines.filter((r) => matchesFilter(r) && matchesSearch(r, q))
     );
+  });
+
+  /**
+   * Split the filtered list into two slices: pinned routines (in
+   * pin-chronological order, restricted to whatever survived the filter)
+   * and the rest (in the chosen sort order). The table renders both
+   * slices with a "Pinned" section header above the first when non-empty
+   * — explicit pins always float above the primary sort so a user who
+   * pinned a routine always sees it at the top regardless of name/next-run
+   * choices. Reading `pins.pins.routine` keeps this reactive to toggles.
+   */
+  const pinnedRoutines = $derived.by<Routine[]>(() => {
+    if (pins.pins.routine.length === 0) return [];
+    const byId = new Map(filteredRoutines.map((r) => [r.id, r]));
+    const out: Routine[] = [];
+    for (const id of pins.pins.routine) {
+      const r = byId.get(id);
+      if (r) out.push(r);
+    }
+    return out;
+  });
+
+  const unpinnedRoutines = $derived.by<Routine[]>(() => {
+    if (pinnedRoutines.length === 0) return filteredRoutines;
+    const pinnedSet = new Set(pinnedRoutines.map((r) => r.id));
+    return filteredRoutines.filter((r) => !pinnedSet.has(r.id));
   });
 
   const filterActive = $derived(
@@ -532,6 +559,106 @@
   // the `?` icon next to the Schedule column header on the table).
 </script>
 
+<!--
+  Single source of truth for a routine table row. Used by the plain
+  table render AND by the two-section render (Pinned + All routines)
+  so the toggle / trigger / view / pin chrome stays consistent. Wrapped
+  in a snippet to avoid duplicating ~70 lines of markup three times.
+-->
+{#snippet routineRow(routine: Routine)}
+  {@const isToggling = togglingIds.has(routine.id)}
+  {@const isTriggering = triggeringIds.has(routine.id)}
+  {@const isSelected = selectedId === routine.id}
+  {@const isPinned = pins.isPinned('routine', routine.id)}
+  <tr
+    class="border-b border-border-subtle/40 transition-colors"
+    class:bg-bg-deep={isSelected}
+    class:hover:bg-bg-deep={!isSelected}
+  >
+    <td class="px-4 py-3 text-text-primary font-medium">{routine.name}</td>
+    <td class="px-4 py-3 text-text-muted font-mono text-xs">
+      {routine.schedule || '—'}
+    </td>
+    <td class="px-4 py-3">
+      <button
+        type="button"
+        role="switch"
+        aria-checked={routine.enabled}
+        aria-label={routine.enabled ? 'Disable' : 'Enable'}
+        onclick={() => void onToggle(routine)}
+        disabled={isToggling}
+        class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-wait"
+        class:bg-accent-cyan={routine.enabled}
+        class:bg-border-subtle={!routine.enabled}
+      >
+        <span
+          class="inline-block h-3.5 w-3.5 transform rounded-full bg-bg-deep transition-transform"
+          class:translate-x-4={routine.enabled}
+          class:translate-x-1={!routine.enabled}
+        ></span>
+      </button>
+    </td>
+    <td class="px-4 py-3 text-text-muted text-xs">
+      {relativeTime(routine.last_run)}
+    </td>
+    <td class="px-4 py-3 text-text-muted text-xs">
+      {relativeTime(routine.next_run)}
+    </td>
+    <td class="px-4 py-3">
+      <div class="flex items-center justify-end gap-1">
+        <button
+          type="button"
+          onclick={() => pins.toggle('routine', routine.id, routine.name)}
+          title={isPinned ? 'Unpin this routine' : 'Pin this routine'}
+          aria-label={isPinned ? `Unpin ${routine.name}` : `Pin ${routine.name}`}
+          aria-pressed={isPinned}
+          class="p-2 rounded-md transition-colors hover:bg-bg-deep min-h-[36px] min-w-[36px] flex items-center justify-center"
+          class:text-accent-gold={isPinned}
+          class:text-text-muted={!isPinned}
+          class:hover:text-accent-gold={!isPinned}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="w-4 h-4"
+            fill={isPinned ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onclick={() => void onTrigger(routine)}
+          disabled={isTriggering || !routine.enabled}
+          title={routine.enabled ? 'Trigger now' : 'Enable to trigger'}
+          aria-label="Trigger {routine.name}"
+          class="p-2 rounded-md text-accent-gold hover:bg-accent-gold/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent min-h-[36px] min-w-[36px] flex items-center justify-center"
+        >
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor">
+            <polygon points="5 3 19 12 5 21 5 3" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onclick={() => openDetail(routine.id)}
+          title="View detail"
+          aria-label="View {routine.name}"
+          class="p-2 rounded-md text-accent-cyan hover:bg-accent-cyan/10 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
+        >
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12" />
+            <polyline points="12 5 19 12 12 19" />
+          </svg>
+        </button>
+      </div>
+    </td>
+  </tr>
+{/snippet}
+
 <section class="p-8 h-full flex flex-col">
   <header class="mb-6 flex items-start justify-between gap-4">
     <div>
@@ -803,79 +930,64 @@
                 <th class="font-medium px-4 py-3 w-24">Enabled</th>
                 <th class="font-medium px-4 py-3">Last run</th>
                 <th class="font-medium px-4 py-3">Next run</th>
-                <th class="font-medium px-4 py-3 w-32 text-right">Actions</th>
+                <th class="font-medium px-4 py-3 w-40 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody>
-              {#each filteredRoutines as routine (routine.id)}
-                {@const isToggling = togglingIds.has(routine.id)}
-                {@const isTriggering = triggeringIds.has(routine.id)}
-                {@const isSelected = selectedId === routine.id}
-                <tr
-                  class="border-b border-border-subtle/40 transition-colors"
-                  class:bg-bg-deep={isSelected}
-                  class:hover:bg-bg-deep={!isSelected}
-                >
-                  <td class="px-4 py-3 text-text-primary font-medium">{routine.name}</td>
-                  <td class="px-4 py-3 text-text-muted font-mono text-xs">
-                    {routine.schedule || '—'}
-                  </td>
-                  <td class="px-4 py-3">
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={routine.enabled}
-                      aria-label={routine.enabled ? 'Disable' : 'Enable'}
-                      onclick={() => void onToggle(routine)}
-                      disabled={isToggling}
-                      class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-wait"
-                      class:bg-accent-cyan={routine.enabled}
-                      class:bg-border-subtle={!routine.enabled}
-                    >
-                      <span
-                        class="inline-block h-3.5 w-3.5 transform rounded-full bg-bg-deep transition-transform"
-                        class:translate-x-4={routine.enabled}
-                        class:translate-x-1={!routine.enabled}
-                      ></span>
-                    </button>
-                  </td>
-                  <td class="px-4 py-3 text-text-muted text-xs">
-                    {relativeTime(routine.last_run)}
-                  </td>
-                  <td class="px-4 py-3 text-text-muted text-xs">
-                    {relativeTime(routine.next_run)}
-                  </td>
-                  <td class="px-4 py-3">
-                    <div class="flex items-center justify-end gap-1">
-                      <button
-                        type="button"
-                        onclick={() => void onTrigger(routine)}
-                        disabled={isTriggering || !routine.enabled}
-                        title={routine.enabled ? 'Trigger now' : 'Enable to trigger'}
-                        aria-label="Trigger {routine.name}"
-                        class="p-2 rounded-md text-accent-gold hover:bg-accent-gold/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent min-h-[36px] min-w-[36px] flex items-center justify-center"
+            <!-- Pinned section. Renders only when at least one pinned
+                 routine survives the current filter. A separator <tbody>
+                 with a gold-accented header row precedes the actual
+                 pinned rows so the section reads as explicit favorites
+                 without breaking table semantics. -->
+            {#if pinnedRoutines.length > 0}
+              <tbody>
+                <tr class="bg-bg-deep/40">
+                  <td
+                    colspan="6"
+                    class="px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-accent-gold"
+                  >
+                    <span class="inline-flex items-center gap-1.5">
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-3 h-3"
+                        fill="currentColor"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
                       >
-                        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor">
-                          <polygon points="5 3 19 12 5 21 5 3" />
-                        </svg>
-                      </button>
-                      <button
-                        type="button"
-                        onclick={() => openDetail(routine.id)}
-                        title="View detail"
-                        aria-label="View {routine.name}"
-                        class="p-2 rounded-md text-accent-cyan hover:bg-accent-cyan/10 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
-                      >
-                        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <line x1="5" y1="12" x2="19" y2="12" />
-                          <polyline points="12 5 19 12 12 19" />
-                        </svg>
-                      </button>
-                    </div>
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                      Pinned
+                    </span>
                   </td>
                 </tr>
-              {/each}
-            </tbody>
+                {#each pinnedRoutines as routine (routine.id)}
+                  {@render routineRow(routine)}
+                {/each}
+              </tbody>
+              {#if unpinnedRoutines.length > 0}
+                <tbody>
+                  <tr class="bg-bg-deep/20">
+                    <td
+                      colspan="6"
+                      class="px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted"
+                    >
+                      All routines
+                    </td>
+                  </tr>
+                  {#each unpinnedRoutines as routine (routine.id)}
+                    {@render routineRow(routine)}
+                  {/each}
+                </tbody>
+              {/if}
+            {:else}
+              <tbody>
+                {#each filteredRoutines as routine (routine.id)}
+                  {@render routineRow(routine)}
+                {/each}
+              </tbody>
+            {/if}
           </table>
         </div>
       {/if}

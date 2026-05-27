@@ -27,14 +27,17 @@
   import { threads } from '$lib/stores/threads.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
   import { globalSearch } from '$lib/stores/global-search.svelte';
+  import { threadSwitcher } from '$lib/stores/thread-switcher.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { aboutStore } from '$lib/stores/about.svelte';
   import { saveSettings } from '$lib/stores/settings.svelte';
-  import type { MemoryNode, Routine, Skill, Thread } from '$lib/api/types';
+  import { pins, type PinSurface } from '$lib/stores/pins.svelte';
+  import type { Extension, MemoryNode, Routine, Skill, Thread } from '$lib/api/types';
 
   // -- types ----------------------------------------------------------------
 
   type Category =
+    | 'Pinned'
     | 'Recent'
     | 'Navigate'
     | 'Actions'
@@ -51,6 +54,8 @@
     | 'skill'
     | 'routine'
     | 'doc'
+    | 'extension'
+    | 'pin'
     | 'signin'
     | 'restart'
     | 'disconnect'
@@ -97,10 +102,19 @@
   let skillsCache = $state<Skill[] | null>(null);
   let routinesCache = $state<Routine[] | null>(null);
   let docsCache = $state<MemoryNode[] | null>(null);
+  /**
+   * Extensions cache. Needed so the cross-surface Pinned section can
+   * render a friendly display name for pinned extensions — the pin
+   * store only holds the bare `extension.name` id. Loaded lazily on
+   * first open like the other caches; failures fall back to showing
+   * the raw id with no penalty to other categories.
+   */
+  let extensionsCache = $state<Extension[] | null>(null);
 
   let loadingSkills = $state(false);
   let loadingRoutines = $state(false);
   let loadingDocs = $state(false);
+  let loadingExtensions = $state(false);
 
   // -- ui state -------------------------------------------------------------
 
@@ -113,6 +127,7 @@
    *  scope `filtered` down to that single bucket. */
   type PillFilter =
     | 'All'
+    | 'Pinned'
     | 'Nav'
     | 'Actions'
     | 'Threads'
@@ -121,6 +136,7 @@
     | 'Docs';
   const PILL_KEYS: PillFilter[] = [
     'All',
+    'Pinned',
     'Nav',
     'Actions',
     'Threads',
@@ -393,6 +409,21 @@
         loadingDocs = false;
       }
     }
+    // Extensions cache is fed only to the cross-surface Pinned section
+    // for label lookup — there's no top-level Extensions pill in the
+    // palette yet, so failures are silent (the row falls back to the
+    // raw id and still navigates correctly).
+    if (extensionsCache === null && !loadingExtensions) {
+      loadingExtensions = true;
+      try {
+        extensionsCache = await connection.client.listExtensions();
+      } catch (err) {
+        console.warn('palette: failed to load extensions for pin labels', err);
+        extensionsCache = [];
+      } finally {
+        loadingExtensions = false;
+      }
+    }
   }
 
   // -- action handlers ------------------------------------------------------
@@ -545,6 +576,23 @@
           run: () => {
             palette.closePalette();
             globalSearch.show();
+          }
+        },
+        // Quick thread switcher (Cmd+T). Discoverable from the palette so
+        // users who don't yet know the chord can jump in here. Closes the
+        // palette first so the switcher's backdrop lands on a clean chrome.
+        // Reuses the `thread` icon for visual continuity with thread rows.
+        {
+          id: 'action:switch-thread',
+          category: 'Actions' as const,
+          label: 'Switch thread',
+          subtitle: 'Jump to a conversation by title',
+          icon: 'thread' as const,
+          keywords: ['switch', 'thread', 'jump', 'chat', 'conversation'],
+          keybind: '⌘T',
+          run: () => {
+            palette.closePalette();
+            threadSwitcher.show();
           }
         },
         // Sign in to NEAR.AI — local-mode only, sidecar offline path.
@@ -712,6 +760,116 @@
     }))
   );
 
+  /**
+   * Map a pin surface to the icon glyph it should render in the
+   * cross-surface Pinned section. Mirrors the per-surface category
+   * icons (so a pinned skill looks like the skill row in the rest of
+   * the palette) but routed through `IconKey` rather than `Category`.
+   */
+  function iconForSurface(surface: PinSurface): IconKey {
+    switch (surface) {
+      case 'skill':
+        return 'skill';
+      case 'routine':
+        return 'routine';
+      case 'knowledge':
+        return 'doc';
+      case 'thread':
+        return 'thread';
+      case 'extension':
+        return 'extension';
+      default:
+        return 'pin';
+    }
+  }
+
+  /** Human-readable surface label for the subtitle badge in the
+   *  Pinned row. */
+  function surfaceLabel(surface: PinSurface): string {
+    switch (surface) {
+      case 'skill':
+        return 'Skill';
+      case 'routine':
+        return 'Routine';
+      case 'knowledge':
+        return 'Knowledge';
+      case 'thread':
+        return 'Thread';
+      case 'extension':
+        return 'Extension';
+      default:
+        return surface;
+    }
+  }
+
+  /**
+   * Cross-surface pinned items. Each entry in `pins.all()` becomes a
+   * row that navigates to the source surface — using the same closures
+   * the per-surface item factories above generate when the underlying
+   * record is still loaded. When the cache hasn't loaded yet (or the
+   * record is gone), the row still renders with the raw id as the
+   * label and a fallback navigation to the source surface so the user
+   * isn't stranded.
+   *
+   * Order: pins are emitted in `pins.all()` order, which iterates
+   * surfaces in declaration order then pins within each surface in
+   * insertion order. That gives a stable, predictable list across
+   * renders without needing a secondary sort.
+   */
+  const pinnedItems = $derived<Item[]>(
+    pins.all().map(({ surface, id }) => {
+      const icon = iconForSurface(surface);
+      const surfaceTag = surfaceLabel(surface);
+      let label = id;
+      let run: () => void = () => void goto('/');
+      switch (surface) {
+        case 'skill': {
+          const s = skillsCache?.find((sk) => sk.name === id);
+          label = s?.name ?? id;
+          run = () => {
+            const hint = s?.usage_hint ?? `/${id}`;
+            void goto(`/?prefill=${encodeURIComponent(hint)}`);
+          };
+          break;
+        }
+        case 'routine': {
+          const r = routinesCache?.find((rt) => rt.id === id);
+          label = r?.name ?? id;
+          run = () => void goto(`/routines?open=${encodeURIComponent(id)}`);
+          break;
+        }
+        case 'knowledge': {
+          label = id;
+          run = () => void goto(`/knowledge?path=${encodeURIComponent(id)}`);
+          break;
+        }
+        case 'thread': {
+          const t = threads.threads.find((th) => th.id === id);
+          label = t?.title || 'Untitled thread';
+          run = () => {
+            threads.selectThread(id);
+            void goto('/');
+          };
+          break;
+        }
+        case 'extension': {
+          const e = extensionsCache?.find((ext) => ext.name === id);
+          label = e?.display_name ?? e?.name ?? id;
+          run = () => void goto(`/extensions?focus=${encodeURIComponent(id)}`);
+          break;
+        }
+      }
+      return {
+        id: `pinned:${surface}:${id}`,
+        category: 'Pinned' as const,
+        label,
+        subtitle: surfaceTag,
+        icon,
+        run
+      };
+    })
+  );
+
   const skillItems = $derived<Item[]>(
     (skillsCache ?? []).map((s) => ({
       id: `skill:${s.name}`,
@@ -758,9 +916,10 @@
     }))
   );
 
-  /** Everything searchable (excluding the Recent virtual category). The
-   *  Recent rows live alongside but never participate in fuzzy ranking — we
-   *  render them as a static section when the query is empty. */
+  /** Everything searchable (excluding the Recent and Pinned virtual
+   *  categories). Recent + Pinned rows live alongside but never
+   *  participate in fuzzy ranking — they're rendered as static sections
+   *  when the query is empty so the user can scan their explicit lists. */
   const allItems = $derived<Item[]>([
     ...navItems,
     ...actionItems,
@@ -806,21 +965,30 @@
   const RESULT_CAP = 50;
 
   /** Map pill → category filter set. 'All' means no filter; the keys must
-   *  match the category strings produced by the item factories above. */
+   *  match the category strings produced by the item factories above.
+   *  'Pinned' is handled specially in `grouped` below — it's an opt-in
+   *  view of the cross-surface pin list rather than a search filter,
+   *  so we never let it through to ranking (the pinned rows always
+   *  render at the top of `grouped` instead). */
   function pillCategoryAllowed(pill: PillFilter, cat: Category): boolean {
     if (pill === 'All') return true;
+    if (pill === 'Pinned') return false; // ranked rows are hidden when scoping to pins
     if (pill === 'Nav') return cat === 'Navigate';
     return pill === cat;
   }
 
   const filtered = $derived<Item[]>(rankAndFilter(allItems, query, activePill));
 
-  /** Results bucketed by category. Recent is hoisted to the top when the
-   *  user has no active query (so the user can scan their most-recent
-   *  jumps); otherwise it's hidden and replaced by ranked matches across
-   *  the live categories. */
+  /** Results bucketed by category. Pinned + Recent hoist to the top
+   *  when the user has no active query (so the user can scan their
+   *  explicit lists / most-recent jumps); both are hidden once the
+   *  user starts typing and replaced by ranked matches across the live
+   *  categories. The 'Pinned' pill is special-cased to show ONLY the
+   *  cross-surface pin list (no ranked rows) — letting the user open
+   *  the palette and pivot straight to a favorites view. */
   const grouped = $derived.by<Array<{ category: Category; items: Item[] }>>(() => {
     const order: Category[] = [
+      'Pinned',
       'Recent',
       'Navigate',
       'Actions',
@@ -831,16 +999,41 @@
     ];
     const buckets = new Map<Category, Item[]>();
 
-    // Inject Recent only on empty queries (otherwise the user's intent is
-    // search, not "what did I do last") and only when the pill is "All".
+    // Pinned: render on empty query with the All pill, OR whenever the
+    // Pinned pill is selected (regardless of query). When the pill is
+    // active and a query is set we client-side filter the pinned rows
+    // by label so the user can search within their pins.
+    const pillIsPinned = activePill === 'Pinned';
+    const showPinned =
+      pinnedItems.length > 0 &&
+      ((query.trim() === '' && activePill === 'All') || pillIsPinned);
+    if (showPinned) {
+      const q = query.trim().toLowerCase();
+      const pinnedSlice = q
+        ? pinnedItems.filter(
+            (p) =>
+              p.label.toLowerCase().includes(q) ||
+              (p.subtitle ?? '').toLowerCase().includes(q)
+          )
+        : pinnedItems;
+      if (pinnedSlice.length > 0) {
+        buckets.set('Pinned', pinnedSlice);
+      }
+    }
+
+    // Recent: only when the user is on All with an empty query.
     if (query.trim() === '' && activePill === 'All' && recentItems.length > 0) {
       buckets.set('Recent', recentItems);
     }
 
-    for (const item of filtered) {
-      const arr = buckets.get(item.category) ?? [];
-      arr.push(item);
-      buckets.set(item.category, arr);
+    // Ranked categories: when the Pinned pill is active we deliberately
+    // suppress these so the view stays a pure favorites list.
+    if (!pillIsPinned) {
+      for (const item of filtered) {
+        const arr = buckets.get(item.category) ?? [];
+        arr.push(item);
+        buckets.set(item.category, arr);
+      }
     }
     return order
       .filter((c) => (buckets.get(c) ?? []).length > 0)
@@ -1155,8 +1348,13 @@
       <div bind:this={listEl} class="flex-1 overflow-y-auto py-2">
         {#if flat.length === 0}
           <div class="px-5 py-8 text-center text-sm text-text-muted">
-            {#if loadingSkills || loadingRoutines || loadingDocs}
+            {#if loadingSkills || loadingRoutines || loadingDocs || loadingExtensions}
               Loading…
+            {:else if activePill === 'Pinned' && pinnedItems.length === 0}
+              <!-- Explicit empty-state for the Pinned pill so the user
+                   knows the section is intentional, not a load failure. -->
+              No pinned items yet. Tap the star on a skill, routine,
+              thread, or extension to pin it here.
             {:else if query.trim()}
               No matches for <span class="text-text-primary">{query}</span>
             {:else}
@@ -1166,8 +1364,14 @@
         {:else}
           {#each grouped as group (group.category)}
             <div class="mb-1">
+              <!-- Pinned section header gets the gold accent so users can
+                   scan past the (longer) ranked list and find their
+                   cross-surface favorites quickly. -->
               <div
-                class="px-5 pt-2 pb-1 text-[10px] font-mono uppercase tracking-widest text-text-muted/70"
+                class="px-5 pt-2 pb-1 text-[10px] font-mono uppercase tracking-widest"
+                class:text-accent-gold={group.category === 'Pinned'}
+                class:text-text-muted={group.category !== 'Pinned'}
+                style={group.category !== 'Pinned' ? 'opacity:.7' : ''}
               >
                 {group.category}
               </div>
@@ -1411,6 +1615,34 @@
                         <circle cx="12" cy="12" r="10" />
                         <line x1="12" y1="16" x2="12" y2="12" />
                         <line x1="12" y1="8" x2="12.01" y2="8" />
+                      </svg>
+                    {:else if item.icon === 'extension'}
+                      <!-- Puzzle-piece glyph for the cross-surface Pinned
+                           row when the pinned id resolves to an extension. -->
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M20.5 11h-4V7a3 3 0 0 0-3-3 3 3 0 0 0-3 3v4H3.5v3a2 2 0 0 0 2 2h1.5a1 1 0 1 1 0 4H3.5v3h13a2 2 0 0 0 2-2v-3a2 2 0 0 0 2 2 2 2 0 0 0 0-4 2 2 0 0 0-2 2v-3h2v-3a2 2 0 0 0-2-2Z" />
+                      </svg>
+                    {:else if item.icon === 'pin'}
+                      <!-- Star glyph for the cross-surface Pinned section
+                           header and for any unknown pinned-surface fallback. -->
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-4 h-4"
+                        fill="currentColor"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
                       </svg>
                     {/if}
                   </span>

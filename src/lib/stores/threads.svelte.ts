@@ -8,11 +8,81 @@
 import type { Thread } from '$lib/api/types';
 import { connection } from './connection.svelte';
 
+// -- recently-selected thread tracking (localStorage) -----------------------
+//
+// The Cmd+T quick switcher (`ThreadSwitcher.svelte`) leans on a "last 10
+// selected" list to bias its sort order. The store records every
+// `selectThread(id)` call here so the switcher reads from a single source of
+// truth (no DOM listeners, no duplicate plumbing). Persisted across launches
+// in `localStorage` under a stable key.
+//
+// Shape: `Array<{ id: string; ts: number }>`, most-recent-first, capped at
+// `RECENT_MAX`. Defensive read — corrupt/legacy values fall back to an
+// empty array.
+
+const RECENT_KEY = 'ironclaw-thread-recent';
+const RECENT_MAX = 10;
+
+export interface RecentThreadEntry {
+  id: string;
+  /** Unix epoch ms when the thread was selected. */
+  ts: number;
+}
+
+function loadRecentThreads(): RecentThreadEntry[] {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(RECENT_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(
+        (e): e is RecentThreadEntry =>
+          typeof e === 'object' &&
+          e !== null &&
+          typeof e.id === 'string' &&
+          typeof e.ts === 'number' &&
+          Number.isFinite(e.ts)
+      )
+      .slice(0, RECENT_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function persistRecentThreads(entries: RecentThreadEntry[]): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(entries));
+  } catch {
+    // Quota / private mode / disabled — non-fatal; the in-memory list still
+    // works for the duration of this session.
+  }
+}
+
+/**
+ * Push a thread id to the front of the recents list, dedup on id, cap at
+ * `RECENT_MAX`. Exported so the switcher can read it directly without going
+ * through a derived rune (it lives on the store instance below).
+ */
+function recordRecentThread(id: string): RecentThreadEntry[] {
+  const entry: RecentThreadEntry = { id, ts: Date.now() };
+  const prev = loadRecentThreads();
+  const next = [entry, ...prev.filter((e) => e.id !== id)].slice(0, RECENT_MAX);
+  persistRecentThreads(next);
+  return next;
+}
+
 class ThreadStore {
   threads = $state<Thread[]>([]);
   currentId = $state<string | null>(null);
   loading = $state<boolean>(false);
   error = $state<string | null>(null);
+  /** Recently-selected threads, most-recent-first. Hydrated from
+   *  localStorage on construction so the Cmd+T switcher sees prior-session
+   *  selections immediately. Mutated only via `selectThread()`. */
+  recent = $state<RecentThreadEntry[]>(loadRecentThreads());
 
   /** Sorted by updated_at desc — what the left rail renders. */
   sorted = $derived(
@@ -56,6 +126,12 @@ class ThreadStore {
 
   selectThread(id: string | null): void {
     this.currentId = id;
+    // Recording is idempotent and dedupes — calling selectThread() with the
+    // current id (e.g. clicking the already-active row) just moves the
+    // timestamp forward. Null clears selection but doesn't touch recents.
+    if (id) {
+      this.recent = recordRecentThread(id);
+    }
   }
 
   /**
@@ -69,6 +145,9 @@ class ThreadStore {
       if (!id) return null;
       await this.loadThreads();
       this.currentId = id;
+      // Mirror selectThread's recent-tracking so a freshly-created thread
+      // shows up at the top of the Cmd+T switcher's Recent section.
+      this.recent = recordRecentThread(id);
       return id;
     } catch (err) {
       this.error = (err as Error).message;

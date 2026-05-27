@@ -13,6 +13,7 @@
   import MarkdownView from '$lib/components/MarkdownView.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
+  import { pins } from '$lib/stores/pins.svelte';
   import { windowFocus } from '$lib/stores/window-focus.svelte';
   import { loadSettings } from '$lib/stores/settings.svelte';
   import {
@@ -226,8 +227,31 @@
   const hasNoMoreHistory = $derived(currentId ? messages.hasNoMoreHistory(currentId) : false);
 
   // ---- Thread-rail derived values ------------------------------------------
-  /** Sorted thread list — single source of truth for both render paths. */
-  const sortedThreads = $derived(threads.sorted);
+  /**
+   * Sorted thread list — single source of truth for both render paths.
+   * Pinned threads (per the cross-surface pin store) hoist to the top
+   * in pin-chronological order, then the remainder follows the
+   * threads-store sort (updated_at desc). This keeps the rail's visual
+   * order consistent with what a user picked as "favorites" while still
+   * surfacing recent activity for the rest.
+   */
+  const sortedThreads = $derived.by(() => {
+    const base = threads.sorted;
+    const pinIds = pins.pins.thread;
+    if (pinIds.length === 0) return base;
+    const byId = new Map(base.map((t) => [t.id, t]));
+    const pinnedThreads: typeof base = [];
+    const seen = new Set<string>();
+    for (const id of pinIds) {
+      const t = byId.get(id);
+      if (t) {
+        pinnedThreads.push(t);
+        seen.add(id);
+      }
+    }
+    const rest = base.filter((t) => !seen.has(t.id));
+    return [...pinnedThreads, ...rest];
+  });
   /** Flip into virtualized mode once the list crosses the threshold. */
   const threadsVirtualized = $derived(sortedThreads.length > THREAD_VIRTUALIZE_THRESHOLD);
 
@@ -1501,13 +1525,18 @@
         <ul class="space-y-0.5 px-2">
           {#each sortedThreads as t (t.id)}
             {@const active = t.id === currentId}
-            <li>
+            {@const isPinned = pins.isPinned('thread', t.id)}
+            <!-- Group wrapper exposes the pin star on hover (and always
+                 when pinned). Active thread gets the surface bg via
+                 group-aware classes so the pin button visually inherits
+                 the row's selected state. -->
+            <li class="group relative">
               <button
                 type="button"
                 onclick={() => onSelectThread(t.id)}
                 data-thread-row
                 data-thread-id={t.id}
-                class="w-full text-left px-3 py-2 rounded-md text-sm transition-colors border-l-2 flex flex-col gap-0.5"
+                class="w-full text-left pl-3 pr-9 py-2 rounded-md text-sm transition-colors border-l-2 flex flex-col gap-0.5"
                 class:border-accent-cyan={active}
                 class:bg-bg-surface={active}
                 class:text-text-primary={active}
@@ -1518,6 +1547,43 @@
               >
                 <span class="truncate block">{t.title || 'Untitled'}</span>
                 <span class="text-[10px] text-text-muted">{relativeTime(t.updated_at)}</span>
+              </button>
+              <!-- Pin star — absolutely positioned over the row's right
+                   edge so the click target sits clear of the underlying
+                   button. Hidden until hover (matches the planned trash
+                   icon affordance from the gateway-side TODO), but kept
+                   visible when already pinned so users can always see
+                   the state without hovering. -->
+              <button
+                type="button"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  pins.toggle('thread', t.id, t.title || 'Untitled');
+                }}
+                title={isPinned ? 'Unpin this thread' : 'Pin this thread'}
+                aria-label={isPinned ? `Unpin ${t.title || 'Untitled'}` : `Pin ${t.title || 'Untitled'}`}
+                aria-pressed={isPinned}
+                class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-6 h-6 rounded transition-opacity hover:bg-bg-deep"
+                class:opacity-100={isPinned}
+                class:opacity-0={!isPinned}
+                class:group-hover:opacity-100={!isPinned}
+                class:focus:opacity-100={!isPinned}
+                class:text-accent-gold={isPinned}
+                class:text-text-muted={!isPinned}
+                class:hover:text-accent-gold={!isPinned}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-3.5 h-3.5"
+                  fill={isPinned ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
               </button>
             </li>
           {/each}
@@ -1539,13 +1605,14 @@
         <ul class="px-2">
           {#each threadWindow.items as row (row.thread.id)}
             {@const active = row.thread.id === currentId}
-            <li style="height: {THREAD_ITEM_HEIGHT}px;">
+            {@const isPinned = pins.isPinned('thread', row.thread.id)}
+            <li class="group relative" style="height: {THREAD_ITEM_HEIGHT}px;">
               <button
                 type="button"
                 onclick={() => onSelectThread(row.thread.id)}
                 data-thread-row
                 data-thread-id={row.thread.id}
-                class="w-full text-left px-3 py-2 rounded-md text-sm transition-colors border-l-2 flex flex-col gap-0.5 h-full"
+                class="w-full text-left pl-3 pr-9 py-2 rounded-md text-sm transition-colors border-l-2 flex flex-col gap-0.5 h-full"
                 class:border-accent-cyan={active}
                 class:bg-bg-surface={active}
                 class:text-text-primary={active}
@@ -1556,6 +1623,37 @@
               >
                 <span class="truncate block">{row.thread.title || 'Untitled'}</span>
                 <span class="text-[10px] text-text-muted">{relativeTime(row.thread.updated_at)}</span>
+              </button>
+              <button
+                type="button"
+                onclick={(e) => {
+                  e.stopPropagation();
+                  pins.toggle('thread', row.thread.id, row.thread.title || 'Untitled');
+                }}
+                title={isPinned ? 'Unpin this thread' : 'Pin this thread'}
+                aria-label={isPinned ? `Unpin ${row.thread.title || 'Untitled'}` : `Pin ${row.thread.title || 'Untitled'}`}
+                aria-pressed={isPinned}
+                class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-6 h-6 rounded transition-opacity hover:bg-bg-deep"
+                class:opacity-100={isPinned}
+                class:opacity-0={!isPinned}
+                class:group-hover:opacity-100={!isPinned}
+                class:focus:opacity-100={!isPinned}
+                class:text-accent-gold={isPinned}
+                class:text-text-muted={!isPinned}
+                class:hover:text-accent-gold={!isPinned}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-3.5 h-3.5"
+                  fill={isPinned ? 'currentColor' : 'none'}
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
               </button>
             </li>
           {/each}

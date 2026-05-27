@@ -27,6 +27,7 @@ import {
   sendNotification
 } from '@tauri-apps/plugin-notification';
 
+import { broadcast } from './broadcast.svelte';
 import { windowFocus } from './window-focus.svelte';
 
 export type NotifyPermission = 'default' | 'granted' | 'denied';
@@ -359,10 +360,21 @@ class NotificationStore {
    * focus effect (`windowFocus.focused === true`) and from the
    * Rust-side `tray:show-window` listener when the user clicks the
    * tray icon to surface the app.
+   *
+   * `opts.broadcast` defaults to `true` so the normal call sites
+   * (layout focus / tray listener) fan the clear out to every other
+   * window — multi-window users get their unseen counter and tray
+   * badge cleared everywhere at once. The cross-window broadcast
+   * handler passes `false` so a received `notification-seen` does
+   * not echo back onto the bus (belt-and-braces with the senderId
+   * loop guard in broadcast.svelte.ts).
    */
-  markAllSeen(): void {
+  markAllSeen(opts: { broadcast?: boolean } = {}): void {
     if (this.triggers.length === 0) return;
     this.triggers = [];
+    if (opts.broadcast !== false) {
+      broadcast.send({ kind: 'notification-seen' });
+    }
   }
 
   /**

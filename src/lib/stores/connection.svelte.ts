@@ -269,6 +269,17 @@ class ConnectionStore {
    * `$effect`s (the CSS-variable accent painter) re-run. Avoids the full
    * `refresh()` path which would re-ping the gateway / reconcile the
    * sidecar lifecycle for what is purely a UI change.
+   *
+   * Also the cross-window sync entry point. When another window calls
+   * `saveSettings(...)`, the `broadcast` store dispatches a
+   * `settings-changed` message into here so this window's
+   * `connection.settings` rune picks up the on-disk change. We
+   * deliberately use this lightweight path (not `refresh()`) so a
+   * cosmetic change in window A does not bounce window B's gateway
+   * connection or sidecar lifecycle. Other broadcast kinds —
+   * `connection-event` and `sidecar-status` — are intentionally NOT
+   * mirrored here: each window owns its own gateway/sidecar context
+   * and observing a peer's transient state would only confuse the UI.
    */
   async reloadSettings(): Promise<void> {
     this.settings = await loadSettings();

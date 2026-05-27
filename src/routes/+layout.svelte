@@ -7,18 +7,22 @@
   import Toasts from '$lib/components/Toasts.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
   import GlobalSearch from '$lib/components/GlobalSearch.svelte';
+  import ThreadSwitcher from '$lib/components/ThreadSwitcher.svelte';
   import UpdaterBanner from '$lib/components/UpdaterBanner.svelte';
   import AboutDialog from '$lib/components/AboutDialog.svelte';
   import StatusBar from '$lib/components/StatusBar.svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
   import { globalSearch } from '$lib/stores/global-search.svelte';
+  import { threadSwitcher } from '$lib/stores/thread-switcher.svelte';
   import { tray } from '$lib/stores/tray.svelte';
   import { updater } from '$lib/stores/updater.svelte';
   import { windowFocus } from '$lib/stores/window-focus.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { aboutStore } from '$lib/stores/about.svelte';
+  import { broadcast } from '$lib/stores/broadcast.svelte';
+  import { pins } from '$lib/stores/pins.svelte';
 
   let { children } = $props();
 
@@ -105,6 +109,19 @@
     if (mod && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       palette.togglePalette();
+      return;
+    }
+
+    // Cmd+T → quick thread switcher. Distinct from Cmd+K (palette: nav +
+    // actions) and Cmd+Shift+F (global search): laser-focused on jumping
+    // between existing chat threads. Suppressed on the onboarding takeover
+    // — the wizard owns the screen and the user has no threads yet anyway.
+    // We use `e.code === 'KeyT'` rather than `e.key` so the chord stays
+    // stable under non-QWERTY layouts (Dvorak/Colemak users still get
+    // Cmd+T on the physical T key).
+    if (mod && !e.shiftKey && !e.altKey && e.code === 'KeyT' && !isOnboarding) {
+      e.preventDefault();
+      threadSwitcher.toggle();
       return;
     }
 
@@ -200,10 +217,20 @@
     // completion catching up on poll #1) sees the user's saved toggles.
     windowFocus.init();
     notifications.hydrate();
+    // Hydrate the cross-surface pin store. Cheap localStorage read, but
+    // we want it done before any surface mounts so the first render
+    // shows the user's saved pins without a flash of empty stars.
+    pins.init();
     // Wire the menu-bar tray listeners (Show window, Open settings,
     // Restart sidecar). Safe outside the Tauri webview — the store
     // detects that and no-ops.
     tray.init();
+    // Open the cross-window state-sync channel so settings saved in
+    // any window propagate to the others. Safe outside Tauri (and in
+    // jsdom): no-ops when BroadcastChannel is unavailable. Paired
+    // with `broadcast.teardown()` in the cleanup return below so
+    // remounts (HMR, layout pivot) don't stack listeners.
+    broadcast.init();
 
     void connection.init().then(() => {
       if (
@@ -260,6 +287,10 @@
       window.removeEventListener('keydown', onWindowKeyDown);
       window.removeEventListener('error', onWindowError);
       window.removeEventListener('unhandledrejection', onUnhandledRejection);
+      // Mirror of `broadcast.init()` above — close the channel and
+      // detach the message listener so a layout remount (HMR, route
+      // pivot in dev) does not stack handlers.
+      broadcast.teardown();
     };
   });
 </script>
@@ -314,4 +345,12 @@
      wizard's keyboard handlers. -->
 {#if !isOnboarding}
   <GlobalSearch />
+{/if}
+
+<!-- Quick thread switcher (Cmd+T). Laser-focused on jumping between chat
+     threads — sibling to the palette and global search above. Same
+     onboarding gate; the Cmd+T handler itself also short-circuits on the
+     wizard, but the gate here keeps the DOM clean. -->
+{#if !isOnboarding}
+  <ThreadSwitcher />
 {/if}

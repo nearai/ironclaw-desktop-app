@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Extension } from '$lib/api/types';
+  import { pins } from '$lib/stores/pins.svelte';
 
   type Props = {
     extension: Extension;
@@ -107,19 +108,62 @@
   const title = $derived(extension.display_name ?? extension.name);
   const toolCount = $derived(extension.tool_count ?? 0);
   const toolsClickable = $derived(variant === 'installed' && toolCount > 0);
+
+  // Pin star. Bound against extension.name (the stable id; display_name
+  // is user-facing and may shift). Reactive against the pins store so
+  // any other surface toggling this extension flips the card too.
+  const pinned = $derived(pins.isPinned('extension', extension.name));
+
+  function handlePinClick(event: MouseEvent) {
+    // Don't propagate up to the card root (no card-level onclick today
+    // but defensive against future "click to open detail" wiring).
+    event.stopPropagation();
+    pins.toggle('extension', extension.name, title);
+  }
 </script>
 
 <div
   class="group relative flex flex-col rounded-lg border border-border-subtle bg-bg-surface p-4 min-h-[180px] transition-colors hover:bg-[#1a2233] hover:border-[#2a3548]"
 >
-  {#if categoryBadge}
-    <span
-      class={`absolute top-3 right-3 inline-flex items-center text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${categoryBadge.classes}`}
-      title={`Category: ${categoryBadge.label}`}
+  <!-- Top-right cluster: pin star + (optional) category badge. The
+       star is always present so the affordance is consistent across
+       cards; the badge only renders when the extension has a known
+       category. Gold-filled = pinned; muted hollow = pinnable. -->
+  <div class="absolute top-3 right-3 flex items-center gap-1.5">
+    {#if categoryBadge}
+      <span
+        class={`inline-flex items-center text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border ${categoryBadge.classes}`}
+        title={`Category: ${categoryBadge.label}`}
+      >
+        {categoryBadge.label}
+      </span>
+    {/if}
+    <button
+      type="button"
+      onclick={handlePinClick}
+      title={pinned ? 'Unpin this extension' : 'Pin this extension'}
+      aria-label={pinned ? `Unpin ${title}` : `Pin ${title}`}
+      aria-pressed={pinned}
+      class="inline-flex items-center justify-center w-5 h-5 rounded transition-colors hover:bg-bg-deep"
+      class:text-accent-gold={pinned}
+      class:text-text-muted={!pinned}
+      class:hover:text-accent-gold={!pinned}
     >
-      {categoryBadge.label}
-    </span>
-  {/if}
+      <svg
+        viewBox="0 0 24 24"
+        class="w-3.5 h-3.5"
+        fill={pinned ? 'currentColor' : 'none'}
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+    </button>
+  </div>
+
 
   <div class="mb-2 pr-24 flex items-baseline gap-2 flex-wrap">
     <h3 class="text-sm font-semibold text-accent-cyan break-words">
