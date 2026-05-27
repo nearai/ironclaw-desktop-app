@@ -6,6 +6,35 @@ A native macOS client for [IronClaw](https://github.com/nearai/ironclaw) — the
 
 IronClaw ships with a TUI and a web UI served by its own gateway. This app gives it a polished native shell with macOS conventions: Cmd+K palette, Keychain-backed credentials, native notifications, menu-bar status, sidecar lifecycle managed for you.
 
+## Quick tour
+
+Every surface is one chord away. Memorize these six and you have the app:
+
+- **Cmd+K** — command palette. Fuzzy search across navigation, threads, skills, routines, docs, and one-shot actions.
+- **Cmd+Shift+F** — global search across surfaces (knowledge, skills, routines, threads).
+- **Cmd+T** — quick thread switcher. Biased toward the last ten threads you opened.
+- **Cmd+Shift+N** — quick capture. Drop a thought into a dedicated "Quick captures" thread without leaving the current surface.
+- **Cmd+/** — toggle the bottom status bar (gateway / profile / sidecar state).
+- **Cmd+,** — Settings (macOS convention).
+
+Top-level routes:
+
+| Chord | Surface       |
+| ----- | ------------- |
+| Cmd+1 | Chat          |
+| Cmd+2 | Knowledge     |
+| Cmd+3 | Skills        |
+| Cmd+4 | Routines      |
+| Cmd+5 | Jobs          |
+| Cmd+6 | Logs          |
+| Cmd+7 | Extensions    |
+| Cmd+8 | Admin *(gated on `adminMode`)*       |
+| Cmd+9 | Missions *(gated on `engineV2Enabled`)* |
+
+The menu-bar tray gives you Show/Hide, Restart sidecar, Open Settings, Quit even when the window is hidden.
+
+For the wiring underneath all this, see [`ARCHITECTURE.md`](ARCHITECTURE.md). For how to contribute a change, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## What's inside
 
 - **Chat** — streaming conversations with markdown rendering, code-block copy, retry on failure, draft persistence per thread

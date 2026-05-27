@@ -66,8 +66,11 @@
 </script>
 
 <!-- Slide-in panel: fixed to the right edge, occupies 40% of viewport. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
 <aside
   class="fixed top-0 right-0 h-screen w-2/5 min-w-[420px] bg-bg-surface border-l border-border-subtle z-40 flex flex-col shadow-2xl"
+  role="dialog"
+  aria-modal="true"
   aria-label="Routine detail"
 >
   <header class="px-6 py-5 border-b border-border-subtle flex items-start justify-between gap-4">

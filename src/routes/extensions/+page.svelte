@@ -581,9 +581,11 @@
   </header>
 
   <!-- Tabs -->
-  <div class="mb-4 flex items-center gap-1 border-b border-border-subtle">
+  <div class="mb-4 flex items-center gap-1 border-b border-border-subtle" role="tablist" aria-label="Extension sources">
     <button
       type="button"
+      role="tab"
+      aria-selected={activeTab === 'installed'}
       onclick={() => setTab('installed')}
       class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition"
       class:border-accent-cyan={activeTab === 'installed'}
@@ -601,6 +603,8 @@
     </button>
     <button
       type="button"
+      role="tab"
+      aria-selected={activeTab === 'registry'}
       onclick={() => setTab('registry')}
       class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition"
       class:border-accent-cyan={activeTab === 'registry'}

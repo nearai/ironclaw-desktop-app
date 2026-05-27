@@ -26,6 +26,7 @@
   import SlashAutocomplete from './SlashAutocomplete.svelte';
   import ChatSearch from './ChatSearch.svelte';
   import ResizeHandle from '$lib/components/ResizeHandle.svelte';
+  import LightboxModal from '$lib/components/LightboxModal.svelte';
 
   // ---- Pane widths (drag-to-resize) ----------------------------------------
   //
@@ -202,6 +203,57 @@
   let attachments = $state<PendingAttachment[]>([]);
   let dragDepth = $state(0); // counter for nested dragenter/leave noise
   let attachmentInputEl = $state<HTMLInputElement | null>(null);
+
+  // ---- Image lightbox ------------------------------------------------------
+  // Walks every <img> click inside the message stream via event delegation —
+  // assistant markdown images, optimistic user-message blob: previews, and
+  // pending-attachment thumbnails all open the same overlay. Capturing the
+  // src is enough; the modal pulls the bytes via the same URL (no copy).
+  let lightboxSrc = $state<string | null>(null);
+  let lightboxAlt = $state<string>('Preview');
+
+  // ---- Voice input (Web Speech API) ---------------------------------------
+  // The spec calls the constructor `SpeechRecognition`; webkit-prefixed
+  // browsers (Chromium / Safari) ship `webkitSpeechRecognition`. Firefox
+  // does not implement the spec; the mic button stays disabled there.
+  //
+  // Cursor anchoring: when dictation starts we snapshot `selectionStart`
+  // so interim transcripts only overwrite the SUFFIX past the anchor,
+  // leaving anything the user already typed before the caret untouched.
+  // On stop (toggle, 3s silence, or unmount) the final transcript replaces
+  // the interim region and the caret advances past the inserted text.
+  //
+  // Auto-stop: a 3-second silence timer is rearmed on every `result` event;
+  // when it fires we trigger the same stop path as the toggle button so
+  // the final transcript is committed and the recognizer is torn down.
+  let voiceSupported = $state(false);
+  let voiceListening = $state(false);
+  let voiceAnchor = 0;
+  let voiceInterimText = '';
+  // Use a loose type — typings for SpeechRecognition aren't in tsconfig's
+  // default lib set. We dispatch through a small adapter so the rest of
+  // the code stays type-safe at the call-site.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let voiceRec: any = null;
+  let voiceSilenceTimer: ReturnType<typeof setTimeout> | null = null;
+  const VOICE_SILENCE_MS = 3000;
+
+  // ---- Conversation branching ---------------------------------------------
+  // Each assistant bubble exposes a small Branch button on hover. Clicking
+  // pops a confirm dialog; on confirm we fork the thread.
+  //
+  // Server-side `/api/chat/threads/<id>/branch` does NOT exist on IronClaw
+  // (probed 2026-05-27: 404). Fallback: create a fresh thread via
+  // `client.newThread('Fork: ...')` and seed it with a first user message
+  // that concatenates every user/assistant pair up to and including the
+  // forked assistant turn, so the model has the same context to reason
+  // from. The server-side `branchEndpointAvailable` flag is also probed
+  // on first click so we can opt into a native branch route the moment
+  // the gateway adds one — see `tryBranch()`.
+  let branchTargetId = $state<string | null>(null);
+  let branching = $state(false);
+  /** Tri-state: `null` until first probe; then true/false. */
+  let branchEndpointAvailable: boolean | null = null;
 
   // -- derived ----------------------------------------------------------------
   const currentThread = $derived(threads.current);
@@ -480,10 +532,28 @@
     };
     document.addEventListener('keydown', onGlobalKey);
 
+    // Detect Web Speech API availability so we can disable the mic button
+    // with a tooltip on unsupported browsers (Firefox today). The reference
+    // is stashed on the window object so we don't repeat the lookup each
+    // time the user toggles dictation.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any };
+    voiceSupported = !!(w.SpeechRecognition || w.webkitSpeechRecognition);
+
     return () => {
       if (draftSaveTimer) clearTimeout(draftSaveTimer);
       document.removeEventListener('keydown', onGlobalKey);
       window.removeEventListener('resize', onResize);
+      // Tear down any in-flight dictation so the mic isn't held open after
+      // the chat surface unmounts (route change, profile switch, etc.).
+      if (voiceRec) {
+        try { voiceRec.onresult = null; voiceRec.onend = null; voiceRec.onerror = null; voiceRec.stop(); } catch { /* ignore */ }
+        voiceRec = null;
+      }
+      if (voiceSilenceTimer) {
+        clearTimeout(voiceSilenceTimer);
+        voiceSilenceTimer = null;
+      }
     };
   });
 
@@ -1468,6 +1538,344 @@
       return String(v);
     }
   }
+
+  // -- lightbox (event delegation) -------------------------------------------
+  /**
+   * Click delegate for the message stream. Walks up from the click target
+   * looking for an `<img>` — if found, captures its src + alt and opens the
+   * lightbox. Anchors (links wrapping an image) are deliberately ignored at
+   * the click level: the browser will follow the link on its own and we
+   * don't want to swallow that interaction.
+   *
+   * The walk stops at the scroll container (`scrollEl`) so a click outside
+   * the message area never triggers the lightbox.
+   */
+  function onStreamClick(e: MouseEvent): void {
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+    // Don't hijack image-link clicks — if the user wrapped an image in an
+    // <a href>, they probably want the link.
+    const anchor = target.closest('a');
+    if (anchor && anchor.querySelector('img')) return;
+    const img = target.closest('img');
+    if (!img) return;
+    // Skip explicit opt-outs (e.g. small icon avatars marked `data-no-lightbox`).
+    if (img.dataset.noLightbox !== undefined) return;
+    e.preventDefault();
+    const src = img.getAttribute('src') ?? '';
+    if (!src) return;
+    lightboxSrc = src;
+    lightboxAlt = img.getAttribute('alt') || 'Preview';
+  }
+
+  function closeLightbox(): void {
+    lightboxSrc = null;
+  }
+
+  // -- voice input (Web Speech API) ------------------------------------------
+  /**
+   * Toggle dictation on/off. Click once to start streaming interim
+   * transcripts into the composer; click again to commit the final
+   * transcript and stop. Auto-stops after VOICE_SILENCE_MS of silence —
+   * keeps the mic from staying open if the user walks away.
+   *
+   * Cursor handling: the snapshot at start (`voiceAnchor`) anchors the
+   * insertion point, so anything the user already typed before the caret
+   * stays put — only the text from the anchor forward is rewritten as
+   * the recognizer emits new results.
+   */
+  function toggleVoice(): void {
+    if (!voiceSupported) return;
+    if (voiceListening) {
+      stopVoice(true);
+      return;
+    }
+    startVoice();
+  }
+
+  function startVoice(): void {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const w = window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any };
+    const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!Ctor) {
+      voiceSupported = false;
+      return;
+    }
+    // Anchor at the current caret (or end-of-text) so dictation appends at
+    // the user's insertion point. The existing prefix is preserved across
+    // every interim/final result.
+    voiceAnchor = composerEl?.selectionStart ?? input.length;
+    voiceInterimText = '';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec: any = new Ctor();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = (typeof navigator !== 'undefined' && navigator.language) || 'en-US';
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (ev: any) => {
+      let interim = '';
+      let final = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const result = ev.results[i];
+        const transcript = result[0]?.transcript ?? '';
+        if (result.isFinal) {
+          final += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+      // Treat finalized chunks as additive: once a phrase becomes final,
+      // bake it into the anchor so subsequent interim results are appended
+      // after it (rather than overwriting). This mirrors how dictation
+      // feels in macOS / iOS — the committed text stays put.
+      if (final) {
+        const committedPrefix = input.slice(0, voiceAnchor);
+        const committedSuffix = input.slice(voiceAnchor + voiceInterimText.length);
+        const nextValue = `${committedPrefix}${final}${committedSuffix}`;
+        suppressDraftSave = true;
+        input = nextValue;
+        voiceAnchor = committedPrefix.length + final.length;
+        voiceInterimText = '';
+        void tick().then(() => {
+          autoGrow();
+          if (composerEl) composerEl.setSelectionRange(voiceAnchor, voiceAnchor);
+          suppressDraftSave = false;
+          scheduleDraftSave();
+        });
+      }
+      if (interim) {
+        const prefix = input.slice(0, voiceAnchor);
+        const suffix = input.slice(voiceAnchor + voiceInterimText.length);
+        voiceInterimText = interim;
+        const nextValue = `${prefix}${interim}${suffix}`;
+        suppressDraftSave = true;
+        input = nextValue;
+        void tick().then(() => {
+          autoGrow();
+          suppressDraftSave = false;
+        });
+      }
+      // Rearm the silence timer on every result — keeps the mic open
+      // while speech is flowing and trips the auto-commit otherwise.
+      armVoiceSilenceTimer();
+    };
+    rec.onerror = () => {
+      // Routine errors (`no-speech`, `aborted`) are user-driven; anything
+      // else lands here without state of its own to inspect. We surface
+      // the visible "Mic failed" toast on start() rejection instead.
+    };
+    rec.onend = () => {
+      // Browser-driven stop (silence, mic released, etc.). Mirror the
+      // explicit-stop path so state stays consistent.
+      if (voiceListening) {
+        stopVoice(false);
+      }
+    };
+
+    voiceRec = rec;
+    try {
+      rec.start();
+      voiceListening = true;
+      armVoiceSilenceTimer();
+    } catch (err) {
+      // start() throws synchronously if called twice or if permission is
+      // denied at the OS level — fall back cleanly without leaving the
+      // mic icon stuck in the listening state.
+      voiceListening = false;
+      voiceRec = null;
+      toasts.show(`Mic failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  function stopVoice(userInitiated: boolean): void {
+    if (voiceSilenceTimer) {
+      clearTimeout(voiceSilenceTimer);
+      voiceSilenceTimer = null;
+    }
+    if (voiceRec) {
+      try { voiceRec.stop(); } catch { /* ignore */ }
+      voiceRec = null;
+    }
+    voiceListening = false;
+    // Leave whatever's in the composer as-is — both interim and final
+    // transcripts have already been written into `input`. Clear the
+    // interim marker so the next session anchors cleanly.
+    voiceInterimText = '';
+    if (userInitiated) {
+      // Move focus back to the textarea so the user can keep typing.
+      composerEl?.focus();
+    }
+  }
+
+  function armVoiceSilenceTimer(): void {
+    if (voiceSilenceTimer) clearTimeout(voiceSilenceTimer);
+    voiceSilenceTimer = setTimeout(() => {
+      voiceSilenceTimer = null;
+      stopVoice(false);
+    }, VOICE_SILENCE_MS);
+  }
+
+  // -- conversation branching ------------------------------------------------
+  /**
+   * Open the confirm dialog for a fork. The actual fork runs inside
+   * `confirmBranch()` once the user clicks the primary action.
+   */
+  function openBranchConfirm(messageId: string): void {
+    branchTargetId = messageId;
+  }
+
+  function closeBranchConfirm(): void {
+    if (branching) return;
+    branchTargetId = null;
+  }
+
+  /**
+   * Probe the gateway for a native branch endpoint. Result cached so we
+   * only burn one request per session. Returns true on 2xx, false on 404
+   * / 405. Any network / unexpected failure falls back to false so a
+   * transient outage doesn't strand the user without a fork.
+   */
+  async function probeBranchEndpoint(threadId: string): Promise<boolean> {
+    if (branchEndpointAvailable !== null) return branchEndpointAvailable;
+    if (!connection.client) return false;
+    try {
+      // OPTIONS is the cheapest probe — tells us whether the route exists
+      // without spinning up a real fork. IronClaw 0.28.2 returns 404 for
+      // unknown routes (verified 2026-05-27); that's the signal we need.
+      const res = await fetch(
+        `${connection.client.baseUrl}/api/chat/threads/${encodeURIComponent(threadId)}/branch`,
+        {
+          method: 'OPTIONS',
+          headers: {
+            Authorization: `Bearer ${connection.client.token}`
+          }
+        }
+      );
+      branchEndpointAvailable = res.status !== 404 && res.status !== 405;
+    } catch {
+      branchEndpointAvailable = false;
+    }
+    return branchEndpointAvailable;
+  }
+
+  /**
+   * Confirm the fork. Strategy:
+   *   1. Probe `/api/chat/threads/<id>/branch` — if it exists, POST to it.
+   *   2. Otherwise: create a fresh thread with `client.newThread('Fork: ...')`
+   *      and seed it with a single user message that includes the full
+   *      transcript up to and including the forked assistant turn. The
+   *      model treats the seed as conversational context and continues
+   *      from there.
+   *
+   * Either way, on success we toast and navigate to the new thread.
+   */
+  async function confirmBranch(): Promise<void> {
+    if (!connection.client) return;
+    if (!branchTargetId || !currentId || !currentThread) return;
+    const messageId = branchTargetId;
+    const parentThread = currentThread;
+    const parentId = currentId;
+    const fullHistory = messages.get(parentId);
+    const idx = fullHistory.findIndex((m) => m.id === messageId);
+    if (idx < 0) {
+      toasts.show('Could not fork: message not found', 'error');
+      branchTargetId = null;
+      return;
+    }
+    const slice = fullHistory.slice(0, idx + 1);
+
+    branching = true;
+    try {
+      // Native branch endpoint, if available.
+      const native = await probeBranchEndpoint(parentId);
+      if (native) {
+        try {
+          const res = await fetch(
+            `${connection.client.baseUrl}/api/chat/threads/${encodeURIComponent(parentId)}/branch`,
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${connection.client.token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                up_to_message_id: messageId,
+                title: `Fork: ${parentThread.title || 'Untitled'}`
+              })
+            }
+          );
+          if (res.ok) {
+            const data = (await res.json()) as { thread_id?: string; id?: string };
+            const newId = data.thread_id || data.id;
+            if (newId) {
+              await threads.loadThreads();
+              threads.selectThread(newId);
+              await messages.loadHistory(newId);
+              branchTargetId = null;
+              toasts.show('Forked. Continue from the new thread.', 'success');
+              return;
+            }
+          }
+          // Native path returned non-2xx unexpectedly — fall through to
+          // the context-prefix fallback rather than failing hard.
+          branchEndpointAvailable = false;
+        } catch {
+          branchEndpointAvailable = false;
+        }
+      }
+
+      // Fallback path: new thread + first-message context seed.
+      const newId = await threads.createThread(`Fork: ${parentThread.title || 'Untitled'}`);
+      if (!newId) {
+        toasts.show('Could not create forked thread', 'error');
+        return;
+      }
+      const seed = buildBranchSeed(parentId, slice);
+      // Send through the same pipeline the user uses so the seed message
+      // shows up as a real user turn and the model replies in stream.
+      const localId = messages.appendUserMessage(newId, seed);
+      sending = true;
+      try {
+        await runSendAndStream(newId, seed, localId);
+      } finally {
+        sending = false;
+      }
+      branchTargetId = null;
+      toasts.show('Forked. Continue from the new thread.', 'success');
+    } catch (err) {
+      toasts.show(`Fork failed: ${(err as Error).message}`, 'error');
+    } finally {
+      branching = false;
+    }
+  }
+
+  /**
+   * Build the first-user-message seed for the context-prefix fallback.
+   * Concatenates user/assistant turns into a labelled transcript so the
+   * agent can read them as conversational context.
+   *
+   * Output shape:
+   *   Forked from <parentId> at turn N. Original context:
+   *
+   *   User: ...
+   *   Assistant: ...
+   *   User: ...
+   *   Assistant: ...
+   */
+  function buildBranchSeed(parentId: string, slice: Message[]): string {
+    const lines: string[] = [];
+    let n = 0;
+    for (const m of slice) {
+      if (m.role === 'user') {
+        n += 1;
+        lines.push(`User: ${cleanUserDisplay(m.content)}`);
+      } else if (m.role === 'assistant') {
+        lines.push(`Assistant: ${m.content}`);
+      }
+    }
+    return `Forked from ${parentId} at turn ${n}. Original context:\n\n${lines.join('\n\n')}`;
+  }
 </script>
 
 <section class="flex h-full w-full">
@@ -1804,20 +2212,36 @@
           />
         </div>
       {/if}
+    <!-- Event-delegated <img> click handler — opens the lightbox for any
+         image inside the stream (sent attachments, optimistic blob previews,
+         or markdown-rendered assistant content). svelte's a11y rule is
+         relaxed because the actual interactive targets (images) are tagged
+         with role + tabindex when they're rendered through MarkdownView /
+         the user bubble. -->
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <!-- svelte-ignore a11y_click_events_have_key_events -->
     <div
       bind:this={scrollEl}
       onscroll={onScroll}
+      onclick={onStreamClick}
       class="absolute inset-0 overflow-y-auto px-6 py-5"
     >
       {#if !currentThread && history.length === 0 && !streamingBuffer}
         <div class="h-full flex flex-col items-center justify-center text-center">
-          <svg viewBox="0 0 24 24" class="w-12 h-12 text-accent-cyan/30 mb-4" fill="none" stroke="currentColor" stroke-width="1.5">
+          <svg viewBox="0 0 24 24" class="w-12 h-12 text-accent-cyan/30 mb-4" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
             <path d="M4 7l8-4 8 4-8 4-8-4z" stroke-linejoin="round" />
             <path d="M4 12l8 4 8-4" stroke-linejoin="round" />
             <path d="M4 17l8 4 8-4" stroke-linejoin="round" />
           </svg>
-          <p class="text-sm text-text-muted">Start a conversation</p>
-          <p class="text-xs text-text-muted mt-1">Press Enter to send, Shift+Enter for newline</p>
+          {#if !connection.client}
+            <p class="text-sm text-text-primary">IronClaw is offline</p>
+            <p class="text-xs text-text-muted mt-1">
+              <a href="/settings" class="text-accent-cyan hover:underline">Configure the gateway in Settings</a> to start chatting.
+            </p>
+          {:else}
+            <p class="text-sm text-text-muted">Start a conversation</p>
+            <p class="text-xs text-text-muted mt-1">Press Enter to send, Shift+Enter for newline</p>
+          {/if}
         </div>
       {:else}
         <div class="max-w-4xl mx-auto space-y-4">
@@ -1879,11 +2303,36 @@
                 {/if}
               </div>
             {:else if msg.role === 'assistant'}
+              <!-- Group wrapper exposes the Branch button on hover (focus-
+                   visible too, for keyboard users). The fork-aware button
+                   pops the confirm dialog rather than acting directly so
+                   the user can back out without losing intent. -->
               <div class="flex justify-start">
-                <div
-                  class="search-target max-w-[85%] rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
-                >
-                  <MarkdownView markdown={msg.content} />
+                <div class="group relative max-w-[85%]">
+                  <div
+                    class="search-target rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
+                  >
+                    <MarkdownView markdown={msg.content} />
+                  </div>
+                  <button
+                    type="button"
+                    onclick={() => openBranchConfirm(msg.id)}
+                    disabled={branching || sending || isStreaming}
+                    class="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded text-text-muted bg-bg-deep/80 border border-border-subtle hover:text-accent-cyan hover:border-accent-cyan/50 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                    aria-label="Fork from this message"
+                    title="Fork from this message"
+                  >
+                    <!-- Inline branch glyph (not in Icon.svelte's set; v2
+                         design vocabulary). Two parallel lines diverging
+                         to suggest a split. -->
+                    <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <circle cx="6" cy="6" r="2" />
+                      <circle cx="18" cy="6" r="2" />
+                      <circle cx="12" cy="18" r="2" />
+                      <path d="M6 8v3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V8" />
+                      <line x1="12" y1="14" x2="12" y2="16" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             {:else}
@@ -2039,6 +2488,44 @@
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+
+          <!-- Mic button — Web Speech API dictation. Pulses red while
+               listening; disabled with a tooltip when the API isn't
+               present (Firefox today). Toggle: first click starts, second
+               click commits the final transcript and stops. Auto-stops
+               after 3s of silence. The listening state uses inline rgba
+               styles instead of Tailwind tokens so the colour stays in
+               sync with the v2 design vocabulary without forcing a new
+               theme entry. -->
+          <button
+            type="button"
+            onclick={toggleVoice}
+            disabled={!connection.client || !voiceSupported}
+            class="shrink-0 w-9 h-9 rounded-md transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+            class:text-text-muted={!voiceListening}
+            class:hover:text-accent-cyan={!voiceListening && voiceSupported}
+            class:text-red-400={voiceListening}
+            class:animate-pulse={voiceListening}
+            style={voiceListening
+              ? 'background:rgba(239,68,68,0.10);'
+              : voiceSupported
+                ? ''
+                : ''}
+            aria-label={voiceListening ? 'Stop dictation' : 'Start dictation'}
+            aria-pressed={voiceListening}
+            title={!voiceSupported
+              ? 'Voice input not supported in this browser'
+              : voiceListening
+                ? 'Stop dictation (click or pause for 3s)'
+                : 'Dictate (Web Speech API)'}
+          >
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill={voiceListening ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="3" width="6" height="11" rx="3" />
+              <path d="M5 11a7 7 0 0 0 14 0" />
+              <line x1="12" y1="18" x2="12" y2="22" />
+              <line x1="8" y1="22" x2="16" y2="22" />
             </svg>
           </button>
 
@@ -2205,3 +2692,71 @@
     </aside>
   {/if}
 </section>
+
+<!-- =========================== Image lightbox =============================
+     Mounted at the section's root level (not inside the message stream) so
+     the fixed overlay positions cleanly against the viewport regardless of
+     the surrounding flex layout. Rendered conditionally on `lightboxSrc`. -->
+{#if lightboxSrc}
+  <LightboxModal src={lightboxSrc} alt={lightboxAlt} onClose={closeLightbox} />
+{/if}
+
+<!-- =========================== Branch confirm dialog ======================
+     Small modal — same backdrop pattern as NewProfileModal. Click the
+     backdrop or Esc cancels; Enter on Fork submits. Disabled while a fork
+     is mid-flight so a double-click can't kick off two threads. -->
+{#if branchTargetId}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+    onclick={closeBranchConfirm}
+    onkeydown={(e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeBranchConfirm();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        void confirmBranch();
+      }
+    }}
+    role="button"
+    tabindex="-1"
+    aria-label="Close fork dialog"
+  >
+    <div
+      class="surface w-[min(440px,calc(100vw-2rem))] p-6 space-y-5 border border-border-subtle"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="branch-dialog-title"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      tabindex="-1"
+    >
+      <header class="space-y-1">
+        <h2 id="branch-dialog-title" class="text-lg font-semibold text-text-primary">
+          Fork this conversation?
+        </h2>
+        <p class="text-xs text-text-muted">
+          A new thread will be created with messages up to here. The original conversation stays intact.
+        </p>
+      </header>
+      <div class="flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onclick={closeBranchConfirm}
+          disabled={branching}
+          class="text-sm text-text-muted hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] px-3"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onclick={() => void confirmBranch()}
+          disabled={branching}
+          class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-50 min-h-[44px]"
+        >
+          {branching ? 'Forking…' : 'Fork'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

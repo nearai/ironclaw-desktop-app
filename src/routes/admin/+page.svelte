@@ -40,9 +40,11 @@
 
   <!-- Tabs. Matches the Extensions surface visual treatment so the user
        picks up the pattern across admin-flavored surfaces. -->
-  <div class="mb-5 flex items-center gap-1 border-b border-border-subtle">
+  <div class="mb-5 flex items-center gap-1 border-b border-border-subtle" role="tablist" aria-label="Admin sections">
     <button
       type="button"
+      role="tab"
+      aria-selected={activeTab === 'tool-policy'}
       onclick={() => (activeTab = 'tool-policy')}
       class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition"
       class:border-accent-cyan={activeTab === 'tool-policy'}
@@ -55,6 +57,8 @@
     </button>
     <button
       type="button"
+      role="tab"
+      aria-selected={activeTab === 'system-prompt'}
       onclick={() => (activeTab = 'system-prompt')}
       class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition"
       class:border-accent-cyan={activeTab === 'system-prompt'}
@@ -67,6 +71,8 @@
     </button>
     <button
       type="button"
+      role="tab"
+      aria-selected={activeTab === 'usage'}
       onclick={() => (activeTab = 'usage')}
       class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition"
       class:border-accent-cyan={activeTab === 'usage'}

@@ -135,8 +135,11 @@
 <!-- Slide-in panel: fixed to the right edge, 40% viewport (min 480px).
      Mirrors the JobDetailPanel layout so the missions surface fits the
      existing visual language. -->
+<!-- svelte-ignore a11y_no_noninteractive_element_to_interactive_role -->
 <aside
   class="fixed top-0 right-0 h-screen w-2/5 min-w-[480px] bg-bg-surface border-l border-border-subtle z-40 flex flex-col shadow-2xl"
+  role="dialog"
+  aria-modal="true"
   aria-label="Mission detail"
 >
   <header class="px-6 py-5 border-b border-border-subtle flex items-start justify-between gap-4">
