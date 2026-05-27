@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  IronClaw application icon.
+  Source-of-truth SVG. Rasterize with cairosvg (see build_icons.py).
+  Design: three curved cyan talons forming a crescent grip on a navy/black radial-glow field.
+  Single gold glint at the topmost talon tip.
+  Drawn edge-to-edge on a square canvas; macOS applies the squircle mask at display time.
+-->
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="0 0 1024 1024"
+     width="1024" height="1024">
+
+  <defs>
+    <!-- Vertical navy/black background gradient -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#0a0f1e"/>
+      <stop offset="1"   stop-color="#050810"/>
+    </linearGradient>
+
+    <!-- Soft centered cyan glow on the background -->
+    <radialGradient id="bgGlow" cx="0.5" cy="0.5" r="0.55">
+      <stop offset="0"    stop-color="#00d4ff" stop-opacity="0.18"/>
+      <stop offset="0.45" stop-color="#00d4ff" stop-opacity="0.05"/>
+      <stop offset="1"    stop-color="#00d4ff" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Outer glow filter for the talons -->
+    <filter id="talonGlow" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="14" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Cyan stroke gradient: thin/bright at tip, slightly deeper at base -->
+    <linearGradient id="talonStroke" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#9af2ff"/>
+      <stop offset="0.4" stop-color="#00d4ff"/>
+      <stop offset="1"   stop-color="#0099bf"/>
+    </linearGradient>
+
+    <!-- Gold accent radial for the single glint dot -->
+    <radialGradient id="goldGlint" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0"   stop-color="#fef3c7"/>
+      <stop offset="0.4" stop-color="#fbbf24"/>
+      <stop offset="1"   stop-color="#fbbf24" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background fills, edge-to-edge -->
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" fill="url(#bgGlow)"/>
+
+  <!--
+    Three talons in a crescent grip arrangement.
+    Each talon is a single open path: starts wide at the base (gripping center),
+    sweeps outward, then hooks back inward to a sharp tip.
+    Stroke goes thin-to-thick via stroke-width on three separate paths
+    rather than a true variable-width stroke (SVG limitation).
+
+    Geometry:
+      Outer claw "ring" sits between r=260 and r=380 from center (512,512).
+      Three talons evenly spaced 120 degrees apart, starting at top (-90 deg).
+  -->
+  <g filter="url(#talonGlow)" fill="none"
+     stroke="url(#talonStroke)"
+     stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- TOP talon (angle = -90 deg) -->
+    <!-- base sweep -->
+    <path d="M 512 760
+             C 380 710, 320 590, 360 470
+             C 395 365, 470 290, 560 250"
+          stroke-width="36" opacity="0.55"/>
+    <!-- mid -->
+    <path d="M 512 740
+             C 395 695, 345 585, 380 480
+             C 410 388, 475 320, 555 285"
+          stroke-width="22" opacity="0.85"/>
+    <!-- inner hook (sharpest line, hooks back inward at tip) -->
+    <path d="M 512 720
+             C 410 680, 365 580, 395 490
+             C 420 410, 478 350, 548 318
+             C 562 312, 568 318, 560 332"
+          stroke-width="12"/>
+
+    <!-- LOWER-RIGHT talon (angle = 30 deg) -->
+    <path d="M 297 392
+             C 393 305, 522 290, 632 340
+             C 728 384, 790 470, 810 565"
+          stroke-width="36" opacity="0.55"/>
+    <path d="M 314 408
+             C 405 332, 522 320, 622 365
+             C 707 405, 765 478, 790 558"
+          stroke-width="22" opacity="0.85"/>
+    <path d="M 332 422
+             C 415 355, 522 345, 612 385
+             C 690 420, 740 485, 765 555
+             C 770 569, 762 575, 750 568"
+          stroke-width="12"/>
+
+    <!-- LOWER-LEFT talon (angle = 150 deg) -->
+    <path d="M 727 392
+             C 631 305, 502 290, 392 340
+             C 296 384, 234 470, 214 565"
+          stroke-width="36" opacity="0.55"/>
+    <path d="M 710 408
+             C 619 332, 502 320, 402 365
+             C 317 405, 259 478, 234 558"
+          stroke-width="22" opacity="0.85"/>
+    <path d="M 692 422
+             C 609 355, 502 345, 412 385
+             C 334 420, 284 485, 259 555
+             C 254 569, 262 575, 274 568"
+          stroke-width="12"/>
+
+    <!--
+      Center "grip" emphasis: a small cyan crescent arc tying the three talons
+      so they read as one claw, not three slashes.
+    -->
+    <path d="M 432 565
+             C 462 590, 502 600, 542 595
+             C 575 591, 600 580, 622 562"
+          stroke-width="14" opacity="0.7"/>
+  </g>
+
+  <!-- Gold glint at the tip of the top talon -->
+  <g>
+    <!-- diffuse halo -->
+    <circle cx="560" cy="330" r="34" fill="url(#goldGlint)" opacity="0.85"/>
+    <!-- hard core -->
+    <circle cx="560" cy="330" r="9"  fill="#fef3c7"/>
+  </g>
+</svg>

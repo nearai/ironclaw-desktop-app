@@ -1,0 +1,73 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Download sidecar binaries
+        run: bash src-tauri/binaries/download.sh
+
+      - run: npm ci
+
+      - name: Build Tauri bundle (aarch64)
+        run: npm run tauri build -- --target aarch64-apple-darwin
+        env:
+          # Unsigned for now. Add signing in a follow-up.
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+
+      - name: Build Tauri bundle (x86_64)
+        run: npm run tauri build -- --target x86_64-apple-darwin
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p release-artifacts
+          cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg release-artifacts/ || true
+          cp src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg release-artifacts/ || true
+          # Updater artifacts (signed when keys are configured)
+          cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz release-artifacts/ || true
+          cp src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz release-artifacts/ || true
+          ls -la release-artifacts/
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+
+      - name: Upload workflow artifacts
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ironclaw-desktop-${{ github.sha }}
+          path: release-artifacts/
+          retention-days: 14

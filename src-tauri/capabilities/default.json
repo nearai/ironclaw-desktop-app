@@ -6,6 +6,28 @@
   "permissions": [
     "core:default",
     "core:window:default",
-    "core:app:default"
+    "core:app:default",
+    "updater:default",
+    "dialog:default",
+    "notification:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "binaries/ironclaw", "sidecar": true, "args": true }
+      ]
+    },
+    {
+      "identifier": "shell:allow-kill",
+      "allow": [
+        { "name": "binaries/ironclaw", "sidecar": true, "args": true }
+      ]
+    },
+    {
+      "identifier": "shell:allow-open",
+      "allow": [
+        { "url": "https://**" },
+        { "url": "http://**" }
+      ]
+    }
   ]
 }

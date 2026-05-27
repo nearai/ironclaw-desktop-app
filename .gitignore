@@ -22,3 +22,10 @@ Thumbs.db
 .idea
 *.swp
 *.swo
+
+# Local-only secrets
+.env.local
+*.pem
+
+# Tauri updater signing key
+*.tauri.key
