@@ -277,6 +277,7 @@
                 placeholder={field.placeholder ?? ''}
                 autocomplete={field.type === 'password' ? 'new-password' : 'off'}
                 class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px] font-mono"
+                aria-label={field.label}
               />
             {/if}
           </div>

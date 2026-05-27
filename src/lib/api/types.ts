@@ -90,6 +90,30 @@ export interface Routine {
   next_run?: string;
 }
 
+/**
+ * Request body for creating a routine via `POST /api/routines`.
+ *
+ * NOTE (2026-05-27): The gateway does not yet expose this endpoint —
+ * `POST /api/routines` returns 405 Method Not Allowed against IronClaw
+ * v0.29.x (verified by direct probe of the live server). The type and
+ * the matching client method `IronClawClient.createRoutine` are
+ * pre-wired so the UI surface can be added in a follow-up PR once the
+ * server lands the handler. Until then, the client throws synchronously
+ * and no UI exposes this call.
+ */
+export interface CreateRoutineRequest {
+  /** Human-readable name; 1-128 chars after trim. */
+  name: string;
+  /** Cron string (e.g. `0 9 * * *`) or human form (e.g. `every 5m`,
+   *  `daily 09:00`). The gateway is the source of truth for which
+   *  forms it parses. */
+  schedule: string;
+  /** Agent instruction to execute on schedule. */
+  prompt: string;
+  /** Default true on the server side; clients can omit. */
+  enabled?: boolean;
+}
+
 export interface RoutineSummary {
   total: number;
   enabled: number;
@@ -227,4 +251,38 @@ export interface ExtensionSetupSchema {
   /** If oauth-based, the URL to redirect the user to in the system browser. */
   oauth_url?: string;
   notes?: string;
+}
+
+/**
+ * Active user identity, returned by GET /api/profile.
+ *
+ * Wire shape today (verified against IronClaw 0.28.2 on baremetal3):
+ *   `{avatar_url, created_at, display_name, email, id, last_login_at, role, status}`
+ *
+ * Not every install carries the same fields — older builds or a single-tenant
+ * gateway may omit several. The properties are defensive and tolerant of
+ * absence; the consumer derives "is signed in" from whether `/api/profile`
+ * returns 200 + a non-empty payload (the gateway answers 401 when no auth
+ * cookie/bearer is in flight).
+ *
+ * `near_account` is forward-looking: today the gateway populates a generic
+ * `id` like `"default"` for the local owner, but NEAR-cloud builds may grow
+ * a dedicated `near_account` field. The client maps either path onto
+ * `near_account` so the UI never has to know about the wire fork.
+ */
+export interface UserProfile {
+  /** Stable user id. `"default"` is the single-tenant local owner marker. */
+  user_id?: string;
+  /** NEAR account name when signed in via NEAR sign-in, e.g. "dangwalvaidy.near". */
+  near_account?: string;
+  /** Human-friendly display name. */
+  display_name?: string;
+  /** Last login timestamp (RFC3339). Null/undefined when never logged in. */
+  signed_in_at?: string;
+  /** Permission role on the gateway. */
+  role?: 'admin' | 'user' | string;
+  /** Optional email if the provider supplies one (Google, Apple sign-in). */
+  email?: string;
+  /** Optional avatar URL. */
+  avatar_url?: string;
 }

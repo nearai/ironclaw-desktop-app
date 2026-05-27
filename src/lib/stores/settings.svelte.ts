@@ -79,6 +79,20 @@ export interface AppSettings {
    * redirects out of `/admin` to `/settings` if currently there.
    */
   adminMode?: boolean;
+  /**
+   * App-level "Show in menu bar" toggle. App-level, NOT per-profile —
+   * the tray icon is global chrome, not per-gateway state.
+   *
+   * Defaults to `true` (the loader materializes the field, so consumers
+   * can treat it as effectively required). Marked optional on the type
+   * for the same reason `adminMode` is — older code constructing draft
+   * settings inline shouldn't have to be updated everywhere.
+   *
+   * Rust honours this on app start (via `tauri::Builder::setup` reading
+   * `settings.json`); the JS connection store pushes the value to the
+   * `set_tray_visible` IPC whenever the user toggles it from /settings.
+   */
+  trayEnabled?: boolean;
 }
 
 /** Id used for the migrated default profile. Must stay in sync with the
@@ -108,7 +122,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   activeProfileId: DEFAULT_PROFILE_ID,
   profiles: [defaultProfile({ id: DEFAULT_PROFILE_ID, name: 'Default' })],
   onboardingComplete: false,
-  adminMode: false
+  adminMode: false,
+  trayEnabled: true
 };
 
 /**
@@ -129,6 +144,7 @@ interface LegacyAppSettings {
   localBaseUrl?: string;
   llmBackend?: LlmBackend;
   onboardingComplete?: boolean;
+  trayEnabled?: boolean;
 }
 
 /**
@@ -169,7 +185,11 @@ function migrateLoaded(
       // true. Older settings files that don't carry the field round-trip
       // as `false`, which matches the "do not surface admin routes by
       // default" intent.
-      adminMode: raw.adminMode === true
+      adminMode: raw.adminMode === true,
+      // trayEnabled is opt-OUT — defaults to true so a fresh install
+      // gets the tray icon by default. Only an explicit `false` on disk
+      // hides it.
+      trayEnabled: raw.trayEnabled !== false
     };
   }
 
@@ -189,7 +209,8 @@ function migrateLoaded(
     activeProfileId: DEFAULT_PROFILE_ID,
     profiles: [profile],
     onboardingComplete: raw.onboardingComplete === true,
-    adminMode: raw.adminMode === true
+    adminMode: raw.adminMode === true,
+    trayEnabled: raw.trayEnabled !== false
   };
 }
 

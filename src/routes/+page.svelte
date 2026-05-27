@@ -18,7 +18,9 @@
     sanitizeFilenameStem,
     saveTextDialog
   } from '$lib/api/files';
-  import type { ChatEvent, Message } from '$lib/api/types';
+  import type { ChatEvent, Message, Skill } from '$lib/api/types';
+  import SlashAutocomplete from './SlashAutocomplete.svelte';
+  import ChatSearch from './ChatSearch.svelte';
 
   // -- local state ------------------------------------------------------------
   let composerEl = $state<HTMLTextAreaElement | null>(null);
@@ -57,6 +59,25 @@
   let draftSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let draftLoadedFor: string | null = null;
   let suppressDraftSave = false;
+
+  // Slash-command autocomplete state. The cached `skillCatalog` is loaded
+  // once on chat mount (lazily, so we don't block first paint) and reused
+  // across thread switches. `caret` mirrors composerEl.selectionStart so
+  // the SlashAutocomplete component can locate the active `/token`.
+  let skillCatalog = $state<Skill[]>([]);
+  let skillCatalogLoaded = $state(false);
+  let caret = $state(0);
+  // Svelte 5: `bind:this` on a component yields its export object, not a
+  // class instance. Use the shape (handleKey) directly so the type-checker
+  // stops trying to instantiate the new `Component<...>` type.
+  let slashAutoEl = $state<{ handleKey: (e: KeyboardEvent) => boolean } | null>(null);
+
+  // Cmd/Ctrl+F find-in-thread state. `contentVersion` is incremented on
+  // every render-relevant signal so the embedded search bar knows when
+  // to rebuild its <mark> overlay; that rebuild is debounced inside the
+  // component to keep streaming smooth.
+  let searchOpen = $state(false);
+  let contentVersion = $state(0);
 
   // -- derived ----------------------------------------------------------------
   const currentThread = $derived(threads.current);
@@ -203,10 +224,44 @@
     const stored = loadDraft(id);
     if (stored) applyDraft(stored);
     draftLoadedFor = id;
+
+    // Lazily prime the skill catalog for slash autocomplete. We don't
+    // block boot on it — the dropdown simply has no candidates until
+    // the catalog lands, and re-fetches are skipped via the loaded flag.
+    void loadSkillCatalog();
+
+    // Cmd/Ctrl+F → open find bar. Captured at the document level so the
+    // shortcut still fires when focus is in the textarea or any sidebar
+    // control. We swallow the event so the browser's native find doesn't
+    // run inside the Tauri webview.
+    const onGlobalKey = (e: KeyboardEvent) => {
+      const cmd = e.metaKey || e.ctrlKey;
+      if (cmd && (e.key === 'f' || e.key === 'F') && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        searchOpen = true;
+      }
+    };
+    document.addEventListener('keydown', onGlobalKey);
+
     return () => {
       if (draftSaveTimer) clearTimeout(draftSaveTimer);
+      document.removeEventListener('keydown', onGlobalKey);
     };
   });
+
+  async function loadSkillCatalog(): Promise<void> {
+    if (skillCatalogLoaded) return;
+    if (!connection.client) return;
+    try {
+      const skills = await connection.client.listSkills();
+      skillCatalog = skills;
+      skillCatalogLoaded = true;
+    } catch {
+      // Non-fatal — slash autocomplete just won't have candidates. We
+      // intentionally don't toast here; the user hasn't asked for skills
+      // yet and a noisy error on mount would be hostile.
+    }
+  }
 
   async function boot() {
     // Connection store is initialized by the sidebar's onMount; if the user
@@ -217,6 +272,9 @@
       if (threads.currentId) {
         await messages.loadHistory(threads.currentId);
       }
+      // Retry the catalog after init resolves — onMount fires before
+      // `connection.client` is non-null on a cold load.
+      void loadSkillCatalog();
     }
   }
 
@@ -273,6 +331,19 @@
     });
   });
 
+  // Bump the find-in-thread version counter whenever the rendered tree
+  // could have changed. ChatSearch debounces its rebuild internally so
+  // we don't pay a tree-walk per streaming token. We `untrack` the read
+  // side of the counter so this effect only retriggers on its real deps.
+  $effect(() => {
+    void history.length;
+    void streamingBuffer.length;
+    void isStreaming;
+    untrack(() => {
+      contentVersion += 1;
+    });
+  });
+
   // -- handlers ---------------------------------------------------------------
   async function onNewChat() {
     if (!connection.client) return;
@@ -302,7 +373,26 @@
     showScrollFab = false;
   }
 
+  // TODO(2026-05-27): wire up per-thread delete affordance once the gateway
+  // implements `DELETE /api/chat/threads/{id}`. Live-server probe today
+  // returns 404 — no matching route in `src/channels/web/platform/router.rs`.
+  // The client method `client.deleteThread(id)` is pre-wired in
+  // `src/lib/api/ironclaw.ts`. UI plan: trash icon on hover in each thread
+  // row in the left rail (red on hover), styled confirm dialog ("Delete
+  // this conversation? This can't be undone."), then `toasts.show()`,
+  // `void threads.refresh()`, and navigate to the next-most-recent thread
+  // (or clear `threads.currentId` for the empty state).
+
   function onKeyDown(e: KeyboardEvent) {
+    // Slash autocomplete consumes arrow keys / Enter / Tab / Esc when its
+    // dropdown is open and has candidates. If it claims the event, we
+    // bail before the send-on-Enter path runs.
+    if (slashAutoEl && slashAutoEl.handleKey(e)) {
+      // Keep caret in sync after the component splices in a pick — the
+      // pick callback already wrote the new value + repositioned the
+      // caret via a microtask.
+      return;
+    }
     if (e.key === 'Enter') {
       if (e.shiftKey) {
         return; // newline
@@ -311,6 +401,36 @@
       e.preventDefault();
       if (canSend) void onSend();
     }
+  }
+
+  // Mirror the textarea's caret position into reactive state. Called on
+  // every relevant event — keyup catches arrow-key navigation, input
+  // catches typing, click handles a manual caret reposition.
+  function syncCaret() {
+    if (!composerEl) return;
+    caret = composerEl.selectionStart ?? input.length;
+  }
+
+  /**
+   * Splice in a slash-command pick. Called by SlashAutocomplete with the
+   * span of `input` to replace (the active `/token`) and the new text.
+   * We update both the bound model and the textarea's caret/selection so
+   * the user keeps typing from immediately after the inserted command.
+   */
+  function applySlashPick(start: number, end: number, text: string) {
+    const next = `${input.slice(0, start)}${text}${input.slice(end)}`;
+    input = next;
+    const pos = start + text.length;
+    // Run after the bind:value write propagates so the textarea's value
+    // is in sync before we move the caret.
+    void tick().then(() => {
+      if (!composerEl) return;
+      composerEl.focus();
+      composerEl.setSelectionRange(pos, pos);
+      caret = pos;
+      autoGrow();
+      scheduleDraftSave();
+    });
   }
 
   function autoGrow() {
@@ -731,7 +851,7 @@
                 }
               }}
               class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1 text-sm text-text-primary focus:outline-none focus:border-accent-cyan w-full max-w-md"
-              aria-label="Thread title"
+              aria-label="Rename thread"
             />
           {:else}
             <button
@@ -821,8 +941,21 @@
       </div>
     </header>
 
-    <!-- message stream (wrapper hosts the floating "new messages" FAB) -->
+    <!-- message stream (wrapper hosts the floating "new messages" FAB
+         and the optional find-in-thread bar) -->
     <div class="flex-1 min-h-0 relative">
+      <!-- find-in-thread bar — opens with Cmd/Ctrl+F. Positioned absolute
+           at the top of the stream so it floats over the first messages
+           without pushing the layout. -->
+      {#if searchOpen}
+        <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 w-full max-w-md px-3">
+          <ChatSearch
+            scrollRoot={scrollEl}
+            {contentVersion}
+            onClose={() => (searchOpen = false)}
+          />
+        </div>
+      {/if}
     <div
       bind:this={scrollEl}
       onscroll={onScroll}
@@ -862,7 +995,7 @@
               {@const failed = !!meta.failed}
               <div class="flex flex-col items-end gap-1">
                 <div
-                  class="max-w-[75%] rounded-lg border px-4 py-2.5 text-sm text-text-primary whitespace-pre-wrap"
+                  class="search-target max-w-[75%] rounded-lg border px-4 py-2.5 text-sm text-text-primary whitespace-pre-wrap"
                   style={failed
                     ? 'background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.45);'
                     : 'background:rgba(0,212,255,0.10);border-color:rgba(251,191,36,0.4);'}
@@ -893,7 +1026,7 @@
             {:else if msg.role === 'assistant'}
               <div class="flex justify-start">
                 <div
-                  class="max-w-[85%] rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
+                  class="search-target max-w-[85%] rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
                 >
                   <MarkdownView markdown={msg.content} />
                 </div>
@@ -902,7 +1035,7 @@
               <!-- tool message (rare today; gateway doesn't emit these in history) -->
               <div class="flex justify-start">
                 <div
-                  class="max-w-[85%] rounded-md border border-border-subtle bg-bg-deep px-3 py-2 text-xs text-text-muted font-mono"
+                  class="search-target max-w-[85%] rounded-md border border-border-subtle bg-bg-deep px-3 py-2 text-xs text-text-muted font-mono"
                 >
                   tool · {msg.content}
                 </div>
@@ -914,7 +1047,7 @@
           {#if isStreaming || streamingBuffer}
             <div class="flex justify-start">
               <div
-                class="max-w-[85%] rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
+                class="search-target max-w-[85%] rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
               >
                 {#if streamingBuffer}
                   <MarkdownView markdown={streamingBuffer} />
@@ -961,7 +1094,17 @@
 
     <!-- composer -->
     <div class="shrink-0 border-t border-border-subtle bg-bg-base/40 px-6 py-4">
-      <div class="max-w-4xl mx-auto">
+      <div class="max-w-4xl mx-auto relative">
+        <!-- slash-command autocomplete — anchored to this wrapper so the
+             dropdown grows upward from the composer's top edge. -->
+        <SlashAutocomplete
+          bind:this={slashAutoEl}
+          anchor={composerEl}
+          value={input}
+          {caret}
+          skills={skillCatalog}
+          onPick={applySlashPick}
+        />
         <div
           class="flex items-end gap-2 bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 focus-within:border-accent-cyan transition-colors"
         >
@@ -971,7 +1114,10 @@
             oninput={() => {
               autoGrow();
               scheduleDraftSave();
+              syncCaret();
             }}
+            onkeyup={syncCaret}
+            onclick={syncCaret}
             onkeydown={onKeyDown}
             placeholder={connection.client
               ? 'Message IronClaw…'

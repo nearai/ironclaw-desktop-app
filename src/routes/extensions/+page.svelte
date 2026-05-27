@@ -2,17 +2,27 @@
   import { onMount } from 'svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
-  import type { Extension } from '$lib/api/types';
+  import type { Extension, ExtensionTool } from '$lib/api/types';
   import ExtensionCard from './ExtensionCard.svelte';
   import SetupDrawer from './SetupDrawer.svelte';
 
   type Tab = 'installed' | 'registry';
   type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
+  type CategoryFilter = 'all' | 'mcp' | 'oauth' | 'channel' | 'other';
+  type SortKey = 'name' | 'readiness' | 'recent';
 
   // Refresh the installed list + readiness every 30s while the tab is open.
   // The interval is cleared on unmount and whenever the user switches modes
   // (the connection store handles its own polling separately).
   const REFRESH_INTERVAL_MS = 30_000;
+
+  // Persisted UI prefs. Stored under a single namespaced key so a future
+  // settings panel can wipe them in one call.
+  const PREFS_STORAGE_KEY = 'ironclaw-extensions-prefs';
+  type Prefs = { category: CategoryFilter; sort: SortKey };
+  const DEFAULT_PREFS: Prefs = { category: 'all', sort: 'name' };
+
+  const KNOWN_CATEGORIES = new Set(['mcp', 'oauth', 'channel']);
 
   let activeTab = $state<Tab>('installed');
 
@@ -24,6 +34,11 @@
   let registryError = $state<string | null>(null);
   let registry = $state<Extension[]>([]);
 
+  // Tools cache, populated once per page open and refreshed silently with the
+  // installed list. Keyed by extension name → list of tool names. Used to
+  // power both the search-by-tool-name and the inline expansion feature.
+  let toolsByExtension = $state<Map<string, string[]>>(new Map());
+
   // Per-extension "currently mutating" set so we can disable the right cards
   // while their install/activate/remove call is in flight.
   let busyNames = $state<Set<string>>(new Set());
@@ -31,10 +46,20 @@
   // Setup drawer state.
   let setupTarget = $state<Extension | null>(null);
 
-  // Search input (registry tab only).
+  // Search input (applies to both tabs).
   let searchInput = $state('');
   let debouncedQuery = $state('');
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Persisted prefs: category filter + sort.
+  let categoryFilter = $state<CategoryFilter>(DEFAULT_PREFS.category);
+  let sortKey = $state<SortKey>(DEFAULT_PREFS.sort);
+  // Track when prefs are hydrated from storage so the persist effect doesn't
+  // immediately clobber storage with defaults during mount.
+  let prefsHydrated = $state(false);
+
+  // Inline tool expansion — only one card open at a time (across both tabs).
+  let expandedName = $state<string | null>(null);
 
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -44,23 +69,156 @@
       !connection.client
   );
 
-  const filteredRegistry = $derived.by(() => {
+  // Pill defs (label + value) shared between both tabs.
+  const CATEGORY_PILLS: Array<{ value: CategoryFilter; label: string }> = [
+    { value: 'all', label: 'All' },
+    { value: 'mcp', label: 'MCP' },
+    { value: 'oauth', label: 'OAuth' },
+    { value: 'channel', label: 'Channel' },
+    { value: 'other', label: 'Other' }
+  ];
+
+  const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+    { value: 'name', label: 'Name (A-Z)' },
+    { value: 'readiness', label: 'Readiness' },
+    { value: 'recent', label: 'Recently installed' }
+  ];
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Filter + sort pipeline. Each tab consumes one of these derived arrays.
+  // ────────────────────────────────────────────────────────────────────────
+
+  function matchesCategory(ext: Extension): boolean {
+    if (categoryFilter === 'all') return true;
+    const c = (ext.category ?? '').toLowerCase();
+    if (categoryFilter === 'other') {
+      // "Other" buckets anything not in the three known categories, including
+      // missing/empty values.
+      return !KNOWN_CATEGORIES.has(c);
+    }
+    return c === categoryFilter;
+  }
+
+  function matchesSearch(ext: Extension, q: string): boolean {
+    if (!q) return true;
+    const tools = toolsByExtension.get(ext.name) ?? [];
+    const hay = [
+      ext.name,
+      ext.display_name ?? '',
+      ext.description ?? '',
+      ...(ext.keywords ?? []),
+      ...tools
+    ]
+      .join(' ')
+      .toLowerCase();
+    return hay.includes(q);
+  }
+
+  function readinessRank(ext: Extension): number {
+    // Sort order: Ready (0) → Needs setup / unknown (1) → Error (2).
+    const msg = ext.readiness_message ?? '';
+    if (msg.startsWith('error')) return 2;
+    if (ext.ready === true || msg === 'ready') return 0;
+    return 1;
+  }
+
+  function applySort(list: Extension[]): Extension[] {
+    const out = list.slice();
+    if (sortKey === 'readiness') {
+      out.sort((a, b) => {
+        const r = readinessRank(a) - readinessRank(b);
+        if (r !== 0) return r;
+        return (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name);
+      });
+    } else {
+      // The server doesn't currently provide an installed_at timestamp, so
+      // "recent" gracefully falls back to name. When the gateway grows a
+      // timestamp field, swap in a comparator here without other code moving.
+      // TODO(extensions:+page.svelte:applySort): wire installed_at sort once
+      // the gateway exposes it on /api/extensions.
+      out.sort((a, b) =>
+        (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name)
+      );
+    }
+    return out;
+  }
+
+  const filteredInstalled = $derived.by(() => {
     const q = debouncedQuery.trim().toLowerCase();
-    if (!q) return registry;
-    return registry.filter((e) => {
-      const haystack = [
-        e.name,
-        e.display_name ?? '',
-        e.description ?? '',
-        ...(e.keywords ?? [])
-      ]
-        .join(' ')
-        .toLowerCase();
-      return haystack.includes(q);
-    });
+    return applySort(
+      installed.filter((e) => matchesCategory(e) && matchesSearch(e, q))
+    );
   });
 
-  // Debounce the search input (registry tab).
+  const filteredRegistry = $derived.by(() => {
+    const q = debouncedQuery.trim().toLowerCase();
+    return applySort(
+      registry.filter((e) => matchesCategory(e) && matchesSearch(e, q))
+    );
+  });
+
+  const visibleList = $derived(
+    activeTab === 'installed' ? filteredInstalled : filteredRegistry
+  );
+  const sourceLen = $derived(
+    activeTab === 'installed' ? installed.length : registry.length
+  );
+  const filterActive = $derived(
+    debouncedQuery.trim().length > 0 || categoryFilter !== 'all'
+  );
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Lifecycle: hydrate prefs, debounce search, auto-load on connection.
+  // ────────────────────────────────────────────────────────────────────────
+
+  // Hydrate persisted prefs on first script run. localStorage isn't available
+  // in SSR builds, but this route is SPA-only in the Tauri shell so the guard
+  // is mostly defensive.
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(PREFS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<Prefs>;
+        if (parsed && typeof parsed === 'object') {
+          const cat = parsed.category;
+          if (
+            cat === 'all' ||
+            cat === 'mcp' ||
+            cat === 'oauth' ||
+            cat === 'channel' ||
+            cat === 'other'
+          ) {
+            categoryFilter = cat;
+          }
+          const s = parsed.sort;
+          if (s === 'name' || s === 'readiness' || s === 'recent') {
+            sortKey = s;
+          }
+        }
+      }
+    } catch {
+      // Corrupt JSON — fall back to defaults and let the next write fix it.
+    }
+    prefsHydrated = true;
+  } else {
+    prefsHydrated = true;
+  }
+
+  // Persist prefs whenever they change. Guarded on `prefsHydrated` so the
+  // initial reactive run doesn't overwrite a freshly-loaded value with the
+  // module-scope default.
+  $effect(() => {
+    if (!prefsHydrated) return;
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+    try {
+      const payload: Prefs = { category: categoryFilter, sort: sortKey };
+      localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // Quota / private-mode failures are non-fatal.
+    }
+  });
+
+  // Debounce the search input (applies to both tabs).
   $effect(() => {
     const v = searchInput;
     if (debounceTimer) clearTimeout(debounceTimer);
@@ -116,8 +274,25 @@
       installedError = null;
     }
     try {
-      const list = await client.listExtensions();
+      // Fetch installed + tool index in parallel. Both endpoints are cheap
+      // and the tool index needs to refresh alongside installs so the inline
+      // expansion stays accurate.
+      const [list, tools] = await Promise.all([
+        client.listExtensions(),
+        client.extensionTools().catch(() => [] as ExtensionTool[])
+      ]);
       installed = list.slice().sort((a, b) => a.name.localeCompare(b.name));
+      const next = new Map<string, string[]>();
+      for (const t of tools) {
+        const names = next.get(t.extension) ?? [];
+        names.push(t.name);
+        next.set(t.extension, names);
+      }
+      for (const [k, v] of next) {
+        v.sort((a, b) => a.localeCompare(b));
+        next.set(k, v);
+      }
+      toolsByExtension = next;
       installedState = 'loaded';
     } catch (err) {
       installedError = (err as Error).message;
@@ -212,6 +387,8 @@
       if (res.ok) {
         toasts.show(`Removed ${label}`, 'success');
       }
+      // If the removed card was expanded, collapse it.
+      if (expandedName === ext.name) expandedName = null;
       await Promise.all([loadInstalled(), loadRegistry()]);
     } catch (err) {
       toasts.show(`Remove failed: ${(err as Error).message}`, 'error');
@@ -235,6 +412,19 @@
 
   function setTab(t: Tab) {
     activeTab = t;
+    // Collapse any inline tool list when crossing tabs — the registry tab
+    // never expands and the visual focus shifts elsewhere.
+    expandedName = null;
+  }
+
+  function handleToggleTools(ext: Extension) {
+    expandedName = expandedName === ext.name ? null : ext.name;
+  }
+
+  function clearFilters() {
+    searchInput = '';
+    debouncedQuery = '';
+    categoryFilter = 'all';
   }
 
   const showInstalledSkeleton = $derived(
@@ -264,7 +454,7 @@
   </header>
 
   <!-- Tabs -->
-  <div class="mb-5 flex items-center gap-1 border-b border-border-subtle">
+  <div class="mb-4 flex items-center gap-1 border-b border-border-subtle">
     <button
       type="button"
       onclick={() => setTab('installed')}
@@ -301,24 +491,88 @@
     </button>
   </div>
 
-  {#if activeTab === 'registry'}
-    <!-- Registry search -->
-    <div class="mb-5 relative max-w-md">
-      <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted">
-        <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="11" cy="11" r="7" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-      </span>
-      <input
-        type="search"
-        bind:value={searchInput}
-        placeholder="Search extensions…"
-        disabled={isDisconnected}
-        class="w-full bg-bg-deep border border-border-subtle rounded-md pl-10 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
-      />
+  <!-- Toolbar: category pills + search + sort. Same shape in both tabs so the
+       UI's controls stay where the user expects them. -->
+  <div class="mb-4 flex flex-col gap-3">
+    <div
+      class="flex flex-wrap items-center gap-1.5"
+      role="radiogroup"
+      aria-label="Filter extensions by category"
+    >
+      {#each CATEGORY_PILLS as pill (pill.value)}
+        {@const selected = categoryFilter === pill.value}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={selected}
+          onclick={() => (categoryFilter = pill.value)}
+          disabled={isDisconnected}
+          class="px-3 py-1 rounded-full text-xs font-medium border transition disabled:opacity-50 disabled:cursor-not-allowed"
+          class:bg-accent-cyan={selected}
+          class:text-bg-deep={selected}
+          class:border-accent-cyan={selected}
+          class:bg-bg-deep={!selected}
+          class:text-text-muted={!selected}
+          class:border-border-subtle={!selected}
+          class:hover:text-text-primary={!selected}
+          class:hover:border-accent-cyan={!selected}
+        >
+          {pill.label}
+        </button>
+      {/each}
     </div>
-  {/if}
+
+    <div class="flex flex-wrap items-center gap-3">
+      <div class="relative flex-1 min-w-[200px] max-w-md">
+        <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted">
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+        </span>
+        <input
+          type="search"
+          bind:value={searchInput}
+          placeholder="Search name, description, or tool…"
+          disabled={isDisconnected}
+          aria-label="Search extensions"
+          class="w-full bg-bg-deep border border-border-subtle rounded-md pl-10 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
+        />
+      </div>
+      <label class="flex items-center gap-2 text-xs text-text-muted">
+        <span class="shrink-0">Sort</span>
+        <select
+          bind:value={sortKey}
+          disabled={isDisconnected}
+          aria-label="Sort extensions"
+          class="bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {#each SORT_OPTIONS as opt (opt.value)}
+            <option value={opt.value}>{opt.label}</option>
+          {/each}
+        </select>
+      </label>
+    </div>
+
+    {#if filterActive && !isDisconnected}
+      <div class="flex items-center justify-between gap-3 text-xs text-text-muted">
+        <span>
+          <span class="text-text-primary font-semibold">{visibleList.length}</span>
+          result{visibleList.length === 1 ? '' : 's'}
+          {#if sourceLen > 0}
+            <span class="text-text-muted/70">of {sourceLen}</span>
+          {/if}
+        </span>
+        <button
+          type="button"
+          onclick={clearFilters}
+          class="text-accent-cyan hover:underline"
+        >
+          Clear filters
+        </button>
+      </div>
+    {/if}
+  </div>
 
   <!-- Content -->
   <div class="flex-1 overflow-auto -mx-2 px-2">
@@ -365,13 +619,25 @@
             Browse the <button type="button" onclick={() => setTab('registry')} class="text-accent-cyan hover:underline">Registry</button> to add some.
           </div>
         </div>
+      {:else if filteredInstalled.length === 0}
+        <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
+          <div class="text-sm text-text-primary mb-1">No matching extensions</div>
+          <div class="text-xs text-text-muted">
+            Adjust the filters or
+            <button type="button" onclick={clearFilters} class="text-accent-cyan hover:underline">clear them</button>
+            to see all {installed.length}.
+          </div>
+        </div>
       {:else}
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">
-          {#each installed as ext (ext.name)}
+          {#each filteredInstalled as ext (ext.name)}
             <ExtensionCard
               extension={ext}
               variant="installed"
               busy={busyNames.has(ext.name)}
+              toolNames={toolsByExtension.get(ext.name) ?? []}
+              expanded={expandedName === ext.name}
+              onToggleTools={handleToggleTools}
               onSetup={openSetup}
               onToggleActivate={handleToggleActivate}
               onRemove={handleRemove}
@@ -404,16 +670,21 @@
             </div>
           {/each}
         </div>
-      {:else if filteredRegistry.length === 0 && debouncedQuery.trim().length > 0}
+      {:else if registry.length === 0}
         <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
-          <div class="text-sm text-text-primary mb-1">No matching extensions</div>
-          <div class="text-xs text-text-muted">
-            No registry entries match «<span class="text-text-primary">{debouncedQuery}</span>».
-          </div>
+          <div class="text-sm text-text-muted">The registry is empty.</div>
         </div>
       {:else if filteredRegistry.length === 0}
         <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
-          <div class="text-sm text-text-muted">The registry is empty.</div>
+          <div class="text-sm text-text-primary mb-1">No matching extensions</div>
+          <div class="text-xs text-text-muted">
+            {#if debouncedQuery.trim().length > 0}
+              No registry entries match «<span class="text-text-primary">{debouncedQuery}</span>».
+            {:else}
+              No registry entries match the current filters.
+            {/if}
+            <button type="button" onclick={clearFilters} class="text-accent-cyan hover:underline ml-1">Clear</button>
+          </div>
         </div>
       {:else}
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">

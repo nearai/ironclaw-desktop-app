@@ -8,10 +8,69 @@
   // is injected post-render via a $effect that walks the wrapper DOM; a single
   // click listener on the wrapper handles dispatch so we don't re-attach
   // per-block listeners on every keystroke during streaming.
+  //
+  // Enhancements (2026-05):
+  //   1. Syntax highlighting via highlight.js (github-dark theme), wired
+  //      through a marked renderer override on `code`.
+  //   2. GFM tables — marked default; styles below give them a dark theme.
+  //   3. Anchor links on h1/h2/h3 — heading renderer slugifies the rendered
+  //      text and prepends a chain icon that copies `#slug` on click.
+  //   4. Admonition-style callouts — `> [!NOTE|WARNING|CAUTION|TIP|IMPORTANT]`
+  //      blockquotes are rendered as tinted callouts.
+  //   5. Inline math intentionally skipped — would require katex (~270 KB)
+  //      and we don't have a use case yet. Add behind a feature flag if asked.
+  //
+  // The component API (`markdown` prop) is unchanged; all consumers
+  // (chat, knowledge, admin) keep working without modification.
 
-  import { marked } from 'marked';
+  import { marked, type Tokens } from 'marked';
   import DOMPurify from 'dompurify';
+  // Tree-shaken highlight.js: import the core engine + just the grammars we
+  // render. The default `import hljs from 'highlight.js'` pulls all 200+
+  // languages (~1 MB minified, ~330 KB gzipped). The list below covers
+  // everything chat/knowledge actually renders today (~10 langs).
+  import hljs from 'highlight.js/lib/core';
+  import bash from 'highlight.js/lib/languages/bash';
+  import typescript from 'highlight.js/lib/languages/typescript';
+  import javascript from 'highlight.js/lib/languages/javascript';
+  import rust from 'highlight.js/lib/languages/rust';
+  import python from 'highlight.js/lib/languages/python';
+  import json from 'highlight.js/lib/languages/json';
+  // Renamed to avoid colliding with the `markdown` component prop below.
+  import markdownLang from 'highlight.js/lib/languages/markdown';
+  import yaml from 'highlight.js/lib/languages/yaml';
+  import sql from 'highlight.js/lib/languages/sql';
+  // highlight.js folds TOML into the `ini` grammar (declared name "TOML, also
+  // INI"; ships `toml` as an alias).
+  import ini from 'highlight.js/lib/languages/ini';
+  // The `xml` grammar covers HTML/XHTML/RSS/Atom — that's how highlight.js
+  // ships HTML support.
+  import xml from 'highlight.js/lib/languages/xml';
+  import css from 'highlight.js/lib/languages/css';
+  import 'highlight.js/styles/github-dark.css';
   import { toasts } from '$lib/stores/toasts.svelte';
+
+  // `registerLanguage` auto-registers each grammar's declared aliases too, so
+  // explicit aliasing below is only needed where we want to add forms that
+  // highlight.js doesn't bundle (e.g. `shell` → bash, since highlight.js's
+  // `shell` is a separate shell-session grammar we don't ship).
+  hljs.registerLanguage('bash', bash);
+  hljs.registerLanguage('typescript', typescript);
+  hljs.registerLanguage('javascript', javascript);
+  hljs.registerLanguage('rust', rust);
+  hljs.registerLanguage('python', python);
+  hljs.registerLanguage('json', json);
+  hljs.registerLanguage('markdown', markdownLang);
+  hljs.registerLanguage('yaml', yaml);
+  hljs.registerLanguage('sql', sql);
+  hljs.registerLanguage('ini', ini);
+  hljs.registerLanguage('xml', xml);
+  hljs.registerLanguage('css', css);
+  // Common shortened forms not already declared by the grammars above.
+  // (bash already aliases sh/zsh; typescript → ts/tsx/mts/cts; javascript →
+  // js/jsx/mjs/cjs; python → py/gyp/ipython; markdown → md/mkdown/mkd; yaml →
+  // yml; rust → rs; xml → html/xhtml/rss/atom; ini → toml — so those are free.)
+  hljs.registerAliases(['shell', 'console'], { languageName: 'bash' });
 
   let { markdown = '' }: { markdown?: string } = $props();
 
@@ -19,9 +78,124 @@
   // We cast through `string` because the typings allow `Promise<string>`.
   marked.setOptions({ breaks: true, gfm: true, async: false });
 
+  // --- Renderer overrides -----------------------------------------------
+  //
+  // marked v15 dropped the standalone `Slugger`; renderer methods now take
+  // an object with `tokens`/`depth`/`text`/`lang` and have access to
+  // `this.parser` for re-parsing inline tokens. We register overrides via
+  // `marked.use({ renderer })` once at module scope — Svelte HMR will
+  // re-run the script but `marked.use` is idempotent for our purposes.
+
+  /** Map a fenced lang hint to an hljs language id, or null if unknown. */
+  function resolveLang(lang: string | undefined | null): string | null {
+    if (!lang) return null;
+    // Trim any extra info-string content (e.g. ```js title=foo).
+    const id = lang.trim().split(/\s+/u)[0]?.toLowerCase() ?? '';
+    if (!id) return null;
+    return hljs.getLanguage(id) ? id : null;
+  }
+
+  /** GitHub-style slug: lowercase, drop punctuation, spaces → dashes. */
+  function slugify(text: string): string {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^\p{L}\p{N}\s-]/gu, '')
+      .replace(/\s+/gu, '-')
+      .replace(/-+/gu, '-');
+  }
+
+  /** Pulled out so test/inspection is easier; pure escape for hljs fallback. */
+  function escapeHtml(s: string): string {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  const CALLOUT_RE = /^\s*\[!(NOTE|WARNING|CAUTION|TIP|IMPORTANT)\]\s*(.*)$/u;
+  const CALLOUT_LABELS: Record<string, string> = {
+    NOTE: 'Note',
+    WARNING: 'Warning',
+    CAUTION: 'Caution',
+    TIP: 'Tip',
+    IMPORTANT: 'Important'
+  };
+
+  // SVG chain-link icon used for anchor handles. Inlined so we don't pay a
+  // second HTTP round-trip for one icon, and so the renderer is fully self
+  // contained.
+  const ANCHOR_ICON =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>';
+
+  marked.use({
+    renderer: {
+      // Highlight fenced blocks. We always emit a <pre><code> pair so the
+      // copy-button effect below can find the wrapper unchanged. The class
+      // `hljs` opts the inner <code> into the github-dark stylesheet's
+      // `pre code.hljs` rules; `language-X` is the canonical hljs class.
+      code(this: unknown, { text, lang }: Tokens.Code): string {
+        const id = resolveLang(lang);
+        if (id) {
+          try {
+            const { value } = hljs.highlight(text, { language: id, ignoreIllegals: true });
+            return `<pre data-lang="${id}"><code class="hljs language-${id}">${value}</code></pre>`;
+          } catch {
+            // Fall through to no-highlight on bad input.
+          }
+        }
+        return `<pre><code class="hljs">${escapeHtml(text)}</code></pre>`;
+      },
+
+      // h1/h2/h3 get IDs + an anchor handle. Deeper levels stay as plain
+      // headings (matches the spec). We render inline tokens through the
+      // parser so any inline markup (code, em, links) keeps working.
+      heading(this: { parser: { parseInline: (t: Tokens.Generic[]) => string } }, { tokens, depth }: Tokens.Heading): string {
+        const inner = this.parser.parseInline(tokens as Tokens.Generic[]);
+        if (depth > 3) {
+          return `<h${depth}>${inner}</h${depth}>\n`;
+        }
+        // Strip HTML for the slug source — we only want the visible text.
+        const plain = inner.replace(/<[^>]+>/gu, '');
+        const slug = slugify(plain);
+        const anchor = `<a class="md-anchor" href="#${slug}" data-anchor="${slug}" aria-label="Copy link to section">${ANCHOR_ICON}</a>`;
+        return `<h${depth} id="${slug}" class="md-heading">${anchor}<span>${inner}</span></h${depth}>\n`;
+      },
+
+      // Detect admonition syntax on the first inline text token. If matched,
+      // render as a callout container; otherwise fall back to a plain
+      // blockquote (handled by CSS — left cyan border, italic, muted).
+      blockquote(this: { parser: { parse: (t: Tokens.Generic[]) => string } }, { tokens }: Tokens.Blockquote): string {
+        const first = tokens?.[0] as Tokens.Generic | undefined;
+        const firstInline = (first?.tokens?.[0] as Tokens.Generic | undefined) ?? undefined;
+        const candidate =
+          (firstInline?.type === 'text' && typeof firstInline.text === 'string' && firstInline.text) || '';
+        const match = candidate.match(CALLOUT_RE);
+        if (match && first && Array.isArray(first.tokens)) {
+          const kind = match[1].toUpperCase();
+          const remainder = match[2] ?? '';
+          // Mutate the first inline text token to strip the `[!TYPE]` prefix.
+          // We clone so we don't trash marked's token cache.
+          const cloned = { ...firstInline, text: remainder, raw: remainder };
+          const innerFirst = { ...first, tokens: [cloned, ...first.tokens.slice(1)] };
+          const newTokens = [innerFirst, ...tokens.slice(1)];
+          const body = this.parser.parse(newTokens as Tokens.Generic[]);
+          const label = CALLOUT_LABELS[kind] ?? kind;
+          return `<div class="md-callout md-callout--${kind.toLowerCase()}"><div class="md-callout__head">${label}</div><div class="md-callout__body">${body}</div></div>\n`;
+        }
+        const body = this.parser.parse(tokens as Tokens.Generic[]);
+        return `<blockquote>\n${body}</blockquote>\n`;
+      }
+    }
+  });
+
   const html = $derived.by((): string => {
     if (!markdown) return '';
     const raw = marked.parse(markdown) as string;
+    // DOMPurify default `html` profile keeps `class`/`id`/`href` attrs and
+    // common block elements, which is everything our renderer emits.
     return DOMPurify.sanitize(raw, { USE_PROFILES: { html: true } });
   });
 
@@ -51,9 +225,35 @@
     });
   });
 
+  async function copyAnchor(slug: string) {
+    // We prefer the in-app URL fragment so a paste inside the desktop app
+    // still resolves; the leading `#` keeps it portable when pasted into
+    // markdown editors or chat. We don't bake `location.origin` in — the
+    // Tauri webview origin is `tauri://localhost` which isn't useful.
+    try {
+      await navigator.clipboard.writeText(`#${slug}`);
+      toasts.show('Anchor copied', 'success');
+    } catch (err) {
+      toasts.show(`Copy failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
   async function onWrapperClick(e: MouseEvent) {
     const target = e.target as HTMLElement | null;
     if (!target) return;
+
+    // Anchor handle on a heading → copy `#slug` and prevent default so we
+    // don't trigger a hash navigation that would scroll the surrounding
+    // panel (chat scroll containers don't expect it).
+    const anchor = target.closest<HTMLAnchorElement>('.md-anchor');
+    if (anchor) {
+      e.preventDefault();
+      const slug = anchor.dataset.anchor ?? anchor.getAttribute('href')?.replace(/^#/u, '') ?? '';
+      if (slug) await copyAnchor(slug);
+      return;
+    }
+
+    // Copy button on a <pre>.
     const btn = target.closest<HTMLButtonElement>('[data-copy-btn="1"]');
     if (!btn) return;
     const pre = btn.closest('pre');
@@ -93,23 +293,28 @@
     word-wrap: break-word;
   }
 
+  .markdown :global(h1),
+  .markdown :global(h2),
+  .markdown :global(h3),
+  .markdown :global(h4),
+  .markdown :global(h5),
+  .markdown :global(h6) {
+    color: #e5e7eb;
+  }
   .markdown :global(h1) {
     font-size: 1.5em;
     font-weight: 700;
     margin: 0.6em 0 0.4em;
-    color: #e5e7eb;
   }
   .markdown :global(h2) {
     font-size: 1.25em;
     font-weight: 600;
     margin: 0.55em 0 0.35em;
-    color: #e5e7eb;
   }
   .markdown :global(h3) {
     font-size: 1.1em;
     font-weight: 600;
     margin: 0.5em 0 0.3em;
-    color: #e5e7eb;
   }
   .markdown :global(h4),
   .markdown :global(h5),
@@ -117,7 +322,41 @@
     font-size: 1em;
     font-weight: 600;
     margin: 0.5em 0 0.3em;
-    color: #e5e7eb;
+  }
+
+  /* Headings rendered by our override carry .md-heading and host the
+     anchor handle to their left. Padding leaves room for the icon so the
+     heading text doesn't shift on hover. */
+  .markdown :global(h1.md-heading),
+  .markdown :global(h2.md-heading),
+  .markdown :global(h3.md-heading) {
+    position: relative;
+    padding-left: 1.4em;
+    scroll-margin-top: 12px;
+  }
+  .markdown :global(.md-anchor) {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.2em;
+    height: 1.2em;
+    color: #00d4ff;
+    opacity: 0;
+    text-decoration: none;
+    transition: opacity 120ms ease, color 120ms ease;
+  }
+  .markdown :global(h1.md-heading:hover .md-anchor),
+  .markdown :global(h2.md-heading:hover .md-anchor),
+  .markdown :global(h3.md-heading:hover .md-anchor),
+  .markdown :global(.md-anchor:focus-visible) {
+    opacity: 1;
+  }
+  .markdown :global(.md-anchor:hover) {
+    color: #fbbf24;
   }
 
   .markdown :global(p) {
@@ -146,6 +385,11 @@
   .markdown :global(a:hover) {
     text-decoration: underline;
   }
+  /* The anchor handle is itself an <a> but should not pick up the underline
+     hover from the rule above. */
+  .markdown :global(.md-anchor:hover) {
+    text-decoration: none;
+  }
 
   .markdown :global(code) {
     font-family: 'SF Mono', Menlo, monospace;
@@ -172,6 +416,12 @@
     font-size: 0.85em;
     line-height: 1.5;
     color: #e5e7eb;
+  }
+  /* highlight.js's github-dark sheet sets its own background on
+     `pre code.hljs`; override so our existing wrapper color wins. */
+  .markdown :global(pre code.hljs) {
+    background: transparent;
+    padding: 1em;
   }
 
   /* Copy button — positioned top-right of each <pre>, visible on hover. */
@@ -217,20 +467,91 @@
     font-style: italic;
   }
 
+  /* Callout blocks (rendered by the blockquote renderer when the first
+     line matches the [!TYPE] admonition syntax). */
+  .markdown :global(.md-callout) {
+    margin: 0.9em 0;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    padding: 0.6em 0.9em;
+  }
+  .markdown :global(.md-callout__head) {
+    font-weight: 600;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.35em;
+  }
+  .markdown :global(.md-callout__body p) {
+    margin: 0.25em 0;
+  }
+  .markdown :global(.md-callout__body p:first-child) {
+    margin-top: 0;
+  }
+  .markdown :global(.md-callout__body p:last-child) {
+    margin-bottom: 0;
+  }
+  .markdown :global(.md-callout--note),
+  .markdown :global(.md-callout--tip) {
+    background: rgba(0, 212, 255, 0.08);
+    border-color: rgba(0, 212, 255, 0.35);
+  }
+  .markdown :global(.md-callout--note .md-callout__head),
+  .markdown :global(.md-callout--tip .md-callout__head) {
+    color: #00d4ff;
+  }
+  .markdown :global(.md-callout--important) {
+    background: rgba(167, 139, 250, 0.08);
+    border-color: rgba(167, 139, 250, 0.35);
+  }
+  .markdown :global(.md-callout--important .md-callout__head) {
+    color: #a78bfa;
+  }
+  .markdown :global(.md-callout--warning) {
+    background: rgba(251, 191, 36, 0.08);
+    border-color: rgba(251, 191, 36, 0.4);
+  }
+  .markdown :global(.md-callout--warning .md-callout__head) {
+    color: #fbbf24;
+  }
+  .markdown :global(.md-callout--caution) {
+    background: rgba(248, 113, 113, 0.08);
+    border-color: rgba(248, 113, 113, 0.4);
+  }
+  .markdown :global(.md-callout--caution .md-callout__head) {
+    color: #f87171;
+  }
+
+  /* Tables — GFM is on by default in marked v15 so `| a | b |` will already
+     produce <table>/<thead>/<tbody>. These rules give it a dark theme. */
   .markdown :global(table) {
+    width: 100%;
     border-collapse: collapse;
     margin: 0.75em 0;
     font-size: 0.9em;
+    border: 1px solid #1f2937;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .markdown :global(thead) {
+    background: rgba(0, 212, 255, 0.06);
   }
   .markdown :global(th),
   .markdown :global(td) {
-    border: 1px solid #1f2937;
-    padding: 0.4em 0.7em;
+    padding: 0.5em 0.75em;
     text-align: left;
+    border-bottom: 1px solid #1f2937;
+    vertical-align: top;
   }
   .markdown :global(th) {
-    background: rgba(0, 212, 255, 0.06);
     font-weight: 600;
+    color: #e5e7eb;
+  }
+  .markdown :global(tbody tr:last-child td) {
+    border-bottom: 0;
+  }
+  .markdown :global(tbody tr:hover) {
+    background: rgba(255, 255, 255, 0.025);
   }
 
   .markdown :global(hr) {

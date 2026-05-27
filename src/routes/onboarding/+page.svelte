@@ -77,8 +77,35 @@
   let testStatus = $state<'idle' | 'testing' | 'ok' | 'fail'>('idle');
   let testMessage = $state<string | null>(null);
   let testVersion = $state<string | null>(null);
+  /** Live-chat probe state. Populated after `health()` succeeds; orthogonal to
+   *  the gateway-reachability result so a failed chat probe never demotes a
+   *  healthy gateway back to "fail". */
+  let chatStatus = $state<
+    'idle' | 'probing' | 'ok' | 'timeout' | 'error' | 'skipped'
+  >('idle');
+  let chatPreview = $state<string | null>(null);
+  let chatHint = $state<string | null>(null);
 
   let finishing = $state(false);
+
+  // ---- step 2: auto-detect existing local IronClaw servers ----------------
+  //
+  // Best-effort probe of common dev ports. Runs once when the user lands on
+  // step 2 in remote mode. A hit pre-populates a suggestion above the URL
+  // field with a one-click apply; a miss is silent. Each candidate is a raw
+  // `fetch` with a 2-second AbortController timeout so the worst case is
+  // ~2 seconds, not 30+ on a stalled socket.
+  /** Candidate ports for `127.0.0.1` auto-detect. Ordered: IronClaw default
+   *  (3100), other Caddy-fronted dev ports (8080, 3334), and 18789 which is
+   *  the prompt-mentioned SSH-tunnel convention. */
+  const DETECT_PORTS = [3100, 18789, 3334, 8080] as const;
+  /** Detected URL if any of the candidates above answered with a healthy
+   *  payload. Cleared when the user dismisses or applies the suggestion. */
+  let detectedUrl = $state<string | null>(null);
+  /** Tracks whether we've kicked the detection at least once so we don't
+   *  re-probe on every step change (re-running back-and-forth via "Back"
+   *  shouldn't spam the user's localhost). */
+  let detectionRan = $state(false);
 
   onMount(async () => {
     settings = await loadSettings();
@@ -88,6 +115,69 @@
       tokenStored = !!t;
       const or = await getOpenRouterKey(id);
       openRouterStored = !!or;
+    }
+  });
+
+  /**
+   * Probe a single candidate `http://127.0.0.1:<port>/api/health` with a
+   * 2-second timeout. Returns the candidate URL on healthy response, null
+   * otherwise. No auth header — the gateway returns a friendly 200 on
+   * `/api/health` even without a bearer.
+   */
+  async function probeCandidate(port: number): Promise<string | null> {
+    const base = `http://127.0.0.1:${port}`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2000);
+    try {
+      const res = await fetch(`${base}/api/health`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: ctrl.signal
+      });
+      if (!res.ok) return null;
+      const text = await res.text();
+      if (!text) return null;
+      const data = JSON.parse(text) as { status?: string };
+      if (data?.status === 'healthy' || data?.status === 'ok') return base;
+      return null;
+    } catch {
+      // Any network/abort/parse error → not a match. Silent on purpose.
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** Race all candidates in parallel; first healthy wins. Skips probe if the
+   *  user already typed a non-default URL (don't overwrite their input). */
+  async function detectLocalServers() {
+    if (detectionRan) return;
+    detectionRan = true;
+    // If the user already entered something custom, respect it — don't
+    // pre-populate over it.
+    const current = activeProfile?.remoteBaseUrl ?? '';
+    if (current && current !== 'http://127.0.0.1:3100') return;
+    const results = await Promise.all(DETECT_PORTS.map((p) => probeCandidate(p)));
+    const hit = results.find((u): u is string => !!u);
+    if (hit) detectedUrl = hit;
+  }
+
+  function applyDetectedUrl() {
+    if (!detectedUrl) return;
+    patchActiveProfile({ remoteBaseUrl: detectedUrl });
+    detectedUrl = null;
+  }
+
+  function dismissDetectedUrl() {
+    detectedUrl = null;
+  }
+
+  /** Fire detection whenever step 2 is visited in remote mode. The effect
+   *  short-circuits via `detectionRan` so we only ever probe once per
+   *  wizard run. */
+  $effect(() => {
+    if (step === 2 && activeProfile?.mode === 'remote') {
+      void detectLocalServers();
     }
   });
 
@@ -109,6 +199,9 @@
       testStatus = 'idle';
       testMessage = null;
       testVersion = null;
+      chatStatus = 'idle';
+      chatPreview = null;
+      chatHint = null;
     }
     step = target;
   }
@@ -185,6 +278,9 @@
     testStatus = 'testing';
     testMessage = null;
     testVersion = null;
+    chatStatus = 'idle';
+    chatPreview = null;
+    chatHint = null;
     if (!activeProfile) {
       testStatus = 'fail';
       testMessage = 'No active profile — restart onboarding';
@@ -220,6 +316,11 @@
         testMessage = testVersion
           ? `Connected to IronClaw ${testVersion}`
           : 'Connected to IronClaw';
+        // Live-chat probe is gated on NEAR.AI sign-in for the local sidecar;
+        // attempting a chat without auth would fail with a confusing 401.
+        // Check the profile endpoint directly (cheaper than waiting for the
+        // signIn store to refresh) and route accordingly.
+        await runChatProbe(connection.client, { requireSignIn: true });
         return;
       }
 
@@ -250,9 +351,158 @@
       testMessage = testVersion
         ? `Connected to IronClaw ${testVersion}`
         : 'Connected to IronClaw';
+      // Remote gateways are pre-authenticated via the bearer token, so the
+      // chat probe is unconditional here. A 401 from the chat probe still
+      // demotes to `chatStatus='error'` (without flipping the gateway state).
+      await runChatProbe(client, { requireSignIn: false });
     } catch (err) {
       testStatus = 'fail';
       testMessage = (err as Error).message;
+    }
+  }
+
+  /**
+   * Send a one-shot "Hello, are you there?" to the gateway and collect the
+   * streamed response. Updates `chatStatus`, `chatPreview`, `chatHint` in
+   * place; never throws. Designed to never block the wizard for longer
+   * than 15 seconds — a hard AbortController timeout fires regardless of
+   * stream state.
+   *
+   * Failure modes are split into:
+   *   - `skipped`  : pre-flight failed (e.g. local mode but signed-out)
+   *   - `ok`       : at least one content_delta arrived
+   *   - `timeout`  : 15s elapsed without any content
+   *   - `error`    : thread create / send / stream open threw
+   *
+   * In all non-`ok` cases the existing `testStatus='ok'` is left untouched so
+   * the wizard's "Finish" button stays enabled. A flaky LLM should not
+   * trap the user on step 3.
+   */
+  async function runChatProbe(
+    client: IronClawClient,
+    opts: { requireSignIn: boolean }
+  ): Promise<void> {
+    chatStatus = 'probing';
+    chatPreview = null;
+    chatHint = null;
+
+    // Pre-flight: in local mode, refuse to call /api/chat/send if the
+    // sidecar isn't signed in. /api/profile is the cheapest way to read
+    // sign-in state (it returns null on 401/403, doesn't throw).
+    if (opts.requireSignIn) {
+      try {
+        const profile = await client.getProfile();
+        if (profile === null) {
+          chatStatus = 'skipped';
+          chatHint = 'Sign in to NEAR.AI to test the LLM';
+          return;
+        }
+      } catch {
+        // If the profile endpoint itself fails, we can't know sign-in state.
+        // Better to skip the chat probe than to fire a request that will
+        // confuse the user with an auth error.
+        chatStatus = 'skipped';
+        chatHint = 'LLM check skipped (sign-in unknown)';
+        return;
+      }
+    }
+
+    let threadId: string | null = null;
+    try {
+      // Note: failures here (network drop, 5xx, malformed response) catch
+      // below and surface as `chatStatus='error'`. The gateway is still
+      // considered healthy because /api/health passed; the chat probe is
+      // a separate, best-effort signal.
+      const thread = await client.newThread('Onboarding test');
+      threadId = thread.id;
+      if (!threadId) {
+        chatStatus = 'error';
+        chatHint = 'Could not create test thread';
+        return;
+      }
+    } catch (err) {
+      chatStatus = 'error';
+      chatHint = (err as Error).message ?? 'Thread creation failed';
+      return;
+    }
+
+    // Open SSE stream BEFORE sending, so the server's response events
+    // (which the gateway emits as soon as the LLM yields its first token)
+    // don't race past us. EventSource subscribes synchronously inside
+    // streamEvents().
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 15_000);
+    let accumulated = '';
+    let sawEnd = false;
+    let streamError: string | null = null;
+
+    // Kick off iteration in parallel with the send. The async iterator
+    // returned by streamEvents() needs an `await for` to drive it.
+    const consume = (async () => {
+      try {
+        for await (const ev of client.streamEvents(threadId!, ctrl.signal)) {
+          if (ev.type === 'content_delta') {
+            accumulated += ev.delta;
+          } else if (ev.type === 'message_end') {
+            sawEnd = true;
+            break;
+          } else if (ev.type === 'error') {
+            streamError = ev.message;
+            break;
+          }
+          // Other event types (tool_call, tool_result, message_start) are
+          // ignored — we only care about text content for this probe.
+        }
+      } catch (err) {
+        // Abort-driven termination throws an AbortError; treat that as a
+        // clean shutdown (timeout handler distinguishes). Other errors
+        // surface to the caller via streamError.
+        const name = (err as Error)?.name;
+        if (name !== 'AbortError') {
+          streamError = (err as Error).message ?? String(err);
+        }
+      }
+    })();
+
+    try {
+      await client.sendMessage(threadId, 'Hello, are you there?');
+    } catch (err) {
+      // Send failed — abort the stream, surface the error.
+      clearTimeout(timer);
+      ctrl.abort();
+      await consume.catch(() => {});
+      chatStatus = 'error';
+      chatHint = (err as Error).message ?? 'Send failed';
+      return;
+    }
+
+    // Wait for the stream consumer to finish (either via message_end,
+    // explicit error event, or the 15-second abort).
+    await consume;
+    clearTimeout(timer);
+
+    // Classify the outcome. Any accumulated content counts as success,
+    // even if the stream timed out before `message_end` — the LLM clearly
+    // replied. Empty + sawEnd is a strange but technically-valid response;
+    // we treat it as a soft failure so the user sees "LLM not tested".
+    if (accumulated.trim().length > 0) {
+      chatStatus = 'ok';
+      const preview = accumulated.trim().replace(/\s+/g, ' ');
+      chatPreview = preview.length > 100 ? `${preview.slice(0, 100)}…` : preview;
+      chatHint = null;
+    } else if (streamError) {
+      chatStatus = 'error';
+      chatHint = streamError;
+    } else if (sawEnd) {
+      // Server closed cleanly with no content — unusual but not a hard
+      // failure; the gateway is still healthy.
+      chatStatus = 'timeout';
+      chatHint = 'Healthy (LLM not tested — empty reply)';
+    } else {
+      // 15s elapsed, no message_end, no content. Most likely cause: cold
+      // model load or signed-out gateway in remote mode.
+      chatStatus = 'timeout';
+      chatHint = 'Healthy (LLM not tested — timed out after 15s)';
     }
   }
 
@@ -381,8 +631,8 @@
                 <h2 class="text-base font-semibold text-text-primary">Local</h2>
               </div>
               <p class="text-sm text-text-muted leading-relaxed flex-1">
-                Run IronClaw on this Mac. Best for privacy — your data never
-                leaves the machine. The ~150MB binary is already bundled.
+                Run IronClaw on this Mac. Private. Free with NEAR.AI Cloud.
+                ~150MB bundled.
               </p>
               <div
                 class="mt-4 text-xs text-accent-cyan opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
@@ -432,8 +682,8 @@
                 <h2 class="text-base font-semibold text-text-primary">Remote</h2>
               </div>
               <p class="text-sm text-text-muted leading-relaxed flex-1">
-                Connect to an existing IronClaw server. Use this if you've
-                deployed IronClaw elsewhere (e.g. behind Caddy on a VPS).
+                Connect to an IronClaw server you (or your team) operate.
+                Bring your URL + token.
               </p>
               <div
                 class="mt-4 text-xs text-accent-gold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
@@ -589,21 +839,73 @@
                 >
                   Base URL
                 </label>
+                {#if detectedUrl}
+                  <!-- Auto-detect hint. Renders only when probeCandidate()
+                       found a healthy IronClaw on a common localhost port.
+                       Dismissable so the user can ignore it. -->
+                  <div
+                    class="mb-2 flex items-center gap-2 px-3 py-2 rounded-md border border-accent-cyan/40 bg-accent-cyan/5 text-xs"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      class="w-4 h-4 text-accent-cyan shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 16v-4" />
+                      <path d="M12 8h.01" />
+                    </svg>
+                    <span class="flex-1 text-text-primary">
+                      Detected IronClaw at
+                      <code class="font-mono">{detectedUrl}</code> — use this?
+                    </span>
+                    <button
+                      type="button"
+                      onclick={applyDetectedUrl}
+                      class="px-2 py-1 rounded bg-accent-cyan text-bg-deep text-[11px] font-semibold hover:brightness-110 transition"
+                    >
+                      Use
+                    </button>
+                    <button
+                      type="button"
+                      onclick={dismissDetectedUrl}
+                      aria-label="Dismiss"
+                      class="text-text-muted hover:text-text-primary transition-colors"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+                {/if}
                 <input
                   id="onb-url"
                   type="text"
-                  value={activeProfile?.remoteBaseUrl ?? 'http://127.0.0.1:3100'}
+                  value={activeProfile?.remoteBaseUrl ?? 'http://127.0.0.1:18789'}
                   oninput={(e) =>
                     patchActiveProfile({ remoteBaseUrl: e.currentTarget.value })}
-                  placeholder="http://127.0.0.1:3100"
+                  placeholder="e.g. http://127.0.0.1:18789 (via ssh -L)"
                   class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[44px]"
                 />
                 <p class="text-xs text-text-muted mt-1.5">
                   Tip: tunnel a private server over SSH first, e.g.
                   <code class="font-mono text-text-primary"
-                    >ssh -L 3100:127.0.0.1:3100 user@host</code
+                    >ssh -L 18789:127.0.0.1:3100 user@host</code
                   >, then use <code class="font-mono text-text-primary"
-                    >http://127.0.0.1:3100</code
+                    >http://127.0.0.1:18789</code
                   >.
                 </p>
               </div>
@@ -713,7 +1015,7 @@
                   </p>
                 </div>
               {:else if testStatus === 'ok'}
-                <div class="flex flex-col items-center gap-3">
+                <div class="flex flex-col items-center gap-3 w-full">
                   <div
                     class="w-12 h-12 rounded-full bg-green-500/10 border-2 border-green-500 flex items-center justify-center"
                   >
@@ -732,6 +1034,91 @@
                   <p class="text-sm text-text-primary font-medium">
                     {testMessage}
                   </p>
+
+                  <!-- Live-chat probe banner. Renders in a small surface
+                       below the gateway-OK message so the user sees BOTH
+                       signals: gateway up (top), LLM round-trip (bottom).
+                       The wizard's "Finish" affordance is unconditional on
+                       the chat probe — a flaky LLM never blocks setup. -->
+                  {#if chatStatus === 'probing'}
+                    <div
+                      class="w-full mt-1 px-3 py-2 rounded-md border border-border-subtle bg-bg-deep flex items-center gap-2 text-xs text-text-muted"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-3.5 h-3.5 text-accent-cyan animate-spin"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      >
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                      <span>Testing live chat…</span>
+                    </div>
+                  {:else if chatStatus === 'ok'}
+                    <div
+                      class="w-full mt-1 px-3 py-2 rounded-md border border-green-500/40 bg-green-500/5 text-left"
+                    >
+                      <div class="flex items-center gap-2 text-xs text-green-300 font-medium">
+                        <svg
+                          viewBox="0 0 24 24"
+                          class="w-3.5 h-3.5 shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="3"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>Connected and replying</span>
+                      </div>
+                      {#if chatPreview}
+                        <p class="text-xs text-text-muted mt-1 font-mono break-words">
+                          {chatPreview}
+                        </p>
+                      {/if}
+                    </div>
+                  {:else if chatStatus === 'skipped'}
+                    <div
+                      class="w-full mt-1 px-3 py-2 rounded-md border border-accent-gold/30 bg-accent-gold/5 text-xs text-accent-gold flex items-center gap-2"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-3.5 h-3.5 shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4" />
+                        <path d="M12 8h.01" />
+                      </svg>
+                      <span>{chatHint ?? 'LLM check skipped'}</span>
+                    </div>
+                  {:else if chatStatus === 'timeout' || chatStatus === 'error'}
+                    <div
+                      class="w-full mt-1 px-3 py-2 rounded-md border border-border-subtle bg-bg-deep text-xs text-text-muted flex items-center gap-2"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-3.5 h-3.5 shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4" />
+                        <path d="M12 8h.01" />
+                      </svg>
+                      <span>{chatHint ?? 'Healthy (LLM not tested)'}</span>
+                    </div>
+                  {/if}
                 </div>
               {:else}
                 <div class="flex flex-col items-center gap-3">
@@ -801,7 +1188,7 @@
                 disabled={finishing}
                 class="px-6 py-2.5 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-50 min-h-[44px] flex items-center gap-2"
               >
-                {finishing ? 'Finishing…' : 'Finish'}
+                {finishing ? 'Loading IronClaw…' : "You're set. Loading IronClaw…"}
                 <svg
                   viewBox="0 0 24 24"
                   class="w-4 h-4"
@@ -847,16 +1234,23 @@
   </div>
 
   <!-- Persistent Skip link, bottom-right. Non-blocking by design — the
-       user is never trapped in the wizard. -->
+       user is never trapped in the wizard. More visible than a bare
+       muted link: pill-shaped border + hover affordance + secondary hint
+       below so the user knows the wizard isn't a one-shot. -->
   <footer class="shrink-0 px-8 py-4 flex justify-end">
-    <button
-      type="button"
-      onclick={skip}
-      disabled={finishing}
-      class="text-xs text-text-muted hover:text-text-primary transition-colors disabled:opacity-50"
-    >
-      Skip onboarding
-    </button>
+    <div class="flex flex-col items-end gap-1">
+      <button
+        type="button"
+        onclick={skip}
+        disabled={finishing}
+        class="px-3 py-1.5 rounded-md border border-border-subtle text-xs text-text-muted hover:text-text-primary hover:border-text-muted transition-colors disabled:opacity-50 min-h-[32px]"
+      >
+        Skip onboarding
+      </button>
+      <span class="text-[10px] text-text-muted/70">
+        Configure later in Settings
+      </span>
+    </div>
   </footer>
 </section>
 

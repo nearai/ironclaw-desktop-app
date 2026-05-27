@@ -3,9 +3,16 @@
   //
   // State ownership lives here so the search bar can clear results and
   // restore the tree-selection view in one place. Tree node expansion
-  // state is owned per-row by TreeNode itself.
+  // state is owned per-row by TreeNode itself unless we drive an
+  // expand-all / collapse-all via the `forceExpanded` prop (set to true
+  // or false, then reset to null on the next tick so individual rows can
+  // toggle again).
+  //
+  // Recent docs, bookmarks, and search history all persist to
+  // localStorage. Storage failures degrade silently — the page works in
+  // private-browsing mode, just without persistence.
 
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import type { IronClawClient } from '$lib/api/ironclaw';
@@ -16,10 +23,29 @@
   import DocViewer from './DocViewer.svelte';
   import NewDocModal, { validateMemoryPath } from './NewDocModal.svelte';
 
+  // ---- localStorage keys / caps ---------------------------------------------
+  const RECENT_KEY = 'ironclaw-knowledge-recent';
+  const BOOKMARKS_KEY = 'ironclaw-knowledge-bookmarks';
+  const SEARCH_HISTORY_KEY = 'ironclaw-knowledge-search-history';
+  const RECENT_MAX = 12;
+  const SEARCH_HISTORY_MAX = 10;
+
   // ---- Tree state ----
   let rootNodes = $state<MemoryNode[]>([]);
   let rootLoading = $state(false);
   let rootError = $state<string | null>(null);
+  /**
+   * Controlled tree-wide expansion override.
+   *
+   * - `true`  → expand-all triggered; every TreeNode opens itself.
+   * - `false` → collapse-all triggered; every TreeNode closes itself.
+   * - `null`  → each TreeNode owns its own state.
+   *
+   * Flipped to true/false by the toolbar buttons, then reset to null on
+   * the next tick so per-row clicks resume working. The reset is what
+   * makes this a one-shot pulse rather than a persistent lock.
+   */
+  let forceExpanded = $state<boolean | null>(null);
 
   // ---- Selected doc state ----
   let selectedPath = $state<string | null>(null);
@@ -36,6 +62,34 @@
   let searchResults = $state<MemoryHit[]>([]);
   let searchPending = $state(false);
   let searchError = $state<string | null>(null);
+  /** Last N distinct queries, MRU first. */
+  let searchHistory = $state<string[]>([]);
+
+  // ---- Recent docs + bookmarks ----------------------------------------------
+  /** Recently opened doc paths, MRU first. */
+  let recentPaths = $state<string[]>([]);
+  /** Map of recentPath → timestamp (ms) for "opened 3m ago" labels. */
+  let recentOpenedAt = $state<Record<string, number>>({});
+  /** Bookmarked doc paths. Order is insertion order. */
+  let bookmarks = $state<string[]>([]);
+  /** Derived Set so TreeNode + indicator lookups are O(1). */
+  const bookmarkSet = $derived(new Set(bookmarks));
+
+  /** Collapsible UI state for the two rail sections. */
+  let recentOpen = $state(true);
+  let bookmarksOpen = $state(true);
+
+  /** "now" tick used to recompute relative-time labels every minute. */
+  let nowMs = $state(Date.now());
+
+  // ---- Context menu state ----------------------------------------------------
+  interface CtxMenuState {
+    path: string;
+    type: 'file' | 'dir';
+    x: number;
+    y: number;
+  }
+  let ctxMenu = $state<CtxMenuState | null>(null);
 
   // ---- New-doc modal state ----
   // Modal is mounted only while `newDocOpen` is true so its inputs are
@@ -51,7 +105,13 @@
   // through to children — they only need the IronClawClient.
   const client = $derived(connection.client);
 
+  /** Is the currently-selected doc bookmarked? Drives the star fill state. */
+  const selectedBookmarked = $derived(
+    selectedPath !== null && bookmarkSet.has(selectedPath)
+  );
+
   onMount(async () => {
+    hydratePersisted();
     // The sidebar mounts first and calls connection.init(), but if the
     // user navigates directly to /knowledge with a still-connecting
     // client we wait one tick to give it a chance.
@@ -59,6 +119,31 @@
       await connection.init();
     }
     await loadRoot();
+  });
+
+  // Side-effects scoped to the page's lifetime: a minute-tick timer for
+  // relative-time labels and the global listeners that dismiss the
+  // context menu. Kept in $effect so the cleanup return is type-correct
+  // (an async onMount can't return a cleanup function).
+  $effect(() => {
+    const tickTimer = setInterval(() => {
+      nowMs = Date.now();
+    }, 60_000);
+
+    const onDocClick = () => {
+      if (ctxMenu) ctxMenu = null;
+    };
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape' && ctxMenu) ctxMenu = null;
+    };
+    window.addEventListener('click', onDocClick);
+    window.addEventListener('keydown', onKey);
+
+    return () => {
+      clearInterval(tickTimer);
+      window.removeEventListener('click', onDocClick);
+      window.removeEventListener('keydown', onKey);
+    };
   });
 
   // If the user re-saves the gateway connection, re-fetch the tree.
@@ -103,6 +188,10 @@
     docLoading = true;
     docError = null;
     selectedContent = '';
+    // Stamp the open *before* the fetch so the UI updates instantly even
+    // if the read hangs. We re-record on subsequent opens of the same path
+    // so it stays at the top of the recent list with a fresh timestamp.
+    recordRecent(path);
     try {
       const res = await c.readMemory(path);
       selectedContent = res.content;
@@ -124,6 +213,10 @@
     }
     if (!client) return;
     committedQuery = trimmed;
+    inputValue = trimmed;
+    // Record successful commits (even before results land) so the dropdown
+    // surfaces what the user actually typed, not what came back.
+    recordSearchHistory(trimmed);
     searchPending = true;
     searchError = null;
     try {
@@ -144,6 +237,205 @@
     committedQuery = '';
     searchResults = [];
     searchError = null;
+  }
+
+  // ---- Persistence helpers --------------------------------------------------
+
+  /**
+   * Hydrate recent/bookmarks/search-history from localStorage. Wrapped in
+   * try/catch per key because the browser may have disabled storage
+   * (private mode, quota error) or any single key may be corrupt; we
+   * fall back to defaults rather than break the page.
+   */
+  function hydratePersisted() {
+    if (typeof window === 'undefined') return;
+    // Recent — wire shape is { v: 1, items: Array<{ path, openedAt }> }
+    try {
+      const raw = window.localStorage.getItem(RECENT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.v === 1 && Array.isArray(parsed.items)) {
+          const paths: string[] = [];
+          const stamps: Record<string, number> = {};
+          for (const item of parsed.items) {
+            if (item && typeof item.path === 'string' && typeof item.openedAt === 'number') {
+              paths.push(item.path);
+              stamps[item.path] = item.openedAt;
+            }
+          }
+          recentPaths = paths.slice(0, RECENT_MAX);
+          recentOpenedAt = stamps;
+        }
+      }
+    } catch {
+      // Corrupt; reset.
+      recentPaths = [];
+      recentOpenedAt = {};
+    }
+    // Bookmarks — wire shape is string[].
+    try {
+      const raw = window.localStorage.getItem(BOOKMARKS_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          bookmarks = arr.filter((s): s is string => typeof s === 'string');
+        }
+      }
+    } catch {
+      bookmarks = [];
+    }
+    // Search history — wire shape is string[].
+    try {
+      const raw = window.localStorage.getItem(SEARCH_HISTORY_KEY);
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) {
+          searchHistory = arr
+            .filter((s): s is string => typeof s === 'string')
+            .slice(0, SEARCH_HISTORY_MAX);
+        }
+      }
+    } catch {
+      searchHistory = [];
+    }
+  }
+
+  function saveRecent() {
+    if (typeof window === 'undefined') return;
+    try {
+      const items = recentPaths.map((p) => ({
+        path: p,
+        openedAt: recentOpenedAt[p] ?? Date.now()
+      }));
+      window.localStorage.setItem(RECENT_KEY, JSON.stringify({ v: 1, items }));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function saveBookmarks() {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function saveSearchHistory() {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(searchHistory));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /**
+   * Push a path to the top of the recent list. Dedupes by removing any
+   * earlier copy, then caps at RECENT_MAX. The stamp on the chosen path
+   * is refreshed so the relative-time label resets.
+   */
+  function recordRecent(path: string) {
+    const next = [path, ...recentPaths.filter((p) => p !== path)].slice(0, RECENT_MAX);
+    // Prune stamps for entries that fell off the end.
+    const allowed = new Set(next);
+    const stamps: Record<string, number> = {};
+    for (const p of next) {
+      stamps[p] = p === path ? Date.now() : recentOpenedAt[p] ?? Date.now();
+    }
+    // Drop entries that were evicted.
+    for (const key of Object.keys(recentOpenedAt)) {
+      if (allowed.has(key) && !(key in stamps)) {
+        stamps[key] = recentOpenedAt[key];
+      }
+    }
+    recentPaths = next;
+    recentOpenedAt = stamps;
+    saveRecent();
+  }
+
+  function clearRecent() {
+    recentPaths = [];
+    recentOpenedAt = {};
+    saveRecent();
+  }
+
+  function recordSearchHistory(q: string) {
+    const next = [q, ...searchHistory.filter((existing) => existing !== q)].slice(
+      0,
+      SEARCH_HISTORY_MAX
+    );
+    searchHistory = next;
+    saveSearchHistory();
+  }
+
+  function clearSearchHistory() {
+    searchHistory = [];
+    saveSearchHistory();
+  }
+
+  function toggleBookmark(path: string) {
+    if (bookmarks.includes(path)) {
+      bookmarks = bookmarks.filter((p) => p !== path);
+      toasts.show(`Removed bookmark: ${path}`, 'info');
+    } else {
+      bookmarks = [...bookmarks, path];
+      toasts.show(`Bookmarked: ${path}`, 'success');
+    }
+    saveBookmarks();
+  }
+
+  // ---- Expand all / Collapse all -------------------------------------------
+
+  /**
+   * Pulse `forceExpanded` to true (or false) so every TreeNode picks up
+   * the controlled override, then reset to null on the next tick so
+   * individual rows can toggle again. Without the reset the rail would
+   * be locked open or closed.
+   */
+  async function expandAll() {
+    forceExpanded = true;
+    await tick();
+    forceExpanded = null;
+  }
+
+  async function collapseAll() {
+    forceExpanded = false;
+    await tick();
+    forceExpanded = null;
+  }
+
+  // ---- Relative-time formatting --------------------------------------------
+
+  function relativeTime(ts: number, now: number): string {
+    const diff = Math.max(0, now - ts);
+    const sec = Math.floor(diff / 1000);
+    if (sec < 60) return 'just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const day = Math.floor(hr / 24);
+    if (day < 7) return `${day}d ago`;
+    const wk = Math.floor(day / 7);
+    if (wk < 5) return `${wk}w ago`;
+    const mo = Math.floor(day / 30);
+    if (mo < 12) return `${mo}mo ago`;
+    const yr = Math.floor(day / 365);
+    return `${yr}y ago`;
+  }
+
+  // ---- Context menu handlers -----------------------------------------------
+
+  function onTreeContextMenu(path: string, _type: 'file' | 'dir', x: number, y: number) {
+    ctxMenu = { path, type: _type, x, y };
+  }
+
+  function ctxBookmarkToggle() {
+    if (!ctxMenu) return;
+    toggleBookmark(ctxMenu.path);
+    ctxMenu = null;
   }
 
   /**
@@ -187,6 +479,16 @@
       return false;
     }
   }
+
+  // TODO(2026-05-27): wire up doc-delete handler once the gateway implements
+  // either `DELETE /api/memory?path=...` or `POST /api/memory/delete`. Live-
+  // server probe today returns 404 for both shapes — no matching route in
+  // `src/channels/web/platform/router.rs`. The client method
+  // `client.deleteMemory(path)` is pre-wired in `src/lib/api/ironclaw.ts`
+  // (tries DELETE first, falls back to POST on 404/405). UI plan: pass an
+  // `ondelete` callback to DocViewer that opens a styled confirm dialog,
+  // calls the client, toasts on success, clears `selectedPath`, and
+  // re-loads the tree via `await loadRoot()`.
 
   /**
    * Create a new doc from the modal, refresh the tree so the row appears,
@@ -257,7 +559,7 @@
     </div>
   {:else}
     <div class="flex-1 min-h-0 flex gap-4">
-      <!-- Left rail: tree -->
+      <!-- Left rail: bookmarks + recent + tree -->
       <aside
         class="w-[320px] shrink-0 surface flex flex-col min-h-0"
       >
@@ -266,6 +568,46 @@
             Workspace
           </span>
           <div class="flex items-center gap-1">
+            <button
+              type="button"
+              onclick={expandAll}
+              title="Expand all directories"
+              aria-label="Expand all directories"
+              class="inline-flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-accent-cyan transition-colors"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9" />
+                <polyline points="6 3 12 9 18 3" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              onclick={collapseAll}
+              title="Collapse all directories"
+              aria-label="Collapse all directories"
+              class="inline-flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-accent-cyan transition-colors"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="18 15 12 9 6 15" />
+                <polyline points="18 21 12 15 6 21" />
+              </svg>
+            </button>
             <button
               type="button"
               onclick={() => (newDocOpen = true)}
@@ -313,6 +655,157 @@
           </div>
         </div>
         <div class="flex-1 overflow-auto py-2">
+          <!-- Bookmarks section (above Recent). Renders only if non-empty so
+               the rail doesn't grow a header for an empty list. -->
+          {#if bookmarks.length > 0}
+            <div class="px-2 mb-2">
+              <button
+                type="button"
+                onclick={() => (bookmarksOpen = !bookmarksOpen)}
+                class="w-full flex items-center justify-between gap-2 px-1 py-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors"
+              >
+                <span class="flex items-center gap-1.5">
+                  <svg
+                    viewBox="0 0 16 16"
+                    class="w-3 h-3 transition-transform"
+                    class:rotate-90={bookmarksOpen}
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="6 4 10 8 6 12" />
+                  </svg>
+                  <span>Bookmarks</span>
+                  <span class="text-text-muted/60">({bookmarks.length})</span>
+                </span>
+              </button>
+              {#if bookmarksOpen}
+                <ul class="mt-1">
+                  {#each bookmarks as path (path)}
+                    <li>
+                      <button
+                        type="button"
+                        onclick={() => openPath(path, client)}
+                        oncontextmenu={(ev) => {
+                          ev.preventDefault();
+                          onTreeContextMenu(path, 'file', ev.clientX, ev.clientY);
+                        }}
+                        class="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-left text-xs transition-colors border-l-2 min-h-[28px]"
+                        class:border-accent-cyan={selectedPath === path}
+                        class:border-transparent={selectedPath !== path}
+                        class:bg-bg-surface={selectedPath === path}
+                        class:text-text-primary={selectedPath === path}
+                        class:text-text-muted={selectedPath !== path}
+                        class:hover:bg-bg-surface={selectedPath !== path}
+                        class:hover:text-text-primary={selectedPath !== path}
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          class="w-3 h-3 shrink-0 text-accent-gold"
+                          fill="currentColor"
+                          stroke="currentColor"
+                          stroke-width="1"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2" />
+                        </svg>
+                        <span class="truncate flex-1 min-w-0" title={path}>{basename(path)}</span>
+                      </button>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Recent section. Same pattern as Bookmarks. -->
+          {#if recentPaths.length > 0}
+            <div class="px-2 mb-2">
+              <div class="flex items-center justify-between gap-2 px-1 py-1">
+                <button
+                  type="button"
+                  onclick={() => (recentOpen = !recentOpen)}
+                  class="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors"
+                >
+                  <svg
+                    viewBox="0 0 16 16"
+                    class="w-3 h-3 transition-transform"
+                    class:rotate-90={recentOpen}
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="6 4 10 8 6 12" />
+                  </svg>
+                  <span>Recent</span>
+                  <span class="text-text-muted/60">({recentPaths.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onclick={clearRecent}
+                  class="text-[10px] uppercase tracking-wide text-text-muted hover:text-red-400 transition-colors"
+                  title="Clear recent docs"
+                >
+                  Clear
+                </button>
+              </div>
+              {#if recentOpen}
+                <ul class="mt-1">
+                  {#each recentPaths as path (path)}
+                    <li>
+                      <button
+                        type="button"
+                        onclick={() => openPath(path, client)}
+                        oncontextmenu={(ev) => {
+                          ev.preventDefault();
+                          onTreeContextMenu(path, 'file', ev.clientX, ev.clientY);
+                        }}
+                        class="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-left text-xs transition-colors border-l-2 min-h-[28px]"
+                        class:border-accent-cyan={selectedPath === path}
+                        class:border-transparent={selectedPath !== path}
+                        class:bg-bg-surface={selectedPath === path}
+                        class:text-text-primary={selectedPath === path}
+                        class:text-text-muted={selectedPath !== path}
+                        class:hover:bg-bg-surface={selectedPath !== path}
+                        class:hover:text-text-primary={selectedPath !== path}
+                      >
+                        <svg
+                          viewBox="0 0 16 16"
+                          class="w-3.5 h-3.5 shrink-0"
+                          class:text-accent-cyan={selectedPath === path}
+                          class:text-text-muted={selectedPath !== path}
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M9 1.5H4a1 1 0 0 0-1 1V13.5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5.5z" />
+                          <polyline points="9 1.5 9 5.5 13 5.5" />
+                        </svg>
+                        <span class="truncate flex-1 min-w-0" title={path}>{basename(path)}</span>
+                        <span class="text-[10px] text-text-muted/50 shrink-0 tabular-nums">
+                          {relativeTime(recentOpenedAt[path] ?? nowMs, nowMs)}
+                        </span>
+                      </button>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
+            </div>
+          {/if}
+
+          <!-- Main tree -->
+          {#if (recentPaths.length > 0 || bookmarks.length > 0)}
+            <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted/70 border-t border-border-subtle/60 mt-2 pt-3">
+              All docs
+            </div>
+          {/if}
           {#if rootLoading && rootNodes.length === 0}
             <div class="text-xs text-text-muted px-3 py-2">Loading…</div>
           {:else if rootError}
@@ -327,6 +820,9 @@
                 {selectedPath}
                 {client}
                 onSelect={(p) => openPath(p, client)}
+                bookmarks={bookmarkSet}
+                onContextMenu={onTreeContextMenu}
+                {forceExpanded}
               />
             {/each}
           {/if}
@@ -346,6 +842,8 @@
             void onSearch(v);
           }}
           pending={searchPending}
+          history={searchHistory}
+          onClearHistory={clearSearchHistory}
         />
 
         {#if hasActiveSearch}
@@ -371,6 +869,8 @@
                 loading={docLoading}
                 error={docError}
                 onsave={saveDoc}
+                bookmarked={selectedBookmarked}
+                onToggleBookmark={() => selectedPath && toggleBookmark(selectedPath)}
               />
             </div>
           {/if}
@@ -382,6 +882,8 @@
               loading={docLoading}
               error={docError}
               onsave={saveDoc}
+              bookmarked={selectedBookmarked}
+              onToggleBookmark={() => selectedPath && toggleBookmark(selectedPath)}
             />
           </div>
         {:else}
@@ -399,6 +901,42 @@
         onclose={() => (newDocOpen = false)}
         oncreate={createDoc}
       />
+    {/if}
+
+    <!-- Context menu. Stops click propagation so the global click-handler
+         that closes ctxMenu doesn't fire from inside it. -->
+    {#if ctxMenu}
+      <div
+        role="menu"
+        tabindex="-1"
+        class="fixed z-50 min-w-[180px] bg-bg-deep border border-border-subtle rounded-md shadow-lg overflow-hidden"
+        style="left: {ctxMenu.x}px; top: {ctxMenu.y}px;"
+        onclick={(ev) => ev.stopPropagation()}
+        onkeydown={(ev) => {
+          if (ev.key === 'Escape') ctxMenu = null;
+        }}
+      >
+        <button
+          type="button"
+          onclick={ctxBookmarkToggle}
+          class="w-full flex items-center gap-2 px-3 py-2 text-xs text-text-primary hover:bg-bg-surface hover:text-accent-gold transition-colors text-left"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3.5 h-3.5 shrink-0"
+            fill={bookmarkSet.has(ctxMenu.path) ? 'currentColor' : 'none'}
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2" />
+          </svg>
+          <span>
+            {bookmarkSet.has(ctxMenu.path) ? 'Unbookmark' : 'Bookmark'}
+          </span>
+        </button>
+      </div>
     {/if}
   {/if}
 </section>

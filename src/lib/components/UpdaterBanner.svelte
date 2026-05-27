@@ -4,13 +4,21 @@
   // when the last check errored — hidden in idle / up-to-date states so
   // the chrome stays quiet on a healthy launch.
   //
-  // Notes:
-  //   - The release-notes popover uses a tiny inline markdown render
-  //     (paragraphs split on blank line, line breaks preserved) so we
-  //     don't pay the cost of MarkdownView for a few lines of changelog.
-  //   - Touch targets stay >= 44px tall per the global mobile-first rule.
+  // Polish (2026-05):
+  //   - Release notes expand inline below the banner instead of a modal.
+  //     The notes string ships markdown straight from the GitHub release;
+  //     we route it through the shared MarkdownView so headings, lists,
+  //     and code fences render. Panel is capped at ~50vh with overflow-y
+  //     scroll so a chatty release doesn't crowd the rest of the chrome.
+  //   - "Skip this version" sits beside "Later". Skipping persists the
+  //     version string via the store so auto-checks for that exact
+  //     version stay silent; a future newer version surfaces normally.
+  //   - Touch targets stay >= 32px tall in the banner row (the launcher
+  //     chrome is dense by necessity); the link buttons stay underline-on
+  //     hover so they read as secondary actions.
 
   import { updater } from '$lib/stores/updater.svelte';
+  import MarkdownView from '$lib/components/MarkdownView.svelte';
 
   let showNotes = $state(false);
 
@@ -39,6 +47,20 @@
       updater.status === 'error'
   );
 
+  // Whether release notes exist to expand. Used to gate the "View release
+  // notes" link AND collapse the panel on transitions away from the
+  // available state (e.g. after a click on Install).
+  const hasNotes = $derived(
+    updater.status === 'available' && !!updater.update?.notes && updater.update.notes.trim().length > 0
+  );
+
+  // Collapse the notes panel whenever the banner stops showing the
+  // available state (install starts, dismissal, etc.). Without this the
+  // panel would linger if the user clicked Install with notes open.
+  $effect(() => {
+    if (!hasNotes && showNotes) showNotes = false;
+  });
+
   async function onInstall() {
     showNotes = false;
     await updater.install();
@@ -47,6 +69,11 @@
   function onLater() {
     showNotes = false;
     updater.dismiss();
+  }
+
+  function onSkip() {
+    showNotes = false;
+    updater.skipCurrent();
   }
 
   async function onRetry() {
@@ -68,13 +95,15 @@
   >
     <span class="flex-1 truncate" title={updater.error ?? undefined}>
       {label}
-      {#if updater.status === 'available' && updater.update?.notes}
+      {#if hasNotes}
         <button
           type="button"
           onclick={() => (showNotes = !showNotes)}
           class="ml-2 underline text-accent-cyan hover:brightness-110"
+          aria-expanded={showNotes}
+          aria-controls="updater-release-notes"
         >
-          release notes
+          {showNotes ? 'Hide release notes' : 'View release notes'}
         </button>
       {/if}
     </span>
@@ -104,6 +133,14 @@
       >
         Later
       </button>
+      <button
+        type="button"
+        onclick={onSkip}
+        class="text-text-muted hover:text-text-primary transition-colors text-xs"
+        title="Hide this banner until a newer version is published"
+      >
+        Skip this version
+      </button>
     {:else if updater.status === 'error'}
       <button
         type="button"
@@ -123,45 +160,31 @@
   </div>
 
   {#if showNotes && updater.update?.notes}
-    <!-- Release-notes popover. Anchored just below the banner so the
-         user can scan changelog without leaving the app. Click anywhere
-         in the dim background to close. -->
-    <div
-      class="fixed inset-0 z-40"
-      role="presentation"
-      onclick={() => (showNotes = false)}
-      onkeydown={(e) => {
-        if (e.key === 'Escape') showNotes = false;
-      }}
+    <!-- Inline release-notes panel. Sits directly below the banner so the
+         user can scan changelog without leaving the page. Capped at ~50vh
+         with internal scrolling so a long release doesn't push the rest
+         of the chrome out of view. -->
+    <section
+      id="updater-release-notes"
+      class="w-full bg-bg-surface border-b border-border-subtle px-4 py-3 z-20 relative"
+      aria-label="Release notes"
     >
-      <div
-        class="absolute top-12 left-1/2 -translate-x-1/2 w-[min(640px,90vw)] max-h-[60vh] overflow-auto bg-bg-surface border border-border-subtle rounded-lg shadow-2xl p-5"
-        role="dialog"
-        aria-label="Release notes"
-        tabindex="-1"
-        onclick={(e) => e.stopPropagation()}
-        onkeydown={(e) => e.stopPropagation()}
-      >
-        <header class="flex items-center justify-between mb-3">
-          <h2 class="text-sm font-semibold text-text-primary">
-            Release notes — v{updater.update.version}
-          </h2>
-          <button
-            type="button"
-            onclick={() => (showNotes = false)}
-            class="text-text-muted hover:text-text-primary"
-            aria-label="Close"
-          >
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </header>
-        <div class="text-xs text-text-primary whitespace-pre-wrap leading-relaxed">
-          {updater.update.notes}
-        </div>
+      <header class="flex items-center justify-between mb-2">
+        <h2 class="text-xs font-semibold text-text-primary">
+          Release notes — v{updater.update.version}
+        </h2>
+        <button
+          type="button"
+          onclick={() => (showNotes = false)}
+          class="text-text-muted hover:text-text-primary text-xs"
+          aria-label="Collapse release notes"
+        >
+          Hide
+        </button>
+      </header>
+      <div class="max-h-[50vh] overflow-y-auto pr-1 text-xs text-text-primary">
+        <MarkdownView markdown={updater.update.notes} />
       </div>
-    </div>
+    </section>
   {/if}
 {/if}

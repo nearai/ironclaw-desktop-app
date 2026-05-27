@@ -1,20 +1,15 @@
 <script lang="ts">
-  // Renders the body of a memory doc. Markdown files (.md) are piped
-  // through marked + DOMPurify; everything else falls into a <pre> so
-  // raw structure is preserved.
+  // Renders the body of a memory doc. Markdown files (.md) are routed
+  // through the shared MarkdownView component (which handles marked +
+  // DOMPurify + syntax highlighting + callouts + anchor links); everything
+  // else falls into a <pre> so raw structure is preserved.
   //
   // The component also owns an inline-edit mode: pencil flips the body
   // into a full-height monospace textarea, Save POSTs to /api/memory/write
   // via the parent's `onsave` callback (the parent then reloads the doc
   // and toasts), and Cancel reverts with an unsaved-changes confirm.
-  //
-  // TODO: when src/lib/components/MarkdownView.svelte lands (the chat
-  // agent is creating it concurrently), import it and replace the
-  // marked.parse/DOMPurify pipeline here so the two surfaces share one
-  // implementation of HTML sanitization and prose styling.
 
-  import { marked } from 'marked';
-  import DOMPurify from 'dompurify';
+  import MarkdownView from '$lib/components/MarkdownView.svelte';
 
   interface Props {
     path: string;
@@ -26,22 +21,24 @@
      *  in edit mode until the promise resolves, then drops out of edit
      *  mode on success.  Resolves true on success, false on failure. */
     onsave?: (newContent: string) => Promise<boolean>;
+    /** Whether the current path is currently bookmarked. */
+    bookmarked?: boolean;
+    /** Called when the star icon is clicked. Parent owns the bookmark
+     *  store + persistence. */
+    onToggleBookmark?: () => void;
   }
 
-  let { path, content, loading, error, onsave }: Props = $props();
+  let {
+    path,
+    content,
+    loading,
+    error,
+    onsave,
+    bookmarked = false,
+    onToggleBookmark
+  }: Props = $props();
 
   const isMarkdown = $derived(/\.(md|mdx|markdown)$/i.test(path));
-
-  // marked is configured for GitHub-flavoured defaults; we run the
-  // output through DOMPurify because the doc tree includes user-authored
-  // notes that may contain arbitrary HTML embeds.
-  const rendered = $derived(isMarkdown ? sanitize(marked.parse(content) as string) : '');
-
-  function sanitize(html: string): string {
-    // ADD_ATTR allows <a target> so links open in a new context if
-    // authored that way; the host webview still mediates navigation.
-    return DOMPurify.sanitize(html, { ADD_ATTR: ['target', 'rel'] });
-  }
 
   // ---- Edit mode -------------------------------------------------------
 
@@ -127,6 +124,16 @@
       cancelEdit();
     }
   }
+
+  // TODO(2026-05-27): add a "Delete" button to the header (red on hover, next
+  // to Edit) once the gateway implements `DELETE /api/memory?path=...` or
+  // `POST /api/memory/delete`. Live-server probe today returns 404 for both
+  // shapes. The client method `client.deleteMemory(path)` is pre-wired in
+  // `src/lib/api/ironclaw.ts`. Wiring plan: add an `ondelete?: (path:
+  // string) => Promise<void>` prop on this component, click → styled
+  // confirm dialog ("Delete this document? This can't be undone."), then
+  // call `ondelete(path)`; the parent (knowledge/+page.svelte) clears
+  // `selectedPath`, refreshes the tree, and toasts.
 </script>
 
 <svelte:window onkeydown={handleKey} />
@@ -146,6 +153,35 @@
       <polyline points="9 1.5 9 5.5 13 5.5" />
     </svg>
     <span class="text-xs font-mono text-text-primary truncate flex-1 min-w-0" title={path}>{path}</span>
+
+    <!-- Bookmark toggle. Always visible (even in edit mode) so the user can
+         star a doc while drafting changes without losing their place. The
+         star fills gold when active; outlined otherwise. -->
+    {#if onToggleBookmark}
+      <button
+        type="button"
+        onclick={onToggleBookmark}
+        title={bookmarked ? 'Remove bookmark' : 'Bookmark document'}
+        aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark document'}
+        aria-pressed={bookmarked}
+        class="inline-flex items-center justify-center w-7 h-7 rounded-md border border-border-subtle hover:border-accent-gold transition disabled:opacity-40 disabled:cursor-not-allowed"
+        class:text-accent-gold={bookmarked}
+        class:text-text-muted={!bookmarked}
+        class:hover:text-accent-gold={!bookmarked}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          class="w-3.5 h-3.5"
+          fill={bookmarked ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2" />
+        </svg>
+      </button>
+    {/if}
 
     <!-- Header actions: Edit (idle) or Save+Cancel (editing). -->
     {#if editing}
@@ -246,9 +282,7 @@
         class="block w-full h-[70vh] bg-bg-deep text-text-primary text-xs font-mono leading-relaxed resize-none border-0 focus:outline-none focus:ring-0 px-3 py-2 rounded-md"
       ></textarea>
     {:else if isMarkdown}
-      <div class="prose-doc">
-        {@html rendered}
-      </div>
+      <MarkdownView markdown={content} />
     {:else}
       <pre
         class="text-xs font-mono text-text-primary whitespace-pre-wrap break-words leading-relaxed">{content}</pre>
@@ -256,103 +290,3 @@
   </div>
 </div>
 
-<style>
-  /* Scoped prose styles for the markdown surface. Kept terse — the
-     design system's gold/cyan accents apply, and we don't want a full
-     tailwind/typography plugin pull-in for a single view. */
-  .prose-doc :global(h1) {
-    font-size: 1.5rem;
-    font-weight: 600;
-    color: #e5e7eb;
-    margin: 0 0 1rem;
-  }
-  .prose-doc :global(h2) {
-    font-size: 1.125rem;
-    font-weight: 600;
-    color: #e5e7eb;
-    margin: 1.5rem 0 0.75rem;
-  }
-  .prose-doc :global(h3),
-  .prose-doc :global(h4) {
-    font-size: 1rem;
-    font-weight: 600;
-    color: #e5e7eb;
-    margin: 1.25rem 0 0.5rem;
-  }
-  .prose-doc :global(p) {
-    color: #e5e7eb;
-    margin: 0 0 0.75rem;
-    line-height: 1.6;
-    font-size: 0.875rem;
-  }
-  .prose-doc :global(a) {
-    color: #00d4ff;
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-  .prose-doc :global(a:hover) {
-    color: #fbbf24;
-  }
-  .prose-doc :global(code) {
-    background: #050810;
-    border: 1px solid #1f2937;
-    border-radius: 3px;
-    padding: 0.05rem 0.3rem;
-    font-size: 0.8rem;
-    font-family: 'SF Mono', Menlo, monospace;
-    color: #fbbf24;
-  }
-  .prose-doc :global(pre) {
-    background: #050810;
-    border: 1px solid #1f2937;
-    border-radius: 6px;
-    padding: 0.875rem 1rem;
-    overflow-x: auto;
-    margin: 0 0 1rem;
-  }
-  .prose-doc :global(pre code) {
-    background: transparent;
-    border: 0;
-    padding: 0;
-    color: #e5e7eb;
-    font-size: 0.8rem;
-  }
-  .prose-doc :global(ul),
-  .prose-doc :global(ol) {
-    color: #e5e7eb;
-    margin: 0 0 0.75rem 1.25rem;
-    font-size: 0.875rem;
-    line-height: 1.6;
-  }
-  .prose-doc :global(li) {
-    margin: 0.15rem 0;
-  }
-  .prose-doc :global(blockquote) {
-    border-left: 2px solid #00d4ff;
-    padding-left: 0.875rem;
-    margin: 0 0 0.75rem;
-    color: #9ca3af;
-    font-style: italic;
-  }
-  .prose-doc :global(table) {
-    border-collapse: collapse;
-    margin: 0 0 1rem;
-    font-size: 0.8rem;
-  }
-  .prose-doc :global(th),
-  .prose-doc :global(td) {
-    border: 1px solid #1f2937;
-    padding: 0.4rem 0.75rem;
-    text-align: left;
-    color: #e5e7eb;
-  }
-  .prose-doc :global(th) {
-    background: #121826;
-    font-weight: 600;
-  }
-  .prose-doc :global(hr) {
-    border: 0;
-    border-top: 1px solid #1f2937;
-    margin: 1.25rem 0;
-  }
-</style>

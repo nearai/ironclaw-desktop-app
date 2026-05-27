@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { connection, type ConnectionStatus } from '$lib/stores/connection.svelte';
+  import { signIn } from '$lib/stores/sign-in.svelte';
   import NewProfileModal from '$lib/components/NewProfileModal.svelte';
 
   type NavItem = {
@@ -140,6 +141,22 @@
         return 'Disconnected';
     }
   }
+
+  /**
+   * Compact account label shown below the connection pill when signed in.
+   * Prefers `@<near-account>` over display name / user id so the most
+   * specific identity surfaces. Returns null when there's nothing useful to
+   * render — the row collapses entirely in that case to keep the sidebar
+   * footer tidy.
+   */
+  const accountLabel = $derived.by<string | null>(() => {
+    if (signIn.status !== 'signed-in' || !signIn.profile) return null;
+    const p = signIn.profile;
+    if (p.near_account) return `@${p.near_account}`;
+    if (p.display_name) return p.display_name;
+    if (p.user_id && p.user_id !== 'default') return p.user_id;
+    return null;
+  });
 </script>
 
 <aside
@@ -388,6 +405,31 @@
         {pillLabel(connection.status)}
       </span>
     </div>
+    {#if accountLabel}
+      <!-- Signed-in identity tucked just below the connection pill so the
+           eye scans profile → status → account top-to-bottom. Truncates on
+           long account names to keep the sidebar footer from breaking out
+           of its 224 px column. -->
+      <div
+        class="flex items-center gap-2 px-2 pb-0.5 text-[10px] font-mono text-text-muted truncate"
+        title={accountLabel}
+      >
+        <svg
+          viewBox="0 0 24 24"
+          class="w-2.5 h-2.5 shrink-0 text-accent-cyan"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+        <span class="truncate">{accountLabel}</span>
+      </div>
+    {/if}
   </div>
 </aside>
 

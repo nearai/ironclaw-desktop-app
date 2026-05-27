@@ -9,6 +9,15 @@
 
   const POLL_INTERVAL_MS = 30_000;
 
+  // Persisted UI prefs (search + sort + filter pill). Stored under a single
+  // namespaced key so a future settings panel can wipe them in one call.
+  const PREFS_STORAGE_KEY = 'ironclaw-routines-prefs';
+
+  type EnabledFilter = 'all' | 'enabled' | 'disabled';
+  type SortKey = 'name' | 'next_run' | 'last_run' | 'schedule';
+  type Prefs = { search: string; filter: EnabledFilter; sort: SortKey };
+  const DEFAULT_PREFS: Prefs = { search: '', filter: 'all', sort: 'name' };
+
   // Loaded data
   let routines = $state<Routine[]>([]);
   let summary = $state<RoutineSummary>({
@@ -30,6 +39,24 @@
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
+  // Search input + debounce. The input updates immediately; `debouncedQuery`
+  // is what the derived filter actually consumes, lagging by 250ms.
+  let searchInput = $state(DEFAULT_PREFS.search);
+  let debouncedQuery = $state(DEFAULT_PREFS.search);
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Persisted filter + sort. Hydrated from localStorage before mount via the
+  // top-level guard below so the initial render reflects the saved values.
+  let filterKey = $state<EnabledFilter>(DEFAULT_PREFS.filter);
+  let sortKey = $state<SortKey>(DEFAULT_PREFS.sort);
+  // Track when prefs are hydrated from storage so the persist effect doesn't
+  // immediately clobber storage with defaults during mount.
+  let prefsHydrated = $state(false);
+
+  // Cron help popover visibility (click-to-toggle, since hover-only popovers
+  // are inaccessible on keyboard / touch). Closed by default.
+  let cronHelpOpen = $state(false);
+
   // Routine-completion notification bookkeeping. We track the `last_run`
   // timestamp seen on the previous poll per routine id; when it advances
   // we know the routine just completed and we can fetch the run to learn
@@ -41,6 +68,181 @@
 
   const selected = $derived(routines.find((r) => r.id === selectedId) ?? null);
 
+  // ────────────────────────────────────────────────────────────────────────
+  // Filter pill + sort metadata. Module-scoped so the template can iterate.
+  // ────────────────────────────────────────────────────────────────────────
+
+  const FILTER_PILLS: Array<{ value: EnabledFilter; label: string }> = [
+    { value: 'all', label: 'All' },
+    { value: 'enabled', label: 'Enabled' },
+    { value: 'disabled', label: 'Disabled' }
+  ];
+
+  const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+    { value: 'name', label: 'Name (A-Z)' },
+    { value: 'next_run', label: 'Next run (soonest first)' },
+    { value: 'last_run', label: 'Last run (newest first)' },
+    { value: 'schedule', label: 'Schedule' }
+  ];
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Hydrate persisted prefs. Done at top level (not in onMount) so the
+  // initial render reflects the saved values rather than flashing defaults.
+  // localStorage isn't available in SSR, but this route is SPA-only inside
+  // the Tauri shell so the guard is mostly defensive.
+  // ────────────────────────────────────────────────────────────────────────
+  if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(PREFS_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<Prefs>;
+        if (parsed && typeof parsed === 'object') {
+          if (typeof parsed.search === 'string') {
+            searchInput = parsed.search;
+            debouncedQuery = parsed.search;
+          }
+          const f = parsed.filter;
+          if (f === 'all' || f === 'enabled' || f === 'disabled') {
+            filterKey = f;
+          }
+          const s = parsed.sort;
+          if (
+            s === 'name' ||
+            s === 'next_run' ||
+            s === 'last_run' ||
+            s === 'schedule'
+          ) {
+            sortKey = s;
+          }
+        }
+      }
+    } catch {
+      // Corrupt JSON — fall back to defaults and let the next write fix it.
+    }
+    prefsHydrated = true;
+  } else {
+    prefsHydrated = true;
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Derived filter + sort pipeline.
+  // ────────────────────────────────────────────────────────────────────────
+
+  function matchesFilter(r: Routine): boolean {
+    if (filterKey === 'all') return true;
+    if (filterKey === 'enabled') return r.enabled;
+    return !r.enabled;
+  }
+
+  function matchesSearch(r: Routine, q: string): boolean {
+    if (!q) return true;
+    return r.name.toLowerCase().includes(q);
+  }
+
+  /** Sort key extractor for time-based sorts. Unparseable / missing
+   *  timestamps return `null` so we can bucket them to the bottom. */
+  function tsOrNull(iso?: string): number | null {
+    if (!iso) return null;
+    const t = Date.parse(iso);
+    return Number.isNaN(t) ? null : t;
+  }
+
+  function applySort(list: Routine[]): Routine[] {
+    const out = list.slice();
+    if (sortKey === 'next_run') {
+      // Soonest first; nulls (no next_run) sink to the bottom regardless of
+      // direction. Tiebreak on name to keep ordering stable across polls.
+      out.sort((a, b) => {
+        const ta = tsOrNull(a.next_run);
+        const tb = tsOrNull(b.next_run);
+        if (ta === null && tb === null) return a.name.localeCompare(b.name);
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        if (ta !== tb) return ta - tb;
+        return a.name.localeCompare(b.name);
+      });
+    } else if (sortKey === 'last_run') {
+      // Newest first; nulls (never run) sink to the bottom.
+      out.sort((a, b) => {
+        const ta = tsOrNull(a.last_run);
+        const tb = tsOrNull(b.last_run);
+        if (ta === null && tb === null) return a.name.localeCompare(b.name);
+        if (ta === null) return 1;
+        if (tb === null) return -1;
+        if (ta !== tb) return tb - ta;
+        return a.name.localeCompare(b.name);
+      });
+    } else if (sortKey === 'schedule') {
+      out.sort((a, b) => {
+        const sa = (a.schedule ?? '').toString();
+        const sb = (b.schedule ?? '').toString();
+        const cmp = sa.localeCompare(sb);
+        if (cmp !== 0) return cmp;
+        return a.name.localeCompare(b.name);
+      });
+    } else {
+      // Name (default).
+      out.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    return out;
+  }
+
+  const filteredRoutines = $derived.by(() => {
+    const q = debouncedQuery.trim().toLowerCase();
+    return applySort(
+      routines.filter((r) => matchesFilter(r) && matchesSearch(r, q))
+    );
+  });
+
+  const filterActive = $derived(
+    debouncedQuery.trim().length > 0 || filterKey !== 'all'
+  );
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Sparkline data. We bucket each enabled routine's `last_run` timestamp
+  // into one of 24 hourly slots covering the past 24h. This is a coarse v1
+  // approximation — the server does not yet expose a "recent runs" endpoint,
+  // and we cap at one observation per routine to keep request volume zero.
+  // When `/api/routines/recent-runs` lands, swap this for the real data.
+  // TODO(routines:+page.svelte:sparkline): replace per-routine last_run
+  // bucketing with a /api/routines/recent-runs aggregate once the gateway
+  // exposes it. Until then we cannot distinguish success vs failure at the
+  // hourly granularity, so every bar renders as cyan (success).
+  // ────────────────────────────────────────────────────────────────────────
+  type SparkBucket = { success: number; failed: number };
+
+  const sparkBuckets = $derived.by<SparkBucket[]>(() => {
+    const buckets: SparkBucket[] = Array.from({ length: 24 }, () => ({
+      success: 0,
+      failed: 0
+    }));
+    const now = Date.now();
+    const cutoff = now - 24 * 60 * 60 * 1000;
+    for (const r of routines) {
+      if (!r.last_run) continue;
+      const t = Date.parse(r.last_run);
+      if (Number.isNaN(t)) continue;
+      if (t < cutoff || t > now) continue;
+      const hoursAgo = Math.floor((now - t) / (60 * 60 * 1000));
+      // Bucket index 0 = 23h ago, bucket 23 = current hour (left-to-right
+      // is past-to-present, matching natural reading order).
+      const idx = 23 - hoursAgo;
+      if (idx < 0 || idx > 23) continue;
+      // We can't tell success vs failure from the `last_run` timestamp
+      // alone, so v1 attributes every bar to the cyan success channel.
+      buckets[idx].success += 1;
+    }
+    return buckets;
+  });
+
+  const sparkTotal = $derived(
+    sparkBuckets.reduce((acc, b) => acc + b.success + b.failed, 0)
+  );
+
+  const sparkMax = $derived(
+    sparkBuckets.reduce((m, b) => Math.max(m, b.success + b.failed), 0)
+  );
+
   onMount(() => {
     void refresh();
     pollTimer = setInterval(() => {
@@ -50,9 +252,51 @@
 
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
+    if (debounceTimer) clearTimeout(debounceTimer);
     // Don't toasts.clear() here — the store is now shared across the
     // whole app via the root layout, and unmounting this page must not
     // wipe toasts queued by another surface.
+  });
+
+  // Debounce the search input. 250 ms matches /extensions and feels snappy
+  // without thrashing the filter on each keystroke.
+  $effect(() => {
+    const v = searchInput;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      debouncedQuery = v;
+    }, 250);
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+    };
+  });
+
+  // Persist prefs whenever they change. Guarded on `prefsHydrated` so the
+  // initial reactive run doesn't overwrite a freshly-loaded value with the
+  // module-scope default.
+  $effect(() => {
+    if (!prefsHydrated) return;
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+    try {
+      const payload: Prefs = {
+        search: debouncedQuery,
+        filter: filterKey,
+        sort: sortKey
+      };
+      localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // Quota / private-mode failures are non-fatal.
+    }
+  });
+
+  // Close the cron help popover on Escape so keyboard users can dismiss it.
+  $effect(() => {
+    if (!cronHelpOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') cronHelpOpen = false;
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   });
 
   async function refresh(opts: { silent?: boolean } = {}) {
@@ -211,6 +455,23 @@
   function closeDetail() {
     selectedId = null;
   }
+
+  function clearFilters() {
+    searchInput = '';
+    debouncedQuery = '';
+    filterKey = 'all';
+  }
+
+  // TODO(2026-05-27): wire up "+ New routine" button + CreateRoutineModal once
+  // the gateway implements `POST /api/routines`. Live-server probe today shows
+  // 405 Method Not Allowed against IronClaw v0.29.x (no POST handler
+  // registered in `src/channels/web/platform/router.rs`). The client method
+  // `client.createRoutine(req)` is pre-wired in `src/lib/api/ironclaw.ts`;
+  // open the modal from a button in the header next to Refresh, then call
+  // `void refresh()` on success. Mirror NewDocModal.svelte for layout and
+  // validation patterns. When the modal lands, attach the cron-syntax help
+  // popover here below the schedule field too (currently exposed only via
+  // the `?` icon next to the Schedule column header on the table).
 </script>
 
 <section class="p-8 h-full flex flex-col">
@@ -250,8 +511,14 @@
       </div>
     </div>
   {:else}
-    <!-- Stat strip -->
-    <div class="grid grid-cols-4 gap-3 mb-6">
+    <!-- Stat strip — grows to a 5th "Recent runs" sparkline card whenever we
+         have any last_run data in the past 24h. Hidden otherwise so the card
+         doesn't render as an empty box. -->
+    <div
+      class="grid gap-3 mb-6"
+      class:grid-cols-4={sparkTotal === 0}
+      class:grid-cols-5={sparkTotal > 0}
+    >
       <div class="surface p-4">
         <div class="text-3xl font-bold text-accent-cyan leading-none">{summary.total}</div>
         <div class="text-xs text-text-muted mt-2 uppercase tracking-wide">Total</div>
@@ -274,6 +541,125 @@
         <div class="text-3xl font-bold text-accent-gold leading-none">{summary.running}</div>
         <div class="text-xs text-text-muted mt-2 uppercase tracking-wide">Running</div>
       </div>
+      {#if sparkTotal > 0}
+        <div class="surface p-4 flex flex-col justify-between">
+          <div
+            class="flex items-end gap-[3px] h-10"
+            role="img"
+            aria-label="Recent routine runs over the past 24 hours"
+            title="Recent routine runs over the past 24 hours"
+          >
+            {#each sparkBuckets as bucket, i (i)}
+              {@const total = bucket.success + bucket.failed}
+              {@const heightPct = sparkMax > 0 ? Math.max(8, (total / sparkMax) * 100) : 0}
+              {@const failedFrac = total > 0 ? bucket.failed / total : 0}
+              <div
+                class="flex-1 min-w-[3px] flex flex-col justify-end rounded-sm overflow-hidden bg-bg-deep"
+                style="height: 100%"
+                title={total > 0
+                  ? `${23 - i}h ago: ${total} run${total === 1 ? '' : 's'}${bucket.failed > 0 ? ` (${bucket.failed} failed)` : ''}`
+                  : `${23 - i}h ago: no runs`}
+              >
+                {#if total > 0}
+                  <!-- Stacked: red on top (failed), cyan on bottom (success).
+                       Proportional within the bar's total height. -->
+                  {#if bucket.failed > 0}
+                    <div
+                      class="bg-red-400 w-full"
+                      style="height: {heightPct * failedFrac}%"
+                    ></div>
+                  {/if}
+                  {#if bucket.success > 0}
+                    <div
+                      class="bg-accent-cyan w-full"
+                      style="height: {heightPct * (1 - failedFrac)}%"
+                    ></div>
+                  {/if}
+                {/if}
+              </div>
+            {/each}
+          </div>
+          <div class="text-xs text-text-muted mt-2 uppercase tracking-wide">Recent runs</div>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Search + filter pills + sort. Same shape as /extensions so the
+         controls land where the user already expects them. -->
+    <div class="mb-4 flex flex-col gap-3">
+      <div
+        class="flex flex-wrap items-center gap-1.5"
+        role="radiogroup"
+        aria-label="Filter routines by enabled state"
+      >
+        {#each FILTER_PILLS as pill (pill.value)}
+          {@const isSelected = filterKey === pill.value}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={isSelected}
+            onclick={() => (filterKey = pill.value)}
+            class="px-3 py-1 rounded-full text-xs font-medium border transition"
+            class:bg-accent-cyan={isSelected}
+            class:text-bg-deep={isSelected}
+            class:border-accent-cyan={isSelected}
+            class:bg-bg-deep={!isSelected}
+            class:text-text-muted={!isSelected}
+            class:border-border-subtle={!isSelected}
+            class:hover:text-text-primary={!isSelected}
+            class:hover:border-accent-cyan={!isSelected}
+          >
+            {pill.label}
+          </button>
+        {/each}
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <div class="relative flex-1 min-w-[200px] max-w-md">
+          <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            bind:value={searchInput}
+            placeholder="Search routine name…"
+            aria-label="Search routines by name"
+            class="w-full bg-bg-deep border border-border-subtle rounded-md pl-10 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px]"
+          />
+        </div>
+        <label class="flex items-center gap-2 text-xs text-text-muted">
+          <span class="shrink-0">Sort</span>
+          <select
+            bind:value={sortKey}
+            aria-label="Sort routines"
+            class="bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px]"
+          >
+            {#each SORT_OPTIONS as opt (opt.value)}
+              <option value={opt.value}>{opt.label}</option>
+            {/each}
+          </select>
+        </label>
+      </div>
+
+      {#if filterActive}
+        <div class="flex items-center justify-between gap-3 text-xs text-text-muted">
+          <span>
+            <span class="text-text-primary font-semibold">{filteredRoutines.length}</span>
+            of <span class="text-text-primary">{routines.length}</span>
+            {filteredRoutines.length === 1 ? 'routine' : 'routines'}
+          </span>
+          <button
+            type="button"
+            onclick={clearFilters}
+            class="text-accent-cyan hover:underline"
+          >
+            Clear filters
+          </button>
+        </div>
+      {/if}
     </div>
 
     <!-- Main panel -->
@@ -319,13 +705,61 @@
             {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
         </div>
+      {:else if filteredRoutines.length === 0}
+        <!-- Filtered-empty state. Distinct from the no-data state above so the
+             user gets an action ("Clear filters") instead of a refresh button. -->
+        <div class="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
+          <div class="text-sm text-text-primary">No routines match the current filters.</div>
+          <button
+            type="button"
+            onclick={clearFilters}
+            class="mt-1 px-3 py-1.5 rounded-md border border-accent-cyan text-accent-cyan text-xs hover:bg-accent-cyan hover:text-bg-deep transition-colors"
+          >
+            Clear filters
+          </button>
+        </div>
       {:else}
         <div class="overflow-auto">
           <table class="w-full text-sm">
             <thead class="sticky top-0 bg-bg-surface z-10">
               <tr class="text-left text-text-muted border-b border-border-subtle">
                 <th class="font-medium px-4 py-3">Name</th>
-                <th class="font-medium px-4 py-3">Schedule</th>
+                <th class="font-medium px-4 py-3">
+                  <span class="inline-flex items-center gap-1.5">
+                    <span>Schedule</span>
+                    <!-- Cron-syntax help. Click toggles; Escape closes; click
+                         outside closes via the backdrop button below. No
+                         library — title attribute is the screen-reader hint
+                         and a click-anchored popover handles the rich form. -->
+                    <span class="relative inline-flex">
+                      <button
+                        type="button"
+                        onclick={(e) => {
+                          e.stopPropagation();
+                          cronHelpOpen = !cronHelpOpen;
+                        }}
+                        aria-label="Cron syntax help"
+                        aria-expanded={cronHelpOpen}
+                        title={'cron format: m h dom mon dow\n  0 9 * * *      every day at 9am\n  */15 * * * *   every 15 minutes\n  0 0 * * 0      every Sunday at midnight'}
+                        class="w-4 h-4 rounded-full border border-border-subtle text-[10px] leading-none text-text-muted hover:border-accent-cyan hover:text-accent-cyan transition-colors flex items-center justify-center"
+                      >
+                        ?
+                      </button>
+                      {#if cronHelpOpen}
+                        <div
+                          role="tooltip"
+                          class="absolute top-full left-0 mt-1 z-20 w-72 bg-bg-deep border border-border-subtle rounded-md shadow-lg p-3 text-xs text-text-primary font-mono whitespace-pre normal-case tracking-normal"
+                        >
+                          <div class="text-text-muted mb-1">cron format: m h dom mon dow</div>
+                          <div class="text-text-muted mb-2">Examples:</div>
+                          <div><span class="text-accent-cyan">0 9 * * *</span>      every day at 9am</div>
+                          <div><span class="text-accent-cyan">*/15 * * * *</span>   every 15 minutes</div>
+                          <div><span class="text-accent-cyan">0 0 * * 0</span>      every Sunday at midnight</div>
+                        </div>
+                      {/if}
+                    </span>
+                  </span>
+                </th>
                 <th class="font-medium px-4 py-3 w-24">Enabled</th>
                 <th class="font-medium px-4 py-3">Last run</th>
                 <th class="font-medium px-4 py-3">Next run</th>
@@ -333,7 +767,7 @@
               </tr>
             </thead>
             <tbody>
-              {#each routines as routine (routine.id)}
+              {#each filteredRoutines as routine (routine.id)}
                 {@const isToggling = togglingIds.has(routine.id)}
                 {@const isTriggering = triggeringIds.has(routine.id)}
                 {@const isSelected = selectedId === routine.id}
@@ -408,6 +842,19 @@
     </div>
   {/if}
 </section>
+
+{#if cronHelpOpen}
+  <!-- Click-outside backdrop. Transparent, full-viewport, sits below the
+       popover (z-10) but above the rest of the page so any click anywhere
+       else dismisses the help. Keyboard close is wired via the $effect
+       above (Escape). -->
+  <button
+    type="button"
+    aria-label="Close cron help"
+    onclick={() => (cronHelpOpen = false)}
+    class="fixed inset-0 z-10 cursor-default bg-transparent"
+  ></button>
+{/if}
 
 {#if selected}
   <DetailPanel routine={selected} onclose={closeDetail} />

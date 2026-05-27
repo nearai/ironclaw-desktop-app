@@ -12,6 +12,13 @@
   // list on save; on load, anything not in the list defaults to `prompt`
   // (the natural "no opinion yet" state). See ironclaw.ts for the full
   // mapping rationale.
+  //
+  // UX surface (admin prefs):
+  //   - Debounced search input (250ms) over name + extension + description.
+  //   - Action filter pills (All / Allow / Prompt / Deny).
+  //   - Both persist in localStorage `ironclaw-admin-prefs` so the editor
+  //     comes back where the operator left it. Bulk actions scope to the
+  //     visible subset when a filter is active, with a confirm above 5 rows.
 
   import { onMount } from 'svelte';
   import { connection } from '$lib/stores/connection.svelte';
@@ -40,6 +47,26 @@
     { v: 'deny', label: 'Deny', tint: 'red' }
   ];
 
+  // Filter pill domain. `all` short-circuits the action filter; the others
+  // narrow to a single action. Kept as a union so the radio loop below is
+  // type-checked against the same shape as `actionFilter`.
+  type ActionFilter = 'all' | ToolPolicyAction;
+  type FilterPill = { v: ActionFilter; label: string };
+  const FILTER_PILLS: FilterPill[] = [
+    { v: 'all', label: 'All' },
+    { v: 'allow', label: 'Allow' },
+    { v: 'prompt', label: 'Prompt' },
+    { v: 'deny', label: 'Deny' }
+  ];
+
+  // Shared localStorage key for the whole admin route. The system-prompt
+  // editor uses its own keys; this one stores tool-policy preferences.
+  const LS_KEY = 'ironclaw-admin-prefs';
+  type PersistedPrefs = {
+    search?: string;
+    actionFilter?: ActionFilter;
+  };
+
   let loadState = $state<LoadState>('idle');
   let loadError = $state<string | null>(null);
 
@@ -55,7 +82,12 @@
   // must preserve on save — otherwise a global PUT would wipe them out.
   let userOverrides = $state<Record<string, string[]>>({});
 
+  // Live input bound to the search field. `debouncedSearch` lags behind by
+  // 250ms and is what the filter actually reads — avoids re-deriving the
+  // filtered row list (and re-rendering hundreds of rows) on every keystroke.
   let searchInput = $state('');
+  let debouncedSearch = $state('');
+  let actionFilter = $state<ActionFilter>('all');
 
   // Forbidden-error trigger: the route owns the 403 banner, but we also
   // surface the message inline if the load itself returned forbidden.
@@ -97,14 +129,22 @@
 
   const allRows = $derived([...catalogRows, ...extraRows]);
 
+  // Filtered view = search query AND action filter. The search side reads
+  // `debouncedSearch` (lags 250ms behind keystrokes); the pill side reads
+  // `actionFilter` directly because pill clicks aren't high-frequency.
   const filteredRows = $derived.by(() => {
-    const q = searchInput.trim().toLowerCase();
-    if (!q) return allRows;
+    const q = debouncedSearch.trim().toLowerCase();
     return allRows.filter((r) => {
+      if (actionFilter !== 'all' && r.action !== actionFilter) return false;
+      if (!q) return true;
       const hay = `${r.name} ${r.extension} ${r.description}`.toLowerCase();
       return hay.includes(q);
     });
   });
+
+  const filterActive = $derived(
+    actionFilter !== 'all' || debouncedSearch.trim().length > 0
+  );
 
   // Dirty whenever the working policy diverges from the server snapshot.
   // We compare by serializing the `deny`-only projection (which mirrors
@@ -126,8 +166,58 @@
   // ---- Lifecycle --------------------------------------------------------
 
   onMount(() => {
+    hydratePrefs();
     void load();
   });
+
+  // Debounce: every keystroke resets a 250ms timer; the timer's payload
+  // promotes `searchInput` into `debouncedSearch` (which the filter reads).
+  // Inline so we don't pull in a dependency — same idea as lodash.debounce.
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  $effect(() => {
+    const next = searchInput;
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      debouncedSearch = next;
+      persistPrefs();
+    }, 250);
+  });
+
+  function hydratePrefs() {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(LS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as PersistedPrefs;
+      if (typeof parsed.search === 'string') {
+        searchInput = parsed.search;
+        debouncedSearch = parsed.search;
+      }
+      if (
+        parsed.actionFilter === 'all' ||
+        parsed.actionFilter === 'allow' ||
+        parsed.actionFilter === 'prompt' ||
+        parsed.actionFilter === 'deny'
+      ) {
+        actionFilter = parsed.actionFilter;
+      }
+    } catch {
+      // Corrupt prefs are non-fatal; the editor opens with defaults.
+    }
+  }
+
+  function persistPrefs() {
+    if (typeof window === 'undefined') return;
+    try {
+      const payload: PersistedPrefs = {
+        search: debouncedSearch,
+        actionFilter
+      };
+      window.localStorage.setItem(LS_KEY, JSON.stringify(payload));
+    } catch {
+      // Storage may be full or disabled; ignore.
+    }
+  }
 
   async function load() {
     const client = connection.client;
@@ -170,24 +260,62 @@
     policy = { ...policy, [name]: action };
   }
 
-  function bulkAllow() {
-    const next: ToolPolicy = {};
-    for (const r of allRows) next[r.name] = 'allow';
+  function setActionFilter(v: ActionFilter) {
+    actionFilter = v;
+    persistPrefs();
+  }
+
+  function clearFilters() {
+    searchInput = '';
+    debouncedSearch = '';
+    actionFilter = 'all';
+    persistPrefs();
+  }
+
+  // Bulk helpers respect the active filter. When no filter is active, the
+  // target set is the full catalog; with a filter, we only touch the visible
+  // rows. Anything over 5 rows triggers a confirm so the operator doesn't
+  // accidentally flip the wrong subset.
+  function bulkApply(action: ToolPolicyAction, verb: string) {
+    const target = filterActive ? filteredRows : allRows;
+    if (target.length === 0) {
+      toasts.show('No tools match the current filter.', 'info');
+      return;
+    }
+    if (filterActive && target.length > 5) {
+      const ok = confirm(
+        `${verb} ${target.length} filtered tools? This only affects the currently visible rows.`
+      );
+      if (!ok) return;
+    }
+    if (!filterActive) {
+      // Full-catalog bulk: reset the whole policy object so unaffected
+      // tools also collapse to the chosen action (matches prior behavior).
+      const next: ToolPolicy = {};
+      for (const r of allRows) next[r.name] = action;
+      policy = next;
+      return;
+    }
+    // Filtered bulk: merge over the existing policy, leaving non-visible
+    // tools untouched.
+    const next: ToolPolicy = { ...policy };
+    for (const r of target) next[r.name] = action;
     policy = next;
+  }
+
+  function bulkAllow() {
+    bulkApply('allow', 'Allow');
   }
 
   function bulkDeny() {
-    const next: ToolPolicy = {};
-    for (const r of allRows) next[r.name] = 'deny';
-    policy = next;
+    bulkApply('deny', 'Deny');
   }
 
   function bulkReset() {
-    // Reset all to the default action (prompt). Equivalent to "no opinion
-    // recorded" — on save this clears the entire `disabled_tools` list.
-    const next: ToolPolicy = {};
-    for (const r of allRows) next[r.name] = 'prompt';
-    policy = next;
+    // Reset to the default action (prompt). With a filter active we only
+    // touch the visible subset; without one we reset the entire policy
+    // (which on save clears the server's `disabled_tools` list).
+    bulkApply('prompt', 'Reset');
   }
 
   function discard() {
@@ -266,50 +394,100 @@
       {/if}
     </div>
   {:else}
-    <!-- Bulk actions + search -->
-    <div class="surface p-4 mb-4 flex flex-wrap items-center gap-2">
-      <div class="flex items-center gap-2">
-        <button
-          type="button"
-          onclick={bulkAllow}
-          class="px-3 py-1.5 rounded-md border border-border-subtle text-xs text-text-primary hover:border-green-500 hover:text-green-400 transition min-h-[32px]"
-        >
-          Allow all
-        </button>
-        <button
-          type="button"
-          onclick={bulkDeny}
-          class="px-3 py-1.5 rounded-md border border-border-subtle text-xs text-text-primary hover:border-red-500 hover:text-red-400 transition min-h-[32px]"
-        >
-          Deny all
-        </button>
-        <button
-          type="button"
-          onclick={bulkReset}
-          class="px-3 py-1.5 rounded-md border border-border-subtle text-xs text-text-primary hover:border-accent-gold hover:text-accent-gold transition min-h-[32px]"
-          title="Reset every tool to the default action (Prompt)"
-        >
-          Reset to default
-        </button>
+    <!-- Bulk actions + search + filter pills. The bulk buttons silently
+         change scope when a filter is active — copy + confirm dialog make
+         that explicit. -->
+    <div class="surface p-4 mb-4 flex flex-col gap-3">
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            onclick={bulkAllow}
+            class="px-3 py-1.5 rounded-md border border-border-subtle text-xs text-text-primary hover:border-green-500 hover:text-green-400 transition min-h-[32px]"
+            title={filterActive
+              ? `Allow only the ${filteredRows.length} filtered tools`
+              : 'Allow every tool in the catalog'}
+          >
+            {filterActive ? `Allow filtered (${filteredRows.length})` : 'Allow all'}
+          </button>
+          <button
+            type="button"
+            onclick={bulkDeny}
+            class="px-3 py-1.5 rounded-md border border-border-subtle text-xs text-text-primary hover:border-red-500 hover:text-red-400 transition min-h-[32px]"
+            title={filterActive
+              ? `Deny only the ${filteredRows.length} filtered tools`
+              : 'Deny every tool in the catalog'}
+          >
+            {filterActive ? `Deny filtered (${filteredRows.length})` : 'Deny all'}
+          </button>
+          <button
+            type="button"
+            onclick={bulkReset}
+            class="px-3 py-1.5 rounded-md border border-border-subtle text-xs text-text-primary hover:border-accent-gold hover:text-accent-gold transition min-h-[32px]"
+            title={filterActive
+              ? `Reset only the ${filteredRows.length} filtered tools to Prompt`
+              : 'Reset every tool to the default action (Prompt)'}
+          >
+            {filterActive ? `Reset filtered (${filteredRows.length})` : 'Reset to default'}
+          </button>
+        </div>
+
+        <div class="flex-1 min-w-[200px] relative max-w-md ml-auto">
+          <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted">
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+          </span>
+          <input
+            type="search"
+            bind:value={searchInput}
+            placeholder="Search name + description…"
+            class="w-full bg-bg-deep border border-border-subtle rounded-md pl-10 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors min-h-[36px]"
+            aria-label="Filter tools"
+          />
+        </div>
       </div>
 
-      <div class="flex-1 min-w-[200px] relative max-w-md ml-auto">
-        <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="7" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-        </span>
-        <input
-          type="search"
-          bind:value={searchInput}
-          placeholder="Filter tools…"
-          class="w-full bg-bg-deep border border-border-subtle rounded-md pl-10 pr-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors min-h-[36px]"
-        />
+      <!-- Action filter pills + reset link. Pills mirror the radio tints
+           used in each row so the connection is visual, not just labeled. -->
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-[10px] uppercase tracking-wider text-text-muted mr-1">Filter</span>
+        {#each FILTER_PILLS as pill (pill.v)}
+          {@const active = actionFilter === pill.v}
+          {@const tintBg =
+            pill.v === 'allow'
+              ? 'bg-green-500 text-bg-deep border-green-500'
+              : pill.v === 'prompt'
+                ? 'bg-accent-gold text-bg-deep border-accent-gold'
+                : pill.v === 'deny'
+                  ? 'bg-red-500 text-white border-red-500'
+                  : 'bg-accent-cyan text-bg-deep border-accent-cyan'}
+          <button
+            type="button"
+            onclick={() => setActionFilter(pill.v)}
+            class="px-2.5 py-1 rounded-full text-[11px] font-semibold border transition min-h-[28px] {active
+              ? tintBg
+              : 'border-border-subtle text-text-muted hover:text-text-primary hover:border-text-muted'}"
+          >
+            {pill.label}
+          </button>
+        {/each}
+        {#if filterActive}
+          <button
+            type="button"
+            onclick={clearFilters}
+            class="ml-auto text-[11px] text-text-muted hover:text-accent-gold transition"
+            title="Clear search + filter"
+          >
+            Clear filters
+          </button>
+        {/if}
       </div>
     </div>
 
-    <!-- Counts strip -->
+    <!-- Counts strip. When any filter is active we surface "N of M tools"
+         so the operator sees the subset size at a glance. -->
     <div class="flex items-center gap-4 text-[11px] text-text-muted font-mono mb-2 px-1">
       <span>
         <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-1.5 align-middle"></span>
@@ -324,7 +502,11 @@
         Deny <span class="text-text-primary">{counts.deny}</span>
       </span>
       <span class="ml-auto">
-        Showing {filteredRows.length} of {counts.total}
+        {#if filterActive}
+          <span class="text-accent-cyan">{filteredRows.length} of {counts.total} tools</span>
+        {:else}
+          Showing {filteredRows.length} of {counts.total}
+        {/if}
       </span>
     </div>
 
@@ -333,8 +515,8 @@
     <div class="flex-1 min-h-0 overflow-auto surface">
       {#if filteredRows.length === 0}
         <div class="p-10 text-center text-xs text-text-muted">
-          {searchInput.trim()
-            ? `No tools match «${searchInput.trim()}».`
+          {filterActive
+            ? 'No tools match the current filter.'
             : 'No tools available.'}
         </div>
       {:else}

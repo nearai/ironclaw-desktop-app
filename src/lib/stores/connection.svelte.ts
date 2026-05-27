@@ -14,6 +14,7 @@
 // (and the sidecar, if applicable) before reconnecting against the new
 // profile's settings.
 
+import { invoke } from '@tauri-apps/api/core';
 import { IronClawClient } from '$lib/api/ironclaw';
 import { notifications } from './notifications.svelte';
 import {
@@ -61,6 +62,38 @@ class ConnectionStore {
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private initialized = false;
+  /** Last status pushed to the menu-bar tray. Tracked so we only fire
+   *  the `update_tray_status` IPC on a real transition, not on every
+   *  effect re-run (Svelte may re-evaluate effects when unrelated deps
+   *  read the same store). */
+  private lastTrayStatus: ConnectionStatus | null = null;
+
+  constructor() {
+    // Push connection status into the menu-bar tray icon whenever it
+    // changes. Lives inside an `$effect.root` so the IPC fires from
+    // whatever surface first mounts the store — no manual subscription
+    // bookkeeping. The Rust side maps "error" → disconnected glyph, so
+    // we forward the raw status string verbatim.
+    //
+    // `inTauri()` would be cleaner but importing it here would cycle
+    // through settings.svelte.ts; checking the global directly costs
+    // one property read and keeps the wiring local.
+    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+      $effect.root(() => {
+        $effect(() => {
+          const s = this.status;
+          if (s === this.lastTrayStatus) return;
+          this.lastTrayStatus = s;
+          // Errors here are non-fatal — the tray is a status display, not
+          // a critical path. Log and move on so a missing tray (e.g. the
+          // user hid it via /settings) never breaks the connection layer.
+          invoke('update_tray_status', { status: s }).catch((err) => {
+            console.warn('update_tray_status failed', err);
+          });
+        });
+      });
+    }
+  }
 
   /**
    * Update `sidecarStatus` and fire a desktop notification when the

@@ -6,6 +6,7 @@
 
 import type {
   ChatEvent,
+  CreateRoutineRequest,
   Extension,
   ExtensionSetupSchema,
   ExtensionTool,
@@ -22,7 +23,8 @@ import type {
   Skill,
   Thread,
   ToolPolicy,
-  ToolPolicyAction
+  ToolPolicyAction,
+  UserProfile
 } from './types';
 
 export interface IronClawClientOptions {
@@ -133,6 +135,80 @@ export class IronClawClient {
       uptime_seconds: res?.uptime_seconds,
       multi_tenant_mode: res?.multi_tenant_mode
     };
+  }
+
+  // ---- Profile / sign-in -----------------------------------------------------
+
+  /**
+   * Fetch the currently-signed-in user via GET /api/profile.
+   *
+   * Wire shape verified against IronClaw 0.28.2:
+   *   `{avatar_url, created_at, display_name, email, id, last_login_at, role, status}`
+   *
+   * Returns `null` on 401/403 — "not signed in" is a valid app state, not an
+   * error worth throwing. Network/5xx failures still throw HttpError so the
+   * sign-in store can surface them as `status: 'error'`.
+   *
+   * Map fields defensively: the gateway may emit `near_account`, `account_id`,
+   * or `user_id` in different builds; we land all of them on the same struct
+   * and let the consumer pick the most-specific value via UI logic.
+   */
+  async getProfile(): Promise<UserProfile | null> {
+    try {
+      const raw = await this.request<{
+        // current gateway shape
+        id?: string;
+        display_name?: string;
+        email?: string | null;
+        avatar_url?: string | null;
+        role?: string;
+        last_login_at?: string | null;
+        status?: string;
+        // forward-compat fields (NEAR-cloud builds)
+        near_account?: string;
+        account_id?: string;
+        user_id?: string;
+        signed_in_at?: string;
+      }>('GET', '/api/profile');
+
+      if (!raw) return null;
+
+      // The local single-tenant gateway uses `id: "default"` for the owner —
+      // pass it through verbatim. A NEAR-cloud sign-in surfaces either as a
+      // dedicated `near_account` field or as an `id` that ends in `.near` /
+      // `.testnet`; treat any of those as the NEAR-account answer.
+      const near = (() => {
+        if (typeof raw.near_account === 'string' && raw.near_account.length > 0) {
+          return raw.near_account;
+        }
+        if (typeof raw.account_id === 'string' && raw.account_id.length > 0) {
+          return raw.account_id;
+        }
+        const id = raw.id ?? raw.user_id;
+        if (
+          typeof id === 'string' &&
+          (id.endsWith('.near') || id.endsWith('.testnet'))
+        ) {
+          return id;
+        }
+        return undefined;
+      })();
+
+      return {
+        user_id: raw.user_id ?? raw.id,
+        near_account: near,
+        display_name: raw.display_name ?? undefined,
+        signed_in_at: raw.signed_in_at ?? raw.last_login_at ?? undefined,
+        role: raw.role as UserProfile['role'],
+        email: raw.email ?? undefined,
+        avatar_url: raw.avatar_url ?? undefined
+      };
+    } catch (err) {
+      if (err instanceof HttpError && (err.status === 401 || err.status === 403)) {
+        return null;
+      }
+      throw err;
+    }
   }
 
   // ---- Logs ------------------------------------------------------------------
@@ -424,6 +500,30 @@ export class IronClawClient {
     return { id: res.thread_id ?? res.id ?? '' };
   }
 
+  /**
+   * Delete a conversation thread.
+   *
+   * NOTE (2026-05-27): The gateway does not currently expose this endpoint.
+   * Direct probe of the live server confirms `DELETE /api/chat/threads/{id}`
+   * returns 404 (no matching route in
+   * `src/channels/web/platform/router.rs`). The method is pre-wired so the
+   * delete affordance can be added in one PR once the server lands the
+   * handler; right now it falls through to the gateway and returns the
+   * 404 as an HttpError so any caller fails loudly rather than silently
+   * "succeeding". No UI surfaces this call yet.
+   *
+   * Expected wire shape once implemented (mirrors `DELETE /api/routines/{id}`):
+   *   Response: 200 OK
+   *   Body: {"status": "deleted", "id": "thread-uuid"}
+   */
+  async deleteThread(threadId: string): Promise<{ ok: boolean }> {
+    const res = await this.request<{ status?: string; id?: string }>(
+      'DELETE',
+      `/api/chat/threads/${encodeURIComponent(threadId)}`
+    );
+    return { ok: res?.status === 'deleted' || res?.status === 'ok' };
+  }
+
   // ---- Memory / knowledge ----------------------------------------------------
 
   async searchMemory(query: string, limit = 10): Promise<MemoryHit[]> {
@@ -487,9 +587,48 @@ export class IronClawClient {
     };
   }
 
-  // Note: the gateway does not currently expose DELETE /api/memory/{path} or
-  // an equivalent endpoint (verified against /tmp/ironclaw-api.md), so there
-  // is no client method for deletion. Add one here when the server lands it.
+  /**
+   * Delete a memory document at `path`.
+   *
+   * NOTE (2026-05-27): The gateway does not currently expose this endpoint.
+   * Direct probe of the live server confirms BOTH attempted shapes return
+   * 404 (no matching route in `src/channels/web/platform/router.rs`):
+   *   - `DELETE /api/memory?path=...`
+   *   - `POST   /api/memory/delete`  (body `{path}`)
+   *
+   * The method is pre-wired so the delete affordance can be added in one PR
+   * once the server lands the handler. It tries DELETE first and falls back
+   * to POST on 404/405 (per the prompt's preferred wire shapes); the final
+   * HttpError is rethrown so callers fail loudly rather than silently
+   * succeeding. No UI surfaces this call yet.
+   */
+  async deleteMemory(path: string): Promise<{ ok: boolean }> {
+    // Try DELETE /api/memory?path=... first (preferred RESTful shape).
+    const qs = new URLSearchParams({ path });
+    try {
+      const res = await this.request<{ status?: string; path?: string }>(
+        'DELETE',
+        `/api/memory?${qs.toString()}`
+      );
+      return { ok: res?.status === 'deleted' || res?.status === 'ok' };
+    } catch (err) {
+      // Fall back to POST /api/memory/delete on Method Not Allowed (405) or
+      // 404 — the latter covers the case where the route shape is different
+      // than expected.
+      if (
+        err instanceof HttpError &&
+        (err.status === 405 || err.status === 404)
+      ) {
+        const res = await this.request<{ status?: string; path?: string }>(
+          'POST',
+          '/api/memory/delete',
+          { path }
+        );
+        return { ok: res?.status === 'deleted' || res?.status === 'ok' };
+      }
+      throw err;
+    }
+  }
 
   // ---- Skills ----------------------------------------------------------------
 
@@ -660,6 +799,55 @@ export class IronClawClient {
       `/api/routines/${encodeURIComponent(id)}/trigger`
     );
     return { run_id: res.run_id };
+  }
+
+  /**
+   * Create a new routine via `POST /api/routines`.
+   *
+   * NOTE (2026-05-27): The gateway does not yet implement this endpoint.
+   * Direct probe of the live server returns 405 Method Not Allowed against
+   * IronClaw v0.29.x — the route exists for GET (list) but no POST handler
+   * is registered. The method is pre-wired so the create-routine UI can be
+   * added in one PR once the server lands the handler; until then it falls
+   * through to the gateway and rethrows the 405 as an HttpError so any
+   * caller fails loudly rather than silently "succeeding". No UI surfaces
+   * this call yet.
+   *
+   * Expected wire shape once implemented (best-guess; the server-side schema
+   * is the source of truth):
+   *   Request:  {name, schedule, prompt, enabled?}
+   *   Response: 201 CREATED
+   *   Body:     {id, name, schedule, enabled, ...the same shape as GET /api/routines}
+   *
+   * If the server eventually accepts a richer trigger shape (e.g.
+   * `{trigger: {type: "cron", cron_expr: "0 9 * * *"}, action: {prompt: "…"}}`),
+   * remap inside this method — keep the client-facing `CreateRoutineRequest`
+   * stable so route code doesn't need to know the wire details.
+   */
+  async createRoutine(req: CreateRoutineRequest): Promise<Routine> {
+    const body: Record<string, unknown> = {
+      name: req.name,
+      schedule: req.schedule,
+      prompt: req.prompt
+    };
+    if (req.enabled !== undefined) body.enabled = req.enabled;
+    const res = await this.request<{
+      id: string;
+      name?: string;
+      enabled?: boolean;
+      trigger_summary?: string;
+      trigger_raw?: string;
+      last_run_at?: string;
+      next_fire_at?: string;
+    }>('POST', '/api/routines', body);
+    return {
+      id: res.id,
+      name: res.name ?? req.name,
+      schedule: res.trigger_summary ?? res.trigger_raw ?? req.schedule,
+      enabled: res.enabled ?? req.enabled ?? true,
+      last_run: res.last_run_at,
+      next_run: res.next_fire_at
+    };
   }
 
   async toggleRoutine(id: string, enabled: boolean): Promise<{ ok: boolean }> {

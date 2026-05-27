@@ -9,6 +9,12 @@
     onToggleActivate?: (ext: Extension) => void;
     onRemove?: (ext: Extension) => void;
     onInstall?: (ext: Extension) => void;
+    /** Click handler for the "N tools" badge. */
+    onToggleTools?: (ext: Extension) => void;
+    /** Tool names contributed by this extension (used for inline expansion). */
+    toolNames?: string[];
+    /** True when this card's tool list should render inline. */
+    expanded?: boolean;
     busy?: boolean;
   };
 
@@ -19,6 +25,9 @@
     onToggleActivate,
     onRemove,
     onInstall,
+    onToggleTools,
+    toolNames = [],
+    expanded = false,
     busy = false
   }: Props = $props();
 
@@ -96,6 +105,8 @@
   });
 
   const title = $derived(extension.display_name ?? extension.name);
+  const toolCount = $derived(extension.tool_count ?? 0);
+  const toolsClickable = $derived(variant === 'installed' && toolCount > 0);
 </script>
 
 <div
@@ -139,12 +150,40 @@
           <span class={`w-2 h-2 rounded-full shrink-0 ${readiness.dot}`}></span>
           <span class="truncate">{readiness.label}</span>
         </span>
-        <span
-          class="text-[10px] font-mono text-text-muted bg-bg-deep px-2 py-0.5 rounded shrink-0"
-          title={`Contributes ${extension.tool_count ?? 0} tool${(extension.tool_count ?? 0) === 1 ? '' : 's'}`}
-        >
-          {extension.tool_count ?? 0} tools
-        </span>
+        {#if toolsClickable}
+          <button
+            type="button"
+            onclick={() => onToggleTools?.(extension)}
+            aria-expanded={expanded}
+            aria-label={expanded ? `Hide tools for ${title}` : `Show ${toolCount} tool${toolCount === 1 ? '' : 's'} for ${title}`}
+            title={expanded ? 'Hide tools' : 'Show tool names'}
+            class="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-transparent text-text-muted bg-bg-deep hover:text-accent-cyan hover:border-accent-cyan/40 transition-colors shrink-0"
+            class:!text-accent-cyan={expanded}
+            class:!border-accent-cyan={expanded}
+          >
+            {toolCount} tools
+            <svg
+              viewBox="0 0 24 24"
+              class="w-3 h-3 transition-transform"
+              class:rotate-180={expanded}
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        {:else}
+          <span
+            class="text-[10px] font-mono text-text-muted bg-bg-deep px-2 py-0.5 rounded shrink-0"
+            title={`Contributes ${toolCount} tool${toolCount === 1 ? '' : 's'}`}
+          >
+            {toolCount} tools
+          </span>
+        {/if}
       </div>
     {:else if extension.installed}
       <span
@@ -242,4 +281,27 @@
       {/if}
     </div>
   </div>
+
+  {#if expanded && toolsClickable}
+    <div
+      class="mt-3 pt-3 border-t border-border-subtle"
+      role="region"
+      aria-label={`Tools contributed by ${title}`}
+    >
+      {#if toolNames.length === 0}
+        <p class="text-[11px] text-text-muted italic">No tool names available.</p>
+      {:else}
+        <ul class="flex flex-wrap gap-1.5">
+          {#each toolNames as tool (tool)}
+            <li
+              class="text-[10px] font-mono text-text-muted bg-bg-deep border border-border-subtle/60 rounded px-1.5 py-0.5"
+              title={tool}
+            >
+              {tool}
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+  {/if}
 </div>

@@ -5,10 +5,33 @@
     skill: Skill;
     onOpen: (skill: Skill) => void;
     onRun: (skill: Skill) => void;
+    /**
+     * Optional focus-related callbacks. The grid container owns the 2D
+     * navigation state; the card just reports focus moves and delegates
+     * arrow-key handling upward. Optional so any caller that doesn't need
+     * keyboard nav can drop the card in unchanged.
+     */
+    onFocus?: (skill: Skill) => void;
+    onArrowKey?: (skill: Skill, key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight') => void;
+    /** Stable identifier the parent uses to refocus a specific card. */
+    focusId?: string;
   };
 
-  const { skill, onOpen, onRun }: Props = $props();
+  const {
+    skill,
+    onOpen,
+    onRun,
+    onFocus,
+    onArrowKey,
+    focusId
+  }: Props = $props();
 
+  /** DOM ref so the parent can imperatively .focus() this card. */
+  let el = $state<HTMLDivElement | null>(null);
+
+  // Expose the element via a data-focus-id attribute the parent queries
+  // back through the DOM. Using a ref-bag pattern would require a more
+  // invasive store; the DOM round-trip is fine for a grid of ~100 cards.
   /**
    * Trust badge metadata. The task spec defines three first-class values
    * (`Bundled`, `Verified`, `Unverified`) styled distinctly. Any other value
@@ -74,19 +97,47 @@
   }
 
   function handleKey(event: KeyboardEvent) {
-    if (event.key === 'Enter' || event.key === ' ') {
+    // Enter → run; Space → open drawer. This matches the task spec which
+    // treats the card as a "run" affordance with Space reserved for the
+    // richer detail view.
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      onRun(skill);
+      return;
+    }
+    if (event.key === ' ' || event.key === 'Spacebar') {
       event.preventDefault();
       onOpen(skill);
+      return;
     }
+    if (
+      event.key === 'ArrowUp' ||
+      event.key === 'ArrowDown' ||
+      event.key === 'ArrowLeft' ||
+      event.key === 'ArrowRight'
+    ) {
+      // Let the parent compute the next card based on grid geometry.
+      // We stop propagation so the page's own keyhandler (search input,
+      // drawer) doesn't double-fire.
+      event.preventDefault();
+      onArrowKey?.(skill, event.key);
+    }
+  }
+
+  function handleFocus() {
+    onFocus?.(skill);
   }
 </script>
 
 <div
+  bind:this={el}
   role="button"
   tabindex="0"
+  data-skill-card={focusId ?? skill.name}
   onclick={() => onOpen(skill)}
   onkeydown={handleKey}
-  class="group relative flex flex-col rounded-lg border border-border-subtle bg-bg-surface p-4 cursor-pointer transition-colors hover:bg-[#1a2233] hover:border-[#2a3548] focus:outline-none focus:border-accent-cyan min-h-[160px]"
+  onfocus={handleFocus}
+  class="group relative flex flex-col rounded-lg border border-border-subtle bg-bg-surface p-4 cursor-pointer transition-colors hover:bg-[#1a2233] hover:border-[#2a3548] focus:outline-none focus-visible:outline-none focus-visible:border-accent-cyan focus-visible:ring-2 focus-visible:ring-accent-cyan/60 focus-visible:ring-offset-0 min-h-[160px]"
 >
   {#if trustBadge}
     <span

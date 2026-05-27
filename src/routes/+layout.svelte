@@ -9,9 +9,11 @@
   import UpdaterBanner from '$lib/components/UpdaterBanner.svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
+  import { tray } from '$lib/stores/tray.svelte';
   import { updater } from '$lib/stores/updater.svelte';
   import { windowFocus } from '$lib/stores/window-focus.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
+  import { toasts } from '$lib/stores/toasts.svelte';
 
   let { children } = $props();
 
@@ -112,6 +114,10 @@
     // completion catching up on poll #1) sees the user's saved toggles.
     windowFocus.init();
     notifications.hydrate();
+    // Wire the menu-bar tray listeners (Show window, Open settings,
+    // Restart sidecar). Safe outside the Tauri webview — the store
+    // detects that and no-ops.
+    tray.init();
 
     void connection.init().then(() => {
       if (
@@ -124,18 +130,50 @@
       }
     });
 
-    // Auto-check for updates once per launch. We want the launch path
-    // quiet on success AND on failure — an empty pubkey or transient
-    // network blip should not splash a red banner on every launch. The
-    // manual check in /settings still surfaces the error verbosely so
-    // the user can debug there. Pattern: check, then dismiss on error.
-    void updater.check().then(() => {
-      if (updater.status === 'error') updater.dismiss();
-    });
+    // Auto-check for updates once per launch — and then arm the cadence
+    // timer for ongoing rechecks. We want the launch path quiet on
+    // success AND on failure: an empty pubkey or transient network blip
+    // should not splash a red banner on every launch. The manual check
+    // in /settings still surfaces the error verbosely so the user can
+    // debug there. Pattern: check, then dismiss on error.
+    //
+    // The cadence setting (never / launch / launch+6h / launch+1h) is
+    // hydrated from localStorage on first read. `never` skips the launch
+    // check entirely so a user who opted out stays opted out; the manual
+    // button in Settings is the only way to trigger a check.
+    updater.hydrate();
+    if (updater.cadence !== 'never') {
+      void updater.check({ respectSkip: true }).then(() => {
+        if (updater.status === 'error') updater.dismiss();
+        updater.armTimer();
+      });
+    }
 
     window.addEventListener('keydown', onWindowKeyDown);
+
+    // Global last-resort net for async errors that escape both the
+    // SvelteKit `handleError` hook (which only fires for load/render)
+    // AND any per-call try/catch. We don't navigate or destroy state —
+    // the route-level `+error.svelte` already handles catastrophic
+    // render failures. Here we just surface a toast so the user knows
+    // something went sideways, and log so devtools has the full trace.
+    function onWindowError(e: ErrorEvent) {
+      // eslint-disable-next-line no-console
+      console.error('[ironclaw] window error:', e.error ?? e.message);
+      toasts.show('An error occurred — check console for details.', 'error');
+    }
+    function onUnhandledRejection(e: PromiseRejectionEvent) {
+      // eslint-disable-next-line no-console
+      console.error('[ironclaw] unhandled rejection:', e.reason);
+      toasts.show('An error occurred — check console for details.', 'error');
+    }
+    window.addEventListener('error', onWindowError);
+    window.addEventListener('unhandledrejection', onUnhandledRejection);
+
     return () => {
       window.removeEventListener('keydown', onWindowKeyDown);
+      window.removeEventListener('error', onWindowError);
+      window.removeEventListener('unhandledrejection', onUnhandledRejection);
     };
   });
 </script>

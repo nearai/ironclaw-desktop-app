@@ -7,9 +7,15 @@
   type Props = {
     skill: Skill;
     onClose: () => void;
+    /**
+     * Fired when the user launches the skill from the drawer (Open in Chat).
+     * Optional — callers that don't care about launch tracking can omit it.
+     * Used by the skills page to mark the skill as recently used.
+     */
+    onLaunch?: (skill: Skill) => void;
   };
 
-  const { skill, onClose }: Props = $props();
+  const { skill, onClose, onLaunch }: Props = $props();
 
   let input = $state('');
   let sourceExpanded = $state(false);
@@ -81,6 +87,9 @@
     // v1 hands off to the chat surface — the actual chat input pre-populate
     // is wired in a follow-up once the chat route lands (currently stub).
     const url = `/?prefill=${encodeURIComponent(prefix)}`;
+    // Notify the parent first so "recently used" state is updated before
+    // the navigation tears this drawer down.
+    onLaunch?.(skill);
     toasts.show(`Loaded into chat: ${usageHint}`, 'info');
     void goto(url);
   }

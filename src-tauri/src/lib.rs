@@ -18,11 +18,12 @@
 mod keychain;
 mod settings;
 mod sidecar;
+mod tray;
 
 use serde::Deserialize;
 use settings::AppSettings;
 use sidecar::{BackendConfig, SidecarState, SidecarStatus};
-use tauri::{AppHandle, Manager, RunEvent, State};
+use tauri::{AppHandle, Manager, RunEvent, State, WindowEvent};
 use tauri_plugin_dialog::DialogExt;
 
 /// Tagged backend kind passed from the frontend to `start_sidecar`. Mirrors
@@ -213,6 +214,48 @@ async fn save_text_dialog(
     Ok(Some(path_buf.to_string_lossy().into_owned()))
 }
 
+// ---- Tray IPC -------------------------------------------------------------
+
+/// Swap the tray icon to reflect a new connection status.
+///
+/// `status` is one of: `"connected"`, `"connecting"`, `"disconnected"`,
+/// `"error"`. The Rust side maps `"error"` onto the disconnected glyph
+/// (same red-ish dim claw) — we surface the distinction in the sidebar
+/// pill and toast layer, not in the menu bar.
+///
+/// Pushed from JS by the connection store whenever its `status` field
+/// changes.
+#[tauri::command]
+async fn update_tray_status(app: AppHandle, status: String) -> Result<(), String> {
+    tray::update_status(&app, &status).map_err(|e| format!("update_tray_status: {e}"))
+}
+
+/// Show or hide the tray icon. Driven by the "Show in menu bar"
+/// preference in /settings. We never destroy + recreate the tray on
+/// flip — the underlying handle is preserved so re-enabling is instant.
+#[tauri::command]
+async fn set_tray_visible(app: AppHandle, visible: bool) -> Result<(), String> {
+    tray::set_visible(&app, visible).map_err(|e| format!("set_tray_visible: {e}"))
+}
+
+/// Show + focus the main window. Used by tray menu items that want to
+/// surface a route immediately after firing their event (Settings,
+/// Restart). The JS event listeners do the navigation; this just makes
+/// sure the window isn't sitting hidden when they fire.
+#[tauri::command]
+async fn show_main_window(app: AppHandle) -> Result<(), String> {
+    let Some(window) = app.get_webview_window("main") else {
+        return Err("main window not registered".into());
+    };
+    window
+        .show()
+        .map_err(|e| format!("show main window: {e}"))?;
+    window
+        .set_focus()
+        .map_err(|e| format!("focus main window: {e}"))?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
@@ -253,7 +296,53 @@ pub fn run() {
             local_data_dir,
             reveal_in_finder,
             save_text_dialog,
+            update_tray_status,
+            set_tray_visible,
+            show_main_window,
         ])
+        // Build the menu-bar tray on setup so the icon is in place
+        // before the first webview event fires. We swallow errors here —
+        // a missing tray icon is a degraded UX, not a fatal launch
+        // failure, and `update_tray_status` / `set_tray_visible` both
+        // no-op when the tray hasn't been registered.
+        //
+        // Initial visibility honours the persisted `trayEnabled` setting
+        // (default: true). We read settings synchronously off disk via
+        // the same loader the IPC command uses; if it fails we keep the
+        // tray visible (least-surprising default).
+        .setup(|app| {
+            let handle = app.handle();
+            if let Err(e) = tray::create(handle) {
+                log::warn!(target: "ironclaw_tray", "create failed: {e}");
+            } else if let Ok(s) = settings::load(handle) {
+                // `trayEnabled` defaults to true (we only hide when the
+                // user explicitly stored `false`). settings.json is an
+                // opaque JSON blob owned by the JS schema, so we look up
+                // the field by name and treat anything-but-`false` as
+                // visible — same fallback behaviour as a fresh install.
+                let enabled = s
+                    .get("trayEnabled")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+                if !enabled {
+                    let _ = tray::set_visible(handle, false);
+                }
+            }
+            Ok(())
+        })
+        // Hide the window on close instead of quitting so the tray stays
+        // alive. Quit only happens via the tray "Quit" menu item or
+        // Cmd+Q. Per-window event hook so other windows (e.g. future
+        // detached chat tabs) don't get the same behaviour for free.
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 

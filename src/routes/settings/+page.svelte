@@ -16,6 +16,7 @@
   import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { invoke } from '@tauri-apps/api/core';
   import { open as shellOpen } from '@tauri-apps/plugin-shell';
   import { IronClawClient } from '$lib/api/ironclaw';
   import {
@@ -45,8 +46,9 @@
     type ProfileConfig
   } from '$lib/stores/settings.svelte';
   import { connection, type SidecarStatus } from '$lib/stores/connection.svelte';
+  import { signIn } from '$lib/stores/sign-in.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
-  import { updater } from '$lib/stores/updater.svelte';
+  import { relativeTime, updater, type UpdaterCadence } from '$lib/stores/updater.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
 
   // ---- Page state -------------------------------------------------------
@@ -60,7 +62,8 @@
     activeProfileId: '',
     profiles: [],
     onboardingComplete: true,
-    adminMode: false
+    adminMode: false,
+    trayEnabled: true
   });
 
   /** Derived shorthand for the currently-selected profile inside the local
@@ -102,6 +105,19 @@
   let renamingProfileId = $state<string | null>(null);
   let renameDraft = $state('');
 
+  // ---- Updater "last checked" ticker -----------------------------------
+  //
+  // relativeTime() reads Date.now() so it won't re-render on its own when
+  // a minute rolls past. We tick `nowTick` once a minute while mounted so
+  // the "Checked N minutes ago" label stays honest without paying for a
+  // higher-resolution interval. The derived label below depends on this
+  // and on `updater.lastCheckedAt`.
+  let nowTick = $state(0);
+  const lastCheckedLabel = $derived.by(() => {
+    void nowTick;
+    return relativeTime(updater.lastCheckedAt);
+  });
+
   onMount(async () => {
     settings = await loadSettings();
     await refreshProfileCredentials();
@@ -112,6 +128,11 @@
     void notifications.ensurePermission();
     void refreshAbout();
 
+    // Hydrate updater store (cadence, last-checked, skipped version) in
+    // case the user landed on /settings before the layout ran (deep link
+    // on first launch). hydrate() is idempotent.
+    updater.hydrate();
+
     // If the page was opened with #profiles in the URL, scroll there.
     if (page.url.hash === '#profiles') {
       await tick();
@@ -119,6 +140,24 @@
       el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   });
+
+  // Tick the "Checked N minutes ago" label once a minute. Lives as a
+  // top-level $effect so the cleanup is registered synchronously
+  // (onMount above is async and would lose the cleanup return value).
+  // Higher resolution isn't worth the wake-ups for a relative-time string.
+  $effect(() => {
+    const tickId = setInterval(() => {
+      nowTick++;
+    }, 60_000);
+    return () => clearInterval(tickId);
+  });
+
+  /** Cadence dropdown handler — delegates to the store so the timer is
+   *  re-armed (or cleared on "never") consistently. */
+  function onCadenceChange(e: Event) {
+    const target = e.currentTarget as HTMLSelectElement;
+    updater.setCadence(target.value as UpdaterCadence);
+  }
 
   /** Re-read the Keychain entries for the currently-active profile. Called
    *  on mount and on every profile switch so the "(stored)" placeholders
@@ -394,6 +433,56 @@
     }
   }
 
+  /** Re-probe /api/profile on demand. Used by the Retry button and the
+   *  inline "Refresh" affordance next to the sign-in dot. */
+  async function onRefreshSignIn() {
+    await signIn.refresh();
+  }
+
+  /**
+   * Sign out of NEAR.AI. TODO: the gateway does not yet expose a
+   * `DELETE /api/profile` / `POST /api/auth/signout` endpoint (verified
+   * against IronClaw 0.28.2). For now we just nudge the user to the web UI
+   * to complete the sign-out flow there; once the server lands the endpoint
+   * this handler should call `connection.client.signOut()` directly.
+   */
+  async function onSignOutFromNearAi() {
+    if (connection.sidecarStatus !== 'running' || !connection.sidecarPort) {
+      toasts.show('Sidecar not running — nothing to sign out of', 'info');
+      return;
+    }
+    try {
+      await shellOpen(`http://127.0.0.1:${connection.sidecarPort}/`);
+      toasts.show(
+        'Opened IronClaw — sign out from the web UI, then click Refresh',
+        'info'
+      );
+    } catch (err) {
+      toasts.show(`Could not open browser: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  /**
+   * Derived label for the sign-in row. Local mode talks about "NEAR.AI",
+   * remote mode talks about generic "gateway auth" since the remote
+   * profile may or may not be NEAR-cloud-backed.
+   */
+  const signInIdentityLabel = $derived.by<string>(() => {
+    const p = signIn.profile;
+    if (!p) return '';
+    if (p.near_account) return `@${p.near_account}`;
+    if (p.display_name) return p.display_name;
+    if (p.email) return p.email;
+    if (p.user_id) return p.user_id;
+    return 'Signed in';
+  });
+
+  /** True when the local sidecar is fully up. Drives the auth panel's
+   *  branch — when false we show "start the sidecar first" rather than
+   *  a misleading "Not signed in" (the /api/profile probe would just
+   *  hang against a dead sidecar). */
+  const sidecarUp = $derived(connection.sidecarStatus === 'running');
+
   /**
    * Flip the app-level "show admin surfaces" toggle. App-level, NOT
    * per-profile — see the comment on AppSettings.adminMode. We persist
@@ -411,6 +500,35 @@
       await connection.refresh();
       toasts.show(
         next ? 'Admin surfaces enabled' : 'Admin surfaces hidden',
+        'info'
+      );
+    } catch (err) {
+      toasts.show(`Save failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  /**
+   * Flip the app-level "Show in menu bar" toggle. App-level, NOT
+   * per-profile — the tray icon is global chrome. We persist first so
+   * the next launch honours the choice, then push the live visibility
+   * change to the Rust tray module so the icon appears/disappears
+   * without a relaunch.
+   */
+  async function onToggleTrayEnabled(next: boolean) {
+    try {
+      const draft = { ...$state.snapshot(settings), trayEnabled: next };
+      await saveSettings(draft);
+      settings = draft;
+      // Live visibility flip. Errors here are not fatal — the persisted
+      // value still wins on the next launch.
+      try {
+        await invoke('set_tray_visible', { visible: next });
+      } catch (err) {
+        console.warn('set_tray_visible failed', err);
+      }
+      await connection.refresh();
+      toasts.show(
+        next ? 'Menu-bar icon shown' : 'Menu-bar icon hidden',
         'info'
       );
     } catch (err) {
@@ -805,6 +923,39 @@
               </span>
             {/if}
           </div>
+
+          <!-- Auth status (remote mode). Same /api/profile probe as local
+               mode, just labelled in gateway-auth terms since a remote
+               gateway may or may not be NEAR-cloud-backed. -->
+          <div class="pt-3 border-t border-border-subtle space-y-2">
+            <div class="flex items-center gap-2 text-xs">
+              {#if signIn.status === 'signed-in'}
+                <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                <span class="text-text-primary">
+                  Signed in as <span class="font-mono">{signInIdentityLabel}</span>
+                </span>
+              {:else if signIn.status === 'signed-out'}
+                <span class="w-2 h-2 rounded-full bg-accent-gold"></span>
+                <span class="text-text-primary">Auth required</span>
+              {:else if signIn.status === 'error'}
+                <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                <span class="text-red-400" title={signIn.lastError ?? undefined}>
+                  Error: {(signIn.lastError ?? 'unknown').slice(0, 80)}
+                </span>
+              {:else}
+                <span class="w-2 h-2 rounded-full bg-text-muted"></span>
+                <span class="text-text-muted">Checking…</span>
+              {/if}
+              <button
+                type="button"
+                onclick={() => void onRefreshSignIn()}
+                disabled={signIn.inflight}
+                class="ml-auto text-xs text-accent-cyan hover:underline disabled:opacity-50"
+              >
+                {signIn.inflight ? 'Refreshing…' : 'Refresh'}
+              </button>
+            </div>
+          </div>
         </div>
       {:else}
         <!-- Local mode: LLM provider picker + (provider-specific creds) + data dir + sidecar control -->
@@ -868,7 +1019,13 @@
         </div>
 
         {#if activeProfile.llmBackend === 'nearai'}
-          <!-- NEAR.AI auth status + sign-in handoff -->
+          <!-- NEAR.AI auth status + sign-in handoff. Status is sourced
+               from the signIn store, which probes /api/profile against
+               the running sidecar — that's the only ground truth for
+               whether the NEAR sign-in flow actually completed. The
+               sidecar-not-running case still falls through to a "Start
+               the sidecar first" hint so a user who hits this surface
+               cold knows what's missing. -->
           <div class="surface p-5 space-y-4">
             <h2 class="text-sm font-semibold text-text-primary">NEAR.AI authentication</h2>
             <p class="text-xs text-text-muted">
@@ -877,42 +1034,82 @@
             </p>
 
             <div class="flex items-center gap-2 text-xs">
-              <span
-                class="w-2 h-2 rounded-full"
-                class:bg-green-500={connection.sidecarStatus === 'running' &&
-                  connection.status === 'connected'}
-                class:bg-accent-gold={connection.sidecarStatus === 'starting'}
-                class:bg-red-500={connection.sidecarStatus === 'error'}
-                class:bg-text-muted={connection.sidecarStatus !== 'running' &&
-                  connection.sidecarStatus !== 'starting' &&
-                  connection.sidecarStatus !== 'error'}
-              ></span>
-              <span class="text-text-primary">
-                {#if connection.sidecarStatus !== 'running'}
-                  Auth: sidecar not running
-                {:else if connection.status === 'connected'}
-                  Auth: sidecar reachable — sign in via the IronClaw web UI
-                {:else}
-                  Auth: pending — open the sidecar UI to complete sign-in
+              {#if !sidecarUp}
+                <!-- Sidecar isn't running — the profile probe would be
+                     meaningless. Render a neutral status that matches
+                     the start-sidecar control below. -->
+                <span class="w-2 h-2 rounded-full bg-text-muted"></span>
+                <span class="text-text-muted">
+                  Sidecar not running — start it to check sign-in status
+                </span>
+              {:else if signIn.status === 'signed-in'}
+                <span class="w-2 h-2 rounded-full bg-green-500"></span>
+                <span class="text-text-primary">
+                  Signed in as <span class="font-mono">{signInIdentityLabel}</span>
+                </span>
+                {#if signIn.profile?.role && signIn.profile.role !== 'user'}
+                  <span
+                    class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/30"
+                  >
+                    {signIn.profile.role}
+                  </span>
                 {/if}
-              </span>
+              {:else if signIn.status === 'signed-out'}
+                <span class="w-2 h-2 rounded-full bg-accent-gold"></span>
+                <span class="text-text-primary">Not signed in</span>
+              {:else if signIn.status === 'error'}
+                <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                <span class="text-red-400" title={signIn.lastError ?? undefined}>
+                  Error: {(signIn.lastError ?? 'unknown').slice(0, 80)}
+                </span>
+              {:else}
+                <span class="w-2 h-2 rounded-full bg-text-muted"></span>
+                <span class="text-text-muted">Checking…</span>
+              {/if}
             </div>
 
-            <div class="flex items-center gap-3">
-              <button
-                type="button"
-                onclick={onSignInToNearAi}
-                class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition min-h-[44px]"
-              >
-                Sign in to NEAR.AI
-              </button>
-              <span class="text-xs text-text-muted">
-                Opens
-                <code class="font-mono text-text-primary"
-                  >http://127.0.0.1:{connection.sidecarPort ?? '<port>'}/</code
+            <div class="flex items-center gap-3 flex-wrap">
+              {#if sidecarUp && signIn.status === 'signed-in'}
+                <button
+                  type="button"
+                  onclick={onSignOutFromNearAi}
+                  class="px-4 py-2 rounded-md border border-border-subtle text-sm text-text-primary hover:border-accent-gold hover:text-accent-gold transition min-h-[44px]"
                 >
-                in your browser.
-              </span>
+                  Sign out
+                </button>
+                <button
+                  type="button"
+                  onclick={() => void onRefreshSignIn()}
+                  disabled={signIn.inflight}
+                  class="text-xs text-accent-cyan hover:underline disabled:opacity-50"
+                >
+                  {signIn.inflight ? 'Refreshing…' : 'Refresh'}
+                </button>
+              {:else if sidecarUp && signIn.status === 'error'}
+                <button
+                  type="button"
+                  onclick={() => void onRefreshSignIn()}
+                  disabled={signIn.inflight}
+                  class="px-4 py-2 rounded-md border border-accent-cyan text-accent-cyan text-sm font-semibold hover:bg-accent-cyan hover:text-bg-deep transition disabled:opacity-50 min-h-[44px]"
+                >
+                  {signIn.inflight ? 'Retrying…' : 'Retry'}
+                </button>
+              {:else}
+                <button
+                  type="button"
+                  onclick={onSignInToNearAi}
+                  class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition min-h-[44px]"
+                >
+                  Sign in to NEAR.AI
+                </button>
+                <span class="text-xs text-text-muted">
+                  Opens
+                  <code class="font-mono text-text-primary"
+                    >http://127.0.0.1:{connection.sidecarPort ?? '<port>'}/</code
+                  >
+                  in your browser.
+                </span>
+              {/if}
             </div>
           </div>
         {:else}
@@ -1157,6 +1354,7 @@
                   }}
                   onblur={() => void commitRename()}
                   class="w-full bg-bg-base border border-accent-cyan rounded px-2 py-1 text-sm font-mono text-text-primary focus:outline-none"
+                  aria-label="Rename profile"
                 />
               {:else}
                 <button
@@ -1233,35 +1431,102 @@
 
       <!-- Manual updater check. Lives inside About so version + check
            sit together. The store's status drives the inline label so
-           the user gets feedback without leaving the page. -->
-      <div class="mt-4 pt-4 border-t border-border-subtle flex items-center gap-3">
-        <button
-          type="button"
-          onclick={() => void updater.check()}
-          disabled={updater.status === 'checking' ||
-            updater.status === 'downloading' ||
-            updater.status === 'installing'}
-          class="px-3 py-1.5 rounded-md border border-accent-cyan text-accent-cyan text-xs font-semibold hover:bg-accent-cyan hover:text-bg-deep transition disabled:opacity-50 min-h-[32px]"
-        >
-          {updater.status === 'checking' ? 'Checking…' : 'Check for updates'}
-        </button>
-        <span class="text-xs text-text-muted">
-          {#if updater.status === 'idle'}
-            No check yet this session.
-          {:else if updater.status === 'checking'}
-            Contacting update server…
-          {:else if updater.status === 'up-to-date'}
-            Up to date.
-          {:else if updater.status === 'available' && updater.update}
-            v{updater.update.version} available — see banner above.
-          {:else if updater.status === 'downloading'}
-            Downloading {updater.progress ?? 0}%…
-          {:else if updater.status === 'installing'}
-            Installed — restart to apply.
-          {:else if updater.status === 'error'}
-            <span class="text-red-400">{updater.error ?? 'Update check failed'}</span>
+           the user gets feedback without leaving the page. Error state
+           gets its own row with a Retry button so the user can drive the
+           recovery without scrolling away. -->
+      <div class="mt-4 pt-4 border-t border-border-subtle space-y-3">
+        <div class="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onclick={() => void updater.check()}
+            disabled={updater.status === 'checking' ||
+              updater.status === 'downloading' ||
+              updater.status === 'installing'}
+            class="px-3 py-1.5 rounded-md border border-accent-cyan text-accent-cyan text-xs font-semibold hover:bg-accent-cyan hover:text-bg-deep transition disabled:opacity-50 min-h-[32px]"
+          >
+            {updater.status === 'checking' ? 'Checking…' : 'Check for updates'}
+          </button>
+          <span class="text-xs text-text-muted">
+            {#if updater.status === 'idle'}
+              {#if updater.lastCheckedAt}
+                Checked {lastCheckedLabel}.
+              {:else}
+                No check yet this session.
+              {/if}
+            {:else if updater.status === 'checking'}
+              Contacting update server…
+            {:else if updater.status === 'up-to-date'}
+              Up to date — checked {lastCheckedLabel}.
+            {:else if updater.status === 'available' && updater.update}
+              v{updater.update.version} available — see banner above.
+            {:else if updater.status === 'downloading'}
+              Downloading {updater.progress ?? 0}%…
+            {:else if updater.status === 'installing'}
+              Installed — restart to apply.
+            {:else if updater.status === 'error'}
+              <span class="text-red-400">Check failed</span>
+              {#if updater.lastCheckedAt}
+                · last success {lastCheckedLabel}
+              {/if}
+            {/if}
+          </span>
+        </div>
+
+        {#if updater.status === 'error'}
+          <!-- Inline error row + Retry. Sits below the main row so a
+               long error message wraps without pushing the cadence
+               control off-screen. -->
+          <div class="flex items-start gap-3 p-2.5 rounded-md bg-red-950/40 border border-red-800/60">
+            <p class="text-xs text-red-200 flex-1 break-words">
+              {updater.error ?? 'Update check failed'}
+            </p>
+            <button
+              type="button"
+              onclick={() => void updater.check()}
+              class="shrink-0 px-3 py-1.5 rounded-md border border-red-400 text-red-200 text-xs font-semibold hover:bg-red-900 transition min-h-[32px]"
+            >
+              Retry
+            </button>
+          </div>
+        {/if}
+
+        <!-- Cadence dropdown. Persists via the store (localStorage) and
+             re-arms the recheck timer; "never" clears it. -->
+        <div class="flex items-center gap-3 flex-wrap">
+          <label for="updater-cadence" class="text-xs text-text-muted">
+            Check for updates
+          </label>
+          <select
+            id="updater-cadence"
+            value={updater.cadence}
+            onchange={onCadenceChange}
+            class="px-2 py-1.5 rounded-md bg-bg-deep border border-border-subtle text-text-primary text-xs min-h-[32px] focus:outline-none focus:border-accent-cyan"
+          >
+            <option value="never">Never</option>
+            <option value="launch">On launch only</option>
+            <option value="launch+6h">On launch + every 6 hours</option>
+            <option value="launch+1h">On launch + every hour</option>
+          </select>
+          {#if updater.skippedVersion}
+            <span class="text-xs text-text-muted">
+              Skipping v{updater.skippedVersion}
+              <button
+                type="button"
+                onclick={() => {
+                  updater.skippedVersion = null;
+                  try {
+                    localStorage.removeItem('ironclaw-updater-skip');
+                  } catch {
+                    // ignore
+                  }
+                }}
+                class="ml-1 underline hover:text-accent-cyan"
+              >
+                clear
+              </button>
+            </span>
           {/if}
-        </span>
+        </div>
       </div>
     </div>
 
@@ -1354,6 +1619,29 @@
             Adds the Admin section to the sidebar (Cmd+7) for editing the
             multi-tenant tool policy and admin SYSTEM.md. Requires a
             bearer token with the admin role on the active profile.
+          </div>
+        </div>
+      </label>
+
+      <!-- Menu-bar tray toggle. App-level, NOT per-profile — the tray
+           icon is global chrome. Defaults to on; toggling off hides the
+           icon immediately and persists so the next launch starts
+           hidden. Toggling back on restores the icon without a relaunch. -->
+      <label
+        class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none"
+      >
+        <input
+          type="checkbox"
+          checked={settings.trayEnabled !== false}
+          onchange={(e) => void onToggleTrayEnabled(e.currentTarget.checked)}
+          class="mt-1 accent-accent-cyan w-4 h-4"
+        />
+        <div class="flex-1">
+          <div class="text-sm text-text-primary">Show in menu bar</div>
+          <div class="text-xs text-text-muted mt-0.5">
+            Adds an IronClaw status icon to the macOS menu bar. Click to
+            toggle the window; right-click for quick actions (Restart
+            sidecar, Settings, Quit).
           </div>
         </div>
       </label>
