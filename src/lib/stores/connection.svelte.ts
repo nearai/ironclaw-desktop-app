@@ -121,7 +121,7 @@ class ConnectionStore {
       void notifications.notify({
         title: 'IronClaw sidecar stopped',
         body,
-        sound: 'default'
+        category: 'sidecar'
       });
     }
   }

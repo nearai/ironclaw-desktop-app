@@ -344,7 +344,7 @@
     justify-content: center;
     width: 1.2em;
     height: 1.2em;
-    color: #00d4ff;
+    color: #4ca7e6;
     opacity: 0;
     text-decoration: none;
     transition: opacity 120ms ease, color 120ms ease;
@@ -379,7 +379,7 @@
   }
 
   .markdown :global(a) {
-    color: #00d4ff;
+    color: #4ca7e6;
     text-decoration: none;
   }
   .markdown :global(a:hover) {
@@ -394,7 +394,7 @@
   .markdown :global(code) {
     font-family: 'SF Mono', Menlo, monospace;
     font-size: 0.9em;
-    background: rgba(0, 212, 255, 0.12);
+    background: rgba(76, 167, 230, 0.12);
     color: #e5e7eb;
     padding: 0.1em 0.3em;
     border-radius: 4px;
@@ -434,9 +434,9 @@
     gap: 4px;
     padding: 3px 7px;
     border-radius: 4px;
-    border: 1px solid rgba(0, 212, 255, 0.25);
-    background: rgba(0, 212, 255, 0.08);
-    color: #00d4ff;
+    border: 1px solid rgba(76, 167, 230, 0.25);
+    background: rgba(76, 167, 230, 0.08);
+    color: #4ca7e6;
     font-family: 'SF Mono', Menlo, monospace;
     font-size: 11px;
     line-height: 1;
@@ -449,8 +449,8 @@
     opacity: 1;
   }
   .markdown :global(pre .copy-btn:hover) {
-    background: rgba(0, 212, 255, 0.18);
-    border-color: rgba(0, 212, 255, 0.5);
+    background: rgba(76, 167, 230, 0.18);
+    border-color: rgba(76, 167, 230, 0.5);
   }
   .markdown :global(pre .copy-btn.copy-btn--copied) {
     opacity: 1;
@@ -462,7 +462,7 @@
   .markdown :global(blockquote) {
     margin: 0.75em 0;
     padding: 0.25em 0.75em;
-    border-left: 3px solid #00d4ff;
+    border-left: 3px solid #4ca7e6;
     color: #9ca3af;
     font-style: italic;
   }
@@ -493,12 +493,12 @@
   }
   .markdown :global(.md-callout--note),
   .markdown :global(.md-callout--tip) {
-    background: rgba(0, 212, 255, 0.08);
-    border-color: rgba(0, 212, 255, 0.35);
+    background: rgba(76, 167, 230, 0.08);
+    border-color: rgba(76, 167, 230, 0.35);
   }
   .markdown :global(.md-callout--note .md-callout__head),
   .markdown :global(.md-callout--tip .md-callout__head) {
-    color: #00d4ff;
+    color: #4ca7e6;
   }
   .markdown :global(.md-callout--important) {
     background: rgba(167, 139, 250, 0.08);
@@ -534,7 +534,7 @@
     overflow: hidden;
   }
   .markdown :global(thead) {
-    background: rgba(0, 212, 255, 0.06);
+    background: rgba(76, 167, 230, 0.06);
   }
   .markdown :global(th),
   .markdown :global(td) {

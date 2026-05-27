@@ -70,6 +70,32 @@ export interface Message {
   created_at: string;
 }
 
+/**
+ * One attachment in a `POST /api/chat/send` payload.
+ *
+ * Wire shape (probed 2026-05-27 against IronClaw 0.28.2):
+ *   `attachments: [{ name, mime_type, data_base64 }]`
+ *
+ * `data_base64` is the RAW base64 payload — NO `data:<mime>;base64,` prefix.
+ * `mime_type` is required (server 400s with `missing field 'mime_type'`
+ * when omitted).
+ *
+ * v1 supports IMAGES only (`image/png`, `image/jpeg`, `image/gif`,
+ * `image/webp`). PDF / plaintext support is a follow-up — the wire itself
+ * tolerates any `mime_type` the gateway handler knows how to decode, but
+ * the UI rejects non-image MIMEs at the composer to keep behavior
+ * predictable until the server-side decoders are confirmed.
+ */
+export interface AttachmentInput {
+  /** Filename as the user dropped/pasted it. Echoed back inside the
+   *  `<attachments>` block the gateway prepends to the user turn. */
+  name: string;
+  /** RFC 2046 MIME type, e.g. `image/png`. Required by the wire. */
+  mime_type: string;
+  /** RAW base64-encoded bytes (NO `data:` prefix). */
+  data_base64: string;
+}
+
 export interface MemoryHit {
   path: string;
   snippet: string;
@@ -793,6 +819,133 @@ export interface EngineThread {
   /** RFC3339 timestamps. */
   created_at?: string;
   updated_at?: string;
+}
+
+/**
+ * Single message inside an engine thread's `messages` array.
+ *
+ * Wire shape (verified 2026-05-27 against IronClaw 0.28.2):
+ *   { content: string, role: "System"|"User"|"Assistant"|..., timestamp: "<RFC3339>" }
+ *
+ * The wire's `role` strings are PascalCase (`User`, `Assistant`, `System`) —
+ * NOT the lowercase form used by the chat-surface `Message` type elsewhere
+ * in this file. The detail view renders the wire value verbatim and folds
+ * case for badge tinting; we don't rewrite the strings here so the panel
+ * never lies about what the gateway said.
+ */
+export interface EngineThreadMessage {
+  content: string;
+  /** Wire emits PascalCase (`User`, `Assistant`, `System`) but tolerates any
+   *  string for forward compat with new roles (`Tool`, `Action`, …). */
+  role: string;
+  /** RFC3339 timestamp from the server clock. */
+  timestamp: string;
+}
+
+/**
+ * Enriched detail returned by `GET /api/engine/threads/{id}`.
+ *
+ * Wire envelope: `{thread: {...}}` — the client unwraps this in
+ * `getEngineThread`. The detail row carries everything the list row has,
+ * plus:
+ *   - `messages`: full transcript (system prompt + user turn(s) + assistant)
+ *   - `max_iterations`: agent loop cap (default 50 on current gateway)
+ *   - `total_cost_usd`: USD spend, as a number (the wire emits a JSON number,
+ *     not a string — unlike `usage_30d.total_cost` which is a string)
+ *   - `completed_at`: terminal timestamp when state ∈ {Done, Failed}
+ *
+ * Reserved for forward compat (not on the current wire):
+ *   - `error`: failure detail when state == "Failed"
+ *   - `mission_id`: owning mission once the gateway emits it on detail
+ */
+export interface EngineThreadDetail extends EngineThread {
+  /** Full message transcript. May contain a very long system prompt as the
+   *  first entry — the detail view collapses System messages by default. */
+  messages?: EngineThreadMessage[];
+  /** Agent-loop iteration cap (e.g. 50 on the default install). */
+  max_iterations?: number;
+  /** USD spend across this thread's LLM calls. Wire emits a JSON number. */
+  total_cost_usd?: number;
+  /** RFC3339 when the thread reached a terminal state. */
+  completed_at?: string;
+  /** Reserved — failure-mode detail string. */
+  error?: string;
+}
+
+/**
+ * A step entry returned by `GET /api/engine/threads/{id}/steps`.
+ *
+ * The wire envelope today is `{steps: []}` for every thread we've probed
+ * (the gateway exposes the endpoint with a 200 + empty array — step data
+ * is persisted but not yet projected into a steps payload). The richer
+ * runtime story currently lives on the events endpoint
+ * (`/api/engine/threads/{id}/events`); see `EngineThreadEvent` below.
+ *
+ * The fields below are anticipatory — once the gateway lights up the
+ * steps endpoint, these are the shapes we expect based on the
+ * `StepStarted` / `StepCompleted` / `ActionExecuted` events. They mirror
+ * the brief's sketch so the UI is ready when the wire catches up.
+ */
+export interface EngineThreadStep {
+  id?: string;
+  /** Sequential 1-based index in the thread's execution timeline. */
+  step_number?: number;
+  /** Classifier: `thought` | `tool_call` | `response` | … */
+  kind?: string;
+  /** Free-text content (agent thought, response chunk). */
+  content?: string;
+  /** Tool name when `kind === 'tool_call'`. */
+  tool_name?: string;
+  /** Tool arguments (opaque JSON payload). */
+  tool_args?: unknown;
+  /** Tool result (opaque JSON payload). */
+  tool_result?: unknown;
+  /** Token count for this step (input+output sum). */
+  tokens?: number;
+  /** RFC3339. */
+  created_at?: string;
+}
+
+/**
+ * An event row returned by `GET /api/engine/threads/{id}/events`.
+ *
+ * Wire shape (verified 2026-05-27 on IronClaw 0.28.2):
+ *   {
+ *     id: "<uuid>",
+ *     thread_id: "<uuid>",
+ *     timestamp: "<RFC3339>",
+ *     kind: { <EventKind>: { …event-specific payload… } }
+ *   }
+ *
+ * `kind` is a one-key object whose key tags the variant and whose value
+ * carries the variant's data. Variants observed today:
+ *
+ *   - `MessageAdded`   { content_preview: string, role: string }
+ *   - `StateChanged`   { from: string, to: string, reason: string|null }
+ *   - `StepStarted`    { step_id: string }
+ *   - `StepCompleted`  { step_id: string, tokens: { input_tokens, output_tokens,
+ *                       cache_read_tokens, cache_write_tokens, cost_usd } }
+ *   - `ActionExecuted` { action_name: string, call_id: string,
+ *                       duration_ms: number, params_summary: string,
+ *                       step_id: string }
+ *
+ * The shape is preserved verbatim — the UI does a `Object.keys(kind)[0]`
+ * lookup to read the variant tag and renders each variant differently.
+ * Unknown variants render as a JSON snippet (forward-compat safety net).
+ */
+export interface EngineThreadEvent {
+  /** Server-assigned event id (UUID). */
+  id?: string;
+  /** Owning thread (echoed in every event). */
+  thread_id?: string;
+  /** RFC3339. */
+  timestamp: string;
+  /**
+   * Tagged-union payload. Single-key object where the key names the variant.
+   * Treated as opaque JSON for unknown variants; the UI's known set is the
+   * comment list above.
+   */
+  kind: Record<string, unknown>;
 }
 
 // ---- OAuth device flow ------------------------------------------------------

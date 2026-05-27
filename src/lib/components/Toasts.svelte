@@ -4,9 +4,11 @@
   function bgFor(kind: ToastKind): string {
     switch (kind) {
       case 'success':
-        return 'border-accent-cyan/60 text-accent-cyan';
+        // Green (positive) — was accent-cyan, which conflated success with
+        // the primary accent. Aligned with v2 status semantics.
+        return 'border-positive/60 text-positive';
       case 'error':
-        return 'border-red-500/60 text-red-300';
+        return 'border-danger/60 text-danger';
       case 'info':
       default:
         return 'border-accent-gold/60 text-accent-gold';

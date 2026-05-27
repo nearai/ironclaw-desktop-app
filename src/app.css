@@ -2,8 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ────────────────────────────────────────────────────────────────────
+   v2 design tokens (dark-only).
+   Mirrors the IronClaw web UI v2 palette (reborn-integration) so the
+   desktop client and the in-browser IronClaw UI share an accent system.
+   Light-mode tokens intentionally omitted — this app is dark-only.
+   Consumers may use Tailwind aliases (e.g. `text-signal`) OR these raw
+   `--v2-*` vars directly via `style=""` / arbitrary values.
+   ──────────────────────────────────────────────────────────────────── */
 :root {
   color-scheme: dark;
+
+  /* Canvas / surfaces (our canvas stays navy; v2 canvas reserved for
+     future migration). */
+  --v2-canvas:        #111114;
+  --v2-canvas-strong: #0d0d10;
+  --v2-surface:       #1b1b1f;
+  --v2-surface-soft:  rgba(255, 255, 255, 0.03);
+  --v2-surface-muted: rgba(255, 255, 255, 0.07);
+  --v2-panel-border:  rgba(255, 255, 255, 0.1);
+  --v2-rail:          #151519;
+  --v2-input-bg:      #151519;
+
+  /* Typography */
+  --v2-text:          rgba(255, 255, 255, 0.82);
+  --v2-text-strong:   #ffffff;
+  --v2-text-muted:    rgba(255, 255, 255, 0.6);
+  --v2-text-faint:    rgba(255, 255, 255, 0.45);
+  --v2-inverse:       #111111;
+
+  /* Accent — signal blue */
+  --v2-accent:        #4ca7e6;
+  --v2-accent-strong: #2882c8;
+  --v2-accent-soft:   rgba(76, 167, 230, 0.14);
+  --v2-accent-text:   #8fc8f2;
+
+  /* Semantic */
+  --v2-positive-soft: rgba(32, 210, 154, 0.13);
+  --v2-positive-text: #20d29a;
+  --v2-warning-soft:  rgba(245, 193, 91, 0.14);
+  --v2-warning-text:  #f5c15b;
+  --v2-danger-soft:   rgba(255, 100, 128, 0.13);
+  --v2-danger-text:   #ff6480;
+  --v2-info-soft:     rgba(76, 167, 230, 0.14);
+  --v2-info-text:     #8fc8f2;
+}
+
+@keyframes v2-breathe {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.35; }
 }
 
 html,

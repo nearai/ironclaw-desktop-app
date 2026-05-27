@@ -50,7 +50,11 @@
   import { signIn } from '$lib/stores/sign-in.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { relativeTime, updater, type UpdaterCadence } from '$lib/stores/updater.svelte';
-  import { notifications } from '$lib/stores/notifications.svelte';
+  import {
+    notifications,
+    SOUND_CHOICES,
+    type SoundChoice
+  } from '$lib/stores/notifications.svelte';
   import { aboutStore } from '$lib/stores/about.svelte';
   import MaskedValue from '$lib/components/MaskedValue.svelte';
   import { redactJsonObject } from '$lib/utils/redact';
@@ -201,13 +205,39 @@
       await notifications.notify({
         title: 'IronClaw test notification',
         body: 'If you can see this, notifications are wired up.',
-        sound: 'default'
+        soundOverride: 'default'
       });
       testNotifyStatus = 'sent';
       testNotifyMessage = 'Sent — check Notification Center.';
     } catch (err) {
       testNotifyStatus = 'error';
       testNotifyMessage = (err as Error).message;
+    }
+  }
+
+  /**
+   * Audition a sound by firing a one-shot test notification with the
+   * given symbolic choice. Bypasses the per-category preference and
+   * quiet-hours muting (via `soundOverride`) so the user always hears
+   * what they picked. Surfaces denial via a toast — silent failure
+   * would make the "Preview" button feel broken.
+   */
+  async function onPreviewSound(category: 'chat' | 'routine' | 'sidecar', sound: SoundChoice) {
+    const granted = await notifications.ensurePermission();
+    if (!granted) {
+      toasts.show('Notifications denied by macOS', 'error');
+      return;
+    }
+    const label =
+      category === 'chat' ? 'Chat reply' : category === 'routine' ? 'Routine' : 'Sidecar';
+    try {
+      await notifications.notify({
+        title: `${label} sound preview`,
+        body: SOUND_CHOICES.find((c) => c.value === sound)?.label ?? sound,
+        soundOverride: sound
+      });
+    } catch (err) {
+      toasts.show(`Preview failed: ${(err as Error).message}`, 'error');
     }
   }
 
@@ -1942,14 +1972,161 @@
 
     <!-- Notifications. Lives below About because the test button is a
          one-shot UX check, not a daily-driver setting. -->
-    <div class="surface p-5 space-y-3">
+    <div class="surface p-5 space-y-4">
       <h2 class="text-sm font-semibold text-text-primary">Notifications</h2>
       <p class="text-xs text-text-muted">
         Desktop alerts for chat replies (while you're focused elsewhere),
         completed routines, and sidecar exits. Toggles persist locally;
         the OS-level permission is granted on first send.
       </p>
-      <div class="flex items-center gap-3 flex-wrap">
+
+      <!-- Per-category sound dropdowns. Each row maps to one of the
+           three callers; the "Preview" button fires a one-shot test
+           with the chosen sound (override path so quiet hours can't
+           swallow it). -->
+      <div class="space-y-3 pt-1">
+        <!-- Chat reply sound. -->
+        <div class="flex items-center gap-3 flex-wrap">
+          <label for="notif-sound-chat" class="text-sm text-text-primary flex-1 min-w-[160px]">
+            Chat reply sound
+            <div class="text-xs text-text-muted mt-0.5">
+              Plays when IronClaw replies while the window isn't focused.
+            </div>
+          </label>
+          <select
+            id="notif-sound-chat"
+            value={notifications.chatReplySound}
+            onchange={(e) =>
+              notifications.setChatReplySound(e.currentTarget.value as SoundChoice)}
+            class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1.5 text-sm text-text-primary min-h-[40px] min-w-[160px] focus:outline-none focus:border-accent-cyan"
+          >
+            {#each SOUND_CHOICES as choice}
+              <option value={choice.value}>{choice.label}</option>
+            {/each}
+          </select>
+          <button
+            type="button"
+            onclick={() => void onPreviewSound('chat', notifications.chatReplySound)}
+            class="px-3 py-1.5 rounded-md border border-border-subtle text-text-primary text-xs font-semibold hover:border-accent-cyan hover:text-accent-cyan transition min-h-[40px]"
+            title="Fire a test notification with the chosen sound"
+          >
+            Preview
+          </button>
+        </div>
+
+        <!-- Routine completion sound. -->
+        <div class="flex items-center gap-3 flex-wrap">
+          <label for="notif-sound-routine" class="text-sm text-text-primary flex-1 min-w-[160px]">
+            Routine completion sound
+            <div class="text-xs text-text-muted mt-0.5">
+              Plays when a routine finishes (success or failure).
+            </div>
+          </label>
+          <select
+            id="notif-sound-routine"
+            value={notifications.routineSound}
+            onchange={(e) =>
+              notifications.setRoutineSound(e.currentTarget.value as SoundChoice)}
+            class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1.5 text-sm text-text-primary min-h-[40px] min-w-[160px] focus:outline-none focus:border-accent-cyan"
+          >
+            {#each SOUND_CHOICES as choice}
+              <option value={choice.value}>{choice.label}</option>
+            {/each}
+          </select>
+          <button
+            type="button"
+            onclick={() => void onPreviewSound('routine', notifications.routineSound)}
+            class="px-3 py-1.5 rounded-md border border-border-subtle text-text-primary text-xs font-semibold hover:border-accent-cyan hover:text-accent-cyan transition min-h-[40px]"
+            title="Fire a test notification with the chosen sound"
+          >
+            Preview
+          </button>
+        </div>
+
+        <!-- Sidecar exit sound. -->
+        <div class="flex items-center gap-3 flex-wrap">
+          <label for="notif-sound-sidecar" class="text-sm text-text-primary flex-1 min-w-[160px]">
+            Sidecar exit sound
+            <div class="text-xs text-text-muted mt-0.5">
+              Plays when the bundled IronClaw sidecar exits unexpectedly.
+            </div>
+          </label>
+          <select
+            id="notif-sound-sidecar"
+            value={notifications.sidecarSound}
+            onchange={(e) =>
+              notifications.setSidecarSound(e.currentTarget.value as SoundChoice)}
+            class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1.5 text-sm text-text-primary min-h-[40px] min-w-[160px] focus:outline-none focus:border-accent-cyan"
+          >
+            {#each SOUND_CHOICES as choice}
+              <option value={choice.value}>{choice.label}</option>
+            {/each}
+          </select>
+          <button
+            type="button"
+            onclick={() => void onPreviewSound('sidecar', notifications.sidecarSound)}
+            class="px-3 py-1.5 rounded-md border border-border-subtle text-text-primary text-xs font-semibold hover:border-accent-cyan hover:text-accent-cyan transition min-h-[40px]"
+            title="Fire a test notification with the chosen sound"
+          >
+            Preview
+          </button>
+        </div>
+      </div>
+
+      <!-- Quiet hours (DND). During the window we still show banners but
+           mute the sound; the window can wrap overnight (e.g. 22 → 7). -->
+      <div class="pt-3 border-t border-border-subtle space-y-2">
+        <label class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none">
+          <input
+            type="checkbox"
+            checked={notifications.quietHours.enabled}
+            onchange={(e) => notifications.setQuietHoursEnabled(e.currentTarget.checked)}
+            class="mt-1 accent-accent-cyan w-4 h-4"
+          />
+          <div class="flex-1">
+            <div class="text-sm text-text-primary">Quiet hours</div>
+            <div class="text-xs text-text-muted mt-0.5">
+              During the window below, notifications still appear but stay
+              silent. Overnight ranges work — e.g. 22 → 7 mutes from 22:00
+              to 06:59.
+            </div>
+          </div>
+        </label>
+        <div class="flex items-center gap-3 flex-wrap pl-7">
+          <label class="text-xs text-text-muted flex items-center gap-2">
+            From
+            <input
+              type="number"
+              min="0"
+              max="23"
+              step="1"
+              value={notifications.quietHours.startHour}
+              onchange={(e) =>
+                notifications.setQuietHoursStart(Number(e.currentTarget.value))}
+              disabled={!notifications.quietHours.enabled}
+              class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1 text-sm text-text-primary w-20 focus:outline-none focus:border-accent-cyan disabled:opacity-50"
+            />
+            <span class="text-text-muted">:00</span>
+          </label>
+          <label class="text-xs text-text-muted flex items-center gap-2">
+            To
+            <input
+              type="number"
+              min="0"
+              max="23"
+              step="1"
+              value={notifications.quietHours.endHour}
+              onchange={(e) =>
+                notifications.setQuietHoursEnd(Number(e.currentTarget.value))}
+              disabled={!notifications.quietHours.enabled}
+              class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1 text-sm text-text-primary w-20 focus:outline-none focus:border-accent-cyan disabled:opacity-50"
+            />
+            <span class="text-text-muted">:00</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3 flex-wrap pt-3 border-t border-border-subtle">
         <button
           type="button"
           onclick={onTestNotification}

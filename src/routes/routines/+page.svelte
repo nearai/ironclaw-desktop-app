@@ -375,13 +375,13 @@
             void notifications.notify({
               title: 'Routine completed',
               body: `${r.name} finished successfully`,
-              sound: 'default'
+              category: 'routine'
             });
           } else if (top.status === 'failed') {
             void notifications.notify({
               title: 'Routine failed',
               body: `${r.name} failed`,
-              sound: 'default'
+              category: 'routine'
             });
           }
         } catch (err) {

@@ -366,8 +366,8 @@
     padding: 0 1px;
   }
   :global(mark.cs-hit--active) {
-    background: rgba(0, 212, 255, 0.55); /* accent-cyan, stronger */
-    color: #050810; /* bg-deep — readable on cyan */
-    box-shadow: 0 0 0 1px rgba(0, 212, 255, 0.9);
+    background: rgba(76, 167, 230, 0.55); /* signal blue, stronger */
+    color: #050810; /* bg-deep — readable on signal blue */
+    box-shadow: 0 0 0 1px rgba(76, 167, 230, 0.9);
   }
 </style>

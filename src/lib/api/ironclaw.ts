@@ -5,6 +5,7 @@
 // in the consumer-facing methods so callers see a stable interface.
 
 import type {
+  AttachmentInput,
   ChatEvent,
   CreateRoutineRequest,
   DeviceLoginPoll,
@@ -12,6 +13,9 @@ import type {
   EngineMission,
   EngineProject,
   EngineThread,
+  EngineThreadDetail,
+  EngineThreadEvent,
+  EngineThreadStep,
   Extension,
   ExtensionSetupSchema,
   ExtensionTool,
@@ -362,18 +366,35 @@ export class IronClawClient {
 
   async sendMessage(
     threadId: string | null,
-    content: string
+    content: string,
+    attachments?: AttachmentInput[]
   ): Promise<{ thread_id: string; message_id: string }> {
-    // POST /api/chat/send accepts {content, thread_id?} and returns
-    // {message_id, status}. Thread ID may be created server-side; if the
-    // caller didn't pass one, we surface the originally-provided value
+    // POST /api/chat/send accepts {content, thread_id?, attachments?[]} and
+    // returns {message_id, status}. Thread ID may be created server-side; if
+    // the caller didn't pass one, we surface the originally-provided value
     // (often null) — phase 3 will reconcile this against the SSE stream.
+    //
+    // Attachments — probed 2026-05-27 against IronClaw 0.28.2:
+    //   attachments: [{ name: string, mime_type: string, data_base64: string }]
+    //
+    // `data_base64` is the RAW base64 payload (no `data:` prefix). The
+    // gateway saves each attachment to
+    //   `.ironclaw/attachments/<owner>/<thread>/<date>/<msg>-<name>`
+    // and rewrites the user's `content` to append an `<attachments>` block
+    // listing each saved file with type/filename/mime/project_path/size — so
+    // the model sees the file location alongside the user's prose AND, for
+    // images, the vision pipeline picks them up directly from memory.
+    //
+    // Omit the field entirely when there are no attachments — the wire
+    // doesn't require it and an empty array would be a needless wire round.
+    const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
     const res = await this.request<{ message_id: string; thread_id?: string }>(
       'POST',
       '/api/chat/send',
       {
         content,
-        ...(threadId ? { thread_id: threadId } : {})
+        ...(threadId ? { thread_id: threadId } : {}),
+        ...(hasAttachments ? { attachments } : {})
       }
     );
     return {
@@ -2761,6 +2782,108 @@ export class IronClawClient {
       '/api/engine/threads'
     );
     return Array.isArray(res?.threads) ? res.threads : [];
+  }
+
+  /**
+   * Fetch a single engine thread by UUID, with its full transcript.
+   *
+   * Wire envelope: `{thread: {...}}`. The detail row extends `EngineThread`
+   * with `messages`, `max_iterations`, `total_cost_usd`, and `completed_at`
+   * (see `EngineThreadDetail`).
+   *
+   * Returns `null` for:
+   *   - 404 "Thread not found" (id is well-formed but the row is gone)
+   *   - 500 with a UUID-parse error (id isn't a valid UUID)
+   * Both cases mirror the `getMission`/`getProject` handling so callers
+   * use a single "did we get it?" check.
+   *
+   * Other HTTP errors propagate via HttpError.
+   */
+  async getEngineThread(id: string): Promise<EngineThreadDetail | null> {
+    try {
+      const res = await this.request<{ thread?: EngineThreadDetail }>(
+        'GET',
+        `/api/engine/threads/${encodeURIComponent(id)}`
+      );
+      return res?.thread ?? null;
+    } catch (err) {
+      if (err instanceof HttpError) {
+        if (err.status === 404) return null;
+        if (err.status === 500 && /parse thread_id|invalid character/i.test(err.message)) {
+          return null;
+        }
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * List steps for a thread. Wire envelope: `{steps: [...]}`.
+   *
+   * The current gateway returns `{steps: []}` for every thread we've probed
+   * — the persisted step data isn't yet projected onto this endpoint. The
+   * richer runtime story lives on `listEngineThreadEvents` (see below).
+   * The method is wired so the UI is ready when the wire fills in.
+   *
+   * Same null-mapping as `getEngineThread` for 404 / 500-on-malformed-id —
+   * callers receive `[]` for both. Network/5xx for other reasons still
+   * throws so the panel can surface an error banner.
+   */
+  async getEngineThreadSteps(id: string): Promise<EngineThreadStep[]> {
+    try {
+      const res = await this.request<{ steps?: EngineThreadStep[] }>(
+        'GET',
+        `/api/engine/threads/${encodeURIComponent(id)}/steps`
+      );
+      return Array.isArray(res?.steps) ? res.steps : [];
+    } catch (err) {
+      if (err instanceof HttpError) {
+        if (err.status === 404) return [];
+        if (err.status === 500 && /parse thread_id|invalid character/i.test(err.message)) {
+          return [];
+        }
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * List events for a thread. Wire envelope: `{events: [...]}`.
+   *
+   * Each event has a tagged-union `kind` field — see `EngineThreadEvent`
+   * for the variants observed today (`MessageAdded`, `StateChanged`,
+   * `StepStarted`, `StepCompleted`, `ActionExecuted`).
+   *
+   * On the current gateway the events endpoint is the richest source of
+   * timeline data (step starts/completions with token usage, tool calls
+   * with duration_ms + params_summary, state transitions) — the
+   * EngineThreadDetail panel uses this as the primary timeline backing
+   * store until `/steps` lights up.
+   *
+   * Same 404 / 500-on-malformed-id → `[]` handling as the other engine v2
+   * detail methods.
+   *
+   * The brief mentioned a possible SSE channel for engine-thread events.
+   * The current gateway exposes this as a plain JSON GET (verified
+   * 2026-05-27). The panel polls at a fixed cadence while the thread is
+   * `Running`; the polling cadence is the consumer's call.
+   */
+  async listEngineThreadEvents(id: string): Promise<EngineThreadEvent[]> {
+    try {
+      const res = await this.request<{ events?: EngineThreadEvent[] }>(
+        'GET',
+        `/api/engine/threads/${encodeURIComponent(id)}/events`
+      );
+      return Array.isArray(res?.events) ? res.events : [];
+    } catch (err) {
+      if (err instanceof HttpError) {
+        if (err.status === 404) return [];
+        if (err.status === 500 && /parse thread_id|invalid character/i.test(err.message)) {
+          return [];
+        }
+      }
+      throw err;
+    }
   }
 
   // ---- OAuth device flow (extensions) ---------------------------------------

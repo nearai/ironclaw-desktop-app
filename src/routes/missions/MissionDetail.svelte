@@ -16,12 +16,12 @@
   // interactive without bouncing the user out of the missions surface.
 
   import type { EngineMission, EngineThread } from '$lib/api/types';
-  import { toasts } from '$lib/stores/toasts.svelte';
   // Reuse the relative-time + short-timestamp helpers from routines —
   // they're stateless string formatters and importing keeps the look
   // consistent across the app. The file-scope constraint forbids
   // mutating other routes; importing a pure helper is fine.
   import { relativeTime, shortTimestamp } from '../routines/time';
+  import EngineThreadDetail from './EngineThreadDetail.svelte';
 
   type Props = {
     mission: EngineMission;
@@ -108,11 +108,18 @@
     return id.length > 12 ? `${id.slice(0, 8)}…` : id;
   }
 
-  function onThreadClick(): void {
-    // v1.1 will navigate into an engine-thread detail surface (or fold it
-    // into /jobs once the wire exposes the linkage). Until then, the toast
-    // is the "interactive but not yet navigable" affordance.
-    toasts.show('Engine thread detail coming in v1.1', 'info');
+  /** The thread row currently expanded into the EngineThreadDetail overlay.
+   *  Selection is local to this component — opening a thread doesn't close
+   *  the mission drawer behind us, so closing the overlay returns the user
+   *  to the same mission context. */
+  let selectedThread = $state<EngineThread | null>(null);
+
+  function onThreadClick(t: EngineThread): void {
+    selectedThread = t;
+  }
+
+  function closeThreadDetail(): void {
+    selectedThread = null;
   }
 
   /** Compact token formatter — 12_345 → "12.3k" — so the thread row
@@ -240,7 +247,7 @@
             <li>
               <button
                 type="button"
-                onclick={onThreadClick}
+                onclick={() => onThreadClick(thread)}
                 class="w-full text-left bg-bg-deep border border-border-subtle hover:border-accent-cyan rounded-md p-3 transition-colors"
                 title={thread.goal ?? thread.title ?? thread.id}
               >
@@ -276,3 +283,10 @@
     </section>
   </div>
 </aside>
+
+{#if selectedThread}
+  <EngineThreadDetail
+    thread={selectedThread}
+    onclose={closeThreadDetail}
+  />
+{/if}

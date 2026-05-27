@@ -19,7 +19,7 @@
     sanitizeFilenameStem,
     saveTextDialog
   } from '$lib/api/files';
-  import type { ChatEvent, Message, Skill } from '$lib/api/types';
+  import type { AttachmentInput, ChatEvent, Message, Skill } from '$lib/api/types';
   import SlashAutocomplete from './SlashAutocomplete.svelte';
   import ChatSearch from './ChatSearch.svelte';
 
@@ -80,6 +80,46 @@
   let searchOpen = $state(false);
   let contentVersion = $state(0);
 
+  // -- attachments ------------------------------------------------------------
+  // v1 supports IMAGES only — server probe confirmed native `attachments[]`
+  // support on `/api/chat/send` with `{name, mime_type, data_base64}`. We
+  // cap at 5 files per send and 5 MB per file so a malformed paste doesn't
+  // OOM the in-memory base64 conversion. The strip renders ABOVE the
+  // textarea, flush against its top border.
+  //
+  // TODO(2026-06): extend `ALLOWED_MIME` to `application/pdf` and
+  // `text/plain` once the gateway's vision/text pipelines surface them
+  // back through the model — current /api/chat/send accepts any mime but
+  // only images are wired through `image_analyze`.
+  const ALLOWED_MIME = new Set([
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp'
+  ]);
+  const MAX_ATTACHMENTS = 5;
+  const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+  /** One pending attachment held in the composer. `previewUrl` is a blob:
+   *  URL we keep alive while the chip is mounted; revoked on remove/send so
+   *  we don't leak memory. `dataBase64` is the raw payload (no `data:` prefix). */
+  interface PendingAttachment {
+    /** Stable client-side id so Svelte's keyed each block re-renders cleanly
+     *  when a chip is removed mid-strip. */
+    id: string;
+    name: string;
+    mime: string;
+    size: number;
+    /** blob: URL for the inline thumbnail. */
+    previewUrl: string;
+    /** RAW base64 (no `data:` prefix). Populated post-FileReader. */
+    dataBase64: string;
+  }
+
+  let attachments = $state<PendingAttachment[]>([]);
+  let dragDepth = $state(0); // counter for nested dragenter/leave noise
+  let attachmentInputEl = $state<HTMLInputElement | null>(null);
+
   // -- derived ----------------------------------------------------------------
   const currentThread = $derived(threads.current);
   const currentId = $derived(threads.currentId);
@@ -89,8 +129,15 @@
   const streamError = $derived(currentId ? messages.getError(currentId) : null);
   const tools = $derived<ToolInvocation[]>(currentId ? messages.getTools(currentId) : []);
 
+  // A send is permitted when the user has typed at least one character OR
+  // attached at least one file. The legacy gateway accepts an empty content
+  // string (it gets rewritten to include the `<attachments>` block), so an
+  // attachment-only send is fine.
   const canSend = $derived(
-    !!connection.client && input.trim().length > 0 && !sending && !isStreaming
+    !!connection.client &&
+      (input.trim().length > 0 || attachments.length > 0) &&
+      !sending &&
+      !isStreaming
   );
 
   const isLoadingMore = $derived(currentId ? messages.isLoadingMore(currentId) : false);
@@ -441,10 +488,235 @@
     composerEl.style.height = `${Math.min(composerEl.scrollHeight, max)}px`;
   }
 
+  // -- attachment helpers -----------------------------------------------------
+  /**
+   * Read a Blob into a base64 string (no `data:` prefix).
+   *
+   * FileReader's `readAsDataURL` returns `data:<mime>;base64,<payload>`; we
+   * strip the prefix to align with the wire's `data_base64` field. The
+   * IronClaw gateway tolerates both forms but the doc'd wire is the raw
+   * payload — staying explicit here makes the request bytes smaller and the
+   * server-side decode unambiguous.
+   */
+  function readAsBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'));
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result !== 'string') {
+          reject(new Error('FileReader returned a non-string result'));
+          return;
+        }
+        const comma = result.indexOf(',');
+        resolve(comma === -1 ? result : result.slice(comma + 1));
+      };
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  /**
+   * Convert a list of `File`-likes into PendingAttachment rows.
+   *
+   * Enforces the v1 caps (mime allowlist, 5 MB / file, 5 attachments total
+   * across the current strip + the new batch). Surfacing one toast per
+   * rejection class keeps the noise reasonable on a bulk drop.
+   *
+   * Returns the accepted entries; rejected ones are toasted inline. The
+   * caller is responsible for appending the result onto `attachments`.
+   */
+  async function intakeFiles(files: FileList | File[]): Promise<PendingAttachment[]> {
+    const incoming = Array.from(files);
+    if (incoming.length === 0) return [];
+
+    const accepted: PendingAttachment[] = [];
+    let rejectedType = 0;
+    let rejectedSize = 0;
+    let rejectedSlot = 0;
+
+    const remainingSlots = Math.max(0, MAX_ATTACHMENTS - attachments.length);
+    if (remainingSlots === 0) {
+      toasts.show(`Max ${MAX_ATTACHMENTS} attachments per message`, 'error');
+      return [];
+    }
+
+    for (const file of incoming) {
+      if (accepted.length >= remainingSlots) {
+        rejectedSlot++;
+        continue;
+      }
+      if (!ALLOWED_MIME.has(file.type)) {
+        rejectedType++;
+        continue;
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        rejectedSize++;
+        continue;
+      }
+      try {
+        const dataBase64 = await readAsBase64(file);
+        accepted.push({
+          id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: file.name || 'attachment',
+          mime: file.type,
+          size: file.size,
+          previewUrl: URL.createObjectURL(file),
+          dataBase64
+        });
+      } catch (err) {
+        toasts.show(`Failed to read ${file.name}: ${(err as Error).message}`, 'error');
+      }
+    }
+
+    if (rejectedType > 0) {
+      toasts.show('Only images supported in v1', 'error');
+    }
+    if (rejectedSize > 0) {
+      toasts.show(`${rejectedSize} file(s) exceed the 5 MB limit`, 'error');
+    }
+    if (rejectedSlot > 0) {
+      toasts.show(`Max ${MAX_ATTACHMENTS} attachments per message`, 'error');
+    }
+    return accepted;
+  }
+
+  function removeAttachment(id: string): void {
+    const next = attachments.filter((a) => {
+      if (a.id === id) {
+        // Revoke the blob URL so the browser can release the underlying
+        // bytes. Safe to call even if the URL has already been revoked.
+        try { URL.revokeObjectURL(a.previewUrl); } catch { /* ignore */ }
+        return false;
+      }
+      return true;
+    });
+    attachments = next;
+  }
+
+  function clearAttachments(): void {
+    for (const a of attachments) {
+      try { URL.revokeObjectURL(a.previewUrl); } catch { /* ignore */ }
+    }
+    attachments = [];
+  }
+
+  /** Trigger the hidden file input. Reset its value first so picking the
+   *  same file twice in a row still fires `change`. */
+  function openFilePicker(): void {
+    if (!attachmentInputEl) return;
+    attachmentInputEl.value = '';
+    attachmentInputEl.click();
+  }
+
+  async function onFileInputChange(e: Event): Promise<void> {
+    const target = e.currentTarget as HTMLInputElement | null;
+    if (!target || !target.files) return;
+    const accepted = await intakeFiles(target.files);
+    if (accepted.length > 0) attachments = [...attachments, ...accepted];
+  }
+
+  /** Composer-level paste handler. Pulls image bytes off the clipboard and
+   *  inserts them as attachments WITHOUT also pasting the textual representation
+   *  the OS may attach (e.g. a Finder file URL). We only `preventDefault`
+   *  when at least one image is found so plain-text paste keeps working. */
+  async function onComposerPaste(e: ClipboardEvent): Promise<void> {
+    if (!e.clipboardData) return;
+    const items = Array.from(e.clipboardData.items);
+    const imageFiles: File[] = [];
+    for (const item of items) {
+      if (item.kind !== 'file') continue;
+      if (!item.type.startsWith('image/')) continue;
+      const f = item.getAsFile();
+      if (f) imageFiles.push(f);
+    }
+    if (imageFiles.length === 0) return;
+    e.preventDefault();
+    const accepted = await intakeFiles(imageFiles);
+    if (accepted.length > 0) attachments = [...attachments, ...accepted];
+  }
+
+  /** dragenter handler — increment the depth counter and surface the overlay.
+   *  We track depth (not a boolean) because dragenter/leave fire on each
+   *  child node the cursor crosses, and a naive boolean flickers as the
+   *  cursor moves over inner elements (textarea, buttons, etc.). */
+  function onComposerDragEnter(e: DragEvent): void {
+    if (!hasFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    dragDepth += 1;
+  }
+
+  function onComposerDragOver(e: DragEvent): void {
+    if (!hasFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  }
+
+  function onComposerDragLeave(e: DragEvent): void {
+    if (!hasFiles(e.dataTransfer)) return;
+    dragDepth = Math.max(0, dragDepth - 1);
+  }
+
+  async function onComposerDrop(e: DragEvent): Promise<void> {
+    if (!hasFiles(e.dataTransfer)) return;
+    e.preventDefault();
+    dragDepth = 0;
+    const files = e.dataTransfer?.files;
+    if (!files || files.length === 0) return;
+    const accepted = await intakeFiles(files);
+    if (accepted.length > 0) attachments = [...attachments, ...accepted];
+  }
+
+  function hasFiles(dt: DataTransfer | null): boolean {
+    if (!dt) return false;
+    if (!dt.types) return false;
+    // Type list contains "Files" when the user is dragging real files from
+    // the OS; text drags surface "text/plain" instead and we want to ignore
+    // them so the textarea's native paste-by-drop still works.
+    return Array.from(dt.types).includes('Files');
+  }
+
+  function fmtBytes(n: number): string {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  /**
+   * Clean up a user-message body for display.
+   *
+   * The gateway rewrites the user's content to append an `<attachments>`
+   * block listing each saved file (verbose XML-ish prose intended for the
+   * model, NOT for the user to read). We strip that block from the chat
+   * bubble so the user sees their own prose and any attached images, but
+   * not the bookkeeping prelude.
+   *
+   * The block always begins with `\n\n<attachments>` and ends with the
+   * closing `</attachments>` tag; a tolerant regex covers both the exact
+   * server format and any single-attachment variant.
+   */
+  function cleanUserDisplay(text: string): string {
+    if (!text) return text;
+    return text
+      .replace(/\n*<attachments>[\s\S]*?<\/attachments>\s*/u, '')
+      .trim();
+  }
+
+  /** True when the cleaned user content contains markdown image syntax —
+   *  used to switch the user bubble from plain text to MarkdownView so the
+   *  optimistic blob: previews render. */
+  function userHasInlineImage(text: string): boolean {
+    return /!\[[^\]]*\]\([^)]+\)/u.test(text);
+  }
+
   async function onSend() {
     if (!connection.client) return;
     const content = input.trim();
-    if (!content) return;
+    // Snapshot attachments before we clear the strip — the user-bubble preview
+    // and the wire payload both read off this array. An attachment-only send
+    // (empty content + ≥1 file) is permitted; the gateway rewrites `content`
+    // to include the `<attachments>` block server-side.
+    const pendingAttachments = attachments;
+    if (!content && pendingAttachments.length === 0) return;
 
     sending = true;
     try {
@@ -460,9 +732,24 @@
         }
       }
 
+      // Build an optimistic user-bubble preview. The actual server-side
+      // content gets `<attachments>` blocks appended; for the local bubble
+      // we mirror that with inline markdown image syntax pointing at the
+      // already-allocated blob: URL so the user sees the image they sent
+      // before the gateway echoes it back. The blob URL is kept alive
+      // until clearAttachments() runs below — by then the message has been
+      // committed to the messages store so the DOM holds the reference.
+      let optimisticContent = content;
+      if (pendingAttachments.length > 0) {
+        const previews = pendingAttachments
+          .map((a) => `![${a.name}](${a.previewUrl})`)
+          .join('\n\n');
+        optimisticContent = content ? `${content}\n\n${previews}` : previews;
+      }
+
       // Append the optimistic user message — keep its id so we can mark it
       // failed (and offer retry) if the send/stream pair errors out.
-      const localId = messages.appendUserMessage(threadId, content);
+      const localId = messages.appendUserMessage(threadId, optimisticContent);
 
       // Clear the composer + persisted draft. Suppress the debounced save
       // that would otherwise fire from the `input = ''` write.
@@ -476,7 +763,21 @@
       draftLoadedFor = threadId;
       suppressDraftSave = false;
 
-      await runSendAndStream(threadId, content, localId);
+      // Pull the wire-shape attachments out before we drop the strip — the
+      // blob URLs are still alive on `pendingAttachments` so the optimistic
+      // bubble's <img> tags keep resolving.
+      const wireAttachments: AttachmentInput[] = pendingAttachments.map((a) => ({
+        name: a.name,
+        mime_type: a.mime,
+        data_base64: a.dataBase64
+      }));
+      // Clear the local strip — but DON'T revoke the blob URLs yet, the
+      // optimistic bubble still references them. They're released when the
+      // user navigates away or refreshes; this is a small acceptable leak
+      // given attachments are capped at 5 × 5 MB per send.
+      attachments = [];
+
+      await runSendAndStream(threadId, optimisticContent, localId, wireAttachments);
     } finally {
       sending = false;
     }
@@ -505,7 +806,8 @@
   async function runSendAndStream(
     threadId: string,
     content: string,
-    localId: string
+    localId: string,
+    attachments: AttachmentInput[] = []
   ): Promise<void> {
     if (!connection.client) return;
 
@@ -523,8 +825,14 @@
       useResponsesApi = true;
     }
 
+    // Attachments are wired only through the legacy `/api/chat/send`
+    // endpoint — the Responses API accepts the `attachments` field at the
+    // wire level but silently drops it (no `<attachments>` block lands in
+    // the user turn). Force legacy whenever a send carries attachments so
+    // the model actually receives them.
+    const hasAttachments = attachments.length > 0;
     let responsesAvailable = false;
-    if (useResponsesApi) {
+    if (useResponsesApi && !hasAttachments) {
       try {
         const caps = await connection.client.getServerCapabilities();
         responsesAvailable = caps.responses_api;
@@ -564,7 +872,7 @@
             );
             // Reset the partial stream state — the legacy path will rebegin.
             messages.commitAssistantMessage(threadId);
-            await runLegacySendAndStream(threadId, content, localId, signal);
+            await runLegacySendAndStream(threadId, content, localId, signal, attachments);
             usedPath = 'legacy';
             replyForNotify = messages.getStreaming(threadId);
             return; // commit + reconcile already handled in legacy path
@@ -578,7 +886,7 @@
         }
       } else {
         usedPath = 'legacy';
-        await runLegacySendAndStream(threadId, content, localId, signal);
+        await runLegacySendAndStream(threadId, content, localId, signal, attachments);
         // legacy helper does NOT call commit here — we still want the
         // shared finally{} to run the post-stream reconcile.
       }
@@ -617,7 +925,7 @@
         void notifications.notify({
           title: 'IronClaw replied',
           body,
-          sound: 'default'
+          category: 'chat'
         });
       }
     }
@@ -634,11 +942,12 @@
     threadId: string,
     content: string,
     localId: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    attachments: AttachmentInput[] = []
   ): Promise<void> {
     if (!connection.client) return;
     try {
-      await connection.client.sendMessage(threadId, content);
+      await connection.client.sendMessage(threadId, content, attachments);
     } catch (err) {
       const msg = (err as Error).message;
       messages.setError(threadId, msg);
@@ -1100,14 +1409,21 @@
             {#if msg.role === 'user'}
               {@const meta = messages.getMeta(msg.id)}
               {@const failed = !!meta.failed}
+              {@const userDisplay = cleanUserDisplay(msg.content)}
+              {@const userHasImage = userHasInlineImage(userDisplay)}
               <div class="flex flex-col items-end gap-1">
                 <div
-                  class="search-target max-w-[75%] rounded-lg border px-4 py-2.5 text-sm text-text-primary whitespace-pre-wrap"
+                  class="search-target max-w-[75%] rounded-lg border px-4 py-2.5 text-sm text-text-primary"
+                  class:whitespace-pre-wrap={!userHasImage}
                   style={failed
                     ? 'background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.45);'
-                    : 'background:rgba(0,212,255,0.10);border-color:rgba(251,191,36,0.4);'}
+                    : 'background:rgba(76,167,230,0.10);border-color:rgba(251,191,36,0.4);'}
                 >
-                  {msg.content}
+                  {#if userHasImage}
+                    <MarkdownView markdown={userDisplay} />
+                  {:else}
+                    {userDisplay}
+                  {/if}
                 </div>
                 {#if failed && currentId}
                   {@const isRetrying = !!retryingIds[msg.id]}
@@ -1201,7 +1517,25 @@
 
     <!-- composer -->
     <div class="shrink-0 border-t border-border-subtle bg-bg-base/40 px-6 py-4">
-      <div class="max-w-4xl mx-auto relative">
+      <div
+        class="max-w-4xl mx-auto relative"
+        ondragenter={onComposerDragEnter}
+        ondragover={onComposerDragOver}
+        ondragleave={onComposerDragLeave}
+        ondrop={onComposerDrop}
+        role="presentation"
+      >
+        <!-- Hidden file input — triggered by the "+" button. `accept` is
+             advisory in the OS picker; we re-validate in intakeFiles(). -->
+        <input
+          bind:this={attachmentInputEl}
+          onchange={onFileInputChange}
+          type="file"
+          accept="image/png,image/jpeg,image/gif,image/webp"
+          multiple
+          class="hidden"
+        />
+
         <!-- slash-command autocomplete — anchored to this wrapper so the
              dropdown grows upward from the composer's top edge. -->
         <SlashAutocomplete
@@ -1212,9 +1546,69 @@
           skills={skillCatalog}
           onPick={applySlashPick}
         />
+
+        <!-- Attachment thumbnail strip — sits above the textarea border,
+             tucks the previews flush against the composer chrome. The strip
+             takes its own row so longer file names don't squeeze the
+             textarea. Visible only when at least one attachment is staged. -->
+        {#if attachments.length > 0}
+          <div
+            class="flex flex-wrap gap-2 mb-2"
+            aria-label="Pending attachments"
+          >
+            {#each attachments as a (a.id)}
+              <div
+                class="group flex items-center gap-2 bg-bg-deep border border-border-subtle rounded-md pl-1 pr-2 py-1 hover:border-accent-cyan/50 transition-colors"
+                title={`${a.name} · ${fmtBytes(a.size)}`}
+              >
+                <img
+                  src={a.previewUrl}
+                  alt={a.name}
+                  class="w-12 h-12 object-cover rounded shrink-0"
+                />
+                <div class="flex flex-col min-w-0 max-w-[160px]">
+                  <span class="text-xs text-text-primary truncate">{a.name}</span>
+                  <span class="text-[10px] text-text-muted">{fmtBytes(a.size)}</span>
+                </div>
+                <button
+                  type="button"
+                  onclick={() => removeAttachment(a.id)}
+                  class="shrink-0 w-5 h-5 rounded text-text-muted hover:text-red-300 hover:bg-red-500/10 transition-colors flex items-center justify-center"
+                  aria-label={`Remove ${a.name}`}
+                  title="Remove"
+                >
+                  <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+
         <div
           class="flex items-end gap-2 bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 focus-within:border-accent-cyan transition-colors"
         >
+          <!-- Attach button — file picker fallback for users who don't
+               drag or paste. Sits left of the textarea so the send button
+               keeps its anchor on the right edge. -->
+          <button
+            type="button"
+            onclick={openFilePicker}
+            disabled={!connection.client || attachments.length >= MAX_ATTACHMENTS}
+            class="shrink-0 w-9 h-9 rounded-md text-text-muted hover:text-accent-cyan hover:bg-accent-cyan/10 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+            aria-label="Attach image"
+            title={attachments.length >= MAX_ATTACHMENTS
+              ? `Max ${MAX_ATTACHMENTS} attachments per message`
+              : 'Attach image (PNG/JPEG/GIF/WebP, max 5 MB each)'}
+          >
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </button>
+
           <textarea
             bind:this={composerEl}
             bind:value={input}
@@ -1226,6 +1620,7 @@
             onkeyup={syncCaret}
             onclick={syncCaret}
             onkeydown={onKeyDown}
+            onpaste={onComposerPaste}
             placeholder={connection.client
               ? 'Message IronClaw…'
               : 'Configure connection in Settings to start chatting'}
@@ -1262,6 +1657,26 @@
             </button>
           {/if}
         </div>
+
+        <!-- Drag-over overlay. Fades in atop the composer when the user is
+             dragging files; non-interactive (pointer-events:none) so the
+             drop event still hits the wrapper underneath. -->
+        {#if dragDepth > 0}
+          <div
+            class="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-accent-cyan bg-bg-deep/80 backdrop-blur-sm transition-opacity duration-150 pointer-events-none"
+            aria-hidden="true"
+          >
+            <div class="flex flex-col items-center gap-1.5 text-accent-cyan">
+              <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" y1="3" x2="12" y2="15" />
+              </svg>
+              <span class="text-sm font-semibold">Drop files here</span>
+              <span class="text-[11px] text-text-muted">Images only · up to {MAX_ATTACHMENTS} · 5 MB each</span>
+            </div>
+          </div>
+        {/if}
       </div>
     </div>
   </div>

@@ -1008,7 +1008,7 @@
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
     background-color: #050810; /* bg-deep */
-    border: 1px solid #00d4ff; /* accent-cyan */
+    border: 1px solid #4ca7e6; /* accent-cyan (signal blue v2) */
     color: #e5e7eb; /* text-primary */
     font-size: 11px;
     line-height: 1.2;
