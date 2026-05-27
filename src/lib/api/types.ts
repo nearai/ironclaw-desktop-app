@@ -155,6 +155,145 @@ export interface RoutineRun {
   output?: string;
 }
 
+// ---- Jobs ------------------------------------------------------------------
+//
+// Job APIs are documented in `src/channels/web/features/jobs/mod.rs` on the
+// IronClaw gateway. The wire types come from `JobListResponse`,
+// `JobSummaryResponse`, `JobDetailResponse`, and the project file helpers.
+//
+// The gateway tracks TWO classes of jobs in one table:
+//   - "sandbox" jobs: per-task containerized workers (Claude Code / ACP / worker
+//     modes). These carry a `project_dir` and produce files.
+//   - "agent" jobs: long-running agent contexts driven by the scheduler. No
+//     project dir; transitions are recorded explicitly.
+// Both kinds round-trip through the same /api/jobs endpoints and surface here
+// as `Job` with `job_kind` identifying which side.
+//
+// State strings (wire): `pending` | `in_progress` | `completed` | `failed` |
+//   `cancelled` | `stuck`. The summary endpoint also reports `stuck`.
+
+/** Lifecycle state used by the UI. Server emits these verbatim from the
+ *  `JobInfo.state` and `JobDetailResponse.state` fields; we keep them as
+ *  literals on the union but tolerate unknown strings via the trailing
+ *  `string` so a future server-side state doesn't blow up rendering. */
+export type JobState =
+  | 'pending'
+  | 'in_progress'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+  | 'stuck'
+  | string;
+
+/** Row shape returned by GET /api/jobs (one entry per job). The gateway emits
+ *  a thin list: id, title, state, user_id, created_at, started_at. The detail
+ *  endpoint enriches with completed_at, transitions, etc — see `JobDetail`. */
+export interface Job {
+  /** UUID v4. Mono-truncated in lists. */
+  id: string;
+  /** Free-text title; for sandbox jobs this is the `task` field, for agent
+   *  jobs it's the user-supplied `title`. Used as the row label since the
+   *  server does not emit a separate `kind` field. */
+  title: string;
+  state: JobState;
+  /** Owner id. `"default"` for the single-tenant local owner. */
+  user_id: string;
+  /** RFC3339 / ISO8601 from server. */
+  created_at: string;
+  started_at?: string;
+}
+
+/** Summary tile counts. Wire: `{total, pending, in_progress, completed, failed, stuck}`.
+ *  Note the wire field is `in_progress` (not `running`); we keep both names
+ *  available so callers can read whichever fits their UI vocabulary. */
+export interface JobSummary {
+  total: number;
+  /** Server's `pending` bucket. */
+  pending: number;
+  /** Server's `in_progress` bucket. Surfaced verbatim. */
+  in_progress: number;
+  /** Alias for `in_progress` — the UI's tile is labeled "Running" so we
+   *  expose this convenience field too. Mirrors `in_progress` 1:1. */
+  running: number;
+  completed: number;
+  failed: number;
+  /** Agent jobs whose worker has stopped without a terminal transition.
+   *  May stay zero on sandbox-only builds. */
+  stuck: number;
+}
+
+/** Enriched per-job payload returned by GET /api/jobs/{id}. Adds completion,
+ *  transitions, and capability flags (`can_restart`, `can_prompt`). */
+export interface JobDetail extends Job {
+  description: string;
+  completed_at?: string;
+  elapsed_secs?: number;
+  /** Filesystem path for sandbox jobs (server-side). Undefined for agent jobs. */
+  project_dir?: string;
+  browse_url?: string;
+  /** Job mode descriptor: `claude_code`, `acp:<agent>`, `worker`, or omitted
+   *  for agent jobs. Verbatim from server. */
+  job_mode?: string;
+  transitions: JobTransition[];
+  /** Server indicates whether the UI may offer a Restart button. */
+  can_restart: boolean;
+  /** Server indicates whether the UI may offer follow-up prompts (not used in
+   *  v1 of the desktop client, but surfaced so the panel can stay current). */
+  can_prompt: boolean;
+  /** `"sandbox"` or `"agent"`. Undefined on very old gateways. */
+  job_kind?: 'sandbox' | 'agent' | string;
+}
+
+/** Single state transition row inside the detail panel timeline. */
+export interface JobTransition {
+  from: string;
+  to: string;
+  /** RFC3339 timestamp. */
+  timestamp: string;
+  /** Failure / cancellation reason; absent on healthy transitions. */
+  reason?: string;
+}
+
+/** Single event row returned by GET /api/jobs/{id}/events.
+ *  Wire shape: `{id, event_type, data, created_at}`. The `data` payload is
+ *  opaque JSON — different `event_type` values carry different shapes
+ *  (e.g. `tool_call`, `output_text`, `status_change`). The UI renders
+ *  `event_type` + a JSON-stringified `data` preview; consumers that want
+ *  rich rendering should pattern-match on `event_type` themselves.
+ *
+ *  Note: the brief described this endpoint as an SSE stream but the live
+ *  gateway exposes it as a plain JSON `GET` returning the historical event
+ *  list. `streamJobEvents` polls this endpoint at a fixed cadence to give
+ *  callers an `AsyncIterable` interface for live updates without forcing a
+ *  refactor when the server eventually adds a real SSE channel. */
+export interface JobEvent {
+  /** Server-assigned event id (UUID). */
+  id?: string;
+  /** Coarse classifier (e.g. `tool_call`, `output_text`, `status_change`). */
+  event_type: string;
+  /** Opaque JSON payload. Render as a code snippet. */
+  data?: unknown;
+  /** RFC3339 timestamp. */
+  created_at: string;
+}
+
+/** File entry inside a sandbox job's project directory.
+ *  Wire shape: `ProjectFileEntry { name, path, is_dir }`.
+ *  Size is NOT reported by the current gateway — we keep the field optional
+ *  so the UI can surface it once the server starts emitting it. */
+export interface JobFile {
+  /** Last path segment (filename or directory name). */
+  name: string;
+  /** Path relative to the job's project root. */
+  path: string;
+  is_dir: boolean;
+  /** Optional metadata — server doesn't emit these today but we keep the
+   *  fields available so a richer files endpoint can land without a type
+   *  break. */
+  size?: number;
+  created_at?: string;
+}
+
 /**
  * Log level emitted by the gateway's `tracing` filter. Matches the values
  * accepted by GET/POST /api/logs/level on IronClaw v0.29.0+.

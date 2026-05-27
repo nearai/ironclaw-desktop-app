@@ -32,7 +32,7 @@
       "dialog": false,
       "pubkey": "",
       "endpoints": [
-        "https://github.com/openclaw/ironclaw-desktop/releases/latest/download/latest.json"
+        "https://github.com/abbyshekit/ironclaw-desktop/releases/latest/download/latest.json"
       ]
     }
   },

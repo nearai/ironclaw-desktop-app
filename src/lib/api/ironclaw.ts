@@ -12,6 +12,11 @@ import type {
   ExtensionTool,
   GatewayStatus,
   HealthStatus,
+  Job,
+  JobDetail,
+  JobEvent,
+  JobFile,
+  JobSummary,
   LogEntry,
   LogLevel,
   MemoryHit,
@@ -1125,6 +1130,273 @@ export class IronClawClient {
       finished_at: r.completed_at,
       status: mapRunStatus(r.status),
       output: r.result_summary
+    }));
+  }
+
+  // ---- Jobs ------------------------------------------------------------------
+  //
+  // Background-job queue handlers. The gateway routes are documented in
+  // `src/channels/web/features/jobs/mod.rs` and verified against IronClaw
+  // 0.28.2 on 2026-05-27.
+  //
+  // Two important wire deviations from the original brief:
+  //   1. The summary endpoint uses `in_progress` (not `running`) and adds a
+  //      `stuck` bucket for stalled agent jobs. We expose both `in_progress`
+  //      AND a `running` alias for backwards-compatible UI vocabulary.
+  //   2. `/api/jobs/{id}/events` is a plain JSON GET that replays the
+  //      historical event list — NOT an SSE stream. `streamJobEvents` polls
+  //      the endpoint and yields newly-observed events so callers see the
+  //      AsyncIterable interface the brief asked for; when the server adds a
+  //      real SSE channel we can swap the body without touching callers.
+
+  /** GET /api/jobs → list of jobs (newest first). The server scopes by user
+   *  automatically. Optional `status` filter is passed verbatim — the
+   *  gateway today returns the full list regardless, so we also apply a
+   *  client-side filter as a defensive belt-and-suspenders. The `limit` is
+   *  client-side only for the same reason (the server has no `limit` param). */
+  async listJobs(opts?: { status?: string; limit?: number }): Promise<Job[]> {
+    const qs = new URLSearchParams();
+    if (opts?.status) qs.set('status', opts.status);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    const res = await this.request<{
+      jobs?: Array<{
+        id: string;
+        title?: string;
+        state?: string;
+        user_id?: string;
+        created_at?: string;
+        started_at?: string;
+      }>;
+    }>('GET', `/api/jobs${suffix}`);
+    let jobs: Job[] = (res?.jobs ?? []).map((j) => ({
+      id: String(j.id ?? ''),
+      title: typeof j.title === 'string' ? j.title : '',
+      state: typeof j.state === 'string' ? j.state : 'pending',
+      user_id: typeof j.user_id === 'string' ? j.user_id : '',
+      created_at: typeof j.created_at === 'string' ? j.created_at : '',
+      started_at: typeof j.started_at === 'string' ? j.started_at : undefined
+    }));
+    if (opts?.status) {
+      jobs = jobs.filter((j) => j.state === opts.status);
+    }
+    if (opts?.limit !== undefined && jobs.length > opts.limit) {
+      jobs = jobs.slice(0, opts.limit);
+    }
+    return jobs;
+  }
+
+  /** GET /api/jobs/summary → aggregate counts.
+   *
+   *  Wire (verified 2026-05-27): `{total, pending, in_progress, completed,
+   *  failed, stuck}`. We map verbatim AND expose `running` as an alias for
+   *  `in_progress` so the UI's "Running" tile doesn't need to know about the
+   *  server's vocabulary. */
+  async jobsSummary(): Promise<JobSummary> {
+    const res = await this.request<{
+      total?: number;
+      pending?: number;
+      in_progress?: number;
+      completed?: number;
+      failed?: number;
+      stuck?: number;
+    }>('GET', '/api/jobs/summary');
+    const inProgress = res?.in_progress ?? 0;
+    return {
+      total: res?.total ?? 0,
+      pending: res?.pending ?? 0,
+      in_progress: inProgress,
+      running: inProgress,
+      completed: res?.completed ?? 0,
+      failed: res?.failed ?? 0,
+      stuck: res?.stuck ?? 0
+    };
+  }
+
+  /** GET /api/jobs/{id} → enriched detail with transitions + capability flags. */
+  async getJob(id: string): Promise<JobDetail> {
+    const res = await this.request<{
+      id: string;
+      title?: string;
+      description?: string;
+      state?: string;
+      user_id?: string;
+      created_at?: string;
+      started_at?: string;
+      completed_at?: string;
+      elapsed_secs?: number;
+      project_dir?: string;
+      browse_url?: string;
+      job_mode?: string;
+      job_kind?: string;
+      can_restart?: boolean;
+      can_prompt?: boolean;
+      transitions?: Array<{
+        from?: string;
+        to?: string;
+        timestamp?: string;
+        reason?: string;
+      }>;
+    }>('GET', `/api/jobs/${encodeURIComponent(id)}`);
+    return {
+      id: String(res.id ?? id),
+      title: typeof res.title === 'string' ? res.title : '',
+      description: typeof res.description === 'string' ? res.description : '',
+      state: typeof res.state === 'string' ? res.state : 'pending',
+      user_id: typeof res.user_id === 'string' ? res.user_id : '',
+      created_at: typeof res.created_at === 'string' ? res.created_at : '',
+      started_at: res.started_at,
+      completed_at: res.completed_at,
+      elapsed_secs: res.elapsed_secs,
+      project_dir: res.project_dir,
+      browse_url: res.browse_url,
+      job_mode: res.job_mode,
+      job_kind: res.job_kind as 'sandbox' | 'agent' | undefined,
+      can_restart: res.can_restart === true,
+      can_prompt: res.can_prompt === true,
+      transitions: (res.transitions ?? []).map((t) => ({
+        from: typeof t.from === 'string' ? t.from : '',
+        to: typeof t.to === 'string' ? t.to : '',
+        timestamp: typeof t.timestamp === 'string' ? t.timestamp : '',
+        reason: t.reason
+      }))
+    };
+  }
+
+  /** POST /api/jobs/{id}/cancel → request the gateway cancel a running job.
+   *
+   *  Wire response: `{status: "cancelled", job_id}` on success; HTTP error
+   *  (404, 409, 500) otherwise. We accept any 2xx as success and derive `ok`
+   *  from the presence of `status === "cancelled"` so a future server
+   *  message tweak doesn't break the call. */
+  async cancelJob(id: string): Promise<{ ok: boolean }> {
+    const res = await this.request<{ status?: string; job_id?: string }>(
+      'POST',
+      `/api/jobs/${encodeURIComponent(id)}/cancel`
+    );
+    return { ok: res?.status === 'cancelled' || res?.status === 'ok' };
+  }
+
+  /** POST /api/jobs/{id}/restart → spawn a fresh job from a failed/interrupted
+   *  one. Server-side this allocates a NEW UUID and copies the original
+   *  task / project / mode / mcp filter forward. We surface `ok` to the
+   *  caller; if the route ever returns the new job id we'll bubble it up
+   *  via an additional field rather than a breaking change here.
+   *
+   *  Server today returns `{status, job_id, ...}` after queuing; the exact
+   *  status string is mode-dependent (`"queued"`, `"started"`, `"ok"`). We
+   *  treat any successful HTTP status as ok and don't inspect the payload
+   *  strictly. */
+  async restartJob(id: string): Promise<{ ok: boolean }> {
+    await this.request<{ status?: string; job_id?: string }>(
+      'POST',
+      `/api/jobs/${encodeURIComponent(id)}/restart`
+    );
+    return { ok: true };
+  }
+
+  /** GET /api/jobs/{id}/events → historical event list for a job.
+   *
+   *  Wire: `{job_id, events: [{id, event_type, data, created_at}]}`. Each
+   *  event row is opaque JSON keyed by `event_type` — render at the
+   *  caller. */
+  async getJobEvents(id: string): Promise<JobEvent[]> {
+    const res = await this.request<{
+      job_id?: string;
+      events?: Array<{
+        id?: string;
+        event_type?: string;
+        data?: unknown;
+        created_at?: string;
+      }>;
+    }>('GET', `/api/jobs/${encodeURIComponent(id)}/events`);
+    return (res?.events ?? []).map((e) => ({
+      id: typeof e.id === 'string' ? e.id : undefined,
+      event_type: typeof e.event_type === 'string' ? e.event_type : 'unknown',
+      data: e.data,
+      created_at: typeof e.created_at === 'string' ? e.created_at : ''
+    }));
+  }
+
+  /**
+   * Poll `/api/jobs/{id}/events` and yield NEW events as they appear.
+   *
+   * The brief asked for an `AsyncIterable<JobEvent>` backed by SSE. The
+   * live gateway exposes the events endpoint as a JSON GET (not SSE) — see
+   * `/tmp/ironclaw-origin-main/src/channels/web/features/jobs/mod.rs`
+   * around the `jobs_events_handler` definition. We honor the brief's
+   * signature by polling every `intervalMs` (default 2s) and diffing
+   * against the last-seen event id so callers only receive *new* events.
+   *
+   * The first iteration yields the full historical replay so a fresh
+   * panel opens with context. Subsequent ticks yield only deltas.
+   *
+   * Abort via the passed `AbortSignal`. The loop checks `signal.aborted`
+   * between ticks AND between fetch + sleep so cancellation is quick.
+   */
+  async *streamJobEvents(
+    id: string,
+    signal: AbortSignal,
+    intervalMs = 2000
+  ): AsyncIterable<JobEvent> {
+    const seen = new Set<string>();
+    let bootstrap = true;
+    while (!signal.aborted) {
+      let batch: JobEvent[] = [];
+      try {
+        batch = await this.getJobEvents(id);
+      } catch {
+        // Network/auth blips: skip this tick. The next iteration retries.
+        batch = [];
+      }
+      if (signal.aborted) return;
+      for (const evt of batch) {
+        // Identity key: prefer the server id; fall back to type+timestamp
+        // for older builds that don't emit a per-event id.
+        const key = evt.id ?? `${evt.event_type}@${evt.created_at}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        // On bootstrap we yield everything to seed the panel. Subsequent
+        // ticks only yield new keys (the `continue` above filters duplicates).
+        yield evt;
+      }
+      bootstrap = false;
+      void bootstrap; // silence unused-warning while keeping the bookkeeping
+      // Sleep `intervalMs` with abort-awareness so callers see prompt
+      // teardown when the panel closes.
+      await new Promise<void>((resolve) => {
+        const t = setTimeout(resolve, intervalMs);
+        signal.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(t);
+            resolve();
+          },
+          { once: true }
+        );
+      });
+    }
+  }
+
+  /** GET /api/jobs/{id}/files/list → entries inside the job's project
+   *  directory. Only sandbox jobs have a project dir; agent jobs 404.
+   *  The optional `path` query parameter scopes to a subdirectory; this
+   *  surface only renders the root so we don't accept it here. */
+  async getJobFiles(id: string): Promise<JobFile[]> {
+    const res = await this.request<{
+      entries?: Array<{
+        name?: string;
+        path?: string;
+        is_dir?: boolean;
+        size?: number;
+        created_at?: string;
+      }>;
+    }>('GET', `/api/jobs/${encodeURIComponent(id)}/files/list`);
+    return (res?.entries ?? []).map((f) => ({
+      name: typeof f.name === 'string' ? f.name : '',
+      path: typeof f.path === 'string' ? f.path : '',
+      is_dir: f.is_dir === true,
+      size: f.size,
+      created_at: f.created_at
     }));
   }
 

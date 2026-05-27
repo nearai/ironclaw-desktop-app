@@ -35,15 +35,16 @@ jobs:
       - name: Build Tauri bundle (aarch64)
         run: npm run tauri build -- --target aarch64-apple-darwin
         env:
-          # Unsigned for now. Add signing in a follow-up.
-          TAURI_SIGNING_PRIVATE_KEY: ""
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          # If these secrets are unset, Tauri builds unsigned updater artifacts.
+          # If set, the .app.tar.gz artifacts are signed and a .sig file is produced.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Build Tauri bundle (x86_64)
         run: npm run tauri build -- --target x86_64-apple-darwin
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ""
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Collect artifacts
         run: |
@@ -53,6 +54,9 @@ jobs:
           # Updater artifacts (signed when keys are configured)
           cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz release-artifacts/ || true
           cp src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz release-artifacts/ || true
+          # Detached signatures (only present when TAURI_SIGNING_PRIVATE_KEY is set)
+          cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig release-artifacts/ || true
+          cp src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig release-artifacts/ || true
           ls -la release-artifacts/
 
       - name: Create GitHub release

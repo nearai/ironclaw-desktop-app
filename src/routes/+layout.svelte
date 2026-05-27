@@ -71,11 +71,17 @@
       return;
     }
 
-    // Cmd+1..7 → top-level routes. Match by `e.key` so the digit is correct
+    // Cmd+1..8 → top-level routes. Match by `e.key` so the digit is correct
     // across keyboard layouts; modifiers aren't required to interpret it.
-    // Cmd+7 is gated on `settings.adminMode` so the chord stays a no-op
+    // Cmd+8 is gated on `settings.adminMode` so the chord stays a no-op
     // when the admin surface isn't enabled — same visibility contract as
     // the sidebar row.
+    //
+    // Note (2026-05-27): Jobs surface added at Cmd+5. Logs/Extensions/Admin
+    // shifted down by one slot. Cmd+5 used to map to /logs — users who
+    // press Cmd+5 expecting Logs will now hit Jobs; documented in the
+    // changelog and the sidebar's shortcut hints render the new chord so
+    // discoverability is intact.
     if (mod && !e.shiftKey && !e.altKey) {
       const target = ROUTES_BY_DIGIT[e.key];
       if (target) {
@@ -91,9 +97,10 @@
     '2': '/knowledge',
     '3': '/skills',
     '4': '/routines',
-    '5': '/logs',
-    '6': '/extensions',
-    '7': '/admin'
+    '5': '/jobs',
+    '6': '/logs',
+    '7': '/extensions',
+    '8': '/admin'
   };
 
   // Hide-on-disable guard for /admin. If the user toggled adminMode off

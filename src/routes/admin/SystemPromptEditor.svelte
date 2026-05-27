@@ -22,6 +22,7 @@
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
+  import { redactSecrets } from '$lib/utils/redact';
 
   // Server hard-caps at 64 KB. We surface a soft warning at 95% so the
   // user notices well before the gateway returns a 413. The exact limit is
@@ -94,6 +95,15 @@
   const approaching = $derived(byteCount > SOFT_WARN_BYTES && byteCount <= MAX_BYTES);
   const pctUsed = $derived(Math.min(100, Math.round((byteCount / MAX_BYTES) * 100)));
   const dirty = $derived(draft !== serverPrompt);
+
+  // Read-only preview redaction. Edit mode (the textarea) always shows
+  // the raw draft so the operator can edit the real bytes; the rendered
+  // Markdown preview is treated as a read-only view and runs through
+  // `redactSecrets`. The detector below is a string-equality probe — if
+  // `redactSecrets` changed anything we know at least one pattern hit,
+  // which lets us flip on the banner without re-walking the patterns.
+  const redactedDraft = $derived(redactSecrets(draft));
+  const hasSecretInDraft = $derived(redactedDraft !== draft);
 
   onMount(() => {
     hydrateHistory();
@@ -447,8 +457,19 @@
           onscroll={syncFromPreview}
           class="surface p-4 overflow-auto text-sm min-h-[240px]"
         >
+          {#if hasSecretInDraft}
+            <!-- Token-mask banner. Sits above the rendered preview so the
+                 reader knows the visible markdown has been sanitized;
+                 the editor textarea on the left still shows raw bytes. -->
+            <div class="mb-3 px-3 py-2 rounded-md border border-accent-gold/60 bg-accent-gold/10 text-[11px] text-accent-gold flex items-start gap-2">
+              <span aria-hidden="true">⚠</span>
+              <span class="flex-1">
+                Token-like patterns detected — view masked. Edit mode shows raw.
+              </span>
+            </div>
+          {/if}
           {#if draft.trim()}
-            <MarkdownView markdown={draft} />
+            <MarkdownView markdown={redactedDraft} />
           {:else}
             <div class="text-xs text-text-muted italic">Nothing to preview.</div>
           {/if}

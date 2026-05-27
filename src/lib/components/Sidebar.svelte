@@ -20,7 +20,14 @@
   // collapsed-state dot color is selected per-key too. Nav rows without
   // a `badgeKey` never show a badge.
 
-  type BadgeKey = 'chat' | 'skills' | 'routines' | 'extensions' | 'logs' | 'settings';
+  type BadgeKey =
+    | 'chat'
+    | 'skills'
+    | 'routines'
+    | 'jobs'
+    | 'extensions'
+    | 'logs'
+    | 'settings';
 
   type NavItem = {
     href: string;
@@ -30,6 +37,7 @@
       | 'knowledge'
       | 'logs'
       | 'routines'
+      | 'jobs'
       | 'settings'
       | 'skills'
       | 'extensions'
@@ -56,19 +64,23 @@
       shortcut: '⌘4',
       badgeKey: 'routines'
     },
-    { href: '/logs', label: 'Logs', icon: 'logs', shortcut: '⌘5', badgeKey: 'logs' },
+    // Jobs sits between Routines and Logs — see CHANGELOG entry for the
+    // shortcut renumber (Logs Cmd+5 → Cmd+6, Extensions Cmd+6 → Cmd+7,
+    // Admin Cmd+7 → Cmd+8). Jobs takes Cmd+5.
+    { href: '/jobs', label: 'Jobs', icon: 'jobs', shortcut: '⌘5', badgeKey: 'jobs' },
+    { href: '/logs', label: 'Logs', icon: 'logs', shortcut: '⌘6', badgeKey: 'logs' },
     {
       href: '/extensions',
       label: 'Extensions',
       icon: 'extensions',
-      shortcut: '⌘6',
+      shortcut: '⌘7',
       badgeKey: 'extensions'
     },
     {
       href: '/admin',
       label: 'Admin',
       icon: 'admin',
-      shortcut: '⌘7',
+      shortcut: '⌘8',
       // Read through the connection store so the row appears/disappears
       // reactively when the user toggles the setting (Svelte 5 runes
       // re-evaluate on every render).
@@ -174,6 +186,10 @@
   let routinesEnabled = $state<number | null>(null);
   let routinesRunning = $state<number>(0);
   let extensionsCount = $state<number | null>(null);
+  /** Jobs badge — number of jobs currently in `in_progress` state. We do
+   *  NOT badge `pending` or `stuck` so the count stays a useful "what's
+   *  the agent doing RIGHT NOW" signal, matching the brief. */
+  let jobsRunning = $state<number | null>(null);
 
   let badgeTimer: ReturnType<typeof setInterval> | null = null;
   /** Tracks the last connection status we acted on so we don't re-fire
@@ -187,15 +203,17 @@
       routinesEnabled = null;
       routinesRunning = 0;
       extensionsCount = null;
+      jobsRunning = null;
       return;
     }
     // Each lookup is independent; failures are silent (the badge just stays
     // at its previous value or null). Bad-network blips shouldn't flash
     // numbers in/out of existence in the sidebar.
-    const [skillsRes, routinesRes, extensionsRes] = await Promise.allSettled([
+    const [skillsRes, routinesRes, extensionsRes, jobsRes] = await Promise.allSettled([
       client.listSkills(),
       client.routinesSummary(),
-      client.listExtensions()
+      client.listExtensions(),
+      client.jobsSummary()
     ]);
     if (skillsRes.status === 'fulfilled') skillsCount = skillsRes.value.length;
     if (routinesRes.status === 'fulfilled') {
@@ -203,6 +221,7 @@
       routinesRunning = routinesRes.value.running;
     }
     if (extensionsRes.status === 'fulfilled') extensionsCount = extensionsRes.value.length;
+    if (jobsRes.status === 'fulfilled') jobsRunning = jobsRes.value.in_progress;
   }
 
   function startBadgePolling(): void {
@@ -236,6 +255,7 @@
       routinesEnabled = null;
       routinesRunning = 0;
       extensionsCount = null;
+      jobsRunning = null;
     }
   });
 
@@ -272,6 +292,16 @@
 
   const extensionsBadge = $derived<number | null>(
     extensionsCount !== null && extensionsCount > 0 ? extensionsCount : null
+  );
+
+  /**
+   * Jobs badge — number of in-progress background jobs. Hidden when zero so
+   * the row stays quiet in the steady state ("the agent is idle"); the
+   * collapsed-state corner dot stays cyan (informational) since a running
+   * job isn't an error condition.
+   */
+  const jobsBadge = $derived<number | null>(
+    jobsRunning !== null && jobsRunning > 0 ? jobsRunning : null
   );
 
   /**
@@ -382,6 +412,10 @@
         return 'bg-red-500';
       case 'settings':
         return 'bg-accent-gold';
+      // Jobs uses gold to match the "Running" tile on the /jobs page and
+      // the Routines badge convention (gold = something in flight).
+      case 'jobs':
+        return 'bg-accent-gold';
       case 'chat':
       case 'skills':
       case 'routines':
@@ -404,6 +438,8 @@
         return skillsBadge !== null;
       case 'routines':
         return routinesBadge !== null;
+      case 'jobs':
+        return jobsBadge !== null;
       case 'extensions':
         return extensionsBadge !== null;
       case 'logs':
@@ -492,6 +528,14 @@
               <circle cx="12" cy="12" r="10" />
               <polyline points="12 6 12 12 16 14" />
             </svg>
+          {:else if item.icon === 'jobs'}
+            <!-- Stack/queue glyph: three layered rectangles read as "a
+                 queue of work items". Matches the brief's icon hint. -->
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="4" rx="1" />
+              <rect x="3" y="10" width="18" height="4" rx="1" />
+              <rect x="3" y="17" width="18" height="4" rx="1" />
+            </svg>
           {:else if item.icon === 'logs'}
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="4 17 10 11 4 5" />
@@ -537,6 +581,8 @@
             <span class="sidebar-badge" aria-label="{skillsBadge} installed skills">{skillsBadge}</span>
           {:else if item.badgeKey === 'routines' && routinesBadge !== null}
             <span class="sidebar-badge" aria-label="{routinesEnabled} enabled routines">{routinesBadge}</span>
+          {:else if item.badgeKey === 'jobs' && jobsBadge !== null}
+            <span class="sidebar-badge" aria-label="{jobsBadge} jobs running">{jobsBadge}</span>
           {:else if item.badgeKey === 'extensions' && extensionsBadge !== null}
             <span class="sidebar-badge" aria-label="{extensionsBadge} installed extensions">{extensionsBadge}</span>
           {:else if item.badgeKey === 'logs' && logsHasRecentError}

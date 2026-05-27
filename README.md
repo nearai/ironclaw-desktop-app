@@ -87,6 +87,58 @@ ironclaw-desktop/
 └── .github/workflows/           # CI + release pipeline
 ```
 
+## Releasing
+
+### One-time setup (signing keypair)
+
+1. Generate the updater signing key:
+
+   ```bash
+   bash scripts/generate-updater-key.sh
+   ```
+
+   The script writes the keypair to `~/.tauri/ironclaw-updater.key{,.pub}` and refuses to overwrite an existing key.
+
+2. Paste the printed public key into `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`. Commit that change.
+
+3. In the GitHub repo settings, add two Actions secrets:
+   - `TAURI_SIGNING_PRIVATE_KEY` — contents of `~/.tauri/ironclaw-updater.key` (already base64-encoded by Tauri). Copy with `cat ~/.tauri/ironclaw-updater.key | pbcopy`.
+   - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — empty by default (the generator uses no password). If you re-run the generator with a password later, update this secret.
+
+Until the pubkey is committed and both secrets are set, the workflow builds **unsigned** updater artifacts. Builds still succeed; auto-update verification will fail until signing is wired.
+
+### Cutting a release
+
+1. Bump the version across all three files at once:
+
+   ```bash
+   bash scripts/bump-version.sh 0.1.3
+   ```
+
+   This updates `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`. All three must agree.
+
+2. Update `CHANGELOG.md` with what changed.
+
+3. Commit + tag:
+
+   ```bash
+   git commit -am "v0.1.3"
+   git tag v0.1.3
+   git push && git push --tags
+   ```
+
+4. The `release` workflow (`.github/workflows/release.yml`) builds both arches (`aarch64-apple-darwin` and `x86_64-apple-darwin`), signs the updater artifacts when secrets are present, and creates a GitHub release with the `.dmg`, `.app.tar.gz`, and `.app.tar.gz.sig` files attached.
+
+5. Tauri auto-generates the `latest.json` updater manifest and attaches it to the release. The app polls `https://github.com/abbyshekit/ironclaw-desktop/releases/latest/download/latest.json` on startup.
+
+### Sanity-checking a release locally before tagging
+
+```bash
+npm run tauri build
+```
+
+Produces unsigned `.app` + `.dmg` at `src-tauri/target/release/bundle/`. Mount the DMG, drag to Applications, right-click → Open (first launch only — Gatekeeper warns about unsigned apps).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

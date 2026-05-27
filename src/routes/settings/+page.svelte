@@ -54,6 +54,8 @@
   import { relativeTime, updater, type UpdaterCadence } from '$lib/stores/updater.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { aboutStore } from '$lib/stores/about.svelte';
+  import MaskedValue from '$lib/components/MaskedValue.svelte';
+  import { redactJsonObject } from '$lib/utils/redact';
 
   // ---- Page state -------------------------------------------------------
   //
@@ -727,6 +729,113 @@
       bulkExportProgress = null;
     }
   }
+
+  // ---- Server-side settings (admin-only) -------------------------------
+  // The gateway's /api/settings endpoint exposes the live server config
+  // (mcp_servers, llm.*, feature flags, etc.) — useful for diagnosing
+  // "why is the server doing X" without SSH'ing in. The payload can embed
+  // raw bearer tokens (Round 7e smoke test confirmed this against
+  // baremetal3), so every primitive value goes through MaskedValue with
+  // tap-to-reveal and structured values are pretty-printed through
+  // redactJsonObject. We gate the surface on adminMode + a connected
+  // client so non-admin users never see the section at all.
+  let serverSettings = $state<Record<string, unknown> | null>(null);
+  let serverSettingsStatus = $state<'idle' | 'loading' | 'ok' | 'error'>('idle');
+  let serverSettingsError = $state<string | null>(null);
+  /** Per-key local toggle for "View raw (unmasked)" on structured values. */
+  let serverSettingsRawKeys = $state<Record<string, boolean>>({});
+
+  async function fetchServerSettings() {
+    const client = connection.client;
+    if (!client) {
+      serverSettingsStatus = 'error';
+      serverSettingsError = 'Not connected to a gateway.';
+      return;
+    }
+    serverSettingsStatus = 'loading';
+    serverSettingsError = null;
+    try {
+      const s = await client.getSettings();
+      serverSettings = s;
+      serverSettingsStatus = 'ok';
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      serverSettings = null;
+      serverSettingsStatus = 'error';
+      if (status === 401 || status === 403) {
+        serverSettingsError =
+          "This profile's token doesn't have admin role. Switch profile or use an admin token.";
+      } else if (status === 404) {
+        serverSettingsError =
+          'Server-side settings endpoint is not available on this gateway.';
+      } else {
+        serverSettingsError = (err as Error).message;
+      }
+    }
+  }
+
+  async function onRefreshServerSettings() {
+    await fetchServerSettings();
+    if (serverSettingsStatus === 'ok') {
+      toasts.show('Server-side settings refreshed', 'info');
+    } else if (serverSettingsStatus === 'error') {
+      toasts.show(
+        `Refresh failed: ${serverSettingsError ?? 'unknown error'}`,
+        'error'
+      );
+    }
+  }
+
+  function toggleServerSettingsRaw(key: string) {
+    serverSettingsRawKeys = {
+      ...serverSettingsRawKeys,
+      [key]: !serverSettingsRawKeys[key]
+    };
+  }
+
+  /** True when a value should be rendered through MaskedValue (primitives)
+   *  rather than the JSON-block branch (objects/arrays). null → primitive
+   *  too, rendered as the literal "null". */
+  function isPrimitiveLeaf(v: unknown): boolean {
+    return (
+      v === null ||
+      typeof v === 'string' ||
+      typeof v === 'number' ||
+      typeof v === 'boolean'
+    );
+  }
+
+  /** Stable list view derived from the raw object so the template can
+   *  iterate without re-running Object.entries on every render. Sorted
+   *  alphabetically for predictable scanning. */
+  const serverSettingsRows = $derived.by(() => {
+    if (!serverSettings) return [] as Array<{ key: string; value: unknown }>;
+    return Object.entries(serverSettings)
+      .map(([key, value]) => ({ key, value }))
+      .sort((a, b) => a.key.localeCompare(b.key));
+  });
+
+  /**
+   * Auto-fetch on mount when adminMode + a live client are both present.
+   * Re-fires if the connection store flips to a new client (profile
+   * switch) so the panel reflects the active gateway. The `$effect`
+   * captures `connection.client` and `connection.settings.adminMode` —
+   * both reactive — so Svelte re-runs us when either changes.
+   */
+  $effect(() => {
+    const client = connection.client;
+    const admin = connection.settings.adminMode === true;
+    if (!admin) {
+      // adminMode flipped off — drop the snapshot so re-enabling re-fetches
+      // rather than showing a stale view from a different profile.
+      serverSettings = null;
+      serverSettingsStatus = 'idle';
+      serverSettingsError = null;
+      return;
+    }
+    if (!client) return;
+    void fetchServerSettings();
+  });
 
   async function onStartSidecar() {
     await connection.startSidecar();
@@ -1630,6 +1739,105 @@
         </div>
       </div>
     </div>
+
+    <!-- Server-side settings (admin-only, after About).
+         Mirrors the gateway's /api/settings payload. Bearer tokens that
+         the server embeds inside mcp_servers etc. are auto-masked; per-row
+         "View raw" toggles the unredacted JSON behind a warning banner.
+         Hidden entirely when adminMode is off so non-admin users never
+         see the surface or trigger the fetch. -->
+    {#if connection.settings.adminMode === true}
+      <div class="surface p-5 space-y-3">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <h2 class="text-sm font-semibold text-text-primary">
+            Server-side settings
+          </h2>
+          <button
+            type="button"
+            onclick={() => void onRefreshServerSettings()}
+            disabled={serverSettingsStatus === 'loading' || !connection.client}
+            class="px-3 py-1.5 rounded-md border border-accent-cyan text-accent-cyan text-xs font-semibold hover:bg-accent-cyan hover:text-bg-deep transition disabled:opacity-50 min-h-[32px]"
+            title="Re-fetch /api/settings from the gateway"
+          >
+            {serverSettingsStatus === 'loading' ? 'Refreshing…' : 'Refresh'}
+          </button>
+        </div>
+        <p class="text-xs text-text-muted">
+          Server-side configuration. Tokens auto-masked — click eyeball to reveal.
+        </p>
+
+        {#if !connection.client}
+          <div class="text-xs text-text-muted italic">
+            Not connected to a gateway. Configure a profile above and reconnect.
+          </div>
+        {:else if serverSettingsStatus === 'loading' && !serverSettings}
+          <div class="text-xs text-text-muted italic">
+            Loading server-side settings…
+          </div>
+        {:else if serverSettingsStatus === 'error'}
+          <div class="px-3 py-2 rounded-md bg-red-950/40 border border-red-800/60">
+            <p class="text-xs text-red-200 break-words">
+              {serverSettingsError ?? 'Failed to load settings.'}
+            </p>
+          </div>
+        {:else if serverSettingsRows.length === 0 && serverSettingsStatus === 'ok'}
+          <div class="text-xs text-text-muted italic">
+            Gateway returned no settings.
+          </div>
+        {:else if serverSettings}
+          <!-- Key/value rows. Primitives go through MaskedValue (tap to
+               reveal); objects/arrays are pretty-printed JSON with their
+               own per-row "View raw" toggle. Both branches mask tokens by
+               default; the toggle is the only path to the raw bytes. -->
+          <dl class="space-y-3 text-xs">
+            {#each serverSettingsRows as { key, value } (key)}
+              <div class="border-l-2 border-border-subtle pl-3 space-y-1">
+                <dt class="font-mono text-accent-cyan break-all">{key}</dt>
+                <dd class="text-text-primary">
+                  {#if isPrimitiveLeaf(value)}
+                    <MaskedValue
+                      value={value === null ? 'null' : String(value)}
+                      classes="text-text-primary"
+                    />
+                  {:else}
+                    {@const showRaw = !!serverSettingsRawKeys[key]}
+                    <div class="space-y-1">
+                      <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <span class="text-[10px] uppercase tracking-wider text-text-muted">
+                          {Array.isArray(value) ? 'array' : 'object'}
+                        </span>
+                        <button
+                          type="button"
+                          onclick={() => toggleServerSettingsRaw(key)}
+                          class="text-[11px] font-semibold text-text-muted hover:text-accent-gold transition-colors"
+                          aria-pressed={showRaw}
+                          title={showRaw
+                            ? 'Hide raw value and re-mask tokens'
+                            : 'Show unmasked JSON (tokens visible)'}
+                        >
+                          {showRaw ? 'Hide raw' : 'View raw (unmasked)'}
+                        </button>
+                      </div>
+                      {#if showRaw}
+                        <div class="px-2 py-1 rounded-md border border-red-500/60 bg-red-500/10 text-[11px] text-red-300 flex items-start gap-2">
+                          <span aria-hidden="true">⚠</span>
+                          <span class="flex-1">Tokens visible</span>
+                        </div>
+                      {/if}
+                      <pre
+                        class="bg-bg-deep border border-border-subtle rounded-md p-2 overflow-auto font-mono text-[11px] text-text-primary max-h-64 whitespace-pre-wrap break-all"
+                      >{showRaw
+                          ? JSON.stringify(value, null, 2)
+                          : JSON.stringify(redactJsonObject(value), null, 2)}</pre>
+                    </div>
+                  {/if}
+                </dd>
+              </div>
+            {/each}
+          </dl>
+        {/if}
+      </div>
+    {/if}
 
     <!-- Notifications. Lives below About because the test button is a
          one-shot UX check, not a daily-driver setting. -->
