@@ -7,6 +7,7 @@
   import { threads } from '$lib/stores/threads.svelte';
   import { updater } from '$lib/stores/updater.svelte';
   import NewProfileModal from '$lib/components/NewProfileModal.svelte';
+  import Icon from '$lib/components/Icon.svelte';
 
   // ---- Sidebar nav definition ------------------------------------------
   //
@@ -564,63 +565,34 @@
       >
         <span class="relative shrink-0 inline-flex items-center justify-center">
           {#if item.icon === 'chat'}
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
+            <Icon name="chat" class="w-4 h-4" />
           {:else if item.icon === 'knowledge'}
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-            </svg>
+            <Icon name="folder" class="w-4 h-4" />
           {:else if item.icon === 'skills'}
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-            </svg>
+            <Icon name="tool" class="w-4 h-4" />
           {:else if item.icon === 'extensions'}
+            <!-- TODO: add 'puzzle-piece' to Icon component. No matching glyph
+                 in the shared set yet — keeping inline as a fallback so the
+                 row keeps its distinctive shape. -->
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <!-- Puzzle piece glyph -->
               <path d="M19.4 7H17V4.6c0-.88-.72-1.6-1.6-1.6h-2.8c-.88 0-1.6.72-1.6 1.6V7H8.6C7.72 7 7 7.72 7 8.6v2.8h2.4c.88 0 1.6.72 1.6 1.6s-.72 1.6-1.6 1.6H7v2.8c0 .88.72 1.6 1.6 1.6h2.8v-2.4c0-.88.72-1.6 1.6-1.6s1.6.72 1.6 1.6V19h2.8c.88 0 1.6-.72 1.6-1.6V15h2.4c.88 0 1.6-.72 1.6-1.6v-2.8c0-.88-.72-1.6-1.6-1.6H21V8.6c0-.88-.72-1.6-1.6-1.6z" />
             </svg>
           {:else if item.icon === 'routines'}
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
+            <Icon name="clock" class="w-4 h-4" />
           {:else if item.icon === 'jobs'}
-            <!-- Stack/queue glyph: three layered rectangles read as "a
-                 queue of work items". Matches the brief's icon hint. -->
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="4" rx="1" />
-              <rect x="3" y="10" width="18" height="4" rx="1" />
-              <rect x="3" y="17" width="18" height="4" rx="1" />
-            </svg>
+            <Icon name="layers" class="w-4 h-4" />
           {:else if item.icon === 'logs'}
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="4 17 10 11 4 5" />
-              <line x1="12" y1="19" x2="20" y2="19" />
-            </svg>
+            <Icon name="pulse" class="w-4 h-4" />
           {:else if item.icon === 'admin'}
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <!-- Shield with a keyhole — signals "admin / privileged scope". -->
-              <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z" />
-              <circle cx="12" cy="11" r="1.4" />
-              <path d="M12 12.4V15" />
-            </svg>
+            <Icon name="shield" class="w-4 h-4" />
           {:else if item.icon === 'missions'}
-            <!-- Crosshair / target glyph — reads as "objective" / mission. -->
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="9" />
-              <circle cx="12" cy="12" r="4.5" />
-              <line x1="12" y1="2" x2="12" y2="5" />
-              <line x1="12" y1="19" x2="12" y2="22" />
-              <line x1="2" y1="12" x2="5" y2="12" />
-              <line x1="19" y1="12" x2="22" y2="12" />
-            </svg>
+            <!-- TODO: add 'target' (crosshair) to Icon component — semantically
+                 closer than the flag glyph used here. Falling back to `flag`
+                 from the shared set in the meantime. -->
+            <Icon name="flag" class="w-4 h-4" />
           {:else if item.icon === 'settings'}
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
+            <Icon name="settings" class="w-4 h-4" />
           {/if}
 
           <!-- Collapsed-state corner dot. Renders absolutely-positioned in

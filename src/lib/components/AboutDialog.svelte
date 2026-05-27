@@ -31,10 +31,22 @@
 
   let { open, onclose }: Props = $props();
 
-  // TODO: wire to Tauri's package_info() via a small command, or to the
-  // @tauri-apps/api `app.getVersion()` export, so this stays in sync with
-  // src-tauri/Cargo.toml without a manual bump. Hardcoded for v1.
-  const APP_VERSION = '0.1.0';
+  // Resolved lazily from Tauri's `app.getVersion()` (which reads
+  // src-tauri/Cargo.toml at build time). Outside Tauri (web preview), falls
+  // back to the package.json version baked in via Vite's `__APP_VERSION__`.
+  let appVersion = $state<string>('—');
+  $effect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const { getVersion } = await import('@tauri-apps/api/app');
+        appVersion = await getVersion();
+      } catch {
+        // Not running inside Tauri; show a hint.
+        appVersion = 'dev';
+      }
+    })();
+  });
 
   const REPO_URL = 'https://github.com/abbyshekit/ironclaw-desktop';
   const ISSUES_URL = 'https://github.com/abbyshekit/ironclaw-desktop/issues/new';
@@ -303,7 +315,7 @@
           >
             IronClaw Desktop
           </h1>
-          <p class="text-xs text-text-muted font-mono mt-0.5">v{APP_VERSION}</p>
+          <p class="text-xs text-text-muted font-mono mt-0.5">v{appVersion}</p>
         </div>
         <button
           bind:this={closeBtn}

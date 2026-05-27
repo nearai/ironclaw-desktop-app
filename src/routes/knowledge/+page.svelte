@@ -13,6 +13,8 @@
   // private-browsing mode, just without persistence.
 
   import { onMount, tick } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import type { IronClawClient } from '$lib/api/ironclaw';
@@ -112,6 +114,9 @@
 
   onMount(async () => {
     hydratePersisted();
+    // Capture deep-link target *before* any async work so a slow connection
+    // init doesn't race with a URL-param mutation from elsewhere.
+    const deepLinkPath = page.url.searchParams.get('path');
     // The sidebar mounts first and calls connection.init(), but if the
     // user navigates directly to /knowledge with a still-connecting
     // client we wait one tick to give it a chance.
@@ -119,7 +124,31 @@
       await connection.init();
     }
     await loadRoot();
+    // If we arrived with `?path=<encoded>` from the CommandPalette, load
+    // the requested doc into the viewer. The path is URL-decoded by the
+    // searchParams getter, so we pass it straight through. We don't gate
+    // on tree load — `openPath` only needs the client. Errors surface via
+    // the existing toast inside `openPath`.
+    if (deepLinkPath && client) {
+      await openPath(deepLinkPath, client);
+    }
+    // Clear the deep-link param either way so a refresh doesn't keep
+    // re-opening it and so Back doesn't return to the param-laden URL.
+    if (deepLinkPath) clearPathParam();
   });
+
+  /**
+   * Strip the `?path=<encoded>` query param from the URL without
+   * triggering a navigation reload. Mirrors the routines page approach.
+   */
+  function clearPathParam() {
+    if (typeof window === 'undefined') return;
+    if (!page.url.searchParams.has('path')) return;
+    const url = new URL(page.url);
+    url.searchParams.delete('path');
+    const target = url.pathname + (url.search ? url.search : '') + url.hash;
+    void goto(target, { replaceState: true, noScroll: true, keepFocus: true });
+  }
 
   // Side-effects scoped to the page's lifetime: a minute-tick timer for
   // relative-time labels and the global listeners that dismiss the

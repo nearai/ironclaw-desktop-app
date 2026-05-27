@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import type { Routine, RoutineSummary } from '$lib/api/types';
   import { connection } from '$lib/stores/connection.svelte';
   import DetailPanel from './DetailPanel.svelte';
@@ -243,12 +245,59 @@
     sparkBuckets.reduce((m, b) => Math.max(m, b.success + b.failed), 0)
   );
 
+  // Deep-link target id from `?open=<id>` (set by CommandPalette). Captured
+  // once on mount; if the routine list hasn't loaded the target yet on the
+  // first refresh we retry once after a silent refresh, then give up and
+  // clear the URL param regardless so the param is never sticky.
+  let pendingOpenId: string | null = null;
+
   onMount(() => {
-    void refresh();
+    pendingOpenId = page.url.searchParams.get('open');
+    void (async () => {
+      await refresh();
+      if (pendingOpenId && tryOpenPending()) return;
+      if (pendingOpenId) {
+        // Routine list didn't include the id yet — give the gateway one
+        // more silent poll's worth of time, then clear the param either way.
+        await refresh({ silent: true });
+        tryOpenPending();
+        clearOpenParam();
+      }
+    })();
     pollTimer = setInterval(() => {
       void refresh({ silent: true });
     }, POLL_INTERVAL_MS);
   });
+
+  /**
+   * If a `?open=<id>` deep-link target is pending and matches a loaded
+   * routine, open its detail panel and clear the URL param. Returns true
+   * when the target was found (so the caller can stop retrying).
+   */
+  function tryOpenPending(): boolean {
+    if (!pendingOpenId) return false;
+    const match = routines.find((r) => r.id === pendingOpenId);
+    if (!match) return false;
+    selectedId = match.id;
+    pendingOpenId = null;
+    clearOpenParam();
+    return true;
+  }
+
+  /**
+   * Strip the `?open=<id>` query param from the URL without triggering a
+   * navigation reload. Uses SvelteKit's `goto` with `replaceState` so the
+   * history entry is replaced in place (the user shouldn't be able to Back
+   * into the deep-link URL after we've consumed it).
+   */
+  function clearOpenParam() {
+    if (typeof window === 'undefined') return;
+    if (!page.url.searchParams.has('open')) return;
+    const url = new URL(page.url);
+    url.searchParams.delete('open');
+    const target = url.pathname + (url.search ? url.search : '') + url.hash;
+    void goto(target, { replaceState: true, noScroll: true, keepFocus: true });
+  }
 
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
