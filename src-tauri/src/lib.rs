@@ -19,6 +19,7 @@ mod keychain;
 mod settings;
 mod sidecar;
 mod tray;
+mod windows;
 
 use serde::Deserialize;
 use settings::AppSettings;
@@ -497,6 +498,8 @@ pub fn run() {
             set_tray_visible,
             update_tray_badge,
             show_main_window,
+            windows::open_profile_window,
+            windows::list_open_profile_windows,
         ])
         // Build the menu-bar tray on setup so the icon is in place
         // before the first webview event fires. We swallow errors here —

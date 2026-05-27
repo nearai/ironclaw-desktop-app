@@ -2,10 +2,11 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default capability set for IronClaw desktop",
-  "windows": ["main"],
+  "windows": ["main", "profile-*"],
   "permissions": [
     "core:default",
     "core:window:default",
+    "core:webview:allow-create-webview-window",
     "core:app:default",
     "updater:default",
     "dialog:default",

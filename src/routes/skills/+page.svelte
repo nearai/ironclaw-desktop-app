@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import type { Skill, SkillTrust } from '$lib/api/types';
@@ -49,6 +50,12 @@
   // focus. We store the name (skill identifier) rather than the DOM ref
   // because the underlying card may re-render between focus and close.
   let lastFocusedName = $state<string | null>(null);
+
+  // Deep-link target name from `?focus=<name>` (set by GlobalSearch R14b /
+  // CommandPalette R6η). Captured once on mount and consumed after the
+  // first `loadSkills()` resolves; cleared either way so the param can't
+  // re-fire on refresh / Back.
+  let pendingFocusName: string | null = null;
 
   function loadPrefs(): PersistedPrefs {
     if (typeof window === 'undefined') return { ...DEFAULT_PREFS };
@@ -295,6 +302,9 @@
     sortMode = p.sortMode;
     recentNames = loadRecent();
     prefsHydrated = true;
+    // Capture deep-link target synchronously before any async work so a
+    // slow connection init doesn't race with a URL-param mutation.
+    pendingFocusName = page.url.searchParams.get('focus');
     // Kick connection init in case this is the first page visited — Sidebar
     // also triggers it, but skill route may render before sidebar mount
     // ordering in some edge cases.
@@ -312,11 +322,38 @@
       // reloads. The display order is then re-derived by `sortedSkills`.
       skills = list.slice().sort((a, b) => a.name.localeCompare(b.name));
       loadState = 'loaded';
+      // If we arrived with `?focus=<name>` from GlobalSearch / palette,
+      // pop the drawer for that skill now that the catalog is loaded.
+      // Stale-link fallback: toast and clear the param.
+      if (pendingFocusName) {
+        const name = pendingFocusName;
+        pendingFocusName = null;
+        const match = skills.find((s) => s.name === name);
+        if (match) {
+          openSkill(match);
+        } else {
+          toasts.show('Skill not found', 'error');
+        }
+        clearFocusParam();
+      }
     } catch (err) {
       loadError = (err as Error).message;
       loadState = 'error';
       toasts.show(`Failed to load skills: ${loadError}`, 'error');
     }
+  }
+
+  /**
+   * Strip the `?focus=<name>` query param from the URL without triggering
+   * a navigation reload. Mirrors the routines / knowledge pattern.
+   */
+  function clearFocusParam() {
+    if (typeof window === 'undefined') return;
+    if (!page.url.searchParams.has('focus')) return;
+    const url = new URL(page.url);
+    url.searchParams.delete('focus');
+    const target = url.pathname + (url.search ? url.search : '') + url.hash;
+    void goto(target, { replaceState: true, noScroll: true, keepFocus: true });
   }
 
   function openSkill(skill: Skill) {

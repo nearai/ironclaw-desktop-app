@@ -404,11 +404,6 @@
       subtitle: t.message_count
         ? `${t.message_count} message${t.message_count === 1 ? '' : 's'}`
         : 'Empty',
-      // TODO(chat): `/?thread=<id>` is not currently read by the chat
-      // page (`src/routes/+page.svelte`). The modal sets the param; once
-      // the chat page learns to read it on mount + select the thread,
-      // this deep-link works end-to-end. Until then, the user lands on
-      // /chat with whatever was previously selected.
       href: `/?thread=${encodeURIComponent(t.id)}`
     }));
     return {
@@ -437,10 +432,6 @@
       surface: 'Jobs' as const,
       label: j.title || j.id.slice(0, 8),
       subtitle: `${j.state}${j.created_at ? ` · ${j.created_at.slice(0, 10)}` : ''}`,
-      // TODO(jobs): `/jobs?open=<id>` is not currently read by the jobs
-      // page; the modal sets it but the page does not auto-open the
-      // detail panel. Once the page learns to read the param on mount,
-      // the deep-link works end-to-end.
       href: `/jobs?open=${encodeURIComponent(j.id)}`
     }));
     return {
@@ -469,10 +460,6 @@
       surface: 'Skills' as const,
       label: s.name,
       subtitle: s.description || s.usage_hint || s.version || '',
-      // TODO(skills): `/skills?focus=<name>` is not currently read by the
-      // skills page; the modal sets it but the page does not auto-open
-      // the drawer. Until then, the user lands on /skills with the
-      // existing selection.
       href: `/skills?focus=${encodeURIComponent(s.name)}`
     }));
     return {
@@ -534,10 +521,6 @@
       surface: 'Extensions' as const,
       label: e.display_name || e.name,
       subtitle: e.description || (e.installed ? 'installed' : 'available'),
-      // TODO(extensions): `/extensions?focus=<name>` is not currently read
-      // by the extensions page; the modal sets it but the page does not
-      // auto-open the card. Until then, the user lands on /extensions
-      // with no card pre-selected.
       href: `/extensions?focus=${encodeURIComponent(e.name)}`
     }));
     return {

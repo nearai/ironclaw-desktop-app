@@ -9,6 +9,7 @@
   import GlobalSearch from '$lib/components/GlobalSearch.svelte';
   import UpdaterBanner from '$lib/components/UpdaterBanner.svelte';
   import AboutDialog from '$lib/components/AboutDialog.svelte';
+  import StatusBar from '$lib/components/StatusBar.svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
   import { globalSearch } from '$lib/stores/global-search.svelte';
@@ -25,6 +26,34 @@
   // onboarding takeover. `page.url.pathname` from `$app/state` is reactive
   // under Svelte 5 runes, so this re-renders on navigation.
   const isOnboarding = $derived(page.url.pathname.startsWith('/onboarding'));
+
+  // ---- Bottom status bar (Cmd+/) --------------------------------------
+  // Visibility is persisted in localStorage so the saved preference
+  // survives reloads. We default to true on a fresh install — power
+  // users coming to this feature for the first time should see the bar
+  // before knowing the toggle exists. The localStorage read is guarded
+  // for SSR safety even though `ssr = false` for this app, to keep the
+  // module testable under jsdom.
+  const STATUSBAR_VISIBLE_KEY = 'ironclaw-statusbar-visible';
+  let statusBarVisible = $state(true);
+
+  function loadStatusBarVisible(): boolean {
+    if (typeof window === 'undefined' || !window.localStorage) return true;
+    const raw = window.localStorage.getItem(STATUSBAR_VISIBLE_KEY);
+    // Treat any non-`"false"` value (including unset) as visible. We
+    // serialize the boolean directly so the key reads cleanly in
+    // devtools.
+    return raw !== 'false';
+  }
+
+  function persistStatusBarVisible(v: boolean): void {
+    if (typeof window === 'undefined' || !window.localStorage) return;
+    try {
+      window.localStorage.setItem(STATUSBAR_VISIBLE_KEY, v ? 'true' : 'false');
+    } catch {
+      // Quota / private-mode failures are non-fatal.
+    }
+  }
 
   // First-run guard. We wait for `connection.init()` to load settings off
   // disk (it caches via `initialized`, so this is cheap on subsequent
@@ -257,6 +286,15 @@
       {@render children()}
     </main>
   </div>
+
+  <!-- Slim bottom status bar. Sits in-flow below the sidebar+main split
+       so it takes its own 28px of vertical real estate rather than
+       overlaying scrolling content. Hidden on the onboarding takeover
+       to match the rest of the chrome. Visibility (Cmd+/) is persisted
+       in localStorage and hydrated on mount. -->
+  {#if !isOnboarding}
+    <StatusBar visible={statusBarVisible} />
+  {/if}
 </div>
 
 <!-- Mounted once at the root so every route shares one toast viewport.

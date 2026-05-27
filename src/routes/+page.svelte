@@ -5,6 +5,8 @@
   // completes.
 
   import { onMount, tick, untrack } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
   import { threads } from '$lib/stores/threads.svelte';
   import { messages, type ToolInvocation } from '$lib/stores/messages.svelte';
@@ -384,7 +386,15 @@
   }
 
   // -- mount ------------------------------------------------------------------
+  // Deep-link target captured once on mount from `?thread=<id>` (set by
+  // GlobalSearch R14b / CommandPalette R6η). We grab it synchronously here
+  // so a slow `boot()` doesn't race with a URL-param mutation from
+  // elsewhere; the actual `selectThread` happens after the thread list
+  // resolves inside `boot()`.
+  let pendingThreadId: string | null = null;
+
   onMount(() => {
+    pendingThreadId = page.url.searchParams.get('thread');
     void boot();
     // Hydrate the composer from whichever draft matches the current thread
     // (or the __new__ slot if no thread is selected yet).
@@ -473,6 +483,22 @@
     await connection.init();
     if (connection.client) {
       await threads.loadThreads();
+      // Apply `?thread=<id>` deep-link AFTER the list resolves so we can
+      // verify the id is still live. If the target was deleted between
+      // emission and consumption (stale link), surface a toast and let
+      // the existing selection stand; either way the URL param is cleared
+      // so refresh/Back can't re-fire the prompt.
+      if (pendingThreadId) {
+        const id = pendingThreadId;
+        const match = threads.threads.find((t) => t.id === id);
+        if (match) {
+          threads.selectThread(id);
+        } else {
+          toasts.show('Conversation not found', 'error');
+        }
+        pendingThreadId = null;
+        clearThreadParam();
+      }
       if (threads.currentId) {
         await messages.loadHistory(threads.currentId);
       }
@@ -480,6 +506,19 @@
       // `connection.client` is non-null on a cold load.
       void loadSkillCatalog();
     }
+  }
+
+  /**
+   * Strip the `?thread=<id>` query param from the URL without triggering a
+   * navigation reload. Mirrors the routines / knowledge pattern.
+   */
+  function clearThreadParam() {
+    if (typeof window === 'undefined') return;
+    if (!page.url.searchParams.has('thread')) return;
+    const url = new URL(page.url);
+    url.searchParams.delete('thread');
+    const target = url.pathname + (url.search ? url.search : '') + url.hash;
+    void goto(target, { replaceState: true, noScroll: true, keepFocus: true });
   }
 
   // -- effects ----------------------------------------------------------------

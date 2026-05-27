@@ -13,6 +13,12 @@
 // profiles via `switchProfile(id)` tears down the previous connection
 // (and the sidecar, if applicable) before reconnecting against the new
 // profile's settings.
+//
+// Multi-window: if the window was opened via the `open_profile_window`
+// command, a `?profile=<id>` query param tells this store to pin the
+// window to that profile *without* mutating the persisted
+// `activeProfileId` — each window has its own profile context so a
+// "work" and "personal" pair can run side-by-side.
 
 import { invoke } from '@tauri-apps/api/core';
 import { IronClawClient } from '$lib/api/ironclaw';
@@ -59,6 +65,19 @@ class ConnectionStore {
   sidecarStatus = $state<SidecarStatus>('idle');
   sidecarPort = $state<number | null>(null);
   sidecarError = $state<string | null>(null);
+
+  /**
+   * Per-window profile pin. Populated on init() from the `?profile=<id>`
+   * query parameter when the window was opened via the multi-window
+   * command (`open_profile_window`). When non-null:
+   *   - `activeProfile` resolves via this id instead of
+   *     `settings.activeProfileId`.
+   *   - `switchProfile()` updates this field instead of persisting to
+   *     settings.json, so other windows aren't affected.
+   * The main window leaves this null and keeps the original
+   * persisted-active-profile UX.
+   */
+  windowProfileOverride = $state<string | null>(null);
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private initialized = false;
@@ -127,9 +146,18 @@ class ConnectionStore {
   }
 
   /** Active profile derived from current settings — kept as a `$derived` so
-   *  callers can read it reactively (the Sidebar profile picker does). */
+   *  callers can read it reactively (the Sidebar profile picker does).
+   *
+   *  When `windowProfileOverride` is set (i.e. this window was opened via
+   *  `open_profile_window`), the override id wins over the persisted
+   *  `activeProfileId`. Falls back to the persisted id, then to the first
+   *  profile, so even a stale override (profile deleted in another
+   *  window) gracefully resolves rather than crashing. */
   activeProfile = $derived<ProfileConfig>(
-    this.settings.profiles.find((p) => p.id === this.settings.activeProfileId) ??
+    (this.windowProfileOverride
+      ? this.settings.profiles.find((p) => p.id === this.windowProfileOverride)
+      : undefined) ??
+      this.settings.profiles.find((p) => p.id === this.settings.activeProfileId) ??
       this.settings.profiles[0]
   );
 
@@ -157,7 +185,33 @@ class ConnectionStore {
     if (this.initialized) return;
     this.initialized = true;
     this.settings = await loadSettings();
+    // Pick up a `?profile=<id>` query param if this window was opened
+    // via the multi-window command. We only honour it when the id
+    // matches a real profile — a stale or hand-crafted override silently
+    // falls through to the persisted active profile so the UI never
+    // ends up rendering an empty active-profile slot.
+    this.windowProfileOverride = this.readProfileOverrideFromUrl();
     await this.applyModeAndConnect({ allowAutoStart: true });
+  }
+
+  /**
+   * Parse `?profile=<id>` from the current window URL. Returns the id
+   * iff it (a) is present and (b) matches one of the configured
+   * profiles. Otherwise null. Pure — no IPC; safe to call before
+   * `loadSettings()` resolves (the matcher just returns null then).
+   */
+  private readProfileOverrideFromUrl(): string | null {
+    if (typeof window === 'undefined' || !window.location?.search) return null;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('profile');
+      if (!id) return null;
+      // Only honour ids that actually map to a profile. Anything else is
+      // a no-op so a bad query param doesn't desync the UI.
+      return this.settings.profiles.some((p) => p.id === id) ? id : null;
+    } catch {
+      return null;
+    }
   }
 
   /** Re-load settings + token after the user changes them in /settings. */
@@ -173,14 +227,26 @@ class ConnectionStore {
   }
 
   /**
-   * Switch the active profile and reconnect. Persists `activeProfileId`
-   * first so other surfaces (Sidebar dropdown, Settings page) see the
-   * change immediately, then runs the same tear-down + reconnect path as
-   * `refresh()`.
+   * Switch the active profile and reconnect. In a default window this
+   * persists `activeProfileId` so other surfaces (Sidebar dropdown,
+   * Settings page) see the change immediately. In a profile-pinned
+   * window (opened via `open_profile_window` with `?profile=`) the
+   * switch updates the local `windowProfileOverride` only — settings.json
+   * is left alone so the main window and other pinned windows keep their
+   * own contexts.
    */
   async switchProfile(id: string): Promise<void> {
     if (this.activeProfile.id === id) return;
-    await setActiveProfile(id);
+    if (this.windowProfileOverride !== null) {
+      // Validate the target id exists; ignore unknown ids the same way
+      // setActiveProfile would throw.
+      if (!this.settings.profiles.some((p) => p.id === id)) {
+        throw new Error(`switchProfile: unknown profile id ${id}`);
+      }
+      this.windowProfileOverride = id;
+    } else {
+      await setActiveProfile(id);
+    }
     // Always tear the sidecar down on a profile switch — even if the new
     // profile is local-mode it may want a different LLM backend or
     // OpenRouter key, and the cleanest path is a fresh spawn.

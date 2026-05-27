@@ -85,6 +85,11 @@
   >('idle');
   let chatPreview = $state<string | null>(null);
   let chatHint = $state<string | null>(null);
+  /** User-opt-out for the live-chat probe. Set via the "Skip LLM test" link
+   *  in step 3; persists across re-tests within the same wizard run so a
+   *  Try-again click after a transient network blip doesn't re-run the
+   *  chat probe the user already dismissed. */
+  let skipLlmTest = $state(false);
 
   let finishing = $state(false);
 
@@ -94,18 +99,35 @@
   // step 2 in remote mode. A hit pre-populates a suggestion above the URL
   // field with a one-click apply; a miss is silent. Each candidate is a raw
   // `fetch` with a 2-second AbortController timeout so the worst case is
-  // ~2 seconds, not 30+ on a stalled socket.
+  // ~2 seconds, not 30+ on a stalled socket. All candidates run concurrently
+  // via Promise.allSettled() so a stalled port doesn't block faster hits.
   /** Candidate ports for `127.0.0.1` auto-detect. Ordered: IronClaw default
-   *  (3100), other Caddy-fronted dev ports (8080, 3334), and 18789 which is
-   *  the prompt-mentioned SSH-tunnel convention. */
-  const DETECT_PORTS = [3100, 18789, 3334, 8080] as const;
+   *  (3100), the SSH-tunnel convention (18789 from CLAUDE.md), legacy 3334,
+   *  other common dev ports (8080, 22821 alt SSH tunnel, 3000 Node default). */
+  const DETECT_PORTS = [3100, 18789, 3334, 8080, 22821, 3000] as const;
+  /** Per-port probe timeout in milliseconds. */
+  const DETECT_PORT_TIMEOUT_MS = 2000;
   /** Detected URL if any of the candidates above answered with a healthy
-   *  payload. Cleared when the user dismisses or applies the suggestion. */
+   *  payload. Persists across Back/Next inside the wizard run so the banner
+   *  reappears when the user revisits step 2 — re-scanning is gated on
+   *  `detectionRan`. Cleared only via the dismiss button. */
   let detectedUrl = $state<string | null>(null);
   /** Tracks whether we've kicked the detection at least once so we don't
    *  re-probe on every step change (re-running back-and-forth via "Back"
    *  shouldn't spam the user's localhost). */
   let detectionRan = $state(false);
+  /** True while the parallel port scan is in flight. Drives the
+   *  "Scanning…" indicator above the URL field. */
+  let detectionScanning = $state(false);
+  /** Best-effort fingerprint of the detected server. Populated by a
+   *  follow-up GET /api/gateway/status after a hit. Fields are nullable so
+   *  partial info still renders ("IronClaw at <url>" without a version
+   *  string is still useful). */
+  let detectedVersion = $state<string | null>(null);
+  let detectedLlmBackend = $state<string | null>(null);
+  /** True once the user clicks "Use" on the detect banner — drives the
+   *  "✓ Detected and saved" confirmation state. */
+  let detectedSaved = $state(false);
 
   onMount(async () => {
     settings = await loadSettings();
@@ -127,7 +149,7 @@
   async function probeCandidate(port: number): Promise<string | null> {
     const base = `http://127.0.0.1:${port}`;
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 2000);
+    const timer = setTimeout(() => ctrl.abort(), DETECT_PORT_TIMEOUT_MS);
     try {
       const res = await fetch(`${base}/api/health`, {
         method: 'GET',
@@ -148,8 +170,62 @@
     }
   }
 
-  /** Race all candidates in parallel; first healthy wins. Skips probe if the
-   *  user already typed a non-default URL (don't overwrite their input). */
+  /**
+   * Best-effort fingerprint of a detected gateway. Hits `/api/gateway/status`
+   * unauthenticated — most builds gate this behind a bearer, so failure is
+   * common and silent. On success we pluck `version` and `llm_backend` to
+   * upgrade the banner from "Detected IronClaw at <url>" to
+   * "Detected IronClaw v0.29.0 (NEAR.AI Cloud) at <url>".
+   *
+   * Why a raw fetch instead of `IronClawClient.gatewayStatus()`: the API
+   * client wires its own non-throwing error semantics and an Authorization
+   * header. Per the task constraints we don't touch the client; a single
+   * fetch with the same 2-second budget is sufficient and keeps the wizard
+   * change self-contained.
+   */
+  async function fetchFingerprint(
+    base: string
+  ): Promise<{ version: string | null; llmBackend: string | null }> {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), DETECT_PORT_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${base}/api/gateway/status`, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: ctrl.signal
+      });
+      if (!res.ok) return { version: null, llmBackend: null };
+      const data = (await res.json()) as {
+        version?: string;
+        llm_backend?: string;
+      };
+      return {
+        version: data?.version ?? null,
+        llmBackend: data?.llm_backend ?? null
+      };
+    } catch {
+      // Auth-gated, network drop, malformed JSON — all fine, we just skip
+      // the fingerprint and keep the bare detect banner.
+      return { version: null, llmBackend: null };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** Human label for a `llm_backend` wire value. Falls back to the raw
+   *  identifier when we don't have a friendlier name. */
+  function llmBackendLabel(raw: string | null): string | null {
+    if (!raw) return null;
+    const k = raw.toLowerCase();
+    if (k === 'nearai' || k === 'near-ai' || k === 'near_ai') return 'NEAR.AI Cloud';
+    if (k === 'openrouter') return 'OpenRouter';
+    return raw;
+  }
+
+  /** Race all candidates in parallel via Promise.allSettled() so a stalled
+   *  port doesn't block faster hits. Skips probe if the user already typed
+   *  a non-default URL (don't overwrite their input). Idempotent — gated on
+   *  `detectionRan` so back-and-forth between wizard steps never re-scans. */
   async function detectLocalServers() {
     if (detectionRan) return;
     detectionRan = true;
@@ -157,19 +233,52 @@
     // pre-populate over it.
     const current = activeProfile?.remoteBaseUrl ?? '';
     if (current && current !== 'http://127.0.0.1:3100') return;
-    const results = await Promise.all(DETECT_PORTS.map((p) => probeCandidate(p)));
-    const hit = results.find((u): u is string => !!u);
-    if (hit) detectedUrl = hit;
+    detectionScanning = true;
+    try {
+      const settled = await Promise.allSettled(
+        DETECT_PORTS.map((p) => probeCandidate(p))
+      );
+      const hit = settled
+        .map((r) => (r.status === 'fulfilled' ? r.value : null))
+        .find((u): u is string => !!u);
+      if (hit) {
+        detectedUrl = hit;
+        // Fingerprint fetch is best-effort and runs after the banner is
+        // already visible, so the user sees the URL immediately and the
+        // version "fills in" once the call returns.
+        const fp = await fetchFingerprint(hit);
+        detectedVersion = fp.version;
+        detectedLlmBackend = fp.llmBackend;
+      }
+    } finally {
+      detectionScanning = false;
+    }
   }
 
-  function applyDetectedUrl() {
-    if (!detectedUrl) return;
-    patchActiveProfile({ remoteBaseUrl: detectedUrl });
-    detectedUrl = null;
+  /** Apply the detected URL to the active profile AND persist immediately.
+   *  Banner stays visible in the "saved" state so the user has confirmation
+   *  and can re-apply if they revisit step 2 via the Back button. */
+  async function applyDetectedUrl() {
+    if (!detectedUrl || !activeProfile) return;
+    const url = detectedUrl;
+    patchActiveProfile({ remoteBaseUrl: url });
+    try {
+      // Snapshot AFTER the patch so the saved file reflects the new URL.
+      // `patchActiveProfile` mutated `settings`, so the snapshot reads the
+      // updated profile entry.
+      await saveSettings($state.snapshot(settings));
+      detectedSaved = true;
+      toasts.show('Detected URL saved to profile', 'success');
+    } catch (err) {
+      toasts.show(`Save failed: ${(err as Error).message}`, 'error');
+    }
   }
 
   function dismissDetectedUrl() {
     detectedUrl = null;
+    detectedVersion = null;
+    detectedLlmBackend = null;
+    detectedSaved = false;
   }
 
   /** Fire detection whenever step 2 is visited in remote mode. The effect
@@ -178,6 +287,20 @@
   $effect(() => {
     if (step === 2 && activeProfile?.mode === 'remote') {
       void detectLocalServers();
+    }
+  });
+
+  /** Auto-run the connection test on first arrival at step 3 so the user
+   *  doesn't have to click a manual button. Gated on `testStatus === 'idle'`
+   *  so a Back→Next round trip after a failed test doesn't auto-retry — the
+   *  user has to explicitly hit "Try again", which is the existing failure
+   *  recovery path. The Skip-LLM affordance still works because runTest()
+   *  clears `chatStatus` before kicking the probe. */
+  let autoTestFired = $state(false);
+  $effect(() => {
+    if (step === 3 && testStatus === 'idle' && !autoTestFired) {
+      autoTestFired = true;
+      void runTest();
     }
   });
 
@@ -202,6 +325,11 @@
       chatStatus = 'idle';
       chatPreview = null;
       chatHint = null;
+      // Allow the step-3 effect to auto-run again next time the user
+      // arrives there. Without this reset, the auto-test would fire only
+      // on the first visit to step 3 and a Back→Next round trip would
+      // strand the user on an empty status pane.
+      autoTestFired = false;
     }
     step = target;
   }
@@ -316,11 +444,17 @@
         testMessage = testVersion
           ? `Connected to IronClaw ${testVersion}`
           : 'Connected to IronClaw';
-        // Live-chat probe is gated on NEAR.AI sign-in for the local sidecar;
-        // attempting a chat without auth would fail with a confusing 401.
-        // Check the profile endpoint directly (cheaper than waiting for the
-        // signIn store to refresh) and route accordingly.
-        await runChatProbe(connection.client, { requireSignIn: true });
+        // Live-chat probe: in local mode we run it whenever the sidecar
+        // is actually `running` (it was just started above). Pre-flight
+        // through `getProfile()` still gates on NEAR.AI sign-in so we
+        // don't fire a chat that would fail with a confusing 401 when
+        // the user hasn't signed in yet.
+        if (connection.sidecarStatus === 'running' && !skipLlmTest) {
+          await runChatProbe(connection.client, { requireSignIn: true });
+        } else if (skipLlmTest) {
+          chatStatus = 'skipped';
+          chatHint = 'Skipped by user';
+        }
         return;
       }
 
@@ -354,7 +488,13 @@
       // Remote gateways are pre-authenticated via the bearer token, so the
       // chat probe is unconditional here. A 401 from the chat probe still
       // demotes to `chatStatus='error'` (without flipping the gateway state).
-      await runChatProbe(client, { requireSignIn: false });
+      // Honor an explicit skip toggle for users in a hurry.
+      if (!skipLlmTest) {
+        await runChatProbe(client, { requireSignIn: false });
+      } else {
+        chatStatus = 'skipped';
+        chatHint = 'Skipped by user';
+      }
     } catch (err) {
       testStatus = 'fail';
       testMessage = (err as Error).message;
@@ -503,6 +643,18 @@
       // model load or signed-out gateway in remote mode.
       chatStatus = 'timeout';
       chatHint = 'Healthy (LLM not tested — timed out after 15s)';
+    }
+  }
+
+  /** "Skip LLM test" affordance — flips the persistent flag and short-circuits
+   *  the chat probe if it's currently running. Leaves the gateway test result
+   *  intact so the user can still click "Finish". */
+  function skipLlmProbe() {
+    skipLlmTest = true;
+    if (chatStatus === 'probing' || chatStatus === 'idle') {
+      chatStatus = 'skipped';
+      chatPreview = null;
+      chatHint = 'Skipped by user';
     }
   }
 
@@ -839,57 +991,135 @@
                 >
                   Base URL
                 </label>
-                {#if detectedUrl}
-                  <!-- Auto-detect hint. Renders only when probeCandidate()
-                       found a healthy IronClaw on a common localhost port.
-                       Dismissable so the user can ignore it. -->
+                {#if detectionScanning && !detectedUrl}
+                  <!-- Live scan indicator. Replaced with the detect banner
+                       once Promise.allSettled resolves and a hit is found,
+                       or silently dropped if no port answered. -->
                   <div
-                    class="mb-2 flex items-center gap-2 px-3 py-2 rounded-md border border-accent-cyan/40 bg-accent-cyan/5 text-xs"
+                    class="mb-2 flex items-center gap-2 px-3 py-2 rounded-md border border-border-subtle bg-bg-deep text-xs text-text-muted"
                   >
                     <svg
                       viewBox="0 0 24 24"
-                      class="w-4 h-4 text-accent-cyan shrink-0"
+                      class="w-3.5 h-3.5 text-accent-cyan animate-spin shrink-0"
                       fill="none"
                       stroke="currentColor"
                       stroke-width="2"
                       stroke-linecap="round"
-                      stroke-linejoin="round"
                     >
-                      <circle cx="12" cy="12" r="10" />
-                      <path d="M12 16v-4" />
-                      <path d="M12 8h.01" />
+                      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                     </svg>
-                    <span class="flex-1 text-text-primary">
-                      Detected IronClaw at
-                      <code class="font-mono">{detectedUrl}</code> — use this?
-                    </span>
-                    <button
-                      type="button"
-                      onclick={applyDetectedUrl}
-                      class="px-2 py-1 rounded bg-accent-cyan text-bg-deep text-[11px] font-semibold hover:brightness-110 transition"
-                    >
-                      Use
-                    </button>
-                    <button
-                      type="button"
-                      onclick={dismissDetectedUrl}
-                      aria-label="Dismiss"
-                      class="text-text-muted hover:text-text-primary transition-colors"
+                    <span>Scanning localhost for an IronClaw server…</span>
+                  </div>
+                {/if}
+                {#if detectedUrl}
+                  <!-- Auto-detect hint. Renders only when probeCandidate()
+                       found a healthy IronClaw on a common localhost port.
+                       Two visual states:
+                         1. Pre-apply: cyan banner, "Use" button + dismiss
+                         2. Post-apply: green banner, "✓ Detected and saved"
+                       Both stay visible on Back/Next so the user gets a
+                       consistent picture each time they revisit step 2. -->
+                  {#if detectedSaved}
+                    <div
+                      class="mb-2 flex items-center gap-2 px-3 py-2 rounded-md border border-green-500/40 bg-green-500/5 text-xs"
                     >
                       <svg
                         viewBox="0 0 24 24"
-                        class="w-3.5 h-3.5"
+                        class="w-4 h-4 text-green-400 shrink-0"
                         fill="none"
                         stroke="currentColor"
-                        stroke-width="2.5"
+                        stroke-width="3"
                         stroke-linecap="round"
                         stroke-linejoin="round"
                       >
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
+                        <polyline points="20 6 9 17 4 12" />
                       </svg>
-                    </button>
-                  </div>
+                      <span class="flex-1 text-text-primary">
+                        Detected and saved —
+                        <code class="font-mono">{detectedUrl}</code>
+                        {#if detectedVersion}
+                          <span class="text-text-muted">
+                            (IronClaw {detectedVersion}{#if detectedLlmBackend}, {llmBackendLabel(
+                                detectedLlmBackend
+                              )}{/if})
+                          </span>
+                        {/if}
+                      </span>
+                      <button
+                        type="button"
+                        onclick={dismissDetectedUrl}
+                        aria-label="Dismiss"
+                        class="text-text-muted hover:text-text-primary transition-colors"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          class="w-3.5 h-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                  {:else}
+                    <div
+                      class="mb-2 flex items-center gap-2 px-3 py-2 rounded-md border border-accent-cyan/40 bg-accent-cyan/5 text-xs"
+                    >
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-4 h-4 text-accent-cyan shrink-0"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 16v-4" />
+                        <path d="M12 8h.01" />
+                      </svg>
+                      <span class="flex-1 text-text-primary">
+                        {#if detectedVersion}
+                          Detected IronClaw {detectedVersion}{#if detectedLlmBackend}
+                            ({llmBackendLabel(detectedLlmBackend)}){/if} at
+                          <code class="font-mono">{detectedUrl}</code> — use this?
+                        {:else}
+                          Detected IronClaw at
+                          <code class="font-mono">{detectedUrl}</code> — use this?
+                        {/if}
+                      </span>
+                      <button
+                        type="button"
+                        onclick={applyDetectedUrl}
+                        class="px-2 py-1 rounded bg-accent-cyan text-bg-deep text-[11px] font-semibold hover:brightness-110 transition"
+                      >
+                        Use
+                      </button>
+                      <button
+                        type="button"
+                        onclick={dismissDetectedUrl}
+                        aria-label="Dismiss"
+                        class="text-text-muted hover:text-text-primary transition-colors"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          class="w-3.5 h-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                  {/if}
                 {/if}
                 <input
                   id="onb-url"
@@ -993,9 +1223,10 @@
               class="w-full min-h-[120px] flex flex-col items-center justify-center text-center"
             >
               {#if testStatus === 'idle'}
-                <p class="text-sm text-text-muted">
-                  Click below to test your connection.
-                </p>
+                <!-- Brief idle frame; the $effect fires runTest() on mount,
+                     so this state is only visible for a single tick. The
+                     spinner state below takes over within ~1 frame. -->
+                <p class="text-sm text-text-muted">Preparing connection test…</p>
               {:else if testStatus === 'testing'}
                 <div class="flex flex-col items-center gap-3">
                   <svg
@@ -1054,7 +1285,14 @@
                       >
                         <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                       </svg>
-                      <span>Testing live chat…</span>
+                      <span class="flex-1">Testing live chat…</span>
+                      <button
+                        type="button"
+                        onclick={skipLlmProbe}
+                        class="text-text-muted hover:text-accent-cyan transition-colors underline-offset-2 hover:underline"
+                      >
+                        Skip
+                      </button>
                     </div>
                   {:else if chatStatus === 'ok'}
                     <div
@@ -1148,14 +1386,20 @@
             </div>
 
             <!-- Action row -->
-            {#if testStatus === 'idle'}
-              <button
-                type="button"
-                onclick={runTest}
-                class="px-5 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition min-h-[44px]"
-              >
-                Test connection
-              </button>
+            {#if testStatus === 'idle' || testStatus === 'testing'}
+              <!-- No primary action while the auto-test is in flight; the
+                   spinner above is the only affordance. A "Skip LLM test"
+                   link is offered if the chat probe is still pending so
+                   impatient users can short-circuit out. -->
+              {#if chatStatus === 'probing'}
+                <button
+                  type="button"
+                  onclick={skipLlmProbe}
+                  class="text-xs text-text-muted hover:text-accent-cyan transition-colors underline-offset-2 hover:underline min-h-[32px]"
+                >
+                  Skip LLM test
+                </button>
+              {/if}
             {:else if testStatus === 'fail'}
               <div class="flex items-center gap-3">
                 <button

@@ -2,9 +2,11 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import { invoke } from '@tauri-apps/api/core';
   import { connection, type ConnectionStatus } from '$lib/stores/connection.svelte';
   import { signIn } from '$lib/stores/sign-in.svelte';
   import { threads } from '$lib/stores/threads.svelte';
+  import { toasts } from '$lib/stores/toasts.svelte';
   import { updater } from '$lib/stores/updater.svelte';
   import NewProfileModal from '$lib/components/NewProfileModal.svelte';
   import Icon from '$lib/components/Icon.svelte';
@@ -165,8 +167,30 @@
     popoverOpen = false;
   }
 
-  async function pickProfile(id: string) {
+  /**
+   * Pick a profile from the popover. Default click switches the current
+   * window to that profile. Cmd-click (Ctrl on non-Mac) opens the
+   * profile in a *new* window via the multi-window IPC — power-user
+   * affordance for running two profiles side-by-side without churning
+   * the active window's session. The popover closes either way so the
+   * footprint matches the existing UX.
+   */
+  async function pickProfile(id: string, e?: MouseEvent | KeyboardEvent) {
+    const isNewWindow = !!e && (e.metaKey || e.ctrlKey);
     closePopover();
+    if (isNewWindow) {
+      try {
+        await invoke('open_profile_window', { profileId: id });
+        const profile = connection.settings.profiles.find((p) => p.id === id);
+        toasts.show(
+          `Opened "${profile?.name ?? id}" in a new window`,
+          'info'
+        );
+      } catch (err) {
+        toasts.show(`Open window failed: ${(err as Error).message}`, 'error');
+      }
+      return;
+    }
     if (id === connection.activeProfile.id) return;
     await connection.switchProfile(id);
   }
@@ -731,7 +755,10 @@
               {@const isActiveProfile = profile.id === connection.activeProfile.id}
               <button
                 type="button"
-                onclick={() => void pickProfile(profile.id)}
+                onclick={(e) => void pickProfile(profile.id, e)}
+                title={isActiveProfile
+                  ? 'Already active — Cmd+click to open in a new window'
+                  : 'Click to switch, Cmd+click to open in a new window'}
                 class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface transition-colors min-h-[32px]"
                 role="option"
                 aria-selected={isActiveProfile}

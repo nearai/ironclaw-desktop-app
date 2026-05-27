@@ -929,6 +929,23 @@
     }
   }
 
+  /**
+   * Open a profile in a fresh window scoped to that profile. The new
+   * window picks up the profile id via a `?profile=<id>` query param on
+   * its initial URL; the connection store there reads it and pins the
+   * window without writing back to settings.json (see
+   * `connection.windowProfileOverride`). Calling this again for the
+   * same profile focuses the existing window instead of duplicating.
+   */
+  async function onOpenProfileWindow(profile: ProfileConfig) {
+    try {
+      await invoke('open_profile_window', { profileId: profile.id });
+      toasts.show(`Opened "${profile.name}" in a new window`, 'info');
+    } catch (err) {
+      toasts.show(`Open window failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
   async function onDeleteProfile(profile: ProfileConfig) {
     if (settings.profiles.length <= 1) {
       toasts.show('Cannot delete the last profile', 'error');

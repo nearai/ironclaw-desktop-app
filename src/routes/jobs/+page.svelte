@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import type { Job, JobSummary } from '$lib/api/types';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
@@ -178,8 +180,26 @@
     debouncedQuery.trim().length > 0 || filterKey !== 'all'
   );
 
+  // Deep-link target id from `?open=<id>` (set by GlobalSearch R14b /
+  // CommandPalette R6η). Captured once on mount. If the job isn't loaded
+  // on the first refresh we retry after one silent poll cycle, then give
+  // up — either way the URL param is cleared so the deep-link can't
+  // re-fire on refresh / Back.
+  let pendingOpenId: string | null = null;
+
   onMount(() => {
-    void refresh();
+    pendingOpenId = page.url.searchParams.get('open');
+    void (async () => {
+      await refresh();
+      if (pendingOpenId && tryOpenPending()) return;
+      if (pendingOpenId) {
+        // List didn't include the id yet — give the gateway one silent
+        // poll's worth of time, then clear the param either way.
+        await refresh({ silent: true });
+        tryOpenPending();
+        clearOpenParam();
+      }
+    })();
     pollTimer = setInterval(() => {
       // Don't refresh the list while the detail panel is open — the panel
       // drives its own SSE-poll for events, and reordering rows under an
@@ -189,6 +209,34 @@
       void refresh({ silent: true });
     }, POLL_INTERVAL_MS);
   });
+
+  /**
+   * If a `?open=<id>` deep-link target is pending and matches a loaded
+   * job, open its detail panel and clear the URL param. Returns true
+   * when the target was found.
+   */
+  function tryOpenPending(): boolean {
+    if (!pendingOpenId) return false;
+    const match = jobs.find((j) => j.id === pendingOpenId);
+    if (!match) return false;
+    selectedId = match.id;
+    pendingOpenId = null;
+    clearOpenParam();
+    return true;
+  }
+
+  /**
+   * Strip the `?open=<id>` query param from the URL without triggering a
+   * navigation reload. Mirrors the routines page approach.
+   */
+  function clearOpenParam() {
+    if (typeof window === 'undefined') return;
+    if (!page.url.searchParams.has('open')) return;
+    const url = new URL(page.url);
+    url.searchParams.delete('open');
+    const target = url.pathname + (url.search ? url.search : '') + url.hash;
+    void goto(target, { replaceState: true, noScroll: true, keepFocus: true });
+  }
 
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);

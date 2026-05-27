@@ -1,5 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import type { Extension, ExtensionTool } from '$lib/api/types';
@@ -60,6 +62,20 @@
 
   // Inline tool expansion — only one card open at a time (across both tabs).
   let expandedName = $state<string | null>(null);
+
+  // Deep-link target name from `?focus=<name>` (set by GlobalSearch R14b /
+  // CommandPalette R6η). Captured once on mount and consumed after both
+  // the installed + registry lists resolve (so we can find a match in
+  // either tab). Cleared either way so the param can't re-fire on
+  // refresh / Back.
+  let pendingFocusName: string | null = null;
+  /**
+   * Has the deep-link consumption already happened? Both list-load
+   * paths (installed, registry) call `tryConsumeFocus()`; once one of
+   * them finds a match (or both report empty), this flips to true so
+   * the second load doesn't re-toast / re-scroll.
+   */
+  let focusConsumed = $state(false);
 
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -246,9 +262,99 @@
   });
 
   onMount(() => {
+    // Capture deep-link target synchronously so a slow connection init
+    // doesn't race with a URL-param mutation from elsewhere.
+    pendingFocusName = page.url.searchParams.get('focus');
     void connection.init();
     return () => stopRefresh();
   });
+
+  /**
+   * Try to satisfy the `?focus=<name>` deep-link against whatever lists
+   * have loaded so far. Called from both list loaders after their data
+   * lands; the `focusConsumed` flag is idempotent so the second caller
+   * (whichever lands last) doesn't double-fire.
+   *
+   *   - Match in `installed`  → stay on installed tab, expand the card.
+   *   - Match in `registry`   → flip to registry tab (registry cards
+   *                              don't expand, so just scrolling is
+   *                              the visible affordance).
+   *   - No match yet          → wait; the OTHER load may still find it.
+   *   - Both lists loaded, no match → toast "Extension not found" and
+   *                                    clear the param.
+   *
+   * After a successful match we wait one tick for the grid to mount the
+   * matched card, then `scrollIntoView` its wrapper. The wrapper carries
+   * `data-extension-card={name}` and `display: contents` so the grid
+   * layout is unchanged.
+   */
+  function tryConsumeFocus() {
+    if (focusConsumed) return;
+    const name = pendingFocusName;
+    if (!name) return;
+    const inInstalled = installed.find((e) => e.name === name);
+    const inRegistry = registry.find((e) => e.name === name);
+    const match = inInstalled ?? inRegistry;
+    if (match) {
+      focusConsumed = true;
+      pendingFocusName = null;
+      // Flip to whichever tab holds the match. Prefer installed if it's
+      // in both (an installed extension may also appear in the registry
+      // — installed is the more actionable surface).
+      if (inInstalled) {
+        activeTab = 'installed';
+        expandedName = name;
+      } else {
+        activeTab = 'registry';
+        // Registry cards don't expand inline — collapse any installed
+        // expansion so the visual focus is on the new card.
+        expandedName = null;
+      }
+      // Let the each-block paint the card before scrolling. Without the
+      // tick, querySelector returns null on first load.
+      void tick().then(() => {
+        if (typeof document === 'undefined') return;
+        const el = document.querySelector<HTMLElement>(
+          `[data-extension-card="${cssEscape(name)}"]`
+        );
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      clearFocusParam();
+      return;
+    }
+    // No match yet — only give up after BOTH lists have loaded.
+    if (installedState === 'loaded' && registryState === 'loaded') {
+      focusConsumed = true;
+      pendingFocusName = null;
+      toasts.show('Extension not found', 'error');
+      clearFocusParam();
+    }
+  }
+
+  /**
+   * Minimal CSS.escape fallback. Extension names are typically slugs but
+   * the server permits arbitrary characters — escape anything that isn't
+   * a standard ident char to keep the attribute selector valid.
+   */
+  function cssEscape(value: string): string {
+    if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+      return CSS.escape(value);
+    }
+    return value.replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
+  }
+
+  /**
+   * Strip the `?focus=<name>` query param from the URL without triggering
+   * a navigation reload. Mirrors the routines / knowledge pattern.
+   */
+  function clearFocusParam() {
+    if (typeof window === 'undefined') return;
+    if (!page.url.searchParams.has('focus')) return;
+    const url = new URL(page.url);
+    url.searchParams.delete('focus');
+    const target = url.pathname + (url.search ? url.search : '') + url.hash;
+    void goto(target, { replaceState: true, noScroll: true, keepFocus: true });
+  }
 
   function startRefresh() {
     if (refreshTimer) return;
@@ -294,6 +400,9 @@
       }
       toolsByExtension = next;
       installedState = 'loaded';
+      // Consume any pending `?focus=<name>` deep-link now that this
+      // list is live. Safe to call repeatedly — `focusConsumed` guards.
+      tryConsumeFocus();
     } catch (err) {
       installedError = (err as Error).message;
       if (!opts.quiet) {
@@ -314,6 +423,9 @@
         (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name)
       );
       registryState = 'loaded';
+      // Same as loadInstalled — try to satisfy the deep-link if either
+      // list now contains the target.
+      tryConsumeFocus();
     } catch (err) {
       registryError = (err as Error).message;
       registryState = 'error';
@@ -631,17 +743,25 @@
       {:else}
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">
           {#each filteredInstalled as ext (ext.name)}
-            <ExtensionCard
-              extension={ext}
-              variant="installed"
-              busy={busyNames.has(ext.name)}
-              toolNames={toolsByExtension.get(ext.name) ?? []}
-              expanded={expandedName === ext.name}
-              onToggleTools={handleToggleTools}
-              onSetup={openSetup}
-              onToggleActivate={handleToggleActivate}
-              onRemove={handleRemove}
-            />
+            <!--
+              `display: contents` wrapper exposes a queryable element
+              (`[data-extension-card]`) for the `?focus=<name>` deep-link
+              scroll target without altering the CSS Grid layout — the
+              `<ExtensionCard>` root stays the grid item.
+            -->
+            <div class="contents" data-extension-card={ext.name}>
+              <ExtensionCard
+                extension={ext}
+                variant="installed"
+                busy={busyNames.has(ext.name)}
+                toolNames={toolsByExtension.get(ext.name) ?? []}
+                expanded={expandedName === ext.name}
+                onToggleTools={handleToggleTools}
+                onSetup={openSetup}
+                onToggleActivate={handleToggleActivate}
+                onRemove={handleRemove}
+              />
+            </div>
           {/each}
         </div>
       {/if}
@@ -689,12 +809,15 @@
       {:else}
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">
           {#each filteredRegistry as ext (ext.name)}
-            <ExtensionCard
-              extension={ext}
-              variant="registry"
-              busy={busyNames.has(ext.name)}
-              onInstall={handleInstall}
-            />
+            <!-- See installed-tab wrapper above for rationale. -->
+            <div class="contents" data-extension-card={ext.name}>
+              <ExtensionCard
+                extension={ext}
+                variant="registry"
+                busy={busyNames.has(ext.name)}
+                onInstall={handleInstall}
+              />
+            </div>
           {/each}
         </div>
       {/if}
