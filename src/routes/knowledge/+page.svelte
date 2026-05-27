@@ -24,6 +24,12 @@
   import SearchResults from './SearchResults.svelte';
   import DocViewer from './DocViewer.svelte';
   import NewDocModal, { validateMemoryPath } from './NewDocModal.svelte';
+  import ImportModal, {
+    ALLOWED_MIME_TYPES,
+    MAX_FILE_SIZE,
+    MAX_FILES_PER_BATCH,
+    type StagedFile
+  } from './ImportModal.svelte';
   import ResizeHandle from '$lib/components/ResizeHandle.svelte';
 
   // ---- Tree-rail width (drag-to-resize) ------------------------------------
@@ -120,6 +126,24 @@
   // Modal is mounted only while `newDocOpen` is true so its inputs are
   // freshly seeded on every open. No reset logic needed.
   let newDocOpen = $state(false);
+
+  // ---- Drag-drop import state ----------------------------------------------
+  //
+  // `dragDepth` is a counter, not a boolean: dragenter/dragleave fire for
+  // every nested element under the pointer, so a naive boolean would flip
+  // off the moment the user dragged over a child element. We increment on
+  // enter, decrement on leave, and only treat depth === 0 as "no drag in
+  // progress." Reset to zero on drop and on the route's onMount cleanup
+  // path to recover from any browser quirks (e.g. dragend not firing when
+  // the drop target unmounts mid-drag).
+  let dragDepth = $state(0);
+  const dragActive = $derived(dragDepth > 0);
+  /**
+   * Files staged after a successful drop, awaiting modal review. Cleared
+   * when the import modal closes (success or cancel). While this is
+   * non-empty the modal is mounted.
+   */
+  let importFiles = $state<StagedFile[]>([]);
 
   // Strictly a UI flag: true once we've fired at least one search for
   // the current query. Lets us distinguish "no results" from "didn't
@@ -601,9 +625,242 @@
       toasts.show(`Create failed: ${(err as Error).message}`, 'error');
     }
   }
+
+  // ---- Drag-drop import ----------------------------------------------------
+  //
+  // Drop scope: the entire `<section>` route container. The prompt allows
+  // either the tree rail only or "anywhere on the route"; we chose the
+  // whole route because users frequently drag from Finder/Explorer
+  // straight onto the right pane, and forcing them to aim at a narrow
+  // rail would be a worse UX. The overlay covers everything so the target
+  // is visually unambiguous.
+
+  /**
+   * Is this file something we're willing to read as text? Real-world
+   * drag-drops sometimes give us an empty MIME for `.md` because the OS
+   * doesn't classify markdown, so we also accept empty MIME when the
+   * extension matches `.md` / `.txt` / `.json`.
+   */
+  function isAcceptedFile(file: File): boolean {
+    if (ALLOWED_MIME_TYPES.has(file.type)) return true;
+    if (file.type === '') {
+      const lower = file.name.toLowerCase();
+      return lower.endsWith('.md') || lower.endsWith('.txt') || lower.endsWith('.json');
+    }
+    return false;
+  }
+
+  /**
+   * Read a single dropped file into a `StagedFile`. JSON gets
+   * pretty-printed if it parses; if parsing fails we reject the whole
+   * file rather than store unreadable text — better to fail loud than
+   * silently import broken JSON.
+   */
+  function readDroppedFile(file: File): Promise<StagedFile> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () =>
+        reject(new Error(`Could not read ${file.name}`));
+      reader.onload = () => {
+        const raw = typeof reader.result === 'string' ? reader.result : '';
+        if (file.type === 'application/json' || file.name.toLowerCase().endsWith('.json')) {
+          try {
+            const parsed = JSON.parse(raw);
+            resolve({
+              name: file.name,
+              size: file.size,
+              content: JSON.stringify(parsed, null, 2)
+            });
+            return;
+          } catch (err) {
+            reject(new Error(`Invalid JSON in ${file.name}: ${(err as Error).message}`));
+            return;
+          }
+        }
+        resolve({ name: file.name, size: file.size, content: raw });
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  function onRouteDragEnter(ev: DragEvent) {
+    // Bail when no files are involved — text/element drags inside the
+    // app (e.g. dragging a tab) shouldn't trip the overlay.
+    if (!ev.dataTransfer?.types?.includes('Files')) return;
+    ev.preventDefault();
+    dragDepth += 1;
+  }
+
+  function onRouteDragOver(ev: DragEvent) {
+    if (!ev.dataTransfer?.types?.includes('Files')) return;
+    // preventDefault is required to make the element a valid drop target.
+    ev.preventDefault();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'copy';
+  }
+
+  function onRouteDragLeave(ev: DragEvent) {
+    if (!ev.dataTransfer?.types?.includes('Files')) return;
+    ev.preventDefault();
+    dragDepth = Math.max(0, dragDepth - 1);
+  }
+
+  async function onRouteDrop(ev: DragEvent) {
+    ev.preventDefault();
+    // Always reset depth on drop — some browsers swallow the final
+    // dragleave when the drop fires, leaving us stuck in the active state.
+    dragDepth = 0;
+
+    const all = Array.from(ev.dataTransfer?.files ?? []);
+    if (all.length === 0) return;
+
+    // Block drops while disconnected — staging files we can't write would
+    // mislead the user into thinking the import is in flight. Toast so the
+    // intent isn't silently dropped.
+    if (!client) {
+      toasts.show('Cannot import — IronClaw is offline.', 'error');
+      return;
+    }
+
+    if (all.length > MAX_FILES_PER_BATCH) {
+      toasts.show(
+        `Too many files dropped (${all.length}). Limit is ${MAX_FILES_PER_BATCH} per batch.`,
+        'error'
+      );
+      return;
+    }
+
+    // Partition into accept/reject up front so we can surface a single
+    // toast summarizing what we skipped, rather than one per file.
+    const accepted: File[] = [];
+    const rejectedMime: string[] = [];
+    const rejectedSize: string[] = [];
+    for (const f of all) {
+      if (!isAcceptedFile(f)) {
+        rejectedMime.push(f.name);
+        continue;
+      }
+      if (f.size > MAX_FILE_SIZE) {
+        rejectedSize.push(f.name);
+        continue;
+      }
+      accepted.push(f);
+    }
+
+    if (rejectedMime.length > 0) {
+      toasts.show(
+        `Skipped ${rejectedMime.length} file(s) — only .md, .txt, .json supported.`,
+        'error'
+      );
+    }
+    if (rejectedSize.length > 0) {
+      toasts.show(
+        `Skipped ${rejectedSize.length} file(s) — each must be under 1 MB.`,
+        'error'
+      );
+    }
+
+    if (accepted.length === 0) return;
+
+    // Read each accepted file. Failures here (e.g. invalid JSON) bubble
+    // up as per-file errors but don't block the rest of the batch.
+    const staged: StagedFile[] = [];
+    for (const f of accepted) {
+      try {
+        staged.push(await readDroppedFile(f));
+      } catch (err) {
+        toasts.show((err as Error).message, 'error');
+      }
+    }
+
+    if (staged.length === 0) return;
+    importFiles = staged;
+  }
+
+  /**
+   * Run the actual writes for a confirmed import batch.
+   *
+   * Sequential by design (see ImportModal comments). We collect per-file
+   * outcomes for the summary toast and call `onProgress` after each
+   * attempt so the modal's button label stays current.
+   */
+  async function runImport(
+    items: Array<{ path: string; content: string }>,
+    onProgress: (index: number, total: number, ok: boolean, error?: string) => void
+  ): Promise<void> {
+    if (!client) {
+      toasts.show('Import failed: IronClaw client unavailable.', 'error');
+      return;
+    }
+    let okCount = 0;
+    const failures: Array<{ path: string; reason: string }> = [];
+    const total = items.length;
+    for (let i = 0; i < total; i++) {
+      const { path, content } = items[i];
+      const pathError = validateMemoryPath(path);
+      if (pathError) {
+        failures.push({ path, reason: pathError });
+        onProgress(i + 1, total, false, pathError);
+        continue;
+      }
+      try {
+        const res = await client.writeMemory(path, content);
+        if (res.ok) {
+          okCount += 1;
+          onProgress(i + 1, total, true);
+        } else {
+          failures.push({ path, reason: 'gateway did not confirm write' });
+          onProgress(i + 1, total, false, 'gateway did not confirm write');
+        }
+      } catch (err) {
+        const reason = (err as Error).message;
+        failures.push({ path, reason });
+        onProgress(i + 1, total, false, reason);
+      }
+    }
+
+    // Summary toast. We keep it terse — per-file errors are
+    // overwhelmingly path conflicts or transient gateway hiccups, so the
+    // top-line "X succeeded, Y failed" is what users actually act on.
+    if (failures.length === 0) {
+      toasts.show(`Imported ${okCount} file(s).`, 'success');
+    } else if (okCount === 0) {
+      toasts.show(
+        `Import failed for all ${failures.length} file(s). First error: ${failures[0].reason}`,
+        'error'
+      );
+    } else {
+      toasts.show(
+        `Imported ${okCount}, failed ${failures.length}. First error: ${failures[0].reason}`,
+        'error'
+      );
+    }
+
+    // Close the modal and refresh the tree if at least one write
+    // succeeded — otherwise leave the modal open so the user can retry.
+    if (okCount > 0) {
+      importFiles = [];
+      await loadRoot();
+    }
+  }
+
+  function closeImport() {
+    importFiles = [];
+  }
 </script>
 
-<section class="p-8 h-full flex flex-col min-h-0">
+<!-- Drop handlers are on the route-level section so the overlay can cover
+     everything (rail + viewer) and Finder→drop works no matter where
+     the user aims. The handlers ignore non-file drags (`Files` not in
+     dataTransfer.types) so internal text drags don't trip the overlay. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<section
+  class="p-8 h-full flex flex-col min-h-0 relative"
+  aria-label="Knowledge browser"
+  ondragenter={onRouteDragEnter}
+  ondragover={onRouteDragOver}
+  ondragleave={onRouteDragLeave}
+  ondrop={onRouteDrop}
+>
   <header class="mb-6">
     <h1 class="text-2xl font-semibold text-text-primary">Knowledge</h1>
     <p class="text-text-muted text-sm mt-1">Docs, transcripts, and RAG sources.</p>
@@ -1011,6 +1268,14 @@
       />
     {/if}
 
+    {#if importFiles.length > 0}
+      <ImportModal
+        files={importFiles}
+        onclose={closeImport}
+        onimport={runImport}
+      />
+    {/if}
+
     <!-- Context menu. Stops click propagation so the global click-handler
          that closes ctxMenu doesn't fire from inside it. -->
     {#if ctxMenu}
@@ -1046,5 +1311,41 @@
         </button>
       </div>
     {/if}
+  {/if}
+
+  <!--
+    Drag overlay. Rendered at the section root so it covers both the
+    disconnected and connected layouts. Uses `pointer-events-none` so the
+    overlay itself doesn't intercept the drop — the `<section>` underneath
+    keeps receiving dragover/drop events, which is what makes
+    `onRouteDrop` fire. Fades in/out via the `dragActive` transition.
+  -->
+  {#if dragActive}
+    <div
+      class="absolute inset-0 z-[60] pointer-events-none flex items-center justify-center bg-bg-deep/70 backdrop-blur-[2px] border-2 border-dashed border-accent-cyan rounded-lg m-4 transition-opacity duration-150"
+      aria-hidden="true"
+    >
+      <div class="flex flex-col items-center gap-3 text-center px-6">
+        <svg
+          viewBox="0 0 24 24"
+          class="w-10 h-10 text-accent-cyan"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 14.2v-10" />
+          <path d="m8 8.2 4-4 4 4" />
+          <path d="M5 17.5v2.7h14v-2.7" />
+        </svg>
+        <div class="text-sm font-semibold text-text-primary">
+          Drop files here to import as knowledge docs
+        </div>
+        <div class="text-xs text-text-muted">
+          .md, .txt, .json — up to {MAX_FILES_PER_BATCH} files, 1 MB each
+        </div>
+      </div>
+    </div>
   {/if}
 </section>

@@ -10,6 +10,7 @@
   import { updater } from '$lib/stores/updater.svelte';
   import NewProfileModal from '$lib/components/NewProfileModal.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import { resolveTint } from '$lib/stores/settings.svelte';
 
   // ---- Sidebar nav definition ------------------------------------------
   //
@@ -550,13 +551,28 @@
     class:px-0={collapsed}
     class:justify-center={collapsed}
   >
-    <svg viewBox="0 0 24 24" class="w-6 h-6 text-accent-cyan shrink-0" fill="none" stroke="currentColor" stroke-width="2">
+    <!-- Brand glyph + wordmark. Both bind to `--v2-accent` (rather than the
+         Tailwind `text-accent-cyan` class) so the per-profile tint override
+         in connection.svelte.ts repaints them when the active profile
+         changes — the most visible signal of which profile owns this
+         window. -->
+    <svg
+      viewBox="0 0 24 24"
+      class="w-6 h-6 shrink-0"
+      style="color: var(--v2-accent);"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2"
+    >
       <path d="M4 7l8-4 8 4-8 4-8-4z" stroke-linejoin="round" />
       <path d="M4 12l8 4 8-4" stroke-linejoin="round" />
       <path d="M4 17l8 4 8-4" stroke-linejoin="round" />
     </svg>
     {#if !collapsed}
-      <span class="text-lg font-semibold tracking-tight text-accent-cyan">IronClaw</span>
+      <span
+        class="text-lg font-semibold tracking-tight"
+        style="color: var(--v2-accent);"
+      >IronClaw</span>
     {/if}
   </div>
 
@@ -753,6 +769,7 @@
           >
             {#each connection.settings.profiles as profile (profile.id)}
               {@const isActiveProfile = profile.id === connection.activeProfile.id}
+              {@const profilePalette = resolveTint(profile.tint)}
               <button
                 type="button"
                 onclick={(e) => void pickProfile(profile.id, e)}
@@ -763,16 +780,20 @@
                 role="option"
                 aria-selected={isActiveProfile}
               >
-                <!-- Radio indicator -->
+                <!-- Tint dot — paints the profile's accent so multi-profile
+                     users see at a glance which window will pick up which
+                     palette. Inactive rows render a filled dot at the
+                     profile's tint; the active row stacks a ring around the
+                     same dot to double as a radio indicator without losing
+                     the tint signal. -->
                 <span
-                  class="w-3 h-3 rounded-full border-2 shrink-0 flex items-center justify-center"
-                  class:border-accent-cyan={isActiveProfile}
-                  class:border-border-subtle={!isActiveProfile}
-                >
-                  {#if isActiveProfile}
-                    <span class="w-1.5 h-1.5 rounded-full bg-accent-cyan"></span>
-                  {/if}
-                </span>
+                  class="w-3 h-3 rounded-full shrink-0 flex items-center justify-center"
+                  class:ring-2={isActiveProfile}
+                  style="background-color: {profilePalette.accent}; box-shadow: {isActiveProfile
+                    ? `0 0 0 2px ${profilePalette.soft}`
+                    : 'none'};"
+                  aria-hidden="true"
+                ></span>
                 <span
                   class="flex-1 truncate"
                   class:text-text-primary={isActiveProfile}

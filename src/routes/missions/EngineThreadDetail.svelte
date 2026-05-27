@@ -37,6 +37,7 @@
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
+  import Sparkline from '$lib/components/Sparkline.svelte';
   import { relativeTime, shortTimestamp } from '../routines/time';
 
   type Props = {
@@ -129,6 +130,37 @@
 
   /** Messages from the detail payload (empty until the first fetch lands). */
   const messages = $derived<EngineThreadMessage[]>(detail?.messages ?? []);
+
+  /**
+   * Cumulative-token series for the header sparkline.
+   *
+   * Walks `events` in their merged-timeline order, summing each
+   * `StepCompleted` event's `tokens.input_tokens + output_tokens`. The
+   * result is a monotonically non-decreasing series that reads as the
+   * thread's growing token budget over time. Returns an empty array when
+   * no StepCompleted events are recorded yet — the Sparkline renders its
+   * empty-state dash in that case.
+   *
+   * We read from `events` (not `timeline`) so the series is independent
+   * of step-row interleaving; `StepCompleted` events are the canonical
+   * token-accounting hook on the wire today.
+   */
+  const tokenSeries = $derived.by<number[]>(() => {
+    const out: number[] = [];
+    let total = 0;
+    for (const e of events) {
+      const tag = Object.keys(e.kind ?? {})[0];
+      if (tag !== 'StepCompleted') continue;
+      const payload = (e.kind as Record<string, unknown>)[tag] as {
+        tokens?: { input_tokens?: number; output_tokens?: number };
+      } | undefined;
+      const inT = payload?.tokens?.input_tokens ?? 0;
+      const outT = payload?.tokens?.output_tokens ?? 0;
+      total += inT + outT;
+      out.push(total);
+    }
+    return out;
+  });
 
   // ---- Helpers -------------------------------------------------------------
 
@@ -388,6 +420,19 @@
           <dd class="text-text-primary font-mono">
             {fmtTokens(detail?.total_tokens ?? thread.total_tokens)}
           </dd>
+          <!-- Cumulative tokens per StepCompleted event. Area variant
+               so the growing budget reads as a trend, not a count. The
+               spark is intentionally narrow (90×16) so it slots into
+               the metadata dl without breaking the row's baseline. -->
+          <span class="ml-1 text-accent-cyan" title="Cumulative tokens per step">
+            <Sparkline
+              data={tokenSeries}
+              variant="area"
+              width={90}
+              height={16}
+              color="#4ca7e6"
+            />
+          </span>
         </div>
         {#if detail?.total_cost_usd !== undefined}
           <div class="flex items-center gap-1.5">

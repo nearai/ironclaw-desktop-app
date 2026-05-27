@@ -37,6 +37,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { connection } from '$lib/stores/connection.svelte';
+  import { resolveTint } from '$lib/stores/settings.svelte';
 
   type Props = {
     /** When false the bar renders nothing. Owned by the layout (Cmd+/). */
@@ -105,6 +106,12 @@
 
   /** Mode badge label — short for the cramped 28px bar. */
   const modeBadge = $derived(connection.activeProfile.mode === 'local' ? 'Local' : 'Remote');
+
+  /** Accent hex for the active profile's tint — drives the profile dot
+   *  when connected so the bar visually echoes whichever window-tint the
+   *  user picked. Falls back to the design-system signal blue when the
+   *  profile has no override (i.e. `tint: undefined`). */
+  const tintHex = $derived(resolveTint(connection.activeProfile.tint).accent);
 
   /** Human-friendly provider label. The wire field is a free-form id
    *  (`nearai`, `openrouter`, `ollama`, ...); the most common two get
@@ -273,15 +280,19 @@
       class="flex items-center gap-2 px-3 min-w-0 hover:bg-bg-deep hover:text-text-primary transition-colors"
       title="Open profile settings"
     >
-      <!-- Connection dot. Mirrors the sidebar's pillLabel coloring so
-           the user has one canonical signal for "is the gateway up". -->
+      <!-- Connection / tint dot. When connected we paint the profile's
+           tint color so the bar visually echoes whichever window-tint
+           the user picked (matching the sidebar brand glyph). Other
+           states keep their canonical status hue (gold connecting, red
+           error / disconnected) since legibility-of-status outranks
+           the tint signal when the gateway isn't healthy. -->
       <span
         class="w-2 h-2 rounded-full shrink-0"
-        class:bg-positive={connection.status === 'connected'}
         class:bg-accent-gold={connection.status === 'connecting'}
         class:bg-danger={connection.status === 'error' ||
           connection.status === 'disconnected' ||
           connection.status === 'idle'}
+        style={connection.status === 'connected' ? `background-color: ${tintHex};` : ''}
         aria-hidden="true"
       ></span>
       <span class="text-xs font-medium truncate max-w-[160px] text-text-primary">

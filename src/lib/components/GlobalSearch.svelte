@@ -50,6 +50,23 @@
     | 'Routines'
     | 'Extensions';
 
+  /** Filter pill identity. `All` means "render every surface as before";
+   *  the named values scope rendering + count display to a single surface. */
+  type Filter = 'All' | Surface;
+
+  /** Ordered list driving the pill row AND the 1-7 number-key shortcut
+   *  mapping. Index 0 = digit "1" (All), index 6 = digit "7" (Extensions).
+   *  Keep in sync with `groups` ordering below. */
+  const FILTERS: Filter[] = [
+    'All',
+    'Knowledge',
+    'Threads',
+    'Jobs',
+    'Skills',
+    'Routines',
+    'Extensions'
+  ];
+
   interface ResultRow {
     /** Stable id used as keying + arrow-nav target. */
     id: string;
@@ -131,6 +148,47 @@
    *  substantive without overwhelming the modal. */
   const ROWS_PER_GROUP = 5;
 
+  // -- filter pill state (sessionStorage) -----------------------------------
+  // Persist the last-active pill for the duration of the browser session so
+  // re-opening the modal lands on the user's previous scope. We deliberately
+  // use sessionStorage rather than localStorage — the filter is a transient
+  // working-set preference, not a long-lived setting.
+
+  const FILTER_KEY = 'ironclaw-global-search-filter';
+
+  function loadFilter(): Filter {
+    if (typeof sessionStorage === 'undefined') return 'All';
+    try {
+      const raw = sessionStorage.getItem(FILTER_KEY);
+      if (raw && (FILTERS as string[]).includes(raw)) return raw as Filter;
+    } catch {
+      // Storage disabled / quota — non-fatal.
+    }
+    return 'All';
+  }
+
+  function persistFilter(f: Filter) {
+    if (typeof sessionStorage === 'undefined') return;
+    try {
+      sessionStorage.setItem(FILTER_KEY, f);
+    } catch {
+      // Non-fatal.
+    }
+  }
+
+  let activeFilter = $state<Filter>(loadFilter());
+
+  function setFilter(f: Filter) {
+    activeFilter = f;
+    persistFilter(f);
+    activeIndex = 0;
+    // On filter switch, ensure the surface we just scoped to has its cache
+    // warmed. Knowledge re-fetches automatically off `debounced`; the local
+    // surfaces are populated lazily on first need, gated by `activeFilter`
+    // and `connection.client` inside `onOpen` and the per-filter effect.
+    if (globalSearch.open) void ensureSurfaceLoaded(f);
+  }
+
   // -- recent searches (localStorage) ---------------------------------------
 
   const RECENT_KEY = 'ironclaw-global-search-history';
@@ -196,23 +254,23 @@
     }
   });
 
-  async function onOpen() {
-    await tick();
-    inputEl?.focus();
-    // Fan out the non-knowledge surfaces in parallel on first open. Each
-    // populates its cache so subsequent queries don't pay the network
-    // cost. Failures are stored in per-surface error state but don't
-    // surface a toast — the modal is meant to be quiet, and the user
-    // already gets a per-section "Failed to load" affordance below.
-    if (!connection.client) return;
+  /** Kick the network fetch for a single surface if it hasn't loaded and
+   *  isn't already in flight. Knowledge isn't here — it streams off the
+   *  `debounced` effect below. Returns the promise so callers can await
+   *  it if they want (we don't, in practice).
+   *
+   *  Spec §5 ("Switching filter while a query is active re-runs the search
+   *  but only for that surface (skip the others for perf)"): when the user
+   *  scopes to a single surface, we *avoid* warming the other caches. The
+   *  per-filter $effect below calls this with the active filter only. */
+  function fetchSurface(s: Surface): Promise<void> | null {
+    if (!connection.client) return null;
     const client = connection.client;
-
-    const fetches: Array<Promise<void>> = [];
-
-    if (threadsCache === null && !loadingThreads) {
-      loadingThreads = true;
-      fetches.push(
-        client
+    switch (s) {
+      case 'Threads': {
+        if (threadsCache !== null || loadingThreads) return null;
+        loadingThreads = true;
+        return client
           .listThreads()
           .then((t) => {
             threadsCache = t;
@@ -223,14 +281,12 @@
           })
           .finally(() => {
             loadingThreads = false;
-          })
-      );
-    }
-
-    if (jobsCache === null && !loadingJobs) {
-      loadingJobs = true;
-      fetches.push(
-        client
+          });
+      }
+      case 'Jobs': {
+        if (jobsCache !== null || loadingJobs) return null;
+        loadingJobs = true;
+        return client
           .listJobs({ limit: 50 })
           .then((j) => {
             jobsCache = j;
@@ -241,17 +297,15 @@
           })
           .finally(() => {
             loadingJobs = false;
-          })
-      );
-    }
-
-    if (skillsCache === null && !loadingSkills) {
-      loadingSkills = true;
-      fetches.push(
-        client
+          });
+      }
+      case 'Skills': {
+        if (skillsCache !== null || loadingSkills) return null;
+        loadingSkills = true;
+        return client
           .listSkills()
-          .then((s) => {
-            skillsCache = s;
+          .then((s2) => {
+            skillsCache = s2;
           })
           .catch((err: Error) => {
             errorSkills = err.message;
@@ -259,14 +313,12 @@
           })
           .finally(() => {
             loadingSkills = false;
-          })
-      );
-    }
-
-    if (routinesCache === null && !loadingRoutines) {
-      loadingRoutines = true;
-      fetches.push(
-        client
+          });
+      }
+      case 'Routines': {
+        if (routinesCache !== null || loadingRoutines) return null;
+        loadingRoutines = true;
+        return client
           .listRoutines()
           .then((r) => {
             routinesCache = r;
@@ -277,14 +329,12 @@
           })
           .finally(() => {
             loadingRoutines = false;
-          })
-      );
-    }
-
-    if (extensionsCache === null && !loadingExtensions) {
-      loadingExtensions = true;
-      fetches.push(
-        client
+          });
+      }
+      case 'Extensions': {
+        if (extensionsCache !== null || loadingExtensions) return null;
+        loadingExtensions = true;
+        return client
           .listExtensions()
           .then((e) => {
             extensionsCache = e;
@@ -295,16 +345,43 @@
           })
           .finally(() => {
             loadingExtensions = false;
-          })
-      );
+          });
+      }
+      case 'Knowledge':
+        // Knowledge is query-driven via the $effect on `debounced`; nothing
+        // to do here.
+        return null;
     }
+  }
 
-    // We don't await these — the modal stays interactive while they resolve.
-    // Each fetch updates its own slice of state so the UI re-renders
-    // incrementally.
-    if (fetches.length > 0) {
-      void Promise.allSettled(fetches);
-    }
+  /** Warm whatever caches the supplied filter actually needs.
+   *  - `All` warms every local surface (original behavior).
+   *  - A named surface only warms that one — per spec §5. */
+  async function ensureSurfaceLoaded(f: Filter): Promise<void> {
+    if (!connection.client) return;
+    const surfaces: Surface[] =
+      f === 'All'
+        ? ['Threads', 'Jobs', 'Skills', 'Routines', 'Extensions']
+        : f === 'Knowledge'
+          ? []
+          : [f];
+    const fetches = surfaces
+      .map((s) => fetchSurface(s))
+      .filter((p): p is Promise<void> => p !== null);
+    if (fetches.length > 0) void Promise.allSettled(fetches);
+  }
+
+  async function onOpen() {
+    await tick();
+    inputEl?.focus();
+    // Restore the last-active filter (sessionStorage) on every open so the
+    // user lands on the same scope they left in. Falls back to 'All'.
+    activeFilter = loadFilter();
+    // Fan out only the surfaces this filter cares about — failures are
+    // stored in per-surface error state but don't surface a toast (the
+    // modal is meant to be quiet, and the user already gets a per-section
+    // "Failed to load" affordance below).
+    void ensureSurfaceLoaded(activeFilter);
   }
 
   // -- debounced query ------------------------------------------------------
@@ -323,12 +400,17 @@
   });
 
   // Knowledge search — runs every time `debounced` changes to a non-empty
-  // value. Aborts in-flight requests implicitly by tracking a generation
-  // counter; only the latest response writes to `knowledgeHits`.
+  // value AND the active filter actually wants knowledge (All or Knowledge).
+  // When the user scopes to Threads/Jobs/etc we skip the gateway round-trip
+  // entirely per spec §5 ("skip the others for perf"). Aborts in-flight
+  // requests implicitly by tracking a generation counter; only the latest
+  // response writes to `knowledgeHits`.
   let knowledgeGeneration = 0;
   $effect(() => {
     const q = debounced.trim();
-    if (!q || !connection.client) {
+    const wantKnowledge =
+      activeFilter === 'All' || activeFilter === 'Knowledge';
+    if (!q || !connection.client || !wantKnowledge) {
       knowledgeHits = [];
       loadingKnowledge = false;
       return;
@@ -352,6 +434,18 @@
       .finally(() => {
         if (gen === knowledgeGeneration) loadingKnowledge = false;
       });
+  });
+
+  // When the user starts typing under a scoped filter, make sure the
+  // surface cache is warm. `onOpen` already does this on open; this covers
+  // the case where the modal opened to `All`, the user filtered to
+  // Threads, then typed — we'd otherwise have already warmed it via
+  // `setFilter`, but if the user filtered before the modal mounted (via
+  // restored sessionStorage) this is the belt-and-suspenders.
+  $effect(() => {
+    if (!globalSearch.open) return;
+    void debounced;
+    void ensureSurfaceLoaded(activeFilter);
   });
 
   // -- result builders ------------------------------------------------------
@@ -534,7 +628,7 @@
   /** Stable surface ordering — knowledge first because the snippet rows are
    *  the most information-dense; threads next because that's typically what
    *  users are looking for; the rest follow in their sidebar order. */
-  const groups = $derived<Group[]>([
+  const allGroups = $derived<Group[]>([
     groupKnowledge,
     groupThreads,
     groupJobs,
@@ -542,6 +636,41 @@
     groupRoutines,
     groupExtensions
   ]);
+
+  /** Groups that actually get rendered. When a filter pill other than `All`
+   *  is active, narrow to just that surface's group so the results panel
+   *  shows a single (header-less) list. */
+  const groups = $derived<Group[]>(
+    activeFilter === 'All'
+      ? allGroups
+      : allGroups.filter((g) => g.surface === activeFilter)
+  );
+
+  /** Per-surface counts used to badge the filter pills. Derived from the
+   *  same `Group.total` the section headers use, so the badge and the
+   *  "Show all" affordance always agree. */
+  const countsBySurface = $derived<Record<Surface, number>>({
+    Knowledge: groupKnowledge.total,
+    Threads: groupThreads.total,
+    Jobs: groupJobs.total,
+    Skills: groupSkills.total,
+    Routines: groupRoutines.total,
+    Extensions: groupExtensions.total
+  });
+
+  /** Total across all surfaces — drives the `All` pill's badge. */
+  const totalAcrossSurfaces = $derived(
+    countsBySurface.Knowledge +
+      countsBySurface.Threads +
+      countsBySurface.Jobs +
+      countsBySurface.Skills +
+      countsBySurface.Routines +
+      countsBySurface.Extensions
+  );
+
+  function countForFilter(f: Filter): number {
+    return f === 'All' ? totalAcrossSurfaces : countsBySurface[f];
+  }
 
   /** Per-surface "should we render the section header at all?" — we hide a
    *  group only when it has zero rows AND no loading/error state. */
@@ -682,6 +811,28 @@
       globalSearch.close();
       return;
     }
+    // Number-key shortcut (1-7) jumps to a filter pill when input is empty.
+    // Mapping: 1→All, 2→Knowledge, 3→Threads, 4→Jobs, 5→Skills, 6→Routines,
+    // 7→Extensions. Requires no active query so the user can still type
+    // numbers into queries naturally. Suppressed when any modifier is held
+    // so Cmd+1-style browser shortcuts (where present) still reach the UA.
+    if (
+      !query.trim() &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.shiftKey &&
+      e.key >= '1' &&
+      e.key <= '7'
+    ) {
+      const idx = Number(e.key) - 1;
+      const target = FILTERS[idx];
+      if (target) {
+        e.preventDefault();
+        setFilter(target);
+        return;
+      }
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (flatRows.length > 0) activeIndex = (activeIndex + 1) % flatRows.length;
@@ -697,6 +848,17 @@
       e.preventDefault();
       const row = flatRows[activeIndex];
       if (row) activate(row);
+    }
+  }
+
+  /** Keyboard activation for the filter pill buttons themselves
+   *  (spec §3 — "Tab + Enter on a pill to activate"). Buttons already
+   *  fire onclick on Enter/Space natively, but we keep this for clarity
+   *  and to swallow Space scrolling when focus is on a pill. */
+  function onPillKeyDown(e: KeyboardEvent, f: Filter) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setFilter(f);
     }
   }
 
@@ -807,6 +969,51 @@
         </kbd>
       </div>
 
+      <!-- Filter pill row. Lives directly under the search input and above
+           the results list. Each pill shows a count badge derived from the
+           per-surface group totals. The active pill paints cyan; the others
+           sit at muted text. Number keys 1-7 (input empty, no modifiers)
+           shift the active pill — see `onKeyDown`. -->
+      <div
+        class="flex items-center gap-1.5 px-5 py-2 border-b border-border-subtle overflow-x-auto"
+        role="tablist"
+        aria-label="Filter results by surface"
+      >
+        {#each FILTERS as pill (pill)}
+          {@const isActive = activeFilter === pill}
+          {@const count = countForFilter(pill)}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={isActive}
+            tabindex="0"
+            onclick={() => setFilter(pill)}
+            onkeydown={(e) => onPillKeyDown(e, pill)}
+            class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider border transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-cyan"
+            class:bg-accent-cyan={isActive}
+            class:text-bg-deep={isActive}
+            class:border-accent-cyan={isActive}
+            class:text-text-muted={!isActive}
+            class:border-border-subtle={!isActive}
+            class:hover:text-text-primary={!isActive}
+            class:hover:border-text-muted={!isActive}
+          >
+            <span>{pill}</span>
+            {#if count > 0}
+              <span
+                class="inline-flex items-center justify-center min-w-[1.25rem] px-1 text-[10px] rounded-full"
+                class:bg-bg-deep={isActive}
+                class:text-accent-cyan={isActive}
+                class:bg-border-subtle={!isActive}
+                class:text-text-muted={!isActive}
+              >
+                {count}
+              </span>
+            {/if}
+          </button>
+        {/each}
+      </div>
+
       <!-- Results panel — vertical scroll, grouped by surface. -->
       <div bind:this={listEl} class="flex-1 overflow-y-auto py-2">
         {#if !query.trim() && recent.length > 0}
@@ -855,7 +1062,10 @@
           {#each groups as group (group.surface)}
             {#if shouldRenderGroup(group)}
               <div class="mb-2">
-                <!-- Section header -->
+                <!-- Section header. Suppressed when a single-surface filter
+                     is active (spec §2 — "render that surface's results
+                     only, without group headers"). -->
+                {#if activeFilter === 'All'}
                 <div
                   class="px-5 pt-3 pb-1 flex items-center justify-between gap-3"
                 >
@@ -965,6 +1175,7 @@
                     </button>
                   {/if}
                 </div>
+                {/if}
 
                 <!-- Loading / error / empty states for this surface. -->
                 {#if loadingForSurface(group.surface) && group.rows.length === 0}
@@ -1048,6 +1259,26 @@
                       </span>
                     </div>
                   {/each}
+                {/if}
+
+                <!-- Footer "Show all" affordance — only when filtered to a
+                     single surface (the All-view shows this in the header
+                     instead). Spec §2: "appears at the bottom of the
+                     filtered list if there are more results than
+                     ROWS_PER_GROUP". -->
+                {#if activeFilter !== 'All' && group.total > group.rows.length}
+                  <div class="mx-2 mt-2 px-3 py-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-widest">
+                    <span class="text-text-muted/60">
+                      Showing {group.rows.length} of {group.total}
+                    </span>
+                    <button
+                      type="button"
+                      onclick={() => activateShowAll(group)}
+                      class="text-accent-cyan hover:text-accent-gold transition-colors"
+                    >
+                      Show all →
+                    </button>
+                  </div>
                 {/if}
               </div>
             {/if}

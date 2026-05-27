@@ -5,6 +5,7 @@
   import type { Routine, RoutineSummary } from '$lib/api/types';
   import { connection } from '$lib/stores/connection.svelte';
   import DetailPanel from './DetailPanel.svelte';
+  import Sparkline from '$lib/components/Sparkline.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { relativeTime } from './time';
@@ -243,6 +244,14 @@
 
   const sparkMax = $derived(
     sparkBuckets.reduce((m, b) => Math.max(m, b.success + b.failed), 0)
+  );
+
+  /** Flattened per-bucket count series feeding `<Sparkline variant="bars">`.
+   *  v1 sums success + failed into a single channel; once the gateway
+   *  exposes success/failure attribution we can render two stacked
+   *  Sparklines or switch back to a hand-rolled stacked-bar block. */
+  const sparkSeries = $derived<number[]>(
+    sparkBuckets.map((b) => b.success + b.failed)
   );
 
   // Deep-link target id from `?open=<id>` (set by CommandPalette). Captured
@@ -592,41 +601,23 @@
       </div>
       {#if sparkTotal > 0}
         <div class="surface p-4 flex flex-col justify-between">
+          <!-- 24-bucket sparkline. The hand-rolled stacked-bar layout was
+               replaced by <Sparkline variant="bars" /> on 2026-05-27 so we
+               share a single rendering path with the other dashboards.
+               TODO(routines:+page.svelte:sparkline-split): when the gateway
+               exposes per-bucket success vs failure, layer two Sparklines
+               (one cyan for success, one danger for failed) or extend the
+               component to accept a `secondary` series. -->
           <div
-            class="flex items-end gap-[3px] h-10"
-            role="img"
-            aria-label="Recent routine runs over the past 24 hours"
             title="Recent routine runs over the past 24 hours"
+            aria-label="Recent routine runs over the past 24 hours"
           >
-            {#each sparkBuckets as bucket, i (i)}
-              {@const total = bucket.success + bucket.failed}
-              {@const heightPct = sparkMax > 0 ? Math.max(8, (total / sparkMax) * 100) : 0}
-              {@const failedFrac = total > 0 ? bucket.failed / total : 0}
-              <div
-                class="flex-1 min-w-[3px] flex flex-col justify-end rounded-sm overflow-hidden bg-bg-deep"
-                style="height: 100%"
-                title={total > 0
-                  ? `${23 - i}h ago: ${total} run${total === 1 ? '' : 's'}${bucket.failed > 0 ? ` (${bucket.failed} failed)` : ''}`
-                  : `${23 - i}h ago: no runs`}
-              >
-                {#if total > 0}
-                  <!-- Stacked: red on top (failed), cyan on bottom (success).
-                       Proportional within the bar's total height. -->
-                  {#if bucket.failed > 0}
-                    <div
-                      class="bg-red-400 w-full"
-                      style="height: {heightPct * failedFrac}%"
-                    ></div>
-                  {/if}
-                  {#if bucket.success > 0}
-                    <div
-                      class="bg-accent-cyan w-full"
-                      style="height: {heightPct * (1 - failedFrac)}%"
-                    ></div>
-                  {/if}
-                {/if}
-              </div>
-            {/each}
+            <Sparkline
+              data={sparkSeries}
+              variant="bars"
+              width={160}
+              height={40}
+            />
           </div>
           <div class="text-xs text-text-muted mt-2 uppercase tracking-wide">Recent runs</div>
         </div>

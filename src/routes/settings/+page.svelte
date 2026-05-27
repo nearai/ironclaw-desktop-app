@@ -38,13 +38,17 @@
     importSettingsFromString,
     loadSettings,
     localDataDir,
+    PROFILE_TINT_ORDER,
+    PROFILE_TINTS,
+    resolveTint,
     revealInFinder,
     saveSettings,
     setToken,
     updateProfile,
     type AppSettings,
     type ConnectionMode,
-    type ProfileConfig
+    type ProfileConfig,
+    type ProfileTint
   } from '$lib/stores/settings.svelte';
   import { connection, type SidecarStatus } from '$lib/stores/connection.svelte';
   import { signIn } from '$lib/stores/sign-in.svelte';
@@ -930,6 +934,32 @@
   }
 
   /**
+   * Persist a tint pick from the profile-row color picker. The change is
+   * immediate (no save-button round-trip) so the live accent updates
+   * across windows without an extra click — same UX as the admin/tray
+   * toggles further down the page.
+   *
+   * `connection.refresh()` is what surfaces the change to the connection
+   * store's `activeProfile` and (via the $effect there) repaints the
+   * `--v2-accent*` variables on the document root. We call it on every
+   * tint change so the live preview happens instantly, even when the
+   * tinted profile is the active one in this window.
+   */
+  async function onChangeTint(profile: ProfileConfig, tint: ProfileTint) {
+    try {
+      await updateProfile(profile.id, { tint });
+      settings = await loadSettings();
+      // `reloadSettings` (vs the heavier `refresh`) updates the
+      // connection store's `settings` without re-pinging the gateway or
+      // cycling the sidecar — tint changes are purely cosmetic and a
+      // full reconnect would feel laggy on every swatch click.
+      await connection.reloadSettings();
+    } catch (err) {
+      toasts.show(`Tint update failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  /**
    * Open a profile in a fresh window scoped to that profile. The new
    * window picks up the profile id via a `?profile=<id>` query param on
    * its initial URL; the connection store there reads it and pins the
@@ -1655,15 +1685,21 @@
       <ul class="space-y-2">
         {#each settings.profiles as profile (profile.id)}
           {@const isActiveRow = profile.id === settings.activeProfileId}
+          {@const rowTint = resolveTint(profile.tint)}
+          {@const currentTintKey = (profile.tint ?? 'signal') as ProfileTint}
           <li
             class="flex items-center gap-3 bg-bg-deep border rounded-md px-3 py-2 min-h-[48px]"
             class:border-accent-cyan={isActiveRow}
             class:border-border-subtle={!isActiveRow}
           >
-            <!-- Active indicator (or switch button on inactive rows) -->
+            <!-- Active indicator (or switch button on inactive rows).
+                 The active dot picks up the profile's tint so the
+                 row's visual identity stays consistent with the sidebar
+                 popover + brand glyph. -->
             {#if isActiveRow}
               <span
-                class="w-2 h-2 rounded-full bg-accent-cyan shrink-0"
+                class="w-2 h-2 rounded-full shrink-0"
+                style="background-color: {rowTint.accent};"
                 aria-label="Active profile"
               ></span>
             {:else}
@@ -1714,6 +1750,37 @@
                     : 'remote · ' + profile.remoteBaseUrl}
                 </div>
               {/if}
+            </div>
+
+            <!-- Tint picker. Six small swatches in a row — click to set,
+                 saves immediately, repaints the live `--v2-accent` via the
+                 connection store's $effect. The active swatch is ringed
+                 (not enlarged) so the row height stays stable. Targets are
+                 18px which is below the 44pt touch minimum, but this surface
+                 is desktop-only chrome — the row stays inside an already
+                 cramped per-profile control cluster. -->
+            <div
+              class="flex items-center gap-1 shrink-0"
+              role="radiogroup"
+              aria-label="Profile color"
+            >
+              {#each PROFILE_TINT_ORDER as tintKey (tintKey)}
+                {@const swatch = PROFILE_TINTS[tintKey]}
+                {@const isSelected = currentTintKey === tintKey}
+                <button
+                  type="button"
+                  onclick={() => void onChangeTint(profile, tintKey)}
+                  title={swatch.label}
+                  aria-label="Set color to {swatch.label}"
+                  aria-checked={isSelected}
+                  role="radio"
+                  class="w-4 h-4 rounded-full border transition-all"
+                  class:border-text-primary={isSelected}
+                  class:border-border-subtle={!isSelected}
+                  class:scale-110={isSelected}
+                  style="background-color: {swatch.accent};"
+                ></button>
+              {/each}
             </div>
 
             <!-- Actions -->

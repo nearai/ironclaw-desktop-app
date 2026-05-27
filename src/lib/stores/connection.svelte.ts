@@ -29,6 +29,7 @@ import {
   getOrCreateLocalToken,
   getToken,
   loadSettings,
+  resolveTint,
   setActiveProfile,
   sidecarStatus as readSidecarStatus,
   startSidecar,
@@ -112,7 +113,42 @@ class ConnectionStore {
         });
       });
     }
+
+    // Per-profile accent-color override. Runs in every webview (Tauri or
+    // SSR/dev) — the only gate is `document` being available, since the
+    // mechanism is `documentElement.style.setProperty`. When the active
+    // profile carries a `tint`, we paint the four `--v2-accent*` CSS
+    // variables on the root element so any consumer reading them (sidebar
+    // brand glyph, status-bar dot, accent-blue surfaces in app.css) picks
+    // the override up without per-component plumbing.
+    //
+    // Tracks the last applied tint so we only mutate the DOM on a real
+    // change (the effect re-runs whenever any read inside it does — e.g.
+    // active-profile pivots or settings reloads).
+    if (typeof document !== 'undefined') {
+      $effect.root(() => {
+        $effect(() => {
+          // Trigger reactivity on tint AND on identity flips — a profile
+          // switch keeps tint stable but should still re-apply in case the
+          // old window owned a different palette.
+          const tintKey = this.activeProfile.tint ?? 'signal';
+          if (tintKey === this.lastAppliedTint) return;
+          this.lastAppliedTint = tintKey;
+          const palette = resolveTint(this.activeProfile.tint);
+          const root = document.documentElement;
+          root.style.setProperty('--v2-accent', palette.accent);
+          root.style.setProperty('--v2-accent-strong', palette.strong);
+          root.style.setProperty('--v2-accent-soft', palette.soft);
+          root.style.setProperty('--v2-accent-text', palette.text);
+        });
+      });
+    }
   }
+
+  /** Last tint key written to the document root. Tracked so the $effect
+   *  only mutates the DOM on a real change (Svelte may re-evaluate
+   *  effects when unrelated deps read the same store). */
+  private lastAppliedTint: string | null = null;
 
   /**
    * Update `sidecarStatus` and fire a desktop notification when the
@@ -224,6 +260,18 @@ class ConnectionStore {
       await this.shutdownSidecarSilently();
     }
     await this.applyModeAndConnect({ allowAutoStart: true });
+  }
+
+  /**
+   * Lightweight settings reload — no reconnect, no sidecar churn. Used
+   * by surfaces that mutate a cosmetic field (e.g. profile `tint`) and
+   * need the connection store's view of `settings` to update so dependent
+   * `$effect`s (the CSS-variable accent painter) re-run. Avoids the full
+   * `refresh()` path which would re-ping the gateway / reconcile the
+   * sidecar lifecycle for what is purely a UI change.
+   */
+  async reloadSettings(): Promise<void> {
+    this.settings = await loadSettings();
   }
 
   /**

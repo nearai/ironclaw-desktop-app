@@ -37,6 +37,25 @@ export type ConnectionMode = 'remote' | 'local';
 export type LlmBackend = 'nearai' | 'openrouter';
 
 /**
+ * Per-profile accent-color override. Used as a visual distinguisher when
+ * multiple profile windows are open side-by-side — the tint paints into
+ * `--v2-accent` (and derived strong/soft/text shades) on the document
+ * root, so any element bound to those CSS variables picks it up.
+ *
+ * `signal` is the design-system default and is treated as "no override"
+ * at the consume site (matches the historical accent and keeps the field
+ * optional on disk). Pre-existing profiles with `tint: undefined` round
+ * trip as `signal` at render time.
+ */
+export type ProfileTint =
+  | 'signal'
+  | 'cyan'
+  | 'violet'
+  | 'orange'
+  | 'teal'
+  | 'rose';
+
+/**
  * Per-profile gateway connection. The id is opaque (uuid-ish) and never
  * shown — `name` is the user-facing label.
  */
@@ -61,6 +80,101 @@ export interface ProfileConfig {
    *  registry). New field — supersedes `llmBackend` for the richer
    *  provider switcher. Defaults to `'nearai'` for new installs. */
   llmProviderId?: string;
+  /** Optional accent-color override for the active profile window.
+   *  Defaults to `signal` at consume time when undefined, which preserves
+   *  every existing surface that uses the design-system accent. The
+   *  consumer (connection store $effect) writes the resolved color into
+   *  `--v2-accent` on document.documentElement. */
+  tint?: ProfileTint;
+}
+
+/**
+ * Hex/rgba values for each `ProfileTint`. Held in one place so the
+ * settings picker, sidebar/popover dots, and the CSS-variable override
+ * effect all draw from the same palette. The shape mirrors the existing
+ * `--v2-accent*` variable set so a tint can populate all four slots
+ * without per-variant math.
+ *
+ * `soft` is the accent at ~14% alpha to match the existing `--v2-accent-soft`
+ * pattern; `strong` is a darker shade for hover states; `text` is a lighter
+ * shade for text-on-canvas readability (matches the design system's
+ * `accent-text` token).
+ */
+export const PROFILE_TINTS: Record<
+  ProfileTint,
+  { accent: string; strong: string; soft: string; text: string; label: string }
+> = {
+  signal: {
+    accent: '#4ca7e6',
+    strong: '#2882c8',
+    soft: 'rgba(76, 167, 230, 0.14)',
+    text: '#8fc8f2',
+    label: 'Signal'
+  },
+  cyan: {
+    accent: '#00d4ff',
+    strong: '#00a8cc',
+    soft: 'rgba(0, 212, 255, 0.14)',
+    text: '#7ee6ff',
+    label: 'Cyan'
+  },
+  violet: {
+    accent: '#a78bfa',
+    strong: '#7c5cf0',
+    soft: 'rgba(167, 139, 250, 0.14)',
+    text: '#c8b8fc',
+    label: 'Violet'
+  },
+  orange: {
+    accent: '#fb923c',
+    strong: '#ea6a18',
+    soft: 'rgba(251, 146, 60, 0.14)',
+    text: '#fdb985',
+    label: 'Orange'
+  },
+  teal: {
+    accent: '#2dd4bf',
+    strong: '#14a89a',
+    soft: 'rgba(45, 212, 191, 0.14)',
+    text: '#7ce6d5',
+    label: 'Teal'
+  },
+  rose: {
+    accent: '#fb7185',
+    strong: '#e54860',
+    soft: 'rgba(251, 113, 133, 0.14)',
+    text: '#fda4af',
+    label: 'Rose'
+  }
+};
+
+/** Stable iteration order for the picker UI. Kept separate from the
+ *  Record so `Object.keys` ordering quirks never reorder swatches across
+ *  JS engines. */
+export const PROFILE_TINT_ORDER: ProfileTint[] = [
+  'signal',
+  'cyan',
+  'violet',
+  'orange',
+  'teal',
+  'rose'
+];
+
+/**
+ * Resolve a profile's tint to its palette entry. Defaults to `signal` when
+ * the field is undefined (legacy profiles) or set to an unrecognised value
+ * (defensive — settings.json could be hand-edited). Pure; safe to call from
+ * any render path.
+ */
+export function resolveTint(t: ProfileTint | undefined): {
+  accent: string;
+  strong: string;
+  soft: string;
+  text: string;
+  label: string;
+} {
+  if (t && t in PROFILE_TINTS) return PROFILE_TINTS[t];
+  return PROFILE_TINTS.signal;
 }
 
 export interface AppSettings {
@@ -214,6 +328,12 @@ export function migrateLoaded(
   if (Array.isArray(raw.profiles) && raw.profiles.length > 0) {
     const profiles = raw.profiles.map((p) => {
       const llmBackend = (p.llmBackend === 'openrouter' ? 'openrouter' : 'nearai') as LlmBackend;
+      // `tint` is opt-in and defensively narrowed — unknown values fall
+      // through to `undefined`, which the consume site treats as `signal`.
+      const tint =
+        typeof p.tint === 'string' && (p.tint as ProfileTint) in PROFILE_TINTS
+          ? (p.tint as ProfileTint)
+          : undefined;
       return {
         id: p.id || newProfileId(),
         name: p.name || 'Untitled',
@@ -227,7 +347,8 @@ export function migrateLoaded(
         llmProviderId:
           typeof p.llmProviderId === 'string' && p.llmProviderId.length > 0
             ? p.llmProviderId
-            : llmBackend
+            : llmBackend,
+        tint
       };
     });
     const activeId =
@@ -401,6 +522,14 @@ export function validateImportedSettings(raw: string): ImportValidationResult {
       typeof pp.llmProviderId === 'string' && pp.llmProviderId.length > 0
         ? pp.llmProviderId
         : pp.llmBackend;
+    // `tint` is opt-in; unknown / missing values import as undefined so
+    // the consume site (resolveTint) falls back to `signal`. We do not
+    // reject an unknown tint — round-tripping a future tint name from a
+    // newer build shouldn't kill an import on an older client.
+    const tint =
+      typeof pp.tint === 'string' && (pp.tint as ProfileTint) in PROFILE_TINTS
+        ? (pp.tint as ProfileTint)
+        : undefined;
     profiles.push({
       id: pp.id,
       name: pp.name,
@@ -408,7 +537,8 @@ export function validateImportedSettings(raw: string): ImportValidationResult {
       remoteBaseUrl: pp.remoteBaseUrl,
       localBaseUrl: pp.localBaseUrl,
       llmBackend: pp.llmBackend,
-      llmProviderId
+      llmProviderId,
+      tint
     });
   }
 

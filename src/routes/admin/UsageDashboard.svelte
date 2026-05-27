@@ -28,6 +28,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import Sparkline from '$lib/components/Sparkline.svelte';
   import type { UsageSummary, UsageEvent } from '$lib/api/types';
 
   type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
@@ -253,6 +254,22 @@
     });
     return [...rows].sort((a, b) => (b.cost ?? 0) - (a.cost ?? 0));
   });
+
+  // LLM-calls sparkline series. The wire does NOT expose a daily/weekly
+  // time-series of llm_calls — `usage_30d.llm_calls` is a single scalar
+  // and `getUsageEvents` returns one row per <user, model> bucket with
+  // no `ts` field. As the closest faithful approximation we plot the
+  // per-row call_count distribution (top 24 rows, cost-desc to match
+  // the table sort) so the card communicates "where the calls go".
+  //
+  // TODO(admin/UsageDashboard.svelte:llm-calls-spark): swap this for a
+  // real daily/weekly time-series once `GET /api/admin/usage/timeseries`
+  // (or equivalent) lands. The component already accepts a `data: number[]`
+  // — no markup change required, only the derived source.
+  const llmCallsSpark = $derived.by<number[]>(() => {
+    const sorted = [...events].sort((a, b) => (b.call_count ?? 0) - (a.call_count ?? 0));
+    return sorted.slice(0, 24).map((r) => r.call_count ?? 0);
+  });
 </script>
 
 <div class="flex flex-col flex-1 min-h-0">
@@ -390,13 +407,25 @@
       </div>
 
       <!-- LLM calls (30d) card. Big number — the prompt called this out
-           explicitly. -->
+           explicitly. Sparkline shows the per-row call_count distribution
+           (top 24 buckets, cost-desc) as a faithful stand-in until the
+           gateway exposes a real daily/weekly time-series; see TODO above
+           the derived `llmCallsSpark` for the swap. -->
       <div class="surface p-4 flex flex-col">
         <div class="text-[10px] uppercase tracking-wider text-text-muted mb-2">
           LLM calls (30d)
         </div>
         <div class="text-3xl font-semibold text-accent-cyan leading-none mb-3">
           {formatInt(llmCalls)}
+        </div>
+        <div class="mb-2 text-accent-cyan">
+          <Sparkline
+            data={llmCallsSpark}
+            variant="bars"
+            width={160}
+            height={32}
+            color="#4ca7e6"
+          />
         </div>
         <div class="text-[11px] text-text-muted mt-auto">
           Across all users + models.
