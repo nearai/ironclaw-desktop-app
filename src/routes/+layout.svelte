@@ -71,21 +71,26 @@
       return;
     }
 
-    // Cmd+1..8 → top-level routes. Match by `e.key` so the digit is correct
+    // Cmd+1..9 → top-level routes. Match by `e.key` so the digit is correct
     // across keyboard layouts; modifiers aren't required to interpret it.
-    // Cmd+8 is gated on `settings.adminMode` so the chord stays a no-op
-    // when the admin surface isn't enabled — same visibility contract as
-    // the sidebar row.
+    // Cmd+8 is gated on `settings.adminMode` and Cmd+9 on
+    // `settings.engineV2Enabled` so the chord stays a no-op when the
+    // corresponding surface isn't enabled — same visibility contract as
+    // the sidebar rows.
     //
     // Note (2026-05-27): Jobs surface added at Cmd+5. Logs/Extensions/Admin
     // shifted down by one slot. Cmd+5 used to map to /logs — users who
     // press Cmd+5 expecting Logs will now hit Jobs; documented in the
     // changelog and the sidebar's shortcut hints render the new chord so
     // discoverability is intact.
+    // Note (2026-05-27): Missions (Engine v2) added at Cmd+9, gated on
+    // `settings.engineV2Enabled`. Slot 9 was previously unused so no
+    // shortcut renumber was needed.
     if (mod && !e.shiftKey && !e.altKey) {
       const target = ROUTES_BY_DIGIT[e.key];
       if (target) {
         if (target === '/admin' && !connection.settings.adminMode) return;
+        if (target === '/missions' && !connection.settings.engineV2Enabled) return;
         e.preventDefault();
         void goto(target);
       }
@@ -100,7 +105,8 @@
     '5': '/jobs',
     '6': '/logs',
     '7': '/extensions',
-    '8': '/admin'
+    '8': '/admin',
+    '9': '/missions'
   };
 
   // Hide-on-disable guard for /admin. If the user toggled adminMode off
@@ -112,6 +118,19 @@
     if (
       connection.settings.adminMode === false &&
       page.url.pathname.startsWith('/admin')
+    ) {
+      void goto('/settings');
+    }
+  });
+
+  // Same hide-on-disable guard for /missions (Engine v2 surface). When the
+  // user flips `engineV2Enabled` off from /settings → Advanced while
+  // sitting on the route, bounce them to /settings so they don't see a
+  // stranded page.
+  $effect(() => {
+    if (
+      connection.settings.engineV2Enabled !== true &&
+      page.url.pathname.startsWith('/missions')
     ) {
       void goto('/settings');
     }

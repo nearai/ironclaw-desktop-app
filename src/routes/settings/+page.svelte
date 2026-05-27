@@ -19,6 +19,7 @@
   import { invoke } from '@tauri-apps/api/core';
   import { open as shellOpen } from '@tauri-apps/plugin-shell';
   import { IronClawClient } from '$lib/api/ironclaw';
+  import type { UserToken } from '$lib/api/types';
   import {
     buildThreadJsonShape,
     exportSettings,
@@ -68,7 +69,8 @@
     onboardingComplete: true,
     adminMode: false,
     trayEnabled: true,
-    useResponsesApi: true
+    useResponsesApi: true,
+    engineV2Enabled: false
   });
 
   /** Derived shorthand for the currently-selected profile inside the local
@@ -493,6 +495,30 @@
     }
   }
 
+  /**
+   * Flip the app-level "Show Engine v2 surface" toggle. App-level, NOT
+   * per-profile — Engine v2 is a chrome preference like `adminMode`. We
+   * persist immediately and refresh `connection.settings` so the sidebar
+   * entry, the Cmd+9 chord, and the route guard pick the change up
+   * without a save-button round-trip. The layout's $effect bounces the
+   * user off `/missions` if they were sitting on it when the toggle
+   * flips off.
+   */
+  async function onToggleEngineV2(next: boolean) {
+    try {
+      const draft = { ...$state.snapshot(settings), engineV2Enabled: next };
+      await saveSettings(draft);
+      settings = draft;
+      await connection.refresh();
+      toasts.show(
+        next ? 'Engine v2 surface enabled' : 'Engine v2 surface hidden',
+        'info'
+      );
+    } catch (err) {
+      toasts.show(`Save failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
   async function onRerunOnboarding() {
     try {
       const next = { ...$state.snapshot(settings), onboardingComplete: false };
@@ -681,7 +707,15 @@
     serverSettingsStatus = 'loading';
     serverSettingsError = null;
     try {
-      const s = await client.getSettings();
+      // Use the RAW variant — this page implements its own per-row
+      // reveal toggle (`serverSettingsRawKeys[key]`) that swaps between
+      // `JSON.stringify(value)` and `JSON.stringify(redactJsonObject(value))`.
+      // Calling the redacted `getSettings()` here would defeat the toggle:
+      // the user would see masked bullets even when "View raw" is on,
+      // since the API-layer redaction is irreversible at the call site.
+      // The default `getSettings()` redact is a defense-in-depth for OTHER
+      // consumers that don't implement the per-row toggle.
+      const s = await client.getSettingsRaw();
       serverSettings = s;
       serverSettingsStatus = 'ok';
     } catch (err) {
@@ -887,6 +921,241 @@
       toasts.show(`Delete failed: ${(err as Error).message}`, 'error');
     }
   }
+
+  // ---- API tokens ------------------------------------------------------
+  //
+  // User-scoped API tokens for granting external apps access to this
+  // IronClaw instance without sharing the sign-in. Wire is GET/POST
+  // /api/tokens and DELETE /api/tokens/{id}; the client maps the wire's
+  // `token_prefix` onto `preview`. Raw token value is returned ONCE on
+  // create, so the create flow has a dedicated "save this now" view that
+  // displays the plaintext + Copy button before swapping back to the list.
+  //
+  // Refresh strategy: fetch once on mount when a client is live, refetch
+  // on profile switch via the $effect below (mirrors how serverSettings
+  // re-fetches), and refetch after every create/revoke.
+
+  type TokensStatus = 'idle' | 'loading' | 'ok' | 'error';
+
+  /** Common scope chips for the create modal. Empty selection lets the
+   *  gateway apply its server-side defaults. */
+  const TOKEN_SCOPES = ['chat', 'memory', 'skills', 'routines', 'admin'] as const;
+
+  let tokens = $state<UserToken[]>([]);
+  let tokensStatus = $state<TokensStatus>('idle');
+  let tokensError = $state<string | null>(null);
+
+  // Create-modal state.
+  let createOpen = $state(false);
+  let createName = $state('');
+  let createScopes = $state<Record<string, boolean>>({});
+  let creating = $state(false);
+  /** Raw plaintext token shown once after create. While non-null the modal
+   *  swaps to the "Your new token" view. */
+  let createdToken = $state<string | null>(null);
+  let createNameInputRef: HTMLInputElement | undefined = $state();
+  let copyBusy = $state(false);
+
+  // Revoke-confirm state.
+  let revokeTarget = $state<UserToken | null>(null);
+  let revoking = $state(false);
+
+  const createNameTrimmed = $derived(createName.trim());
+  const createNameTooLong = $derived(createNameTrimmed.length > 64);
+  const canCreate = $derived(
+    createNameTrimmed.length > 0 && !createNameTooLong && !creating
+  );
+
+  /** Stable derived list — newest first, courtesy of the client's sort. */
+  const tokensRows = $derived(tokens);
+
+  /**
+   * Auto-fetch tokens when a live client is present. Mirrors the
+   * server-side settings $effect so the panel refreshes on profile
+   * switch without forcing a full page reload.
+   */
+  $effect(() => {
+    const client = connection.client;
+    if (!client) {
+      tokens = [];
+      tokensStatus = 'idle';
+      tokensError = null;
+      return;
+    }
+    void loadTokens();
+  });
+
+  async function loadTokens() {
+    const client = connection.client;
+    if (!client) {
+      tokensStatus = 'error';
+      tokensError = 'Not connected to a gateway.';
+      return;
+    }
+    tokensStatus = 'loading';
+    tokensError = null;
+    try {
+      const rows = await client.listUserTokens();
+      tokens = rows;
+      tokensStatus = 'ok';
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      tokens = [];
+      tokensStatus = 'error';
+      if (status === 404) {
+        tokensError =
+          'This gateway does not expose /api/tokens. Upgrade IronClaw to manage user tokens.';
+      } else if (status === 401 || status === 403) {
+        tokensError =
+          'Not authorised to list tokens. Check the active profile is signed in.';
+      } else {
+        tokensError = (err as Error).message;
+      }
+    }
+  }
+
+  function openCreateModal() {
+    createName = '';
+    createScopes = {};
+    createdToken = null;
+    creating = false;
+    createOpen = true;
+    // Defer focus a frame so the input is mounted.
+    queueMicrotask(() => createNameInputRef?.focus());
+  }
+
+  function closeCreateModal() {
+    if (creating) return; // don't drop the in-flight request
+    createOpen = false;
+    createName = '';
+    createScopes = {};
+    createdToken = null;
+  }
+
+  function toggleScope(scope: string) {
+    createScopes = { ...createScopes, [scope]: !createScopes[scope] };
+  }
+
+  async function onSubmitCreate(e?: SubmitEvent) {
+    if (e) e.preventDefault();
+    if (!canCreate) return;
+    const client = connection.client;
+    if (!client) {
+      toasts.show('Not connected to a gateway.', 'error');
+      return;
+    }
+    creating = true;
+    try {
+      const selectedScopes = TOKEN_SCOPES.filter((s) => createScopes[s]);
+      const res = await client.createUserToken(
+        createNameTrimmed,
+        selectedScopes.length > 0 ? selectedScopes : undefined
+      );
+      if (!res.token) {
+        throw new Error('Gateway did not return a token value.');
+      }
+      // Swap to the "save this once" view; the list refresh happens on
+      // close so the new row is in place when the modal goes away.
+      createdToken = res.token;
+      toasts.show('Token created', 'success');
+    } catch (err) {
+      toasts.show(`Create failed: ${(err as Error).message}`, 'error');
+    } finally {
+      creating = false;
+    }
+  }
+
+  async function onCopyCreatedToken() {
+    if (!createdToken) return;
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard ||
+      typeof navigator.clipboard.writeText !== 'function'
+    ) {
+      toasts.show('Clipboard unavailable in this environment.', 'error');
+      return;
+    }
+    copyBusy = true;
+    try {
+      await navigator.clipboard.writeText(createdToken);
+      toasts.show(
+        'Token copied — treat as a secret; do not paste anywhere public.',
+        'info'
+      );
+    } catch (err) {
+      toasts.show(`Copy failed: ${(err as Error).message}`, 'error');
+    } finally {
+      copyBusy = false;
+    }
+  }
+
+  async function onDoneCreatedToken() {
+    createOpen = false;
+    createdToken = null;
+    createName = '';
+    createScopes = {};
+    await loadTokens();
+  }
+
+  function openRevokeConfirm(t: UserToken) {
+    revokeTarget = t;
+  }
+
+  function closeRevokeConfirm() {
+    if (revoking) return;
+    revokeTarget = null;
+  }
+
+  async function onConfirmRevoke() {
+    const t = revokeTarget;
+    const client = connection.client;
+    if (!t || !client) return;
+    revoking = true;
+    try {
+      const res = await client.revokeUserToken(t.id);
+      if (!res.ok) {
+        throw new Error('Gateway did not confirm revoke.');
+      }
+      toasts.show(`Revoked "${t.name}"`, 'success');
+      revokeTarget = null;
+      await loadTokens();
+    } catch (err) {
+      toasts.show(`Revoke failed: ${(err as Error).message}`, 'error');
+    } finally {
+      revoking = false;
+    }
+  }
+
+  function tokenRelative(iso: string | undefined): string {
+    if (!iso) return 'Never used';
+    const ms = Date.parse(iso);
+    if (!Number.isFinite(ms)) return 'Never used';
+    return relativeTime(ms);
+  }
+
+  function tokenCreatedLabel(iso: string): string {
+    const ms = Date.parse(iso);
+    if (!Number.isFinite(ms)) return iso;
+    return relativeTime(ms);
+  }
+
+  // Esc closes the active modal (create or revoke confirm). Mirrors the
+  // pattern in NewProfileModal.svelte so behaviour is consistent across
+  // dialogs on this surface.
+  $effect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== 'Escape') return;
+      if (revokeTarget) {
+        e.preventDefault();
+        closeRevokeConfirm();
+      } else if (createOpen) {
+        e.preventDefault();
+        closeCreateModal();
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  });
 </script>
 
 <section class="p-8 h-full overflow-auto">
@@ -1766,6 +2035,156 @@
       </div>
     </div>
 
+    <!-- API tokens. User-scoped tokens for granting external apps access
+         to this IronClaw instance without sharing the sign-in. The card is
+         visible to all users (each manages only their OWN tokens; the
+         gateway scopes the list by the active bearer). Sits after the
+         Data card so the destructive / one-shot actions group together —
+         the brief asks for "after Data, before About", but About sits
+         above the profile list in the layout above so this is the closest
+         consistent placement without re-ordering the rest of the page. -->
+    <div class="surface p-5 space-y-3">
+      <div class="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 class="text-sm font-semibold text-text-primary">API tokens</h2>
+          <p class="text-xs text-text-muted mt-0.5">
+            Grant external apps access to your IronClaw instance without
+            sharing your sign-in. Revoke any time.
+          </p>
+        </div>
+        <button
+          type="button"
+          onclick={openCreateModal}
+          disabled={!connection.client}
+          class="px-3 py-1.5 rounded-md bg-accent-cyan text-bg-deep text-xs font-semibold hover:brightness-110 transition disabled:opacity-50 min-h-[32px]"
+          title={connection.client
+            ? 'Create a new API token'
+            : 'Connect to the IronClaw gateway first'}
+        >
+          + Create new token
+        </button>
+      </div>
+
+      {#if !connection.client}
+        <div class="text-xs text-text-muted italic">
+          Not connected to a gateway. Configure a profile above and reconnect.
+        </div>
+      {:else if tokensStatus === 'loading' && tokens.length === 0}
+        <div class="text-xs text-text-muted italic">Loading tokens…</div>
+      {:else if tokensStatus === 'error'}
+        <div class="px-3 py-2 rounded-md bg-red-950/40 border border-red-800/60 flex items-start gap-3">
+          <p class="text-xs text-red-200 flex-1 break-words">
+            {tokensError ?? 'Failed to load tokens.'}
+          </p>
+          <button
+            type="button"
+            onclick={() => void loadTokens()}
+            class="shrink-0 px-3 py-1.5 rounded-md border border-red-400 text-red-200 text-xs font-semibold hover:bg-red-900 transition min-h-[32px]"
+          >
+            Retry
+          </button>
+        </div>
+      {:else if tokensRows.length === 0}
+        <!-- Empty-state copy from the brief. -->
+        <div class="px-3 py-4 rounded-md bg-bg-deep border border-border-subtle text-xs text-text-muted">
+          You haven't created any API tokens yet. Click "Create new token"
+          to make one. Tokens let you grant external apps access to your
+          IronClaw instance without sharing your sign-in.
+        </div>
+      {:else}
+        <ul class="space-y-2">
+          {#each tokensRows as token (token.id)}
+            {@const isRevoked = !!token.revoked_at}
+            <li
+              class="flex items-start gap-3 bg-bg-deep border rounded-md px-3 py-3 min-h-[64px]"
+              class:border-red-800={isRevoked}
+              class:border-border-subtle={!isRevoked}
+            >
+              <div class="flex-1 min-w-0 space-y-1.5">
+                <!-- Name + status pill row. Revoked tokens get a strike
+                     through the name plus the red pill. -->
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span
+                    class="text-sm font-semibold text-text-primary truncate"
+                    class:line-through={isRevoked}
+                    class:text-text-muted={isRevoked}
+                    title={token.name}
+                  >
+                    {token.name}
+                  </span>
+                  {#if isRevoked}
+                    <span
+                      class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-red-500/10 text-red-300 border border-red-500/40"
+                    >
+                      Revoked
+                    </span>
+                  {:else}
+                    <span
+                      class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/30"
+                    >
+                      Active
+                    </span>
+                  {/if}
+                </div>
+
+                <!-- Metadata row: created / last used + token preview. -->
+                <div class="text-[11px] text-text-muted flex items-center gap-3 flex-wrap">
+                  <span title={token.created_at}>
+                    Created {tokenCreatedLabel(token.created_at)}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span title={token.last_used_at ?? 'Never used'}>
+                    {token.last_used_at
+                      ? `Last used ${tokenRelative(token.last_used_at)}`
+                      : 'Never used'}
+                  </span>
+                </div>
+
+                {#if token.preview}
+                  <div class="text-[11px] flex items-center gap-2">
+                    <span class="text-text-muted">Preview</span>
+                    <MaskedValue
+                      value={`sk-iro_${token.preview}`}
+                      classes="text-text-primary"
+                      locked
+                    />
+                  </div>
+                {/if}
+
+                {#if token.scopes && token.scopes.length > 0}
+                  <div class="text-[11px] flex items-center gap-1.5 flex-wrap">
+                    <span class="text-text-muted">Scopes</span>
+                    {#each token.scopes as scope (scope)}
+                      <span
+                        class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-bg-base border border-border-subtle text-text-primary"
+                      >
+                        {scope}
+                      </span>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+
+              <!-- Revoke is only available on active tokens. Revoked rows
+                   stay in the list (the wire keeps them) but show no
+                   action affordance. -->
+              <div class="shrink-0 self-center">
+                {#if !isRevoked}
+                  <button
+                    type="button"
+                    onclick={() => openRevokeConfirm(token)}
+                    class="px-3 py-1.5 rounded-md border border-red-500/40 text-red-300 text-xs font-semibold hover:bg-red-500/10 hover:border-red-500 transition min-h-[32px]"
+                  >
+                    Revoke
+                  </button>
+                {/if}
+              </div>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </div>
+
     <!-- Advanced. Off by default. Toggling on unhides the Admin sidebar
          entry, the Cmd+7 shortcut, and the /admin route content. Toggling
          off retracts all three and (via the layout's $effect) bounces
@@ -1847,6 +2266,36 @@
           </div>
         </div>
       </label>
+
+      <!-- Engine v2 surface toggle. Off by default. Toggling on unhides
+           the Missions sidebar entry, the Cmd+9 shortcut, and the
+           /missions route content. Toggling off retracts all three and
+           (via the layout's $effect) bounces the user out of /missions
+           if they happen to be there. App-level, not per-profile — same
+           contract as `adminMode`. Engine v2 is still developer-facing
+           and the gateway returns 404 on /api/engine/* against older
+           builds, which is why we gate it behind an explicit opt-in. -->
+      <label
+        class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none"
+      >
+        <input
+          type="checkbox"
+          checked={settings.engineV2Enabled === true}
+          onchange={(e) => void onToggleEngineV2(e.currentTarget.checked)}
+          class="mt-1 accent-accent-cyan w-4 h-4"
+        />
+        <div class="flex-1">
+          <div class="text-sm text-text-primary">
+            Show Engine v2 surface (missions, projects)
+          </div>
+          <div class="text-xs text-text-muted mt-0.5">
+            Adds the Missions section to the sidebar (Cmd+9) for browsing
+            Engine v2 projects, missions, and their engine threads. Requires
+            an IronClaw gateway with <code class="text-text-primary">engine_v2_enabled</code>;
+            older builds return 404 on the underlying endpoints.
+          </div>
+        </div>
+      </label>
     </div>
 
     <!-- Re-run onboarding (discrete footer action). Flips onboardingComplete
@@ -1863,3 +2312,261 @@
     </div>
   </div>
 </section>
+
+<!-- ===========================================================================
+     API token modals
+     ===========================================================================
+     Two modals share the same backdrop pattern as NewProfileModal:
+       1. Create modal — name + scope chips → swaps to "Your new token"
+          view on success. The raw plaintext is shown ONCE with a Copy
+          button and a hard warning ("Save this now. You won't see it
+          again."). Closing the modal refreshes the list so the new row
+          is in place.
+       2. Revoke-confirm modal — single-action confirmation with the
+          token name interpolated into the warning so the user can't
+          mis-click on the wrong row.
+     Modals live outside the main <section> so the backdrop covers the
+     full viewport regardless of scroll position. Both honour Escape via
+     the keydown $effect in the script block. -->
+
+{#if createOpen}
+  <!-- Backdrop. Clicking outside the card closes (when no in-flight
+       request is mid-create). -->
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    onclick={closeCreateModal}
+    onkeydown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        closeCreateModal();
+      }
+    }}
+    role="button"
+    tabindex="-1"
+    aria-label="Close create token dialog"
+  >
+    <div
+      class="surface w-[min(480px,calc(100vw-2rem))] p-6 space-y-5 border border-border-subtle max-h-[calc(100vh-2rem)] overflow-auto"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-token-title"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      tabindex="-1"
+    >
+      {#if createdToken === null}
+        <!-- Step 1: name + scopes form. -->
+        <header class="space-y-1">
+          <h2 id="create-token-title" class="text-lg font-semibold text-text-primary">
+            Create new token
+          </h2>
+          <p class="text-xs text-text-muted">
+            Give the token a memorable name (which app, which machine).
+            Optionally restrict it to specific scopes.
+          </p>
+        </header>
+
+        <form onsubmit={onSubmitCreate} class="space-y-4">
+          <div>
+            <label
+              for="new-token-name"
+              class="block text-xs text-text-muted mb-1"
+            >
+              Name
+            </label>
+            <input
+              id="new-token-name"
+              type="text"
+              bind:value={createName}
+              bind:this={createNameInputRef}
+              maxlength="64"
+              placeholder="laptop-cli, raspberrypi-relay…"
+              autocomplete="off"
+              class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[44px]"
+              class:border-red-500={createNameTooLong}
+            />
+            {#if createNameTooLong}
+              <p class="text-xs text-red-400 mt-1">
+                Name must be 64 characters or fewer.
+              </p>
+            {/if}
+          </div>
+
+          <div role="group" aria-labelledby="new-token-scopes-legend">
+            <div
+              id="new-token-scopes-legend"
+              class="text-xs text-text-muted mb-2"
+            >
+              Scopes
+              <span class="text-text-muted/70">(optional — leave empty for server defaults)</span>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              {#each TOKEN_SCOPES as scope (scope)}
+                {@const checked = !!createScopes[scope]}
+                <label
+                  class="inline-flex items-center gap-2 cursor-pointer select-none px-2.5 py-1.5 rounded-md border text-xs font-mono transition-colors min-h-[32px] hover:border-accent-cyan"
+                  class:border-accent-cyan={checked}
+                  class:text-accent-cyan={checked}
+                  class:border-border-subtle={!checked}
+                  class:text-text-primary={!checked}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onchange={() => toggleScope(scope)}
+                    class="accent-accent-cyan w-3.5 h-3.5"
+                  />
+                  {scope}
+                </label>
+              {/each}
+            </div>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button
+              type="button"
+              onclick={closeCreateModal}
+              disabled={creating}
+              class="text-sm text-text-muted hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] px-3"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!canCreate}
+              class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-50 min-h-[44px]"
+            >
+              {creating ? 'Creating…' : 'Create token'}
+            </button>
+          </div>
+        </form>
+      {:else}
+        <!-- Step 2: post-create reveal. Token shown ONCE; subsequent
+             reads from the gateway only carry the 8-char prefix. -->
+        <header class="space-y-1">
+          <h2 id="create-token-title" class="text-lg font-semibold text-text-primary">
+            Your new token
+          </h2>
+          <p class="text-xs text-text-muted">
+            Copy this value now and store it somewhere safe (password
+            manager, 1Password, etc.).
+          </p>
+        </header>
+
+        <!-- Hard warning. Loud red banner so the user can't miss it. -->
+        <div
+          class="px-3 py-2.5 rounded-md bg-red-950/60 border border-red-500/60 flex items-start gap-2"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="w-4 h-4 mt-0.5 shrink-0 text-red-300"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path
+              d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+            />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <p class="text-xs text-red-200 font-semibold">
+            Save this now. You won't see it again.
+          </p>
+        </div>
+
+        <!-- Token plaintext. BIG mono with break-all so the user can
+             eyeball the full string before copying. -->
+        <div>
+          <label
+            for="created-token-value"
+            class="block text-xs text-text-muted mb-1"
+          >
+            Token
+          </label>
+          <pre
+            id="created-token-value"
+            class="bg-bg-deep border border-accent-cyan rounded-md p-3 text-base font-mono text-accent-gold break-all whitespace-pre-wrap select-all"
+            >{createdToken}</pre>
+        </div>
+
+        <div class="flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onclick={() => void onCopyCreatedToken()}
+            disabled={copyBusy}
+            class="px-4 py-2 rounded-md border border-accent-cyan text-accent-cyan text-sm font-semibold hover:bg-accent-cyan hover:text-bg-deep transition disabled:opacity-50 min-h-[44px]"
+          >
+            {copyBusy ? 'Copying…' : 'Copy'}
+          </button>
+          <button
+            type="button"
+            onclick={() => void onDoneCreatedToken()}
+            class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition min-h-[44px]"
+          >
+            Done
+          </button>
+        </div>
+      {/if}
+    </div>
+  </div>
+{/if}
+
+{#if revokeTarget}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    onclick={closeRevokeConfirm}
+    onkeydown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        closeRevokeConfirm();
+      }
+    }}
+    role="button"
+    tabindex="-1"
+    aria-label="Close revoke token dialog"
+  >
+    <div
+      class="surface w-[min(420px,calc(100vw-2rem))] p-6 space-y-5 border border-red-500/40"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="revoke-token-title"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      tabindex="-1"
+    >
+      <header class="space-y-1">
+        <h2 id="revoke-token-title" class="text-lg font-semibold text-text-primary">
+          Revoke
+          <span class="font-mono text-accent-gold break-all">{revokeTarget.name}</span>?
+        </h2>
+        <p class="text-xs text-text-muted">
+          This cannot be undone. Apps using this token will lose access
+          immediately.
+        </p>
+      </header>
+
+      <div class="flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onclick={closeRevokeConfirm}
+          disabled={revoking}
+          class="text-sm text-text-muted hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] px-3"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onclick={() => void onConfirmRevoke()}
+          disabled={revoking}
+          class="px-4 py-2 rounded-md bg-red-600 text-white text-sm font-semibold hover:bg-red-500 transition disabled:opacity-50 min-h-[44px]"
+        >
+          {revoking ? 'Revoking…' : 'Revoke token'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

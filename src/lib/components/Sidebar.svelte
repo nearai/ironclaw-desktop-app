@@ -27,6 +27,7 @@
     | 'jobs'
     | 'extensions'
     | 'logs'
+    | 'missions'
     | 'settings';
 
   type NavItem = {
@@ -41,6 +42,7 @@
       | 'settings'
       | 'skills'
       | 'extensions'
+      | 'missions'
       | 'admin';
     /** Optional shortcut hint shown to the right of the label. Mirrors the
      *  global shortcuts wired in `src/routes/+layout.svelte`. */
@@ -85,6 +87,20 @@
       // reactively when the user toggles the setting (Svelte 5 runes
       // re-evaluate on every render).
       showWhen: () => connection.settings.adminMode === true
+    },
+    // Missions (Engine v2 surface). Gated behind `engineV2Enabled` so a
+    // fresh install stays quiet — Engine v2 is still developer-facing.
+    // Takes the next-available slot (⌘9) rather than renumbering Logs /
+    // Extensions / Admin so muscle memory survives the addition. When
+    // disabled the row vanishes and the Cmd+9 chord is a no-op (the
+    // layout guards on the same flag).
+    {
+      href: '/missions',
+      label: 'Missions',
+      icon: 'missions',
+      shortcut: '⌘9',
+      badgeKey: 'missions',
+      showWhen: () => connection.settings.engineV2Enabled === true
     },
     { href: '/settings', label: 'Settings', icon: 'settings', shortcut: '⌘,', badgeKey: 'settings' }
   ];
@@ -190,6 +206,12 @@
    *  NOT badge `pending` or `stuck` so the count stays a useful "what's
    *  the agent doing RIGHT NOW" signal, matching the brief. */
   let jobsRunning = $state<number | null>(null);
+  /** Missions badge — number of missions in `active` state. Mirrors the
+   *  Jobs pattern (show the "what's live right now" count, not the total)
+   *  so the badge is a useful glanceable signal rather than a static
+   *  cardinality. Only polled when Engine v2 is enabled; otherwise stays
+   *  null and the row is hidden anyway. */
+  let missionsActive = $state<number | null>(null);
 
   let badgeTimer: ReturnType<typeof setInterval> | null = null;
   /** Tracks the last connection status we acted on so we don't re-fire
@@ -204,11 +226,21 @@
       routinesRunning = 0;
       extensionsCount = null;
       jobsRunning = null;
+      missionsActive = null;
       return;
     }
     // Each lookup is independent; failures are silent (the badge just stays
     // at its previous value or null). Bad-network blips shouldn't flash
     // numbers in/out of existence in the sidebar.
+    //
+    // The missions list endpoint is only probed when Engine v2 is enabled
+    // on the active settings — older gateways return 404 here and we don't
+    // want a 404 in the network tab on every poll for users who never
+    // touched the toggle. We deliberately kick missions off in its own
+    // `Promise.allSettled` so the core badge bundle keeps its precise
+    // tuple typing — pushing onto a shared array forced TS to union the
+    // four return shapes and rejected the heterogeneous push.
+    const engineV2 = connection.settings.engineV2Enabled === true;
     const [skillsRes, routinesRes, extensionsRes, jobsRes] = await Promise.allSettled([
       client.listSkills(),
       client.routinesSummary(),
@@ -222,6 +254,19 @@
     }
     if (extensionsRes.status === 'fulfilled') extensionsCount = extensionsRes.value.length;
     if (jobsRes.status === 'fulfilled') jobsRunning = jobsRes.value.in_progress;
+    if (engineV2) {
+      const [missionsRes] = await Promise.allSettled([client.listMissions()]);
+      if (missionsRes.status === 'fulfilled') {
+        // Count missions whose `status` reads as "active" (case-insensitive)
+        // — same vocabulary the badge palette uses. Other lifecycles
+        // (paused / completed / failed / pending) aren't badged.
+        missionsActive = missionsRes.value.filter(
+          (m) => typeof m.status === 'string' && m.status.toLowerCase() === 'active'
+        ).length;
+      }
+    } else {
+      missionsActive = null;
+    }
   }
 
   function startBadgePolling(): void {
@@ -256,6 +301,7 @@
       routinesRunning = 0;
       extensionsCount = null;
       jobsRunning = null;
+      missionsActive = null;
     }
   });
 
@@ -302,6 +348,15 @@
    */
   const jobsBadge = $derived<number | null>(
     jobsRunning !== null && jobsRunning > 0 ? jobsRunning : null
+  );
+
+  /**
+   * Missions badge — number of active missions. Hidden when zero / null so
+   * the row stays quiet when there's nothing live. The collapsed-state dot
+   * is cyan (informational) since a live mission isn't an error condition.
+   */
+  const missionsBadge = $derived<number | null>(
+    missionsActive !== null && missionsActive > 0 ? missionsActive : null
   );
 
   /**
@@ -420,6 +475,7 @@
       case 'skills':
       case 'routines':
       case 'extensions':
+      case 'missions':
       default:
         return 'bg-accent-cyan';
     }
@@ -442,6 +498,8 @@
         return jobsBadge !== null;
       case 'extensions':
         return extensionsBadge !== null;
+      case 'missions':
+        return missionsBadge !== null;
       case 'logs':
         return logsHasRecentError;
       case 'settings':
@@ -548,6 +606,16 @@
               <circle cx="12" cy="11" r="1.4" />
               <path d="M12 12.4V15" />
             </svg>
+          {:else if item.icon === 'missions'}
+            <!-- Crosshair / target glyph — reads as "objective" / mission. -->
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <circle cx="12" cy="12" r="4.5" />
+              <line x1="12" y1="2" x2="12" y2="5" />
+              <line x1="12" y1="19" x2="12" y2="22" />
+              <line x1="2" y1="12" x2="5" y2="12" />
+              <line x1="19" y1="12" x2="22" y2="12" />
+            </svg>
           {:else if item.icon === 'settings'}
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3" />
@@ -585,6 +653,8 @@
             <span class="sidebar-badge" aria-label="{jobsBadge} jobs running">{jobsBadge}</span>
           {:else if item.badgeKey === 'extensions' && extensionsBadge !== null}
             <span class="sidebar-badge" aria-label="{extensionsBadge} installed extensions">{extensionsBadge}</span>
+          {:else if item.badgeKey === 'missions' && missionsBadge !== null}
+            <span class="sidebar-badge" aria-label="{missionsBadge} active missions">{missionsBadge}</span>
           {:else if item.badgeKey === 'logs' && logsHasRecentError}
             <span class="w-2 h-2 rounded-full bg-red-500" aria-label="recent errors" title="Recent errors in logs"></span>
           {:else if item.badgeKey === 'settings' && settingsNeedsAttention}

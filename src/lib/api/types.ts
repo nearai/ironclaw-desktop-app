@@ -657,6 +657,289 @@ export interface ToolPermissionEntry {
   locked_reason?: string;
 }
 
+// ---- Engine v2 -------------------------------------------------------------
+//
+// Endpoints (verified 2026-05-27 against IronClaw 0.28.2 on baremetal3, with
+// `engine_v2_enabled: true`):
+//
+//   GET /api/engine/missions          → {missions: EngineMission[]}
+//   GET /api/engine/missions/{uuid}   → {mission: EngineMission}    | 404 "Mission not found"
+//                                       (500 with a parse error for malformed UUIDs)
+//   GET /api/engine/projects          → {projects: EngineProject[]}
+//   GET /api/engine/projects/{uuid}   → {project:  EngineProject}   | 404 "Project not found"
+//   GET /api/engine/threads           → {threads:  EngineThread[]}
+//
+// All three list endpoints wrap the row array in a top-level key (`missions`,
+// `projects`, `threads`). The "single resource" endpoints wrap in a singular
+// key (`mission`, `project`). We surface only the rows / single resource and
+// hide the envelope from callers.
+//
+// These types are deliberately permissive — the gateway's exact set of fields
+// on the wire today is captured, plus a few forward-compat optionals. The
+// engine v2 schema is the youngest surface in IronClaw and likely to grow; the
+// alternative would be a strict schema that breaks on every server iteration.
+
+/**
+ * A mission row from `GET /api/engine/missions`.
+ *
+ * Wire shape (verified 2026-05-27):
+ *   {
+ *     "id": "<uuid>",
+ *     "name": "<slug>",
+ *     "goal": "<multi-line agent instruction>",
+ *     "status": "Active" | "Paused" | "Archived" | ...,
+ *     "cadence_type": "system_event" | "cron" | ...,
+ *     "cadence_description": "<human-readable cadence>",
+ *     "thread_count": <number>,
+ *     "created_at": "<RFC3339>",
+ *     "updated_at": "<RFC3339>"
+ *   }
+ *
+ * The brief's sketch carried `title` and `project_id` — neither is present on
+ * the wire today. `title` is left optional so a future server build that
+ * surfaces a display name can land without a client change; `project_id` is
+ * kept on the type because missions are scoped to a project conceptually,
+ * even if today's `/api/engine/missions` endpoint omits it from the row.
+ */
+export interface EngineMission {
+  /** UUID. Used as the path parameter for `GET /api/engine/missions/{id}`. */
+  id: string;
+  /** Slug-like name from the wire (e.g. "conversation-insights"). */
+  name?: string;
+  /** Display name (reserved; not emitted by the wire today). */
+  title?: string;
+  /** Full agent instruction body — often multi-line markdown. */
+  goal?: string;
+  /** Lifecycle marker (e.g. "Active", "Paused"). */
+  status?: string;
+  /** Cadence discriminator (e.g. `system_event`, `cron`). */
+  cadence_type?: string;
+  /** Human-readable cadence (e.g. "on system event: engine/foo_due"). */
+  cadence_description?: string;
+  /** Number of threads spawned by this mission. */
+  thread_count?: number;
+  /** Reserved — owning project id; not in the current wire row but plausible
+   *  in a future schema. */
+  project_id?: string;
+  /** RFC3339 timestamps. */
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * A project row from `GET /api/engine/projects`.
+ *
+ * Wire shape (verified 2026-05-27):
+ *   { "id": "<uuid>", "name": "<slug>", "description": "<string>",
+ *     "created_at": "<RFC3339>" }
+ *
+ * The current install has exactly one project (`default`). `mission_count`
+ * from the brief is not on the wire — kept optional for forward compat.
+ */
+export interface EngineProject {
+  id: string;
+  name?: string;
+  /** Display name (reserved; the wire emits `name` not `title`). */
+  title?: string;
+  description?: string;
+  /** Reserved — not emitted today. */
+  mission_count?: number;
+  /** RFC3339. */
+  created_at?: string;
+  updated_at?: string;
+}
+
+/**
+ * A thread row from `GET /api/engine/threads` (Engine v2 — distinct from
+ * `/api/chat/threads`, which is the chat-surface thread list).
+ *
+ * Wire shape (verified 2026-05-27):
+ *   {
+ *     "id": "<uuid>",
+ *     "goal": "<multi-line agent instruction>",
+ *     "title": "<short human-readable summary>",
+ *     "thread_type": "Foreground" | "Background" | ...,
+ *     "state": "Pending" | "Running" | "Done" | "Failed" | ...,
+ *     "project_id": "<uuid>",
+ *     "step_count": <number>,
+ *     "total_tokens": <number>,
+ *     "created_at": "<RFC3339>",
+ *     "updated_at": "<RFC3339>"
+ *   }
+ *
+ * Engine threads carry richer execution metadata than chat threads
+ * (step counts, token totals, thread type) — they're closer to a "job"
+ * than a conversation. We surface the wire fields verbatim.
+ */
+export interface EngineThread {
+  id: string;
+  /** Initial instruction / agent prompt. */
+  goal?: string;
+  /** Short human title (often the first line of `goal`). */
+  title?: string;
+  /** Execution discriminator (e.g. "Foreground", "Background"). */
+  thread_type?: string;
+  /** Lifecycle state (e.g. "Pending", "Running", "Done", "Failed"). */
+  state?: string;
+  /** Owning project. */
+  project_id?: string;
+  /** Owning mission, if this thread was spawned by one (reserved — not
+   *  emitted on the current wire, but conceptually plausible). */
+  mission_id?: string;
+  /** Number of agent steps completed. */
+  step_count?: number;
+  /** Total LLM tokens consumed across all steps. */
+  total_tokens?: number;
+  /** RFC3339 timestamps. */
+  created_at?: string;
+  updated_at?: string;
+}
+
+// ---- OAuth device flow ------------------------------------------------------
+//
+// Endpoints (probed 2026-05-27 against IronClaw 0.28.2):
+//
+//   POST /api/extensions/{name}/login/start  body: {session_id: string}
+//     → {success: bool, status: "failed"|"pending"|"completed", message: string,
+//        activated: bool, session_id?: string, verification_uri?: string,
+//        user_code?: string, expires_in?: number, interval?: number}
+//
+//   POST /api/extensions/{name}/login/poll   body: {session_id: string}
+//     → {success: bool, status: ..., message: string, activated: bool,
+//        session_id: string}
+//
+// IMPORTANT: the wire's identifier is `session_id`, NOT the OAuth-spec
+// `device_code`. The client accepts the brief's `device_code` name on the
+// poll method and forwards it as `session_id` so the public surface follows
+// the OAuth vocabulary while the wire's quirk is hidden.
+//
+// On this gateway today no installed extension actually supports interactive
+// OAuth (`github` is a WASM tool, `nearai` is an MCP server with bundled
+// auth) — so every call returns `{success: false, status: "failed", message:
+// "Server does not support OAuth: ..."}`. The types and methods are wired
+// because the WIRE is live; a future extension that supports OAuth will
+// flip these to real responses without a client change.
+
+/**
+ * Response from `POST /api/extensions/{name}/login/start`.
+ *
+ * The OAuth 2.0 Device Authorization Grant (RFC 8628) shape is:
+ *   {device_code, user_code, verification_uri, expires_in, interval}
+ *
+ * IronClaw's wire is a superset that adds `success`, `status`, `message`,
+ * `activated`, and `session_id` (its internal identifier — used in poll
+ * calls in place of the spec's `device_code`). For consumers that want the
+ * RFC vocabulary, `device_code` mirrors `session_id` on this type.
+ */
+export interface DeviceLoginStart {
+  /** True when the start call kicked off a flow (false when the extension
+   *  doesn't support OAuth on this gateway). */
+  success?: boolean;
+  /** Coarse status: `pending`, `completed`, `failed`. Use this to decide
+   *  whether to start polling. */
+  status?: string;
+  /** Human-readable detail; populated when `success=false` (e.g.
+   *  "Server does not support OAuth: ..."). */
+  message?: string;
+  /** True when the extension is already authorized — start is a no-op. */
+  activated?: boolean;
+  /** Internal gateway identifier — pass back to `login/poll`. Treat as
+   *  opaque. Aliased as `device_code` for RFC parity. */
+  session_id?: string;
+  /** RFC 8628 alias of `session_id` — same opaque token used to poll. */
+  device_code?: string;
+  /** URL the user opens in their browser to authorize the flow. */
+  verification_uri: string;
+  /** Short code the user types into the verification URL. */
+  user_code: string;
+  /** Seconds until the start request expires. */
+  expires_in: number;
+  /** Minimum seconds between poll calls. */
+  interval?: number;
+}
+
+/**
+ * Response from `POST /api/extensions/{name}/login/poll`.
+ *
+ * Status vocabulary (subset of what we tolerate via the trailing `string`):
+ *   - `pending`   — user has not yet authorized; keep polling.
+ *   - `authorized` / `completed` — flow finished; the extension is now active.
+ *   - `denied`    — user explicitly denied.
+ *   - `expired`   — the device_code expired before authorization completed.
+ *   - `failed`    — server-side error (see `error` or `message`).
+ *
+ * The wire emits `status: "failed"` and `message: "..."` today for any
+ * extension that doesn't support OAuth — surfaced as `status: "failed"` +
+ * `error: <message>` so callers can render the wire error inline.
+ */
+export interface DeviceLoginPoll {
+  status: 'pending' | 'authorized' | 'denied' | 'expired' | string;
+  /** Populated when `status` is a failure mode (`failed`, `denied`,
+   *  `expired`). Mirrors the wire's `message` field. */
+  error?: string;
+  /** Convenience: true when `status === 'authorized'` or `'completed'`. */
+  authorized?: boolean;
+}
+
+// ---- User tokens ------------------------------------------------------------
+//
+// Endpoints (verified 2026-05-27 against IronClaw 0.28.2):
+//
+//   GET    /api/tokens            → {tokens: UserToken[]}
+//   POST   /api/tokens            body: {name: string, scopes?: string[]}
+//                                  → {id, name, created_at, expires_at,
+//                                     token_prefix, token: <RAW VALUE>}
+//                                     ^ `token` is returned ONLY on create.
+//   DELETE /api/tokens/{id}       → {id, status: "revoked"}
+//
+// "Revoked" tokens stay in the list with a non-null `revoked_at`. The wire
+// does NOT physically delete the row — clients showing only active tokens
+// should filter on `revoked_at === null`.
+//
+// `scopes` is reserved on the wire (the gateway does not surface it today),
+// but kept on the type because the create endpoint may grow scope support.
+
+/**
+ * A user-created API token. The raw `token` value is returned ONCE on
+ * create and never again — the list endpoint only exposes the first few
+ * chars via `preview`.
+ *
+ * Wire shape (list, verified 2026-05-27):
+ *   {
+ *     "id":          "<uuid>",
+ *     "name":        "<user-supplied>",
+ *     "created_at":  "<RFC3339>",
+ *     "expires_at":  null | "<RFC3339>",
+ *     "last_used_at":null | "<RFC3339>",
+ *     "revoked_at":  null | "<RFC3339>",
+ *     "token_prefix":"<8 hex chars>"
+ *   }
+ *
+ * On create the response additionally carries `token: <full hex>` — the
+ * raw value the user must save somewhere. Subsequent reads never see it.
+ */
+export interface UserToken {
+  /** UUID. Used as the path parameter for `DELETE /api/tokens/{id}`. */
+  id: string;
+  /** User-supplied label. */
+  name: string;
+  /** RFC3339. */
+  created_at: string;
+  /** RFC3339, or undefined when the token has never been used. */
+  last_used_at?: string;
+  /** Optional expiry, when the gateway supports time-bound tokens. */
+  expires_at?: string;
+  /** Set to an RFC3339 timestamp on revocation. Active tokens have it
+   *  undefined / null. */
+  revoked_at?: string;
+  /** Reserved — the wire does not emit scopes today. Surfaced for forward
+   *  compat with a scoped-token gateway. */
+  scopes?: string[];
+  /** First 8 hex chars of the token (wire's `token_prefix`), surfaced as
+   *  `preview` for the brief's vocabulary. */
+  preview?: string;
+}
+
 /**
  * Active user identity, returned by GET /api/profile.
  *

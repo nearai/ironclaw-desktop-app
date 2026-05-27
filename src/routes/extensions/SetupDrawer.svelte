@@ -1,9 +1,13 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { open as openUrl } from '@tauri-apps/plugin-shell';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
-  import type { Extension, ExtensionSetupSchema } from '$lib/api/types';
+  import type {
+    Extension,
+    ExtensionSetupField,
+    ExtensionSetupSchema
+  } from '$lib/api/types';
 
   type Props = {
     extension: Extension;
@@ -15,6 +19,37 @@
 
   type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
+  // ---- OAuth device-flow state ----------------------------------------------
+  // Per-field flow state. `null` means no flow in progress for this field. We
+  // key by `field.key` so multiple oauth fields on the same drawer could each
+  // have an independent flow (unlikely in practice, but the schema allows it).
+  type OAuthPhase =
+    | 'idle'        // no flow ever started, render plain "Sign in" button
+    | 'starting'    // POST /login/start in flight
+    | 'pending'     // waiting for user authorization; polling /login/poll
+    | 'authorized'  // success — flow complete
+    | 'denied'      // user denied; offer retry
+    | 'expired'     // device code expired; offer retry
+    | 'failed'      // server error (incl. "Server does not support OAuth"); offer retry
+    | 'cancelled';  // user cancelled mid-flow; back to idle on next click
+
+  type OAuthState = {
+    phase: OAuthPhase;
+    verification_uri?: string;
+    user_code?: string;
+    /** Wall-clock ms at which the code expires. Used to drive the countdown. */
+    expires_at?: number;
+    /** Snapshot of `expires_in` from the server for retry/restart timing. */
+    expires_in?: number;
+    /** Wire identifier passed to /login/poll. */
+    session_id?: string;
+    interval_seconds: number;
+    /** Last error message surfaced from the server or network layer. */
+    error?: string;
+    /** Optional identity string returned by the server (e.g. "alice@github"). */
+    identity?: string;
+  };
+
   let loadState = $state<LoadState>('idle');
   let loadError = $state<string | null>(null);
   let schema = $state<ExtensionSetupSchema | null>(null);
@@ -22,11 +57,46 @@
   let values = $state<Record<string, string | boolean>>({});
   let submitting = $state(false);
 
-  // Required fields satisfied?
+  /** Per-field OAuth flow state, keyed by field.key. */
+  let oauthByField = $state<Record<string, OAuthState>>({});
+  /** Force re-render of the countdown without spinning a derived. */
+  let nowTick = $state(0);
+
+  // Internal handles used to tear down timers when the drawer closes or the
+  // user cancels. Kept outside `$state` since they aren't reactive.
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let countdownTimer: ReturnType<typeof setInterval> | null = null;
+  /** Set when the drawer is being torn down so in-flight polls bail out. */
+  let aborted = false;
+  /** Tally of consecutive network errors per active flow (resets on success). */
+  let pollErrorStreak = 0;
+
+  // True when any OAuth field is mid-flow (pending or starting). While true,
+  // every other field in the drawer becomes read-only — the OAuth panel is
+  // the entry point per the spec.
+  const activeOauth = $derived.by(() => {
+    for (const [key, st] of Object.entries(oauthByField)) {
+      if (st.phase === 'starting' || st.phase === 'pending') {
+        return { key, state: st };
+      }
+    }
+    return null;
+  });
+
+  const otherFieldsLocked = $derived(activeOauth !== null);
+
+  // Required fields satisfied? OAuth fields count as "satisfied" once they
+  // hit the `authorized` phase; otherwise they block submit if marked
+  // required (so the user can't save with an unfinished auth flow).
   const canSubmit = $derived.by(() => {
     if (!schema || submitting) return false;
+    if (activeOauth) return false; // never submit mid-flow
     for (const f of schema.fields) {
       if (!f.required) continue;
+      if (f.type === 'oauth') {
+        if (oauthByField[f.key]?.phase !== 'authorized') return false;
+        continue;
+      }
       const v = values[f.key];
       if (typeof v === 'boolean') continue; // boolean always has a value
       if (!v || (typeof v === 'string' && v.trim().length === 0)) return false;
@@ -36,9 +106,40 @@
 
   const title = $derived(extension.display_name ?? extension.name);
 
+  /**
+   * Best-effort human label for the OAuth button.
+   * Prefers the extension's `display_name`, falls back to the raw `name`
+   * with first-letter capitalization. e.g. `github` → "GitHub" is not
+   * worth a lookup table — we just title-case the name.
+   */
+  const providerLabel = $derived.by(() => {
+    const raw = (extension.display_name ?? extension.name ?? '').trim();
+    if (!raw) return 'provider';
+    // Already mixed case (e.g. "GitHub", "Notion") — leave alone.
+    if (/[A-Z]/.test(raw) && /[a-z]/.test(raw)) return raw;
+    // ALL CAPS or all-lower — title-case the first letter.
+    return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+  });
+
   onMount(() => {
     void loadSchema();
   });
+
+  onDestroy(() => {
+    teardown();
+  });
+
+  function teardown() {
+    aborted = true;
+    if (pollTimer) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+  }
 
   async function loadSchema() {
     const client = connection.client;
@@ -53,9 +154,16 @@
       schema = await client.getExtensionSetup(extension.name);
       // Seed defaults so toggles and selects start with the server's intent.
       const seed: Record<string, string | boolean> = {};
+      const oauthSeed: Record<string, OAuthState> = {};
       for (const f of schema.fields) {
         if (f.type === 'boolean') {
           seed[f.key] = f.default === 'true' || (f.default as unknown) === true;
+        } else if (f.type === 'oauth') {
+          // OAuth fields don't hold a string value the user can type — the
+          // flow lives in `oauthByField`. We still seed an empty string so
+          // submit-time iteration doesn't crash if anyone reads `values[key]`.
+          seed[f.key] = '';
+          oauthSeed[f.key] = { phase: 'idle', interval_seconds: 5 };
         } else if (f.default !== undefined) {
           seed[f.key] = String(f.default);
         } else {
@@ -63,6 +171,7 @@
         }
       }
       values = seed;
+      oauthByField = oauthSeed;
       loadState = 'loaded';
     } catch (err) {
       loadError = (err as Error).message;
@@ -95,7 +204,7 @@
     }
   }
 
-  async function launchOAuth(url: string) {
+  async function launchOAuthUrl(url: string) {
     try {
       await openUrl(url);
     } catch (err) {
@@ -103,8 +212,303 @@
     }
   }
 
+  // ---- Device-code flow -----------------------------------------------------
+
+  /**
+   * Patch state for a single OAuth field without losing other fields' state.
+   * Svelte 5 runes need a fresh object reference for shallow reactivity.
+   */
+  function patchOAuth(key: string, patch: Partial<OAuthState>) {
+    const prev = oauthByField[key] ?? { phase: 'idle', interval_seconds: 5 };
+    oauthByField = { ...oauthByField, [key]: { ...prev, ...patch } };
+  }
+
+  async function startOAuth(field: ExtensionSetupField) {
+    const client = connection.client;
+    if (!client) {
+      toasts.show('Not connected to IronClaw.', 'error');
+      return;
+    }
+    // Reset any previous error / countdown timers for this field.
+    if (pollTimer) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+    pollErrorStreak = 0;
+    patchOAuth(field.key, {
+      phase: 'starting',
+      error: undefined,
+      verification_uri: undefined,
+      user_code: undefined,
+      session_id: undefined,
+      expires_at: undefined,
+      expires_in: undefined,
+      identity: undefined
+    });
+
+    try {
+      const res = await client.startExtensionLogin(extension.name);
+      if (aborted) return;
+
+      // Server can decline up front — e.g. "Server does not support OAuth".
+      if (res.success === false || res.status === 'failed') {
+        patchOAuth(field.key, {
+          phase: 'failed',
+          error: res.message || 'Server refused to start OAuth flow.'
+        });
+        return;
+      }
+
+      // Already authorized on the server side — short-circuit straight to
+      // success (the start endpoint reports this via `activated`).
+      if (res.activated) {
+        patchOAuth(field.key, {
+          phase: 'authorized',
+          error: undefined
+        });
+        toasts.show(`Already connected to ${providerLabel}`, 'success');
+        return;
+      }
+
+      // Happy path: we have a verification URI + user code. Begin polling.
+      const sessionId = res.session_id ?? res.device_code;
+      if (!sessionId || !res.verification_uri || !res.user_code) {
+        patchOAuth(field.key, {
+          phase: 'failed',
+          error: 'Server response missing verification URL or user code.'
+        });
+        return;
+      }
+
+      const intervalSeconds =
+        typeof res.interval === 'number' && res.interval > 0 ? res.interval : 5;
+      const expiresIn =
+        typeof res.expires_in === 'number' && res.expires_in > 0
+          ? res.expires_in
+          : 0;
+      const expiresAt = expiresIn > 0 ? Date.now() + expiresIn * 1000 : undefined;
+
+      patchOAuth(field.key, {
+        phase: 'pending',
+        verification_uri: res.verification_uri,
+        user_code: res.user_code,
+        session_id: sessionId,
+        expires_in: expiresIn,
+        expires_at: expiresAt,
+        interval_seconds: intervalSeconds,
+        error: undefined
+      });
+
+      // Drive the countdown — 1Hz is plenty.
+      if (countdownTimer) clearInterval(countdownTimer);
+      countdownTimer = setInterval(() => {
+        nowTick = Date.now();
+        // Stop ticking once the code is dead.
+        const st = oauthByField[field.key];
+        if (!st || st.phase !== 'pending') {
+          if (countdownTimer) {
+            clearInterval(countdownTimer);
+            countdownTimer = null;
+          }
+        }
+      }, 1000);
+
+      schedulePoll(field.key, intervalSeconds);
+    } catch (err) {
+      if (aborted) return;
+      patchOAuth(field.key, {
+        phase: 'failed',
+        error: (err as Error).message
+      });
+    }
+  }
+
+  function schedulePoll(fieldKey: string, intervalSeconds: number) {
+    if (aborted) return;
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(() => void pollOnce(fieldKey), intervalSeconds * 1000);
+  }
+
+  async function pollOnce(fieldKey: string) {
+    if (aborted) return;
+    const client = connection.client;
+    const st = oauthByField[fieldKey];
+    if (!client || !st || st.phase !== 'pending' || !st.session_id) return;
+
+    // Hard-stop polling once the device code expires (avoids hammering the
+    // server forever if the user never opens the verification URL).
+    if (st.expires_at && Date.now() > st.expires_at) {
+      patchOAuth(fieldKey, {
+        phase: 'expired',
+        error: 'The authorization code expired before you signed in.'
+      });
+      toasts.show('Authorization code expired.', 'error');
+      return;
+    }
+
+    try {
+      const res = await client.pollExtensionLogin(extension.name, st.session_id);
+      if (aborted) return;
+
+      pollErrorStreak = 0;
+
+      if (res.status === 'authorized' || res.authorized) {
+        patchOAuth(fieldKey, {
+          phase: 'authorized',
+          error: undefined,
+          identity: extractIdentity(res)
+        });
+        toasts.show(`Connected to ${providerLabel}`, 'success');
+        if (pollTimer) {
+          clearTimeout(pollTimer);
+          pollTimer = null;
+        }
+        if (countdownTimer) {
+          clearInterval(countdownTimer);
+          countdownTimer = null;
+        }
+        return;
+      }
+
+      if (res.status === 'denied') {
+        patchOAuth(fieldKey, {
+          phase: 'denied',
+          error: res.error || 'Authorization was denied.'
+        });
+        toasts.show('Authorization denied.', 'error');
+        return;
+      }
+
+      if (res.status === 'expired') {
+        patchOAuth(fieldKey, {
+          phase: 'expired',
+          error: res.error || 'The authorization code expired.'
+        });
+        toasts.show('Authorization code expired.', 'error');
+        return;
+      }
+
+      if (res.status !== 'pending') {
+        // Any other non-pending status is a server-side failure mode.
+        patchOAuth(fieldKey, {
+          phase: 'failed',
+          error: res.error || `Unexpected status: ${res.status}`
+        });
+        toasts.show('Authorization failed.', 'error');
+        return;
+      }
+
+      // Still pending — schedule the next tick.
+      schedulePoll(fieldKey, st.interval_seconds);
+    } catch (err) {
+      if (aborted) return;
+      pollErrorStreak += 1;
+      if (pollErrorStreak >= 3) {
+        patchOAuth(fieldKey, {
+          phase: 'failed',
+          error: `Network error after 3 attempts: ${(err as Error).message}`
+        });
+        toasts.show('Network error during authorization.', 'error');
+        return;
+      }
+      // Transient error — retry on the same cadence.
+      schedulePoll(fieldKey, st.interval_seconds);
+    }
+  }
+
+  /**
+   * The poll response may carry identity info in non-standard shapes (the
+   * brief says "if the response carries any identity info"). We don't make
+   * up a field — we just look at whatever the wire DTO exposes today and
+   * fall through to undefined if nothing useful is there. The current
+   * `DeviceLoginPoll` type only exposes `status / error / authorized`, so
+   * this is a no-op until the type grows. Kept as a single chokepoint so
+   * the spot to plumb new fields through is obvious.
+   */
+  function extractIdentity(_res: unknown): string | undefined {
+    return undefined;
+  }
+
+  function cancelOAuth(fieldKey: string) {
+    if (pollTimer) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+    if (countdownTimer) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+    }
+    pollErrorStreak = 0;
+    patchOAuth(fieldKey, {
+      phase: 'cancelled',
+      error: undefined
+    });
+  }
+
+  function disconnectOAuth(fieldKey: string) {
+    // TODO(server): no /api/extensions/{name}/login/revoke endpoint exists
+    // today. This is a UI-only reset until the gateway grows one.
+    patchOAuth(fieldKey, {
+      phase: 'idle',
+      verification_uri: undefined,
+      user_code: undefined,
+      session_id: undefined,
+      expires_at: undefined,
+      expires_in: undefined,
+      identity: undefined,
+      error: undefined
+    });
+    toasts.show(
+      `Cleared local state (server-side disconnect not yet supported).`,
+      'info'
+    );
+  }
+
+  async function copyToClipboard(text: string, label: string) {
+    try {
+      // Tauri's webview ships a real navigator.clipboard.
+      await navigator.clipboard.writeText(text);
+      toasts.show(`${label} copied`, 'success');
+    } catch (err) {
+      toasts.show(`Could not copy ${label.toLowerCase()}: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  /** Seconds remaining for the active code (0 if none / expired). */
+  function secondsRemaining(state: OAuthState): number {
+    // Touch nowTick so this re-evaluates when the countdown ticks. (Inline
+    // void reference avoids an unused-var lint without doing real work.)
+    void nowTick;
+    if (!state.expires_at) return 0;
+    return Math.max(0, Math.ceil((state.expires_at - Date.now()) / 1000));
+  }
+
+  function formatCountdown(seconds: number): string {
+    if (seconds <= 0) return '00:00';
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
   function handleBackdropKey(event: KeyboardEvent) {
-    if (event.key === 'Escape') onClose();
+    if (event.key === 'Escape') {
+      if (activeOauth) {
+        // Abort the active flow rather than closing the drawer outright —
+        // matches the spec ("user cancel: stop polling, close modal").
+        cancelOAuth(activeOauth.key);
+        return;
+      }
+      onClose();
+    }
+  }
+
+  function handleClose() {
+    teardown();
+    onClose();
   }
 </script>
 
@@ -114,7 +518,7 @@
 <button
   type="button"
   aria-label="Close drawer"
-  onclick={onClose}
+  onclick={handleClose}
   class="fixed inset-0 z-40 bg-black/40 cursor-default"
 ></button>
 
@@ -151,7 +555,7 @@
     </div>
     <button
       type="button"
-      onclick={onClose}
+      onclick={handleClose}
       aria-label="Close"
       class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition"
     >
@@ -198,7 +602,7 @@
         {#if schema.oauth_url}
           <button
             type="button"
-            onclick={() => launchOAuth(schema!.oauth_url!)}
+            onclick={() => launchOAuthUrl(schema!.oauth_url!)}
             class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-accent-gold text-bg-deep text-sm font-semibold hover:brightness-95 transition min-h-[44px]"
           >
             <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -211,7 +615,15 @@
         {/if}
 
         {#each schema.fields as field (field.key)}
-          <div class="space-y-1.5">
+          {@const isOAuthField = field.type === 'oauth'}
+          {@const oauthState = oauthByField[field.key]}
+          {@const isThisFlowActive =
+            isOAuthField &&
+            (oauthState?.phase === 'starting' || oauthState?.phase === 'pending')}
+          {@const lockedByOtherFlow = !isOAuthField && otherFieldsLocked}
+          <div
+            class="space-y-1.5 {lockedByOtherFlow ? 'opacity-40 pointer-events-none' : ''}"
+          >
             <label for={`ext-field-${field.key}`} class="block text-xs font-semibold text-text-primary">
               {field.label}
               {#if field.required}
@@ -228,6 +640,7 @@
                   id={`ext-field-${field.key}`}
                   type="checkbox"
                   checked={Boolean(values[field.key])}
+                  disabled={lockedByOtherFlow}
                   onchange={(e) => (values = { ...values, [field.key]: (e.currentTarget as HTMLInputElement).checked })}
                   class="sr-only peer"
                 />
@@ -242,8 +655,9 @@
               <select
                 id={`ext-field-${field.key}`}
                 value={String(values[field.key] ?? '')}
+                disabled={lockedByOtherFlow}
                 onchange={(e) => (values = { ...values, [field.key]: (e.currentTarget as HTMLSelectElement).value })}
-                class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px]"
+                class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px] disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {#if !field.required}
                   <option value="">— select —</option>
@@ -252,31 +666,150 @@
                   <option value={opt.value}>{opt.label}</option>
                 {/each}
               </select>
-            {:else if field.type === 'oauth'}
+            {:else if isOAuthField}
               <!--
-                A bare oauth field on a per-field level (rare — the top-level
-                oauth_url covers the common case). We give it a button that
-                opens whatever URL the server stored as the field value /
-                default; if neither is present we render a disabled stub.
+                Device-code OAuth panel rendered INSIDE the drawer (per spec).
+                Phases:
+                  idle / cancelled → "Sign in with <provider>" button
+                  starting         → button with spinner
+                  pending          → inline panel with URL + code + countdown
+                  authorized       → "Connected" pill + Disconnect button
+                  denied/expired/failed → inline error + Retry
               -->
-              {@const url = String(values[field.key] ?? field.default ?? '')}
-              <button
-                type="button"
-                onclick={() => url && launchOAuth(url)}
-                disabled={!url}
-                class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md border border-accent-gold/60 text-accent-gold text-sm font-semibold hover:bg-accent-gold hover:text-bg-deep transition min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Connect
-              </button>
+              {#if oauthState?.phase === 'authorized'}
+                <div class="surface flex items-center justify-between gap-3 px-3 py-3">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-accent-cyan text-base leading-none">✓</span>
+                    <span class="text-sm text-text-primary truncate">
+                      {oauthState.identity
+                        ? `Connected as ${oauthState.identity}`
+                        : 'Authorized'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onclick={() => disconnectOAuth(field.key)}
+                    class="shrink-0 px-3 py-1.5 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition text-xs min-h-[32px]"
+                    title="Disconnect (clears local state only — server endpoint pending)"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              {:else if isThisFlowActive && oauthState?.phase === 'pending'}
+                <div class="surface px-4 py-5 space-y-4">
+                  <div class="text-xs text-text-muted leading-relaxed">
+                    Open this URL in your browser and enter the code below.
+                  </div>
+
+                  <!-- Verification URI row -->
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onclick={() => launchOAuthUrl(oauthState.verification_uri!)}
+                      class="flex-1 truncate text-left text-xs font-mono text-accent-cyan underline hover:brightness-110 transition"
+                      title={oauthState.verification_uri}
+                    >
+                      {oauthState.verification_uri}
+                    </button>
+                    <button
+                      type="button"
+                      onclick={() => copyToClipboard(oauthState.verification_uri!, 'URL')}
+                      class="shrink-0 px-2 py-1.5 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition text-[11px] min-h-[32px]"
+                    >
+                      Copy URL
+                    </button>
+                  </div>
+
+                  <!-- User code (big mono) -->
+                  <div class="flex flex-col items-center gap-2 py-2">
+                    <div
+                      class="text-[36px] leading-none font-mono font-bold text-accent-cyan tracking-[0.15em] select-all"
+                      aria-live="polite"
+                    >
+                      {oauthState.user_code}
+                    </div>
+                    <button
+                      type="button"
+                      onclick={() => copyToClipboard(oauthState.user_code!, 'Code')}
+                      class="px-3 py-1.5 rounded-md border border-accent-cyan text-accent-cyan hover:bg-accent-cyan hover:text-bg-deep transition text-xs font-semibold min-h-[32px]"
+                    >
+                      Copy code
+                    </button>
+                  </div>
+
+                  <!-- Countdown + waiting state -->
+                  <div class="flex items-center justify-between gap-3 pt-2 border-t border-border-subtle">
+                    <div class="flex items-center gap-2 text-xs text-text-muted">
+                      <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" opacity="0.25" />
+                        <path d="M22 12a10 10 0 0 0-10-10" />
+                      </svg>
+                      Waiting for you to authorize…
+                    </div>
+                    {#if oauthState.expires_at}
+                      <div class="text-[11px] font-mono text-text-muted">
+                        Expires in {formatCountdown(secondsRemaining(oauthState))}
+                      </div>
+                    {/if}
+                  </div>
+
+                  <div class="flex justify-end">
+                    <button
+                      type="button"
+                      onclick={() => cancelOAuth(field.key)}
+                      class="px-3 py-1.5 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition text-xs min-h-[32px]"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              {:else if oauthState?.phase === 'denied' || oauthState?.phase === 'expired' || oauthState?.phase === 'failed'}
+                <div class="surface px-3 py-3 space-y-3">
+                  <div class="text-xs text-red-400 break-words">
+                    {oauthState.error ?? 'Authorization failed.'}
+                  </div>
+                  <button
+                    type="button"
+                    onclick={() => startOAuth(field)}
+                    class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-95 transition min-h-[40px]"
+                  >
+                    Retry
+                  </button>
+                </div>
+              {:else}
+                <!-- idle / cancelled / starting -->
+                <button
+                  type="button"
+                  onclick={() => startOAuth(field)}
+                  disabled={oauthState?.phase === 'starting'}
+                  class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-95 transition min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {#if oauthState?.phase === 'starting'}
+                    <svg viewBox="0 0 24 24" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" stroke-width="2">
+                      <circle cx="12" cy="12" r="10" opacity="0.25" />
+                      <path d="M22 12a10 10 0 0 0-10-10" />
+                    </svg>
+                    Starting…
+                  {:else}
+                    <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M15 3h6v6" />
+                      <path d="M10 14L21 3" />
+                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    </svg>
+                    Sign in with {providerLabel}
+                  {/if}
+                </button>
+              {/if}
             {:else}
               <input
                 id={`ext-field-${field.key}`}
                 type={field.type === 'password' ? 'password' : 'text'}
                 value={String(values[field.key] ?? '')}
+                disabled={lockedByOtherFlow}
                 oninput={(e) => (values = { ...values, [field.key]: (e.currentTarget as HTMLInputElement).value })}
                 placeholder={field.placeholder ?? ''}
                 autocomplete={field.type === 'password' ? 'new-password' : 'off'}
-                class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px] font-mono"
+                class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px] font-mono disabled:opacity-60 disabled:cursor-not-allowed"
                 aria-label={field.label}
               />
             {/if}
@@ -286,7 +819,7 @@
         <div class="pt-3 flex items-center justify-end gap-2 border-t border-border-subtle">
           <button
             type="button"
-            onclick={onClose}
+            onclick={handleClose}
             class="px-4 py-2 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition text-sm min-h-[40px]"
           >
             Cancel

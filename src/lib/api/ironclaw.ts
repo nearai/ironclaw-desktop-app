@@ -7,6 +7,11 @@
 import type {
   ChatEvent,
   CreateRoutineRequest,
+  DeviceLoginPoll,
+  DeviceLoginStart,
+  EngineMission,
+  EngineProject,
+  EngineThread,
   Extension,
   ExtensionSetupSchema,
   ExtensionTool,
@@ -35,8 +40,10 @@ import type {
   ToolPolicyAction,
   UsageEvent,
   UsageSummary,
-  UserProfile
+  UserProfile,
+  UserToken
 } from './types';
+import { containsSecret, redactJsonObject, redactSecrets } from '$lib/utils/redact';
 
 export interface IronClawClientOptions {
   baseUrl: string;
@@ -1421,16 +1428,62 @@ export class IronClawClient {
    * Older / hypothetical server builds may emit the map shape directly;
    * we accept both for defense-in-depth.
    *
-   * TODO(security, 2026-05-27): the server's `mcp_servers` value embeds
+   * SECURITY (defense-in-depth, 2026-05-27): this method is the
+   * REDACTED-by-default path. The server's `mcp_servers` value embeds
    * raw bearer tokens (e.g. `Authorization: Bearer sk-agent-…`) in
-   * single-tenant owner installs. The smoke test (Round 7e) confirmed
-   * this against baremetal3. Callers displaying the returned object MUST
-   * sanitize values matching `Bearer\s+\S+` and `sk-[a-zA-Z0-9_-]+`
-   * patterns before rendering, or gate the surface behind an explicit
-   * "show secrets" toggle. A Tauri-side warning is the right long-term
-   * fix; until then this lives at the call site.
+   * single-tenant owner installs — the smoke test (Round 7e) confirmed
+   * this against baremetal3. We unconditionally run the response
+   * through `redactJsonObject` IF any string leaf matches a known
+   * secret pattern (Bearer / sk- / api-key / JWT / GitHub PAT). Most
+   * UIs that just display the settings document should call this and
+   * never see a raw token cross the seam.
+   *
+   * Surfaces that need to EDIT and round-trip secrets back to the
+   * server (admin save flows, settings backup/restore) must use
+   * `getSettingsRaw()` instead — that path is unredacted but only
+   * available to callers who explicitly opt in.
+   *
+   * This is a second layer behind the UI's `MaskedValue` wrapper.
+   * Even if a future agent forgets to wrap the value in `MaskedValue`,
+   * the default API path is safe. The cost is one extra pass through
+   * the redactor on a small JSON object — negligible.
    */
   async getSettings(): Promise<Record<string, unknown>> {
+    const raw = await this.getSettingsRaw();
+    // Cheap probe first — only walk the structure when at least one
+    // string in it looks like a secret. JSON.stringify is faster than
+    // a recursive walk for the no-secret case (the common path).
+    const serialized = JSON.stringify(raw);
+    if (!containsSecret(serialized)) {
+      return raw;
+    }
+    const redacted = redactJsonObject(raw);
+    // redactJsonObject preserves shape; the cast is safe because the
+    // input is `Record<string, unknown>` and the redactor only swaps
+    // string leaves for masked strings.
+    return redacted as Record<string, unknown>;
+  }
+
+  /**
+   * Unredacted variant of `getSettings()`. Returns the server's settings
+   * document with bearer tokens / api keys / JWTs intact.
+   *
+   * Use this ONLY when the consumer needs the raw bytes — e.g. to round-trip
+   * a value back to the server via `putSetting`, or to write a complete
+   * settings backup to disk that the user explicitly initiated. UI display
+   * surfaces should call `getSettings()` (the redacted path) instead.
+   *
+   * Wire (verified 2026-05-27 against IronClaw 0.28.2):
+   *   `{settings: [{key, value, updated_at}, …]}` — an ARRAY of rows.
+   * The earlier client typed the wire as `{settings: Record<string, unknown>}`
+   * and returned it verbatim; consumers iterating keys received numeric
+   * array indexes instead. We fold the array into a `{<key>: <value>}`
+   * map so callers see the object shape they expect.
+   *
+   * Older / hypothetical server builds may emit the map shape directly;
+   * we accept both for defense-in-depth.
+   */
+  async getSettingsRaw(): Promise<Record<string, unknown>> {
     const res = await this.request<{
       settings?:
         | Array<{ key: string; value: unknown; updated_at?: string }>
@@ -1932,11 +1985,43 @@ export class IronClawClient {
   }
 
   /**
-   * Fetch the admin system prompt (admin-scoped SYSTEM.md). Returns
-   * `prompt: ''` if no prompt has been configured — the gateway maps the
-   * "document missing" case to an empty string already.
+   * Fetch the admin system prompt (admin-scoped SYSTEM.md), REDACTED.
+   *
+   * SECURITY (defense-in-depth, 2026-05-27): the system prompt is free-text
+   * the admin authors directly, and historically includes API keys or
+   * bearer tokens copy-pasted by operators while iterating. The smoke test
+   * (Round 7e) flagged this surface alongside `/api/settings`. This method
+   * runs the returned prompt through `redactSecrets` before returning, so
+   * any UI that just displays the prompt never sees raw secrets even if
+   * the agent forgot to wrap it in `MaskedValue`.
+   *
+   * Surfaces that EDIT the prompt (the admin SystemPromptEditor) must
+   * use `getSystemPromptRaw()` — otherwise the editor would persist
+   * the redacted bullets back to the server, replacing the real secrets
+   * with `•••` on the next save.
+   *
+   * Returns `prompt: ''` if no prompt has been configured — the gateway
+   * maps the "document missing" case to an empty string already.
    */
   async getSystemPrompt(): Promise<{ prompt: string; updated_at?: string }> {
+    const { prompt, updated_at } = await this.getSystemPromptRaw();
+    // Cheap probe before the regex walk — same shape as getSettings.
+    if (!containsSecret(prompt)) {
+      return { prompt, updated_at };
+    }
+    return { prompt: redactSecrets(prompt), updated_at };
+  }
+
+  /**
+   * Unredacted variant of `getSystemPrompt()`. Returns the raw bytes of
+   * the admin SYSTEM.md as the server has them.
+   *
+   * The editor MUST call this — the redacted variant would overwrite the
+   * real prompt with bullet-masked secrets on the next save. Display-only
+   * surfaces (e.g. a read-only preview elsewhere in the app) should call
+   * the redacted `getSystemPrompt()` instead.
+   */
+  async getSystemPromptRaw(): Promise<{ prompt: string; updated_at?: string }> {
     const res = await this.request<{
       content?: string;
       prompt?: string;
@@ -2562,6 +2647,396 @@ export class IronClawClient {
       return { ok: true };
     } catch (err) {
       console.warn(`[ironclaw] setToolPermission(${name}) failed:`, err);
+      return { ok: false };
+    }
+  }
+
+  // ---- Engine v2 ------------------------------------------------------------
+  //
+  // Five endpoints, all gated by `engine_v2_enabled` on the gateway status
+  // (verified true on baremetal3, 2026-05-27):
+  //
+  //   GET /api/engine/missions          → {missions: EngineMission[]}
+  //   GET /api/engine/missions/{id}     → {mission: EngineMission} | 404
+  //   GET /api/engine/projects          → {projects: EngineProject[]}
+  //   GET /api/engine/projects/{id}     → {project:  EngineProject} | 404
+  //   GET /api/engine/threads           → {threads:  EngineThread[]}
+  //
+  // The single-resource endpoints return 404 with `"Mission not found"` /
+  // `"Project not found"` body for missing rows, and 500 with a UUID-parse
+  // error for syntactically-bad ids. The client maps BOTH the 404 case AND
+  // the 500-on-malformed-id case onto `null` so callers can use a single
+  // "did we get it?" check.
+  //
+  // The list endpoints throw on transport errors (network / 5xx for other
+  // reasons), since "no missions" is a valid `{missions: []}` payload and
+  // a thrown HttpError signals a real outage worth surfacing.
+
+  /**
+   * List missions defined on the gateway. Wire envelope: `{missions: [...]}`.
+   *
+   * Returns rows verbatim — the consumer is responsible for any sorting /
+   * filtering. Empty arrays come back as `[]`, never `null`.
+   */
+  async listMissions(): Promise<EngineMission[]> {
+    const res = await this.request<{ missions?: EngineMission[] }>(
+      'GET',
+      '/api/engine/missions'
+    );
+    return Array.isArray(res?.missions) ? res.missions : [];
+  }
+
+  /**
+   * Fetch a single mission by UUID. Wire envelope: `{mission: {...}}`.
+   *
+   * Returns `null` for:
+   *   - 404 "Mission not found" (id is well-formed but the row is gone)
+   *   - 500 "engine v2 parse mission_id: invalid character: …"
+   *     (id isn't a valid UUID — the server emits 500 here, not 400)
+   *
+   * Other HTTP errors (401, 403, transport) propagate via HttpError.
+   */
+  async getMission(id: string): Promise<EngineMission | null> {
+    try {
+      const res = await this.request<{ mission?: EngineMission }>(
+        'GET',
+        `/api/engine/missions/${encodeURIComponent(id)}`
+      );
+      return res?.mission ?? null;
+    } catch (err) {
+      if (err instanceof HttpError) {
+        // 404 = missing; 500 with a parse-error message = malformed id.
+        // Both are "no such mission" from the caller's perspective.
+        if (err.status === 404) return null;
+        if (err.status === 500 && /parse mission_id|invalid character/i.test(err.message)) {
+          return null;
+        }
+      }
+      throw err;
+    }
+  }
+
+  /** List projects. Wire envelope: `{projects: [...]}`. */
+  async listProjects(): Promise<EngineProject[]> {
+    const res = await this.request<{ projects?: EngineProject[] }>(
+      'GET',
+      '/api/engine/projects'
+    );
+    return Array.isArray(res?.projects) ? res.projects : [];
+  }
+
+  /**
+   * Fetch a single project by UUID. Wire envelope: `{project: {...}}`.
+   *
+   * Same 404 / 500-on-malformed-id handling as `getMission`.
+   */
+  async getProject(id: string): Promise<EngineProject | null> {
+    try {
+      const res = await this.request<{ project?: EngineProject }>(
+        'GET',
+        `/api/engine/projects/${encodeURIComponent(id)}`
+      );
+      return res?.project ?? null;
+    } catch (err) {
+      if (err instanceof HttpError) {
+        if (err.status === 404) return null;
+        if (err.status === 500 && /parse project_id|invalid character/i.test(err.message)) {
+          return null;
+        }
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * List Engine v2 threads. Distinct from `/api/chat/threads`: engine
+   * threads carry execution metadata (step count, total tokens, thread
+   * type) and represent agent runs, not conversations.
+   *
+   * Wire envelope: `{threads: [...]}`.
+   */
+  async listEngineThreads(): Promise<EngineThread[]> {
+    const res = await this.request<{ threads?: EngineThread[] }>(
+      'GET',
+      '/api/engine/threads'
+    );
+    return Array.isArray(res?.threads) ? res.threads : [];
+  }
+
+  // ---- OAuth device flow (extensions) ---------------------------------------
+  //
+  // Two endpoints, both per-extension:
+  //
+  //   POST /api/extensions/{name}/login/start  body: {session_id: string}
+  //     → {success, status, message, activated, session_id?, …}
+  //
+  //   POST /api/extensions/{name}/login/poll   body: {session_id: string}
+  //     → {success, status, message, activated, session_id}
+  //
+  // The wire identifier is `session_id`, NOT the OAuth-spec `device_code`.
+  // The poll method accepts the brief's `deviceCode` parameter and forwards
+  // it as `session_id`, so the public surface follows the RFC vocabulary.
+  //
+  // No extension on this gateway today supports interactive OAuth (`github`
+  // is a WASM tool, `nearai` is an MCP server with bundled auth) — every
+  // call returns `{success: false, status: "failed", message: "Server does
+  // not support OAuth: ..."}`. The wire is live; the methods are wired so a
+  // future OAuth-capable extension drops in without a client change.
+  //
+  // The start method generates a fresh `session_id` client-side (UUID-ish)
+  // because the wire requires one but doesn't return one on a failed call.
+  // The generated id is returned on the response so the caller can pass it
+  // to the matching `pollExtensionLogin`.
+
+  /**
+   * Initiate the device-code OAuth flow for an extension.
+   *
+   * The wire requires a `session_id` in the request body (it's the gateway's
+   * internal flow identifier, equivalent to the OAuth spec's `device_code`).
+   * We generate one client-side via `crypto.randomUUID()` so the caller
+   * doesn't have to.
+   *
+   * On a successful response the wire SHOULD emit `verification_uri`,
+   * `user_code`, `expires_in`, and `interval` — none of these are observed
+   * on the current gateway because no installed extension supports OAuth,
+   * but they're documented on `DeviceLoginStart` for forward compat. We
+   * synthesize empty-string / 0 fallbacks for the required RFC 8628 fields
+   * (`verification_uri`, `user_code`, `expires_in`) so the type stays
+   * strict for the happy path.
+   *
+   * `device_code` mirrors `session_id` for RFC parity — callers using
+   * the spec vocabulary can read either.
+   */
+  async startExtensionLogin(name: string): Promise<DeviceLoginStart> {
+    // The wire requires a session_id. crypto.randomUUID is available in
+    // every browser context Tauri runs in (and in modern Node). If the
+    // runtime somehow doesn't provide it we fall back to a timestamp-based
+    // id — the wire only requires opaqueness, not cryptographic strength.
+    const sessionId = (() => {
+      const g = globalThis as { crypto?: { randomUUID?: () => string } };
+      if (typeof g.crypto?.randomUUID === 'function') {
+        return g.crypto.randomUUID();
+      }
+      return `ironclaw-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    })();
+
+    const res = await this.request<{
+      success?: boolean;
+      status?: string;
+      message?: string;
+      activated?: boolean;
+      session_id?: string;
+      verification_uri?: string;
+      user_code?: string;
+      expires_in?: number;
+      interval?: number;
+    }>(
+      'POST',
+      `/api/extensions/${encodeURIComponent(name)}/login/start`,
+      { session_id: sessionId }
+    );
+
+    const returnedId = res?.session_id ?? sessionId;
+    return {
+      success: res?.success === true,
+      status: res?.status,
+      message: res?.message,
+      activated: res?.activated === true,
+      session_id: returnedId,
+      device_code: returnedId,
+      // RFC 8628 fields — fall through to safe defaults if the gateway
+      // didn't emit them (today's failure path doesn't).
+      verification_uri:
+        typeof res?.verification_uri === 'string' ? res.verification_uri : '',
+      user_code: typeof res?.user_code === 'string' ? res.user_code : '',
+      expires_in: typeof res?.expires_in === 'number' ? res.expires_in : 0,
+      interval: typeof res?.interval === 'number' ? res.interval : undefined
+    };
+  }
+
+  /**
+   * Poll for completion of an in-progress OAuth flow.
+   *
+   * The brief's parameter name is `deviceCode`; on the wire this is the
+   * `session_id` value returned by `startExtensionLogin`. We forward it as
+   * `session_id` to match the wire schema.
+   *
+   * Returns a `DeviceLoginPoll` with `status` mapped to the RFC-ish
+   * vocabulary (`pending`, `authorized`, `denied`, `expired`, `failed`)
+   * via simple aliasing from the wire's `success`/`status` pair. Failure
+   * cases populate `error` from the wire's `message`.
+   */
+  async pollExtensionLogin(
+    name: string,
+    deviceCode: string
+  ): Promise<DeviceLoginPoll> {
+    const res = await this.request<{
+      success?: boolean;
+      status?: string;
+      message?: string;
+      activated?: boolean;
+      session_id?: string;
+    }>(
+      'POST',
+      `/api/extensions/${encodeURIComponent(name)}/login/poll`,
+      { session_id: deviceCode }
+    );
+
+    const wireStatus = String(res?.status ?? '').toLowerCase();
+    // Map the wire's vocabulary onto RFC 8628 status names. The wire
+    // emits `failed` for "no such session" / "extension does not support
+    // OAuth"; we keep that name as-is so the caller can distinguish a
+    // hard failure from a transient `pending`.
+    let status: DeviceLoginPoll['status'];
+    if (res?.success === true || res?.activated === true) {
+      status = 'authorized';
+    } else if (wireStatus === 'pending') {
+      status = 'pending';
+    } else if (wireStatus === 'denied') {
+      status = 'denied';
+    } else if (wireStatus === 'expired') {
+      status = 'expired';
+    } else if (wireStatus === 'completed') {
+      // Wire emits 'completed' on the success path of some flows even
+      // when `success` isn't set — treat as authorized.
+      status = 'authorized';
+    } else {
+      status = wireStatus || 'failed';
+    }
+
+    return {
+      status,
+      error:
+        status === 'authorized' || status === 'pending'
+          ? undefined
+          : (res?.message ?? undefined),
+      authorized: status === 'authorized'
+    };
+  }
+
+  // ---- User API tokens ------------------------------------------------------
+  //
+  // Three endpoints (verified 2026-05-27 against IronClaw 0.28.2):
+  //
+  //   GET    /api/tokens            → {tokens: UserToken[]}
+  //   POST   /api/tokens            body: {name, scopes?}
+  //                                  → {id, name, created_at, token, …}
+  //                                     `token` is the raw value — ONLY
+  //                                     returned on create.
+  //   DELETE /api/tokens/{id}       → {id, status: "revoked"}
+  //
+  // Revoked tokens stay in the list with `revoked_at` set; callers showing
+  // only active tokens should filter `revoked_at == null`. The list method
+  // surfaces ALL rows verbatim — filtering is a UI concern.
+  //
+  // The create method returns the full token in plaintext exactly once.
+  // Callers MUST hand the raw value to the user before discarding the
+  // response (the only other path is for the user to revoke + recreate).
+
+  /**
+   * List the user's API tokens (active and revoked).
+   *
+   * Returns wire-shape rows mapped onto `UserToken`. Sorted by `created_at`
+   * descending so the newest token surfaces first.
+   */
+  async listUserTokens(): Promise<UserToken[]> {
+    const res = await this.request<{
+      tokens?: Array<{
+        id: string;
+        name: string;
+        created_at: string;
+        expires_at?: string | null;
+        last_used_at?: string | null;
+        revoked_at?: string | null;
+        token_prefix?: string;
+        scopes?: string[];
+      }>;
+    }>('GET', '/api/tokens');
+
+    const rows = Array.isArray(res?.tokens) ? res.tokens : [];
+    const mapped: UserToken[] = rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      created_at: row.created_at,
+      last_used_at: row.last_used_at ?? undefined,
+      expires_at: row.expires_at ?? undefined,
+      revoked_at: row.revoked_at ?? undefined,
+      scopes: Array.isArray(row.scopes) ? row.scopes : undefined,
+      preview:
+        typeof row.token_prefix === 'string' ? row.token_prefix : undefined
+    }));
+
+    // Newest-first for the UI; equal timestamps tie-break by id for
+    // a stable sort.
+    return mapped.sort((a, b) => {
+      const ta = Date.parse(a.created_at);
+      const tb = Date.parse(b.created_at);
+      if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) {
+        return tb - ta;
+      }
+      return b.id.localeCompare(a.id);
+    });
+  }
+
+  /**
+   * Create a new user token.
+   *
+   * Returns `{id, token}` — the `token` value is the raw plaintext key the
+   * server returns ONCE on create. Callers MUST surface it to the user
+   * immediately; once dropped it cannot be recovered without revoking and
+   * creating a new one.
+   *
+   * `scopes` is reserved — the wire accepts it in the body, but the
+   * gateway does not yet enforce or echo per-token scopes back. Pass
+   * through anyway so a future scope-aware gateway lights up without a
+   * client change.
+   */
+  async createUserToken(
+    name: string,
+    scopes?: string[]
+  ): Promise<{ id: string; token: string }> {
+    const body: Record<string, unknown> = { name };
+    if (Array.isArray(scopes) && scopes.length > 0) {
+      body.scopes = scopes;
+    }
+    const res = await this.request<{
+      id?: string;
+      token?: string;
+      name?: string;
+      created_at?: string;
+      token_prefix?: string;
+    }>('POST', '/api/tokens', body);
+
+    // The wire always returns `token` on a successful create; the
+    // fallbacks here are defensive against a hypothetical future schema
+    // shift (and keep TypeScript strict).
+    return {
+      id: typeof res?.id === 'string' ? res.id : '',
+      token: typeof res?.token === 'string' ? res.token : ''
+    };
+  }
+
+  /**
+   * Revoke a user token.
+   *
+   * Wire returns `{id, status: "revoked"}`. The row stays in the list with
+   * `revoked_at` set; this method does NOT physically delete it.
+   *
+   * Returns `{ok: false}` on any failure (network, 401, 404 unknown id) —
+   * the caller should refresh via `listUserTokens` to see the canonical
+   * state. The underlying error is dropped here; surface via the request
+   * helper directly if you need the message.
+   */
+  async revokeUserToken(id: string): Promise<{ ok: boolean }> {
+    try {
+      const res = await this.request<{ id?: string; status?: string }>(
+        'DELETE',
+        `/api/tokens/${encodeURIComponent(id)}`
+      );
+      const ok = res?.status === 'revoked' || res?.id === id;
+      return { ok };
+    } catch (err) {
+      console.warn(`[ironclaw] revokeUserToken(${id}) failed:`, err);
       return { ok: false };
     }
   }

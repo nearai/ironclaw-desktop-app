@@ -164,7 +164,14 @@
     loadError = null;
     forbidden = false;
     try {
-      const res = await client.getSystemPrompt();
+      // Use the RAW variant — the editor round-trips this value back to
+      // the server on Save. The redacted `getSystemPrompt()` would persist
+      // bullet-masked secrets in place of the real prompt bytes on the
+      // next save, silently destroying any embedded tokens. The
+      // SystemPromptEditor's own `redactedDraft` derivation still masks
+      // the read-only preview pane in the side-by-side layout, so the
+      // operator never sees the raw token rendered on screen.
+      const res = await client.getSystemPromptRaw();
       serverPrompt = res.prompt;
       draft = res.prompt;
       loadState = 'loaded';

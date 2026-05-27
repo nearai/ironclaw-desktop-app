@@ -120,6 +120,20 @@ export interface AppSettings {
    * preference, not per-gateway. Only an explicit `false` on disk disables it.
    */
   useResponsesApi?: boolean;
+  /**
+   * App-level "Show Engine v2 surface" toggle. Defaults to `false` so the
+   * Engine v2 sidebar entry, the Cmd+9 shortcut, and the `/missions` route
+   * stay hidden until the user opts in from /settings → Advanced. App-level
+   * (not per-profile) because Engine v2 is a chrome preference like
+   * `adminMode` — once the user opts in they almost certainly want it
+   * across every profile they switch into.
+   *
+   * Toggling on unhides the sidebar entry + the Cmd+9 keyboard chord and
+   * mounts the /missions route content. Toggling off retracts all three and
+   * (via the layout's $effect) bounces the user out of /missions if they
+   * happen to be there.
+   */
+  engineV2Enabled?: boolean;
 }
 
 /** Id used for the migrated default profile. Must stay in sync with the
@@ -153,7 +167,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   onboardingComplete: false,
   adminMode: false,
   trayEnabled: true,
-  useResponsesApi: true
+  useResponsesApi: true,
+  engineV2Enabled: false
 };
 
 /**
@@ -176,6 +191,7 @@ interface LegacyAppSettings {
   onboardingComplete?: boolean;
   trayEnabled?: boolean;
   useResponsesApi?: boolean;
+  engineV2Enabled?: boolean;
 }
 
 /**
@@ -235,7 +251,11 @@ function migrateLoaded(
       // better delta-streaming path. The chat surface auto-falls-back to
       // the legacy /api/chat path if the active gateway doesn't expose
       // /api/v1/responses, so flipping this on is safe on every server.
-      useResponsesApi: raw.useResponsesApi !== false
+      useResponsesApi: raw.useResponsesApi !== false,
+      // engineV2Enabled is opt-IN — same shape as adminMode. Only true
+      // when explicitly stored. Older files round-trip as `false`, which
+      // matches the "do not surface Engine v2 routes by default" intent.
+      engineV2Enabled: raw.engineV2Enabled === true
     };
   }
 
@@ -259,7 +279,8 @@ function migrateLoaded(
     onboardingComplete: raw.onboardingComplete === true,
     adminMode: raw.adminMode === true,
     trayEnabled: raw.trayEnabled !== false,
-    useResponsesApi: raw.useResponsesApi !== false
+    useResponsesApi: raw.useResponsesApi !== false,
+    engineV2Enabled: raw.engineV2Enabled === true
   };
 }
 
@@ -406,7 +427,8 @@ export function validateImportedSettings(raw: string): ImportValidationResult {
     profiles,
     onboardingComplete: obj.onboardingComplete === true,
     adminMode: obj.adminMode === true,
-    trayEnabled: obj.trayEnabled !== false
+    trayEnabled: obj.trayEnabled !== false,
+    engineV2Enabled: obj.engineV2Enabled === true
   };
   return { ok: true, settings };
 }
