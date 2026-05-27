@@ -3,6 +3,7 @@
   import type { LogEntry, LogLevel } from '$lib/api/types';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { saveTextDialog } from '$lib/api/files';
 
   /** Hard cap on the in-memory log buffer. Bursts above this get pruned. */
@@ -289,6 +290,17 @@
       filterFocused = false;
     };
     document.addEventListener('pointerdown', onDocPointerDown);
+
+    // Surface refresh (Cmd+R): re-open the SSE stream. Closes any
+    // active connection first so we get a clean reconnect; the
+    // existing buffer of log entries is left in place so the user
+    // doesn't lose visible context. Future events come from the new
+    // stream.
+    surfaceRefresh.register(async () => {
+      closeStream();
+      openStream();
+    });
+
     return () => {
       ro?.disconnect();
       document.removeEventListener('pointerdown', onDocPointerDown);
@@ -297,6 +309,7 @@
 
   onDestroy(() => {
     teardown();
+    surfaceRefresh.unregister();
   });
 
   function measureViewport() {

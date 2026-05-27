@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { pins } from '$lib/stores/pins.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import type { Skill, SkillTrust } from '$lib/api/types';
   import SkillCard from './SkillCard.svelte';
   import SkillDrawer from './SkillDrawer.svelte';
@@ -337,7 +338,17 @@
     // also triggers it, but skill route may render before sidebar mount
     // ordering in some edge cases.
     void connection.init();
+
+    // Surface refresh (Cmd+R): re-fetch the skill catalog. Filters,
+    // sort, view-mode, and any open drawer remain in place — only the
+    // underlying list reloads.
+    surfaceRefresh.register(async () => {
+      await loadSkills();
+    });
   });
+
+  // Release the registration when the route unmounts.
+  onDestroy(() => surfaceRefresh.unregister());
 
   async function loadSkills() {
     const client = connection.client;

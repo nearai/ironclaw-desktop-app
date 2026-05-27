@@ -34,6 +34,7 @@
   import { saveSettings } from '$lib/stores/settings.svelte';
   import { pins, type PinSurface } from '$lib/stores/pins.svelte';
   import { presetsModal } from '$lib/stores/presets.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import type { Extension, MemoryNode, Routine, Skill, Thread } from '$lib/api/types';
 
   // -- types ----------------------------------------------------------------
@@ -513,6 +514,32 @@
     }
   }
 
+  /**
+   * Copy `window.location.href` to the clipboard. Surfaces a toast on
+   * success or failure. Mirrors the layout-level helper so the Cmd+L
+   * palette action takes the same code path as the global chord.
+   * Kept distinct from `copyText` because the success toast wording
+   * differs ("Link copied." vs "<label> copied to clipboard.") to
+   * match the layout-level chord's UX exactly.
+   */
+  async function copyCurrentUrl(): Promise<void> {
+    if (
+      typeof window === 'undefined' ||
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard ||
+      typeof navigator.clipboard.writeText !== 'function'
+    ) {
+      toasts.show('Copy failed', 'error');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toasts.show('Link copied.', 'success');
+    } catch {
+      toasts.show('Copy failed', 'error');
+    }
+  }
+
   async function copyText(value: string, label: string, warn = false) {
     if (
       typeof navigator === 'undefined' ||
@@ -553,6 +580,50 @@
       const token = connection.token ?? '';
 
       const rows: Array<Item | null> = [
+        // Reload current surface — Cmd+R chord. Closes the palette
+        // first so the post-refresh toast lands cleanly. Falls through
+        // silently when the active route hasn't registered a refresh
+        // handler (rare; only between route transitions).
+        {
+          id: 'action:reload-surface',
+          category: 'Actions' as const,
+          label: 'Reload current surface',
+          subtitle: 'Refetch data for this view',
+          icon: 'refresh' as const,
+          keywords: [
+            'reload',
+            'refresh',
+            'refetch',
+            'surface',
+            'current',
+            'view'
+          ],
+          keybind: '⌘R',
+          run: () => {
+            palette.closePalette();
+            void surfaceRefresh.invoke().then((fired) => {
+              if (fired) toasts.show('Refreshed.', 'info');
+            });
+          }
+        },
+        // Copy a link to this view — Cmd+L chord. Captures the full URL
+        // including any deep-link query params or hash so the recipient
+        // lands on the exact same view. Tauri owns the URL bar (it's
+        // not user-visible), so this is the only way for the user to
+        // grab the link to send to a teammate / paste into a doc.
+        {
+          id: 'action:copy-link',
+          category: 'Actions' as const,
+          label: 'Copy link to this view',
+          subtitle: 'Includes query params and hash',
+          icon: 'copy' as const,
+          keywords: ['copy', 'link', 'url', 'deep', 'share', 'view'],
+          keybind: '⌘L',
+          run: () => {
+            palette.closePalette();
+            void copyCurrentUrl();
+          }
+        },
         // Cross-surface search — opens the GlobalSearch modal. Always
         // available; closes the palette first so the search modal lands
         // on a clean chrome (otherwise its backdrop sits underneath the

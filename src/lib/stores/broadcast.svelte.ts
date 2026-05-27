@@ -62,6 +62,15 @@
 //     remote mode), so receivers ignore this. Kept in the union for
 //     a future "another window already has the sidecar up, link to
 //     it" UX.
+//
+//   - `thread-rename` — fired when any window sets / clears a custom
+//     thread title in the local-only `threadRename` store. The gateway
+//     does not expose a rename endpoint (404 as of v0.29.0); the
+//     override is purely client-side. `title === null` means "unset
+//     the override on this thread, fall back to the server's title".
+//     Receivers apply the change to their own `threadRename` store
+//     without re-emitting so multi-window users see the rename
+//     everywhere within the channel's delivery latency.
 
 import type { ConnectionStatus, SidecarStatus } from './connection.svelte';
 
@@ -80,7 +89,14 @@ export type SyncMessage =
   | { kind: 'profile-switched'; profileId: string }
   | { kind: 'notification-seen' }
   | { kind: 'connection-event'; status: ConnectionStatus }
-  | { kind: 'sidecar-status'; status: SidecarStatus };
+  | { kind: 'sidecar-status'; status: SidecarStatus }
+  | {
+      kind: 'thread-rename';
+      threadId: string;
+      /** Post-mutation title for the override, or `null` to clear the
+       *  override and revert to the server's title. */
+      title: string | null;
+    };
 
 /** What actually goes over the wire — `SyncMessage` plus the sender id
  *  used for loop prevention. */
@@ -228,6 +244,18 @@ class BroadcastStore {
         // Each window owns its own gateway/sidecar lifecycle; peers
         // do not mirror these. Kept reachable so a future cross-
         // window status indicator has a hook ready.
+        return;
+      }
+      case 'thread-rename': {
+        try {
+          const mod = await import('./thread-rename.svelte');
+          // `applyRemote` is deliberately separate from `set` / `unset`
+          // so the receive path doesn't re-broadcast — belt-and-braces
+          // with the senderId loop guard above.
+          mod.threadRename.applyRemote(msg.threadId, msg.title);
+        } catch (err) {
+          console.warn('broadcast: thread-rename handler failed', err);
+        }
         return;
       }
     }

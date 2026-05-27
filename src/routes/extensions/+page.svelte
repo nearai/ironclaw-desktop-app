@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { pins } from '$lib/stores/pins.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import type { Extension, ExtensionTool } from '$lib/api/types';
   import ExtensionCard from './ExtensionCard.svelte';
   import SetupDrawer from './SetupDrawer.svelte';
@@ -281,8 +282,21 @@
     // doesn't race with a URL-param mutation from elsewhere.
     pendingFocusName = page.url.searchParams.get('focus');
     void connection.init();
+
+    // Surface refresh (Cmd+R): reload installed + readiness + tools and
+    // the registry view in parallel. Mirrors the post-install hook that
+    // refetches everything so the user gets a fully fresh page.
+    surfaceRefresh.register(async () => {
+      await Promise.all([loadInstalled(), loadRegistry()]);
+    });
+
     return () => stopRefresh();
   });
+
+  // Release the surface-refresh registration when the route unmounts.
+  // The interval cleanup above already runs via the onMount return; we
+  // keep that path untouched and only add the unregister here.
+  onDestroy(() => surfaceRefresh.unregister());
 
   /**
    * Try to satisfy the `?focus=<name>` deep-link against whatever lists

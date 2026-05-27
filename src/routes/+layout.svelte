@@ -26,7 +26,9 @@
   import { aboutStore } from '$lib/stores/about.svelte';
   import { broadcast } from '$lib/stores/broadcast.svelte';
   import { pins } from '$lib/stores/pins.svelte';
+  import { threadRename } from '$lib/stores/thread-rename.svelte';
   import { presets, presetsModal } from '$lib/stores/presets.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
 
   let { children } = $props();
 
@@ -91,6 +93,30 @@
     return false;
   }
 
+  /**
+   * Copy `window.location.href` to the clipboard. Surfaces a toast on
+   * success or failure. Pulled out of the keydown handler so the
+   * command-palette action can call the same path without duplicating
+   * the clipboard / toast logic.
+   */
+  async function copyCurrentUrl(): Promise<void> {
+    if (
+      typeof window === 'undefined' ||
+      typeof navigator === 'undefined' ||
+      !navigator.clipboard ||
+      typeof navigator.clipboard.writeText !== 'function'
+    ) {
+      toasts.show('Copy failed', 'error');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toasts.show('Link copied.', 'success');
+    } catch {
+      toasts.show('Copy failed', 'error');
+    }
+  }
+
   function onWindowKeyDown(e: KeyboardEvent) {
     const mod = e.metaKey || e.ctrlKey;
 
@@ -138,6 +164,37 @@
     if (mod && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       palette.togglePalette();
+      return;
+    }
+
+    // Cmd+R → surface refresh. Each route registers a refresh closure on
+    // mount via `surfaceRefresh.register(...)`; this handler invokes
+    // whichever closure is currently registered. We deliberately do NOT
+    // trap Cmd+Shift+R — the browser reserves that for a hard reload
+    // (which in Tauri's webview is a no-op anyway, but the keystroke
+    // shouldn't surface a confusing "Refreshed." toast either).
+    //
+    // Suppressed on the onboarding takeover so the wizard owns the
+    // screen; the user has nothing to refresh until they finish setup.
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'r' && !isOnboarding) {
+      e.preventDefault();
+      void surfaceRefresh.invoke().then((fired) => {
+        if (fired) toasts.show('Refreshed.', 'info');
+      });
+      return;
+    }
+
+    // Cmd+L → copy deep-link to the current view. Always copies the
+    // full URL including search params and hash so a route that uses
+    // ?path=, ?open=, ?focus=, or #section deep-links round-trips
+    // through paste correctly. Tauri owns the URL bar (it's not user-
+    // visible), so this chord doesn't conflict with anything native.
+    //
+    // Suppressed on the onboarding takeover for the same reason as
+    // Cmd+R — the wizard URL isn't a meaningful deep-link target.
+    if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'l' && !isOnboarding) {
+      e.preventDefault();
+      void copyCurrentUrl();
       return;
     }
 
@@ -250,6 +307,10 @@
     // we want it done before any surface mounts so the first render
     // shows the user's saved pins without a flash of empty stars.
     pins.init();
+    // Same shape for the local-only thread rename overlay — hydrate
+    // before the chat surface mounts so renamed thread titles render
+    // immediately instead of flashing the server's title on first paint.
+    threadRename.init();
     // Same shape for the workspace-presets store — hydrate once so the
     // first open of the modal (Cmd+Shift+P or palette action) sees the
     // user's saved list without a flash of empty state.

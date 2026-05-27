@@ -4,7 +4,7 @@
   // the `messages` store and reconciles with /api/chat/history once a stream
   // completes.
 
-  import { onMount, tick, untrack } from 'svelte';
+  import { onDestroy, onMount, tick, untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
@@ -14,6 +14,9 @@
   import { toasts } from '$lib/stores/toasts.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { pins } from '$lib/stores/pins.svelte';
+  import { threadRename } from '$lib/stores/thread-rename.svelte';
+  import { slashUsage } from '$lib/stores/slash-usage.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { windowFocus } from '$lib/stores/window-focus.svelte';
   import { loadSettings } from '$lib/stores/settings.svelte';
   import {
@@ -77,6 +80,17 @@
   let rightRailOpen = $state(false);
   let renaming = $state(false);
   let titleDraft = $state('');
+  // Right-click kebab menu next to the title — currently a single
+  // "Revert to server title" action. The dropdown closes on outside
+  // click and Escape via the effect below.
+  let renameMenuOpen = $state(false);
+  let renameMenuButtonEl = $state<HTMLButtonElement | null>(null);
+  let renameMenuEl = $state<HTMLDivElement | null>(null);
+  // First-use tooltip for the rename input. Hydrated from the rename
+  // store's localStorage flag on mount so a dismissal in a previous
+  // session sticks. Set false the moment the user dismisses it (or
+  // commits a rename) and persisted via `threadRename.markTooltipSeen`.
+  let showRenameTooltip = $state(false);
   let expandedTools = $state<Record<string, boolean>>({});
   let retryingIds = $state<Record<string, boolean>>({});
 
@@ -519,6 +533,26 @@
     // the catalog lands, and re-fetches are skipped via the loaded flag.
     void loadSkillCatalog();
 
+    // Hydrate the slash-usage store so the autocomplete's "recently
+    // used" ranking is in place on the first dropdown render. Cheap
+    // localStorage read; the root layout hydrates other stores there,
+    // but this one is only consumed inside the chat composer so we
+    // keep it scoped to this mount.
+    slashUsage.init();
+
+    // Surface refresh (Cmd+R): refetch the thread list and, if a thread
+    // is selected, its full message history. Mirrors what `boot()` does
+    // post-init minus the deep-link consumption (we're not navigating).
+    // Errors surface through the existing toast paths inside
+    // `threads.loadThreads()` and `messages.loadHistory()`.
+    surfaceRefresh.register(async () => {
+      if (!connection.client) return;
+      await threads.loadThreads();
+      if (threads.currentId) {
+        await messages.loadHistory(threads.currentId);
+      }
+    });
+
     // Cmd/Ctrl+F → open find bar. Captured at the document level so the
     // shortcut still fires when focus is in the textarea or any sidebar
     // control. We swallow the event so the browser's native find doesn't
@@ -556,6 +590,10 @@
       }
     };
   });
+
+  // Release the surface-refresh registration on unmount so the layout's
+  // Cmd+R falls through to a no-op until the next route registers.
+  onDestroy(() => surfaceRefresh.unregister());
 
   async function loadSkillCatalog(): Promise<void> {
     if (skillCatalogLoaded) return;
@@ -1084,6 +1122,27 @@
     const pendingAttachments = attachments;
     if (!content && pendingAttachments.length === 0) return;
 
+    // Record slash-command usage so the autocomplete's ranking floats
+    // frequently-run skills upward. We match a leading `/<token>` and
+    // only record when the captured name resolves against the cached
+    // skill catalog — a stray `/draft` typed for prose shouldn't count
+    // as a skill invocation. Best-effort: failures are swallowed so a
+    // store error can't block the actual send.
+    if (content) {
+      const slashMatch = /^\/(\S+)/u.exec(content);
+      if (slashMatch) {
+        const skillName = slashMatch[1];
+        const known = skillCatalog.some((s) => s.name === skillName);
+        if (known) {
+          try {
+            slashUsage.record(skillName);
+          } catch {
+            // Non-fatal — usage ranking is a UX nicety, not a send blocker.
+          }
+        }
+      }
+    }
+
     sending = true;
     try {
       // Auto-create a thread if none is selected.
@@ -1405,10 +1464,23 @@
   }
 
   // -- title rename ----------------------------------------------------------
+  // The IronClaw gateway does not expose `PATCH /api/chat/threads/{id}`
+  // as of v0.29.0 — R22a smoke confirms a 404. The rename surface here
+  // is a client-side overlay: we stash custom titles in the
+  // `threadRename` store (localStorage, BroadcastChannel-synced across
+  // sibling windows) and render via `threadRename.displayTitle(id,
+  // serverTitle)` everywhere a thread title appears.
   function startRename() {
     if (!currentThread) return;
-    titleDraft = currentThread.title;
+    // Seed the input with the CURRENTLY DISPLAYED title — including any
+    // existing local override — so the user can refine an earlier rename
+    // instead of typing the server title from scratch.
+    titleDraft = threadRename.displayTitle(currentThread.id, currentThread.title);
     renaming = true;
+    renameMenuOpen = false;
+    // Show the local-only tooltip on first rename ever. The seen flag
+    // is persisted across windows so dismissing it once is enough.
+    showRenameTooltip = threadRename.isTooltipUnseen();
   }
 
   function commitRename() {
@@ -1417,16 +1489,66 @@
       return;
     }
     const next = titleDraft.trim();
-    if (next && next !== currentThread.title) {
-      // Local-only: gateway has no rename endpoint in v0.29.0.
-      threads.renameLocal(currentThread.id, next);
+    const currentDisplay = threadRename.displayTitle(currentThread.id, currentThread.title);
+    if (next === '' || next === (currentThread.title ?? '').trim()) {
+      // Empty input or back-to-server value → drop the override entirely
+      // so the title reverts to whatever the server hands us next.
+      if (threadRename.has(currentThread.id)) {
+        threadRename.unset(currentThread.id);
+        toasts.show('Reverted to server title', 'info');
+      }
+    } else if (next !== currentDisplay) {
+      threadRename.set(currentThread.id, next);
+      toasts.show('Thread renamed (local to this device)', 'success');
     }
     renaming = false;
+    dismissRenameTooltip();
   }
 
   function cancelRename() {
     renaming = false;
+    dismissRenameTooltip();
   }
+
+  /** Drop the local override and revert to the server's title. Wired
+   *  into the kebab menu next to the chat header. No-op when there is
+   *  no override to clear. */
+  function revertRename() {
+    renameMenuOpen = false;
+    if (!currentThread) return;
+    if (!threadRename.has(currentThread.id)) return;
+    threadRename.unset(currentThread.id);
+    toasts.show('Reverted to server title', 'info');
+  }
+
+  function dismissRenameTooltip() {
+    if (!showRenameTooltip) return;
+    showRenameTooltip = false;
+    threadRename.markTooltipSeen();
+  }
+
+  // Outside-click + Esc handling for the kebab menu next to the rename
+  // title. Mirrors the export popover's pattern — bind on the document
+  // because the menu is anchor-positioned outside the button's subtree.
+  $effect(() => {
+    if (!renameMenuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (renameMenuEl && renameMenuEl.contains(target)) return;
+      if (renameMenuButtonEl && renameMenuButtonEl.contains(target)) return;
+      renameMenuOpen = false;
+    };
+    const onDocKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') renameMenuOpen = false;
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onDocKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onDocKey);
+    };
+  });
 
   // -- export ----------------------------------------------------------------
   // Per-thread export from the chat header. The popover anchors to the
@@ -1934,6 +2056,8 @@
           {#each sortedThreads as t (t.id)}
             {@const active = t.id === currentId}
             {@const isPinned = pins.isPinned('thread', t.id)}
+            {@const isRenamed = threadRename.has(t.id)}
+            {@const displayTitle = threadRename.displayTitle(t.id, t.title)}
             <!-- Group wrapper exposes the pin star on hover (and always
                  when pinned). Active thread gets the surface bg via
                  group-aware classes so the pin button visually inherits
@@ -1953,7 +2077,10 @@
                 class:hover:bg-bg-surface={!active}
                 class:hover:text-text-primary={!active}
               >
-                <span class="truncate block">{t.title || 'Untitled'}</span>
+                <span class="truncate block">
+                  {displayTitle}
+                  {#if isRenamed}<span class="text-accent-gold text-[10px] ml-1" title="Locally renamed">✏</span>{/if}
+                </span>
                 <span class="text-[10px] text-text-muted">{relativeTime(t.updated_at)}</span>
               </button>
               <!-- Pin star — absolutely positioned over the row's right
@@ -1966,10 +2093,10 @@
                 type="button"
                 onclick={(e) => {
                   e.stopPropagation();
-                  pins.toggle('thread', t.id, t.title || 'Untitled');
+                  pins.toggle('thread', t.id, displayTitle);
                 }}
                 title={isPinned ? 'Unpin this thread' : 'Pin this thread'}
-                aria-label={isPinned ? `Unpin ${t.title || 'Untitled'}` : `Pin ${t.title || 'Untitled'}`}
+                aria-label={isPinned ? `Unpin ${displayTitle}` : `Pin ${displayTitle}`}
                 aria-pressed={isPinned}
                 class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-6 h-6 rounded transition-opacity hover:bg-bg-deep"
                 class:opacity-100={isPinned}
@@ -2014,6 +2141,8 @@
           {#each threadWindow.items as row (row.thread.id)}
             {@const active = row.thread.id === currentId}
             {@const isPinned = pins.isPinned('thread', row.thread.id)}
+            {@const isRenamed = threadRename.has(row.thread.id)}
+            {@const displayTitle = threadRename.displayTitle(row.thread.id, row.thread.title)}
             <li class="group relative" style="height: {THREAD_ITEM_HEIGHT}px;">
               <button
                 type="button"
@@ -2029,17 +2158,20 @@
                 class:hover:bg-bg-surface={!active}
                 class:hover:text-text-primary={!active}
               >
-                <span class="truncate block">{row.thread.title || 'Untitled'}</span>
+                <span class="truncate block">
+                  {displayTitle}
+                  {#if isRenamed}<span class="text-accent-gold text-[10px] ml-1" title="Locally renamed">✏</span>{/if}
+                </span>
                 <span class="text-[10px] text-text-muted">{relativeTime(row.thread.updated_at)}</span>
               </button>
               <button
                 type="button"
                 onclick={(e) => {
                   e.stopPropagation();
-                  pins.toggle('thread', row.thread.id, row.thread.title || 'Untitled');
+                  pins.toggle('thread', row.thread.id, displayTitle);
                 }}
                 title={isPinned ? 'Unpin this thread' : 'Pin this thread'}
-                aria-label={isPinned ? `Unpin ${row.thread.title || 'Untitled'}` : `Pin ${row.thread.title || 'Untitled'}`}
+                aria-label={isPinned ? `Unpin ${displayTitle}` : `Pin ${displayTitle}`}
                 aria-pressed={isPinned}
                 class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-6 h-6 rounded transition-opacity hover:bg-bg-deep"
                 class:opacity-100={isPinned}
@@ -2091,33 +2223,147 @@
     <header
       class="h-12 shrink-0 px-5 flex items-center justify-between border-b border-border-subtle bg-bg-base/40"
     >
-      <div class="flex items-center gap-3 min-w-0 flex-1">
+      <div class="flex items-center gap-2 min-w-0 flex-1">
         {#if currentThread}
           {#if renaming}
-            <input
-              type="text"
-              bind:value={titleDraft}
-              onblur={commitRename}
-              onkeydown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  commitRename();
-                } else if (e.key === 'Escape') {
-                  cancelRename();
-                }
-              }}
-              class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1 text-sm text-text-primary focus:outline-none focus:border-accent-cyan w-full max-w-md"
-              aria-label="Rename thread"
-            />
+            <!--
+              Inline rename input. Double-click on the title opens this;
+              Enter commits, Esc cancels, blur commits (same UX as the
+              prior single-click flow). Tooltip surface to the right
+              explains the local-only constraint on first use.
+            -->
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <input
+                type="text"
+                bind:value={titleDraft}
+                onblur={commitRename}
+                onkeydown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    commitRename();
+                  } else if (e.key === 'Escape') {
+                    cancelRename();
+                  }
+                }}
+                class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1 text-sm text-text-primary focus:outline-none focus:border-accent-cyan w-full max-w-md"
+                aria-label="Rename thread"
+              />
+              {#if showRenameTooltip}
+                <div class="relative flex-shrink-0">
+                  <button
+                    type="button"
+                    onclick={dismissRenameTooltip}
+                    aria-label="Dismiss rename tooltip"
+                    class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono text-text-muted border border-border-subtle hover:text-accent-cyan hover:border-accent-cyan transition-colors"
+                  >
+                    ?
+                  </button>
+                  <!--
+                    Anchored tooltip. We render it inline (rather than via
+                    `title=`) so the copy is visible without a hover delay
+                    on first use — discoverability is the whole point of
+                    the affordance. Click to dismiss.
+                  -->
+                  <div
+                    role="tooltip"
+                    class="absolute right-0 top-full mt-1 z-30 w-64 rounded-md border border-border-subtle bg-bg-deep text-xs text-text-muted shadow-lg p-2"
+                  >
+                    Renames are local to this device. The server doesn't
+                    support thread renaming yet.
+                  </div>
+                </div>
+              {/if}
+            </div>
           {:else}
+            <!--
+              Title row: double-click opens the inline rename, right-click
+              opens the kebab menu. We render a `<button>` for the title
+              so keyboard users can still focus + activate it; Enter on
+              the focused title also opens the rename input.
+            -->
             <button
               type="button"
-              onclick={startRename}
-              class="text-sm font-medium text-text-primary truncate hover:text-accent-cyan transition-colors text-left"
-              title="Click to rename"
+              ondblclick={startRename}
+              onkeydown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  startRename();
+                }
+              }}
+              oncontextmenu={(e) => {
+                e.preventDefault();
+                renameMenuOpen = !renameMenuOpen;
+              }}
+              class="text-sm font-medium text-text-primary truncate hover:text-accent-cyan transition-colors text-left min-w-0"
+              title="Double-click to rename · right-click for options"
             >
-              {currentThread.title || 'Untitled'}
+              {threadRename.displayTitle(currentThread.id, currentThread.title)}
             </button>
+            {#if threadRename.has(currentThread.id)}
+              <!--
+                "Renamed" indicator. Sits to the right of the title so the
+                user can see at a glance which threads carry a local
+                override. The pencil glyph matches the affordance copy
+                in `title=` on the title button.
+              -->
+              <span
+                aria-label="Locally renamed"
+                title="Locally renamed (this device only)"
+                class="text-[10px] text-accent-gold flex-shrink-0 select-none"
+              >
+                ✏
+              </span>
+            {/if}
+            <!--
+              Kebab menu — single action ("Revert to server title") for
+              now. Triggers via the chevron OR the right-click handler
+              on the title button above. The dropdown auto-closes on
+              outside click and Esc (effect wired in the script).
+            -->
+            <div class="relative flex-shrink-0">
+              <button
+                type="button"
+                bind:this={renameMenuButtonEl}
+                onclick={() => (renameMenuOpen = !renameMenuOpen)}
+                class="p-1 rounded text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors"
+                aria-haspopup="menu"
+                aria-expanded={renameMenuOpen}
+                aria-label="Thread title options"
+                title="Thread title options"
+              >
+                <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="5" r="1" />
+                  <circle cx="12" cy="12" r="1" />
+                  <circle cx="12" cy="19" r="1" />
+                </svg>
+              </button>
+              {#if renameMenuOpen}
+                <div
+                  bind:this={renameMenuEl}
+                  class="absolute left-0 top-full mt-1 z-20 min-w-[200px] rounded-md border border-border-subtle bg-bg-deep shadow-lg overflow-hidden"
+                  role="menu"
+                  aria-label="Thread title options"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={startRename}
+                    class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors"
+                  >
+                    Rename
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={revertRename}
+                    disabled={!threadRename.has(currentThread.id)}
+                    class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Revert to server title
+                  </button>
+                </div>
+              {/if}
+            </div>
           {/if}
         {:else}
           <span class="text-sm text-text-muted">No conversation selected</span>

@@ -5,6 +5,7 @@
   import type { Job, JobSummary } from '$lib/api/types';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import JobDetailPanel from './JobDetailPanel.svelte';
   // Routines ship the same relative-time helper we want; we IMPORT (per the
   // file-scope constraint we don't modify other routes).
@@ -208,6 +209,13 @@
       if (selectedId !== null) return;
       void refresh({ silent: true });
     }, POLL_INTERVAL_MS);
+
+    // Surface refresh (Cmd+R): visible refresh of the job list. Unlike
+    // the poll, this fires even with a detail panel open — the user
+    // explicitly asked for fresh data, so reorder is acceptable.
+    surfaceRefresh.register(async () => {
+      await refresh();
+    });
   });
 
   /**
@@ -241,6 +249,7 @@
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
     if (debounceTimer) clearTimeout(debounceTimer);
+    surfaceRefresh.unregister();
   });
 
   // Debounce the search input (250ms — matches /routines, /extensions).

@@ -13,7 +13,7 @@
   //   6. About + manual update check + bulk export + notifications +
   //      re-run onboarding.
 
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { invoke } from '@tauri-apps/api/core';
@@ -53,6 +53,7 @@
   } from '$lib/stores/settings.svelte';
   import { connection, type SidecarStatus } from '$lib/stores/connection.svelte';
   import { signIn } from '$lib/stores/sign-in.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { relativeTime, updater, type UpdaterCadence } from '$lib/stores/updater.svelte';
   import {
@@ -298,7 +299,19 @@
       const el = document.getElementById('profiles');
       el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+
+    // Surface refresh (Cmd+R): re-scan Keychain for every profile so
+    // the "Token: set / missing" badges reflect any external change
+    // (e.g. user edited Keychain in a separate app). Cheap parallel
+    // IPC; errors surface inside the helper.
+    surfaceRefresh.register(async () => {
+      await refreshAllProfileTokenStatus();
+    });
   });
+
+  // Release the surface-refresh registration on unmount. Top-level
+  // onDestroy so it pairs cleanly with the async onMount above.
+  onDestroy(() => surfaceRefresh.unregister());
 
   // Tick the "Checked N minutes ago" label once a minute. Lives as a
   // top-level $effect so the cleanup is registered synchronously

@@ -30,6 +30,7 @@
   import { threadSwitcher } from '$lib/stores/thread-switcher.svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { resolveTint } from '$lib/stores/settings.svelte';
+  import { threadRename } from '$lib/stores/thread-rename.svelte';
   import type { Thread } from '$lib/api/types';
 
   // -- types ----------------------------------------------------------------
@@ -113,9 +114,15 @@
         thread: t,
         recentTs: recentTsById[t.id] ?? null
       }));
+      // Filter on the DISPLAY title (rename overlay wins over server
+      // title) so a user who renamed "untitled chat" to "Tax research"
+      // can still find it by typing "tax".
       const matched = needle
         ? rows.filter((r) =>
-            (r.thread.title || 'Untitled thread').toLowerCase().includes(needle)
+            threadRename
+              .displayTitle(r.thread.id, r.thread.title || 'Untitled thread')
+              .toLowerCase()
+              .includes(needle)
           )
         : rows;
       return matched.sort((a, b) => {
@@ -373,7 +380,11 @@
                 {#each section.rows as row (row.thread.id)}
                   {@const idx = flatIndexById[row.thread.id]}
                   {@const active = idx === activeIndex}
-                  {@const title = row.thread.title || 'Untitled thread'}
+                  {@const title = threadRename.displayTitle(
+                    row.thread.id,
+                    row.thread.title || 'Untitled thread'
+                  )}
+                  {@const renamed = threadRename.has(row.thread.id)}
                   {@const count = row.thread.message_count ?? 0}
                   {@const relTime = relativeTime(row.thread.updated_at)}
                   <!-- svelte-ignore a11y_click_events_have_key_events -->
@@ -415,6 +426,18 @@
                             <span>{seg.text}</span>
                           {/if}
                         {/each}
+                        {#if renamed}
+                          <!-- Locally-renamed indicator. Matches the chat
+                               header and rail affordance so users see the
+                               override status everywhere a title surfaces. -->
+                          <span
+                            class="text-accent-gold text-[10px] ml-1 align-middle"
+                            title="Locally renamed"
+                            aria-label="Locally renamed"
+                          >
+                            ✏
+                          </span>
+                        {/if}
                       </span>
                       <span
                         class="text-xs text-text-muted/70 truncate block mt-0.5"

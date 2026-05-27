@@ -12,11 +12,12 @@
   // localStorage. Storage failures degrade silently — the page works in
   // private-browsing mode, just without persistence.
 
-  import { onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import type { IronClawClient } from '$lib/api/ironclaw';
   import type { MemoryHit, MemoryNode } from '$lib/api/types';
   import TreeNode from './TreeNode.svelte';
@@ -199,7 +200,18 @@
     // Clear the deep-link param either way so a refresh doesn't keep
     // re-opening it and so Back doesn't return to the param-laden URL.
     if (deepLinkPath) clearPathParam();
+
+    // Surface refresh (Cmd+R): reload the knowledge tree root. Tree-node
+    // expansion state lives inside each TreeNode and isn't touched here,
+    // so an expanded subtree stays expanded across a refresh — the user
+    // gets fresh root-level data without losing their place.
+    surfaceRefresh.register(async () => {
+      await loadRoot();
+    });
   });
+
+  // Release the registration when the route unmounts.
+  onDestroy(() => surfaceRefresh.unregister());
 
   /**
    * Strip the `?path=<encoded>` query param from the URL without

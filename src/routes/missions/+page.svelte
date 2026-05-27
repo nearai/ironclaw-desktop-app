@@ -22,6 +22,7 @@
   import type { EngineMission, EngineProject, EngineThread } from '$lib/api/types';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import MissionDetail from './MissionDetail.svelte';
   import ResizeHandle from '$lib/components/ResizeHandle.svelte';
 
@@ -197,6 +198,13 @@
     viewportWidth = window.innerWidth;
     window.addEventListener('resize', onResize);
     viewportResizeCleanup = () => window.removeEventListener('resize', onResize);
+
+    // Surface refresh (Cmd+R): reload missions + projects together via
+    // the existing refresh() (non-silent so the Refreshing… affordance
+    // on the existing button label is visible for the same beat).
+    surfaceRefresh.register(async () => {
+      await refresh();
+    });
   });
 
   /** Cleanup hook for the window resize listener wired in onMount. Stored
@@ -206,6 +214,7 @@
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
     if (viewportResizeCleanup) viewportResizeCleanup();
+    surfaceRefresh.unregister();
   });
 
   async function refresh(opts: { silent?: boolean } = {}): Promise<void> {

@@ -1,5 +1,74 @@
 # Changelog
 
+## v0.2.0 — First signed release (Round 24 polish + updater signing)
+
+First release with a signed updater pipeline. Pubkey baked into
+`tauri.conf.json`; `TAURI_SIGNING_PRIVATE_KEY` +
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` set as GitHub Actions secrets so
+the release workflow produces signed `.app.tar.gz` + `.sig` artifacts
+alongside the DMGs.
+
+- **Cmd+R reload + Cmd+L copy** (24a) — global shortcuts: Cmd+R reloads
+  the current route via `goto(currentPath, { invalidateAll: true })`;
+  Cmd+L copies the focused message or current visible chat content to
+  the clipboard. Both wired through the layout-level keyboard handler;
+  no conflicts with existing palette/thread/preset shortcuts.
+- **Slash autocomplete usage ranking** (24b) — `SlashAutocomplete`
+  now consults a new `slash-usage.svelte.ts` store that tracks
+  per-command invocation counts in localStorage. Matches are sorted
+  by (recency-weighted) usage first, then alphabetically. Boosts
+  high-frequency commands to the top of the picker without breaking
+  prefix-match semantics. Test coverage: `slash-usage.test.ts` with
+  cases for fresh store, counter increment, recency decay, and
+  storage corruption fallback.
+- **Playwright E2E** (24c) — `playwright.config.ts` + first
+  `tests/e2e/` suite covering: app launch, sidebar nav across all
+  surfaces, command palette open/close, slash autocomplete, thread
+  switch. New `.github/workflows/e2e.yml` runs the suite on PRs.
+- **Inline thread rename** (24e) — `ThreadSwitcher` gains
+  double-click-to-rename on each row. New `thread-rename.svelte.ts`
+  store handles in-flight edits with debounced persistence and
+  cross-tab broadcast via `BroadcastChannel`. Esc cancels, Enter
+  commits, blur commits. `thread-rename.test.ts` covers commit,
+  cancel, validation (empty/whitespace rejected), and broadcast.
+- **Signing pipeline** — `scripts/generate-updater-key.sh` produces
+  the minisign keypair locally; pubkey lives in
+  `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`; private
+  key never leaves `~/.tauri/`. CI consumes the key via repo secrets.
+
+## v0.1.16 — Round 23 (env_logger + CSP + composite tray + import UX)
+
+Four of the audit v3 v0.2/1.0 recommendations landed:
+
+- **env_logger init** (23a / R22b fix) — added `env_logger = "0.11"`
+  + 9 log statements at meaningful checkpoints (startup with version,
+  sidecar spawn/health/stop, keychain access slot name without
+  values, tray registration, window-close/exit hooks). Default
+  filter `ironclaw_desktop_lib=info,warn`; override via
+  `RUST_LOG=debug npm run tauri dev`. Sidecar passthrough + tray
+  errors + keychain failures now reach stdout. Closes R22b's
+  "real bugs invisible until you wire env_logger" gap.
+- **Restrictive CSP** (23b) — replaced `app.security.csp: null` with
+  explicit policy covering 10 directives. Highlights: script-src
+  bans inline + eval (the meaningful XSS guard), object-src/frame-
+  src 'none' blocks plugins + iframes, base-uri 'self' blocks
+  `<base>` rewrite. Looseness documented: connect-src `http://*
+  https://*` is unavoidable until gateway URLs route through Rust
+  proxy; style-src 'unsafe-inline' is required by Svelte 5 scoped
+  CSS. ARCHITECTURE.md updated with the policy + reasoning.
+- **Composite tray icons option-B** (23c) — replaced `set_title` text
+  badge with 33 pre-rendered PNG composites (3 status colors ×
+  11 count buckets: 0/1/2/3/4/5/6/7/8/9/9plus). Build script
+  extends `build_tray_icons.py`. New `update_status_and_count` IPC.
+  Rust caches both fields so a status flip preserves the count badge
+  and vice versa. Binary embed via `include_bytes!` costs ~29KB.
+- **Settings export/import UX** (23d) — four improvements: gold inline
+  banner above Export/Import flagging that tokens aren't included;
+  per-profile token badge ("Token: set" / "Token: missing", clickable
+  to switch + focus the token input); welcome-back banner at top when
+  active profile lacks token; post-import success modal listing each
+  imported profile and the specific credentials it needs.
+
 ## v0.1.15 — Round 21 (snapshot tests + onboarding tint + profile reorder)
 
 - **Snapshot tests** (21a) — 6 new test files producing 18 DOM snapshots

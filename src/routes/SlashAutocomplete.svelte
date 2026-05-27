@@ -14,6 +14,15 @@
 
   import { untrack } from 'svelte';
   import type { Skill } from '$lib/api/types';
+  import { slashUsage } from '$lib/stores/slash-usage.svelte';
+
+  /**
+   * Weight applied to the usage score when blending with the
+   * subsequence match rank. Picked so a frequently-run skill bubbles
+   * up among ties but a tight prefix match still wins. Tune here if
+   * the dropdown feels too "sticky" on history.
+   */
+  const USAGE_WEIGHT = 0.5;
 
   interface Props {
     /** Composer textarea — used to anchor the dropdown above its top edge. */
@@ -97,8 +106,14 @@
     label: string;
     /** Highlighted indices on the label. */
     labelMatches: number[];
-    /** Quick rank — lower is better. */
+    /** Match-tightness rank — lower is better (rooted in `rankMatch`). */
     rank: number;
+    /** Raw usage score from the slash-usage store; 0 when never run. */
+    usageScore: number;
+    /** Blended sort key — lower wins. Combines `rank` with a usage
+     *  bonus so a frequently-run skill floats over a marginally
+     *  tighter subsequence match. */
+    sortKey: number;
   }
 
   function rankMatch(
@@ -136,6 +151,17 @@
     return best ? { matches: best.matches, rank: best.rank } : { matches: null, rank: 0 };
   }
 
+  // Note on the blended sort key:
+  // - `rank` is "lower is better" (a tightness metric from
+  //   `rankMatch`, scaled by a prefixBonus).
+  // - `usageScore` is "higher is better" (count × recency from the
+  //   slash-usage store).
+  // The brief spec writes the blend in higher-is-better terms
+  // (`usageScore * 0.5 + matchScore * 1.0`). We invert by SUBTRACTING
+  // the weighted usage score from rank so the existing "lower wins"
+  // sort still does the right thing — skills with no usage history
+  // see no penalty (sortKey == rank) and frequently-run skills nudge
+  // upward as their usage score grows.
   const matches = $derived<Match[]>(
     !token
       ? []
@@ -144,10 +170,12 @@
             const label = s.usage_hint && s.usage_hint.startsWith('/') ? s.usage_hint : `/${s.name}`;
             const { matches: m, rank } = rankMatch(label, s.name, token.query);
             if (m === null) return null;
-            return { skill: s, label, labelMatches: m, rank };
+            const usageScore = slashUsage.score(s.name);
+            const sortKey = rank - usageScore * USAGE_WEIGHT;
+            return { skill: s, label, labelMatches: m, rank, usageScore, sortKey };
           })
           .filter((m): m is Match => m !== null)
-          .sort((a, b) => a.rank - b.rank)
+          .sort((a, b) => a.sortKey - b.sortKey)
           .slice(0, 8)
   );
 
@@ -277,6 +305,14 @@
       {#each matches as m, i (m.skill.name)}
         {@const isActive = i === active}
         {@const segs = highlightSegments(m.label, m.labelMatches)}
+        <!--
+          "recent" badge — surfaces on the FIRST result with a non-zero
+          usage score so the user has a subtle cue that ranking has
+          shifted because of their history. We only mark the top hit
+          to keep the row scannable; multiple gold badges in a row
+          would compete with the active-row highlight.
+        -->
+        {@const showRecent = i === 0 && m.usageScore > 0}
         <li>
           <button
             type="button"
@@ -311,20 +347,37 @@
               <line x1="12" y1="19" x2="20" y2="19" />
             </svg>
             <div class="flex-1 min-w-0">
-              <div class="font-mono text-xs truncate"
+              <div class="font-mono text-xs truncate flex items-center gap-1.5"
                 class:text-bg-deep={isActive}
                 class:text-accent-cyan={!isActive}
               >
-                {#each segs as seg, idx (idx)}
-                  {#if seg.hit}
-                    <span
-                      class="font-bold"
-                      class:underline={isActive}
-                    >{seg.text}</span>
-                  {:else}
-                    <span>{seg.text}</span>
-                  {/if}
-                {/each}
+                <span class="truncate">
+                  {#each segs as seg, idx (idx)}
+                    {#if seg.hit}
+                      <span
+                        class="font-bold"
+                        class:underline={isActive}
+                      >{seg.text}</span>
+                    {:else}
+                      <span>{seg.text}</span>
+                    {/if}
+                  {/each}
+                </span>
+                {#if showRecent}
+                  <!-- Gold tint, small font — flags the usage-bonus boost
+                       without dominating the row. Inverts when the row
+                       is active so it stays legible against the cyan
+                       active-row background. -->
+                  <span
+                    class="shrink-0 text-[9px] uppercase tracking-wider px-1 py-px rounded border"
+                    class:text-bg-deep={isActive}
+                    class:border-bg-deep={isActive}
+                    class:text-accent-gold={!isActive}
+                    class:border-accent-gold={!isActive}
+                    aria-label="Recently used"
+                    title="Recently used"
+                  >recent</span>
+                {/if}
               </div>
               <div
                 class="text-[11px] truncate"

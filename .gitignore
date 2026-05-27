@@ -30,3 +30,8 @@ Thumbs.db
 # Tauri updater signing key
 *.tauri.key
 .gstack/
+
+# Playwright E2E
+playwright-report/
+test-results/
+tests/e2e/.cache/

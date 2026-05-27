@@ -10,6 +10,7 @@
   import { toasts } from '$lib/stores/toasts.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { pins } from '$lib/stores/pins.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { relativeTime } from './time';
 
   const POLL_INTERVAL_MS = 30_000;
@@ -304,7 +305,18 @@
     pollTimer = setInterval(() => {
       void refresh({ silent: true });
     }, POLL_INTERVAL_MS);
+
+    // Surface refresh (Cmd+R): non-silent refresh so the "Refreshing…"
+    // affordance on the existing button label state flips for the same
+    // visible beat as a click. Polls and search/filter state are
+    // untouched.
+    surfaceRefresh.register(async () => {
+      await refresh();
+    });
   });
+
+  // Release the registration on unmount alongside the existing cleanup.
+  onDestroy(() => surfaceRefresh.unregister());
 
   /**
    * If a `?open=<id>` deep-link target is pending and matches a loaded

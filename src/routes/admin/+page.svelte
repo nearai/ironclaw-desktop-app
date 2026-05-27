@@ -13,7 +13,9 @@
   // collectively gate it behind `settings.adminMode`. Reaching the URL
   // directly with adminMode off still bounces to /settings on next tick.
 
+  import { onDestroy, onMount } from 'svelte';
   import { connection } from '$lib/stores/connection.svelte';
+  import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import ToolPolicyEditor from './ToolPolicyEditor.svelte';
   import SystemPromptEditor from './SystemPromptEditor.svelte';
   import UsageDashboard from './UsageDashboard.svelte';
@@ -25,6 +27,21 @@
   // surface obviously inherits "whatever profile is active right now".
   // It's not a chooser — switching profiles still lives in the sidebar.
   const profileName = $derived(connection.activeProfile?.name ?? '—');
+
+  // Token that gates the active tab's #key block. Bumping this forces
+  // Svelte to unmount and re-mount the editor component, which triggers
+  // its onMount-driven data load. Used by the layout-level Cmd+R hook
+  // so a refresh re-fetches the active tab without us reaching into
+  // each editor's internals.
+  let refreshToken = $state(0);
+
+  onMount(() => {
+    surfaceRefresh.register(async () => {
+      refreshToken++;
+    });
+  });
+
+  onDestroy(() => surfaceRefresh.unregister());
 </script>
 
 <section class="p-8 h-full flex flex-col overflow-hidden">
@@ -89,12 +106,16 @@
        Mounted via #if rather than just toggling visibility so each
        editor re-runs its load when the user re-enters the tab — that
        picks up server-side edits between visits without a manual refresh.
-       Usage also relies on the unmount path to clear its 60s poll timer. -->
-  {#if activeTab === 'tool-policy'}
-    <ToolPolicyEditor />
-  {:else if activeTab === 'system-prompt'}
-    <SystemPromptEditor />
-  {:else}
-    <UsageDashboard />
-  {/if}
+       Usage also relies on the unmount path to clear its 60s poll timer.
+       The {#key} wrapper bumps on Cmd+R so the active editor remounts
+       and re-runs its onMount-driven load. -->
+  {#key refreshToken}
+    {#if activeTab === 'tool-policy'}
+      <ToolPolicyEditor />
+    {:else if activeTab === 'system-prompt'}
+      <SystemPromptEditor />
+    {:else}
+      <UsageDashboard />
+    {/if}
+  {/key}
 </section>

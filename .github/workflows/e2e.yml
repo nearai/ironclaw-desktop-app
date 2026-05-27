@@ -1,0 +1,62 @@
+name: e2e
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  e2e:
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Cache the Playwright browser binary across runs — ~50MB chromium
+      # download per fresh install is otherwise the bottleneck of this
+      # job. Key on the @playwright/test version pinned in package-lock
+      # so a Playwright bump invalidates the cache cleanly.
+      - name: Resolve Playwright version
+        id: playwright
+        run: |
+          version=$(node -e "console.log(require('./node_modules/@playwright/test/package.json').version)")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/Library/Caches/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      # Sanity check — bail early if vitest is red so we don't spend
+      # time spinning up the dev server.
+      - run: npm run check
+      - run: npm run test
+
+      - run: npm run test:e2e
+        env:
+          CI: 'true'
+
+      # On failure, upload traces + screenshots so we can debug
+      # flakes (Playwright's `trace: 'on-first-retry'` setting
+      # already writes them under `test-results/`).
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
