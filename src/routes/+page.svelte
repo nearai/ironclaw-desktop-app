@@ -50,6 +50,45 @@
   // on every micro-scroll.
   const SCROLL_TOP_THRESHOLD = 200;
 
+  // ---- Thread-rail virtualization ------------------------------------------
+  // The rail renders all thread buttons in one <ul> for the common case
+  // (typical user: <50 threads). Once we cross the threshold we switch to a
+  // windowed render that mirrors src/routes/logs/+page.svelte: a scroll
+  // viewport with two spacer divs framing the visible slice. This keeps
+  // DOM nodes flat (~viewport+overscan rows) so the rail stays responsive
+  // even when the user accumulates hundreds of conversations.
+  //
+  // Threshold rationale: under 30 threads the windowing adds DOM churn
+  // (spacer divs, scroll bookkeeping, auto-scroll-into-view math) without
+  // a measurable win — the un-virtualized list is already fast. Above 30
+  // we flip on virtualization unconditionally.
+  const THREAD_VIRTUALIZE_THRESHOLD = 30;
+  /**
+   * Fixed row height for each thread button. Matches the existing markup:
+   * `py-2` (16px vertical padding) + `text-sm` title line (~20px) +
+   * `gap-0.5` (2px) + `text-[10px]` timestamp line (~14px) +
+   * `space-y-0.5` gutter (2px) ≈ 54-55px. 56 leaves a 1-2px buffer so
+   * subpixel rounding never lets two rows merge into one viewport slot.
+   *
+   * Titles are forced to a single line via `truncate` so a long title can
+   * never grow the row past this height.
+   */
+  const THREAD_ITEM_HEIGHT = 56;
+  /**
+   * Rows mounted above + below the visible window. Keeps the user from
+   * seeing blank flashes during fast scrolls without ballooning the DOM.
+   */
+  const THREAD_OVERSCAN = 10;
+
+  // Reactive viewport state for the rail. `threadRailEl` is the scrollable
+  // container (the `.overflow-y-auto` wrapper); `threadScrollTop` and
+  // `threadViewportHeight` drive the window slice. All three reset to 0
+  // when virtualization isn't active so a sudden jump from <=30 to >30
+  // threads renders cleanly from the top.
+  let threadRailEl = $state<HTMLDivElement | null>(null);
+  let threadScrollTop = $state(0);
+  let threadViewportHeight = $state(0);
+
   // Draft persistence — sessionStorage so drafts survive thread switching
   // and page reloads in the same tab, but don't bleed across tabs/windows.
   // Key prefix mirrors the prompt; the `__new__` slot is used before a
@@ -142,6 +181,46 @@
 
   const isLoadingMore = $derived(currentId ? messages.isLoadingMore(currentId) : false);
   const hasNoMoreHistory = $derived(currentId ? messages.hasNoMoreHistory(currentId) : false);
+
+  // ---- Thread-rail derived values ------------------------------------------
+  /** Sorted thread list — single source of truth for both render paths. */
+  const sortedThreads = $derived(threads.sorted);
+  /** Flip into virtualized mode once the list crosses the threshold. */
+  const threadsVirtualized = $derived(sortedThreads.length > THREAD_VIRTUALIZE_THRESHOLD);
+
+  /**
+   * Visible window slice. Mirrors the logs route's pattern:
+   * `firstIndex = max(0, floor(scrollTop / H) - OVERSCAN)`,
+   * `lastIndex = min(N-1, ceil((scrollTop + viewport) / H) + OVERSCAN)`.
+   * Returns the indices + sliced rows; spacers above/below preserve total
+   * scrollHeight so the native scrollbar still represents the full list.
+   * When virtualization is off (or there's no viewport measurement yet),
+   * the slice collapses to an empty window — the un-virtualized branch
+   * in the template takes over.
+   */
+  const threadWindow = $derived.by(() => {
+    const total = sortedThreads.length;
+    if (!threadsVirtualized || total === 0 || threadViewportHeight === 0) {
+      return { first: 0, last: -1, items: [] as Array<{ thread: typeof sortedThreads[number]; index: number }> };
+    }
+    const rough = Math.floor(threadScrollTop / THREAD_ITEM_HEIGHT);
+    const visibleCount = Math.ceil(threadViewportHeight / THREAD_ITEM_HEIGHT);
+    const first = Math.max(0, rough - THREAD_OVERSCAN);
+    const last = Math.min(total - 1, rough + visibleCount + THREAD_OVERSCAN);
+    const items: Array<{ thread: typeof sortedThreads[number]; index: number }> = [];
+    for (let i = first; i <= last; i++) items.push({ thread: sortedThreads[i], index: i });
+    return { first, last, items };
+  });
+  /** Top spacer = rows skipped above the window. */
+  const threadTopSpacer = $derived(
+    threadsVirtualized ? Math.max(0, threadWindow.first) * THREAD_ITEM_HEIGHT : 0
+  );
+  /** Bottom spacer = rows skipped below the window (last is inclusive). */
+  const threadBottomSpacer = $derived(
+    threadsVirtualized
+      ? Math.max(0, (sortedThreads.length - threadWindow.last - 1)) * THREAD_ITEM_HEIGHT
+      : 0
+  );
 
   // -- draft helpers ----------------------------------------------------------
   // sessionStorage is browser-only; the SvelteKit prerender pass would crash
@@ -390,6 +469,83 @@
     untrack(() => {
       contentVersion += 1;
     });
+  });
+
+  // ---- Thread rail: scroll + viewport + active-into-view -------------------
+  /** Sync `threadScrollTop` on every scroll so the windowing math re-runs. */
+  function onThreadRailScroll(): void {
+    if (!threadRailEl) return;
+    threadScrollTop = threadRailEl.scrollTop;
+  }
+
+  /** Measure the rail's clientHeight; called on mount + via ResizeObserver. */
+  function measureThreadViewport(): void {
+    if (!threadRailEl) return;
+    threadViewportHeight = threadRailEl.clientHeight;
+  }
+
+  /**
+   * Bring the active thread into view if it's outside the currently
+   * rendered window. Fired whenever `currentId` changes (user picks a
+   * thread, or a programmatic switch lands). Only runs in virtualized
+   * mode — the un-virtualized list lets the browser handle focus-style
+   * scroll automatically.
+   *
+   * Algorithm: compute the target row's top + bottom in container space,
+   * compare against the current scroll window, and nudge `scrollTop` just
+   * enough to land the row inside the visible area (snap to top if above,
+   * snap to bottom if below). No scroll if already visible — avoids a
+   * jitter loop when the user is mid-scroll and clicks a thread.
+   */
+  async function scrollActiveThreadIntoView(): Promise<void> {
+    if (!threadsVirtualized) return;
+    if (!threadRailEl) return;
+    const id = threads.currentId;
+    if (!id) return;
+    const idx = sortedThreads.findIndex((t) => t.id === id);
+    if (idx < 0) return;
+    const top = idx * THREAD_ITEM_HEIGHT;
+    const bottom = top + THREAD_ITEM_HEIGHT;
+    const viewTop = threadRailEl.scrollTop;
+    const viewBottom = viewTop + threadRailEl.clientHeight;
+    if (top < viewTop) {
+      threadRailEl.scrollTop = top;
+      threadScrollTop = top;
+    } else if (bottom > viewBottom) {
+      const next = bottom - threadRailEl.clientHeight;
+      threadRailEl.scrollTop = next;
+      threadScrollTop = next;
+    }
+    // Let any spacer recalculation settle so the slice mounts the row.
+    await tick();
+  }
+
+  /**
+   * Effect: react to thread selection changes by ensuring the active row
+   * is visible. `untrack` on the scroll logic so we don't pull the
+   * sortedThreads array into the dependency set (which would re-run on
+   * every refresh and fight the user's scroll).
+   */
+  $effect(() => {
+    const id = threads.currentId;
+    if (!id) return;
+    untrack(() => {
+      void scrollActiveThreadIntoView();
+    });
+  });
+
+  /**
+   * Effect: install a ResizeObserver on the rail so the visible-row count
+   * stays in sync with sidebar/window resizing. Re-runs if `threadRailEl`
+   * changes (mount / unmount of the rail wrapper).
+   */
+  $effect(() => {
+    const el = threadRailEl;
+    if (!el) return;
+    measureThreadViewport();
+    const ro = new ResizeObserver(measureThreadViewport);
+    ro.observe(el);
+    return () => ro.disconnect();
   });
 
   // -- handlers ---------------------------------------------------------------
@@ -1195,12 +1351,16 @@
       </button>
     </div>
 
-    <div class="flex-1 overflow-y-auto py-2">
+    <div
+      bind:this={threadRailEl}
+      onscroll={onThreadRailScroll}
+      class="flex-1 overflow-y-auto py-2 relative"
+    >
       {#if threads.loading && threads.threads.length === 0}
         <div class="px-4 py-6 text-xs text-text-muted">Loading threads…</div>
       {:else if threads.error}
         <div class="px-4 py-6 text-xs text-red-400">{threads.error}</div>
-      {:else if threads.sorted.length === 0}
+      {:else if sortedThreads.length === 0}
         <div class="px-4 py-6 text-xs text-text-muted">
           {#if connection.client}
             No conversations yet. Start a new chat to begin.
@@ -1209,24 +1369,24 @@
             <a href="/settings" class="text-accent-cyan hover:underline">Configure in Settings →</a>
           {/if}
         </div>
-      {:else}
+      {:else if !threadsVirtualized}
         <!--
-          Thread rail. Not virtualized — typical users carry <50 threads and
-          each row is a single button with two text spans (~48px tall), so
-          even at 200 threads the DOM cost is small. Threshold to revisit
-          this and virtualize the rail with the same windowing approach used
-          on the logs page: ~300 threads, or any user report of lag scrolling
-          this list. When you do, treat each row as a fixed ~48px height,
-          mount onscroll on the outer .overflow-y-auto wrapper above, and
-          mirror the spacer-pair pattern from src/routes/logs/+page.svelte.
+          Un-virtualized path. Used when sortedThreads.length <= 30: cheaper
+          DOM cost than spacer + window bookkeeping, and the row count is
+          small enough that the browser hands scrolling natively. The
+          virtualized path below kicks in for larger lists; rows in both
+          paths share `data-thread-row` so a future selector-based hook
+          (test, scroll-into-view fallback, etc.) can target both.
         -->
         <ul class="space-y-0.5 px-2">
-          {#each threads.sorted as t (t.id)}
+          {#each sortedThreads as t (t.id)}
             {@const active = t.id === currentId}
             <li>
               <button
                 type="button"
                 onclick={() => onSelectThread(t.id)}
+                data-thread-row
+                data-thread-id={t.id}
                 class="w-full text-left px-3 py-2 rounded-md text-sm transition-colors border-l-2 flex flex-col gap-0.5"
                 class:border-accent-cyan={active}
                 class:bg-bg-surface={active}
@@ -1242,6 +1402,45 @@
             </li>
           {/each}
         </ul>
+      {:else}
+        <!--
+          Virtualized path. Mirrors src/routes/logs/+page.svelte: top spacer
+          height = rows skipped above the window, bottom spacer = rows
+          skipped below. The scroll viewport above (.overflow-y-auto) owns
+          scrollTop; this inner block only renders the slice from the
+          $derived threadWindow. Each row is forced to exactly
+          THREAD_ITEM_HEIGHT via inline style so the windowing math stays
+          a trivial division — no per-row measurement.
+          TODO: switch to dynamic row heights if multi-line titles become
+          required. For now titles are forced single-line via `truncate` so
+          the height is stable.
+        -->
+        <div style="height: {threadTopSpacer}px;" aria-hidden="true"></div>
+        <ul class="px-2">
+          {#each threadWindow.items as row (row.thread.id)}
+            {@const active = row.thread.id === currentId}
+            <li style="height: {THREAD_ITEM_HEIGHT}px;">
+              <button
+                type="button"
+                onclick={() => onSelectThread(row.thread.id)}
+                data-thread-row
+                data-thread-id={row.thread.id}
+                class="w-full text-left px-3 py-2 rounded-md text-sm transition-colors border-l-2 flex flex-col gap-0.5 h-full"
+                class:border-accent-cyan={active}
+                class:bg-bg-surface={active}
+                class:text-text-primary={active}
+                class:border-transparent={!active}
+                class:text-text-muted={!active}
+                class:hover:bg-bg-surface={!active}
+                class:hover:text-text-primary={!active}
+              >
+                <span class="truncate block">{row.thread.title || 'Untitled'}</span>
+                <span class="text-[10px] text-text-muted">{relativeTime(row.thread.updated_at)}</span>
+              </button>
+            </li>
+          {/each}
+        </ul>
+        <div style="height: {threadBottomSpacer}px;" aria-hidden="true"></div>
       {/if}
     </div>
   </aside>
@@ -1534,6 +1733,7 @@
           accept="image/png,image/jpeg,image/gif,image/webp"
           multiple
           class="hidden"
+          aria-label="Attach images"
         />
 
         <!-- slash-command autocomplete — anchored to this wrapper so the

@@ -20,11 +20,14 @@
 // exist the SOUND_PATHS table below can be re-pointed at the bundled
 // resources without touching the call sites.
 
+import { invoke } from '@tauri-apps/api/core';
 import {
   isPermissionGranted,
   requestPermission,
   sendNotification
 } from '@tauri-apps/plugin-notification';
+
+import { windowFocus } from './window-focus.svelte';
 
 export type NotifyPermission = 'default' | 'granted' | 'denied';
 
@@ -108,6 +111,13 @@ export interface QuietHours {
 
 const LS_KEY = 'ironclaw:notifications:v1';
 
+/** Rolling-window length for the unseen-notification badge. */
+const RECENT_WINDOW_MS = 5 * 60 * 1000;
+
+/** Re-evaluate the recent window once a minute so notifications drop off
+ *  the count without waiting for a user-driven re-render. */
+const RECENT_TICK_MS = 60 * 1000;
+
 interface PersistedPrefs {
   enabled: boolean;
   chatReplies: boolean;
@@ -118,6 +128,8 @@ interface PersistedPrefs {
   sidecarSound: SoundChoice;
   errorSound: SoundChoice;
   quietHours: QuietHours;
+  /** Badge counter on the menu-bar tray icon. Defaults to true. */
+  trayBadgeEnabled: boolean;
 }
 
 const DEFAULT_PREFS: PersistedPrefs = {
@@ -129,7 +141,8 @@ const DEFAULT_PREFS: PersistedPrefs = {
   routineSound: 'default',
   sidecarSound: 'default',
   errorSound: 'default',
-  quietHours: { enabled: false, startHour: 22, endHour: 7 }
+  quietHours: { enabled: false, startHour: 22, endHour: 7 },
+  trayBadgeEnabled: true
 };
 
 /** Type guard so we don't trust raw JSON. */
@@ -183,7 +196,14 @@ function loadPrefs(): PersistedPrefs {
               startHour: clampHour(qh.startHour, DEFAULT_PREFS.quietHours.startHour),
               endHour: clampHour(qh.endHour, DEFAULT_PREFS.quietHours.endHour)
             }
-          : { ...DEFAULT_PREFS.quietHours }
+          : { ...DEFAULT_PREFS.quietHours },
+      // trayBadgeEnabled is opt-OUT — only an explicit `false` on disk
+      // hides the badge. Older settings files that predate the field
+      // round-trip as `true`, matching the new-install default.
+      trayBadgeEnabled:
+        typeof parsed.trayBadgeEnabled === 'boolean'
+          ? parsed.trayBadgeEnabled
+          : DEFAULT_PREFS.trayBadgeEnabled
     };
   } catch {
     return { ...DEFAULT_PREFS };
@@ -242,8 +262,50 @@ class NotificationStore {
   /** Quiet hours (DND). Defaults to disabled, 22:00 → 07:00. */
   quietHours = $state<QuietHours>({ enabled: false, startHour: 22, endHour: 7 });
 
+  /**
+   * Master switch for the menu-bar tray badge. When false, the icon
+   * never shows a count regardless of how many unseen notifications are
+   * in the rolling window. Defaults to true; persisted to localStorage
+   * alongside the other notification prefs.
+   */
+  trayBadgeEnabled = $state<boolean>(true);
+
+  /**
+   * Timestamps (epoch ms) for notification triggers that landed while the
+   * window was unfocused and inside the per-category enable rules. We
+   * keep these instead of a single counter so the rolling 5-minute
+   * window is computed cheaply on read — `unseenCount` filters this list
+   * against `Date.now()`. Trimmed on every read so the array never grows
+   * unbounded across a long-running session.
+   */
+  private triggers = $state<number[]>([]);
+
+  /** Forces `unseenCount` to re-evaluate on a 1-minute interval so
+   *  notifications drop out of the rolling window without waiting for
+   *  the next fresh trigger. Incremented by the interval set up in
+   *  `hydrate()`; consumed via `void recentTick` inside the derived
+   *  count. */
+  private recentTick = $state(0);
+
+  /**
+   * Unseen-notification count for the rolling window. Drives the badge
+   * pushed to the Rust tray via `update_tray_badge`. Read-only from
+   * outside the class — mutations go through `recordTrigger()` and
+   * `markAllSeen()`.
+   */
+  unseenCount = $derived.by(() => {
+    void this.recentTick; // re-evaluate on minute tick
+    const cutoff = Date.now() - RECENT_WINDOW_MS;
+    return this.triggers.filter((t) => t >= cutoff).length;
+  });
+
   private hydrated = false;
   private permissionRequested = false;
+  private recentTickHandle: ReturnType<typeof setInterval> | null = null;
+  private badgePushInFlight = false;
+  private badgePushQueued: number | null = null;
+  /** Last value we pushed to Rust. Suppresses redundant IPC. */
+  private lastPushedBadge = -1;
 
   /**
    * Read prefs out of localStorage. Idempotent — calling more than once
@@ -262,10 +324,90 @@ class NotificationStore {
     this.sidecarSound = p.sidecarSound;
     this.errorSound = p.errorSound;
     this.quietHours = p.quietHours;
+    this.trayBadgeEnabled = p.trayBadgeEnabled;
     this.hydrated = true;
     // Mirror future writes back to disk. We do this lazily via an
     // explicit `persist()` call from setter helpers below so we don't
     // pay for a write on every rune read.
+
+    // Rolling-window ticker: bump `recentTick` once a minute so
+    // `unseenCount` re-evaluates and notifications drop off the badge
+    // when their 5-minute slot expires. Idempotent — `hydrated` above
+    // guarantees we only ever wire this once per session.
+    this.recentTickHandle = setInterval(() => {
+      // Trim before ticking so the array stays bounded across long
+      // sessions. The derived `unseenCount` re-filters too — this is a
+      // belt-and-braces cap on memory growth.
+      const cutoff = Date.now() - RECENT_WINDOW_MS;
+      this.triggers = this.triggers.filter((t) => t >= cutoff);
+      this.recentTick++;
+    }, RECENT_TICK_MS);
+  }
+
+  /**
+   * Record an unseen notification trigger. Called from `notify()` when
+   * the window is unfocused AND the category gate passed. The badge
+   * count is a derived view of these timestamps inside the rolling
+   * 5-minute window.
+   */
+  private recordTrigger(): void {
+    this.triggers = [...this.triggers, Date.now()];
+  }
+
+  /**
+   * Clear the unseen counter immediately. Called from the layout's
+   * focus effect (`windowFocus.focused === true`) and from the
+   * Rust-side `tray:show-window` listener when the user clicks the
+   * tray icon to surface the app.
+   */
+  markAllSeen(): void {
+    if (this.triggers.length === 0) return;
+    this.triggers = [];
+  }
+
+  /**
+   * Push the current badge count to the Rust tray. Idempotent — caches
+   * the last value sent and short-circuits on repeats. When the toggle
+   * is off we force a 0-push so any stale badge from a previous
+   * "enabled" session is cleared immediately.
+   *
+   * Serializes through `badgePushInFlight` so a burst of triggers
+   * during streaming chat doesn't fan out into N concurrent IPC calls;
+   * the latest pending value is held in `badgePushQueued` and fires
+   * once the in-flight call resolves.
+   */
+  async pushBadge(): Promise<void> {
+    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
+      return;
+    }
+    const target = this.trayBadgeEnabled ? this.unseenCount : 0;
+    if (target === this.lastPushedBadge) return;
+    if (this.badgePushInFlight) {
+      this.badgePushQueued = target;
+      return;
+    }
+    this.badgePushInFlight = true;
+    try {
+      await invoke('update_tray_badge', { count: target });
+      this.lastPushedBadge = target;
+    } catch (err) {
+      // Tray IPC failure is non-fatal — the badge is decorative chrome.
+      // Reset the cache so the next push retries from scratch.
+      this.lastPushedBadge = -1;
+      console.warn('update_tray_badge failed', err);
+    } finally {
+      this.badgePushInFlight = false;
+      if (this.badgePushQueued !== null) {
+        const queued = this.badgePushQueued;
+        this.badgePushQueued = null;
+        // Only re-fire if the queued value still differs from what we
+        // last pushed — avoids a noop round-trip when the queue
+        // resolved to the same target we already sent.
+        if (queued !== this.lastPushedBadge) {
+          void this.pushBadge();
+        }
+      }
+    }
   }
 
   /** Persist the current prefs to localStorage. */
@@ -280,7 +422,8 @@ class NotificationStore {
       routineSound: this.routineSound,
       sidecarSound: this.sidecarSound,
       errorSound: this.errorSound,
-      quietHours: { ...this.quietHours }
+      quietHours: { ...this.quietHours },
+      trayBadgeEnabled: this.trayBadgeEnabled
     };
     try {
       window.localStorage.setItem(LS_KEY, JSON.stringify(payload));
@@ -465,6 +608,26 @@ class NotificationStore {
     } catch (err) {
       console.warn('sendNotification failed', err);
     }
+
+    // Badge accounting. We only count notifications that fired while the
+    // window was unfocused — when the user is looking at IronClaw the
+    // banner is already enough acknowledgement, and a "you have 1
+    // unread" badge after a chat reply you watched stream in would be
+    // noisy. `soundOverride` is the in-app preview path (settings →
+    // sound preview button + test notification); those never count.
+    if (!opts.soundOverride && !windowFocus.focused) {
+      this.recordTrigger();
+      void this.pushBadge();
+    }
+  }
+
+  /** Setter for the badge master toggle. Persists + pushes immediately
+   *  so the icon reflects the change without waiting for the next
+   *  trigger. */
+  setTrayBadgeEnabled(v: boolean) {
+    this.trayBadgeEnabled = v;
+    this.persist();
+    void this.pushBadge();
   }
 }
 

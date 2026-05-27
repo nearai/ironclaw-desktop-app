@@ -604,9 +604,8 @@
           subtitle: '/settings#notifications',
           icon: 'bell' as const,
           keywords: ['notifications', 'notify', 'alerts', 'settings'],
-          // The settings page does not currently anchor a #notifications id;
-          // the fragment is harmless when absent (browser just doesn't scroll)
-          // and lands the user on the right surface. TODO at file bottom.
+          // Anchored via id="notifications" + scroll-mt-6 on the surface
+          // card in /settings.
           run: () => void goto('/settings#notifications')
         },
         // Copy actions — gated on having something to copy.
@@ -1025,12 +1024,6 @@
     // pre-warm here, but the user may never hit Cmd+K in a given session.
   });
 
-  // TODO(settings-anchors): The Notifications panel in /settings has no
-  // `id="notifications"` on its surface card today, so the
-  // "Open settings → Notifications" action lands on the page without
-  // scrolling to the section. Adding the anchor lives in /settings, not
-  // this file (see palette constraints). See CommandPalette.svelte action
-  // `action:settings-notifications`.
 </script>
 
 {#if palette.open}

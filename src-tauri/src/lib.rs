@@ -418,6 +418,18 @@ async fn set_tray_visible(app: AppHandle, visible: bool) -> Result<(), String> {
     tray::set_visible(&app, visible).map_err(|e| format!("set_tray_visible: {e}"))
 }
 
+/// Render (or clear) the unseen-notification badge next to the tray icon.
+///
+/// Pushed from JS by the notifications store whenever its derived
+/// `unseenCount` changes. `count <= 0` clears the badge; `count > 9` is
+/// rendered as `"9+"` by the Rust side. See `tray::update_badge` for the
+/// option-A title approach and the TODO for the heavier composited
+/// fallback.
+#[tauri::command]
+async fn update_tray_badge(app: AppHandle, count: i32) -> Result<(), String> {
+    tray::update_badge(&app, count).map_err(|e| format!("update_tray_badge: {e}"))
+}
+
 /// Show + focus the main window. Used by tray menu items that want to
 /// surface a route immediately after firing their event (Settings,
 /// Restart). The JS event listeners do the navigation; this just makes
@@ -483,6 +495,7 @@ pub fn run() {
             open_text_dialog,
             update_tray_status,
             set_tray_visible,
+            update_tray_badge,
             show_main_window,
         ])
         // Build the menu-bar tray on setup so the icon is in place

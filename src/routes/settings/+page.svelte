@@ -1972,7 +1972,7 @@
 
     <!-- Notifications. Lives below About because the test button is a
          one-shot UX check, not a daily-driver setting. -->
-    <div class="surface p-5 space-y-4">
+    <div id="notifications" class="surface p-5 space-y-4 scroll-mt-6">
       <h2 class="text-sm font-semibold text-text-primary">Notifications</h2>
       <p class="text-xs text-text-muted">
         Desktop alerts for chat replies (while you're focused elsewhere),
@@ -2071,6 +2071,29 @@
             Preview
           </button>
         </div>
+      </div>
+
+      <!-- Menu-bar badge toggle. App-level, NOT per-profile — the tray
+           is global chrome. Defaults to on; toggling off pushes a 0 to
+           the Rust tray immediately so any stale count clears without a
+           relaunch. -->
+      <div class="pt-3 border-t border-border-subtle">
+        <label class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none">
+          <input
+            type="checkbox"
+            checked={notifications.trayBadgeEnabled}
+            onchange={(e) => notifications.setTrayBadgeEnabled(e.currentTarget.checked)}
+            class="mt-1 accent-accent-cyan w-4 h-4"
+          />
+          <div class="flex-1">
+            <div class="text-sm text-text-primary">Show unseen count in menu bar</div>
+            <div class="text-xs text-text-muted mt-0.5">
+              Displays a small number next to the tray icon when there are
+              unseen notifications from the last 5 minutes. Clears when you
+              focus the window or click the tray icon.
+            </div>
+          </div>
+        </label>
       </div>
 
       <!-- Quiet hours (DND). During the window we still show banners but

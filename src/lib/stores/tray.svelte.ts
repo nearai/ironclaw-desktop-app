@@ -22,6 +22,7 @@ import { goto } from '$app/navigation';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 import { connection } from './connection.svelte';
+import { notifications } from './notifications.svelte';
 import { toasts } from './toasts.svelte';
 
 class TrayStore {
@@ -71,11 +72,14 @@ class TrayStore {
         void this.restartSidecar();
       });
       const u3 = await listen('tray:show-window', () => {
-        // Rust already raised + focused the window; nothing to do
-        // on the JS side beyond emitting a soft hint for surfaces
-        // that want to refresh on re-entry. We don't expose that
-        // hook yet — the listener exists so future consumers
-        // (e.g. logs page auto-scroll) have an integration point.
+        // Rust already raised + focused the window; the layout's
+        // focus effect will mark unseen notifications as seen too,
+        // but we also fire it from here so the badge clears the
+        // instant the user acts on the tray click (focusing the
+        // window can lag the click on macOS by a frame or two on
+        // cold paths). Idempotent.
+        notifications.markAllSeen();
+        void notifications.pushBadge();
       });
       this.unlisteners.push(u1, u2, u3);
     } catch (err) {

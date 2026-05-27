@@ -123,6 +123,20 @@
     }
   });
 
+  // Window focus → mark unseen notifications as seen. When the user
+  // surfaces the app (Cmd-Tab, clicking the dock, clicking the tray
+  // icon) the badge count drops to 0 and the Rust tray clears the title.
+  // Lives at the layout level so it's wired exactly once — the
+  // notifications singleton is global, so this effect speaks for every
+  // route. We push a badge update on the same edge to flush the cleared
+  // count immediately rather than waiting for the next trigger.
+  $effect(() => {
+    if (windowFocus.focused) {
+      notifications.markAllSeen();
+      void notifications.pushBadge();
+    }
+  });
+
   // Same hide-on-disable guard for /missions (Engine v2 surface). When the
   // user flips `engineV2Enabled` off from /settings → Advanced while
   // sitting on the route, bounce them to /settings so they don't see a

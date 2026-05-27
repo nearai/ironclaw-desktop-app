@@ -379,10 +379,10 @@
    * gateway's tracing buffer. There is no shared logs store today (the
    * logs page is page-local), so v1 ships dark.
    *
-   * TODO (Sidebar.svelte:~290): once an app-wide logs store lands (or the
-   * connection store starts tracking the last server-side error timestamp
-   * via the SSE /api/logs/events stream), wire this to flip red for ~60s
-   * after the last error event.
+   * TODO: once an app-wide logs store lands (or the connection store
+   * starts tracking the last server-side error timestamp via the SSE
+   * /api/logs/events stream), wire this to flip red for ~60s after the
+   * last error event.
    */
   const logsHasRecentError = $derived<boolean>(false);
 
