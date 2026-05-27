@@ -12,6 +12,7 @@
   import { toasts } from '$lib/stores/toasts.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { windowFocus } from '$lib/stores/window-focus.svelte';
+  import { loadSettings } from '$lib/stores/settings.svelte';
   import {
     buildThreadJsonText,
     buildThreadMarkdown,
@@ -485,6 +486,18 @@
    * Send + stream a single user turn. Used by both the initial send path
    * and the retry button on a previously-failed user-message bubble.
    *
+   * Two streaming paths are supported:
+   *   1. Responses API (`POST /api/v1/responses` with `stream: true`) —
+   *      preferred when the user setting `useResponsesApi` is on AND the
+   *      gateway exposes the route (probed once via `getServerCapabilities`).
+   *      This path delivers real incremental `response.output_text.delta`
+   *      chunks, so the UI feels smooth instead of clobbering on each
+   *      `text_response` event.
+   *   2. Legacy `POST /api/chat/send` + `GET /api/chat/events` — fallback
+   *      for older gateways or when the user has pinned the legacy path
+   *      via Settings → Advanced. The server sends the full assistant
+   *      content per event; the messages-store heuristic handles that.
+   *
    * On failure, the optimistic user-message row (localId) is marked failed
    * via the messages store so the bubble can render the retry affordance.
    * On success the failed flag is cleared (no-op on first attempt).
@@ -495,58 +508,103 @@
     localId: string
   ): Promise<void> {
     if (!connection.client) return;
-    // POST first — the server enqueues and returns 202; the SSE channel is
-    // the source of truth for assistant content.
+
+    // Decide path. The setting is loaded fresh per send rather than cached
+    // in a module variable so toggling the Advanced switch takes effect on
+    // the very next send without a route reload. `loadSettings()` hits the
+    // in-memory cache after the first call so the cost is negligible.
+    let useResponsesApi = true;
     try {
-      await connection.client.sendMessage(threadId, content);
-    } catch (err) {
-      const msg = (err as Error).message;
-      messages.setError(threadId, msg);
-      messages.markFailed(localId, content);
-      toasts.show(`Send failed: ${msg}`, 'error');
-      return;
+      const s = await loadSettings();
+      useResponsesApi = s.useResponsesApi !== false;
+    } catch {
+      // Defensive — fall back to the default (on) if settings can't be
+      // read (would only happen outside Tauri during a dev preview).
+      useResponsesApi = true;
     }
 
-    // Open the SSE stream. It runs until the server closes (no explicit
-    // "end" event today; the gateway closes the connection after the
-    // single text_response).
-    messages.beginStream(threadId);
+    let responsesAvailable = false;
+    if (useResponsesApi) {
+      try {
+        const caps = await connection.client.getServerCapabilities();
+        responsesAvailable = caps.responses_api;
+      } catch {
+        responsesAvailable = false;
+      }
+    }
+
     abortController = new AbortController();
     const signal = abortController.signal;
 
     let streamErrored = false;
-    // Capture the buffered reply before commit so the desktop notification
-    // body has the assistant content. Reading from the store after commit
-    // would race the loadHistory reconcile that clears `streaming[]`.
     let replyForNotify = '';
+    let usedPath: 'responses' | 'legacy' = 'legacy';
+
     try {
-      for await (const ev of connection.client.streamEvents(threadId, signal)) {
-        handleEvent(threadId, ev);
-      }
-    } catch (err) {
-      if (!signal.aborted) {
-        const msg = (err as Error).message;
-        messages.setError(threadId, msg);
-        messages.markFailed(localId, content);
-        toasts.show(`Stream error: ${msg}`, 'error');
-        streamErrored = true;
+      if (useResponsesApi && responsesAvailable) {
+        usedPath = 'responses';
+        messages.beginStream(threadId);
+        try {
+          for await (const ev of connection.client.streamResponse(content, threadId, signal)) {
+            handleEvent(threadId, ev);
+          }
+        } catch (err) {
+          // Soft-fall-back: a 404 / 405 / "not available" at the start of
+          // the stream means the gateway dropped the route between probe
+          // and use (or the probe was wrong about this build). Fall back
+          // to the legacy path so the user's send doesn't drop on the floor.
+          const msg = (err as Error).message;
+          const isMissing =
+            /\b(404|405|not[- ]?found|method not allowed|not available)\b/i.test(msg);
+          if (!signal.aborted && isMissing) {
+            // eslint-disable-next-line no-console
+            console.info(
+              '[chat] Responses API stream failed, falling back to legacy /api/chat:',
+              msg
+            );
+            // Reset the partial stream state — the legacy path will rebegin.
+            messages.commitAssistantMessage(threadId);
+            await runLegacySendAndStream(threadId, content, localId, signal);
+            usedPath = 'legacy';
+            replyForNotify = messages.getStreaming(threadId);
+            return; // commit + reconcile already handled in legacy path
+          }
+          if (!signal.aborted) {
+            messages.setError(threadId, msg);
+            messages.markFailed(localId, content);
+            toasts.show(`Stream error: ${msg}`, 'error');
+            streamErrored = true;
+          }
+        }
+      } else {
+        usedPath = 'legacy';
+        await runLegacySendAndStream(threadId, content, localId, signal);
+        // legacy helper does NOT call commit here — we still want the
+        // shared finally{} to run the post-stream reconcile.
       }
     } finally {
-      replyForNotify = messages.getStreaming(threadId);
-      messages.commitAssistantMessage(threadId);
+      // For the responses path, capture + commit happens here. The legacy
+      // helper opens its own beginStream → commit cycle, but we leave the
+      // finally{} chain in place so reconcile + notification fire once.
+      if (usedPath === 'responses') {
+        replyForNotify = messages.getStreaming(threadId);
+        messages.commitAssistantMessage(threadId);
+      } else {
+        replyForNotify = replyForNotify || messages.getStreaming(threadId);
+      }
       abortController = null;
       // Reconcile with the server's canonical history.
       await messages.loadHistory(threadId);
       await threads.refresh();
-      // After reload the optimistic row is usually gone (server reissues
-      // a permanent id), but the meta map was pruned in loadHistory so
-      // failed flags don't survive a successful reconcile. Belt-and-braces:
-      // clear the local marker if it still resolves.
       if (!streamErrored) messages.clearFailed(localId);
 
-      // Desktop notification — fire only on a successful, non-aborted
-      // assistant turn when the window is in the background. Per-category
-      // flag + master toggle gate this; the store handles OS permission.
+      // Lightweight observability — debug-only console signal so a power
+      // user can confirm which transport ran without firing a toast at
+      // every send. Avoid `console.log` (noisy in prod); `debug` is
+      // filtered out of the Tauri stdout by default.
+      // eslint-disable-next-line no-console
+      console.debug(`[chat] streaming path: ${usedPath}`);
+
       if (
         !streamErrored &&
         !signal.aborted &&
@@ -563,6 +621,49 @@
         });
       }
     }
+  }
+
+  /**
+   * Legacy send + stream pipeline. Posts to `/api/chat/send` then drains
+   * `/api/chat/events`. Used directly when the user has disabled the
+   * Responses API path, and as a soft-fallback when the Responses API
+   * route 404s mid-send. The caller's finally{} handles reconcile and
+   * notification so this helper only owns the per-attempt error surface.
+   */
+  async function runLegacySendAndStream(
+    threadId: string,
+    content: string,
+    localId: string,
+    signal: AbortSignal
+  ): Promise<void> {
+    if (!connection.client) return;
+    try {
+      await connection.client.sendMessage(threadId, content);
+    } catch (err) {
+      const msg = (err as Error).message;
+      messages.setError(threadId, msg);
+      messages.markFailed(localId, content);
+      toasts.show(`Send failed: ${msg}`, 'error');
+      return;
+    }
+
+    messages.beginStream(threadId);
+    try {
+      for await (const ev of connection.client.streamEvents(threadId, signal)) {
+        handleEvent(threadId, ev);
+      }
+    } catch (err) {
+      if (!signal.aborted) {
+        const msg = (err as Error).message;
+        messages.setError(threadId, msg);
+        messages.markFailed(localId, content);
+        toasts.show(`Stream error: ${msg}`, 'error');
+      }
+    }
+    // Commit the buffer here — the responses-path branch is the only one
+    // that defers commit to the shared finally{}, because it doesn't go
+    // through this helper.
+    messages.commitAssistantMessage(threadId);
   }
 
   /**
@@ -601,6 +702,12 @@
       case 'tool_call':
         messages.recordToolStart(threadId, ev.name, ev.args);
         if (!rightRailOpen) rightRailOpen = true;
+        break;
+      case 'tool_call_delta':
+        // Forward-compat: the Responses API may stream tool-argument deltas
+        // in a future gateway build. Today's gateway packs arguments in the
+        // final output_item.done envelope so this branch is never hit; left
+        // as a no-op rather than throwing so the union stays exhaustive.
         break;
       case 'tool_result':
         messages.recordToolResult(threadId, ev.name, ev.result);

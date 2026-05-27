@@ -27,6 +27,7 @@
   import { threads } from '$lib/stores/threads.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import { aboutStore } from '$lib/stores/about.svelte';
   import { saveSettings } from '$lib/stores/settings.svelte';
   import type { MemoryNode, Routine, Skill, Thread } from '$lib/api/types';
 
@@ -58,7 +59,8 @@
     | 'profile'
     | 'bell'
     | 'copy'
-    | 'logs';
+    | 'logs'
+    | 'info';
 
   interface Item {
     id: string;
@@ -639,6 +641,21 @@
           icon: 'logs' as const,
           keywords: ['logs', 'log', 'console', 'output'],
           run: () => void goto('/logs')
+        },
+        // About — opens the modal at the layout level. Always available.
+        // Close the palette first so the modal lands on a clean chrome
+        // (the palette would otherwise sit on top of the modal's backdrop).
+        {
+          id: 'action:about',
+          category: 'Actions' as const,
+          label: 'About IronClaw Desktop',
+          subtitle: 'Version, gateway info, profile, system',
+          icon: 'info' as const,
+          keywords: ['about', 'version', 'info', 'help', 'credits'],
+          run: () => {
+            palette.closePalette();
+            aboutStore.show();
+          }
         }
       ];
 
@@ -1358,6 +1375,20 @@
                       >
                         <polyline points="4 17 10 11 4 5" />
                         <line x1="12" y1="19" x2="20" y2="19" />
+                      </svg>
+                    {:else if item.icon === 'info'}
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="16" x2="12" y2="12" />
+                        <line x1="12" y1="8" x2="12.01" y2="8" />
                       </svg>
                     {/if}
                   </span>

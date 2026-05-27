@@ -21,6 +21,8 @@
   import { IronClawClient } from '$lib/api/ironclaw';
   import {
     buildThreadJsonShape,
+    exportSettings,
+    importSettings,
     saveTextDialog,
     todayStamp,
     type BulkExportShape
@@ -33,6 +35,7 @@
     getOpenRouterKey,
     getOrCreateLocalToken,
     getToken,
+    importSettingsFromString,
     loadSettings,
     localDataDir,
     revealInFinder,
@@ -50,6 +53,7 @@
   import { toasts } from '$lib/stores/toasts.svelte';
   import { relativeTime, updater, type UpdaterCadence } from '$lib/stores/updater.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
+  import { aboutStore } from '$lib/stores/about.svelte';
 
   // ---- Page state -------------------------------------------------------
   //
@@ -63,7 +67,8 @@
     profiles: [],
     onboardingComplete: true,
     adminMode: false,
-    trayEnabled: true
+    trayEnabled: true,
+    useResponsesApi: true
   });
 
   /** Derived shorthand for the currently-selected profile inside the local
@@ -536,6 +541,30 @@
     }
   }
 
+  /**
+   * Flip the app-level "Use Responses API streaming" toggle. The chat
+   * surface re-reads the setting on every send (cheap — loadSettings()
+   * hits the in-memory cache after the first call), so the change applies
+   * to the very next message without a relaunch. Pinning OFF forces the
+   * legacy /api/chat/send + /api/chat/events pipeline even on a gateway
+   * that supports /api/v1/responses.
+   */
+  async function onToggleResponsesApi(next: boolean) {
+    try {
+      const draft = { ...$state.snapshot(settings), useResponsesApi: next };
+      await saveSettings(draft);
+      settings = draft;
+      toasts.show(
+        next
+          ? 'Responses API streaming enabled'
+          : 'Pinned to legacy /api/chat streaming',
+        'info'
+      );
+    } catch (err) {
+      toasts.show(`Save failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
   async function onRerunOnboarding() {
     try {
       const next = { ...$state.snapshot(settings), onboardingComplete: false };
@@ -544,6 +573,63 @@
       await goto('/onboarding');
     } catch (err) {
       toasts.show(`Could not start onboarding: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  // ---- Settings backup (export / import) -------------------------------
+  // Tokens / OpenRouter keys are NOT included — they live in the macOS
+  // Keychain, not settings.json. After importing on a new machine the
+  // user has to open each profile and re-enter credentials. We toast a
+  // reminder once the new settings hit disk.
+
+  let settingsExportBusy = $state(false);
+  let settingsImportBusy = $state(false);
+
+  async function onExportSettings() {
+    if (settingsExportBusy) return;
+    settingsExportBusy = true;
+    try {
+      const saved = await exportSettings();
+      if (saved === null) {
+        toasts.show('Settings export cancelled', 'info');
+      } else {
+        toasts.show(`Settings exported to ${saved}`, 'success');
+      }
+    } catch (err) {
+      toasts.show(`Settings export failed: ${(err as Error).message}`, 'error');
+    } finally {
+      settingsExportBusy = false;
+    }
+  }
+
+  async function onImportSettings() {
+    if (settingsImportBusy) return;
+    settingsImportBusy = true;
+    try {
+      const raw = await importSettings();
+      if (raw === null) {
+        toasts.show('Settings import cancelled', 'info');
+        return;
+      }
+      // validateImportedSettings runs inside importSettingsFromString and
+      // throws with a specific reason on failure.
+      const imported = await importSettingsFromString(raw);
+      // Refresh the in-memory copy + the connection store so the new
+      // shape is live without a relaunch. Keychain entries on the new
+      // machine won't match the imported profile ids — connection layer
+      // already treats missing tokens as "needs setup", so the UI will
+      // surface that on its own.
+      settings = imported;
+      await refreshProfileCredentials();
+      await connection.refresh();
+      toasts.show(
+        `Imported ${imported.profiles.length} profile${imported.profiles.length === 1 ? '' : 's'}. Re-enter tokens per profile below.`,
+        'success'
+      );
+    } catch (err) {
+      toasts.show(`Settings import failed: ${(err as Error).message}`, 'error');
+    } finally {
+      settingsImportBusy = false;
     }
   }
 
@@ -1429,6 +1515,21 @@
         {/if}
       </dl>
 
+      <!-- Open the full About modal. The condensed dl above gives the
+           one-line version + gateway summary; the modal carries the
+           polished surface with system info, links, and credits. Lives
+           directly under the dl so it reads as a "go deeper" affordance
+           rather than a footer button. -->
+      <div class="mt-3">
+        <button
+          type="button"
+          onclick={() => aboutStore.show()}
+          class="text-xs text-accent-cyan hover:brightness-110 underline underline-offset-2"
+        >
+          Show full About dialog
+        </button>
+      </div>
+
       <!-- Manual updater check. Lives inside About so version + check
            sit together. The store's status drives the inline label so
            the user gets feedback without leaving the page. Error state
@@ -1592,6 +1693,37 @@
           </span>
         {/if}
       </div>
+
+      <!-- Settings backup. Lives in the Data card alongside the
+           conversation export so backup/restore actions are grouped
+           together. Tokens / OpenRouter keys are NOT included — they
+           live in the macOS Keychain, not settings.json. -->
+      <div class="pt-3 border-t border-border-subtle space-y-2">
+        <p class="text-xs text-text-muted">
+          Backup or restore your profile list and preferences. Tokens are
+          NOT included — re-enter them after importing on a new machine.
+        </p>
+        <div class="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onclick={onExportSettings}
+            disabled={settingsExportBusy}
+            class="px-4 py-2 rounded-md border border-accent-cyan text-accent-cyan text-sm font-semibold hover:bg-accent-cyan hover:text-bg-deep transition disabled:opacity-50 min-h-[44px]"
+            title="Save your profile list and preferences to a JSON file"
+          >
+            {settingsExportBusy ? 'Exporting…' : 'Export settings'}
+          </button>
+          <button
+            type="button"
+            onclick={onImportSettings}
+            disabled={settingsImportBusy}
+            class="px-4 py-2 rounded-md border border-border-subtle text-text-primary text-sm font-semibold hover:border-accent-cyan hover:text-accent-cyan transition disabled:opacity-50 min-h-[44px]"
+            title="Restore a settings backup from a JSON file"
+          >
+            {settingsImportBusy ? 'Importing…' : 'Import settings'}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Advanced. Off by default. Toggling on unhides the Admin sidebar
@@ -1642,6 +1774,36 @@
             Adds an IronClaw status icon to the macOS menu bar. Click to
             toggle the window; right-click for quick actions (Restart
             sidecar, Settings, Quit).
+          </div>
+        </div>
+      </label>
+
+      <!-- Responses API streaming toggle. App-level, NOT per-profile —
+           this is a transport preference, not per-gateway state. Defaults
+           to on; if the active gateway doesn't expose /api/v1/responses
+           the chat surface silently falls back to the legacy
+           /api/chat/send + /api/chat/events pipeline (auto-detected via
+           a cheap method-mismatch probe). Pinning OFF forces the legacy
+           path on every send, useful for debugging issues that only
+           reproduce on one transport. -->
+      <label
+        class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none"
+      >
+        <input
+          type="checkbox"
+          checked={settings.useResponsesApi !== false}
+          onchange={(e) => void onToggleResponsesApi(e.currentTarget.checked)}
+          class="mt-1 accent-accent-cyan w-4 h-4"
+        />
+        <div class="flex-1">
+          <div class="text-sm text-text-primary">
+            Use Responses API streaming (better delta streaming)
+          </div>
+          <div class="text-xs text-text-muted mt-0.5">
+            Streams assistant replies via <code class="text-text-primary">/api/v1/responses</code>
+            with real incremental deltas. Older IronClaw gateways without
+            this endpoint fall back automatically to <code class="text-text-primary">/api/chat</code>.
+            Turn off to pin every send to the legacy pipeline.
           </div>
         </div>
       </label>

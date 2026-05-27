@@ -93,6 +93,20 @@ export interface AppSettings {
    * `set_tray_visible` IPC whenever the user toggles it from /settings.
    */
   trayEnabled?: boolean;
+  /**
+   * App-level "Use Responses API streaming" toggle. Defaults to `true` so a
+   * fresh install gets the better delta-streaming path on any gateway that
+   * supports it (IronClaw v0.29.x+ exposes `/api/v1/responses` with real
+   * incremental `response.output_text.delta` events). Older gateways still
+   * work via the auto-detected fallback to the legacy `/api/chat/events`
+   * pipeline.
+   *
+   * Toggling off pins the chat surface to the legacy path regardless of
+   * server capability — useful for debugging issues that only reproduce
+   * on one transport. App-level (not per-profile) because it's a transport
+   * preference, not per-gateway. Only an explicit `false` on disk disables it.
+   */
+  useResponsesApi?: boolean;
 }
 
 /** Id used for the migrated default profile. Must stay in sync with the
@@ -123,7 +137,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   profiles: [defaultProfile({ id: DEFAULT_PROFILE_ID, name: 'Default' })],
   onboardingComplete: false,
   adminMode: false,
-  trayEnabled: true
+  trayEnabled: true,
+  useResponsesApi: true
 };
 
 /**
@@ -145,6 +160,7 @@ interface LegacyAppSettings {
   llmBackend?: LlmBackend;
   onboardingComplete?: boolean;
   trayEnabled?: boolean;
+  useResponsesApi?: boolean;
 }
 
 /**
@@ -189,7 +205,12 @@ function migrateLoaded(
       // trayEnabled is opt-OUT — defaults to true so a fresh install
       // gets the tray icon by default. Only an explicit `false` on disk
       // hides it.
-      trayEnabled: raw.trayEnabled !== false
+      trayEnabled: raw.trayEnabled !== false,
+      // useResponsesApi is opt-OUT — defaults to true so users get the
+      // better delta-streaming path. The chat surface auto-falls-back to
+      // the legacy /api/chat path if the active gateway doesn't expose
+      // /api/v1/responses, so flipping this on is safe on every server.
+      useResponsesApi: raw.useResponsesApi !== false
     };
   }
 
@@ -210,7 +231,8 @@ function migrateLoaded(
     profiles: [profile],
     onboardingComplete: raw.onboardingComplete === true,
     adminMode: raw.adminMode === true,
-    trayEnabled: raw.trayEnabled !== false
+    trayEnabled: raw.trayEnabled !== false,
+    useResponsesApi: raw.useResponsesApi !== false
   };
 }
 
@@ -248,6 +270,129 @@ export async function saveSettings(s: AppSettings): Promise<void> {
     return;
   }
   await invoke('save_settings', { settings: s });
+}
+
+// ---- Settings backup (import validation) ---------------------------------
+
+/** Result of `validateImportedSettings`. Discriminated union so callers can
+ *  surface the specific failure reason in the UI instead of a generic
+ *  "import failed" toast. */
+export type ImportValidationResult =
+  | { ok: true; settings: AppSettings }
+  | { ok: false; error: string };
+
+/**
+ * Parse + validate the JSON shape of an imported settings backup. Returns
+ * a discriminated union so the caller can show the specific failure reason
+ * rather than a generic message.
+ *
+ * Validation rules enforced:
+ *   - Input must be valid JSON parsing to a non-null object.
+ *   - `profiles` must be a non-empty array of profile objects.
+ *   - Each profile must have a string `id`, `name`, `remoteBaseUrl`,
+ *     `localBaseUrl`, a `mode` of `'remote' | 'local'`, and an `llmBackend`
+ *     of `'nearai' | 'openrouter'`.
+ *   - `activeProfileId` must be a string matching one of the profile ids.
+ *
+ * Optional fields (`onboardingComplete`, `adminMode`, `trayEnabled`) are
+ * accepted as-is but coerced to booleans on the persisted shape.
+ */
+export function validateImportedSettings(raw: string): ImportValidationResult {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return { ok: false, error: `Not valid JSON: ${(err as Error).message}` };
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { ok: false, error: 'Expected a JSON object at the top level' };
+  }
+  const obj = parsed as Record<string, unknown>;
+
+  if (!Array.isArray(obj.profiles)) {
+    return { ok: false, error: 'Missing or invalid `profiles` array' };
+  }
+  if (obj.profiles.length === 0) {
+    return { ok: false, error: '`profiles` array is empty — need at least one profile' };
+  }
+
+  const profiles: ProfileConfig[] = [];
+  for (let i = 0; i < obj.profiles.length; i++) {
+    const p = obj.profiles[i];
+    if (!p || typeof p !== 'object' || Array.isArray(p)) {
+      return { ok: false, error: `profiles[${i}] is not an object` };
+    }
+    const pp = p as Record<string, unknown>;
+    if (typeof pp.id !== 'string' || pp.id.length === 0) {
+      return { ok: false, error: `profiles[${i}].id missing or not a string` };
+    }
+    if (typeof pp.name !== 'string' || pp.name.length === 0) {
+      return { ok: false, error: `profiles[${i}].name missing or not a string` };
+    }
+    if (pp.mode !== 'remote' && pp.mode !== 'local') {
+      return {
+        ok: false,
+        error: `profiles[${i}].mode must be "remote" or "local" (got ${JSON.stringify(pp.mode)})`
+      };
+    }
+    if (typeof pp.remoteBaseUrl !== 'string') {
+      return { ok: false, error: `profiles[${i}].remoteBaseUrl missing or not a string` };
+    }
+    if (typeof pp.localBaseUrl !== 'string') {
+      return { ok: false, error: `profiles[${i}].localBaseUrl missing or not a string` };
+    }
+    if (pp.llmBackend !== 'nearai' && pp.llmBackend !== 'openrouter') {
+      return {
+        ok: false,
+        error: `profiles[${i}].llmBackend must be "nearai" or "openrouter" (got ${JSON.stringify(pp.llmBackend)})`
+      };
+    }
+    profiles.push({
+      id: pp.id,
+      name: pp.name,
+      mode: pp.mode,
+      remoteBaseUrl: pp.remoteBaseUrl,
+      localBaseUrl: pp.localBaseUrl,
+      llmBackend: pp.llmBackend
+    });
+  }
+
+  if (typeof obj.activeProfileId !== 'string' || obj.activeProfileId.length === 0) {
+    return { ok: false, error: 'Missing or invalid `activeProfileId`' };
+  }
+  if (!profiles.some((p) => p.id === obj.activeProfileId)) {
+    return {
+      ok: false,
+      error: '`activeProfileId` does not match any profile id'
+    };
+  }
+
+  const settings: AppSettings = {
+    activeProfileId: obj.activeProfileId,
+    profiles,
+    onboardingComplete: obj.onboardingComplete === true,
+    adminMode: obj.adminMode === true,
+    trayEnabled: obj.trayEnabled !== false
+  };
+  return { ok: true, settings };
+}
+
+/**
+ * Validate the supplied JSON string, persist it via `saveSettings`, and
+ * return the parsed `AppSettings`. Throws on validation failure with the
+ * specific reason.
+ *
+ * Tokens / OpenRouter keys are NOT imported (they live in the Keychain,
+ * not in settings.json). The caller should surface a reminder to re-enter
+ * credentials per profile after this resolves.
+ */
+export async function importSettingsFromString(raw: string): Promise<AppSettings> {
+  const result = validateImportedSettings(raw);
+  if (!result.ok) {
+    throw new Error(result.error);
+  }
+  await saveSettings(result.settings);
+  return result.settings;
 }
 
 // ---- Profile helpers ------------------------------------------------------

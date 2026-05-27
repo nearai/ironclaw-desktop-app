@@ -6,26 +6,43 @@
 // these convenience shapes for the UI.
 
 /**
- * SSE event union emitted on GET /api/chat/events.
+ * Normalized chat event union consumed by the UI.
  *
- * The server emits one of several event kinds; we normalize them into a
- * tagged union for ergonomic consumption in Svelte components.
+ * Two producers feed this union:
  *
- * Wire format (from API doc):
- *   event: response       → {type:"text_response", thread_id, message_id, content}
- *   event: tool_start     → {type:"tool_start", tool, args}
- *   event: tool_result    → {type:"tool_result", tool, result}
- *   event: error          → {type:"error", message}
+ *  - Legacy `/api/chat/events` SSE channel (default `message`, named
+ *    `response`/`tool_start`/`tool_result`/`error`). Wire shapes per
+ *    `/tmp/ironclaw-api.md`:
+ *      event: response       → {type:"text_response", thread_id, message_id, content}
+ *      event: tool_start     → {type:"tool_start", tool, args}
+ *      event: tool_result    → {type:"tool_result", tool, result}
+ *      event: error          → {type:"error", message}
+ *    The legacy stream sends the FULL assistant content per `text_response`
+ *    so each event clobbers the buffer — the messages-store heuristic
+ *    handles both wire shapes (see `appendStreamingChunk`).
  *
- * NOTE: the prompt's original ChatEvent (message_start / content_delta /
- * message_end / finish_reason) does not match what the gateway emits today.
- * If the gateway is upgraded to v0.28.x and exposes delta-style streaming
- * via the Responses API, the union should be revisited.
+ *  - Responses-API `/api/v1/responses` SSE (verified 2026-05-27 against the
+ *    live gateway). Event taxonomy:
+ *      event: response.created          → message_start
+ *      event: response.output_item.added (item.type='message')   → message_start (assistant)
+ *      event: response.output_item.added (item.type='function_call') → tool_call
+ *      event: response.output_text.delta (delta: "...")          → content_delta (true delta)
+ *      event: response.output_item.done (item.type='function_call') → tool_result (best-effort)
+ *      event: response.completed        → message_end
+ *      event: response.failed / error   → error
+ *    These deltas are real incremental chunks, NOT cumulative — concat them.
+ *
+ * `tool_call_delta` is a placeholder for future streaming of function-call
+ * arguments. The current gateway emits arguments only in the final
+ * `output_item.done` envelope; the streaming-arguments shape (`function_call.delta`
+ * with a `arguments_delta` chunk) is reserved here for forward compat without
+ * forcing a union-shape refactor when it lands.
  */
 export type ChatEvent =
   | { type: 'message_start'; thread_id: string; message_id: string }
   | { type: 'content_delta'; thread_id?: string; message_id?: string; delta: string }
   | { type: 'tool_call'; name: string; args: unknown }
+  | { type: 'tool_call_delta'; name?: string; arguments_delta: string }
   | { type: 'tool_result'; name: string; result: unknown }
   | { type: 'message_end'; thread_id?: string; message_id?: string; finish_reason: string }
   | { type: 'error'; message: string };
@@ -35,6 +52,14 @@ export interface Thread {
   title: string;
   created_at: string;
   updated_at: string;
+  /**
+   * Number of "messages" in the thread for UI display purposes. The gateway's
+   * canonical wire field is `turn_count` (one turn = one user message + one
+   * assistant response rolled into a single row); we surface it as
+   * `message_count` because that's what the UI reads, and conceptually each
+   * turn maps onto one "message" the user sent. If a future server flips the
+   * field name to `message_count` directly, the client picks up either.
+   */
   message_count: number;
 }
 
@@ -159,17 +184,37 @@ export interface HealthStatus {
   channel?: string;
 }
 
-/** Convenience response shape returned by IronClawClient.gatewayStatus(). */
+/** Convenience response shape returned by IronClawClient.gatewayStatus().
+ *
+ * Wire fields (verified against IronClaw 0.28.2 on baremetal3, 2026-05-27):
+ *   `{version, sse_connections, ws_connections, total_connections,
+ *     uptime_secs, restart_enabled, daily_cost, actions_this_hour,
+ *     model_usage, llm_backend, llm_model, enabled_channels, engine_v2_enabled}`
+ *
+ * Note the wire uses `uptime_secs`, not `uptime_seconds`. The client maps
+ * either onto `uptime_seconds` so callers see a stable name.
+ */
 export interface GatewayStatus {
   version?: string;
   engine_v2_enabled?: boolean;
   llm_model?: string;
+  /** LLM backend identifier (e.g. "nearai", "openrouter"). Wire: `llm_backend`. */
+  llm_backend?: string;
   enabled_channels: string[];
   sse_connections: number;
   ws_connections: number;
   total_connections: number;
+  /** Server uptime in seconds. Wire emits `uptime_secs`; client maps either. */
   uptime_seconds?: number;
   multi_tenant_mode?: boolean;
+  /** Daily LLM spend in USD, as a string (server formats e.g. "0.0000"). */
+  daily_cost?: string;
+  /** Count of agent actions in the trailing hour. */
+  actions_this_hour?: number;
+  /** Whether the gateway can self-restart (true on supervisord-style installs). */
+  restart_enabled?: boolean;
+  /** Per-model usage breakdown; shape is opaque (server is the source of truth). */
+  model_usage?: unknown[];
 }
 
 /**
@@ -213,6 +258,14 @@ export interface Extension {
 }
 
 export interface ExtensionTool {
+  /**
+   * Owning extension name. The current gateway's `/api/extensions/tools`
+   * endpoint emits `{name, description}` with NO `extension` field on each
+   * tool — builtins and aggregated tools have no parent. The client
+   * normalizes missing values to empty-string (`''`) so the field is
+   * always typed as `string` and consumers can rely on it being a
+   * groupable key. Empty-string means "builtin / no provider".
+   */
   extension: string;
   name: string;
   description?: string;

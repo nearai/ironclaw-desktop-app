@@ -49,6 +49,47 @@ export async function saveTextDialog(
   return result ?? null;
 }
 
+/**
+ * Backup the active `settings.json` to a user-chosen path.
+ *
+ * The Rust side reads the raw bytes from AppData and writes them through —
+ * tokens / OpenRouter keys are NOT included (they live in the Keychain),
+ * so the resulting file is safe to email or sync across machines.
+ *
+ * Returns the saved path, or `null` if the user cancelled the dialog.
+ * Throws on filesystem failure.
+ */
+export async function exportSettings(): Promise<string | null> {
+  if (!inTauri()) {
+    console.warn('exportSettings called outside Tauri; no-op');
+    return null;
+  }
+  // Date formatting lives in JS (todayStamp) so we don't pull a Rust date
+  // crate just to build the suggested filename. The user can override in
+  // the save sheet either way.
+  const defaultFilename = `ironclaw-desktop-settings-${todayStamp()}.json`;
+  const result = await invoke<string | null>('export_settings_dialog', {
+    defaultFilename
+  });
+  return result ?? null;
+}
+
+/**
+ * Prompt the user to pick a settings backup file, return its raw contents.
+ *
+ * Validation + persistence are the caller's responsibility — see
+ * `validateImportedSettings` + `importSettingsFromString` in the settings
+ * store. Returns `null` if the user cancelled.
+ */
+export async function importSettings(): Promise<string | null> {
+  if (!inTauri()) {
+    console.warn('importSettings called outside Tauri; no-op');
+    return null;
+  }
+  const result = await invoke<string | null>('open_text_dialog');
+  return result ?? null;
+}
+
 // ---- Export builders ------------------------------------------------------
 
 /** Wire shape used inside a single-thread JSON export. Matches the

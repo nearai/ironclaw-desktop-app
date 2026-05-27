@@ -4,7 +4,23 @@
   import { page } from '$app/state';
   import { connection, type ConnectionStatus } from '$lib/stores/connection.svelte';
   import { signIn } from '$lib/stores/sign-in.svelte';
+  import { threads } from '$lib/stores/threads.svelte';
+  import { updater } from '$lib/stores/updater.svelte';
   import NewProfileModal from '$lib/components/NewProfileModal.svelte';
+
+  // ---- Sidebar nav definition ------------------------------------------
+  //
+  // The Admin row sits between Extensions and Settings (the prompt's
+  // "between Extensions and Logs" wording predates the post-Logs reorder
+  // — Logs lives BEFORE Extensions in the current sidebar). Same end
+  // result: it's just above Settings, after every other top-level surface,
+  // and hidden until adminMode is on.
+  //
+  // `badgeKey` ties a nav row to one of the badge counters below; the
+  // collapsed-state dot color is selected per-key too. Nav rows without
+  // a `badgeKey` never show a badge.
+
+  type BadgeKey = 'chat' | 'skills' | 'routines' | 'extensions' | 'logs' | 'settings';
 
   type NavItem = {
     href: string;
@@ -21,23 +37,33 @@
     /** Optional shortcut hint shown to the right of the label. Mirrors the
      *  global shortcuts wired in `src/routes/+layout.svelte`. */
     shortcut?: string;
+    /** Drives the per-row badge in expanded mode and the corner dot in
+     *  collapsed mode. Omit for rows that never show one. */
+    badgeKey?: BadgeKey;
     /** If set, only render the item when this predicate returns true. Used
      *  to gate the Admin row behind `settings.adminMode`. */
     showWhen?: () => boolean;
   };
 
-  // The Admin row sits between Extensions and Settings (the prompt's
-  // "between Extensions and Logs" wording predates the post-Logs reorder
-  // — Logs lives BEFORE Extensions in the current sidebar). Same end
-  // result: it's just above Settings, after every other top-level surface,
-  // and hidden until adminMode is on.
   const items: NavItem[] = [
-    { href: '/', label: 'Chat', icon: 'chat', shortcut: '⌘1' },
+    { href: '/', label: 'Chat', icon: 'chat', shortcut: '⌘1', badgeKey: 'chat' },
     { href: '/knowledge', label: 'Knowledge', icon: 'knowledge', shortcut: '⌘2' },
-    { href: '/skills', label: 'Skills', icon: 'skills', shortcut: '⌘3' },
-    { href: '/routines', label: 'Routines', icon: 'routines', shortcut: '⌘4' },
-    { href: '/logs', label: 'Logs', icon: 'logs', shortcut: '⌘5' },
-    { href: '/extensions', label: 'Extensions', icon: 'extensions', shortcut: '⌘6' },
+    { href: '/skills', label: 'Skills', icon: 'skills', shortcut: '⌘3', badgeKey: 'skills' },
+    {
+      href: '/routines',
+      label: 'Routines',
+      icon: 'routines',
+      shortcut: '⌘4',
+      badgeKey: 'routines'
+    },
+    { href: '/logs', label: 'Logs', icon: 'logs', shortcut: '⌘5', badgeKey: 'logs' },
+    {
+      href: '/extensions',
+      label: 'Extensions',
+      icon: 'extensions',
+      shortcut: '⌘6',
+      badgeKey: 'extensions'
+    },
     {
       href: '/admin',
       label: 'Admin',
@@ -48,7 +74,7 @@
       // re-evaluate on every render).
       showWhen: () => connection.settings.adminMode === true
     },
-    { href: '/settings', label: 'Settings', icon: 'settings', shortcut: '⌘,' }
+    { href: '/settings', label: 'Settings', icon: 'settings', shortcut: '⌘,', badgeKey: 'settings' }
   ];
 
   /** Items visible right now. The Admin row is hidden when adminMode is
@@ -60,6 +86,31 @@
     if (href === '/') return path === '/';
     return path === href || path.startsWith(href + '/');
   });
+
+  // ---- Sidebar collapse -------------------------------------------------
+  //
+  // Persisted under `ironclaw-sidebar-collapsed`. Hydrated from
+  // localStorage in `onMount` so the SSR-rendered HTML always matches the
+  // expanded default (no flash of mismatched layout). Width transitions
+  // 200ms ease-out — the layout's flex parent reflows automatically since
+  // `<main>` is `flex-1`.
+  const COLLAPSE_STORAGE_KEY = 'ironclaw-sidebar-collapsed';
+
+  let collapsed = $state<boolean>(false);
+
+  function toggleCollapsed() {
+    collapsed = !collapsed;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(COLLAPSE_STORAGE_KEY, collapsed ? '1' : '0');
+      }
+    } catch {
+      // Quota / private-mode failures are non-fatal.
+    }
+    // Close the profile popover when collapsing — the chip shrinks to an
+    // icon so the popover's left/right anchoring would clip.
+    if (collapsed && popoverOpen) closePopover();
+  }
 
   // ---- Profile dropdown state -------------------------------------------
   //
@@ -101,8 +152,167 @@
     await goto('/settings#profiles');
   }
 
+  // ---- Badge counters ---------------------------------------------------
+  //
+  // The Sidebar pulls live counts for Skills / Routines / Extensions via
+  // the connection client. We do not want to hit the gateway on every
+  // render, and we deliberately do not push these into shared stores
+  // (per task constraints — sidebar may only read existing stores). A
+  // 60s background poll, kicked off once a client is available, keeps the
+  // numbers fresh enough for an at-a-glance indicator without becoming
+  // chatty traffic.
+  //
+  // Threads count comes from the existing `threads` store, which the chat
+  // page already populates / refreshes on send. We don't trigger an extra
+  // fetch from here — if the user never visited Chat the badge stays 0,
+  // which is the desired behavior (no spurious "you have N" with stale
+  // counts pulled in the background).
+
+  const BADGE_POLL_INTERVAL_MS = 60_000;
+
+  let skillsCount = $state<number | null>(null);
+  let routinesEnabled = $state<number | null>(null);
+  let routinesRunning = $state<number>(0);
+  let extensionsCount = $state<number | null>(null);
+
+  let badgeTimer: ReturnType<typeof setInterval> | null = null;
+  /** Tracks the last connection status we acted on so we don't re-fire
+   *  the initial fetch every time `connection.client` re-derives. */
+  let lastBadgeConnectionStatus: ConnectionStatus | null = null;
+
+  async function refreshBadges(): Promise<void> {
+    const client = connection.client;
+    if (!client) {
+      skillsCount = null;
+      routinesEnabled = null;
+      routinesRunning = 0;
+      extensionsCount = null;
+      return;
+    }
+    // Each lookup is independent; failures are silent (the badge just stays
+    // at its previous value or null). Bad-network blips shouldn't flash
+    // numbers in/out of existence in the sidebar.
+    const [skillsRes, routinesRes, extensionsRes] = await Promise.allSettled([
+      client.listSkills(),
+      client.routinesSummary(),
+      client.listExtensions()
+    ]);
+    if (skillsRes.status === 'fulfilled') skillsCount = skillsRes.value.length;
+    if (routinesRes.status === 'fulfilled') {
+      routinesEnabled = routinesRes.value.enabled;
+      routinesRunning = routinesRes.value.running;
+    }
+    if (extensionsRes.status === 'fulfilled') extensionsCount = extensionsRes.value.length;
+  }
+
+  function startBadgePolling(): void {
+    if (badgeTimer) return;
+    badgeTimer = setInterval(() => {
+      void refreshBadges();
+    }, BADGE_POLL_INTERVAL_MS);
+  }
+
+  function stopBadgePolling(): void {
+    if (badgeTimer) {
+      clearInterval(badgeTimer);
+      badgeTimer = null;
+    }
+  }
+
+  // Reactive trigger: when the connection flips into 'connected', kick a
+  // one-shot fetch + start the poller. On any other status, stop polling
+  // and clear the cached counts so the sidebar doesn't show stale numbers
+  // against a disconnected gateway.
+  $effect(() => {
+    const s = connection.status;
+    if (s === lastBadgeConnectionStatus) return;
+    lastBadgeConnectionStatus = s;
+    if (s === 'connected') {
+      void refreshBadges();
+      startBadgePolling();
+    } else {
+      stopBadgePolling();
+      skillsCount = null;
+      routinesEnabled = null;
+      routinesRunning = 0;
+      extensionsCount = null;
+    }
+  });
+
+  /**
+   * Chat badge — total thread count from the shared `threads` store. The
+   * chat page is the only writer; if the user hasn't visited Chat the
+   * store stays empty and we render nothing.
+   *
+   * TODO: surface unread / recent-activity count once the gateway exposes
+   * a per-thread last-read marker. Until then total-threads is the
+   * agreed-upon v1 stand-in.
+   */
+  const chatBadge = $derived<number | null>(
+    threads.threads.length > 0 ? threads.threads.length : null
+  );
+
+  /**
+   * Routines badge — collapses to a string. If any routines are running
+   * we render "running/enabled" (e.g. "2/5"); otherwise just the enabled
+   * count. The gateway currently always returns `running: 0` (per a TODO
+   * in IronClawClient.routinesSummary), so the "/N" path is reserved for
+   * when the server lights it up.
+   */
+  const routinesBadge = $derived.by<string | null>(() => {
+    if (routinesEnabled === null) return null;
+    if (routinesEnabled === 0) return null;
+    if (routinesRunning > 0) return `${routinesRunning}/${routinesEnabled}`;
+    return String(routinesEnabled);
+  });
+
+  const skillsBadge = $derived<number | null>(
+    skillsCount !== null && skillsCount > 0 ? skillsCount : null
+  );
+
+  const extensionsBadge = $derived<number | null>(
+    extensionsCount !== null && extensionsCount > 0 ? extensionsCount : null
+  );
+
+  /**
+   * Settings yellow dot — surfaces "needs attention" without piling text
+   * into the row. Sources:
+   *   - Sidecar in a terminal error / unexpected exit state.
+   *   - Updater in an error state (signature, network, etc).
+   *
+   * Hidden when neither condition holds, so the row stays quiet in the
+   * common case.
+   */
+  const settingsNeedsAttention = $derived<boolean>(
+    connection.sidecarStatus === 'error' ||
+      connection.sidecarStatus === 'exited' ||
+      updater.status === 'error'
+  );
+
+  /**
+   * Logs red dot — designed to flag a recent ERROR-level entry in the
+   * gateway's tracing buffer. There is no shared logs store today (the
+   * logs page is page-local), so v1 ships dark.
+   *
+   * TODO (Sidebar.svelte:~290): once an app-wide logs store lands (or the
+   * connection store starts tracking the last server-side error timestamp
+   * via the SSE /api/logs/events stream), wire this to flip red for ~60s
+   * after the last error event.
+   */
+  const logsHasRecentError = $derived<boolean>(false);
+
   onMount(() => {
     void connection.init();
+
+    // Hydrate collapsed state from localStorage. Defer to onMount so SSR
+    // (if ever enabled) doesn't see a "1" before the browser has settled.
+    try {
+      if (typeof localStorage !== 'undefined') {
+        collapsed = localStorage.getItem(COLLAPSE_STORAGE_KEY) === '1';
+      }
+    } catch {
+      // ignore
+    }
 
     function onWindowClick(e: MouseEvent) {
       if (!popoverOpen) return;
@@ -124,6 +334,7 @@
       window.removeEventListener('mousedown', onWindowClick);
       window.removeEventListener('keydown', onKeyDown);
       connection.stopPolling();
+      stopBadgePolling();
     };
   });
 
@@ -157,26 +368,97 @@
     if (p.user_id && p.user_id !== 'default') return p.user_id;
     return null;
   });
+
+  // ---- Badge / dot helpers ---------------------------------------------
+  //
+  // `dotColorClass` picks a tailwind bg-* class per badge key so the
+  // collapsed-state corner dot reads at a glance (cyan = informational
+  // count, gold = attention, red = error). Keeps the row-level dot styling
+  // out of the template.
+
+  function dotColorClass(key: BadgeKey): string {
+    switch (key) {
+      case 'logs':
+        return 'bg-red-500';
+      case 'settings':
+        return 'bg-accent-gold';
+      case 'chat':
+      case 'skills':
+      case 'routines':
+      case 'extensions':
+      default:
+        return 'bg-accent-cyan';
+    }
+  }
+
+  /**
+   * True when the given badge has any payload (number/string for the
+   * pills, boolean for the attention dots). Drives the collapsed-state
+   * corner dot's visibility too.
+   */
+  function hasBadge(key: BadgeKey): boolean {
+    switch (key) {
+      case 'chat':
+        return chatBadge !== null;
+      case 'skills':
+        return skillsBadge !== null;
+      case 'routines':
+        return routinesBadge !== null;
+      case 'extensions':
+        return extensionsBadge !== null;
+      case 'logs':
+        return logsHasRecentError;
+      case 'settings':
+        return settingsNeedsAttention;
+      default:
+        return false;
+    }
+  }
 </script>
 
 <aside
-  class="w-56 shrink-0 h-full bg-bg-base/80 border-r border-border-subtle flex flex-col pt-10"
+  class="shrink-0 h-full bg-bg-base/80 border-r border-border-subtle flex flex-col pt-10 transition-[width] duration-200 ease-out"
+  class:w-56={!collapsed}
+  class:w-14={collapsed}
 >
-  <div class="px-5 pb-6 flex items-center gap-2">
-    <svg viewBox="0 0 24 24" class="w-6 h-6 text-accent-cyan" fill="none" stroke="currentColor" stroke-width="2">
+  <!-- Brand. Collapses to just the wordmark glyph when narrow. The text
+       label is hidden via `hidden`/`block` rather than `display: none`-vs-
+       opacity tricks so the row height stays stable across the width
+       transition. -->
+  <div
+    class="pb-6 flex items-center gap-2"
+    class:px-5={!collapsed}
+    class:px-0={collapsed}
+    class:justify-center={collapsed}
+  >
+    <svg viewBox="0 0 24 24" class="w-6 h-6 text-accent-cyan shrink-0" fill="none" stroke="currentColor" stroke-width="2">
       <path d="M4 7l8-4 8 4-8 4-8-4z" stroke-linejoin="round" />
       <path d="M4 12l8 4 8-4" stroke-linejoin="round" />
       <path d="M4 17l8 4 8-4" stroke-linejoin="round" />
     </svg>
-    <span class="text-lg font-semibold tracking-tight text-accent-cyan">IronClaw</span>
+    {#if !collapsed}
+      <span class="text-lg font-semibold tracking-tight text-accent-cyan">IronClaw</span>
+    {/if}
   </div>
 
-  <nav class="flex-1 px-2 space-y-1">
+  <nav
+    class="flex-1 space-y-1"
+    class:px-2={!collapsed}
+    class:px-1={collapsed}
+  >
     {#each visibleItems as item (item.href)}
       {@const active = isActive(item.href)}
+      {@const showCornerDot = collapsed && item.badgeKey !== undefined && hasBadge(item.badgeKey)}
+      {@const cornerDotClass = item.badgeKey ? dotColorClass(item.badgeKey) : 'bg-accent-cyan'}
       <a
         href={item.href}
-        class="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors min-h-[44px] border-l-2"
+        class="sidebar-nav-row group relative flex items-center rounded-md text-sm transition-colors min-h-[44px] border-l-2"
+        class:px-3={!collapsed}
+        class:py-2.5={!collapsed}
+        class:gap-3={!collapsed}
+        class:px-0={collapsed}
+        class:py-2={collapsed}
+        class:justify-center={collapsed}
         class:border-accent-cyan={active}
         class:border-transparent={!active}
         class:bg-bg-surface={active}
@@ -184,55 +466,109 @@
         class:text-text-muted={!active}
         class:hover:bg-bg-surface={!active}
         class:hover:text-text-primary={!active}
+        aria-label={collapsed ? item.label : undefined}
       >
-        {#if item.icon === 'chat'}
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-        {:else if item.icon === 'knowledge'}
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-          </svg>
-        {:else if item.icon === 'skills'}
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-          </svg>
-        {:else if item.icon === 'extensions'}
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <!-- Puzzle piece glyph -->
-            <path d="M19.4 7H17V4.6c0-.88-.72-1.6-1.6-1.6h-2.8c-.88 0-1.6.72-1.6 1.6V7H8.6C7.72 7 7 7.72 7 8.6v2.8h2.4c.88 0 1.6.72 1.6 1.6s-.72 1.6-1.6 1.6H7v2.8c0 .88.72 1.6 1.6 1.6h2.8v-2.4c0-.88.72-1.6 1.6-1.6s1.6.72 1.6 1.6V19h2.8c.88 0 1.6-.72 1.6-1.6V15h2.4c.88 0 1.6-.72 1.6-1.6v-2.8c0-.88-.72-1.6-1.6-1.6H21V8.6c0-.88-.72-1.6-1.6-1.6z" />
-          </svg>
-        {:else if item.icon === 'routines'}
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
-        {:else if item.icon === 'logs'}
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="4 17 10 11 4 5" />
-            <line x1="12" y1="19" x2="20" y2="19" />
-          </svg>
-        {:else if item.icon === 'admin'}
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <!-- Shield with a keyhole — signals "admin / privileged scope". -->
-            <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z" />
-            <circle cx="12" cy="11" r="1.4" />
-            <path d="M12 12.4V15" />
-          </svg>
-        {:else if item.icon === 'settings'}
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        {/if}
-        <span class="flex-1 truncate">{item.label}</span>
-        {#if item.shortcut}
-          <span
-            class="text-[10px] font-mono opacity-50 tracking-wider shrink-0"
-            aria-hidden="true"
-          >
-            {item.shortcut}
+        <span class="relative shrink-0 inline-flex items-center justify-center">
+          {#if item.icon === 'chat'}
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+          {:else if item.icon === 'knowledge'}
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+          {:else if item.icon === 'skills'}
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+            </svg>
+          {:else if item.icon === 'extensions'}
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <!-- Puzzle piece glyph -->
+              <path d="M19.4 7H17V4.6c0-.88-.72-1.6-1.6-1.6h-2.8c-.88 0-1.6.72-1.6 1.6V7H8.6C7.72 7 7 7.72 7 8.6v2.8h2.4c.88 0 1.6.72 1.6 1.6s-.72 1.6-1.6 1.6H7v2.8c0 .88.72 1.6 1.6 1.6h2.8v-2.4c0-.88.72-1.6 1.6-1.6s1.6.72 1.6 1.6V19h2.8c.88 0 1.6-.72 1.6-1.6V15h2.4c.88 0 1.6-.72 1.6-1.6v-2.8c0-.88-.72-1.6-1.6-1.6H21V8.6c0-.88-.72-1.6-1.6-1.6z" />
+            </svg>
+          {:else if item.icon === 'routines'}
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          {:else if item.icon === 'logs'}
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="4 17 10 11 4 5" />
+              <line x1="12" y1="19" x2="20" y2="19" />
+            </svg>
+          {:else if item.icon === 'admin'}
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <!-- Shield with a keyhole — signals "admin / privileged scope". -->
+              <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z" />
+              <circle cx="12" cy="11" r="1.4" />
+              <path d="M12 12.4V15" />
+            </svg>
+          {:else if item.icon === 'settings'}
+            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          {/if}
+
+          <!-- Collapsed-state corner dot. Renders absolutely-positioned in
+               the icon's top-right so it stacks regardless of icon shape.
+               Hidden in expanded mode (the pill renders inline instead). -->
+          {#if showCornerDot}
+            <span
+              class="absolute -top-0.5 -right-1 w-2 h-2 rounded-full ring-2 ring-bg-base {cornerDotClass}"
+              aria-hidden="true"
+            ></span>
+          {/if}
+        </span>
+
+        {#if !collapsed}
+          <span class="flex-1 truncate">{item.label}</span>
+
+          <!-- Expanded-mode badges + dots. Three flavors:
+               1. Numeric pill — Chat / Skills / Extensions.
+               2. String pill ("2/5") — Routines.
+               3. Attention dot — Settings (gold), Logs (red).
+               All sit before the shortcut hint so the shortcut keeps its
+               right-anchored column. -->
+          {#if item.badgeKey === 'chat' && chatBadge !== null}
+            <span class="sidebar-badge" aria-label="{chatBadge} threads">{chatBadge}</span>
+          {:else if item.badgeKey === 'skills' && skillsBadge !== null}
+            <span class="sidebar-badge" aria-label="{skillsBadge} installed skills">{skillsBadge}</span>
+          {:else if item.badgeKey === 'routines' && routinesBadge !== null}
+            <span class="sidebar-badge" aria-label="{routinesEnabled} enabled routines">{routinesBadge}</span>
+          {:else if item.badgeKey === 'extensions' && extensionsBadge !== null}
+            <span class="sidebar-badge" aria-label="{extensionsBadge} installed extensions">{extensionsBadge}</span>
+          {:else if item.badgeKey === 'logs' && logsHasRecentError}
+            <span class="w-2 h-2 rounded-full bg-red-500" aria-label="recent errors" title="Recent errors in logs"></span>
+          {:else if item.badgeKey === 'settings' && settingsNeedsAttention}
+            <span
+              class="w-2 h-2 rounded-full bg-accent-gold"
+              aria-label="settings need attention"
+              title={updater.status === 'error'
+                ? 'Updater error'
+                : 'Sidecar needs attention'}
+            ></span>
+          {/if}
+
+          {#if item.shortcut}
+            <span
+              class="text-[10px] font-mono opacity-50 tracking-wider shrink-0"
+              aria-hidden="true"
+            >
+              {item.shortcut}
+            </span>
+          {/if}
+        {:else}
+          <!-- Collapsed-state tooltip. Pure CSS — fades in on row hover via
+               the `.group-hover` selector wired in app.css. Anchored to the
+               right edge so it pops out of the narrow column without
+               getting clipped by the aside's overflow. -->
+          <span class="sidebar-tooltip" role="tooltip">
+            <span class="font-medium">{item.label}</span>
+            {#if item.shortcut}
+              <span class="ml-2 font-mono opacity-60">{item.shortcut}</span>
+            {/if}
           </span>
         {/if}
       </a>
@@ -242,194 +578,273 @@
   <!-- Profile chip + popover. Sits above the connection-status pill so the
        eye scans profile → status from top to bottom. The chip is wrapped in
        `relative` so the popover can position itself just above using
-       `absolute bottom-full`. -->
-  <div class="px-3 pt-3 border-t border-border-subtle">
-    <div class="relative">
-      <button
-        bind:this={chipRef}
-        type="button"
-        onclick={togglePopover}
-        class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs hover:bg-bg-surface transition-colors min-h-[36px] border border-transparent"
-        class:border-accent-cyan={popoverOpen}
-        aria-haspopup="listbox"
-        aria-expanded={popoverOpen}
-        title="Switch profile"
-      >
-        <!-- Profile glyph (stacked-disks) -->
-        <svg
-          viewBox="0 0 24 24"
-          class="w-3.5 h-3.5 text-accent-cyan shrink-0"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
+       `absolute bottom-full`.
+       Hidden entirely when collapsed (no horizontal room for a chip + name
+       + chevron). The profile switcher is still reachable via the
+       /settings page and the global shortcut. -->
+  {#if !collapsed}
+    <div class="px-3 pt-3 border-t border-border-subtle">
+      <div class="relative">
+        <button
+          bind:this={chipRef}
+          type="button"
+          onclick={togglePopover}
+          class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs hover:bg-bg-surface transition-colors min-h-[36px] border border-transparent"
+          class:border-accent-cyan={popoverOpen}
+          aria-haspopup="listbox"
+          aria-expanded={popoverOpen}
+          title="Switch profile"
         >
-          <ellipse cx="12" cy="5" rx="9" ry="3" />
-          <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" />
-          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-        </svg>
-        <span class="flex-1 text-left truncate text-text-primary">
-          {connection.activeProfile.name}
-        </span>
-        <!-- Chevron rotates with popover state -->
-        <svg
-          viewBox="0 0 24 24"
-          class="w-3 h-3 opacity-60 transition-transform shrink-0"
-          class:rotate-180={popoverOpen}
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <polyline points="6 9 12 15 18 9" />
-        </svg>
-      </button>
+          <!-- Profile glyph (stacked-disks) -->
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3.5 h-3.5 text-accent-cyan shrink-0"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <ellipse cx="12" cy="5" rx="9" ry="3" />
+            <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" />
+            <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+          </svg>
+          <span class="flex-1 text-left truncate text-text-primary">
+            {connection.activeProfile.name}
+          </span>
+          <!-- Chevron rotates with popover state -->
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3 h-3 opacity-60 transition-transform shrink-0"
+            class:rotate-180={popoverOpen}
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
 
-      {#if popoverOpen}
-        <!-- Popover. Anchored to the chip via `bottom-full + mb-1` so it
-             grows upward — the sidebar bottom is already crowded by the
-             status pill below. Width matches the chip (`left-0 right-0`)
-             so it stays inside the 224px sidebar. -->
-        <div
-          bind:this={popoverRef}
-          class="absolute left-0 right-0 bottom-full mb-1 z-40 surface border border-border-subtle p-1 shadow-xl"
-          role="listbox"
-          aria-label="Profiles"
-        >
-          {#each connection.settings.profiles as profile (profile.id)}
-            {@const isActiveProfile = profile.id === connection.activeProfile.id}
+        {#if popoverOpen}
+          <!-- Popover. Anchored to the chip via `bottom-full + mb-1` so it
+               grows upward — the sidebar bottom is already crowded by the
+               status pill below. Width matches the chip (`left-0 right-0`)
+               so it stays inside the 224px sidebar. -->
+          <div
+            bind:this={popoverRef}
+            class="absolute left-0 right-0 bottom-full mb-1 z-40 surface border border-border-subtle p-1 shadow-xl"
+            role="listbox"
+            aria-label="Profiles"
+          >
+            {#each connection.settings.profiles as profile (profile.id)}
+              {@const isActiveProfile = profile.id === connection.activeProfile.id}
+              <button
+                type="button"
+                onclick={() => void pickProfile(profile.id)}
+                class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface transition-colors min-h-[32px]"
+                role="option"
+                aria-selected={isActiveProfile}
+              >
+                <!-- Radio indicator -->
+                <span
+                  class="w-3 h-3 rounded-full border-2 shrink-0 flex items-center justify-center"
+                  class:border-accent-cyan={isActiveProfile}
+                  class:border-border-subtle={!isActiveProfile}
+                >
+                  {#if isActiveProfile}
+                    <span class="w-1.5 h-1.5 rounded-full bg-accent-cyan"></span>
+                  {/if}
+                </span>
+                <span
+                  class="flex-1 truncate"
+                  class:text-text-primary={isActiveProfile}
+                  class:text-text-muted={!isActiveProfile}
+                >
+                  {profile.name}
+                </span>
+                <span
+                  class="text-[9px] uppercase tracking-wider opacity-60 font-mono shrink-0"
+                  aria-hidden="true"
+                >
+                  {profile.mode === 'local' ? 'L' : 'R'}
+                </span>
+              </button>
+            {/each}
+
+            <div class="my-1 border-t border-border-subtle"></div>
+
             <button
               type="button"
-              onclick={() => void pickProfile(profile.id)}
-              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface transition-colors min-h-[32px]"
-              role="option"
-              aria-selected={isActiveProfile}
+              onclick={openNewProfile}
+              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface text-accent-cyan transition-colors min-h-[32px]"
             >
-              <!-- Radio indicator -->
-              <span
-                class="w-3 h-3 rounded-full border-2 shrink-0 flex items-center justify-center"
-                class:border-accent-cyan={isActiveProfile}
-                class:border-border-subtle={!isActiveProfile}
-              >
-                {#if isActiveProfile}
-                  <span class="w-1.5 h-1.5 rounded-full bg-accent-cyan"></span>
-                {/if}
-              </span>
-              <span
-                class="flex-1 truncate"
-                class:text-text-primary={isActiveProfile}
-                class:text-text-muted={!isActiveProfile}
-              >
-                {profile.name}
-              </span>
-              <span
-                class="text-[9px] uppercase tracking-wider opacity-60 font-mono shrink-0"
+              <svg
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
                 aria-hidden="true"
               >
-                {profile.mode === 'local' ? 'L' : 'R'}
-              </span>
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              <span class="flex-1">New profile</span>
             </button>
-          {/each}
 
-          <div class="my-1 border-t border-border-subtle"></div>
-
-          <button
-            type="button"
-            onclick={openNewProfile}
-            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface text-accent-cyan transition-colors min-h-[32px]"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              class="w-3.5 h-3.5 shrink-0"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
+            <button
+              type="button"
+              onclick={() => void gotoManageProfiles()}
+              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface text-text-muted hover:text-text-primary transition-colors min-h-[32px]"
             >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-            <span class="flex-1">New profile</span>
-          </button>
+              <svg
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5 shrink-0"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              <span class="flex-1">Manage profiles</span>
+            </button>
+          </div>
+        {/if}
+      </div>
+    </div>
+  {/if}
 
-          <button
-            type="button"
-            onclick={() => void gotoManageProfiles()}
-            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface text-text-muted hover:text-text-primary transition-colors min-h-[32px]"
+  <!-- Connection-status row. In expanded mode it's a labeled pill + the
+       optional signed-in account tag below it. In collapsed mode it
+       shrinks to just the dot, centered, with the status label in a
+       hover tooltip (matching the nav-row treatment). -->
+  <div
+    class="border-t border-border-subtle"
+    class:px-3={!collapsed}
+    class:py-4={!collapsed}
+    class:px-0={collapsed}
+    class:py-3={collapsed}
+  >
+    {#if collapsed}
+      <div
+        class="sidebar-nav-row group relative flex items-center justify-center"
+        title={connection.lastError ?? pillLabel(connection.status)}
+      >
+        <span
+          class="w-2.5 h-2.5 rounded-full"
+          class:bg-green-500={connection.status === 'connected'}
+          class:bg-accent-gold={connection.status === 'connecting'}
+          class:bg-red-500={connection.status === 'error' ||
+            connection.status === 'disconnected' ||
+            connection.status === 'idle'}
+          aria-label={pillLabel(connection.status)}
+        ></span>
+        <span class="sidebar-tooltip" role="tooltip">
+          <span class="font-medium">{pillLabel(connection.status)}</span>
+        </span>
+      </div>
+    {:else}
+      <div
+        class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs"
+        title={connection.lastError ?? undefined}
+      >
+        <span
+          class="w-2 h-2 rounded-full"
+          class:bg-green-500={connection.status === 'connected'}
+          class:bg-accent-gold={connection.status === 'connecting'}
+          class:bg-red-500={connection.status === 'error' ||
+            connection.status === 'disconnected' ||
+            connection.status === 'idle'}
+        ></span>
+        <span
+          class:text-text-primary={connection.status === 'connected'}
+          class:text-accent-gold={connection.status === 'connecting'}
+          class:text-red-400={connection.status === 'error'}
+          class:text-text-muted={connection.status === 'disconnected' ||
+            connection.status === 'idle'}
+        >
+          {pillLabel(connection.status)}
+        </span>
+      </div>
+      {#if accountLabel}
+        <!-- Signed-in identity tucked just below the connection pill so the
+             eye scans profile → status → account top-to-bottom. Truncates on
+             long account names to keep the sidebar footer from breaking out
+             of its 224 px column. -->
+        <div
+          class="flex items-center gap-2 px-2 pb-0.5 text-[10px] font-mono text-text-muted truncate"
+          title={accountLabel}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="w-2.5 h-2.5 shrink-0 text-accent-cyan"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
           >
-            <svg
-              viewBox="0 0 24 24"
-              class="w-3.5 h-3.5 shrink-0"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-            <span class="flex-1">Manage profiles</span>
-          </button>
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          <span class="truncate">{accountLabel}</span>
         </div>
       {/if}
-    </div>
+    {/if}
   </div>
 
-  <div class="px-3 py-4 border-t border-border-subtle">
-    <div
-      class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs"
-      title={connection.lastError ?? undefined}
+  <!-- Collapse toggle. Lives at the very bottom (below the profile chip +
+       connection pill) so it's the last thing the eye lands on and never
+       fights with the nav for attention. Icon flips direction with state
+       so it always points "out" of the current edge. -->
+  <div
+    class="border-t border-border-subtle"
+    class:px-2={!collapsed}
+    class:px-1={collapsed}
+    class:py-2={true}
+  >
+    <button
+      type="button"
+      onclick={toggleCollapsed}
+      class="sidebar-nav-row group relative flex items-center w-full rounded-md text-xs text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors min-h-[32px]"
+      class:justify-center={collapsed}
+      class:gap-2={!collapsed}
+      class:px-2={!collapsed}
+      class:px-0={collapsed}
+      aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+      title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
     >
-      <span
-        class="w-2 h-2 rounded-full"
-        class:bg-green-500={connection.status === 'connected'}
-        class:bg-accent-gold={connection.status === 'connecting'}
-        class:bg-red-500={connection.status === 'error' ||
-          connection.status === 'disconnected' ||
-          connection.status === 'idle'}
-      ></span>
-      <span
-        class:text-text-primary={connection.status === 'connected'}
-        class:text-accent-gold={connection.status === 'connecting'}
-        class:text-red-400={connection.status === 'error'}
-        class:text-text-muted={connection.status === 'disconnected' ||
-          connection.status === 'idle'}
+      <svg
+        viewBox="0 0 24 24"
+        class="w-3.5 h-3.5 shrink-0 transition-transform"
+        class:rotate-180={collapsed}
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
       >
-        {pillLabel(connection.status)}
-      </span>
-    </div>
-    {#if accountLabel}
-      <!-- Signed-in identity tucked just below the connection pill so the
-           eye scans profile → status → account top-to-bottom. Truncates on
-           long account names to keep the sidebar footer from breaking out
-           of its 224 px column. -->
-      <div
-        class="flex items-center gap-2 px-2 pb-0.5 text-[10px] font-mono text-text-muted truncate"
-        title={accountLabel}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          class="w-2.5 h-2.5 shrink-0 text-accent-cyan"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
-        <span class="truncate">{accountLabel}</span>
-      </div>
-    {/if}
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+      {#if !collapsed}
+        <span class="flex-1 text-left">Collapse</span>
+      {:else}
+        <span class="sidebar-tooltip" role="tooltip">
+          <span class="font-medium">Expand sidebar</span>
+        </span>
+      {/if}
+    </button>
   </div>
 </aside>
 
@@ -437,3 +852,61 @@
   bind:open={newProfileModalOpen}
   onClose={() => (newProfileModalOpen = false)}
 />
+
+<style>
+  /* Badge pill — small mono number on a dark surface, deliberately muted
+     so it doesn't compete with the row label. Same visual treatment for
+     both numeric (5, 12) and string ("2/5") payloads. */
+  :global(.sidebar-badge) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.25rem;
+    padding: 0 0.375rem;
+    height: 1.1rem;
+    border-radius: 9999px;
+    background-color: #1f2937; /* border-subtle */
+    color: #9ca3af; /* text-muted */
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 10px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  /* Collapsed-state tooltip. Pure CSS — `.sidebar-nav-row` adds
+     `position: relative` so the tooltip can pop out to the right via
+     `left: calc(100% + 0.5rem)`. Stays hidden + non-interactive until the
+     row receives :hover or :focus-visible, then fades in over 100ms. */
+  :global(.sidebar-nav-row) {
+    position: relative;
+  }
+
+  :global(.sidebar-tooltip) {
+    position: absolute;
+    left: calc(100% + 0.5rem);
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 50;
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    background-color: #050810; /* bg-deep */
+    border: 1px solid #00d4ff; /* accent-cyan */
+    color: #e5e7eb; /* text-primary */
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 100ms ease-out;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  }
+
+  :global(.sidebar-nav-row:hover) .sidebar-tooltip,
+  :global(.sidebar-nav-row:focus-visible) .sidebar-tooltip,
+  :global(.sidebar-nav-row:hover) :global(.sidebar-tooltip),
+  :global(.sidebar-nav-row:focus-visible) :global(.sidebar-tooltip) {
+    opacity: 1;
+  }
+</style>

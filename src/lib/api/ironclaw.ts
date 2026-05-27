@@ -111,16 +111,29 @@ export class IronClawClient {
   }
 
   async gatewayStatus(): Promise<GatewayStatus> {
+    // Wire (verified 2026-05-27 against IronClaw 0.28.2):
+    //   {version, sse_connections, ws_connections, total_connections,
+    //    uptime_secs, restart_enabled, daily_cost, actions_this_hour,
+    //    model_usage, llm_backend, llm_model, enabled_channels, engine_v2_enabled}
+    // Note `uptime_secs` (not `uptime_seconds`). We accept either for
+    // forward/backward compat and map onto `uptime_seconds` so callers
+    // see a stable field name.
     const res = await this.request<{
       version?: string;
       engine_v2_enabled?: boolean;
       llm_model?: string;
+      llm_backend?: string;
       enabled_channels?: string[];
       ws_connections?: number;
       sse_connections?: number;
       total_connections?: number;
+      uptime_secs?: number;
       uptime_seconds?: number;
       multi_tenant_mode?: boolean;
+      daily_cost?: string;
+      actions_this_hour?: number;
+      restart_enabled?: boolean;
+      model_usage?: unknown[];
     }>('GET', '/api/gateway/status');
     const ws = res?.ws_connections ?? 0;
     const sse = res?.sse_connections ?? 0;
@@ -128,12 +141,17 @@ export class IronClawClient {
       version: res?.version,
       engine_v2_enabled: res?.engine_v2_enabled,
       llm_model: res?.llm_model,
+      llm_backend: res?.llm_backend,
       enabled_channels: res?.enabled_channels ?? [],
       sse_connections: sse,
       ws_connections: ws,
       total_connections: res?.total_connections ?? ws + sse,
-      uptime_seconds: res?.uptime_seconds,
-      multi_tenant_mode: res?.multi_tenant_mode
+      uptime_seconds: res?.uptime_secs ?? res?.uptime_seconds,
+      multi_tenant_mode: res?.multi_tenant_mode,
+      daily_cost: res?.daily_cost,
+      actions_this_hour: res?.actions_this_hour,
+      restart_enabled: res?.restart_enabled,
+      model_usage: res?.model_usage
     };
   }
 
@@ -390,17 +408,24 @@ export class IronClawClient {
     const handler = (msg: MessageEvent) => {
       try {
         const parsed = JSON.parse(msg.data) as Record<string, unknown>;
-        push(normalizeEvent(parsed));
+        const ev = normalizeEvent(parsed);
+        if (ev !== null) push(ev);
       } catch (e) {
         push({ type: 'error', message: `parse error: ${(e as Error).message}` });
       }
     };
 
     // Default `message` event covers payloads sent without an explicit
-    // event name; named events ('response', 'tool_start', etc.) are bound
-    // individually so we don't lose them.
+    // event name; named events are bound individually so we don't lose
+    // them. Wire (verified 2026-05-27): the gateway emits
+    // `event: thinking`, `event: status`, `event: response`,
+    // `event: tool_start`, `event: tool_result`. `thinking` and `status`
+    // are progress chatter that `normalizeEvent` returns `null` for;
+    // the handler drops nulls before pushing onto the queue.
     es.addEventListener('message', handler);
     es.addEventListener('response', handler);
+    es.addEventListener('thinking', handler);
+    es.addEventListener('status', handler);
     es.addEventListener('tool_start', handler);
     es.addEventListener('tool_result', handler);
     es.addEventListener('error', (ev) => {
@@ -437,23 +462,191 @@ export class IronClawClient {
     }
   }
 
+  /**
+   * Stream a single user turn through the OpenAI-compatible Responses API
+   * (`POST /api/v1/responses` with `stream: true`).
+   *
+   * Unlike the legacy `/api/chat/send` + `/api/chat/events` pair which delivers
+   * the full assistant content per event (and so feels jumpy as each new
+   * "delta" clobbers the buffer), the Responses-API emits real incremental
+   * `response.output_text.delta` chunks. The messages-store heuristic
+   * concatenates these correctly because each chunk is small and does not
+   * start with the current buffer.
+   *
+   * Probe (2026-05-27) of the live gateway confirmed the event taxonomy and
+   * shape — see `ChatEvent` in `types.ts` for the full mapping. Tool/function
+   * calls come back as `response.output_item.{added,done}` envelopes with
+   * `item.type === "function_call"`; we synthesize a `tool_call` on `added`
+   * and a `tool_result` on `done` so the existing right-rail tool inspector
+   * continues to render.
+   *
+   * The gateway today does NOT accept a `model` parameter (a 400 "Model
+   * selection is not yet supported" comes back if one is sent); we omit it.
+   * Thread membership is carried via `metadata.thread_id` — the wire schema
+   * accepts arbitrary metadata so this is forward-compatible with whatever
+   * thread-resolution logic the gateway grows.
+   *
+   * Uses `fetch` + a manual SSE parser rather than `EventSource` because:
+   *   1. `EventSource` cannot attach `Authorization` headers (we'd have to
+   *      smuggle the token through a query string and the gateway only
+   *      honours headers for `/api/v1/responses` today), and
+   *   2. The Responses-API endpoint is POST + body, which `EventSource`
+   *      cannot do at all.
+   */
+  async *streamResponse(
+    input: string,
+    threadId: string | null,
+    signal: AbortSignal
+  ): AsyncIterable<ChatEvent> {
+    const url = `${this.baseUrl}/api/v1/responses`;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+      ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
+    };
+    const body: Record<string, unknown> = {
+      input,
+      stream: true,
+      // Gateway rejects an explicit `model` field today (400 invalid_request).
+      // Omit and let the server pick. If a future build accepts `"default"`,
+      // we can pass it through.
+      ...(threadId ? { metadata: { thread_id: threadId } } : {})
+    };
+
+    const res = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+      signal
+    });
+
+    if (!res.ok) {
+      // Pull the body once for the error message; the stream is dead either
+      // way after a non-2xx so reading it is safe.
+      let detail = res.statusText;
+      try {
+        const text = await res.text();
+        if (text) detail = text.slice(0, 500);
+      } catch {
+        // ignore
+      }
+      throw new HttpError(res.status, url, `${res.status} ${detail}`);
+    }
+    if (!res.body) {
+      throw new Error('Responses API: empty body');
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    try {
+      while (true) {
+        if (signal.aborted) {
+          // Cancel the underlying stream so the gateway can stop generating.
+          try { await reader.cancel(); } catch { /* ignore */ }
+          break;
+        }
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+
+        // SSE frames are separated by blank lines (\n\n or \r\n\r\n). Pull
+        // each complete frame out of the buffer and parse it; leave any
+        // partial trailing frame in `buf` for the next read.
+        let frameEnd: number;
+        // eslint-disable-next-line no-cond-assign
+        while ((frameEnd = findFrameEnd(buf)) !== -1) {
+          const rawFrame = buf.slice(0, frameEnd);
+          // Advance past the delimiter (\n\n or \r\n\r\n).
+          buf = buf.slice(frameEnd + (buf.startsWith('\r\n', frameEnd) ? 2 : 0) + 2);
+          const ev = parseSseFrame(rawFrame);
+          if (!ev) continue;
+          for (const out of mapResponsesEvent(ev)) {
+            yield out;
+          }
+        }
+      }
+    } catch (err) {
+      if (signal.aborted) return;
+      // Surface as a single error event so the caller's existing handler
+      // path renders it without a try/catch around the for-await.
+      yield { type: 'error', message: (err as Error).message };
+    } finally {
+      try { reader.releaseLock(); } catch { /* ignore */ }
+    }
+  }
+
+  /**
+   * Detect which streaming endpoints this gateway supports.
+   *
+   * The OpenAI-compatible Responses API was added to IronClaw v0.29.x.
+   * Older gateways only expose `/api/chat/send` + `/api/chat/events`. We
+   * probe with a cheap method-mismatch (`GET /api/v1/responses`) so we
+   * never actually start a generation just to find out — the gateway
+   * answers 405 Method Not Allowed (with `Allow: POST`) when the route
+   * exists and 404 when it doesn't. Either of these signals what we need
+   * without spending tokens.
+   *
+   * Result is cached on the client instance for the lifetime of the
+   * connection so repeated sends don't re-probe. A fresh
+   * `IronClawClient` (e.g. after a profile switch) re-probes from scratch.
+   */
+  async getServerCapabilities(): Promise<{ responses_api: boolean }> {
+    if (this._capabilitiesCache) return this._capabilitiesCache;
+    const url = `${this.baseUrl}/api/v1/responses`;
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: this.token ? { Authorization: `Bearer ${this.token}` } : {}
+      });
+      // 405 = route exists but doesn't accept GET → supports POST streaming.
+      // 401/403 = route exists and would have served us if we'd been authed
+      //   for it — still counts as "available" (the streaming POST carries
+      //   the bearer and will succeed).
+      // 200 = unexpected, but treat as available.
+      // 404 = no such route → fall back to legacy /api/chat path.
+      // Anything else (5xx, network) → conservative: report unavailable so
+      //   the caller uses the well-trodden legacy path.
+      const available =
+        res.status === 405 ||
+        res.status === 401 ||
+        res.status === 403 ||
+        (res.status >= 200 && res.status < 300);
+      this._capabilitiesCache = { responses_api: available };
+      return this._capabilitiesCache;
+    } catch {
+      this._capabilitiesCache = { responses_api: false };
+      return this._capabilitiesCache;
+    }
+  }
+
+  private _capabilitiesCache: { responses_api: boolean } | null = null;
+
   async listThreads(): Promise<Thread[]> {
+    // Wire (verified 2026-05-27): each thread carries `turn_count` (one turn =
+    // one user msg + one assistant response rolled into one row). Older /
+    // future server builds may emit `message_count`; accept either. The
+    // server also returns an `assistant_thread` field at the top level (a
+    // long-running assistant scratch thread, distinct from the user threads);
+    // we ignore it here — callers can probe `/api/chat/threads` directly if
+    // they need it.
     const res = await this.request<{
-      threads: Array<{
+      threads?: Array<{
         id: string;
-        title: string;
+        title?: string;
         created_at: string;
         last_message_at?: string;
         updated_at?: string;
-        message_count: number;
+        turn_count?: number;
+        message_count?: number;
       }>;
     }>('GET', '/api/chat/threads');
     return (res?.threads ?? []).map((t) => ({
       id: t.id,
-      title: t.title,
+      title: t.title ?? '',
       created_at: t.created_at,
       updated_at: t.last_message_at ?? t.updated_at ?? t.created_at,
-      message_count: t.message_count
+      message_count: t.turn_count ?? t.message_count ?? 0
     }));
   }
 
@@ -474,21 +667,76 @@ export class IronClawClient {
   async getHistory(threadId: string, limit = 50, offset = 0): Promise<Message[]> {
     const qs = new URLSearchParams({ thread_id: threadId, limit: String(limit) });
     if (offset > 0) qs.set('offset', String(offset));
+    // Wire (verified 2026-05-27): server returns
+    //   {thread_id, turns: [{turn_number, user_message_id, user_input,
+    //                        response, response_id?, state, started_at,
+    //                        completed_at, tool_calls}], has_more, oldest_timestamp}
+    // Each turn = ONE user message + ONE assistant response, rolled into a
+    // single row. Expand into the flat [user, assistant, …] sequence the UI
+    // expects, ordered by turn_number.
+    //
+    // Older / future server builds may emit a flat `messages: [{id, role,
+    // content, …}]` directly; we accept either shape and fall through to a
+    // verbatim mapping when present.
     const res = await this.request<{
-      messages: Array<{
+      messages?: Array<{
         id: string;
         role: 'user' | 'assistant' | 'tool';
         content: string;
         timestamp?: string;
         created_at?: string;
       }>;
+      turns?: Array<{
+        turn_number?: number;
+        user_message_id?: string;
+        user_input?: string;
+        response?: string;
+        response_id?: string;
+        started_at?: string;
+        completed_at?: string;
+      }>;
     }>('GET', `/api/chat/history?${qs.toString()}`);
-    return (res?.messages ?? []).map((m) => ({
-      id: m.id,
-      role: m.role,
-      content: m.content,
-      created_at: m.created_at ?? m.timestamp ?? ''
-    }));
+
+    // Flat messages path (forward/back compat with hypothetical server build).
+    if (Array.isArray(res?.messages)) {
+      return res.messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        created_at: m.created_at ?? m.timestamp ?? ''
+      }));
+    }
+
+    // Canonical wire today: turns[] expanded to messages[].
+    const turns = (res?.turns ?? [])
+      .slice()
+      .sort((a, b) => (a.turn_number ?? 0) - (b.turn_number ?? 0));
+
+    const messages: Message[] = [];
+    for (const t of turns) {
+      const userTs = t.started_at ?? '';
+      const asstTs = t.completed_at ?? t.started_at ?? '';
+      const turnNo = t.turn_number ?? messages.length;
+      // User half. Always emit; an empty user_input is still a row so the
+      // ordering stays right.
+      messages.push({
+        id: t.user_message_id ?? `turn-${turnNo}-user`,
+        role: 'user',
+        content: t.user_input ?? '',
+        created_at: userTs
+      });
+      // Assistant half. Skip when the turn has no response yet (in-flight
+      // turns can land here mid-stream).
+      if (typeof t.response === 'string' && t.response.length > 0) {
+        messages.push({
+          id: t.response_id ?? `turn-${turnNo}-asst`,
+          role: 'assistant',
+          content: t.response,
+          created_at: asstTs
+        });
+      }
+    }
+    return messages;
   }
 
   async newThread(title?: string): Promise<{ id: string }> {
@@ -882,12 +1130,49 @@ export class IronClawClient {
 
   // ---- Settings (server-side) ------------------------------------------------
 
+  /**
+   * Fetch the server's full settings document.
+   *
+   * Wire (verified 2026-05-27 against IronClaw 0.28.2):
+   *   `{settings: [{key, value, updated_at}, …]}`  — an ARRAY of rows.
+   * The earlier client typed the wire as `{settings: Record<string, unknown>}`
+   * and returned it verbatim; consumers iterating keys received numeric
+   * array indexes instead. We now fold the array into a `{<key>: <value>}`
+   * map so callers see the object shape they expect.
+   *
+   * Older / hypothetical server builds may emit the map shape directly;
+   * we accept both for defense-in-depth.
+   *
+   * TODO(security, 2026-05-27): the server's `mcp_servers` value embeds
+   * raw bearer tokens (e.g. `Authorization: Bearer sk-agent-…`) in
+   * single-tenant owner installs. The smoke test (Round 7e) confirmed
+   * this against baremetal3. Callers displaying the returned object MUST
+   * sanitize values matching `Bearer\s+\S+` and `sk-[a-zA-Z0-9_-]+`
+   * patterns before rendering, or gate the surface behind an explicit
+   * "show secrets" toggle. A Tauri-side warning is the right long-term
+   * fix; until then this lives at the call site.
+   */
   async getSettings(): Promise<Record<string, unknown>> {
-    const res = await this.request<{ settings: Record<string, unknown> }>(
-      'GET',
-      '/api/settings'
-    );
-    return res?.settings ?? {};
+    const res = await this.request<{
+      settings?:
+        | Array<{ key: string; value: unknown; updated_at?: string }>
+        | Record<string, unknown>;
+    }>('GET', '/api/settings');
+    const raw = res?.settings;
+    if (Array.isArray(raw)) {
+      return Object.fromEntries(
+        raw
+          .filter(
+            (row): row is { key: string; value: unknown; updated_at?: string } =>
+              !!row && typeof row.key === 'string'
+          )
+          .map((row) => [row.key, row.value])
+      );
+    }
+    if (raw && typeof raw === 'object') {
+      return raw;
+    }
+    return {};
   }
 
   async getSetting(key: string): Promise<unknown> {
@@ -987,8 +1272,16 @@ export class IronClawClient {
       }
     }
 
+    // Count tools per extension. The current gateway emits a flat
+    // `/api/extensions/tools` list with NO `extension` field on each tool
+    // (verified 2026-05-27), so this map is empty in practice — every
+    // extension falls through to the inline `e.tools` count below. Kept
+    // because a future server build may surface `extension` again and the
+    // join becomes meaningful at that point. We skip empty-string entries
+    // ("builtin / no provider") since they're not attributable.
     const toolCounts = new Map<string, number>();
     for (const t of tools) {
+      if (t.extension.length === 0) continue;
       toolCounts.set(t.extension, (toolCounts.get(t.extension) ?? 0) + 1);
     }
 
@@ -1005,6 +1298,9 @@ export class IronClawClient {
         category: mapExtensionKind(e.kind),
         source: e.source,
         requires_setup: e.needs_setup ?? false,
+        // Prefer the joined count from /api/extensions/tools when present,
+        // otherwise fall back to the inline `tools[]` array the base list
+        // emits (currently the only path that yields a non-zero count).
         tool_count: toolCounts.get(e.name) ?? (Array.isArray(e.tools) ? e.tools.length : 0),
         readiness_message: rd?.message,
         keywords: e.keywords
@@ -1046,7 +1342,23 @@ export class IronClawClient {
     } satisfies Extension));
   }
 
-  /** Flat list of tools provided by installed extensions. */
+  /** Flat list of tools provided by installed extensions.
+   *
+   * Wire (verified 2026-05-27): server returns `{tools: [{name, description}]}`
+   * with NO `extension` field on each tool — the current gateway aggregates
+   * builtins + MCP-server tools into a single flat list without provenance.
+   * The earlier client filtered to `t.extension` truthy and silently dropped
+   * every entry, collapsing every extension's `tool_count` display to 0. We
+   * now accept the bare `{name, description}` shape and normalise the
+   * missing `extension` to empty-string (`''`) so consumers always get a
+   * groupable string key.
+   *
+   * NOTE: because the wire doesn't carry provenance today, `listExtensions`'s
+   * per-extension `tool_count` join via this method will yield 0 for every
+   * extension and fall through to each extension's own `tools[]` array
+   * (populated by `/api/extensions`). The count is still meaningful for
+   * extensions that publish their tool list inline.
+   */
   async extensionTools(): Promise<ExtensionTool[]> {
     const res = await this.request<{
       tools?: Array<{
@@ -1056,9 +1368,11 @@ export class IronClawClient {
       }>;
     }>('GET', '/api/extensions/tools');
     return (res?.tools ?? [])
-      .filter((t) => !!t.extension)
+      .filter((t) => typeof t?.name === 'string' && t.name.length > 0)
       .map((t) => ({
-        extension: String(t.extension),
+        // Empty-string `extension` ("") means "builtin / no provider" —
+        // a stable key consumers can group on without nullable handling.
+        extension: typeof t.extension === 'string' ? t.extension : '',
         name: t.name,
         description: t.description
       }));
@@ -1443,22 +1757,224 @@ function mapExtensionKind(kind: unknown): string | undefined {
 }
 
 /**
- * Normalize a raw SSE payload from the gateway into our tagged ChatEvent.
- * The gateway emits `text_response`, `tool_start`, `tool_result`, `error`
- * today; we map them onto the prompt's intended union as best we can.
+ * Find the index of the end of the first complete SSE frame in `buf`, where
+ * a frame is delimited by `\n\n` or `\r\n\r\n`. Returns -1 if no complete
+ * frame is buffered yet. The returned index points at the FIRST byte of the
+ * delimiter — caller skips two bytes past it (and an extra two for CRLF) to
+ * advance.
  */
-function normalizeEvent(raw: Record<string, unknown>): ChatEvent {
+function findFrameEnd(buf: string): number {
+  const lf = buf.indexOf('\n\n');
+  const crlf = buf.indexOf('\r\n\r\n');
+  if (lf === -1 && crlf === -1) return -1;
+  if (lf === -1) return crlf;
+  if (crlf === -1) return lf;
+  return Math.min(lf, crlf);
+}
+
+/**
+ * Parse a single SSE frame (one or more `field: value` lines) into
+ * `{event, data}`. Multi-line `data:` continuations are joined with `\n`
+ * per the SSE spec; everything else is ignored — we don't need `id:` or
+ * `retry:` for the chat stream.
+ *
+ * Returns null for empty frames (just a comment / heartbeat).
+ */
+function parseSseFrame(frame: string): { event: string; data: string } | null {
+  let event = 'message';
+  const dataLines: string[] = [];
+  for (const rawLine of frame.split(/\r?\n/)) {
+    const line = rawLine;
+    if (!line || line.startsWith(':')) continue;
+    const colon = line.indexOf(':');
+    const field = colon === -1 ? line : line.slice(0, colon);
+    // SSE spec: a single leading space after the colon is stripped.
+    let value = colon === -1 ? '' : line.slice(colon + 1);
+    if (value.startsWith(' ')) value = value.slice(1);
+    if (field === 'event') event = value;
+    else if (field === 'data') dataLines.push(value);
+    // id, retry, and unknown fields ignored.
+  }
+  if (dataLines.length === 0) return null;
+  return { event, data: dataLines.join('\n') };
+}
+
+/**
+ * Map a Responses-API SSE frame onto zero, one, or more ChatEvent values.
+ *
+ * Emits multiple events in a few cases:
+ *   - `response.completed` with a non-empty `content` already streamed via
+ *     `output_text.delta` does NOT re-emit (the delta path is canonical).
+ *   - `response.output_item.added` of `function_call` synthesizes a single
+ *     `tool_call` (the matching `done` envelope synthesizes a `tool_result`).
+ *
+ * Returns [] for control events that don't carry UI-relevant state
+ * (e.g. `output_item.added` for an assistant `message` shell — the
+ * subsequent `output_text.delta` is what we render).
+ */
+function mapResponsesEvent(ev: { event: string; data: string }): ChatEvent[] {
+  let raw: Record<string, unknown>;
+  try {
+    raw = JSON.parse(ev.data) as Record<string, unknown>;
+  } catch (e) {
+    return [{ type: 'error', message: `parse error: ${(e as Error).message}` }];
+  }
+  const type = String(raw.type ?? ev.event ?? '');
+  switch (type) {
+    case 'response.created': {
+      const resp = (raw.response as Record<string, unknown> | undefined) ?? {};
+      const id = String(resp.id ?? '');
+      return [
+        {
+          type: 'message_start',
+          thread_id: '',
+          message_id: id
+        }
+      ];
+    }
+    case 'response.output_item.added': {
+      const item = (raw.item as Record<string, unknown> | undefined) ?? {};
+      const itemType = String(item.type ?? '');
+      if (itemType === 'function_call') {
+        // The wire packs both `name` and `arguments` in this envelope.
+        // `arguments` is empty here on this gateway today; the final
+        // shape lives in `output_item.done` instead. Surface whatever
+        // arrived so the right-rail can render the call shell.
+        const argsStr = String(item.arguments ?? '');
+        let args: unknown = argsStr;
+        if (argsStr.length > 0) {
+          try {
+            args = JSON.parse(argsStr);
+          } catch {
+            // Keep raw string if arguments aren't JSON (e.g. the
+            // demo gateway emits `memory_search(hermes)` as the name
+            // with empty args).
+          }
+        }
+        return [
+          {
+            type: 'tool_call',
+            name: String(item.name ?? ''),
+            args
+          }
+        ];
+      }
+      // Assistant message shell — nothing to render yet; deltas follow.
+      return [];
+    }
+    case 'response.output_text.delta': {
+      // Real incremental chunk; concat path in messages store.
+      const delta = String(raw.delta ?? '');
+      if (delta.length === 0) return [];
+      return [{ type: 'content_delta', delta }];
+    }
+    case 'response.function_call.arguments.delta': {
+      // Forward-compat: a future gateway version may stream tool arguments
+      // incrementally. The shape isn't observed in production today but is
+      // documented in OpenAI's Responses API; if it shows up, surface it as
+      // a `tool_call_delta` for any consumer that wants to render partial
+      // arguments.
+      const delta = String(raw.delta ?? raw.arguments_delta ?? '');
+      if (delta.length === 0) return [];
+      return [{ type: 'tool_call_delta', arguments_delta: delta }];
+    }
+    case 'response.output_item.done': {
+      const item = (raw.item as Record<string, unknown> | undefined) ?? {};
+      const itemType = String(item.type ?? '');
+      if (itemType === 'function_call') {
+        // The gateway doesn't emit a dedicated tool_result event today —
+        // synthesize one from the completed call envelope. `result` is
+        // unknown to us at this point (the model runs the tool server-side
+        // and emits the next assistant message), so we record an empty
+        // result; the right-rail flips the call from "Running…" to "done".
+        const argsStr = String(item.arguments ?? '');
+        let result: unknown = argsStr;
+        if (argsStr.length > 0) {
+          try {
+            result = JSON.parse(argsStr);
+          } catch {
+            // keep raw
+          }
+        } else {
+          result = '';
+        }
+        return [
+          {
+            type: 'tool_result',
+            name: String(item.name ?? ''),
+            result
+          }
+        ];
+      }
+      return [];
+    }
+    case 'response.completed': {
+      const resp = (raw.response as Record<string, unknown> | undefined) ?? {};
+      return [
+        {
+          type: 'message_end',
+          message_id: String(resp.id ?? ''),
+          finish_reason: String(resp.status ?? 'completed')
+        }
+      ];
+    }
+    case 'response.failed':
+    case 'response.error':
+    case 'error': {
+      const err = (raw.error as Record<string, unknown> | undefined) ?? raw;
+      const message = String(err.message ?? raw.message ?? 'Responses API error');
+      return [{ type: 'error', message }];
+    }
+    default:
+      // Unknown event type — drop silently. We don't want to spam the UI
+      // with errors when the gateway adds a new event kind we don't
+      // recognize (e.g. a future `response.reasoning.delta`).
+      return [];
+  }
+}
+
+/**
+ * Normalize a raw SSE payload from the gateway into our tagged ChatEvent.
+ *
+ * Wire (verified 2026-05-27 against IronClaw 0.28.2):
+ *   - `type: "response"`     — assistant content (FULL content per event,
+ *                              not incremental). Mapped to `content_delta`;
+ *                              the messages-store heuristic handles the
+ *                              clobber-vs-append duality.
+ *   - `type: "thinking"`     — progress chatter ("Calling LLM…", "Step
+ *                              complete — 1234 in / 56 out tokens"). DROPPED.
+ *   - `type: "status"`       — short status pings ("Done"). DROPPED.
+ *   - `type: "tool_start"`   — tool invocation start.
+ *   - `type: "tool_result"`  — tool invocation result.
+ *   - `type: "error"`        — server-side error.
+ *   - `type: "text_response"`— LEGACY (kept for older gateways).
+ *   - `type: "message_start"`/`message_end` — forward-compat.
+ *
+ * Returns `null` for dropped event types so the SSE handler can skip
+ * pushing them onto the consumer queue without producing UI noise.
+ */
+function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
   const type = String(raw.type ?? '');
   switch (type) {
+    case 'response':
     case 'text_response':
-      // Treat each text_response as a content_delta — phase 3 may split this
-      // into message_start/end once the gateway exposes deltas natively.
+      // Server emits the FULL assistant content per event (not an
+      // incremental delta). Surface as `content_delta` — the messages-store
+      // heuristic handles full-clobber vs. true-delta. `text_response` is
+      // retained for older gateways that haven't switched to the bare
+      // `response` type yet.
       return {
         type: 'content_delta',
         thread_id: raw.thread_id as string | undefined,
         message_id: raw.message_id as string | undefined,
         delta: String(raw.content ?? '')
       };
+    case 'thinking':
+    case 'status':
+      // Progress / status chatter — drop silently. The UI shows its own
+      // streaming spinner; this stream isn't the place to surface
+      // "Calling LLM…" or per-step token counts.
+      return null;
     case 'tool_start':
       return {
         type: 'tool_call',

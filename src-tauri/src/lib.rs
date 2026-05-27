@@ -214,6 +214,102 @@ async fn save_text_dialog(
     Ok(Some(path_buf.to_string_lossy().into_owned()))
 }
 
+// ---- Settings backup (export / import) -----------------------------------
+
+/// Show the OS save-file dialog, then dump the current `settings.json`
+/// contents (read directly from the AppData directory) to the chosen path.
+///
+/// We read the raw bytes off disk rather than re-serializing the parsed
+/// `AppSettings` value so the exported file is byte-identical to what the
+/// app uses internally — preserving any forward-compatible fields the
+/// Rust schema doesn't model. Tokens / OpenRouter keys never enter this
+/// payload (they live in the Keychain, not settings.json), so this file
+/// is safe to email or sync across machines.
+///
+/// `default_filename` is supplied by the caller so date formatting stays
+/// in one place (the JS `todayStamp()` helper) and we avoid pulling a
+/// date crate just to format the suggested filename.
+///
+/// Returns the saved path on success, or `None` if the user cancelled.
+#[tauri::command]
+async fn export_settings_dialog(
+    app: AppHandle,
+    default_filename: String,
+) -> Result<Option<String>, String> {
+    // Resolve the on-disk settings.json path the same way the loader does.
+    // If the file doesn't exist yet (fresh install + nothing saved), fall
+    // back to the in-memory load → re-serialize path so the user still
+    // gets a non-empty export of the materialized defaults.
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("resolve app_data_dir: {e}"))?;
+    let settings_path = base.join("settings.json");
+    let bytes = match std::fs::read(&settings_path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            // Fall back: load (which returns {} for missing file) then
+            // pretty-serialize. The JS loader will overlay defaults on
+            // import, so this still gives the user something useful.
+            let s = settings::load(&app)?;
+            serde_json::to_vec_pretty(&s).map_err(|e| format!("serialize fallback: {e}"))?
+        }
+        Err(e) => return Err(format!("read {}: {e}", settings_path.display())),
+    };
+
+    let dialog = app.dialog().clone();
+    let chosen = tauri::async_runtime::spawn_blocking(move || {
+        dialog
+            .file()
+            .set_file_name(&default_filename)
+            .blocking_save_file()
+    })
+    .await
+    .map_err(|e| format!("dialog task: {e}"))?;
+
+    let Some(path) = chosen else {
+        return Ok(None);
+    };
+    let path_buf = path
+        .into_path()
+        .map_err(|e| format!("resolve path: {e}"))?;
+    std::fs::write(&path_buf, &bytes)
+        .map_err(|e| format!("write {}: {e}", path_buf.display()))?;
+    Ok(Some(path_buf.to_string_lossy().into_owned()))
+}
+
+/// Show the OS open-file dialog, read the chosen file, and return its
+/// contents as a UTF-8 string. Validation + persistence happen on the JS
+/// side (which owns the settings schema).
+///
+/// Returns `None` if the user cancelled, or the file contents as a string.
+/// Errors on I/O failure or non-UTF-8 contents (settings exports are
+/// always JSON, which must be UTF-8 anyway).
+#[tauri::command]
+async fn open_text_dialog(app: AppHandle) -> Result<Option<String>, String> {
+    let dialog = app.dialog().clone();
+    let chosen = tauri::async_runtime::spawn_blocking(move || {
+        dialog
+            .file()
+            .add_filter("JSON", &["json"])
+            .blocking_pick_file()
+    })
+    .await
+    .map_err(|e| format!("dialog task: {e}"))?;
+
+    let Some(path) = chosen else {
+        return Ok(None);
+    };
+    let path_buf = path
+        .into_path()
+        .map_err(|e| format!("resolve path: {e}"))?;
+    let bytes = std::fs::read(&path_buf)
+        .map_err(|e| format!("read {}: {e}", path_buf.display()))?;
+    let text = String::from_utf8(bytes)
+        .map_err(|e| format!("file is not valid UTF-8: {e}"))?;
+    Ok(Some(text))
+}
+
 // ---- Tray IPC -------------------------------------------------------------
 
 /// Swap the tray icon to reflect a new connection status.
@@ -296,6 +392,8 @@ pub fn run() {
             local_data_dir,
             reveal_in_finder,
             save_text_dialog,
+            export_settings_dialog,
+            open_text_dialog,
             update_tray_status,
             set_tray_visible,
             show_main_window,

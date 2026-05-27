@@ -7,6 +7,7 @@
   import Toasts from '$lib/components/Toasts.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
   import UpdaterBanner from '$lib/components/UpdaterBanner.svelte';
+  import AboutDialog from '$lib/components/AboutDialog.svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
   import { tray } from '$lib/stores/tray.svelte';
@@ -14,6 +15,7 @@
   import { windowFocus } from '$lib/stores/window-focus.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import { aboutStore } from '$lib/stores/about.svelte';
 
   let { children } = $props();
 
@@ -186,6 +188,12 @@
   {#if !isOnboarding}
     <UpdaterBanner />
   {/if}
+  <!-- About dialog. Mounted at the root so any surface can summon it via
+       `aboutStore.show()` (command palette, settings link, future Help
+       menu). Renders nothing until `open` flips, so it's free when idle.
+       Placed outside the onboarding guard so it stays reachable even on
+       the wizard takeover if a future entry point fires while it's up. -->
+  <AboutDialog open={aboutStore.open} onclose={() => aboutStore.close()} />
   <div class="flex flex-1 overflow-hidden">
     {#if !isOnboarding}
       <Sidebar />
