@@ -67,11 +67,15 @@
       return;
     }
 
-    // Cmd+1..6 → top-level routes. Match by `e.key` so the digit is correct
+    // Cmd+1..7 → top-level routes. Match by `e.key` so the digit is correct
     // across keyboard layouts; modifiers aren't required to interpret it.
+    // Cmd+7 is gated on `settings.adminMode` so the chord stays a no-op
+    // when the admin surface isn't enabled — same visibility contract as
+    // the sidebar row.
     if (mod && !e.shiftKey && !e.altKey) {
       const target = ROUTES_BY_DIGIT[e.key];
       if (target) {
+        if (target === '/admin' && !connection.settings.adminMode) return;
         e.preventDefault();
         void goto(target);
       }
@@ -84,8 +88,23 @@
     '3': '/skills',
     '4': '/routines',
     '5': '/logs',
-    '6': '/extensions'
+    '6': '/extensions',
+    '7': '/admin'
   };
+
+  // Hide-on-disable guard for /admin. If the user toggled adminMode off
+  // (in /settings) while sitting on the admin route, kick them out to
+  // /settings so they don't see a stranded page. Lives as a top-level
+  // $effect so it reacts to BOTH adminMode flips and route changes (both
+  // are tracked because they read from $state-backed sources).
+  $effect(() => {
+    if (
+      connection.settings.adminMode === false &&
+      page.url.pathname.startsWith('/admin')
+    ) {
+      void goto('/settings');
+    }
+  });
 
   onMount(() => {
     // Boot the focus tracker + hydrate notification prefs early so any

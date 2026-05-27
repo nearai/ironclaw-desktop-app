@@ -20,7 +20,9 @@ import type {
   RoutineRun,
   RoutineSummary,
   Skill,
-  Thread
+  Thread,
+  ToolPolicy,
+  ToolPolicyAction
 } from './types';
 
 export interface IronClawClientOptions {
@@ -1016,6 +1018,201 @@ export class IronClawClient {
     );
     const status = res?.status;
     return { ok: status === 'configured' || status === 'ok' || !status };
+  }
+
+  // ---- Admin: tool policy + system prompt ------------------------------
+  //
+  // The gateway's admin surface (multi-tenant only) is intentionally narrow:
+  //   - GET/PUT /api/admin/tool-policy   — global disabled-tools list
+  //   - GET/PUT /api/admin/system-prompt — admin-scoped SYSTEM.md
+  //
+  // The wire shape DIFFERS from the prompt's initial sketch and is the
+  // source of truth:
+  //   - tool-policy wire is `{disabled_tools: string[], user_disabled_tools: {…}}`,
+  //     not `{policy: {<tool>: 'allow'|'deny'|'prompt'}}`. The client maps
+  //     between the two — the UI-facing 3-way action collapses to a flat
+  //     `disabled_tools` set on save (anything not `'deny'` is omitted from
+  //     the list).
+  //   - system-prompt wire is `{content: string, updated_at?: string}`, not
+  //     `{prompt: string}`. We expose `prompt` on the client return for the
+  //     route's convenience but accept either field name defensively in
+  //     case the gateway changes its mind.
+  //
+  // 404 from the gateway means single-tenant mode (or the route is gone);
+  // 401/403 means the bearer isn't an admin. Both surface as HttpError;
+  // callers map status codes to user-facing copy.
+
+  /**
+   * Fetch the admin tool policy. Returns the wire shape unchanged so callers
+   * can present whatever subset they care about (the UI editor turns
+   * `disabled_tools` into a per-tool 3-way action).
+   */
+  async getToolPolicy(): Promise<{
+    policy: ToolPolicy;
+    disabled_tools: string[];
+    user_disabled_tools: Record<string, string[]>;
+  }> {
+    // Accept several shapes defensively: the documented `{disabled_tools, …}`
+    // raw form, an envelope `{policy: {…}}` (in case the gateway ever wraps
+    // its response), and the prompt's original `{policy: {<tool>: action}}`
+    // mapping (if a future server version exposes a true 3-state model).
+    const raw = await this.request<{
+      disabled_tools?: string[];
+      user_disabled_tools?: Record<string, string[]>;
+      policy?:
+        | Record<string, ToolPolicyAction>
+        | {
+            disabled_tools?: string[];
+            user_disabled_tools?: Record<string, string[]>;
+          };
+    }>('GET', '/api/admin/tool-policy');
+
+    // Unwrap `{policy: {…}}` envelope if present, otherwise treat the root
+    // as the policy object directly.
+    const root: {
+      disabled_tools?: string[];
+      user_disabled_tools?: Record<string, string[]>;
+    } = (() => {
+      if (raw?.policy && typeof raw.policy === 'object') {
+        const p = raw.policy as Record<string, unknown>;
+        if (Array.isArray(p.disabled_tools) || p.user_disabled_tools) {
+          return p as {
+            disabled_tools?: string[];
+            user_disabled_tools?: Record<string, string[]>;
+          };
+        }
+      }
+      return raw as {
+        disabled_tools?: string[];
+        user_disabled_tools?: Record<string, string[]>;
+      };
+    })();
+
+    const disabled = Array.isArray(root.disabled_tools)
+      ? root.disabled_tools.filter((s) => typeof s === 'string')
+      : [];
+    const userOverrides =
+      root.user_disabled_tools && typeof root.user_disabled_tools === 'object'
+        ? (root.user_disabled_tools as Record<string, string[]>)
+        : {};
+
+    // Build the UI-facing policy map. Only `deny` entries are recorded;
+    // unknown tools default to `'prompt'` at the editor level.
+    const policy: ToolPolicy = {};
+    for (const name of disabled) policy[name] = 'deny';
+
+    // Last-chance fallback: if the server ever emits the prompt's original
+    // `{policy: {<tool>: 'allow'|'deny'|'prompt'}}` shape, surface it verbatim.
+    if (
+      raw?.policy &&
+      typeof raw.policy === 'object' &&
+      !Array.isArray((raw.policy as Record<string, unknown>).disabled_tools) &&
+      !(raw.policy as Record<string, unknown>).user_disabled_tools
+    ) {
+      for (const [k, v] of Object.entries(raw.policy)) {
+        if (v === 'allow' || v === 'deny' || v === 'prompt') {
+          policy[k] = v;
+        }
+      }
+    }
+
+    return {
+      policy,
+      disabled_tools: disabled,
+      user_disabled_tools: userOverrides
+    };
+  }
+
+  /**
+   * Replace the admin tool policy. Accepts the UI's 3-way map and
+   * serializes to the wire shape — `deny` becomes part of `disabled_tools`,
+   * `allow`/`prompt` are omitted (the gateway treats absence as enabled).
+   *
+   * `userOverrides` lets the caller round-trip the (per-user) overrides
+   * that the bulk editor doesn't currently expose; pass the value returned
+   * by `getToolPolicy()` to preserve it.
+   */
+  async setToolPolicy(
+    policy: ToolPolicy,
+    userOverrides: Record<string, string[]> = {}
+  ): Promise<{ ok: boolean }> {
+    const disabled_tools = Object.entries(policy)
+      .filter(([, action]) => action === 'deny')
+      .map(([name]) => name)
+      .sort();
+    const body = {
+      disabled_tools,
+      user_disabled_tools: userOverrides
+    };
+    // The gateway echoes the saved policy on PUT, but we don't surface it —
+    // the caller re-reads via getToolPolicy() if it wants the canonical
+    // post-save state. Treat any 2xx as success.
+    await this.request<unknown>('PUT', '/api/admin/tool-policy', body);
+    return { ok: true };
+  }
+
+  /**
+   * Fetch the admin system prompt (admin-scoped SYSTEM.md). Returns
+   * `prompt: ''` if no prompt has been configured — the gateway maps the
+   * "document missing" case to an empty string already.
+   */
+  async getSystemPrompt(): Promise<{ prompt: string; updated_at?: string }> {
+    const res = await this.request<{
+      content?: string;
+      prompt?: string;
+      updated_at?: string | null;
+    }>('GET', '/api/admin/system-prompt');
+    // Wire is `{content}`; accept the prompt's original `{prompt}` shape too.
+    const prompt = res?.content ?? res?.prompt ?? '';
+    return {
+      prompt,
+      updated_at: res?.updated_at ?? undefined
+    };
+  }
+
+  /**
+   * Replace the admin system prompt. Server caps the body at 64 KB and
+   * returns 413 over that; callers should validate length client-side as
+   * well to surface a friendlier error.
+   *
+   * Sends both `content` (wire shape) and `prompt` (prompt's original) so a
+   * server build that flipped the field name still accepts the write.
+   */
+  async setSystemPrompt(prompt: string): Promise<{ ok: boolean }> {
+    await this.request<unknown>('PUT', '/api/admin/system-prompt', {
+      content: prompt,
+      prompt
+    });
+    return { ok: true };
+  }
+
+  /**
+   * List every tool name the agent can invoke — including builtins that
+   * don't have an `extension` field on the wire (which `extensionTools()`
+   * filters out). Used by the admin tool-policy editor so the table shows
+   * a complete picture, not just MCP-provided tools.
+   *
+   * Shape: `{name, description?, extension?}`. `extension` is undefined for
+   * builtins. Sorted by name for stable rendering.
+   */
+  async listAllTools(): Promise<ExtensionTool[]> {
+    const res = await this.request<{
+      tools?: Array<{
+        name: string;
+        extension?: string;
+        description?: string;
+      }>;
+    }>('GET', '/api/extensions/tools');
+    return (res?.tools ?? [])
+      .filter((t) => typeof t?.name === 'string' && t.name.length > 0)
+      .map((t) => ({
+        // Empty-string `extension` ("") is preserved as "" so callers can
+        // distinguish "builtin / no provider" from "unknown" via length.
+        extension: typeof t.extension === 'string' ? t.extension : '',
+        name: t.name,
+        description: t.description
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 }
 

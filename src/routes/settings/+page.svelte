@@ -59,7 +59,8 @@
   let settings = $state<AppSettings>({
     activeProfileId: '',
     profiles: [],
-    onboardingComplete: true
+    onboardingComplete: true,
+    adminMode: false
   });
 
   /** Derived shorthand for the currently-selected profile inside the local
@@ -390,6 +391,30 @@
       toasts.show('Opened IronClaw — complete NEAR sign-in there', 'info');
     } catch (err) {
       toasts.show(`Could not open browser: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  /**
+   * Flip the app-level "show admin surfaces" toggle. App-level, NOT
+   * per-profile — see the comment on AppSettings.adminMode. We persist
+   * immediately so the sidebar visibility + the layout's redirect guard
+   * pick the change up without a save-button round-trip.
+   */
+  async function onToggleAdminMode(next: boolean) {
+    try {
+      const draft = { ...$state.snapshot(settings), adminMode: next };
+      await saveSettings(draft);
+      settings = draft;
+      // connection.settings is the source-of-truth for cross-route reads
+      // (sidebar item, +layout shortcut + redirect). Refresh so the field
+      // there matches what we just wrote.
+      await connection.refresh();
+      toasts.show(
+        next ? 'Admin surfaces enabled' : 'Admin surfaces hidden',
+        'info'
+      );
+    } catch (err) {
+      toasts.show(`Save failed: ${(err as Error).message}`, 'error');
     }
   }
 
@@ -1302,6 +1327,36 @@
           </span>
         {/if}
       </div>
+    </div>
+
+    <!-- Advanced. Off by default. Toggling on unhides the Admin sidebar
+         entry, the Cmd+7 shortcut, and the /admin route content. Toggling
+         off retracts all three and (via the layout's $effect) bounces
+         the user out of /admin if they happen to be there. App-level, not
+         per-profile — it's a chrome preference, not a per-gateway setting. -->
+    <div class="surface p-5 space-y-3">
+      <h2 class="text-sm font-semibold text-text-primary">Advanced</h2>
+      <p class="text-xs text-text-muted">
+        Reveal experimental and admin-only surfaces.
+      </p>
+      <label
+        class="flex items-start gap-3 cursor-pointer min-h-[44px] select-none"
+      >
+        <input
+          type="checkbox"
+          checked={settings.adminMode}
+          onchange={(e) => void onToggleAdminMode(e.currentTarget.checked)}
+          class="mt-1 accent-accent-cyan w-4 h-4"
+        />
+        <div class="flex-1">
+          <div class="text-sm text-text-primary">Show admin surfaces</div>
+          <div class="text-xs text-text-muted mt-0.5">
+            Adds the Admin section to the sidebar (Cmd+7) for editing the
+            multi-tenant tool policy and admin SYSTEM.md. Requires a
+            bearer token with the admin role on the active profile.
+          </div>
+        </div>
+      </label>
     </div>
 
     <!-- Re-run onboarding (discrete footer action). Flips onboardingComplete

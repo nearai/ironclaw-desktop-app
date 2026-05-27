@@ -194,6 +194,21 @@ export interface ExtensionTool {
   description?: string;
 }
 
+/**
+ * Admin tool-policy action.
+ *
+ * The UI surfaces a 3-way radio (allow / prompt / deny) per tool. Note that
+ * the IronClaw gateway today only stores a binary policy (`disabled_tools`
+ * is an allow-list-of-things-to-deny); `prompt` is the natural default for
+ * any tool that isn't on the disabled list, and is treated as equivalent to
+ * `allow` on serialization. If the gateway ever grows a per-tool
+ * "ask-on-use" mode, this union is the place to thread it through.
+ */
+export type ToolPolicyAction = 'allow' | 'deny' | 'prompt';
+
+/** Map of `<tool_name>` → action. UI-facing shape. */
+export type ToolPolicy = Record<string, ToolPolicyAction>;
+
 /** Field descriptor rendered in the setup drawer's form. */
 export interface ExtensionSetupField {
   key: string;

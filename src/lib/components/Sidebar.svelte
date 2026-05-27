@@ -15,12 +15,21 @@
       | 'routines'
       | 'settings'
       | 'skills'
-      | 'extensions';
+      | 'extensions'
+      | 'admin';
     /** Optional shortcut hint shown to the right of the label. Mirrors the
      *  global shortcuts wired in `src/routes/+layout.svelte`. */
     shortcut?: string;
+    /** If set, only render the item when this predicate returns true. Used
+     *  to gate the Admin row behind `settings.adminMode`. */
+    showWhen?: () => boolean;
   };
 
+  // The Admin row sits between Extensions and Settings (the prompt's
+  // "between Extensions and Logs" wording predates the post-Logs reorder
+  // — Logs lives BEFORE Extensions in the current sidebar). Same end
+  // result: it's just above Settings, after every other top-level surface,
+  // and hidden until adminMode is on.
   const items: NavItem[] = [
     { href: '/', label: 'Chat', icon: 'chat', shortcut: '⌘1' },
     { href: '/knowledge', label: 'Knowledge', icon: 'knowledge', shortcut: '⌘2' },
@@ -28,8 +37,22 @@
     { href: '/routines', label: 'Routines', icon: 'routines', shortcut: '⌘4' },
     { href: '/logs', label: 'Logs', icon: 'logs', shortcut: '⌘5' },
     { href: '/extensions', label: 'Extensions', icon: 'extensions', shortcut: '⌘6' },
+    {
+      href: '/admin',
+      label: 'Admin',
+      icon: 'admin',
+      shortcut: '⌘7',
+      // Read through the connection store so the row appears/disappears
+      // reactively when the user toggles the setting (Svelte 5 runes
+      // re-evaluate on every render).
+      showWhen: () => connection.settings.adminMode === true
+    },
     { href: '/settings', label: 'Settings', icon: 'settings', shortcut: '⌘,' }
   ];
+
+  /** Items visible right now. The Admin row is hidden when adminMode is
+   *  off; everything else is always shown. */
+  const visibleItems = $derived(items.filter((i) => !i.showWhen || i.showWhen()));
 
   const isActive = $derived((href: string) => {
     const path = page.url.pathname;
@@ -132,7 +155,7 @@
   </div>
 
   <nav class="flex-1 px-2 space-y-1">
-    {#each items as item (item.href)}
+    {#each visibleItems as item (item.href)}
       {@const active = isActive(item.href)}
       <a
         href={item.href}
@@ -172,6 +195,13 @@
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="4 17 10 11 4 5" />
             <line x1="12" y1="19" x2="20" y2="19" />
+          </svg>
+        {:else if item.icon === 'admin'}
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Shield with a keyhole — signals "admin / privileged scope". -->
+            <path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z" />
+            <circle cx="12" cy="11" r="1.4" />
+            <path d="M12 12.4V15" />
           </svg>
         {:else if item.icon === 'settings'}
           <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

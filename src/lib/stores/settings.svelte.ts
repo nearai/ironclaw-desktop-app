@@ -64,6 +64,21 @@ export interface AppSettings {
    * they hit "Re-run onboarding" from /settings.
    */
   onboardingComplete: boolean;
+  /**
+   * App-level "show admin surfaces" toggle. App-level, NOT per-profile —
+   * if the user wants the Admin sidebar item and `/admin` route mounted
+   * they almost certainly want it across every profile they switch into.
+   *
+   * Defaults to `false` (the loader's `migrateLoaded` always materializes
+   * the field, so consumers can treat it as effectively required). Marked
+   * optional on the type so older callers that construct an `AppSettings`
+   * draft inline (e.g. the onboarding initializer) don't have to be
+   * updated everywhere — anything reading the field still gets a boolean
+   * when the value comes off disk. Toggling on in /settings unhides the
+   * sidebar entry + Cmd+7 shortcut + the route guard; toggling off
+   * redirects out of `/admin` to `/settings` if currently there.
+   */
+  adminMode?: boolean;
 }
 
 /** Id used for the migrated default profile. Must stay in sync with the
@@ -92,7 +107,8 @@ function defaultProfile(overrides?: Partial<ProfileConfig>): ProfileConfig {
 export const DEFAULT_SETTINGS: AppSettings = {
   activeProfileId: DEFAULT_PROFILE_ID,
   profiles: [defaultProfile({ id: DEFAULT_PROFILE_ID, name: 'Default' })],
-  onboardingComplete: false
+  onboardingComplete: false,
+  adminMode: false
 };
 
 /**
@@ -148,7 +164,12 @@ function migrateLoaded(
     return {
       activeProfileId: activeId,
       profiles,
-      onboardingComplete: raw.onboardingComplete === true
+      onboardingComplete: raw.onboardingComplete === true,
+      // adminMode is opt-in — only true when explicitly stored as boolean
+      // true. Older settings files that don't carry the field round-trip
+      // as `false`, which matches the "do not surface admin routes by
+      // default" intent.
+      adminMode: raw.adminMode === true
     };
   }
 
@@ -167,7 +188,8 @@ function migrateLoaded(
   return {
     activeProfileId: DEFAULT_PROFILE_ID,
     profiles: [profile],
-    onboardingComplete: raw.onboardingComplete === true
+    onboardingComplete: raw.onboardingComplete === true,
+    adminMode: raw.adminMode === true
   };
 }
 
