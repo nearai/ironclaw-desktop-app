@@ -40,6 +40,7 @@
     localDataDir,
     PROFILE_TINT_ORDER,
     PROFILE_TINTS,
+    reorderProfiles,
     resolveTint,
     revealInFinder,
     saveSettings,
@@ -122,6 +123,124 @@
 
   let renamingProfileId = $state<string | null>(null);
   let renameDraft = $state('');
+
+  // ---- Profile-list drag-and-drop state --------------------------------
+  //
+  // HTML5 native drag-and-drop (no library). Only the grip handle is
+  // `draggable` — that keeps the rest of the row free for clicks (rename
+  // input, switch, color picker, delete) and means power-user gestures
+  // like cmd-click stay unaffected.
+  //
+  // Visual feedback during a drag:
+  //   - `draggedProfileId` — the row being dragged. Renders at opacity 0.5.
+  //   - `dropTargetProfileId` + `dropPosition` ('before'|'after') — the
+  //     row we'd insert against if the user released here. Renders a 2px
+  //     cyan line at the appropriate edge (matches the design system's
+  //     accent-cyan token).
+  //
+  // On `drop` we compute the new id order from the current `profiles`
+  // array minus the dragged id, then splice the dragged id in at the
+  // computed target position. Persistence goes through `reorderProfiles`
+  // (which validates + saves + broadcasts to sibling windows).
+
+  let draggedProfileId = $state<string | null>(null);
+  let dropTargetProfileId = $state<string | null>(null);
+  let dropPosition = $state<'before' | 'after' | null>(null);
+
+  function onProfileDragStart(e: DragEvent, profileId: string) {
+    // Defensive: if there's only one profile, dragging makes no sense.
+    // The handle is hidden in that case but a paranoid extra guard
+    // keeps the state machine clean.
+    if (settings.profiles.length <= 1) {
+      e.preventDefault();
+      return;
+    }
+    draggedProfileId = profileId;
+    // Setting effectAllowed='move' tells the browser to render the
+    // appropriate cursor + drop indicator.
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      // Some browsers refuse to start a drag without setData being called.
+      try {
+        e.dataTransfer.setData('text/plain', profileId);
+      } catch {
+        // Ignored — Safari can occasionally throw here in restrictive
+        // contexts; the drag still works without the payload.
+      }
+    }
+  }
+
+  function onProfileDragOver(e: DragEvent, profileId: string) {
+    if (!draggedProfileId || draggedProfileId === profileId) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    // Decide insertion edge based on cursor Y vs. row midpoint. This
+    // matches the "drop above / drop below" affordance users expect
+    // from a vertical list.
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    dropTargetProfileId = profileId;
+    dropPosition = e.clientY < midY ? 'before' : 'after';
+  }
+
+  function onProfileDragLeave(e: DragEvent, profileId: string) {
+    // Only clear the indicator if we're leaving the row entirely (not
+    // moving into a child element). `relatedTarget` is the element we're
+    // entering; if it's still inside this row we keep the indicator.
+    const target = e.currentTarget as HTMLElement;
+    const related = e.relatedTarget as Node | null;
+    if (related && target.contains(related)) return;
+    if (dropTargetProfileId === profileId) {
+      dropTargetProfileId = null;
+      dropPosition = null;
+    }
+  }
+
+  async function onProfileDrop(e: DragEvent, profileId: string) {
+    e.preventDefault();
+    const draggedId = draggedProfileId;
+    const targetPos = dropPosition;
+    // Always reset the indicators, even when the drop is a no-op (drop
+    // on self or unknown state) — otherwise a stale cyan line lingers.
+    draggedProfileId = null;
+    dropTargetProfileId = null;
+    dropPosition = null;
+    if (!draggedId || !targetPos || draggedId === profileId) return;
+    // Build the new id order: filter the dragged id out, then splice it
+    // in at the target's index plus/minus 1 depending on edge.
+    const currentIds = settings.profiles.map((p) => p.id);
+    const withoutDragged = currentIds.filter((id) => id !== draggedId);
+    const targetIdx = withoutDragged.indexOf(profileId);
+    if (targetIdx === -1) return;
+    const insertAt = targetPos === 'before' ? targetIdx : targetIdx + 1;
+    const newOrder = [
+      ...withoutDragged.slice(0, insertAt),
+      draggedId,
+      ...withoutDragged.slice(insertAt)
+    ];
+    try {
+      await reorderProfiles(newOrder);
+      // Reload local snapshot so the UI reflects the new order.
+      settings = await loadSettings();
+      // Refresh the connection store's settings rune (cheap — no gateway
+      // reconnect) so any chrome bound to `connection.settings.profiles`
+      // picks up the new order in this window. Sibling windows pick it
+      // up via the `settings-changed` broadcast that `saveSettings`
+      // already fires.
+      await connection.reloadSettings();
+    } catch (err) {
+      toasts.show(`Reorder failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  function onProfileDragEnd() {
+    // Always clear state on dragend even if the drop landed outside any
+    // valid target — keeps the dragged row from being stuck at opacity 0.5.
+    draggedProfileId = null;
+    dropTargetProfileId = null;
+    dropPosition = null;
+  }
 
   // ---- Updater "last checked" ticker -----------------------------------
   //
@@ -2070,11 +2189,70 @@
           {@const isActiveRow = profile.id === settings.activeProfileId}
           {@const rowTint = resolveTint(profile.tint)}
           {@const currentTintKey = (profile.tint ?? 'signal') as ProfileTint}
+          {@const isDragging = draggedProfileId === profile.id}
+          {@const isDropTarget = dropTargetProfileId === profile.id && draggedProfileId !== profile.id}
+          {@const canReorder = settings.profiles.length > 1}
+          <!-- The drop indicator is a 2px cyan line on the top or bottom
+               edge of the row, painted via Tailwind border utilities. The
+               base ring stays the active/inactive border; the cyan line
+               sits inside the gap thanks to the relative positioning. -->
           <li
-            class="flex items-center gap-3 bg-bg-deep border rounded-md px-3 py-2 min-h-[48px]"
+            class="relative flex items-center gap-2 bg-bg-deep border rounded-md px-3 py-2 min-h-[48px] transition-opacity"
             class:border-accent-cyan={isActiveRow}
             class:border-border-subtle={!isActiveRow}
+            class:opacity-50={isDragging}
+            ondragover={(e) => onProfileDragOver(e, profile.id)}
+            ondragleave={(e) => onProfileDragLeave(e, profile.id)}
+            ondrop={(e) => void onProfileDrop(e, profile.id)}
           >
+            <!-- Cyan drop indicator. Absolute-positioned so it doesn't
+                 nudge the row height during a drag. Top edge when
+                 inserting before; bottom edge when inserting after. -->
+            {#if isDropTarget && dropPosition === 'before'}
+              <span
+                class="absolute -top-1 left-0 right-0 h-0.5 bg-accent-cyan rounded-full pointer-events-none"
+                aria-hidden="true"
+              ></span>
+            {/if}
+            {#if isDropTarget && dropPosition === 'after'}
+              <span
+                class="absolute -bottom-1 left-0 right-0 h-0.5 bg-accent-cyan rounded-full pointer-events-none"
+                aria-hidden="true"
+              ></span>
+            {/if}
+
+            <!-- Drag handle. Grip dots glyph — only this element is
+                 `draggable`, so dragging the row body (or its inputs /
+                 swatches / buttons) is unaffected. Hidden entirely when
+                 there's only one profile so the layout doesn't carry
+                 dead chrome. -->
+            {#if canReorder}
+              <div
+                class="shrink-0 flex items-center justify-center w-5 h-6 text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing transition-colors"
+                draggable="true"
+                ondragstart={(e) => onProfileDragStart(e, profile.id)}
+                ondragend={onProfileDragEnd}
+                title="Drag to reorder"
+                aria-label="Drag to reorder {profile.name}"
+                role="button"
+                tabindex="-1"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-3.5 h-4"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <circle cx="9" cy="6" r="1.5" />
+                  <circle cx="15" cy="6" r="1.5" />
+                  <circle cx="9" cy="12" r="1.5" />
+                  <circle cx="15" cy="12" r="1.5" />
+                  <circle cx="9" cy="18" r="1.5" />
+                  <circle cx="15" cy="18" r="1.5" />
+                </svg>
+              </div>
+            {/if}
+
             <!-- Active indicator (or switch button on inactive rows).
                  The active dot picks up the profile's tint so the
                  row's visual identity stays consistent with the sidebar

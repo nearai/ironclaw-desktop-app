@@ -672,6 +672,70 @@ export async function updateProfile(
 }
 
 /**
+ * Reorder the in-memory profiles array to match `orderedIds` and persist.
+ *
+ * Validation: `orderedIds` MUST contain exactly the same set of ids as
+ * the current `profiles` array (same length, no duplicates, no foreign
+ * ids, no missing ids). On mismatch this throws — the caller is expected
+ * to validate at the UI boundary, and a silent reorder of a partial set
+ * would risk dropping a profile from settings.json on the next save.
+ *
+ * No-ops (skip the write) when the supplied order is already current, so
+ * a drop-on-self drag from the UI does not churn the broadcast bus.
+ *
+ * Side effects (via `saveSettings`):
+ *   - Writes settings.json on disk.
+ *   - Fans a `settings-changed` broadcast to sibling windows, which causes
+ *     their `connection.reloadSettings()` to pick up the new order.
+ *
+ * The active profile is preserved (its id stays in `activeProfileId`); we
+ * only shuffle list ordering, never the selection.
+ */
+export async function reorderProfiles(orderedIds: string[]): Promise<void> {
+  const s = requireCache();
+  if (!Array.isArray(orderedIds)) {
+    throw new Error('reorderProfiles: orderedIds must be an array');
+  }
+  if (orderedIds.length !== s.profiles.length) {
+    throw new Error(
+      `reorderProfiles: id count mismatch (got ${orderedIds.length}, expected ${s.profiles.length})`
+    );
+  }
+  const current = new Set(s.profiles.map((p) => p.id));
+  const incoming = new Set<string>();
+  for (const id of orderedIds) {
+    if (typeof id !== 'string' || id.length === 0) {
+      throw new Error('reorderProfiles: orderedIds must contain non-empty strings');
+    }
+    if (incoming.has(id)) {
+      throw new Error(`reorderProfiles: duplicate id ${id}`);
+    }
+    incoming.add(id);
+    if (!current.has(id)) {
+      throw new Error(`reorderProfiles: unknown profile id ${id}`);
+    }
+  }
+  // Both sets have equal length AND `incoming ⊂ current` — so they're
+  // equal as sets. (The length check above plus the subset check covers
+  // the full equality.) Now check whether the order has actually changed
+  // — if not, skip the disk write + broadcast.
+  let changed = false;
+  for (let i = 0; i < orderedIds.length; i++) {
+    if (s.profiles[i].id !== orderedIds[i]) {
+      changed = true;
+      break;
+    }
+  }
+  if (!changed) return;
+  // Build the reordered array. Look up by id rather than mutating in place
+  // so the source array stays untouched until `saveSettings` resolves.
+  const byId = new Map(s.profiles.map((p) => [p.id, p]));
+  const profiles = orderedIds.map((id) => byId.get(id)!);
+  const next: AppSettings = { ...s, profiles };
+  await saveSettings(next);
+}
+
+/**
  * Remove a profile. Refuses if it's the last remaining profile (we always
  * keep at least one), and refuses to delete the active profile when it's
  * the only one — callers should switch active first.

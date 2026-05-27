@@ -23,12 +23,16 @@
     getOrCreateLocalToken,
     getToken,
     loadSettings,
+    PROFILE_TINT_ORDER,
+    PROFILE_TINTS,
+    resolveTint,
     saveSettings,
     setOpenRouterKey,
     setToken,
     type AppSettings,
     type ConnectionMode,
-    type ProfileConfig
+    type ProfileConfig,
+    type ProfileTint
   } from '$lib/stores/settings.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
 
@@ -65,6 +69,26 @@
       )
     };
   }
+
+  // ---- step 1: tint picker -------------------------------------------------
+  //
+  // Per-profile accent override (R16d). The wizard previews the chosen tint
+  // by painting the same four `--v2-accent*` CSS variables that the
+  // connection store paints from `activeProfile.tint` — so the active mode
+  // card border, Next button, stepper dot, etc. all flip instantly. Persisted
+  // to the active profile only on Finish (or Skip-after-pick — see below).
+  //
+  // Survives Back/Next inside the wizard because the rune lives at the
+  // component root, not inside a step block. On mount we hydrate from the
+  // active profile so a returning user (Re-run onboarding) sees their
+  // existing choice pre-selected, and back-nav within a single wizard run
+  // never resets a fresh pick.
+  let chosenTint = $state<ProfileTint>('signal');
+  /** True once the user clicks any swatch in this wizard run. Used to gate
+   *  the live-preview $effect — without this, the effect would overwrite
+   *  the connection-store's initial paint on mount before the user has
+   *  expressed any preference. */
+  let tintTouched = $state(false);
 
   let openRouterInput = $state('');
   let openRouterStored = $state(false);
@@ -138,7 +162,44 @@
       const or = await getOpenRouterKey(id);
       openRouterStored = !!or;
     }
+    // Hydrate the tint picker from the active profile so a Re-run-onboarding
+    // user sees their existing accent pre-selected. New installs land with
+    // `tint: undefined` which resolves to 'signal' (the default).
+    const active = settings.profiles.find((p) => p.id === settings.activeProfileId);
+    if (active?.tint) chosenTint = active.tint;
   });
+
+  /** Live preview: paint the four `--v2-accent*` CSS variables on
+   *  documentElement whenever `chosenTint` changes AFTER the user clicks a
+   *  swatch. Mirrors the connection store's painter so any surface bound to
+   *  `var(--v2-accent*)` (active mode-card border, stepper dot, Next button)
+   *  flips instantly. NOT persisted — Finish writes the chosen tint to the
+   *  profile via the existing `saveSettings` path, which then triggers the
+   *  connection-store effect for the real, lasting paint. */
+  $effect(() => {
+    // Read BOTH runes up-front so Svelte 5's signal tracker subscribes to
+    // each — early-returning after `tintTouched` alone would make the
+    // effect re-fire only on the touched→true transition and miss
+    // subsequent swatch clicks (chosenTint changes wouldn't re-run). The
+    // gate then short-circuits before the DOM write.
+    const t = chosenTint;
+    const touched = tintTouched;
+    if (!touched) return;
+    if (typeof document === 'undefined') return;
+    const palette = resolveTint(t);
+    const root = document.documentElement;
+    root.style.setProperty('--v2-accent', palette.accent);
+    root.style.setProperty('--v2-accent-strong', palette.strong);
+    root.style.setProperty('--v2-accent-soft', palette.soft);
+    root.style.setProperty('--v2-accent-text', palette.text);
+  });
+
+  /** Pick a tint. Wrapped so the picker UI stays declarative and any future
+   *  cross-cutting concern (analytics, toast, etc.) has one entry point. */
+  function pickTint(tint: ProfileTint) {
+    tintTouched = true;
+    chosenTint = tint;
+  }
 
   /**
    * Probe a single candidate `http://127.0.0.1:<port>/api/health` with a
@@ -660,10 +721,34 @@
 
   // ---- finish / skip -------------------------------------------------------
 
+  /**
+   * Merge the picked tint into the active profile entry of an `AppSettings`
+   * snapshot. Pure — returns a new object, never mutates. Used by both
+   * `finish()` and `skip()` so the user's previewed accent persists either
+   * way: if we only persisted on Finish, a Skip-after-pick would leave the
+   * live `--v2-accent*` overrides stranded (the connection store caches its
+   * last-applied tint, so a reload-from-disk that produces an unchanged
+   * profile tint won't re-paint to clear the preview).
+   *
+   * `tintTouched` gates the merge — an untouched picker writes nothing, so
+   * a first-run user who never opened step 1's Personalize section keeps
+   * the existing `tint: undefined` value (and thus the design-system
+   * default at resolve time).
+   */
+  function withChosenTint(s: AppSettings): AppSettings {
+    if (!tintTouched) return s;
+    return {
+      ...s,
+      profiles: s.profiles.map((p) =>
+        p.id === s.activeProfileId ? { ...p, tint: chosenTint } : p
+      )
+    };
+  }
+
   async function finish() {
     finishing = true;
     try {
-      const next = { ...settings, onboardingComplete: true };
+      const next = withChosenTint({ ...settings, onboardingComplete: true });
       await saveSettings(next);
       // Reflect the new mode/url + onboarded flag into the live store so the
       // chat surface picks it up without a full reload.
@@ -677,11 +762,12 @@
   }
 
   /** Skip from any step. Persists whatever the user has so far (with
-   *  onboardingComplete=true) so they aren't redirected here again. */
+   *  onboardingComplete=true) so they aren't redirected here again. Also
+   *  commits a touched tint pick — see `withChosenTint` for why. */
   async function skip() {
     finishing = true;
     try {
-      const next = { ...settings, onboardingComplete: true };
+      const next = withChosenTint({ ...settings, onboardingComplete: true });
       await saveSettings(next);
       await connection.refresh();
       toasts.show('Skipped — you can finish setup in Settings', 'info');
@@ -694,8 +780,16 @@
 </script>
 
 <!-- Full-screen takeover. Sidebar is hidden in +layout.svelte when the
-     route starts with /onboarding, so this owns the whole viewport. -->
-<section class="min-h-screen w-full flex flex-col">
+     route starts with /onboarding, so this owns the whole viewport.
+
+     `tint-preview` re-binds Tailwind's hardcoded `accent-cyan` palette to
+     the live `--v2-accent*` CSS variables (see <style> below). Without
+     this, the picker's $effect would paint the vars but the wizard's own
+     mode-card border / Next button / stepper dot — which compile to a
+     fixed hex from tailwind.config.js — wouldn't move. Scoping the
+     override to this section avoids leaking the rebind into any chrome
+     that might mount alongside the wizard. -->
+<section class="min-h-screen w-full flex flex-col tint-preview">
   <!-- Top bar: logo + stepper -->
   <header class="shrink-0 px-8 pt-6 pb-2 flex items-center justify-between">
     <div class="flex items-center gap-2">
@@ -855,6 +949,44 @@
                 </svg>
               </div>
             </button>
+          </div>
+
+          <!-- Personalize. Tint picker below the mode cards. Six swatches
+               that live-preview by painting `--v2-accent*` on documentElement
+               via the $effect above — so the active mode-card border, the
+               stepper dot, and any other `var(--v2-accent)`-bound surface
+               flips as the user clicks through. Persisted to the active
+               profile on Finish (and on Skip-after-pick) via withChosenTint. -->
+          <div class="space-y-3">
+            <div
+              class="flex flex-col items-center gap-3"
+              role="radiogroup"
+              aria-label="Accent color"
+            >
+              <div class="flex items-center gap-3">
+                {#each PROFILE_TINT_ORDER as tintKey (tintKey)}
+                  {@const swatch = PROFILE_TINTS[tintKey]}
+                  {@const isSelected = chosenTint === tintKey}
+                  <button
+                    type="button"
+                    onclick={() => pickTint(tintKey)}
+                    title={swatch.label}
+                    aria-label="Set accent color to {swatch.label}"
+                    aria-checked={isSelected}
+                    role="radio"
+                    class="rounded-full transition-all min-w-[44px] min-h-[44px] flex items-center justify-center focus:outline-none"
+                  >
+                    <span
+                      class="block w-6 h-6 rounded-full transition-all"
+                      style="background-color: {swatch.accent}; {isSelected
+                        ? `box-shadow: 0 0 0 3px ${swatch.accent};`
+                        : ''}"
+                    ></span>
+                  </button>
+                {/each}
+              </div>
+              <p class="text-xs text-text-muted">Accent color</p>
+            </div>
           </div>
         </div>
       {:else if step === 2}
@@ -1513,5 +1645,48 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  /* Tint-preview rebind. The wizard's mode-card border, Next button,
+     stepper dot, and brand wordmark all use Tailwind's `accent-cyan`
+     palette, which compiles to a fixed hex (#4ca7e6) from tailwind.config.js
+     and therefore can't track the live `--v2-accent*` CSS variables that
+     the tint picker paints. We re-bind those utilities, scoped to the
+     wizard's `tint-preview` root, so the picker's live preview reaches
+     every accent surface inside the flow. The `:global()` wrapper is
+     required because the underlying utilities are emitted by Tailwind,
+     not authored in this file — Svelte's scoped-CSS hashing would
+     otherwise drop the rules as unused. */
+  :global(.tint-preview .text-accent-cyan) {
+    color: var(--v2-accent);
+  }
+  :global(.tint-preview .bg-accent-cyan) {
+    background-color: var(--v2-accent);
+  }
+  :global(.tint-preview .border-accent-cyan) {
+    border-color: var(--v2-accent);
+  }
+  :global(.tint-preview .hover\:border-accent-cyan:hover) {
+    border-color: var(--v2-accent);
+  }
+  :global(.tint-preview .hover\:text-accent-cyan:hover) {
+    color: var(--v2-accent);
+  }
+  :global(.tint-preview .focus\:border-accent-cyan:focus) {
+    border-color: var(--v2-accent);
+  }
+  /* Alpha-modifier utilities (`bg-accent-cyan/10`, `/20`, `/5`,
+     `border-accent-cyan/30`, `/40`) compile to rgb(76 167 230 / X%) in
+     Tailwind v3. Override them with the soft palette slot. */
+  :global(.tint-preview .bg-accent-cyan\/5),
+  :global(.tint-preview .bg-accent-cyan\/10),
+  :global(.tint-preview .bg-accent-cyan\/20),
+  :global(.tint-preview .group-hover\:bg-accent-cyan\/20:hover),
+  :global(.tint-preview .group:hover .group-hover\:bg-accent-cyan\/20) {
+    background-color: var(--v2-accent-soft);
+  }
+  :global(.tint-preview .border-accent-cyan\/30),
+  :global(.tint-preview .border-accent-cyan\/40) {
+    border-color: var(--v2-accent-soft);
   }
 </style>

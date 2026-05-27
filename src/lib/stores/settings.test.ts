@@ -12,7 +12,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   DEFAULT_PROFILE_ID,
-  migrateLoaded
+  listProfiles,
+  loadSettings,
+  migrateLoaded,
+  reorderProfiles
 } from './settings.svelte';
 
 describe('migrateLoaded', () => {
@@ -122,5 +125,94 @@ describe('migrateLoaded', () => {
     });
     expect(s.profiles[0].mode).toBe('remote');
     expect(s.profiles[0].llmBackend).toBe('nearai');
+  });
+});
+
+// `reorderProfiles` runs against the live in-memory cache, so each test
+// primes it via `loadSettings()` first. The test harness has no Tauri
+// runtime, so `loadSettings()` falls back to `DEFAULT_SETTINGS` — we add
+// extra profiles up front by saving a synthetic shape through the cache.
+describe('reorderProfiles', () => {
+  // Helper: prime the cache with a known set of three profiles and
+  // return their ids. Uses loadSettings to set up the cache, then mutates
+  // through saveSettings so subsequent calls see a multi-profile state.
+  async function primeThreeProfiles(): Promise<[string, string, string]> {
+    const { saveSettings } = await import('./settings.svelte');
+    await loadSettings();
+    const synthetic = {
+      activeProfileId: 'p1',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'first',
+          mode: 'remote' as const,
+          remoteBaseUrl: 'http://127.0.0.1:3100',
+          localBaseUrl: 'http://127.0.0.1:3100',
+          llmBackend: 'nearai' as const,
+          llmProviderId: 'nearai'
+        },
+        {
+          id: 'p2',
+          name: 'second',
+          mode: 'remote' as const,
+          remoteBaseUrl: 'http://127.0.0.1:3100',
+          localBaseUrl: 'http://127.0.0.1:3100',
+          llmBackend: 'nearai' as const,
+          llmProviderId: 'nearai'
+        },
+        {
+          id: 'p3',
+          name: 'third',
+          mode: 'remote' as const,
+          remoteBaseUrl: 'http://127.0.0.1:3100',
+          localBaseUrl: 'http://127.0.0.1:3100',
+          llmBackend: 'nearai' as const,
+          llmProviderId: 'nearai'
+        }
+      ],
+      onboardingComplete: true,
+      adminMode: false,
+      trayEnabled: true,
+      useResponsesApi: true,
+      engineV2Enabled: false
+    };
+    await saveSettings(synthetic);
+    return ['p1', 'p2', 'p3'];
+  }
+
+  it('reorders the profiles array to match the supplied order', async () => {
+    const [p1, p2, p3] = await primeThreeProfiles();
+    await reorderProfiles([p3, p1, p2]);
+    const profiles = listProfiles();
+    expect(profiles.map((p) => p.id)).toEqual([p3, p1, p2]);
+  });
+
+  it('preserves the active profile id across a reorder', async () => {
+    const [p1, p2, p3] = await primeThreeProfiles();
+    await reorderProfiles([p2, p3, p1]);
+    const { getActiveProfile } = await import('./settings.svelte');
+    expect(getActiveProfile().id).toBe('p1');
+  });
+
+  it('rejects an order with the wrong number of ids', async () => {
+    const [p1, p2] = await primeThreeProfiles();
+    await expect(reorderProfiles([p1, p2])).rejects.toThrow(/id count mismatch/);
+  });
+
+  it('rejects an order containing a foreign id', async () => {
+    const [p1, p2] = await primeThreeProfiles();
+    await expect(reorderProfiles([p1, p2, 'ghost'])).rejects.toThrow(/unknown profile id/);
+  });
+
+  it('rejects an order containing a duplicate id', async () => {
+    const [p1, p2] = await primeThreeProfiles();
+    await expect(reorderProfiles([p1, p2, p1])).rejects.toThrow(/duplicate id/);
+  });
+
+  it('no-ops (does not throw) when the order is already current', async () => {
+    const [p1, p2, p3] = await primeThreeProfiles();
+    await reorderProfiles([p1, p2, p3]);
+    const profiles = listProfiles();
+    expect(profiles.map((p) => p.id)).toEqual([p1, p2, p3]);
   });
 });

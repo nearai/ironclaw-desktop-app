@@ -8,6 +8,13 @@
 //
 // The `$lib` alias is hand-wired to match `svelte.config.js`. Tests
 // import from `$lib/...` exactly like app code.
+//
+// The `$app/*` aliases point at tiny stub modules under
+// `tests/__mocks__/` so component tests that render Sidebar /
+// StatusBar / AboutDialog don't blow up at import-analysis time when
+// the SvelteKit plugin isn't in the pipeline. Individual tests still
+// override behavior via `vi.mock(...)` — the stubs are just there to
+// give Vite a resolvable path.
 
 import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
@@ -20,7 +27,10 @@ export default defineConfig({
   plugins: [svelte({ hot: false })],
   resolve: {
     alias: {
-      $lib: path.resolve(projectRoot, 'src/lib')
+      $lib: path.resolve(projectRoot, 'src/lib'),
+      '$app/state': path.resolve(projectRoot, 'tests/__mocks__/app-state.ts'),
+      '$app/navigation': path.resolve(projectRoot, 'tests/__mocks__/app-navigation.ts'),
+      '$app/stores': path.resolve(projectRoot, 'tests/__mocks__/app-stores.ts')
     },
     // testing-library/svelte resolves to the browser entry — match
     // what the runtime webview sees.

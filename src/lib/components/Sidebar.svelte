@@ -10,7 +10,7 @@
   import { updater } from '$lib/stores/updater.svelte';
   import NewProfileModal from '$lib/components/NewProfileModal.svelte';
   import Icon from '$lib/components/Icon.svelte';
-  import { resolveTint } from '$lib/stores/settings.svelte';
+  import { reorderProfiles, resolveTint } from '$lib/stores/settings.svelte';
 
   // ---- Sidebar nav definition ------------------------------------------
   //
@@ -204,6 +204,99 @@
   async function gotoManageProfiles() {
     closePopover();
     await goto('/settings#profiles');
+  }
+
+  // ---- Popover drag-and-drop -------------------------------------------
+  //
+  // Same gesture model as the Settings profile list, just tighter chrome
+  // because the popover sits in the 224 px sidebar column. Only the small
+  // grip glyph is `draggable`, so the row's click target (which pickProfile
+  // owns, including cmd-click → open-in-new-window) stays untouched.
+  //
+  // Visual feedback:
+  //   - Dragged row gets opacity 0.5.
+  //   - Drop target gets a 2px cyan line at the insertion edge.
+  //
+  // On drop we compute the new id order and call `reorderProfiles`, which
+  // validates + persists via `saveSettings` (which also broadcasts a
+  // `settings-changed` to sibling windows via the BroadcastChannel bus).
+  // The active profile stays where it is in the list — no auto-move.
+
+  let draggedProfileId = $state<string | null>(null);
+  let dropTargetProfileId = $state<string | null>(null);
+  let dropPosition = $state<'before' | 'after' | null>(null);
+
+  function onPopoverDragStart(e: DragEvent, profileId: string) {
+    if (connection.settings.profiles.length <= 1) {
+      e.preventDefault();
+      return;
+    }
+    draggedProfileId = profileId;
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      try {
+        e.dataTransfer.setData('text/plain', profileId);
+      } catch {
+        // Some webkit configs reject setData on certain origins —
+        // non-fatal for the drag itself.
+      }
+    }
+  }
+
+  function onPopoverDragOver(e: DragEvent, profileId: string) {
+    if (!draggedProfileId || draggedProfileId === profileId) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    const row = e.currentTarget as HTMLElement;
+    const rect = row.getBoundingClientRect();
+    const midY = rect.top + rect.height / 2;
+    dropTargetProfileId = profileId;
+    dropPosition = e.clientY < midY ? 'before' : 'after';
+  }
+
+  function onPopoverDragLeave(e: DragEvent, profileId: string) {
+    const target = e.currentTarget as HTMLElement;
+    const related = e.relatedTarget as Node | null;
+    if (related && target.contains(related)) return;
+    if (dropTargetProfileId === profileId) {
+      dropTargetProfileId = null;
+      dropPosition = null;
+    }
+  }
+
+  async function onPopoverDrop(e: DragEvent, profileId: string) {
+    e.preventDefault();
+    const draggedId = draggedProfileId;
+    const targetPos = dropPosition;
+    draggedProfileId = null;
+    dropTargetProfileId = null;
+    dropPosition = null;
+    if (!draggedId || !targetPos || draggedId === profileId) return;
+    const currentIds = connection.settings.profiles.map((p) => p.id);
+    const withoutDragged = currentIds.filter((id) => id !== draggedId);
+    const targetIdx = withoutDragged.indexOf(profileId);
+    if (targetIdx === -1) return;
+    const insertAt = targetPos === 'before' ? targetIdx : targetIdx + 1;
+    const newOrder = [
+      ...withoutDragged.slice(0, insertAt),
+      draggedId,
+      ...withoutDragged.slice(insertAt)
+    ];
+    try {
+      await reorderProfiles(newOrder);
+      // Cheap reload — no gateway reconnect, just refresh the settings
+      // rune so the popover re-renders against the new order. Sibling
+      // windows pick this up via the broadcast bus.
+      await connection.reloadSettings();
+    } catch (err) {
+      toasts.show(`Reorder failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
+  function onPopoverDragEnd() {
+    draggedProfileId = null;
+    dropTargetProfileId = null;
+    dropPosition = null;
   }
 
   // ---- Badge counters ---------------------------------------------------
@@ -770,44 +863,104 @@
             {#each connection.settings.profiles as profile (profile.id)}
               {@const isActiveProfile = profile.id === connection.activeProfile.id}
               {@const profilePalette = resolveTint(profile.tint)}
-              <button
-                type="button"
-                onclick={(e) => void pickProfile(profile.id, e)}
-                title={isActiveProfile
-                  ? 'Already active — Cmd+click to open in a new window'
-                  : 'Click to switch, Cmd+click to open in a new window'}
-                class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface transition-colors min-h-[32px]"
-                role="option"
-                aria-selected={isActiveProfile}
+              {@const isDragging = draggedProfileId === profile.id}
+              {@const isDropTarget = dropTargetProfileId === profile.id && draggedProfileId !== profile.id}
+              {@const canReorder = connection.settings.profiles.length > 1}
+              <!-- Row wrapper hosts the drag handlers + opacity feedback.
+                   The clickable button still owns the row's primary action
+                   (switch / cmd-click → new window) — only the small grip
+                   on the left is `draggable`, so picking up the row body
+                   never accidentally starts a drag. -->
+              <div
+                class="relative flex items-center gap-1 rounded-md transition-opacity"
+                class:opacity-50={isDragging}
+                ondragover={(e) => onPopoverDragOver(e, profile.id)}
+                ondragleave={(e) => onPopoverDragLeave(e, profile.id)}
+                ondrop={(e) => void onPopoverDrop(e, profile.id)}
+                role="presentation"
               >
-                <!-- Tint dot — paints the profile's accent so multi-profile
-                     users see at a glance which window will pick up which
-                     palette. Inactive rows render a filled dot at the
-                     profile's tint; the active row stacks a ring around the
-                     same dot to double as a radio indicator without losing
-                     the tint signal. -->
-                <span
-                  class="w-3 h-3 rounded-full shrink-0 flex items-center justify-center"
-                  class:ring-2={isActiveProfile}
-                  style="background-color: {profilePalette.accent}; box-shadow: {isActiveProfile
-                    ? `0 0 0 2px ${profilePalette.soft}`
-                    : 'none'};"
-                  aria-hidden="true"
-                ></span>
-                <span
-                  class="flex-1 truncate"
-                  class:text-text-primary={isActiveProfile}
-                  class:text-text-muted={!isActiveProfile}
+                {#if isDropTarget && dropPosition === 'before'}
+                  <span
+                    class="absolute -top-0.5 left-1 right-1 h-0.5 bg-accent-cyan rounded-full pointer-events-none"
+                    aria-hidden="true"
+                  ></span>
+                {/if}
+                {#if isDropTarget && dropPosition === 'after'}
+                  <span
+                    class="absolute -bottom-0.5 left-1 right-1 h-0.5 bg-accent-cyan rounded-full pointer-events-none"
+                    aria-hidden="true"
+                  ></span>
+                {/if}
+
+                <!-- Tighter drag handle than Settings — 14×24 strip with a
+                     mini grip glyph. Hidden when there's only one profile so
+                     the column doesn't carry dead chrome. -->
+                {#if canReorder}
+                  <div
+                    class="shrink-0 flex items-center justify-center w-3.5 h-6 text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing transition-colors"
+                    draggable="true"
+                    ondragstart={(e) => onPopoverDragStart(e, profile.id)}
+                    ondragend={onPopoverDragEnd}
+                    title="Drag to reorder"
+                    aria-label="Drag to reorder {profile.name}"
+                    role="button"
+                    tabindex="-1"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      class="w-3 h-3.5"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <circle cx="9" cy="6" r="1.5" />
+                      <circle cx="15" cy="6" r="1.5" />
+                      <circle cx="9" cy="12" r="1.5" />
+                      <circle cx="15" cy="12" r="1.5" />
+                      <circle cx="9" cy="18" r="1.5" />
+                      <circle cx="15" cy="18" r="1.5" />
+                    </svg>
+                  </div>
+                {/if}
+
+                <button
+                  type="button"
+                  onclick={(e) => void pickProfile(profile.id, e)}
+                  title={isActiveProfile
+                    ? 'Already active — Cmd+click to open in a new window'
+                    : 'Click to switch, Cmd+click to open in a new window'}
+                  class="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface transition-colors min-h-[32px]"
+                  role="option"
+                  aria-selected={isActiveProfile}
                 >
-                  {profile.name}
-                </span>
-                <span
-                  class="text-[9px] uppercase tracking-wider opacity-60 font-mono shrink-0"
-                  aria-hidden="true"
-                >
-                  {profile.mode === 'local' ? 'L' : 'R'}
-                </span>
-              </button>
+                  <!-- Tint dot — paints the profile's accent so multi-profile
+                       users see at a glance which window will pick up which
+                       palette. Inactive rows render a filled dot at the
+                       profile's tint; the active row stacks a ring around the
+                       same dot to double as a radio indicator without losing
+                       the tint signal. -->
+                  <span
+                    class="w-3 h-3 rounded-full shrink-0 flex items-center justify-center"
+                    class:ring-2={isActiveProfile}
+                    style="background-color: {profilePalette.accent}; box-shadow: {isActiveProfile
+                      ? `0 0 0 2px ${profilePalette.soft}`
+                      : 'none'};"
+                    aria-hidden="true"
+                  ></span>
+                  <span
+                    class="flex-1 truncate"
+                    class:text-text-primary={isActiveProfile}
+                    class:text-text-muted={!isActiveProfile}
+                  >
+                    {profile.name}
+                  </span>
+                  <span
+                    class="text-[9px] uppercase tracking-wider opacity-60 font-mono shrink-0"
+                    aria-hidden="true"
+                  >
+                    {profile.mode === 'local' ? 'L' : 'R'}
+                  </span>
+                </button>
+              </div>
             {/each}
 
             <div class="my-1 border-t border-border-subtle"></div>
