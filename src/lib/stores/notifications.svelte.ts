@@ -101,6 +101,30 @@ export interface NotifyOptions {
    * audition a specific sound without persisting a preference.
    */
   soundOverride?: SoundChoice;
+  /**
+   * Optional deep-link the tray "Recent notifications" submenu can use
+   * when the user clicks the entry. Today the tray dispatcher routes
+   * purely on `category` (chat → `/`, routine → `/routines`, sidecar →
+   * `/settings`) so `link` is reserved for future per-notification
+   * targets (e.g. "Routine X failed" → `/routines/<id>`).
+   */
+  link?: string;
+}
+
+/**
+ * Persisted shape of a single entry in the rolling history surfaced by
+ * the tray submenu. Mirrors the subset of `NotifyOptions` we want the
+ * user to see + a timestamp + a stable id (used by the Rust side to
+ * round-trip clicks back into JS).
+ */
+export interface NotificationHistoryEntry {
+  id: string;
+  title: string;
+  body: string;
+  category: NotifyCategory | undefined;
+  /** Epoch ms when the notification fired. */
+  ts: number;
+  link?: string;
 }
 
 /** Quiet-hours window. `start` and `end` are 0-23. */
@@ -111,6 +135,10 @@ export interface QuietHours {
 }
 
 const LS_KEY = 'ironclaw:notifications:v1';
+/** Separate slot for the tray-history ring so prefs and history can be
+ *  cleared independently (e.g. `clearHistory()` doesn't blow away
+ *  sound choices or quiet-hours config). */
+const LS_HISTORY_KEY = 'ironclaw-notification-history';
 
 /** Rolling-window length for the unseen-notification badge. */
 const RECENT_WINDOW_MS = 5 * 60 * 1000;
@@ -118,6 +146,18 @@ const RECENT_WINDOW_MS = 5 * 60 * 1000;
 /** Re-evaluate the recent window once a minute so notifications drop off
  *  the count without waiting for a user-driven re-render. */
 const RECENT_TICK_MS = 60 * 1000;
+
+/** Hard cap on persisted history. Tray submenu surfaces a subset
+ *  (`HISTORY_MENU_LIMIT`) but we keep a larger buffer so back-fill /
+ *  scrollback (future) doesn't need a re-fetch. */
+const HISTORY_MAX = 10;
+
+/** How many entries we forward to the tray menu. Spec calls for 5. */
+const HISTORY_MENU_LIMIT = 5;
+
+/** Entries older than this are dropped on hydrate. Matches the spec
+ *  "older than 24h auto-drop on init". */
+const HISTORY_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface PersistedPrefs {
   enabled: boolean;
@@ -218,8 +258,73 @@ function clampHour(v: unknown, fallback: number): number {
   return n;
 }
 
+const CATEGORIES: ReadonlySet<NotifyCategory> = new Set([
+  'chat',
+  'routine',
+  'sidecar',
+  'error'
+]);
+
+function isCategory(v: unknown): v is NotifyCategory {
+  return typeof v === 'string' && CATEGORIES.has(v as NotifyCategory);
+}
+
+/**
+ * Parse + validate the on-disk history blob. Drops entries older than
+ * `HISTORY_TTL_MS`, anything missing required fields, and trims to the
+ * `HISTORY_MAX` cap. Returns a fresh array even when parsing fails —
+ * the tray menu must always render something coherent.
+ */
+function loadHistory(): NotificationHistoryEntry[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(LS_HISTORY_KEY);
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const cutoff = Date.now() - HISTORY_TTL_MS;
+    const cleaned: NotificationHistoryEntry[] = [];
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object') continue;
+      const e = item as Partial<NotificationHistoryEntry>;
+      if (typeof e.id !== 'string' || !e.id) continue;
+      if (typeof e.title !== 'string') continue;
+      if (typeof e.ts !== 'number' || !Number.isFinite(e.ts)) continue;
+      if (e.ts < cutoff) continue;
+      cleaned.push({
+        id: e.id,
+        title: e.title,
+        body: typeof e.body === 'string' ? e.body : '',
+        category: isCategory(e.category) ? e.category : undefined,
+        ts: e.ts,
+        link: typeof e.link === 'string' ? e.link : undefined
+      });
+    }
+    // Most-recent first; cap so memory + IPC stays bounded.
+    cleaned.sort((a, b) => b.ts - a.ts);
+    return cleaned.slice(0, HISTORY_MAX);
+  } catch {
+    return [];
+  }
+}
+
 function inTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+/**
+ * Generate a short id for a history entry. Prefer `crypto.randomUUID()`
+ * when available (every Tauri webview ships it; modern dev browsers
+ * too) and fall back to a timestamp + random suffix for the test
+ * environment / older shims. Stability matters: the Rust side echoes
+ * the id back in the click event so we can find the entry's `link`.
+ */
+function makeNotificationId(): string {
+  const c = typeof globalThis !== 'undefined' ? globalThis.crypto : undefined;
+  if (c && typeof c.randomUUID === 'function') {
+    return c.randomUUID();
+  }
+  return `n-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 /**
@@ -300,6 +405,19 @@ class NotificationStore {
     return this.triggers.filter((t) => t >= cutoff).length;
   });
 
+  /**
+   * Rolling history of every notification we actually shipped to the OS.
+   * Tracks *all* notifications regardless of unseen state — `markAllSeen`
+   * intentionally does **not** touch this array (that resets the badge
+   * counter, not the menu). Capped at `HISTORY_MAX`; the tray submenu
+   * surfaces the first `HISTORY_MENU_LIMIT`.
+   *
+   * Most-recent first. Persisted to localStorage under
+   * `LS_HISTORY_KEY` so the menu survives a relaunch; entries older
+   * than `HISTORY_TTL_MS` are dropped on hydrate.
+   */
+  history = $state<NotificationHistoryEntry[]>([]);
+
   private hydrated = false;
   private permissionRequested = false;
   private recentTickHandle: ReturnType<typeof setInterval> | null = null;
@@ -307,6 +425,11 @@ class NotificationStore {
   private badgePushQueued: number | null = null;
   /** Last value we pushed to Rust. Suppresses redundant IPC. */
   private lastPushedBadge = -1;
+  /** Serializes tray-recent IPC the same way badge pushes are serialized
+   *  — a burst of notify() calls during streaming chat shouldn't fan
+   *  out into N concurrent menu rebuilds on the Rust side. */
+  private trayRecentInFlight = false;
+  private trayRecentQueued = false;
 
   /**
    * Read prefs out of localStorage. Idempotent — calling more than once
@@ -326,6 +449,18 @@ class NotificationStore {
     this.errorSound = p.errorSound;
     this.quietHours = p.quietHours;
     this.trayBadgeEnabled = p.trayBadgeEnabled;
+    // Rehydrate the tray-history ring + immediately push the seeded
+    // values into the menu so the submenu shows last session's
+    // notifications until a fresh trigger replaces them. If the load
+    // returned a TTL-trimmed list, re-persist so the disk copy reflects
+    // the cleanup; otherwise we keep writing the same expired entries
+    // back on every notify().
+    const seededHistory = loadHistory();
+    this.history = seededHistory;
+    if (seededHistory.length > 0) {
+      this.persistHistory();
+    }
+    void this.pushTrayRecent();
     this.hydrated = true;
     // Mirror future writes back to disk. We do this lazily via an
     // explicit `persist()` call from setter helpers below so we don't
@@ -418,6 +553,88 @@ class NotificationStore {
         if (queued !== this.lastPushedBadge) {
           void this.pushBadge();
         }
+      }
+    }
+  }
+
+  /**
+   * Append a fresh entry to the history ring, trim to `HISTORY_MAX`,
+   * persist, then refresh the tray menu. Called from `notify()` for
+   * every notification that cleared the gating checks AND is not a
+   * sound preview / soundOverride. Quiet-hours and silent notifications
+   * are excluded by the caller (see `notify()` for the exact rule).
+   */
+  private recordHistory(entry: NotificationHistoryEntry): void {
+    // Newest-first; cap at HISTORY_MAX so the array never grows past
+    // 10. Slice rather than mutate so Svelte's rune dependency tracking
+    // picks up the change.
+    this.history = [entry, ...this.history].slice(0, HISTORY_MAX);
+    this.persistHistory();
+    void this.pushTrayRecent();
+  }
+
+  /**
+   * Drop all history. Exposed to the UI (and the Rust tray "Clear all"
+   * menu item via the `tray:clear-notifications` event) so the user can
+   * empty the submenu without waiting for the 24h TTL. Does **not**
+   * clear the unseen badge — that's `markAllSeen`'s job.
+   */
+  clearHistory(): void {
+    if (this.history.length === 0) {
+      // Still push so the tray menu reflects the empty state when this
+      // is called against a freshly-cleared session (e.g. via the
+      // "Clear all" menu item firing twice). pushTrayRecent short-circuits
+      // when the last push was also empty, so this is cheap.
+      void this.pushTrayRecent();
+      return;
+    }
+    this.history = [];
+    this.persistHistory();
+    void this.pushTrayRecent();
+  }
+
+  /** Persist the history ring to its own localStorage slot. */
+  private persistHistory(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(LS_HISTORY_KEY, JSON.stringify(this.history));
+    } catch {
+      // Storage may be full or disabled; the menu degrades to
+      // session-only without crashing.
+    }
+  }
+
+  /**
+   * Push the current top-N history entries to the Rust tray. Body is
+   * trimmed to a single line so the menu doesn't wrap awkwardly; full
+   * body lives in the notification banner / future detail surface.
+   * Serializes via `trayRecentInFlight` so a burst doesn't fan out
+   * into concurrent menu rebuilds.
+   */
+  async pushTrayRecent(): Promise<void> {
+    if (!inTauri()) return;
+    if (this.trayRecentInFlight) {
+      this.trayRecentQueued = true;
+      return;
+    }
+    this.trayRecentInFlight = true;
+    try {
+      const items = this.history.slice(0, HISTORY_MENU_LIMIT).map((e) => ({
+        id: e.id,
+        title: e.title,
+        // Collapse newlines + trim so the macOS menu renderer doesn't
+        // see embedded `\n` (it would render as a literal escape).
+        body: e.body.replace(/\s+/g, ' ').trim()
+      }));
+      await invoke('update_tray_recent', { items });
+    } catch (err) {
+      // Tray IPC failure is non-fatal — the submenu is decorative.
+      console.warn('update_tray_recent failed', err);
+    } finally {
+      this.trayRecentInFlight = false;
+      if (this.trayRecentQueued) {
+        this.trayRecentQueued = false;
+        void this.pushTrayRecent();
       }
     }
   }
@@ -619,6 +836,28 @@ class NotificationStore {
       });
     } catch (err) {
       console.warn('sendNotification failed', err);
+    }
+
+    // History accounting. We track every notification that actually
+    // shipped (i.e. cleared gating + permission + Tauri runtime checks)
+    // and is NOT a sound-preview / in-app override AND not silenced by
+    // the quiet-hours mute (the latter means the user explicitly opted
+    // out of audible alerts for this window; surfacing them in the tray
+    // menu still respects that, but spec says skip them). `silent` here
+    // is the `choice === 'none'` resolution above; we recompute against
+    // `sound` since `choice` may have been mutated by the quiet-hours
+    // branch already.
+    const silent = sound === undefined;
+    const inQuiet = !opts.soundOverride && isInQuietHours(this.quietHours);
+    if (!opts.soundOverride && !inQuiet && !silent) {
+      this.recordHistory({
+        id: makeNotificationId(),
+        title: opts.title,
+        body: opts.body ?? '',
+        category: opts.category,
+        ts: Date.now(),
+        link: opts.link
+      });
     }
 
     // Badge accounting. We only count notifications that fired while the

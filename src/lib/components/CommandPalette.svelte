@@ -33,6 +33,7 @@
   import { aboutStore } from '$lib/stores/about.svelte';
   import { saveSettings } from '$lib/stores/settings.svelte';
   import { pins, type PinSurface } from '$lib/stores/pins.svelte';
+  import { presetsModal } from '$lib/stores/presets.svelte';
   import type { Extension, MemoryNode, Routine, Skill, Thread } from '$lib/api/types';
 
   // -- types ----------------------------------------------------------------
@@ -67,7 +68,8 @@
     | 'bell'
     | 'copy'
     | 'logs'
-    | 'info';
+    | 'info'
+    | 'layers';
 
   interface Item {
     id: string;
@@ -760,6 +762,55 @@
           run: () => {
             palette.closePalette();
             aboutStore.show();
+          }
+        },
+        // Workspace presets — opens the modal at the layout level. Same
+        // close-then-show ordering as the other modal-summon actions so
+        // the overlay backdrop lands on a clean chrome. Keybind matches
+        // the layout-level Cmd+Shift+P chord.
+        {
+          id: 'action:presets',
+          category: 'Actions' as const,
+          label: 'Workspace presets',
+          subtitle: 'Save, apply, rename, or delete layout snapshots',
+          icon: 'layers' as const,
+          keywords: [
+            'preset',
+            'presets',
+            'workspace',
+            'layout',
+            'snapshot',
+            'save',
+            'restore'
+          ],
+          keybind: '⌘⇧P',
+          run: () => {
+            palette.closePalette();
+            presetsModal.show();
+          }
+        },
+        // Save-current-as-preset shortcut — opens the same modal but
+        // pre-focuses the save input so the user types a name and hits
+        // Enter. Distinct row so search by "save" / "snapshot" surfaces
+        // the inline-save flow without the user picking the generic
+        // presets entry first.
+        {
+          id: 'action:save-preset',
+          category: 'Actions' as const,
+          label: 'Save current workspace as preset…',
+          subtitle: 'Capture route, thread, panel widths, sidebar state',
+          icon: 'layers' as const,
+          keywords: [
+            'save',
+            'preset',
+            'snapshot',
+            'workspace',
+            'capture',
+            'layout'
+          ],
+          run: () => {
+            palette.closePalette();
+            presetsModal.show('save');
           }
         }
       ];
@@ -1672,6 +1723,23 @@
                         stroke-linejoin="round"
                       >
                         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                    {:else if item.icon === 'layers'}
+                      <!-- Stacked-rect glyph for workspace presets — a
+                           layered layout suggests the snapshot/restore
+                           shape better than the generic 'tray' rectangle. -->
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                        <polyline points="2 17 12 22 22 17" />
+                        <polyline points="2 12 12 17 22 12" />
                       </svg>
                     {/if}
                   </span>

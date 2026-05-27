@@ -183,6 +183,41 @@ The script reads SSH alias `ironclaw-nearai` and resolves the gateway token
 from the live IronClaw process env. Always exits 0 (it's a discovery tool,
 not a CI gate).
 
+## Bundle analysis
+
+The static-adapter output lives at `build/_app/immutable/` after `npm run
+build`. Four scripts under `scripts/` give you a zero-dep view of what
+shipped:
+
+```bash
+# Walk the build, report per-file raw + gzip size, line count, top-5 largest.
+# Writes /tmp/ironclaw-bundle-report.txt. Auto-runs `npm run build` if
+# build/ is missing (force a rebuild with FORCE_BUILD=1).
+bash scripts/analyze-bundle.sh
+
+# Diff the current build against scripts/bundle-baseline.json. Exits 3 if
+# total gzip grew >10% or any stable-path file grew >25%. Accept the new
+# sizes with UPDATE_BASELINE=1.
+bash scripts/bundle-compare.sh
+
+# Spin up `npm run dev` (Vite on :1420), probe a handful of routes for TTFB
+# + total transfer time, count critical resources, kill the server. Writes
+# /tmp/ironclaw-perf-snapshot.txt. Smoke test only — not Lighthouse.
+bash scripts/perf-snapshot.sh
+```
+
+`scripts/bundle-baseline.json` is the committed reference for
+`bundle-compare.sh`. Refresh it intentionally after a release lands a real
+size change:
+
+```bash
+UPDATE_BASELINE=1 bash scripts/bundle-compare.sh
+```
+
+TODO: wire `bundle-compare.sh` into the PR workflow under
+`.github/workflows/` so each PR posts a bundle diff comment against
+`main`'s baseline. For v1 the scripts are local-only.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

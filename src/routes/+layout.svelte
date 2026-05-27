@@ -12,6 +12,7 @@
   import UpdaterBanner from '$lib/components/UpdaterBanner.svelte';
   import AboutDialog from '$lib/components/AboutDialog.svelte';
   import StatusBar from '$lib/components/StatusBar.svelte';
+  import PresetsModal from '$lib/components/PresetsModal.svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
   import { globalSearch } from '$lib/stores/global-search.svelte';
@@ -25,6 +26,7 @@
   import { aboutStore } from '$lib/stores/about.svelte';
   import { broadcast } from '$lib/stores/broadcast.svelte';
   import { pins } from '$lib/stores/pins.svelte';
+  import { presets, presetsModal } from '$lib/stores/presets.svelte';
 
   let { children } = $props();
 
@@ -117,6 +119,19 @@
     if (mod && e.shiftKey && e.key.toLowerCase() === 'n' && !isOnboarding) {
       e.preventDefault();
       quickCapture.toggle();
+      return;
+    }
+
+    // Cmd+Shift+P → workspace presets modal. Mnemonic: P for Preset.
+    // Shift disambiguates from any future bare Cmd+P intent (browser
+    // print today, but the Tauri webview swallows that anyway — keeping
+    // Shift for symmetry with the other modal chords). Onboarding gate
+    // matches the quick-capture chord: the wizard owns the screen and
+    // the user has no saved presets yet, so the modal's own render gate
+    // at the bottom of the layout keeps the toggle a no-op.
+    if (mod && e.shiftKey && e.key.toLowerCase() === 'p' && !isOnboarding) {
+      e.preventDefault();
+      presetsModal.toggle();
       return;
     }
 
@@ -235,6 +250,10 @@
     // we want it done before any surface mounts so the first render
     // shows the user's saved pins without a flash of empty stars.
     pins.init();
+    // Same shape for the workspace-presets store — hydrate once so the
+    // first open of the modal (Cmd+Shift+P or palette action) sees the
+    // user's saved list without a flash of empty state.
+    presets.init();
     // Wire the menu-bar tray listeners (Show window, Open settings,
     // Restart sidecar). Safe outside the Tauri webview — the store
     // detects that and no-ops.
@@ -376,4 +395,14 @@
      wired yet. -->
 {#if !isOnboarding}
   <QuickCapture />
+{/if}
+
+<!-- Workspace presets modal (Cmd+Shift+P). Captures the current layout
+     (active route, selected thread, panel widths, sidebar collapsed,
+     status bar visibility, tray badge toggle) under a user-given name
+     for fast context-switching. Same onboarding gate as the other layout
+     modals — there's no meaningful workspace to snapshot before the
+     wizard completes. -->
+{#if !isOnboarding}
+  <PresetsModal />
 {/if}

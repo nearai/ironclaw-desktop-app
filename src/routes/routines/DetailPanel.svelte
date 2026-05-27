@@ -2,6 +2,7 @@
   import type { Routine, RoutineRun } from '$lib/api/types';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import CronPreview from '$lib/components/CronPreview.svelte';
   import { durationBetween, relativeTime, shortTimestamp } from './time';
 
   type Props = {
@@ -77,9 +78,13 @@
     <div class="min-w-0">
       <h2 class="text-lg font-semibold text-text-primary truncate">{routine.name}</h2>
       <dl class="mt-2 text-xs space-y-1">
-        <div class="flex items-center gap-2">
-          <dt class="text-text-muted w-20">Schedule</dt>
-          <dd class="text-text-primary font-mono truncate">{routine.schedule || '—'}</dd>
+        <div class="flex items-start gap-2">
+          <dt class="text-text-muted w-20 shrink-0 mt-px">Schedule</dt>
+          <dd class="min-w-0 flex flex-col gap-0.5">
+            <span class="text-text-primary font-mono truncate">{routine.schedule || '—'}</span>
+            <!-- Human-readable preview of the cron expression. -->
+            <CronPreview expr={routine.schedule} />
+          </dd>
         </div>
         <div class="flex items-center gap-2">
           <dt class="text-text-muted w-20">Enabled</dt>

@@ -431,6 +431,20 @@ async fn update_tray_badge(app: AppHandle, count: i32) -> Result<(), String> {
     tray::update_badge(&app, count).map_err(|e| format!("update_tray_badge: {e}"))
 }
 
+/// Replace the contents of the "Recent notifications" submenu.
+///
+/// Pushed from JS by the notifications store whenever its `history`
+/// array changes (and once on hydrate so the menu reflects last
+/// session's seeded entries). The Rust side caps the list at 5 entries
+/// and rebuilds the parent tray menu to swap the submenu in.
+///
+/// When `items` is empty the submenu renders a disabled "No recent
+/// notifications" placeholder so the menu always has visible content.
+#[tauri::command]
+async fn update_tray_recent(app: AppHandle, items: Vec<tray::RecentItem>) -> Result<(), String> {
+    tray::update_recent(&app, items).map_err(|e| format!("update_tray_recent: {e}"))
+}
+
 /// Show + focus the main window. Used by tray menu items that want to
 /// surface a route immediately after firing their event (Settings,
 /// Restart). The JS event listeners do the navigation; this just makes
@@ -473,6 +487,12 @@ pub fn run() {
         //   3. Confirm the GitHub release repo + latest.json artifact path.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SidecarState::default())
+        // Cached "Recent notifications" submenu entries. Lives in app
+        // state so `update_tray_recent` can swap the menu on demand
+        // and so we can re-seed the menu after future
+        // create/visibility flips without the JS side having to
+        // re-push the same data.
+        .manage(tray::RecentItemsState::default())
         .invoke_handler(tauri::generate_handler![
             get_settings,
             save_settings,
@@ -497,6 +517,7 @@ pub fn run() {
             update_tray_status,
             set_tray_visible,
             update_tray_badge,
+            update_tray_recent,
             show_main_window,
             windows::open_profile_window,
             windows::list_open_profile_windows,

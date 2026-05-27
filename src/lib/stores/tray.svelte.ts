@@ -3,12 +3,27 @@
 // The Rust tray module (`src-tauri/src/tray.rs`) emits Tauri events when
 // the user clicks an item in the menu-bar context menu:
 //
-//   - `tray:show-window`     → main window was just shown via the tray
-//                              (left-click toggle or a menu item that
-//                              focuses the app). Useful for surfaces
-//                              that want to refresh on re-entry.
-//   - `tray:show-settings`   → user picked "Open Settings".
-//   - `tray:restart-sidecar` → user picked "Restart sidecar".
+//   - `tray:show-window`           → main window was just shown via the
+//                                    tray (left-click toggle or a menu
+//                                    item that focuses the app). Useful
+//                                    for surfaces that want to refresh
+//                                    on re-entry.
+//   - `tray:show-settings`         → user picked "Open Settings".
+//   - `tray:restart-sidecar`       → user picked "Restart sidecar".
+//   - `tray:open-notification`     → user picked a "Recent
+//                                    notifications" submenu entry. The
+//                                    event payload is the notification
+//                                    id; we look it up in the history
+//                                    ring and route by its category
+//                                    (chat → `/`, routine →
+//                                    `/routines`, sidecar →
+//                                    `/settings`).
+//   - `tray:clear-notifications`   → user picked the submenu's "Clear
+//                                    all" item. Just flushes the
+//                                    history ring; Rust will receive
+//                                    the empty list and re-render the
+//                                    submenu to the empty-state
+//                                    placeholder.
 //
 // This store mounts the listeners on first `init()` call from the root
 // layout. Listeners are torn down on hot-reload (and on programmatic
@@ -22,8 +37,33 @@ import { goto } from '$app/navigation';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 
 import { connection } from './connection.svelte';
-import { notifications } from './notifications.svelte';
+import { notifications, type NotifyCategory } from './notifications.svelte';
 import { toasts } from './toasts.svelte';
+
+/**
+ * Route a notification category to the surface it logically lives on.
+ * Centralised here so future categories (or per-entry `link` overrides)
+ * have one place to land. Returns `undefined` for unknown categories so
+ * the caller can no-op without throwing — the menu item still focuses
+ * the main window via the Rust side's `focus_main_window` call.
+ */
+function routeForCategory(category: NotifyCategory | undefined): string | undefined {
+  switch (category) {
+    case 'chat':
+      return '/';
+    case 'routine':
+      return '/routines';
+    case 'sidecar':
+      // Settings page has the sidecar status section; we land at the
+      // top and let the user scroll to it. A future per-section
+      // anchor (e.g. `/settings#sidecar`) could be plumbed through
+      // the entry's `link` override.
+      return '/settings';
+    case 'error':
+    default:
+      return undefined;
+  }
+}
 
 class TrayStore {
   private mounted = false;
@@ -81,7 +121,33 @@ class TrayStore {
         notifications.markAllSeen();
         void notifications.pushBadge();
       });
-      this.unlisteners.push(u1, u2, u3);
+      // Recent-notifications submenu: route by the matching history
+      // entry's category. We look the entry up by id (echoed back from
+      // Rust) so a future per-entry `link` override has somewhere to
+      // attach without changing the event contract.
+      const u4 = await listen<string>('tray:open-notification', (event) => {
+        const id = event.payload;
+        if (typeof id !== 'string' || !id) return;
+        const entry = notifications.history.find((e) => e.id === id);
+        if (!entry) {
+          // The entry has aged out of the ring (e.g. user clicked an
+          // old submenu after several new notifications dropped it).
+          // The main window is already focused by the Rust side; just
+          // no-op the navigation.
+          return;
+        }
+        const route = routeForCategory(entry.category);
+        if (route) {
+          void goto(route);
+        }
+      });
+      const u5 = await listen('tray:clear-notifications', () => {
+        // `clearHistory` will re-push an empty list to the Rust side,
+        // which rebuilds the submenu with the "No recent notifications"
+        // placeholder.
+        notifications.clearHistory();
+      });
+      this.unlisteners.push(u1, u2, u3, u4, u5);
     } catch (err) {
       // A failure here means tray events won't fire on the JS side —
       // degraded but not fatal. Surface once so it's visible during

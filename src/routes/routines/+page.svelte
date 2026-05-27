@@ -6,6 +6,7 @@
   import { connection } from '$lib/stores/connection.svelte';
   import DetailPanel from './DetailPanel.svelte';
   import Sparkline from '$lib/components/Sparkline.svelte';
+  import CronPreview from '$lib/components/CronPreview.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { pins } from '$lib/stores/pins.svelte';
@@ -577,7 +578,12 @@
   >
     <td class="px-4 py-3 text-text-primary font-medium">{routine.name}</td>
     <td class="px-4 py-3 text-text-muted font-mono text-xs">
-      {routine.schedule || '—'}
+      <div class="flex flex-col gap-0.5">
+        <span>{routine.schedule || '—'}</span>
+        <!-- Human-readable description of the cron expression. Stays
+             muted-gold under the raw schedule so the table scans cleanly. -->
+        <CronPreview expr={routine.schedule} />
+      </div>
     </td>
     <td class="px-4 py-3">
       <button
