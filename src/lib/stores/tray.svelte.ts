@@ -39,6 +39,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { connection } from './connection.svelte';
 import { notifications, type NotifyCategory } from './notifications.svelte';
 import { toasts } from './toasts.svelte';
+import { inTauri, inTauriFully } from '$lib/utils/runtime';
 
 /**
  * Route a notification category to the surface it logically lives on.
@@ -68,6 +69,10 @@ function routeForCategory(category: NotifyCategory | undefined): string | undefi
 class TrayStore {
   private mounted = false;
   private unlisteners: UnlistenFn[] = [];
+  /** One-shot guard so the "no real Tauri runtime" warn doesn't fire on
+   *  every layout remount (the R25-1 dogfood saw it spammed 8x in
+   *  browser dev mode behind the partial app.html shim). */
+  private loggedOnce = false;
 
   /**
    * Wire up the three tray-event listeners. Idempotent — safe to call
@@ -75,14 +80,32 @@ class TrayStore {
    *
    * Returns void on purpose so callers can `void tray.init()` without
    * awaiting; the underlying `listen` setup is fire-and-forget.
+   *
+   * The real `listen()` plugin call dispatches through
+   * `__TAURI_INTERNALS__.transformCallback`, which the DEV-only shim
+   * in `app.html` does NOT implement — so we gate on `inTauriFully()`
+   * (full runtime, not just the shim) and degrade silently otherwise.
    */
   init(): void {
     if (this.mounted) return;
-    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
-      // Running outside the Tauri webview (e.g. `vite preview`) —
+    if (!inTauri()) {
+      // Outside Tauri entirely (e.g. `vite preview` with no shim) —
       // there's no tray, nothing to listen for. Mark as mounted so we
       // don't keep retrying on every layout remount.
       this.mounted = true;
+      return;
+    }
+    if (!inTauriFully()) {
+      // The dev shim is active but lacks the plugin-IPC dispatcher.
+      // Skip listener setup so `listen()` doesn't throw with the
+      // `transformCallback is not a function` message — log once so
+      // it's visible in dev console without spamming the layout
+      // remount path.
+      this.mounted = true;
+      if (!this.loggedOnce) {
+        this.loggedOnce = true;
+        console.warn('tray: skipping listener setup — running outside the full Tauri runtime');
+      }
       return;
     }
     this.mounted = true;
@@ -168,7 +191,9 @@ class TrayStore {
       await connection.stopSidecar();
       const ok = await connection.startSidecar();
       toasts.show(
-        ok ? 'Sidecar restarted' : `Sidecar restart failed: ${connection.sidecarError ?? 'unknown'}`,
+        ok
+          ? 'Sidecar restarted'
+          : `Sidecar restart failed: ${connection.sidecarError ?? 'unknown'}`,
         ok ? 'success' : 'error'
       );
     } catch (err) {

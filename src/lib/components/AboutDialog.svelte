@@ -20,8 +20,9 @@
 
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { open as shellOpen } from '@tauri-apps/plugin-shell';
   import { connection } from '$lib/stores/connection.svelte';
+  import { updater } from '$lib/stores/updater.svelte';
+  import { inTauriFully } from '$lib/utils/runtime';
   import type { GatewayStatus } from '$lib/api/types';
 
   interface Props {
@@ -98,6 +99,46 @@
   const activeProfile = $derived(connection.activeProfile);
   const profileCount = $derived(connection.settings.profiles.length);
 
+  // -- Latest release pill ---------------------------------------------------
+  // Mirrors the updater store. Four visual states collapse from the seven
+  // underlying statuses so the line stays scannable:
+  //   available                       → gold pill + "Update available" CTA
+  //   up-to-date                      → green dot + "Up to date"
+  //   idle | checking                 → muted dot + "Check pending"
+  //   downloading | installing | error → muted dot + status word
+  // The CTA calls updater.install(), which downloads + writes the bundle;
+  // the layout-level UpdaterBanner already handles the restart prompt
+  // when status transitions to "installing".
+
+  type ReleasePill =
+    | { kind: 'available'; label: 'Update available'; cta: true }
+    | { kind: 'up-to-date'; label: 'Up to date'; cta: false }
+    | { kind: 'pending'; label: 'Check pending'; cta: false }
+    | { kind: 'busy'; label: string; cta: false };
+
+  const releasePill = $derived.by<ReleasePill>(() => {
+    switch (updater.status) {
+      case 'available':
+        return { kind: 'available', label: 'Update available', cta: true };
+      case 'up-to-date':
+        return { kind: 'up-to-date', label: 'Up to date', cta: false };
+      case 'downloading':
+        return { kind: 'busy', label: 'Downloading', cta: false };
+      case 'installing':
+        return { kind: 'busy', label: 'Installing', cta: false };
+      case 'error':
+        return { kind: 'busy', label: 'Check failed', cta: false };
+      case 'checking':
+      case 'idle':
+      default:
+        return { kind: 'pending', label: 'Check pending', cta: false };
+    }
+  });
+
+  async function installUpdate() {
+    await updater.install();
+  }
+
   // -- Sidecar info ----------------------------------------------------------
 
   const sidecarVisible = $derived(activeProfile?.mode === 'local');
@@ -105,9 +146,7 @@
     const s = connection.sidecarStatus;
     switch (s) {
       case 'running':
-        return connection.sidecarPort
-          ? `Running on :${connection.sidecarPort}`
-          : 'Running';
+        return connection.sidecarPort ? `Running on :${connection.sidecarPort}` : 'Running';
       case 'starting':
         return 'Starting…';
       case 'exited':
@@ -178,18 +217,15 @@
       // plugin so the call site can show a deterministic value.
       uaData
         .getHighEntropyValues(['architecture', 'platformVersion'])
-        .then(
-          (vals: { architecture?: string; platformVersion?: string }) => {
-            const arch = vals.architecture;
-            if (arch) {
-              system = {
-                ...system,
-                architecture:
-                  arch === 'arm' ? 'arm64' : arch === 'x86' ? 'x86_64' : arch
-              };
-            }
+        .then((vals: { architecture?: string; platformVersion?: string }) => {
+          const arch = vals.architecture;
+          if (arch) {
+            system = {
+              ...system,
+              architecture: arch === 'arm' ? 'arm64' : arch === 'x86' ? 'x86_64' : arch
+            };
           }
-        )
+        })
         .catch(() => {
           // No-op — the synchronous fallback below already populated arch.
         });
@@ -226,7 +262,17 @@
   }
 
   async function openExternal(url: string) {
+    // Dynamic-import the shell plugin so the module isn't pulled into
+    // dev-shim sessions (R25-1 dogfood). Calling `plugin:shell|open`
+    // against the partial `__TAURI_INTERNALS__` shim in `app.html` would
+    // log an "unknown cmd" warning on every click — the runtime gate
+    // bails out before the import resolves.
+    if (!inTauriFully()) {
+      console.warn('[about] shellOpen skipped — not running under full Tauri runtime', url);
+      return;
+    }
     try {
+      const { open: shellOpen } = await import('@tauri-apps/plugin-shell');
       await shellOpen(url);
     } catch (err) {
       // The shell plugin throws when the webview isn't running under Tauri
@@ -293,9 +339,7 @@
       aria-labelledby="about-dialog-title"
     >
       <!-- Header -->
-      <header
-        class="flex items-start gap-3 px-5 py-4 border-b border-border-subtle relative"
-      >
+      <header class="flex items-start gap-3 px-5 py-4 border-b border-border-subtle relative">
         <svg
           viewBox="0 0 24 24"
           class="w-8 h-8 text-accent-cyan shrink-0 mt-0.5"
@@ -342,6 +386,56 @@
 
       <!-- Body -->
       <div class="flex-1 overflow-y-auto px-5 py-4 space-y-5 text-xs">
+        <!-- Latest release -->
+        <section aria-labelledby="about-release-heading">
+          <h2
+            id="about-release-heading"
+            class="text-[10px] uppercase tracking-widest text-text-muted/80 mb-2 font-semibold"
+          >
+            Latest release
+          </h2>
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2 min-w-0">
+              <span class="text-text-primary font-mono">v{appVersion}</span>
+              {#if releasePill.kind === 'up-to-date'}
+                <span
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/30"
+                  data-testid="about-release-pill"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400" aria-hidden="true"></span>
+                  {releasePill.label}
+                </span>
+              {:else if releasePill.kind === 'pending'}
+                <span
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-text-muted/10 text-text-muted border border-border-subtle"
+                  data-testid="about-release-pill"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-text-muted/60" aria-hidden="true"></span>
+                  {releasePill.label}
+                </span>
+              {:else if releasePill.kind === 'busy'}
+                <span
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium bg-text-muted/10 text-text-muted border border-border-subtle"
+                  data-testid="about-release-pill"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full bg-text-muted/60" aria-hidden="true"></span>
+                  {releasePill.label}
+                </span>
+              {/if}
+            </div>
+            {#if releasePill.cta}
+              <button
+                type="button"
+                onclick={() => void installUpdate()}
+                class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-accent-gold/15 text-accent-gold border border-accent-gold/40 hover:bg-accent-gold/25 transition"
+                data-testid="about-release-install"
+              >
+                Update available
+              </button>
+            {/if}
+          </div>
+        </section>
+
         <!-- Gateway -->
         <section aria-labelledby="about-gateway-heading">
           <h2
@@ -353,9 +447,7 @@
           {#if gateway.kind === 'loading'}
             <p class="text-text-muted font-mono">Loading…</p>
           {:else if gateway.kind === 'disconnected'}
-            <p class="text-text-muted font-mono">
-              Not connected to a gateway.
-            </p>
+            <p class="text-text-muted font-mono">Not connected to a gateway.</p>
           {:else if gateway.kind === 'error'}
             <p class="text-red-300 font-mono break-words">
               Error: {gateway.message}
@@ -388,9 +480,7 @@
               <div class="flex justify-between gap-3">
                 <dt class="text-text-muted">Enabled channels</dt>
                 <dd class="text-text-primary font-mono text-right break-all">
-                  {s.enabled_channels.length > 0
-                    ? s.enabled_channels.join(', ')
-                    : '—'}
+                  {s.enabled_channels.length > 0 ? s.enabled_channels.join(', ') : '—'}
                 </dd>
               </div>
             </dl>
@@ -520,8 +610,8 @@
       <footer
         class="px-5 py-3 border-t border-border-subtle text-[11px] text-text-muted/80 leading-relaxed"
       >
-        Built with Tauri v2 + Svelte 5 + Tailwind. Markdown via marked +
-        DOMPurify. Auth via macOS Keychain. © 2026 Abhishek Vaidyanathan.
+        Built with Tauri v2 + Svelte 5 + Tailwind. Markdown via marked + DOMPurify. Auth via macOS
+        Keychain. © 2026 Abhishek Vaidyanathan.
       </footer>
     </div>
   </div>

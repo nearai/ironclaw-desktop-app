@@ -20,6 +20,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
+import { inTauri } from '$lib/utils/runtime';
 import { broadcast } from './broadcast.svelte';
 
 export type ConnectionMode = 'remote' | 'local';
@@ -49,13 +50,7 @@ export type LlmBackend = 'nearai' | 'openrouter';
  * optional on disk). Pre-existing profiles with `tint: undefined` round
  * trip as `signal` at render time.
  */
-export type ProfileTint =
-  | 'signal'
-  | 'cyan'
-  | 'violet'
-  | 'orange'
-  | 'teal'
-  | 'rose';
+export type ProfileTint = 'signal' | 'cyan' | 'violet' | 'orange' | 'teal' | 'rose';
 
 /**
  * Per-profile gateway connection. The id is opaque (uuid-ish) and never
@@ -272,8 +267,7 @@ function defaultProfile(overrides?: Partial<ProfileConfig>): ProfileConfig {
     remoteBaseUrl: overrides?.remoteBaseUrl ?? 'http://127.0.0.1:3100',
     localBaseUrl: overrides?.localBaseUrl ?? 'http://127.0.0.1:3100',
     llmBackend: overrides?.llmBackend ?? 'nearai',
-    llmProviderId:
-      overrides?.llmProviderId ?? (overrides?.llmBackend ?? 'nearai')
+    llmProviderId: overrides?.llmProviderId ?? overrides?.llmBackend ?? 'nearai'
   };
 }
 
@@ -286,16 +280,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   useResponsesApi: true,
   engineV2Enabled: false
 };
-
-/**
- * Detect whether we're running inside the Tauri webview. During `vite build`
- * or `npm run dev` outside Tauri, IPC isn't available — we fall back to
- * defaults so the UI still renders for design/debug work.
- */
-function inTauri(): boolean {
-  // Tauri 2 exposes window.__TAURI_INTERNALS__ in the runtime webview.
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
 
 /** Shape of the legacy (pre-Profiles) settings file. Kept narrow on
  *  purpose — anything else is just preserved into the migrated profile. */
@@ -322,9 +306,7 @@ interface LegacyAppSettings {
  *   3. Profile-aware shape → trust it, but defensively re-anchor
  *      `activeProfileId` to the first profile if it points nowhere.
  */
-export function migrateLoaded(
-  raw: Partial<AppSettings> & LegacyAppSettings
-): AppSettings {
+export function migrateLoaded(raw: Partial<AppSettings> & LegacyAppSettings): AppSettings {
   // Case 3 + 2 share the same input — `profiles` being a non-empty array
   // is the discriminator.
   if (Array.isArray(raw.profiles) && raw.profiles.length > 0) {
@@ -600,9 +582,7 @@ export async function importSettingsFromString(raw: string): Promise<AppSettings
 
 function requireCache(): AppSettings {
   if (!cached) {
-    throw new Error(
-      'settings: cache not initialized — call loadSettings() before mutating'
-    );
+    throw new Error('settings: cache not initialized — call loadSettings() before mutating');
   }
   return cached;
 }
@@ -610,8 +590,7 @@ function requireCache(): AppSettings {
 /** The currently active profile. Throws if settings haven't been loaded. */
 export function getActiveProfile(): ProfileConfig {
   const s = requireCache();
-  const p =
-    s.profiles.find((x) => x.id === s.activeProfileId) ?? s.profiles[0];
+  const p = s.profiles.find((x) => x.id === s.activeProfileId) ?? s.profiles[0];
   if (!p) throw new Error('settings: no profiles configured');
   return p;
 }
@@ -654,10 +633,7 @@ export async function addProfile(
  * Apply a partial update to a single profile + persist. Silently no-ops if
  * the id doesn't exist (caller is expected to validate first).
  */
-export async function updateProfile(
-  id: string,
-  patch: Partial<ProfileConfig>
-): Promise<void> {
+export async function updateProfile(id: string, patch: Partial<ProfileConfig>): Promise<void> {
   const s = requireCache();
   const idx = s.profiles.findIndex((p) => p.id === id);
   if (idx === -1) return;
@@ -755,8 +731,7 @@ export async function deleteProfile(id: string): Promise<void> {
   // Drop the entry. If we just removed the active one, pivot to the first
   // remaining profile so the connection store always has a target.
   const profiles = s.profiles.filter((p) => p.id !== id);
-  const activeProfileId =
-    s.activeProfileId === id ? profiles[0].id : s.activeProfileId;
+  const activeProfileId = s.activeProfileId === id ? profiles[0].id : s.activeProfileId;
   const next: AppSettings = { ...s, profiles, activeProfileId };
   await saveSettings(next);
   // Best-effort credential cleanup — never throws (delete is no-op when

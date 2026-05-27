@@ -22,6 +22,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { IronClawClient } from '$lib/api/ironclaw';
+import { inTauri } from '$lib/utils/runtime';
 import { notifications } from './notifications.svelte';
 import { telemetry } from './telemetry.svelte';
 import {
@@ -86,10 +87,13 @@ class ConnectionStore {
     // bookkeeping. The Rust side maps "error" → disconnected glyph, so
     // we forward the raw status string verbatim.
     //
-    // `inTauri()` would be cleaner but importing it here would cycle
-    // through settings.svelte.ts; checking the global directly costs
-    // one property read and keeps the wiring local.
-    if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+    // Gated on `inTauri()` (shared helper from $lib/utils/runtime) so
+    // browser preview / vitest runs skip the tray IPC entirely. The
+    // dev-only shim in `app.html` mocks `update_tray_status` to a no-op
+    // resolve, so passing this gate against the shim is safe; the
+    // tray-listener side (tray.svelte.ts) uses the stricter
+    // `inTauriFully()` because plugin calls need the real dispatcher.
+    if (inTauri()) {
       $effect.root(() => {
         $effect(() => {
           const s = this.status;

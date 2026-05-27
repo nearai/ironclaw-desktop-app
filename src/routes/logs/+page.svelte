@@ -120,6 +120,17 @@
   /** Height of the scrollable viewport, measured on mount + resize. */
   let viewportHeight = $state(0);
 
+  // ---- Narrow-viewport adaptations -----------------------------------------
+  /**
+   * Breakpoint below which the row layout switches to a compact timestamp
+   * (HH:MM:SS, no milliseconds). Tauri's minWidth is 800px; ≤1000px is the
+   * window where the timestamp column at 78px starts crowding the message
+   * cell, and HH:MM:SS at 56px leaves more room for the target + message.
+   */
+  const COMPACT_VIEWPORT_PX = 1000;
+  /** Drives row-template width + timestamp string format. */
+  let compactTime = $state<boolean>(false);
+
   // ---- Derived filtered view + window slice --------------------------------
 
   const filtered = $derived.by<LogEntry[]>(() => {
@@ -210,7 +221,9 @@
       if (rawHistory) {
         const arr = JSON.parse(rawHistory);
         if (Array.isArray(arr)) {
-          searchHistory = arr.filter((s): s is string => typeof s === 'string').slice(0, HISTORY_MAX);
+          searchHistory = arr
+            .filter((s): s is string => typeof s === 'string')
+            .slice(0, HISTORY_MAX);
         }
       }
     } catch {
@@ -291,6 +304,14 @@
     };
     document.addEventListener('pointerdown', onDocPointerDown);
 
+    // Track viewport width via matchMedia so the row layout flips to the
+    // compact (no-ms) timestamp format at narrow widths. Cheaper than a
+    // resize listener and fires only on threshold crossings.
+    const mql = window.matchMedia(`(max-width: ${COMPACT_VIEWPORT_PX}px)`);
+    compactTime = mql.matches;
+    const onMql = (e: MediaQueryListEvent) => (compactTime = e.matches);
+    mql.addEventListener('change', onMql);
+
     // Surface refresh (Cmd+R): re-open the SSE stream. Closes any
     // active connection first so we get a clean reconnect; the
     // existing buffer of log entries is left in place so the user
@@ -304,6 +325,7 @@
     return () => {
       ro?.disconnect();
       document.removeEventListener('pointerdown', onDocPointerDown);
+      mql.removeEventListener('change', onMql);
     };
   });
 
@@ -585,12 +607,17 @@
 
   function formatTime(ts: string): string {
     // Show HH:mm:ss.SSS in the user's local zone — useful for live tail.
+    // At narrow viewports (≤1000px) drop the milliseconds so the timestamp
+    // column doesn't clip to "14:21:52…" — the dogfood report flagged this
+    // specifically. The Tauri minWidth is 800px so 1000px is the right
+    // breakpoint to start condensing.
     // Fall back to the raw string if Date parsing chokes.
     const d = new Date(ts);
     if (Number.isNaN(d.getTime())) return ts;
     const hh = String(d.getHours()).padStart(2, '0');
     const mm = String(d.getMinutes()).padStart(2, '0');
     const ss = String(d.getSeconds()).padStart(2, '0');
+    if (compactTime) return `${hh}:${mm}:${ss}`;
     const ms = String(d.getMilliseconds()).padStart(3, '0');
     return `${hh}:${mm}:${ss}.${ms}`;
   }
@@ -631,7 +658,9 @@
         stroke-linecap="round"
         stroke-linejoin="round"
       >
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <path
+          d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+        />
         <line x1="12" y1="9" x2="12" y2="13" />
         <line x1="12" y1="17" x2="12.01" y2="17" />
       </svg>
@@ -668,9 +697,7 @@
     </div>
 
     <!-- Control strip -->
-    <div
-      class="surface mb-3 px-3 py-2 flex flex-wrap items-center gap-3 text-xs"
-    >
+    <div class="surface mb-3 px-3 py-2 flex flex-wrap items-center gap-3 text-xs">
       <div class="flex items-center gap-2">
         <span
           class="w-2 h-2 rounded-full"
@@ -724,7 +751,9 @@
             bind:this={historyDropdownEl}
             class="absolute left-0 right-0 top-full mt-1 z-20 bg-bg-deep border border-border-subtle rounded shadow-lg overflow-hidden"
           >
-            <div class="px-2 py-1 text-[10px] uppercase tracking-wide text-text-muted border-b border-border-subtle/60">
+            <div
+              class="px-2 py-1 text-[10px] uppercase tracking-wide text-text-muted border-b border-border-subtle/60"
+            >
               Recent searches
             </div>
             <ul class="max-h-48 overflow-auto">
@@ -735,8 +764,11 @@
                     onclick={() => applyHistoryQuery(q)}
                     class="w-full text-left px-2 py-1 text-text-primary hover:bg-bg-deep hover:text-accent-cyan transition-colors truncate"
                     style="background: transparent;"
-                    onmouseenter={(ev) => ((ev.currentTarget as HTMLButtonElement).style.background = 'rgba(34,211,238,0.06)')}
-                    onmouseleave={(ev) => ((ev.currentTarget as HTMLButtonElement).style.background = 'transparent')}
+                    onmouseenter={(ev) =>
+                      ((ev.currentTarget as HTMLButtonElement).style.background =
+                        'rgba(34,211,238,0.06)')}
+                    onmouseleave={(ev) =>
+                      ((ev.currentTarget as HTMLButtonElement).style.background = 'transparent')}
                   >
                     {q}
                   </button>
@@ -836,13 +868,18 @@
           <div style="height: {topSpacer}px;" aria-hidden="true"></div>
           {#each windowSlice.items as row (row.index + '|' + row.entry.timestamp)}
             <div
-              class="group relative grid grid-cols-[64px_56px_minmax(0,200px)_1fr_28px] gap-x-3 px-3 items-center border-b border-border-subtle/30 hover:bg-bg-deep transition-colors"
-              style="height: {ITEM_HEIGHT}px; line-height: 1.1;"
+              class="group relative grid gap-x-3 px-3 items-center border-b border-border-subtle/30 hover:bg-bg-deep transition-colors"
+              style="grid-template-columns: {compactTime
+                ? '60px'
+                : '82px'} 56px minmax(0, 200px) 1fr 28px; height: {ITEM_HEIGHT}px; line-height: 1.1;"
               onmouseenter={() => (hoveredRow = row.index)}
               onmouseleave={() => (hoveredRow = -1)}
               role="presentation"
             >
-              <span class="text-text-muted text-[10px] tabular-nums truncate">
+              <span
+                class="text-text-muted text-[10px] tabular-nums truncate"
+                title={row.entry.timestamp}
+              >
                 {formatTime(row.entry.timestamp)}
               </span>
               <span
@@ -855,10 +892,7 @@
               <span class="text-text-muted truncate" title={row.entry.target}>
                 {row.entry.target}
               </span>
-              <span
-                class="text-text-primary truncate"
-                title={row.entry.message}
-              >
+              <span class="text-text-primary truncate" title={row.entry.message}>
                 {row.entry.message}
               </span>
               <button

@@ -1,6 +1,67 @@
 # Changelog
 
-## v0.2.0 — First signed release (Round 24 polish + updater signing)
+## v0.2.1 (unreleased) — Rounds 26-31 (observability, templates, playground, hooks)
+
+Major adds since v0.2.0, all four CI gates green (svelte-check 0
+errors, 181/181 vitest, build clean, cargo check clean):
+
+- **Sidecar log streaming** (R26) — Rust ring buffer in `sidecar.rs`
+  captures stdout/stderr from the bundled IronClaw, replayed to the
+  webview via a `sidecar:log` Tauri event. The Logs route gains a
+  Gateway / Sidecar / Both source toggle so the user can grep either
+  stream without flipping windows.
+- **System prompt diff** (R27) — full-route `PromptDiff` component
+  with side-by-side and unified modes, A/B version picker plus a
+  Compare-to-current shortcut, and Restore to roll back. Diff
+  engine lives under `lib/util/diff.ts`; pure functions, unit-tested.
+- **Crash reporter + opt-in telemetry** (R28) — `crashes.rs` writes
+  panics + sidecar exits to a JSONL ring (5 MB rotation) in the app
+  support dir. New `telemetry.svelte.ts` store wired to 9 events
+  (update available/installed, sidecar spawn/exit, tray badge change,
+  command palette open, slash invocation, profile switch, mission
+  start). Off by default; opt-in via Settings → Advanced.
+- **Layout / sidebar init race fix** (R29a) — `connection.init()`
+  now caches the in-flight promise so concurrent callers from the
+  layout root, the sidebar, and the status bar dedupe to one
+  initialization. Real bug caught by R24c Playwright runs flaking
+  on cold reload — fixed once, verified by re-running the E2E suite.
+- **Conversation templates** (R29c) — Cmd+Shift+T modal with
+  `{variable}` substitution. Templates live as JSON in the workspace
+  (`~/Library/Application Support/com.ironclaw.desktop/templates/`),
+  show in both Cmd+K command palette and the slash autocomplete.
+- **Notification grouping** (R29d) — same-category notifications
+  within 30 s coalesce by id so a burst of sidecar restarts no
+  longer flickers the macOS Notification Center. Tunable in
+  Settings → Notifications. +7 tests, total now 181.
+- **Component playground** (R30a) — `/dev/playground` route with 10
+  stories (Toasts, Sparkline, UpdaterBanner, Sidebar, StatusBar,
+  Spinner, ThreadSwitcher, SlashAutocomplete, CommandPalette,
+  AboutDialog). Route is gated on `import.meta.env.DEV` so it never
+  ships in production builds.
+- **README workflows expansion** (R30b) — 6 step-by-step workflow
+  guides (remote tunnel, local sidecar, profiles, slash + templates,
+  global search, Engine v2), troubleshooting table, 4 real
+  onboarding screenshots committed under `docs/screenshots/`.
+- **SSH tunnel helper** (R31a) — `scripts/tunnel.sh` with
+  open / close / status / restart subcommands, color output, env-var
+  overrides (`IRONCLAW_SSH_ALIAS`, `IRONCLAW_TUNNEL_PORT`). README
+  has a dedicated section.
+- **Pre-commit hooks** (R31b) — `simple-git-hooks` + `lint-staged`
+  wire `prettier --check` on staged files at commit, full
+  `npm run check && npm run test` at push. Auto-installed by the
+  `prepare` script on `npm install`.
+- **Dogfood verification** (R25-1) — confirmed the app works
+  end-to-end against the live IronClaw on `baremetal3`: 499 real
+  threads listed, Knowledge tree paginates, Logs SSE streams. Added
+  a DEV-only Tauri IPC shim in `app.html` + Vite proxy in
+  `vite.config.js` so future headless dogfood runs work in a plain
+  browser.
+
+## v0.2.0 — First signed release (RELEASED 2026-05-27)
+
+Released as [v0.2.0](https://github.com/abbyshekit/ironclaw-desktop/releases/tag/v0.2.0).
+Artifacts: `IronClaw_0.2.0_aarch64.dmg`, `IronClaw_0.2.0_x64.dmg`,
+`IronClaw.app.tar.gz`, `IronClaw.app.tar.gz.sig`.
 
 First release with a signed updater pipeline. Pubkey baked into
 `tauri.conf.json`; `TAURI_SIGNING_PRIVATE_KEY` +

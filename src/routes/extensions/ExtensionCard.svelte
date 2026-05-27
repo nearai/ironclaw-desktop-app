@@ -159,14 +159,22 @@
         stroke-linejoin="round"
         aria-hidden="true"
       >
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        <polygon
+          points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+        />
       </svg>
     </button>
   </div>
 
-
-  <div class="mb-2 pr-24 flex items-baseline gap-2 flex-wrap">
-    <h3 class="text-sm font-semibold text-accent-cyan break-words">
+  <!-- pr-28 (112px) reserves enough space for the absolute top-right cluster
+       (category badge up to ~80px wide for "WASM tool" + 6px gap + 20px pin
+       star) so the title doesn't sit underneath the badge at narrow card
+       widths (single-column grid <768px). flex-wrap lets the version chip
+       flow to the next line when the title itself is long; min-w-0 on the
+       title lets break-words actually break long names instead of forcing
+       horizontal overflow. -->
+  <div class="mb-2 pr-28 flex items-baseline gap-2 flex-wrap">
+    <h3 class="text-sm font-semibold text-accent-cyan break-words min-w-0">
       {title}
     </h3>
     {#if extension.version}
@@ -183,7 +191,15 @@
     {extension.description || 'No description available.'}
   </p>
 
-  <div class="mt-3 pt-3 border-t border-border-subtle flex items-center justify-between gap-2">
+  <!-- Footer row: tool count + readiness on the left, action buttons on the
+       right. flex-wrap so on the narrowest cards (1-col grid <768px viewport)
+       the action button cluster drops to a second row instead of overlapping
+       the readiness label / tool chip. The right-side cluster keeps its own
+       grouping via flex-nowrap on the inner div so its 3 icon buttons never
+       split mid-cluster. -->
+  <div
+    class="mt-3 pt-3 border-t border-border-subtle flex flex-wrap items-center justify-between gap-2"
+  >
     <!-- Left: tool count (installed) or installed marker (registry-installed). -->
     {#if variant === 'installed'}
       <div class="flex items-center gap-2 min-w-0">
@@ -199,7 +215,9 @@
             type="button"
             onclick={() => onToggleTools?.(extension)}
             aria-expanded={expanded}
-            aria-label={expanded ? `Hide tools for ${title}` : `Show ${toolCount} tool${toolCount === 1 ? '' : 's'} for ${title}`}
+            aria-label={expanded
+              ? `Hide tools for ${title}`
+              : `Show ${toolCount} tool${toolCount === 1 ? '' : 's'} for ${title}`}
             title={expanded ? 'Hide tools' : 'Show tool names'}
             class="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border border-transparent text-text-muted bg-bg-deep hover:text-accent-cyan hover:border-accent-cyan/40 transition-colors shrink-0"
             class:!text-accent-cyan={expanded}
@@ -234,7 +252,16 @@
         class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300"
         title="This extension is already installed"
       >
-        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg
+          viewBox="0 0 24 24"
+          class="w-3.5 h-3.5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
           <polyline points="20 6 9 17 4 12" />
         </svg>
         Installed
@@ -243,8 +270,10 @@
       <span></span>
     {/if}
 
-    <!-- Right: action buttons. -->
-    <div class="flex items-center gap-1">
+    <!-- Right: action buttons. flex-nowrap + shrink-0 keeps the three icon
+         buttons clustered as a unit; when the footer wraps under narrow
+         widths the whole cluster drops to its own row instead of splitting. -->
+    <div class="flex flex-nowrap items-center gap-1 shrink-0">
       {#if variant === 'installed'}
         <button
           type="button"
@@ -254,9 +283,19 @@
           disabled={busy}
           class="inline-flex items-center justify-center w-8 h-8 rounded-md border border-border-subtle text-text-muted hover:text-accent-cyan hover:border-accent-cyan/60 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+            />
           </svg>
         </button>
         <button
@@ -275,7 +314,15 @@
         >
           {#if extension.active}
             <!-- pause -->
-            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              viewBox="0 0 24 24"
+              class="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <rect x="6" y="4" width="4" height="16" />
               <rect x="14" y="4" width="4" height="16" />
             </svg>
@@ -294,7 +341,15 @@
           disabled={busy}
           class="inline-flex items-center justify-center w-8 h-8 rounded-md border border-border-subtle text-text-muted hover:text-red-400 hover:border-red-500/60 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <polyline points="3 6 5 6 21 6" />
             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
             <path d="M10 11v6M14 11v6" />
@@ -309,13 +364,27 @@
           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-accent-cyan text-bg-deep text-xs font-semibold hover:brightness-95 transition min-h-[32px] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {#if busy}
-            <svg viewBox="0 0 24 24" class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" stroke-width="2">
+            <svg
+              viewBox="0 0 24 24"
+              class="w-3 h-3 animate-spin"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
               <circle cx="12" cy="12" r="10" opacity="0.25" />
               <path d="M22 12a10 10 0 0 0-10-10" />
             </svg>
             Installing…
           {:else}
-            <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              viewBox="0 0 24 24"
+              class="w-3 h-3"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>

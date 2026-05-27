@@ -43,17 +43,19 @@
   const TREE_RAIL_DEFAULT = 320;
   const TREE_RAIL_MIN = 240;
   const TREE_RAIL_MAX = 500;
+  /** Compact rail width used when the viewport drops below NARROW_VIEWPORT_PX.
+   *  Tauri's minWidth is 800px; at that width the route padding (p-8 → 64px)
+   *  plus a 320px rail leaves the doc viewer with ~400px which is too tight
+   *  for the markdown body to breathe. Snapping the rail to 220px under the
+   *  threshold restores ~500px to the viewer without losing the tree. */
+  const TREE_RAIL_NARROW = 220;
   const NARROW_VIEWPORT_PX = 900;
   const TREE_RAIL_STORAGE_KEY = 'ironclaw-knowledge-tree-width';
 
   let treeRailWidth = $state<number>(TREE_RAIL_DEFAULT);
-  let viewportWidth = $state<number>(
-    typeof window === 'undefined' ? 1280 : window.innerWidth
-  );
+  let viewportWidth = $state<number>(typeof window === 'undefined' ? 1280 : window.innerWidth);
   const resizeEnabled = $derived(viewportWidth >= NARROW_VIEWPORT_PX);
-  const effectiveTreeRailWidth = $derived(
-    resizeEnabled ? treeRailWidth : TREE_RAIL_DEFAULT
-  );
+  const effectiveTreeRailWidth = $derived(resizeEnabled ? treeRailWidth : TREE_RAIL_NARROW);
 
   // ---- localStorage keys / caps ---------------------------------------------
   const RECENT_KEY = 'ironclaw-knowledge-recent';
@@ -156,9 +158,7 @@
   const client = $derived(connection.client);
 
   /** Is the currently-selected doc bookmarked? Drives the star fill state. */
-  const selectedBookmarked = $derived(
-    selectedPath !== null && bookmarkSet.has(selectedPath)
-  );
+  const selectedBookmarked = $derived(selectedPath !== null && bookmarkSet.has(selectedPath));
 
   onMount(async () => {
     hydratePersisted();
@@ -170,10 +170,7 @@
         const raw = localStorage.getItem(TREE_RAIL_STORAGE_KEY);
         const parsed = raw === null ? NaN : Number.parseInt(raw, 10);
         if (Number.isFinite(parsed)) {
-          treeRailWidth = Math.min(
-            Math.max(parsed, TREE_RAIL_MIN),
-            TREE_RAIL_MAX
-          );
+          treeRailWidth = Math.min(Math.max(parsed, TREE_RAIL_MIN), TREE_RAIL_MAX);
         }
       }
     } catch {
@@ -455,7 +452,7 @@
     const allowed = new Set(next);
     const stamps: Record<string, number> = {};
     for (const p of next) {
-      stamps[p] = p === path ? Date.now() : recentOpenedAt[p] ?? Date.now();
+      stamps[p] = p === path ? Date.now() : (recentOpenedAt[p] ?? Date.now());
     }
     // Drop entries that were evicted.
     for (const key of Object.keys(recentOpenedAt)) {
@@ -671,8 +668,7 @@
   function readDroppedFile(file: File): Promise<StagedFile> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onerror = () =>
-        reject(new Error(`Could not read ${file.name}`));
+      reader.onerror = () => reject(new Error(`Could not read ${file.name}`));
       reader.onload = () => {
         const raw = typeof reader.result === 'string' ? reader.result : '';
         if (file.type === 'application/json' || file.name.toLowerCase().endsWith('.json')) {
@@ -765,10 +761,7 @@
       );
     }
     if (rejectedSize.length > 0) {
-      toasts.show(
-        `Skipped ${rejectedSize.length} file(s) — each must be under 1 MB.`,
-        'error'
-      );
+      toasts.show(`Skipped ${rejectedSize.length} file(s) — each must be under 1 MB.`, 'error');
     }
 
     if (accepted.length === 0) return;
@@ -894,9 +887,7 @@
         <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
       <div class="text-sm text-text-primary mb-1">IronClaw is offline</div>
-      <div class="text-xs text-text-muted">
-        Check Settings to configure or restart the gateway.
-      </div>
+      <div class="text-xs text-text-muted">Check Settings to configure or restart the gateway.</div>
       {#if connection.lastError}
         <div class="mt-3 text-xs text-red-400 font-mono max-w-md break-all">
           {connection.lastError}
@@ -918,7 +909,9 @@
         class="shrink-0 surface flex flex-col min-h-0"
         style="width: {effectiveTreeRailWidth}px;"
       >
-        <div class="px-3 py-3 border-b border-border-subtle flex items-center justify-between gap-2">
+        <div
+          class="px-3 py-3 border-b border-border-subtle flex items-center justify-between gap-2"
+        >
           <span class="text-xs font-semibold text-text-primary uppercase tracking-wider">
             Workspace
           </span>
@@ -1065,7 +1058,9 @@
                           stroke-linejoin="round"
                           aria-hidden="true"
                         >
-                          <polygon points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2" />
+                          <polygon
+                            points="12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9 12 2"
+                          />
                         </svg>
                         <span class="truncate flex-1 min-w-0" title={path}>{basename(path)}</span>
                       </button>
@@ -1140,7 +1135,9 @@
                           stroke-linecap="round"
                           stroke-linejoin="round"
                         >
-                          <path d="M9 1.5H4a1 1 0 0 0-1 1V13.5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5.5z" />
+                          <path
+                            d="M9 1.5H4a1 1 0 0 0-1 1V13.5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5.5z"
+                          />
                           <polyline points="9 1.5 9 5.5 13 5.5" />
                         </svg>
                         <span class="truncate flex-1 min-w-0" title={path}>{basename(path)}</span>
@@ -1156,8 +1153,10 @@
           {/if}
 
           <!-- Main tree -->
-          {#if (recentPaths.length > 0 || bookmarks.length > 0)}
-            <div class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted/70 border-t border-border-subtle/60 mt-2 pt-3">
+          {#if recentPaths.length > 0 || bookmarks.length > 0}
+            <div
+              class="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-text-muted/70 border-t border-border-subtle/60 mt-2 pt-3"
+            >
               All docs
             </div>
           {/if}
@@ -1264,8 +1263,14 @@
             />
           </div>
         {:else}
-          <div class="surface flex-1 flex items-center justify-center">
-            <div class="text-text-muted text-sm">
+          <!-- Empty state. The outer min-w-0 lets the right pane shrink past
+               its intrinsic content width when the viewport is narrow (≤900px)
+               without overflowing. The inner div gets text-balance so the
+               two-word-per-line break the dogfood agent saw at ~800px width
+               turns into a more natural line layout, and px-6 keeps the copy
+               off the very edge of the surface. -->
+          <div class="surface flex-1 flex items-center justify-center min-w-0 px-6">
+            <div class="text-text-muted text-sm text-balance text-center">
               Select a doc or search the knowledge base.
             </div>
           </div>
@@ -1274,18 +1279,11 @@
     </div>
 
     {#if newDocOpen}
-      <NewDocModal
-        onclose={() => (newDocOpen = false)}
-        oncreate={createDoc}
-      />
+      <NewDocModal onclose={() => (newDocOpen = false)} oncreate={createDoc} />
     {/if}
 
     {#if importFiles.length > 0}
-      <ImportModal
-        files={importFiles}
-        onclose={closeImport}
-        onimport={runImport}
-      />
+      <ImportModal files={importFiles} onclose={closeImport} onimport={runImport} />
     {/if}
 
     <!-- Context menu. Stops click propagation so the global click-handler

@@ -1,6 +1,14 @@
 # IronClaw Desktop
 
+[![Latest release](https://img.shields.io/github/v/release/abbyshekit/ironclaw-desktop?label=release&color=4ca7e6)](https://github.com/abbyshekit/ironclaw-desktop/releases/latest)
+
 A native macOS client for [IronClaw](https://github.com/nearai/ironclaw) — the Rust knowledge agent from NEAR AI. Tauri v2 + SvelteKit. Dark, fast, ~5MB binary footprint (excluding bundled sidecar).
+
+## Download
+
+Latest macOS DMG: https://github.com/abbyshekit/ironclaw-desktop/releases/latest
+
+Apple Silicon and Intel both shipped. Unsigned-by-Apple (the updater signature is for in-app update verification, separate from Apple notarization which is a future TODO).
 
 ## Why
 
@@ -134,6 +142,7 @@ To enable: **Settings → Advanced → "Show Engine v2 surface"**. After flippin
 - **Extensions** — install/activate MCP servers, OAuth providers, channel integrations
 - **Settings** — per-profile gateway configs, Keychain-backed tokens, local sidecar lifecycle
 - **Cmd+K palette** — fuzzy-search across navigation, threads, skills, routines, docs
+- **Signed auto-updater** — releases ship signed `.app.tar.gz` + `.sig` artifacts; the in-app updater verifies the signature against the pubkey baked into the binary before installing. Cadence configurable (off / launch only / launch + 1 h / launch + 6 h) under Settings → Advanced. Apple notarization (the Gatekeeper-facing signature) is a separate, pending TODO.
 
 ## Connection modes
 

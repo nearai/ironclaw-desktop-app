@@ -45,6 +45,7 @@ export interface UpdateInfo {
   date?: string;
 }
 
+import { inTauriFully } from '$lib/utils/runtime';
 import { telemetry } from './telemetry.svelte';
 
 const LS_SKIP = 'ironclaw-updater-skip';
@@ -148,9 +149,24 @@ class UpdaterStore {
    * `respectSkip` lets the layout's auto-check honor the user's skipped
    * version (so a skipped update stays silent) while letting the manual
    * Settings button always surface what's out there.
+   *
+   * No-ops silently when running outside the full Tauri runtime — the
+   * updater plugin dispatches through `__TAURI_INTERNALS__.transformCallback`
+   * which the DEV-only `app.html` shim does NOT implement, and an
+   * unguarded call there fires `plugin:updater|check` against the partial
+   * shim and floods the console.
    */
   async check({ respectSkip = false }: { respectSkip?: boolean } = {}): Promise<void> {
     this.hydrate();
+    if (!inTauriFully()) {
+      // Browser dev / preview — no updater plugin to talk to. Park at
+      // 'idle' so the banner stays hidden and Settings shows the
+      // "never checked" hint.
+      this.status = 'idle';
+      this.error = null;
+      this.progress = null;
+      return;
+    }
     this.status = 'checking';
     this.error = null;
     this.progress = null;
@@ -203,8 +219,21 @@ class UpdaterStore {
    * Download + write the update bundle. Tracks progress via the plugin's
    * event stream. On success, status moves to `installing`; the user
    * must restart the app manually to apply.
+   *
+   * Guarded against the dev shim: `pendingUpdate` only ever populates
+   * via `check()`, which itself bails out under the shim, so a
+   * download() call there finds nothing pending and returns the
+   * "run check() first" path. The runtime probe is a belt-and-braces
+   * second gate in case a future caller drops a fake `pendingUpdate`
+   * onto the singleton directly.
    */
   async download(): Promise<void> {
+    if (!inTauriFully()) {
+      this.status = 'idle';
+      this.error = null;
+      this.progress = null;
+      return;
+    }
     if (!pendingUpdate) {
       this.status = 'error';
       this.error = 'No update available to download. Run check() first.';

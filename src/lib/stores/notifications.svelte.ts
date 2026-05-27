@@ -27,6 +27,7 @@ import {
   sendNotification
 } from '@tauri-apps/plugin-notification';
 
+import { inTauri, inTauriFully } from '$lib/utils/runtime';
 import { broadcast } from './broadcast.svelte';
 import { windowFocus } from './window-focus.svelte';
 
@@ -363,10 +364,6 @@ function loadHistory(): NotificationHistoryEntry[] {
   }
 }
 
-function inTauri(): boolean {
-  return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-}
-
 /**
  * Generate a short id for a history entry. Prefer `crypto.randomUUID()`
  * when available (every Tauri webview ships it; modern dev browsers
@@ -663,9 +660,7 @@ class NotificationStore {
    * once the in-flight call resolves.
    */
   async pushBadge(): Promise<void> {
-    if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) {
-      return;
-    }
+    if (!inTauri()) return;
     const target = this.trayBadgeEnabled ? this.unseenCount : 0;
     if (target === this.lastPushedBadge) return;
     if (this.badgePushInFlight) {
@@ -903,9 +898,14 @@ class NotificationStore {
    * Returns true if we currently hold permission.
    */
   async ensurePermission(): Promise<boolean> {
-    if (!inTauri()) {
+    if (!inTauriFully()) {
       // Browser dev mode — pretend we're granted so design work isn't
       // gated on the OS dialog. Real permissions enforce on a Tauri build.
+      // Using `inTauriFully()` instead of `inTauri()` because the dev
+      // shim in `app.html` only implements `invoke` (and not
+      // `transformCallback`), and `isPermissionGranted` may fall back to
+      // `invoke('plugin:notification|is_permission_granted')` which the
+      // shim flags as an unknown cmd.
       this.permission = 'granted';
       return true;
     }
@@ -954,6 +954,13 @@ class NotificationStore {
    * Callers that pass no category (legacy) still get the master toggle
    * + OS-default sound, matching pre-v1 behaviour. Grouping requires a
    * category to key on, so legacy callers always fire their own banner.
+   *
+   * Runtime gate: `inTauri()` is the wide check (shim or real). The
+   * tighter `inTauriFully()` gate lives inside `ensurePermission()`
+   * because that's the only path that may dispatch through an
+   * unimplemented plugin-IPC command on the shim — `sendNotification`
+   * itself just uses `window.Notification` (web API) and works
+   * regardless of the runtime.
    */
   async notify(opts: NotifyOptions): Promise<void> {
     if (!this.enabled) return;
