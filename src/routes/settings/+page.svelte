@@ -1233,7 +1233,226 @@
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   });
+
+  // ---- Settings search --------------------------------------------------
+  //
+  // The settings page has grown to 12+ top-level cards (profile, mode,
+  // OpenRouter, LLM picker, NEAR auth, data dir, sidecar, profiles list,
+  // About, server-side, notifications, data export, API tokens, advanced).
+  // A sticky search bar at the top filters by section heading + visible
+  // body copy: matching sections render normally with a subtle accent
+  // border, non-matching sections dim to `opacity-30` so the page reads
+  // as a focused list without re-flowing layout.
+  //
+  // Strategy: each top-level card carries `data-section-id` and
+  // `data-section-title` attributes (single source of truth). After mount
+  // and on each query change, we walk those elements to (a) harvest a
+  // haystack from the live text content (so dynamic copy stays in sync)
+  // and (b) toggle the dimmed/highlighted classes via a $derived set.
+  //
+  // We chose the "dim non-matches" branch over inline `<mark>` wrapping —
+  // walking the live DOM to wrap matched substrings in `<mark>` would
+  // risk breaking interactive elements (form labels, buttons, code) and
+  // the surface is dense enough that the dim treatment is already very
+  // legible. Matched terms ARE highlighted in the result list below the
+  // search bar (pure text, safe).
+
+  /** Debounced query — drives all match logic. 200ms feels snappy without
+   *  thrashing the haystack walk on every keystroke. */
+  let searchQuery = $state('');
+  let searchQueryDebounced = $state('');
+  let searchInputRef: HTMLInputElement | undefined = $state();
+
+  /** Stable section list — populated on mount + after any section
+   *  appears/disappears (admin surfaces, mode-dependent cards). Each
+   *  entry's `haystack` is recomputed when the active query changes so
+   *  conditional sub-content stays accurate. Keyed by `id` so the
+   *  result list and the dim/highlight bindings agree. */
+  type SectionEntry = { id: string; title: string; haystack: string };
+  let sectionEntries = $state<SectionEntry[]>([]);
+
+  /** Bump to force a re-walk of the DOM (e.g. on mode toggle so a newly
+   *  rendered card joins the section list). The walk itself is cheap. */
+  let sectionScanTick = $state(0);
+
+  /** Walk every `[data-section-id]` element under the settings page and
+   *  build a fresh SectionEntry list. Called from a $effect that also
+   *  depends on the active query so dynamic body copy (e.g. error
+   *  messages) is reflected in the haystack on next render. */
+  function rescanSections() {
+    if (typeof document === 'undefined') return;
+    const nodes = document.querySelectorAll<HTMLElement>('[data-section-id]');
+    const next: SectionEntry[] = [];
+    nodes.forEach((node) => {
+      const id = node.dataset.sectionId ?? '';
+      if (!id) return;
+      const title = node.dataset.sectionTitle ?? id;
+      // textContent on the live node captures heading + labels + body
+      // copy + button text — exactly what a user would scan for.
+      const text = (node.textContent ?? '').replace(/\s+/g, ' ').trim();
+      next.push({ id, title, haystack: `${title} ${text}`.toLowerCase() });
+    });
+    sectionEntries = next;
+  }
+
+  // 200ms debounce — fires after the user stops typing for a beat.
+  $effect(() => {
+    const q = searchQuery;
+    const id = setTimeout(() => {
+      searchQueryDebounced = q;
+    }, 200);
+    return () => clearTimeout(id);
+  });
+
+  // Rescan after every visible-card toggle: mount, mode flip (settings
+  // re-renders), admin/engine-v2 flip, profile switch. The debounced
+  // query is a dep so we also pick up haystack changes when error/empty
+  // states are conditionally rendered.
+  $effect(() => {
+    void searchQueryDebounced;
+    void sectionScanTick;
+    // Tauri runs everything in the webview — settings.* is reactive but
+    // we read the snapshot below just to register the dependency without
+    // dragging the whole object into the closure.
+    void settings.activeProfileId;
+    void settings.adminMode;
+    void settings.engineV2Enabled;
+    void connection.settings.adminMode;
+    // Defer one tick so card-level $if branches finish rendering before
+    // we walk the DOM.
+    void tick().then(rescanSections);
+  });
+
+  /** Lowercased query for cheap haystack matching. Empty → "no filter". */
+  const searchNeedle = $derived(searchQueryDebounced.trim().toLowerCase());
+
+  /** Set of section ids that match the active query. When the needle is
+   *  empty every section matches (the page reads as if no filter is on). */
+  const matchedSectionIds = $derived.by<Set<string>>(() => {
+    if (!searchNeedle) return new Set(sectionEntries.map((s) => s.id));
+    const out = new Set<string>();
+    for (const s of sectionEntries) {
+      if (s.haystack.includes(searchNeedle)) out.add(s.id);
+    }
+    return out;
+  });
+
+  /** Result-list rows — only populated while a filter is active. Sorted
+   *  by document order (= insertion order = sectionEntries order). */
+  const matchedSectionRows = $derived.by(() => {
+    if (!searchNeedle) return [] as SectionEntry[];
+    return sectionEntries.filter((s) => matchedSectionIds.has(s.id));
+  });
+
+  /** Reactive helper for the template — true when the section should be
+   *  dimmed (filter on AND this section doesn't match). */
+  function isSectionDimmed(id: string): boolean {
+    if (!searchNeedle) return false;
+    return !matchedSectionIds.has(id);
+  }
+
+  /** Reactive helper for the template — true when the section is one of
+   *  the matches (drives the subtle accent border / shadow). */
+  function isSectionMatched(id: string): boolean {
+    if (!searchNeedle) return false;
+    return matchedSectionIds.has(id);
+  }
+
+  /** Highlight matched substrings inside a section title for the result
+   *  list. Returns an array of `{ text, hit }` segments so the template
+   *  can render `<mark>` only on hits — safe because it operates on plain
+   *  strings, never on rendered HTML. Case-insensitive match, original
+   *  casing preserved. */
+  function highlightSegments(text: string): Array<{ text: string; hit: boolean }> {
+    const needle = searchNeedle;
+    if (!needle) return [{ text, hit: false }];
+    const lower = text.toLowerCase();
+    const out: Array<{ text: string; hit: boolean }> = [];
+    let i = 0;
+    while (i < text.length) {
+      const j = lower.indexOf(needle, i);
+      if (j === -1) {
+        out.push({ text: text.slice(i), hit: false });
+        break;
+      }
+      if (j > i) out.push({ text: text.slice(i, j), hit: false });
+      out.push({ text: text.slice(j, j + needle.length), hit: true });
+      i = j + needle.length;
+    }
+    return out;
+  }
+
+  /** Smooth-scroll to a section by id. Used by the result list rows. */
+  function scrollToSection(id: string) {
+    if (typeof document === 'undefined') return;
+    const el = document.querySelector<HTMLElement>(`[data-section-id="${id}"]`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Tiny highlight flash so the target is unambiguous after scroll.
+    el.classList.add('search-flash');
+    setTimeout(() => el.classList.remove('search-flash'), 1200);
+  }
+
+  /** Clear the query (button + Esc both call this). */
+  function clearSearch() {
+    searchQuery = '';
+    searchQueryDebounced = '';
+  }
+
+  // Cmd+F on /settings → focus the search input. Esc clears (or blurs
+  // when empty). The layout-level keydown handler only intercepts
+  // Cmd+Shift+F (global search) and bare Cmd+K (palette), so plain Cmd+F
+  // is free for us here. The chat surface owns Cmd+F at `routes/+page.svelte`
+  // — that listener is mounted on /chat only, so there's no contention.
+  $effect(() => {
+    function onSearchKeyDown(e: KeyboardEvent) {
+      const mod = e.metaKey || e.ctrlKey;
+      // Cmd+F (no Shift, no Alt) → focus search input.
+      if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        searchInputRef?.focus();
+        searchInputRef?.select();
+        return;
+      }
+      // Esc inside the search input → clear; if already empty, blur so
+      // a second Esc reaches modal/global handlers cleanly.
+      if (
+        e.key === 'Escape' &&
+        document.activeElement === searchInputRef &&
+        !revokeTarget &&
+        !createOpen
+      ) {
+        if (searchQuery) {
+          e.preventDefault();
+          clearSearch();
+        } else {
+          searchInputRef?.blur();
+        }
+      }
+    }
+    window.addEventListener('keydown', onSearchKeyDown);
+    return () => window.removeEventListener('keydown', onSearchKeyDown);
+  });
 </script>
+
+<style>
+  /* Brief flash on the target card after a result-list click. Fades the
+     accent border in then back out so the user's eye lands cleanly. */
+  :global(.search-flash) {
+    animation: settings-search-flash 1.2s ease-out;
+  }
+  @keyframes settings-search-flash {
+    0% {
+      box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+    }
+    20% {
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.5);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(34, 211, 238, 0);
+    }
+  }
+</style>
 
 <section class="p-8 h-full overflow-auto">
   <header class="mb-6">
@@ -1243,10 +1462,92 @@
     </p>
   </header>
 
+  <!-- Sticky search bar. Pinned to the top of the scroll container so it
+       stays visible while the body scrolls. `top-0` works here because the
+       outer <section> is the scroll context (`overflow-auto`). The negative
+       margin offsets the page padding so the sticky band spans full width
+       behind the input — same trick used by the chat surface's header
+       chrome. Cmd+F focuses the input (see `onSearchKeyDown`); Esc clears. -->
+  <div
+    class="sticky -mx-8 -mt-1 mb-6 z-20 px-8 pt-1 pb-3 bg-bg-base/95 backdrop-blur-sm border-b border-border-subtle"
+    style="top: 0"
+  >
+    <div class="max-w-2xl">
+      <div class="relative">
+        <span
+          class="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none"
+          aria-hidden="true"
+        >
+          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        </span>
+        <input
+          bind:this={searchInputRef}
+          bind:value={searchQuery}
+          type="text"
+          placeholder="Search settings…"
+          autocomplete="off"
+          spellcheck="false"
+          aria-label="Search settings"
+          class="w-full bg-bg-deep border border-border-subtle rounded-md pl-9 pr-20 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px]"
+        />
+        {#if searchQuery}
+          <button
+            type="button"
+            onclick={clearSearch}
+            class="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded text-xs text-text-muted hover:text-accent-gold transition-colors"
+            aria-label="Clear search"
+            title="Clear (Esc)"
+          >
+            Clear
+          </button>
+        {/if}
+      </div>
+
+      {#if searchNeedle}
+        <!-- Result list. Renders matched section titles with the matched
+             substring highlighted; clicking a row smooth-scrolls to that
+             section. Suppressed when the filter is off so the search bar
+             stays a single thin line for the common no-filter case. -->
+        <div class="mt-2 max-h-48 overflow-auto rounded-md border border-border-subtle bg-bg-surface">
+          {#if matchedSectionRows.length === 0}
+            <div class="px-3 py-2 text-xs text-text-muted italic">
+              No settings match "{searchQueryDebounced}"
+            </div>
+          {:else}
+            <ul class="py-1">
+              {#each matchedSectionRows as row (row.id)}
+                <li>
+                  <button
+                    type="button"
+                    onclick={() => scrollToSection(row.id)}
+                    class="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-deep transition-colors"
+                  >
+                    {#each highlightSegments(row.title) as seg, i (i)}
+                      {#if seg.hit}
+                        <mark class="bg-accent-gold/30 text-accent-gold rounded px-0.5">{seg.text}</mark>
+                      {:else}{seg.text}{/if}
+                    {/each}
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
+      {/if}
+    </div>
+  </div>
+
   <div class="max-w-2xl space-y-6">
     {#if activeProfile}
       <!-- Active profile header -->
-      <div class="surface p-5 flex items-center justify-between">
+      <div
+        data-section-id="active-profile"
+        data-section-title="Active profile"
+        class="surface p-5 flex items-center justify-between transition-opacity"
+        class:opacity-30={isSectionDimmed('active-profile')}
+        class:ring-1={isSectionMatched('active-profile')}
+        class:ring-accent-cyan={isSectionMatched('active-profile')}
+      >
         <div>
           <div class="text-xs uppercase tracking-wider text-text-muted">
             Active profile
@@ -1264,7 +1565,14 @@
       </div>
 
       <!-- Connection mode -->
-      <div class="surface p-5">
+      <div
+        data-section-id="connection-mode"
+        data-section-title="Connection mode"
+        class="surface p-5 transition-opacity"
+        class:opacity-30={isSectionDimmed('connection-mode')}
+        class:ring-1={isSectionMatched('connection-mode')}
+        class:ring-accent-cyan={isSectionMatched('connection-mode')}
+      >
         <h2 class="text-sm font-semibold text-text-primary mb-3">Connection mode</h2>
         <div class="space-y-2">
           <label class="flex items-start gap-3 cursor-pointer min-h-[44px]">
@@ -1305,7 +1613,14 @@
 
       {#if activeProfile.mode === 'remote'}
         <!-- Remote: base URL + bearer -->
-        <div class="surface p-5 space-y-4">
+        <div
+          data-section-id="endpoint"
+          data-section-title="Endpoint (remote base URL)"
+          class="surface p-5 space-y-4 transition-opacity"
+          class:opacity-30={isSectionDimmed('endpoint')}
+          class:ring-1={isSectionMatched('endpoint')}
+          class:ring-accent-cyan={isSectionMatched('endpoint')}
+        >
           <h2 class="text-sm font-semibold text-text-primary">Endpoint</h2>
 
           <div>
@@ -1346,7 +1661,14 @@
         </div>
 
         <!-- Gateway bearer (remote only) -->
-        <div class="surface p-5 space-y-4">
+        <div
+          data-section-id="gateway-token"
+          data-section-title="Gateway token (bearer, keychain)"
+          class="surface p-5 space-y-4 transition-opacity"
+          class:opacity-30={isSectionDimmed('gateway-token')}
+          class:ring-1={isSectionMatched('gateway-token')}
+          class:ring-accent-cyan={isSectionMatched('gateway-token')}
+        >
           <h2 class="text-sm font-semibold text-text-primary">Gateway token</h2>
           <p class="text-xs text-text-muted">
             Stored per-profile in the macOS Keychain — never in plain text on disk.
@@ -1429,8 +1751,26 @@
              Replaces the legacy binary NEAR.AI / OpenRouter radio. Pulls
              the full provider catalog from /api/llm/providers and lets
              the user choose any registered backend; credentials are
-             stored per-provider in the macOS Keychain. -->
-        <LlmProviderPicker />
+             stored per-provider in the macOS Keychain.
+
+             Wrapped in a search-targetable section so the picker's
+             heading + visible provider names participate in the haystack
+             walk. The picker owns its own card chrome, so the wrapper
+             uses `contents` for layout-transparency — only the dim/ring
+             classes apply to the live element. We can't `display: contents`
+             AND ring it visually, so when matched/dimmed we swap to a
+             block wrapper that paints the ring on a thin halo around the
+             picker. -->
+        <div
+          data-section-id="llm-provider"
+          data-section-title="LLM provider (NEAR.AI, OpenRouter, model picker)"
+          class="transition-opacity rounded-lg"
+          class:opacity-30={isSectionDimmed('llm-provider')}
+          class:ring-1={isSectionMatched('llm-provider')}
+          class:ring-accent-cyan={isSectionMatched('llm-provider')}
+        >
+          <LlmProviderPicker />
+        </div>
 
         <!-- NEAR.AI sign-in status (only relevant when the picker
              landed on NEAR.AI). The signIn store probes /api/profile
@@ -1439,7 +1779,14 @@
              the explicit Sign out affordance that the picker's compact
              "Sign in" button doesn't try to replicate. -->
         {#if activeProfile.llmProviderId === 'nearai' || (!activeProfile.llmProviderId && activeProfile.llmBackend === 'nearai')}
-          <div class="surface p-5 space-y-4">
+          <div
+            data-section-id="nearai-auth"
+            data-section-title="NEAR.AI authentication (sign in / sign out)"
+            class="surface p-5 space-y-4 transition-opacity"
+            class:opacity-30={isSectionDimmed('nearai-auth')}
+            class:ring-1={isSectionMatched('nearai-auth')}
+            class:ring-accent-cyan={isSectionMatched('nearai-auth')}
+          >
             <h2 class="text-sm font-semibold text-text-primary">NEAR.AI authentication</h2>
             <p class="text-xs text-text-muted">
               IronClaw handles NEAR sign-in in its own web UI. No API key is stored on this side —
@@ -1525,7 +1872,14 @@
         {/if}
 
         <!-- Data directory -->
-        <div class="surface p-5 space-y-3">
+        <div
+          data-section-id="data-directory"
+          data-section-title="Data directory (libSQL database, memory, skills)"
+          class="surface p-5 space-y-3 transition-opacity"
+          class:opacity-30={isSectionDimmed('data-directory')}
+          class:ring-1={isSectionMatched('data-directory')}
+          class:ring-accent-cyan={isSectionMatched('data-directory')}
+        >
           <h2 class="text-sm font-semibold text-text-primary">Data directory</h2>
           <p class="text-xs text-text-muted">
             The sidecar stores its libSQL database, memory, skills, and routine state here.
@@ -1545,7 +1899,14 @@
         </div>
 
         <!-- Sidecar status + controls -->
-        <div class="surface p-5 space-y-3">
+        <div
+          data-section-id="sidecar"
+          data-section-title="Sidecar (start, stop, restart bundled IronClaw)"
+          class="surface p-5 space-y-3 transition-opacity"
+          class:opacity-30={isSectionDimmed('sidecar')}
+          class:ring-1={isSectionMatched('sidecar')}
+          class:ring-accent-cyan={isSectionMatched('sidecar')}
+        >
           <h2 class="text-sm font-semibold text-text-primary">Sidecar</h2>
           <div class="flex items-center gap-2 text-xs">
             <span
@@ -1611,7 +1972,14 @@
         </div>
 
         <!-- Save settings (mode persistence) -->
-        <div class="surface p-5">
+        <div
+          data-section-id="save-mode"
+          data-section-title="Save mode and apply"
+          class="surface p-5 transition-opacity"
+          class:opacity-30={isSectionDimmed('save-mode')}
+          class:ring-1={isSectionMatched('save-mode')}
+          class:ring-accent-cyan={isSectionMatched('save-mode')}
+        >
           <div class="flex items-center gap-3">
             <button
               onclick={onSaveSettings}
@@ -1636,7 +2004,14 @@
       {/if}
 
       <!-- Test connection (always shown) -->
-      <div class="surface p-5 space-y-3">
+      <div
+        data-section-id="test-connection"
+        data-section-title="Test connection (health check)"
+        class="surface p-5 space-y-3 transition-opacity"
+        class:opacity-30={isSectionDimmed('test-connection')}
+        class:ring-1={isSectionMatched('test-connection')}
+        class:ring-accent-cyan={isSectionMatched('test-connection')}
+      >
         <h2 class="text-sm font-semibold text-text-primary">Test connection</h2>
         <div class="flex items-center gap-3">
           <button
@@ -1665,7 +2040,15 @@
          link scrolls here. Renders the full list with switch / rename /
          delete affordances. The active profile is highlighted with the
          accent-cyan border, matching the sidebar's active-row treatment. -->
-    <div id="profiles" class="surface p-5 space-y-3 scroll-mt-6">
+    <div
+      id="profiles"
+      data-section-id="profiles"
+      data-section-title="All profiles (switch, rename, delete, tint)"
+      class="surface p-5 space-y-3 scroll-mt-6 transition-opacity"
+      class:opacity-30={isSectionDimmed('profiles')}
+      class:ring-1={isSectionMatched('profiles')}
+      class:ring-accent-cyan={isSectionMatched('profiles')}
+    >
       <div class="flex items-center justify-between">
         <div>
           <h2 class="text-sm font-semibold text-text-primary">All profiles</h2>
@@ -1812,7 +2195,14 @@
     </div>
 
     <!-- About -->
-    <div class="surface p-5">
+    <div
+      data-section-id="about"
+      data-section-title="About (app version, gateway, updater)"
+      class="surface p-5 transition-opacity"
+      class:opacity-30={isSectionDimmed('about')}
+      class:ring-1={isSectionMatched('about')}
+      class:ring-accent-cyan={isSectionMatched('about')}
+    >
       <h2 class="text-sm font-semibold text-text-primary mb-3">About</h2>
       <dl class="space-y-2 text-xs">
         <div class="flex justify-between">
@@ -1962,7 +2352,14 @@
          Hidden entirely when adminMode is off so non-admin users never
          see the surface or trigger the fetch. -->
     {#if connection.settings.adminMode === true}
-      <div class="surface p-5 space-y-3">
+      <div
+        data-section-id="server-settings"
+        data-section-title="Server-side settings (admin gateway config)"
+        class="surface p-5 space-y-3 transition-opacity"
+        class:opacity-30={isSectionDimmed('server-settings')}
+        class:ring-1={isSectionMatched('server-settings')}
+        class:ring-accent-cyan={isSectionMatched('server-settings')}
+      >
         <div class="flex items-center justify-between gap-3 flex-wrap">
           <h2 class="text-sm font-semibold text-text-primary">
             Server-side settings
@@ -2056,7 +2453,15 @@
 
     <!-- Notifications. Lives below About because the test button is a
          one-shot UX check, not a daily-driver setting. -->
-    <div id="notifications" class="surface p-5 space-y-4 scroll-mt-6">
+    <div
+      id="notifications"
+      data-section-id="notifications"
+      data-section-title="Notifications (sounds, tray badge, quiet hours)"
+      class="surface p-5 space-y-4 scroll-mt-6 transition-opacity"
+      class:opacity-30={isSectionDimmed('notifications')}
+      class:ring-1={isSectionMatched('notifications')}
+      class:ring-accent-cyan={isSectionMatched('notifications')}
+    >
       <h2 class="text-sm font-semibold text-text-primary">Notifications</h2>
       <p class="text-xs text-text-muted">
         Desktop alerts for chat replies (while you're focused elsewhere),
@@ -2262,7 +2667,14 @@
          still mid-export or the connection isn't healthy — the bulk
          walk needs /api/chat/threads and /api/chat/history both to
          answer cleanly. -->
-    <div class="surface p-5 space-y-3">
+    <div
+      data-section-id="data"
+      data-section-title="Data (export conversations, backup settings, import)"
+      class="surface p-5 space-y-3 transition-opacity"
+      class:opacity-30={isSectionDimmed('data')}
+      class:ring-1={isSectionMatched('data')}
+      class:ring-accent-cyan={isSectionMatched('data')}
+    >
       <h2 class="text-sm font-semibold text-text-primary">Data</h2>
       <p class="text-xs text-text-muted">
         Export every conversation in this profile as a single JSON file.
@@ -2327,7 +2739,14 @@
          the brief asks for "after Data, before About", but About sits
          above the profile list in the layout above so this is the closest
          consistent placement without re-ordering the rest of the page. -->
-    <div class="surface p-5 space-y-3">
+    <div
+      data-section-id="api-tokens"
+      data-section-title="API tokens (create, revoke, external app access)"
+      class="surface p-5 space-y-3 transition-opacity"
+      class:opacity-30={isSectionDimmed('api-tokens')}
+      class:ring-1={isSectionMatched('api-tokens')}
+      class:ring-accent-cyan={isSectionMatched('api-tokens')}
+    >
       <div class="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 class="text-sm font-semibold text-text-primary">API tokens</h2>
@@ -2474,7 +2893,14 @@
          off retracts all three and (via the layout's $effect) bounces
          the user out of /admin if they happen to be there. App-level, not
          per-profile — it's a chrome preference, not a per-gateway setting. -->
-    <div class="surface p-5 space-y-3">
+    <div
+      data-section-id="advanced"
+      data-section-title="Advanced (admin surfaces, menu bar, Responses API, Engine v2)"
+      class="surface p-5 space-y-3 transition-opacity"
+      class:opacity-30={isSectionDimmed('advanced')}
+      class:ring-1={isSectionMatched('advanced')}
+      class:ring-accent-cyan={isSectionMatched('advanced')}
+    >
       <h2 class="text-sm font-semibold text-text-primary">Advanced</h2>
       <p class="text-xs text-text-muted">
         Reveal experimental and admin-only surfaces.

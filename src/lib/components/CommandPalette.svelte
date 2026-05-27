@@ -27,6 +27,7 @@
   import { threads } from '$lib/stores/threads.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
   import { globalSearch } from '$lib/stores/global-search.svelte';
+  import { quickCapture } from '$lib/stores/quick-capture.svelte';
   import { threadSwitcher } from '$lib/stores/thread-switcher.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { aboutStore } from '$lib/stores/about.svelte';
@@ -593,6 +594,34 @@
           run: () => {
             palette.closePalette();
             threadSwitcher.show();
+          }
+        },
+        // Quick capture (Cmd+Shift+N). Drops a note into a dedicated
+        // "Quick captures" thread without forcing navigation. Same
+        // close-then-show ordering as the other modal-summon actions so
+        // the overlay backdrop lands on a clean chrome. Icon reuses
+        // `thread` — the destination IS a thread; the dedicated 'bolt'
+        // glyph would be nice but lives in Icon.svelte's vocabulary, not
+        // the palette's smaller IconKey enum.
+        {
+          id: 'action:quick-capture',
+          category: 'Actions' as const,
+          label: 'Quick capture',
+          subtitle: 'New message to the Quick captures thread',
+          icon: 'thread' as const,
+          keywords: [
+            'quick',
+            'capture',
+            'note',
+            'jot',
+            'inbox',
+            'thought',
+            'scratch'
+          ],
+          keybind: '⌘⇧N',
+          run: () => {
+            palette.closePalette();
+            quickCapture.show();
           }
         },
         // Sign in to NEAR.AI — local-mode only, sidecar offline path.

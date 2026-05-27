@@ -8,6 +8,7 @@
   import CommandPalette from '$lib/components/CommandPalette.svelte';
   import GlobalSearch from '$lib/components/GlobalSearch.svelte';
   import ThreadSwitcher from '$lib/components/ThreadSwitcher.svelte';
+  import QuickCapture from '$lib/components/QuickCapture.svelte';
   import UpdaterBanner from '$lib/components/UpdaterBanner.svelte';
   import AboutDialog from '$lib/components/AboutDialog.svelte';
   import StatusBar from '$lib/components/StatusBar.svelte';
@@ -15,6 +16,7 @@
   import { palette } from '$lib/stores/shortcuts.svelte';
   import { globalSearch } from '$lib/stores/global-search.svelte';
   import { threadSwitcher } from '$lib/stores/thread-switcher.svelte';
+  import { quickCapture } from '$lib/stores/quick-capture.svelte';
   import { tray } from '$lib/stores/tray.svelte';
   import { updater } from '$lib/stores/updater.svelte';
   import { windowFocus } from '$lib/stores/window-focus.svelte';
@@ -103,6 +105,18 @@
     if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
       e.preventDefault();
       globalSearch.toggle();
+      return;
+    }
+
+    // Cmd+Shift+N → quick-capture overlay. Same shape as the global-search
+    // chord above: Shift disambiguates from any bare Cmd+N intent (which is
+    // unbound today) and the bare-key gate from above is bypassed because
+    // `mod` is true. Suppressed on the onboarding takeover via the modal's
+    // own render gate at the bottom of the layout — the toggle here is a
+    // no-op render in that state.
+    if (mod && e.shiftKey && e.key.toLowerCase() === 'n' && !isOnboarding) {
+      e.preventDefault();
+      quickCapture.toggle();
       return;
     }
 
@@ -353,4 +367,13 @@
      wizard, but the gate here keeps the DOM clean. -->
 {#if !isOnboarding}
   <ThreadSwitcher />
+{/if}
+
+<!-- Quick-capture overlay (Cmd+Shift+N). Drops a single message into a
+     dedicated "Quick captures" thread without forcing navigation away
+     from the current surface. Same onboarding gate as the other layout
+     modals — the wizard owns the screen, and the user has no client
+     wired yet. -->
+{#if !isOnboarding}
+  <QuickCapture />
 {/if}
