@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' tauri:; connect-src 'self' tauri: ipc: http://* https://*; img-src 'self' data: blob: tauri: http://* https://*; style-src 'self' 'unsafe-inline' tauri:; script-src 'self' tauri:; font-src 'self' data: tauri:; media-src 'self' data: blob: tauri:; frame-src 'none'; object-src 'none'; base-uri 'self';"
     },
     "macOSPrivateApi": true
   },

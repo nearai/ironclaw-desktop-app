@@ -756,13 +756,50 @@ goes through a Rust command:
 
 ### CSP
 
-`tauri.conf.json` sets `app.security.csp = null`. The Tauri docs
-prefer an explicit policy here; we punted because the webview has
-no remote origins to load from (every fetch is to the configured
-gateway or a localhost sidecar, both bearer-authed; every script
-is bundled and loaded from `tauri://localhost`). Adding a
-restrictive CSP without breaking the SSE streams is the obvious
-next pass.
+`tauri.conf.json` sets an explicit Content Security Policy:
+
+```
+default-src 'self' tauri:;
+connect-src 'self' tauri: ipc: http://* https://*;
+img-src    'self' data: blob: tauri: http://* https://*;
+style-src  'self' 'unsafe-inline' tauri:;
+script-src 'self' tauri:;
+font-src   'self' data: tauri:;
+media-src  'self' data: blob: tauri:;
+frame-src  'none';
+object-src 'none';
+base-uri   'self';
+```
+
+Directive-by-directive rationale:
+
+- `default-src 'self' tauri:` — fallback that allows only the
+  bundled origin (`tauri://localhost`) and the `tauri:` scheme.
+- `connect-src 'self' tauri: ipc: http://* https://*` — fetches
+  and SSE streams. `http://*` and `https://*` are required because
+  the user configures arbitrary gateway URLs (could be `127.0.0.1`,
+  `abby`, or any remote host); `ipc:` is needed for Tauri IPC.
+- `img-src 'self' data: blob: tauri: http://* https://*` — bundled
+  assets, chat attachments rendered as `data:` URLs (R11b), and
+  remote images served from a gateway response.
+- `style-src 'self' 'unsafe-inline' tauri:` — Svelte 5 emits inline
+  styles for scoped CSS; `'unsafe-inline'` is the standard accepted
+  cost. The XSS guard is `script-src`, not `style-src`.
+- `script-src 'self' tauri:` — bundled scripts only, no inline,
+  no `eval`. This is the meaningful XSS mitigation.
+- `font-src 'self' data: tauri:` — bundled fonts and any `data:`-
+  embedded font.
+- `media-src 'self' data: blob: tauri:` — bundled and inline media.
+- `frame-src 'none'` — no iframes (the webview never embeds one).
+- `object-src 'none'` — no Flash / plugins / `<object>` / `<embed>`.
+- `base-uri 'self'` — blocks `<base>` tag redirection of relative
+  URLs.
+
+The notable looseness is `connect-src http://* https://*`: gateway
+URLs are user-configurable at runtime, so we can't enumerate them.
+Tightening it would require proxying every HTTP call through a
+Rust command, which is a larger refactor. `style-src 'unsafe-inline'`
+can be dropped once Svelte 5 grows nonce support.
 
 ### Redaction layer
 

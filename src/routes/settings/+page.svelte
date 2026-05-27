@@ -62,6 +62,7 @@
   } from '$lib/stores/notifications.svelte';
   import { aboutStore } from '$lib/stores/about.svelte';
   import MaskedValue from '$lib/components/MaskedValue.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import { redactJsonObject } from '$lib/utils/redact';
   import LlmProviderPicker from './LlmProviderPicker.svelte';
 
@@ -87,6 +88,23 @@
   const activeProfile = $derived<ProfileConfig | null>(
     settings.profiles.find((p) => p.id === settings.activeProfileId) ?? null
   );
+
+  /**
+   * True when the active profile needs a gateway token but doesn't have
+   * one stored in the Keychain — drives the top-of-page "Welcome back"
+   * banner that fires after a fresh settings import. Only relevant for
+   * remote profiles; local profiles either use NEAR.AI (no token here)
+   * or OpenRouter (handled inside LlmProviderPicker). The banner is
+   * dismissible per-session so the user can scroll past it once seen.
+   */
+  let welcomeBackDismissed = $state(false);
+  const activeProfileTokenMissing = $derived.by<boolean>(() => {
+    if (!activeProfile) return false;
+    if (activeProfile.mode !== 'remote') return false;
+    // Treat "unknown" (not yet probed) as not-missing so the banner
+    // doesn't flash during the eager Keychain scan on mount.
+    return profileTokenStatus[activeProfile.id] === false;
+  });
 
   let tokenInput = $state('');
   let tokenStored = $state(false);
@@ -258,6 +276,10 @@
   onMount(async () => {
     settings = await loadSettings();
     await refreshProfileCredentials();
+    // Eager Keychain scan for every profile so the per-row "Token: set /
+    // missing" badge renders synchronously on first paint. Cheap IPC,
+    // parallel reads — see comment on `refreshAllProfileTokenStatus`.
+    await refreshAllProfileTokenStatus();
     dataDir = await localDataDir();
     // Re-hydrate notification prefs in case the user opened /settings
     // before the layout's onMount ran (rare; usually a no-op).
@@ -309,6 +331,10 @@
     tokenInput = '';
     const t = await getToken(id);
     tokenStored = !!t;
+    // Keep the per-profile map's entry for the active profile in sync
+    // with the canonical `tokenStored` flag — this is what powers the
+    // per-row "Token: set / missing" badge in the profile list below.
+    profileTokenStatus = { ...profileTokenStatus, [id]: !!t };
     const or = await getOpenRouterKey(id);
     openRouterStored = !!or;
   }
@@ -686,11 +712,76 @@
   // ---- Settings backup (export / import) -------------------------------
   // Tokens / OpenRouter keys are NOT included — they live in the macOS
   // Keychain, not settings.json. After importing on a new machine the
-  // user has to open each profile and re-enter credentials. We toast a
-  // reminder once the new settings hit disk.
+  // user has to open each profile and re-enter credentials. The export
+  // button surfaces an inline warning banner so the user knows tokens
+  // stay behind; the import flow opens a post-import modal that lists
+  // exactly which credentials each new profile needs, with a one-click
+  // jump to the active profile's token input.
 
   let settingsExportBusy = $state(false);
   let settingsImportBusy = $state(false);
+
+  /** Post-import success modal — populated by onImportSettings, shown until
+   *  the user clicks "Close" or "Open Settings". */
+  type NeededCredential = {
+    profileId: string;
+    profileName: string;
+    items: string[];
+  };
+  let importSuccessOpen = $state(false);
+  let importedNeeds = $state<NeededCredential[]>([]);
+
+  /**
+   * Per-profile gateway-token presence map (eager). Populated on mount and
+   * refreshed whenever the profile list changes (add / delete / import) so
+   * the profile-row "Token: set / missing" badge renders synchronously
+   * without flicker.
+   *
+   * Strategy is eager (not lazy) because the badge is visible by default
+   * on every profile row — a lazy/on-hover read would force the user to
+   * point at each row to learn what's missing, which is the whole UX
+   * problem we're solving here. The Keychain reads are cheap IPC and
+   * happen in parallel; for the realistic profile count (1–10) the page
+   * mount cost is well under 50ms.
+   *
+   * The map is keyed by profile id; missing keys are treated as "unknown"
+   * (badge hidden) until the eager refresh completes. We also refresh
+   * after every token save/clear on the active profile to keep the badge
+   * in sync without forcing a full page reload.
+   */
+  let profileTokenStatus = $state<Record<string, boolean>>({});
+
+  async function refreshAllProfileTokenStatus() {
+    const next: Record<string, boolean> = {};
+    // Parallel reads — the Keychain plugin handles each invoke
+    // independently, so launching them concurrently keeps mount cost low
+    // even for a long profile list.
+    const ids = settings.profiles.map((p) => p.id);
+    const results = await Promise.all(ids.map((id) => getToken(id)));
+    ids.forEach((id, i) => {
+      next[id] = !!results[i];
+    });
+    profileTokenStatus = next;
+  }
+
+  /** What credentials does a profile need to function? Drives the
+   *  post-import modal body and the per-row missing-token affordance. */
+  function neededCredentialsFor(p: ProfileConfig): string[] {
+    const items: string[] = [];
+    if (p.mode === 'remote') {
+      items.push('Gateway token');
+    } else {
+      const providerId = p.llmProviderId ?? p.llmBackend ?? 'nearai';
+      if (providerId === 'nearai') {
+        items.push('NEAR.AI sign-in');
+      } else if (providerId === 'openrouter') {
+        items.push('OpenRouter API key');
+      } else {
+        items.push(`${providerId} credential`);
+      }
+    }
+    return items;
+  }
 
   async function onExportSettings() {
     if (settingsExportBusy) return;
@@ -700,7 +791,14 @@
       if (saved === null) {
         toasts.show('Settings export cancelled', 'info');
       } else {
-        toasts.show(`Settings exported to ${saved}`, 'success');
+        // R22c reinforcement: explicit reminder that tokens stay in
+        // Keychain. The pre-export banner above the button already says
+        // this; the toast repeats it so the user can't miss the
+        // re-entry step on the destination machine.
+        toasts.show(
+          'Settings exported. Note: API tokens stay in Keychain; you\'ll re-enter them on import.',
+          'success'
+        );
       }
     } catch (err) {
       toasts.show(`Settings export failed: ${(err as Error).message}`, 'error');
@@ -728,15 +826,76 @@
       // surface that on its own.
       settings = imported;
       await refreshProfileCredentials();
+      await refreshAllProfileTokenStatus();
       await connection.refresh();
-      toasts.show(
-        `Imported ${imported.profiles.length} profile${imported.profiles.length === 1 ? '' : 's'}. Re-enter tokens per profile below.`,
-        'success'
-      );
+      // Fresh import — surface the welcome-back banner unconditionally,
+      // even if the user previously dismissed it for the old profile.
+      // Imports are exactly the scenario the banner exists for.
+      welcomeBackDismissed = false;
+      // Build the "needs" payload for the success modal. We compute it
+      // here off the imported snapshot rather than relying on the
+      // reactive `activeProfile` derivation so the modal body is stable
+      // even if the user clicks elsewhere mid-render.
+      importedNeeds = imported.profiles.map((p) => ({
+        profileId: p.id,
+        profileName: p.name,
+        items: neededCredentialsFor(p)
+      }));
+      importSuccessOpen = true;
     } catch (err) {
       toasts.show(`Settings import failed: ${(err as Error).message}`, 'error');
     } finally {
       settingsImportBusy = false;
+    }
+  }
+
+  function closeImportSuccess() {
+    importSuccessOpen = false;
+    importedNeeds = [];
+  }
+
+  /**
+   * "Open Settings" action from the import-success modal: scroll the page
+   * back up to the active profile's credential input and focus it. The
+   * #token input is the remote-mode gateway-bearer field; in local mode
+   * the LlmProviderPicker owns its own slot so we just scroll to the
+   * picker section.
+   */
+  async function onOpenSettingsFromImport() {
+    closeImportSuccess();
+    await tick();
+    if (typeof document === 'undefined') return;
+    const tokenInputEl = document.getElementById('token') as HTMLInputElement | null;
+    if (tokenInputEl) {
+      tokenInputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      tokenInputEl.focus();
+      return;
+    }
+    // Local-mode profile — scroll to the LLM provider card. The
+    // data-section-id query lands on the wrapper around LlmProviderPicker.
+    const localEl = document.querySelector<HTMLElement>(
+      '[data-section-id="llm-provider"]'
+    );
+    localEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  /** Click handler for the per-row "Token: missing" badge. Switches to the
+   *  target profile (if not active) and focuses the token input. */
+  async function onClickTokenBadge(profile: ProfileConfig) {
+    if (profile.id !== settings.activeProfileId) {
+      await onSwitchProfile(profile.id);
+    }
+    await tick();
+    const tokenInputEl = document.getElementById('token') as HTMLInputElement | null;
+    if (tokenInputEl) {
+      tokenInputEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      tokenInputEl.focus();
+    } else {
+      // Local-mode profile — jump to the provider picker instead.
+      const localEl = document.querySelector<HTMLElement>(
+        '[data-section-id="llm-provider"]'
+      );
+      localEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }
 
@@ -1000,6 +1159,11 @@
       // + fresh Keychain reads.
       settings = await loadSettings();
       await refreshProfileCredentials();
+      // Reset the welcome-back dismissal so the banner can re-appear if
+      // the new active profile is also missing a token. Each profile
+      // gets its own "I've seen this" decision rather than dismissing
+      // globally and missing a real missing-credential row.
+      welcomeBackDismissed = false;
       toasts.show('Profile switched', 'info');
     } catch (err) {
       toasts.show(`Switch failed: ${(err as Error).message}`, 'error');
@@ -1010,6 +1174,10 @@
     try {
       const profile = await addProfile(`Profile ${settings.profiles.length + 1}`);
       settings = await loadSettings();
+      // New profile starts without a stored token — record that
+      // explicitly so the badge renders "missing" right away rather than
+      // falling through to the "unknown" (hidden) state.
+      profileTokenStatus = { ...profileTokenStatus, [profile.id]: false };
       renamingProfileId = profile.id;
       renameDraft = profile.name;
       toasts.show('Profile added — rename and edit below', 'success');
@@ -1108,6 +1276,10 @@
       const wasActive = profile.id === settings.activeProfileId;
       await deleteProfile(profile.id);
       settings = await loadSettings();
+      // Strip the deleted profile from the token-status map so its row
+      // doesn't linger in any future re-render that touches the badge.
+      const { [profile.id]: _removed, ...rest } = profileTokenStatus;
+      profileTokenStatus = rest;
       if (wasActive) {
         await connection.refresh();
         await refreshProfileCredentials();
@@ -1335,9 +1507,10 @@
     return relativeTime(ms);
   }
 
-  // Esc closes the active modal (create or revoke confirm). Mirrors the
-  // pattern in NewProfileModal.svelte so behaviour is consistent across
-  // dialogs on this surface.
+  // Esc closes the active modal (create, revoke confirm, or post-import
+  // success). Mirrors the pattern in NewProfileModal.svelte so behaviour
+  // is consistent across dialogs on this surface. Order matters: the
+  // most-recently-opened modal handles Esc first.
   $effect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Escape') return;
@@ -1347,6 +1520,9 @@
       } else if (createOpen) {
         e.preventDefault();
         closeCreateModal();
+      } else if (importSuccessOpen) {
+        e.preventDefault();
+        closeImportSuccess();
       }
     }
     window.addEventListener('keydown', onKeyDown);
@@ -1657,6 +1833,50 @@
   </div>
 
   <div class="max-w-2xl space-y-6">
+    <!-- "Welcome back" banner — appears at the top when the active
+         profile is remote but has no gateway token stored in the
+         Keychain. This is the post-import empty state: settings.json
+         imported cleanly but tokens didn't ride along, so the user lands
+         on Settings with profiles defined and zero credentials. The
+         banner offers a one-click jump to the active profile's token
+         input; dismissible per-session so it doesn't nag once acknowledged. -->
+    {#if activeProfileTokenMissing && !welcomeBackDismissed}
+      <div
+        class="rounded-md border border-accent-gold/40 bg-accent-gold/5 px-4 py-3 flex items-start gap-3"
+        role="status"
+      >
+        <Icon
+          name="warning"
+          class="w-4 h-4 text-accent-gold shrink-0 mt-0.5"
+        />
+        <div class="flex-1 min-w-0">
+          <p class="text-sm text-text-primary font-semibold">Welcome back.</p>
+          <p class="text-xs text-text-muted mt-0.5">
+            Re-enter your gateway tokens to reconnect. They live in the
+            macOS Keychain on this machine and don't ride along with
+            <code class="font-mono text-text-primary">settings.json</code>.
+          </p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onclick={() => activeProfile && onClickTokenBadge(activeProfile)}
+            class="px-3 py-1.5 rounded-md bg-accent-gold text-bg-deep text-xs font-semibold hover:brightness-110 transition min-h-[32px]"
+          >
+            Enter token
+          </button>
+          <button
+            type="button"
+            onclick={() => { welcomeBackDismissed = true; }}
+            aria-label="Dismiss welcome-back banner"
+            class="px-2 py-1.5 rounded-md text-text-muted hover:text-text-primary transition-colors text-xs"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    {/if}
+
     {#if activeProfile}
       <!-- Active profile header -->
       <div
@@ -2313,6 +2533,47 @@
               {/if}
             </div>
 
+            <!-- Per-profile gateway-token status badge. Only meaningful
+                 for remote-mode profiles — local profiles get their
+                 credentials through LlmProviderPicker (NEAR.AI sign-in /
+                 OpenRouter key) and that surface lives outside the row,
+                 so a "Token: set" pill here would mislead.
+
+                 The badge is the R22c follow-on: after a settings.json
+                 import the profile rows themselves announce which
+                 entries still need credentials, so the user doesn't
+                 have to switch between profiles to discover what's
+                 broken. Clicking "missing" jumps to the active profile's
+                 token input (after switching first if needed). -->
+            {#if profile.mode === 'remote' && profile.id in profileTokenStatus}
+              {@const tokenIsSet = profileTokenStatus[profile.id]}
+              {#if tokenIsSet}
+                <span
+                  class="hidden sm:inline-flex items-center gap-1.5 shrink-0 text-[10px] font-semibold text-text-muted"
+                  title="Gateway token stored in macOS Keychain"
+                >
+                  <span
+                    class="w-1.5 h-1.5 rounded-full bg-green-500"
+                    aria-hidden="true"
+                  ></span>
+                  Token: set
+                </span>
+              {:else}
+                <button
+                  type="button"
+                  onclick={() => void onClickTokenBadge(profile)}
+                  class="hidden sm:inline-flex items-center gap-1.5 shrink-0 text-[10px] font-semibold text-red-300 hover:text-red-200 transition-colors"
+                  title="No gateway token stored — click to enter one"
+                >
+                  <span
+                    class="w-1.5 h-1.5 rounded-full bg-red-500"
+                    aria-hidden="true"
+                  ></span>
+                  Token: missing
+                </button>
+              {/if}
+            {/if}
+
             <!-- Tint picker. Six small swatches in a row — click to set,
                  saves immediately, repaints the live `--v2-accent` via the
                  connection store's $effect. The active swatch is ringed
@@ -2880,19 +3141,50 @@
       <!-- Settings backup. Lives in the Data card alongside the
            conversation export so backup/restore actions are grouped
            together. Tokens / OpenRouter keys are NOT included — they
-           live in the macOS Keychain, not settings.json. -->
-      <div class="pt-3 border-t border-border-subtle space-y-2">
+           live in the macOS Keychain, not settings.json.
+
+           Inline warning banner sits directly above the buttons so the
+           user can't fire Export without seeing the "tokens don't ride
+           along" caveat. The gold accent is the design-system's
+           "non-fatal warning" tone (matches the welcome-back banner at
+           the top of the page and the Quiet-hours dot). -->
+      <div class="pt-3 border-t border-border-subtle space-y-3">
+        <h3 class="text-xs font-semibold uppercase tracking-wider text-text-muted">
+          Settings backup
+        </h3>
         <p class="text-xs text-text-muted">
-          Backup or restore your profile list and preferences. Tokens are
-          NOT included — re-enter them after importing on a new machine.
+          Backup or restore your profile list and preferences as
+          <code class="font-mono text-text-primary">settings.json</code>.
         </p>
+
+        <!-- Tokens-not-included banner. Always visible whether the user
+             is about to export or import — both directions surface the
+             same constraint. -->
+        <div
+          class="rounded-md border border-accent-gold/40 bg-accent-gold/5 px-3 py-2 flex items-start gap-2"
+          role="note"
+        >
+          <Icon
+            name="warning"
+            class="w-3.5 h-3.5 text-accent-gold shrink-0 mt-0.5"
+          />
+          <p class="text-xs text-text-primary leading-relaxed">
+            <span class="font-semibold">Tokens not included.</span>
+            <span class="text-text-muted">
+              They stay in the macOS Keychain on this machine. On the
+              destination machine you'll re-enter each profile's gateway
+              token.
+            </span>
+          </p>
+        </div>
+
         <div class="flex items-center gap-3 flex-wrap">
           <button
             type="button"
             onclick={onExportSettings}
             disabled={settingsExportBusy}
             class="px-4 py-2 rounded-md border border-accent-cyan text-accent-cyan text-sm font-semibold hover:bg-accent-cyan hover:text-bg-deep transition disabled:opacity-50 min-h-[44px]"
-            title="Save your profile list and preferences to a JSON file"
+            title="Save your profile list and preferences to a JSON file (tokens stay in Keychain)"
           >
             {settingsExportBusy ? 'Exporting…' : 'Export settings'}
           </button>
@@ -2901,7 +3193,7 @@
             onclick={onImportSettings}
             disabled={settingsImportBusy}
             class="px-4 py-2 rounded-md border border-border-subtle text-text-primary text-sm font-semibold hover:border-accent-cyan hover:text-accent-cyan transition disabled:opacity-50 min-h-[44px]"
-            title="Restore a settings backup from a JSON file"
+            title="Restore a settings backup from a JSON file (you'll re-enter tokens after)"
           >
             {settingsImportBusy ? 'Importing…' : 'Import settings'}
           </button>
@@ -3453,6 +3745,99 @@
           class="px-4 py-2 rounded-md bg-red-600 text-white text-sm font-semibold hover:bg-red-500 transition disabled:opacity-50 min-h-[44px]"
         >
           {revoking ? 'Revoking…' : 'Revoke token'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Post-import success modal. Replaces the generic "Imported N profiles"
+     toast with an actionable breakdown: every imported profile is listed
+     alongside the specific credentials it'll need on this machine
+     (gateway token / NEAR.AI sign-in / OpenRouter key). "Open Settings"
+     scrolls + focuses the active profile's token input; "Close" dismisses.
+     Mirrors the create-token / revoke modal backdrop pattern so behaviour
+     across the page's dialogs stays consistent. Esc is handled by the
+     same keydown $effect that drives the other modals. -->
+{#if importSuccessOpen}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    onclick={closeImportSuccess}
+    onkeydown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        closeImportSuccess();
+      }
+    }}
+    role="button"
+    tabindex="-1"
+    aria-label="Close import success dialog"
+  >
+    <div
+      class="surface w-[min(520px,calc(100vw-2rem))] p-6 space-y-5 border border-border-subtle max-h-[calc(100vh-2rem)] overflow-auto"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="import-success-title"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      tabindex="-1"
+    >
+      <header class="space-y-1">
+        <div class="flex items-center gap-2">
+          <Icon name="check" class="w-5 h-5 text-accent-cyan" />
+          <h2
+            id="import-success-title"
+            class="text-lg font-semibold text-text-primary"
+          >
+            Settings imported
+          </h2>
+        </div>
+        <p class="text-xs text-text-muted">
+          {importedNeeds.length}
+          profile{importedNeeds.length === 1 ? '' : 's'} restored. Tokens
+          stay in the macOS Keychain — re-enter them per profile below.
+        </p>
+      </header>
+
+      <!-- Per-profile credential checklist. Each row names the profile
+           and lists the specific credentials it'll need on this machine.
+           For the realistic case (1–10 profiles) this fits in the modal
+           body without scrolling; longer lists scroll inside the surface
+           thanks to the overflow-auto wrapper. -->
+      <div class="space-y-2">
+        <p
+          class="text-[11px] uppercase tracking-wider text-text-muted font-semibold"
+        >
+          Credentials to re-enter
+        </p>
+        <ul
+          class="space-y-1.5 rounded-md border border-border-subtle bg-bg-deep px-3 py-2.5 max-h-[260px] overflow-auto"
+        >
+          {#each importedNeeds as need (need.profileId)}
+            <li class="text-xs text-text-primary leading-relaxed">
+              Profile
+              <span class="font-mono text-accent-cyan">'{need.profileName}'</span>
+              needs:
+              <span class="text-text-muted">{need.items.join(', ')}</span>
+            </li>
+          {/each}
+        </ul>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-1">
+        <button
+          type="button"
+          onclick={closeImportSuccess}
+          class="text-sm text-text-muted hover:text-text-primary transition-colors min-h-[44px] px-3"
+        >
+          Close
+        </button>
+        <button
+          type="button"
+          onclick={() => void onOpenSettingsFromImport()}
+          class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition min-h-[44px]"
+        >
+          Open Settings
         </button>
       </div>
     </div>

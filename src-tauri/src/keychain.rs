@@ -41,11 +41,17 @@ fn entry(account: &str) -> Result<Entry, String> {
 }
 
 fn get_secret(account: &str) -> Result<Option<String>, String> {
+    // Log the slot name only — never the secret value. Useful for tracing
+    // which credentials each surface reads on startup / IPC dispatch.
+    log::debug!(target: "ironclaw_keychain", "read service={SERVICE} account={account}");
     let e = entry(account)?;
     match e.get_password() {
         Ok(s) => Ok(Some(s)),
         Err(KeyringError::NoEntry) => Ok(None),
-        Err(err) => Err(format!("keyring read [{account}]: {err}")),
+        Err(err) => {
+            log::warn!(target: "ironclaw_keychain", "read failed [{account}]: {err}");
+            Err(format!("keyring read [{account}]: {err}"))
+        }
     }
 }
 

@@ -236,12 +236,27 @@ pub async fn spawn(
         }
     });
 
+    log::info!(
+        target: "ironclaw_sidecar",
+        "Sidecar spawned on port {port}, waiting for /api/health"
+    );
+
     // Wait for the gateway's /api/health to respond before considering the
     // sidecar started. If the timeout elapses, kill the child and surface
     // an error.
     match wait_for_health(port).await {
-        Ok(()) => Ok(port),
+        Ok(()) => {
+            log::info!(
+                target: "ironclaw_sidecar",
+                "Sidecar healthy on port {port}"
+            );
+            Ok(port)
+        }
         Err(err) => {
+            log::warn!(
+                target: "ironclaw_sidecar",
+                "Sidecar health check failed on port {port}: {err}"
+            );
             let _ = stop_inner(&state).await;
             Err(err)
         }
@@ -263,6 +278,7 @@ async fn stop_inner(state: &State<'_, SidecarState>) -> Result<(), String> {
         *slot = None;
     }
     if let Some(c) = child {
+        log::info!(target: "ironclaw_sidecar", "Stopping sidecar");
         c.kill().map_err(|e| format!("kill sidecar: {e}"))?;
     }
     Ok(())

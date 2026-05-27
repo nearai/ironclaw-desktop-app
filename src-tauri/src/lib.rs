@@ -419,16 +419,41 @@ async fn set_tray_visible(app: AppHandle, visible: bool) -> Result<(), String> {
     tray::set_visible(&app, visible).map_err(|e| format!("set_tray_visible: {e}"))
 }
 
-/// Render (or clear) the unseen-notification badge next to the tray icon.
+/// Render (or clear) the unseen-notification badge inside the tray icon.
 ///
 /// Pushed from JS by the notifications store whenever its derived
-/// `unseenCount` changes. `count <= 0` clears the badge; `count > 9` is
-/// rendered as `"9+"` by the Rust side. See `tray::update_badge` for the
-/// option-A title approach and the TODO for the heavier composited
-/// fallback.
+/// `unseenCount` changes. `count <= 0` clears the badge (status-only
+/// glyph); `count >= 10` is rendered as the `9plus` overlay by the Rust
+/// side. The composite uses the last-known status cached in
+/// `TrayIconState`, so the status colour stays stable across badge
+/// pushes — see `tray::update_badge` for the (status, count) icon
+/// table and the build-time generator that produces the 33 PNG
+/// variants.
 #[tauri::command]
 async fn update_tray_badge(app: AppHandle, count: i32) -> Result<(), String> {
     tray::update_badge(&app, count).map_err(|e| format!("update_tray_badge: {e}"))
+}
+
+/// Push both status and count in one IPC call.
+///
+/// Functionally equivalent to calling `update_tray_status(status)` then
+/// `update_tray_badge(count)` — the icon repaints once with the new
+/// (status, count) composite. Useful for surfaces that have both pieces
+/// of state on hand (e.g. a future combined "connection + unseen
+/// notifications" sync) without two separate IPCs.
+///
+/// `status` accepts the same strings as `update_tray_status`:
+/// `"connected"`, `"connecting"`, `"disconnected"`, `"error"`. Unknown
+/// values degrade to `disconnected` (same fallback as the
+/// single-field setter).
+#[tauri::command]
+async fn update_status_and_count(
+    app: AppHandle,
+    status: String,
+    count: i32,
+) -> Result<(), String> {
+    tray::update_status_and_count(&app, &status, count)
+        .map_err(|e| format!("update_status_and_count: {e}"))
 }
 
 /// Replace the contents of the "Recent notifications" submenu.
@@ -465,6 +490,28 @@ async fn show_main_window(app: AppHandle) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Initialize env_logger before the Tauri builder so every `log::*` call
+    // — including those that fire inside the setup hook (tray creation,
+    // settings load) — is captured. Default filter is `info` for our crate
+    // and `warn` for everything else, so noisy third-party traces stay
+    // quiet but our own checkpoints surface. Users can override at runtime
+    // with `RUST_LOG=debug` or finer-grained selectors like
+    // `RUST_LOG=ironclaw_desktop_lib=trace,tauri=debug`.
+    //
+    // `try_init` rather than `init` so a hot-reloaded dev session that
+    // somehow re-enters `run()` doesn't panic on the second initialization.
+    let _ = env_logger::Builder::from_env(
+        env_logger::Env::default()
+            .default_filter_or("ironclaw_desktop_lib=info,warn"),
+    )
+    .format_timestamp_secs()
+    .try_init();
+
+    log::info!(
+        "IronClaw Desktop v{} starting",
+        env!("CARGO_PKG_VERSION")
+    );
+
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         // Native save-file dialog used by chat + settings exports. We call
@@ -493,6 +540,13 @@ pub fn run() {
         // create/visibility flips without the JS side having to
         // re-push the same data.
         .manage(tray::RecentItemsState::default())
+        // Cached (status, count) snapshot driving the composite tray
+        // icon. The two single-field IPC commands
+        // (`update_tray_status`, `update_tray_badge`) each mutate one
+        // half and re-paint against the other; `update_status_and_count`
+        // writes both at once. Defaults to (Disconnected, 0) — same as
+        // the initial paint in `tray::create`.
+        .manage(tray::TrayIconState::default())
         .invoke_handler(tauri::generate_handler![
             get_settings,
             save_settings,
@@ -517,6 +571,7 @@ pub fn run() {
             update_tray_status,
             set_tray_visible,
             update_tray_badge,
+            update_status_and_count,
             update_tray_recent,
             show_main_window,
             windows::open_profile_window,
@@ -561,6 +616,7 @@ pub fn run() {
                 return;
             }
             if let WindowEvent::CloseRequested { api, .. } = event {
+                log::debug!("Window close requested, hiding to tray");
                 api.prevent_close();
                 let _ = window.hide();
             }
@@ -573,6 +629,7 @@ pub fn run() {
     // closes.
     app.run(|app_handle, event| {
         if let RunEvent::ExitRequested { .. } = event {
+            log::info!("App exit requested, stopping sidecar");
             let state = app_handle.state::<SidecarState>();
             // Best-effort: block on the async stop. The runtime is still
             // alive at this point.

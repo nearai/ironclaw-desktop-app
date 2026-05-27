@@ -518,6 +518,14 @@ class NotificationStore {
    * is off we force a 0-push so any stale badge from a previous
    * "enabled" session is cleared immediately.
    *
+   * The Rust side (tray.rs) composes a single (status, count) PNG from
+   * a pre-rendered icon table — see `build_tray_icons.py`. Status is
+   * tracked in Rust app state and updated independently by the
+   * connection store's `update_tray_status` IPC, so this command only
+   * carries the count half of the pair and the icon stays colour-stable
+   * across badge pushes. The unified `update_status_and_count` command
+   * is available for callers that have both pieces of state on hand.
+   *
    * Serializes through `badgePushInFlight` so a burst of triggers
    * during streaming chat doesn't fan out into N concurrent IPC calls;
    * the latest pending value is held in `badgePushQueued` and fires
