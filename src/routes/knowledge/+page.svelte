@@ -24,6 +24,29 @@
   import SearchResults from './SearchResults.svelte';
   import DocViewer from './DocViewer.svelte';
   import NewDocModal, { validateMemoryPath } from './NewDocModal.svelte';
+  import ResizeHandle from '$lib/components/ResizeHandle.svelte';
+
+  // ---- Tree-rail width (drag-to-resize) ------------------------------------
+  //
+  // The tree rail is user-resizable via a `ResizeHandle` strip in the gap
+  // between the rail and the doc viewer. Width persists across reloads
+  // via localStorage. Below `NARROW_VIEWPORT_PX` the handle is hidden
+  // and the rail snaps back to its default — the doc viewer needs the
+  // breathing room more than the rail needs custom widths at small sizes.
+  const TREE_RAIL_DEFAULT = 320;
+  const TREE_RAIL_MIN = 240;
+  const TREE_RAIL_MAX = 500;
+  const NARROW_VIEWPORT_PX = 900;
+  const TREE_RAIL_STORAGE_KEY = 'ironclaw-knowledge-tree-width';
+
+  let treeRailWidth = $state<number>(TREE_RAIL_DEFAULT);
+  let viewportWidth = $state<number>(
+    typeof window === 'undefined' ? 1280 : window.innerWidth
+  );
+  const resizeEnabled = $derived(viewportWidth >= NARROW_VIEWPORT_PX);
+  const effectiveTreeRailWidth = $derived(
+    resizeEnabled ? treeRailWidth : TREE_RAIL_DEFAULT
+  );
 
   // ---- localStorage keys / caps ---------------------------------------------
   const RECENT_KEY = 'ironclaw-knowledge-recent';
@@ -114,6 +137,23 @@
 
   onMount(async () => {
     hydratePersisted();
+    // Hydrate the tree-rail width from localStorage. ResizeHandle pushes
+    // the value back on its own mount too, but reading here lets the
+    // first paint use the persisted width without a flash.
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(TREE_RAIL_STORAGE_KEY);
+        const parsed = raw === null ? NaN : Number.parseInt(raw, 10);
+        if (Number.isFinite(parsed)) {
+          treeRailWidth = Math.min(
+            Math.max(parsed, TREE_RAIL_MIN),
+            TREE_RAIL_MAX
+          );
+        }
+      }
+    } catch {
+      // ignore — defaults stand.
+    }
     // Capture deep-link target *before* any async work so a slow connection
     // init doesn't race with a URL-param mutation from elsewhere.
     const deepLinkPath = page.url.searchParams.get('path');
@@ -165,13 +205,21 @@
     const onKey = (ev: KeyboardEvent) => {
       if (ev.key === 'Escape' && ctxMenu) ctxMenu = null;
     };
+    // Track viewport width so the resize handle can drop below the
+    // narrow-viewport breakpoint. Listener is passive.
+    const onResize = () => {
+      viewportWidth = window.innerWidth;
+    };
+    viewportWidth = window.innerWidth;
     window.addEventListener('click', onDocClick);
     window.addEventListener('keydown', onKey);
+    window.addEventListener('resize', onResize);
 
     return () => {
       clearInterval(tickTimer);
       window.removeEventListener('click', onDocClick);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', onResize);
     };
   });
 
@@ -587,10 +635,19 @@
       {/if}
     </div>
   {:else}
-    <div class="flex-1 min-h-0 flex gap-4">
-      <!-- Left rail: bookmarks + recent + tree -->
+    <!-- Row gap removed in favor of an explicit margin on the doc-viewer
+         pane so the `ResizeHandle` between them sits in a tight gutter
+         instead of being padded out by the row's gap-4. Visual spacing is
+         preserved by `ml-2` + `mr-0` (no gap) on the right pane and the
+         handle's own 4px column. -->
+    <div class="flex-1 min-h-0 flex">
+      <!-- Left rail: bookmarks + recent + tree. Width comes from
+           `effectiveTreeRailWidth`; the in-class `w-[320px]` was replaced
+           by an inline style so the drag handle below owns the source of
+           truth for the column width. -->
       <aside
-        class="w-[320px] shrink-0 surface flex flex-col min-h-0"
+        class="shrink-0 surface flex flex-col min-h-0"
+        style="width: {effectiveTreeRailWidth}px;"
       >
         <div class="px-3 py-3 border-b border-border-subtle flex items-center justify-between gap-2">
           <span class="text-xs font-semibold text-text-primary uppercase tracking-wider">
@@ -857,6 +914,28 @@
           {/if}
         </div>
       </aside>
+
+      <!-- Resize handle between tree rail and doc viewer. Sits in a small
+           gutter (8px each side via mx on the handle wrapper) so the
+           hover glow has room without crowding the panes. Hidden when
+           the viewport is narrow. -->
+      {#if resizeEnabled}
+        <div class="flex items-stretch mx-2">
+          <ResizeHandle
+            min={TREE_RAIL_MIN}
+            max={TREE_RAIL_MAX}
+            defaultWidth={TREE_RAIL_DEFAULT}
+            storageKey={TREE_RAIL_STORAGE_KEY}
+            initialWidth={treeRailWidth}
+            onresize={(w) => (treeRailWidth = w)}
+          />
+        </div>
+      {:else}
+        <!-- Spacer matching the gap-4 the parent used to provide so the
+             non-resizable narrow-viewport layout still gets visual
+             breathing room between rail and doc viewer. -->
+        <div class="w-4 shrink-0"></div>
+      {/if}
 
       <!-- Right pane: search + content -->
       <div class="flex-1 min-w-0 flex flex-col gap-4 min-h-0">

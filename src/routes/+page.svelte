@@ -22,6 +22,47 @@
   import type { AttachmentInput, ChatEvent, Message, Skill } from '$lib/api/types';
   import SlashAutocomplete from './SlashAutocomplete.svelte';
   import ChatSearch from './ChatSearch.svelte';
+  import ResizeHandle from '$lib/components/ResizeHandle.svelte';
+
+  // ---- Pane widths (drag-to-resize) ----------------------------------------
+  //
+  // Thread rail (left) + tool inspector (right) are both user-resizable via
+  // a `ResizeHandle` strip. Widths persist to localStorage so the layout
+  // sticks across reloads. Below `NARROW_VIEWPORT_PX` we drop the handles
+  // and revert to the fixed defaults — at that width the third column is
+  // already tight and a drag would just thrash the layout.
+  //
+  // TODO: persist a "narrow viewport collapsed" affordance once the chat
+  // page grows a real mobile breakpoint. For now <900px just stops
+  // honoring the persisted value; the user keeps their saved width when
+  // they widen the window again.
+  const THREAD_RAIL_DEFAULT = 260;
+  const THREAD_RAIL_MIN = 200;
+  const THREAD_RAIL_MAX = 480;
+  const INSPECTOR_DEFAULT = 240;
+  const INSPECTOR_MIN = 200;
+  const INSPECTOR_MAX = 480;
+  const NARROW_VIEWPORT_PX = 900;
+  const THREAD_RAIL_STORAGE_KEY = 'ironclaw-chat-rail-width';
+  const INSPECTOR_STORAGE_KEY = 'ironclaw-chat-inspector-width';
+
+  let threadRailWidth = $state<number>(THREAD_RAIL_DEFAULT);
+  let inspectorWidth = $state<number>(INSPECTOR_DEFAULT);
+  /** Tracks window inner width via a `resize` listener wired in onMount.
+   *  Below `NARROW_VIEWPORT_PX` the resize handles are hidden and the
+   *  layout uses the fixed defaults regardless of the persisted value. */
+  let viewportWidth = $state<number>(
+    typeof window === 'undefined' ? 1280 : window.innerWidth
+  );
+  const resizeEnabled = $derived(viewportWidth >= NARROW_VIEWPORT_PX);
+  /** Effective rail width — defaults when resizing is disabled, otherwise
+   *  whatever the user dragged to / hydrated from localStorage. */
+  const effectiveThreadRailWidth = $derived(
+    resizeEnabled ? threadRailWidth : THREAD_RAIL_DEFAULT
+  );
+  const effectiveInspectorWidth = $derived(
+    resizeEnabled ? inspectorWidth : INSPECTOR_DEFAULT
+  );
 
   // -- local state ------------------------------------------------------------
   let composerEl = $state<HTMLTextAreaElement | null>(null);
@@ -352,6 +393,41 @@
     if (stored) applyDraft(stored);
     draftLoadedFor = id;
 
+    // Hydrate pane widths from localStorage. ResizeHandle pushes the
+    // hydrated value back via `onresize` on its own mount, but reading
+    // here lets us render the first frame at the persisted width rather
+    // than the default → flash → resize sequence.
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const railRaw = localStorage.getItem(THREAD_RAIL_STORAGE_KEY);
+        const railParsed = railRaw === null ? NaN : Number.parseInt(railRaw, 10);
+        if (Number.isFinite(railParsed)) {
+          threadRailWidth = Math.min(
+            Math.max(railParsed, THREAD_RAIL_MIN),
+            THREAD_RAIL_MAX
+          );
+        }
+        const insRaw = localStorage.getItem(INSPECTOR_STORAGE_KEY);
+        const insParsed = insRaw === null ? NaN : Number.parseInt(insRaw, 10);
+        if (Number.isFinite(insParsed)) {
+          inspectorWidth = Math.min(
+            Math.max(insParsed, INSPECTOR_MIN),
+            INSPECTOR_MAX
+          );
+        }
+      }
+    } catch {
+      // ignore — fall through to defaults.
+    }
+
+    // Track viewport width so the resize handles can opt out below the
+    // narrow-viewport threshold. Listener is passive — no preventDefault.
+    const onResize = () => {
+      viewportWidth = window.innerWidth;
+    };
+    viewportWidth = window.innerWidth;
+    window.addEventListener('resize', onResize);
+
     // Lazily prime the skill catalog for slash autocomplete. We don't
     // block boot on it — the dropdown simply has no candidates until
     // the catalog lands, and re-fetches are skipped via the loaded flag.
@@ -373,6 +449,7 @@
     return () => {
       if (draftSaveTimer) clearTimeout(draftSaveTimer);
       document.removeEventListener('keydown', onGlobalKey);
+      window.removeEventListener('resize', onResize);
     };
   });
 
@@ -1331,9 +1408,13 @@
 </script>
 
 <section class="flex h-full w-full">
-  <!-- ============================ Left: thread rail ====================== -->
+  <!-- ============================ Left: thread rail ======================
+       Width comes from `effectiveThreadRailWidth`, driven by the
+       `ResizeHandle` below. Border lives on the handle's left edge so the
+       hover glow doesn't sit on top of an unrelated border. -->
   <aside
-    class="w-[260px] shrink-0 h-full border-r border-border-subtle flex flex-col bg-bg-base/40"
+    class="shrink-0 h-full border-r border-border-subtle flex flex-col bg-bg-base/40"
+    style="width: {effectiveThreadRailWidth}px;"
   >
     <div class="p-3 border-b border-border-subtle">
       <button
@@ -1444,6 +1525,21 @@
       {/if}
     </div>
   </aside>
+
+  <!-- Resize handle between thread rail and message stream. Hidden when
+       the viewport is narrow so we don't waste a 4px column on small
+       screens (the layout already falls back to defaults via the
+       `effective*` derived widths above). -->
+  {#if resizeEnabled}
+    <ResizeHandle
+      min={THREAD_RAIL_MIN}
+      max={THREAD_RAIL_MAX}
+      defaultWidth={THREAD_RAIL_DEFAULT}
+      storageKey={THREAD_RAIL_STORAGE_KEY}
+      initialWidth={threadRailWidth}
+      onresize={(w) => (threadRailWidth = w)}
+    />
+  {/if}
 
   <!-- =========================== Main: stream + composer ================== -->
   <div class="flex-1 flex flex-col min-w-0 h-full">
@@ -1881,10 +1977,25 @@
     </div>
   </div>
 
-  <!-- ====================== Right: tool inspector ======================== -->
+  <!-- ====================== Right: tool inspector ========================
+       Width driven by `effectiveInspectorWidth`. The handle sits to the
+       left of the aside so the user drags the boundary between the
+       message stream and the inspector. The handle is conditionally
+       rendered alongside the aside so it disappears with the pane. -->
   {#if rightRailOpen && tools.length > 0}
+    {#if resizeEnabled}
+      <ResizeHandle
+        min={INSPECTOR_MIN}
+        max={INSPECTOR_MAX}
+        defaultWidth={INSPECTOR_DEFAULT}
+        storageKey={INSPECTOR_STORAGE_KEY}
+        initialWidth={inspectorWidth}
+        onresize={(w) => (inspectorWidth = w)}
+      />
+    {/if}
     <aside
-      class="w-[240px] shrink-0 h-full border-l border-border-subtle bg-bg-base/40 flex flex-col"
+      class="shrink-0 h-full border-l border-border-subtle bg-bg-base/40 flex flex-col"
+      style="width: {effectiveInspectorWidth}px;"
     >
       <div class="h-12 shrink-0 px-4 flex items-center justify-between border-b border-border-subtle">
         <span class="text-xs font-semibold text-text-primary uppercase tracking-wide">

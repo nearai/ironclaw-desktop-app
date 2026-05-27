@@ -26,6 +26,7 @@
   import { connection } from '$lib/stores/connection.svelte';
   import { threads } from '$lib/stores/threads.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
+  import { globalSearch } from '$lib/stores/global-search.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { aboutStore } from '$lib/stores/about.svelte';
   import { saveSettings } from '$lib/stores/settings.svelte';
@@ -518,6 +519,34 @@
       const token = connection.token ?? '';
 
       const rows: Array<Item | null> = [
+        // Cross-surface search — opens the GlobalSearch modal. Always
+        // available; closes the palette first so the search modal lands
+        // on a clean chrome (otherwise its backdrop sits underneath the
+        // palette's). Keybind matches the layout-level shortcut.
+        {
+          id: 'action:search-everywhere',
+          category: 'Actions' as const,
+          label: 'Search everywhere',
+          subtitle: 'Knowledge, threads, jobs, skills, routines, extensions',
+          icon: 'eye' as const,
+          keywords: [
+            'search',
+            'find',
+            'everywhere',
+            'global',
+            'knowledge',
+            'threads',
+            'jobs',
+            'skills',
+            'routines',
+            'extensions'
+          ],
+          keybind: '⌘⇧F',
+          run: () => {
+            palette.closePalette();
+            globalSearch.show();
+          }
+        },
         // Sign in to NEAR.AI — local-mode only, sidecar offline path.
         mode === 'local' && !sidecarRunning
           ? {

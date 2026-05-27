@@ -139,6 +139,21 @@ npm run tauri build
 
 Produces unsigned `.app` + `.dmg` at `src-tauri/target/release/bundle/`. Mount the DMG, drag to Applications, right-click → Open (first launch only — Gatekeeper warns about unsigned apps).
 
+### Probing server-blocked endpoints
+
+Our client has stubbed methods for endpoints the gateway doesn't yet expose
+(thread delete, routine create, memory delete, etc.). To check whether any
+have landed upstream:
+
+```bash
+bash scripts/probe-blocked-endpoints.sh
+```
+
+Yellow ⚠ lines indicate the gateway started responding — time to wire UI.
+The script reads SSH alias `ironclaw-nearai` and resolves the gateway token
+from the live IronClaw process env. Always exits 0 (it's a discovery tool,
+not a CI gate).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

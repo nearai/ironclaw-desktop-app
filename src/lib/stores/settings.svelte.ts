@@ -206,7 +206,7 @@ interface LegacyAppSettings {
  *   3. Profile-aware shape → trust it, but defensively re-anchor
  *      `activeProfileId` to the first profile if it points nowhere.
  */
-function migrateLoaded(
+export function migrateLoaded(
   raw: Partial<AppSettings> & LegacyAppSettings
 ): AppSettings {
   // Case 3 + 2 share the same input — `profiles` being a non-empty array

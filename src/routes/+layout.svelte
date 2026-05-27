@@ -6,10 +6,12 @@
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Toasts from '$lib/components/Toasts.svelte';
   import CommandPalette from '$lib/components/CommandPalette.svelte';
+  import GlobalSearch from '$lib/components/GlobalSearch.svelte';
   import UpdaterBanner from '$lib/components/UpdaterBanner.svelte';
   import AboutDialog from '$lib/components/AboutDialog.svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
+  import { globalSearch } from '$lib/stores/global-search.svelte';
   import { tray } from '$lib/stores/tray.svelte';
   import { updater } from '$lib/stores/updater.svelte';
   import { windowFocus } from '$lib/stores/window-focus.svelte';
@@ -57,6 +59,19 @@
 
     // Bare keys: ignore when typing.
     if (!mod && isEditableTarget(e.target)) return;
+
+    // Cmd+Shift+F → cross-surface global search. Must come BEFORE the bare
+    // Cmd+K check so the Shift modifier disambiguates. Distinct from the
+    // chat surface's Cmd+F (find-in-thread, no Shift) — that listener
+    // lives in `src/routes/+page.svelte` and we deliberately don't
+    // contend with it here. Onboarding is unaffected; the modal can still
+    // be summoned and dismissed but the user typically has no client
+    // connected yet — the modal renders an empty state and a toast.
+    if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
+      e.preventDefault();
+      globalSearch.toggle();
+      return;
+    }
 
     if (mod && e.key.toLowerCase() === 'k') {
       e.preventDefault();
@@ -253,4 +268,12 @@
      the wizard owns the whole screen. -->
 {#if !isOnboarding}
   <CommandPalette />
+{/if}
+
+<!-- Global cross-surface search (Cmd+Shift+F). Same onboarding gate as the
+     palette — the wizard owns the whole screen, but the rune can still
+     toggle (no-op render) so a stray shortcut press doesn't leak into the
+     wizard's keyboard handlers. -->
+{#if !isOnboarding}
+  <GlobalSearch />
 {/if}

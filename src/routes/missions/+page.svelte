@@ -23,6 +23,31 @@
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import MissionDetail from './MissionDetail.svelte';
+  import ResizeHandle from '$lib/components/ResizeHandle.svelte';
+
+  // ---- Projects-rail width (drag-to-resize) ---------------------------------
+  //
+  // Projects rail is user-resizable via a `ResizeHandle` strip between
+  // the rail and the missions list. The right-side detail drawer renders
+  // via `position: fixed` so it doesn't participate in this layout —
+  // only the two-column main pane is in scope.
+  //
+  // Below `NARROW_VIEWPORT_PX` the handle disappears and the rail snaps
+  // back to its default width.
+  const PROJECTS_RAIL_DEFAULT = 240;
+  const PROJECTS_RAIL_MIN = 200;
+  const PROJECTS_RAIL_MAX = 400;
+  const NARROW_VIEWPORT_PX = 900;
+  const PROJECTS_RAIL_STORAGE_KEY = 'ironclaw-missions-projects-width';
+
+  let projectsRailWidth = $state<number>(PROJECTS_RAIL_DEFAULT);
+  let viewportWidth = $state<number>(
+    typeof window === 'undefined' ? 1280 : window.innerWidth
+  );
+  const resizeEnabled = $derived(viewportWidth >= NARROW_VIEWPORT_PX);
+  const effectiveProjectsRailWidth = $derived(
+    resizeEnabled ? projectsRailWidth : PROJECTS_RAIL_DEFAULT
+  );
 
   // 30s matches the brief. Faster than the sidebar's 60s badge poll so
   // the open surface stays fresh, slower than /jobs (15s) since
@@ -145,10 +170,42 @@
     pollTimer = setInterval(() => {
       void refresh({ silent: true });
     }, POLL_INTERVAL_MS);
+
+    // Hydrate the projects-rail width from localStorage. ResizeHandle
+    // also pushes the value back from its own mount, but we read here
+    // so the first paint uses the persisted width.
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const raw = localStorage.getItem(PROJECTS_RAIL_STORAGE_KEY);
+        const parsed = raw === null ? NaN : Number.parseInt(raw, 10);
+        if (Number.isFinite(parsed)) {
+          projectsRailWidth = Math.min(
+            Math.max(parsed, PROJECTS_RAIL_MIN),
+            PROJECTS_RAIL_MAX
+          );
+        }
+      }
+    } catch {
+      // ignore — defaults stand.
+    }
+
+    // Track viewport width so the resize handle drops out below the
+    // narrow-viewport threshold.
+    const onResize = () => {
+      viewportWidth = window.innerWidth;
+    };
+    viewportWidth = window.innerWidth;
+    window.addEventListener('resize', onResize);
+    viewportResizeCleanup = () => window.removeEventListener('resize', onResize);
   });
+
+  /** Cleanup hook for the window resize listener wired in onMount. Stored
+   *  on a module-local so onDestroy can release it alongside `pollTimer`. */
+  let viewportResizeCleanup: (() => void) | null = null;
 
   onDestroy(() => {
     if (pollTimer) clearInterval(pollTimer);
+    if (viewportResizeCleanup) viewportResizeCleanup();
   });
 
   async function refresh(opts: { silent?: boolean } = {}): Promise<void> {
@@ -268,14 +325,19 @@
       </button>
     </div>
   {:else}
-    <!-- Three-pane body. Left rail is a fixed 240px column; center pane
+    <!-- Three-pane body. Left rail width is user-resizable; center pane
          flexes to fill the rest. The right drawer renders absolutely
-         over the center pane via MissionDetail's fixed positioning. -->
-    <div class="flex-1 flex gap-4 overflow-hidden">
+         over the center pane via MissionDetail's fixed positioning so it
+         doesn't participate in this resize. The `gap-4` is unset in
+         favor of an explicit gutter around the `ResizeHandle` so the
+         handle's hover glow gets clean breathing room. -->
+    <div class="flex-1 flex overflow-hidden">
       <!-- Left rail: projects. Includes an "All projects" pseudo-row so
-           the user can clear the filter without a separate control. -->
+           the user can clear the filter without a separate control.
+           Width driven by `effectiveProjectsRailWidth`. -->
       <aside
-        class="w-[240px] shrink-0 surface flex flex-col overflow-hidden"
+        class="shrink-0 surface flex flex-col overflow-hidden"
+        style="width: {effectiveProjectsRailWidth}px;"
         aria-label="Engine v2 projects"
       >
         <header class="px-4 py-3 border-b border-border-subtle">
@@ -343,6 +405,27 @@
           </ul>
         {/if}
       </aside>
+
+      <!-- Resize handle between projects rail and missions list. Mirrors
+           the chat/knowledge pattern: 8px gutter on each side via mx so
+           the cyan hover glow has breathing room without crowding the
+           panes. Hidden below the narrow-viewport threshold. -->
+      {#if resizeEnabled}
+        <div class="flex items-stretch mx-2">
+          <ResizeHandle
+            min={PROJECTS_RAIL_MIN}
+            max={PROJECTS_RAIL_MAX}
+            defaultWidth={PROJECTS_RAIL_DEFAULT}
+            storageKey={PROJECTS_RAIL_STORAGE_KEY}
+            initialWidth={projectsRailWidth}
+            onresize={(w) => (projectsRailWidth = w)}
+          />
+        </div>
+      {:else}
+        <!-- Spacer replacing the parent's prior gap-4 in the
+             narrow-viewport (non-resizable) layout. -->
+        <div class="w-4 shrink-0"></div>
+      {/if}
 
       <!-- Center pane: missions list. Cards are click-to-open-drawer. -->
       <div class="flex-1 surface flex flex-col overflow-hidden">

@@ -1,0 +1,22 @@
+name: style-guard
+on: pull_request
+
+jobs:
+  hardcoded-colors:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for hardcoded accent colors
+        run: |
+          # Allowlist: tailwind config + app.css + icons + iconsrc.svg
+          ALLOWLIST='tailwind.config.js|src/app.css|src-tauri/icons|build_icons'
+          HITS=$(grep -rn '#00d4ff\|#4ca7e6\|#2882c8\|#00bcd4' src/ src-tauri/ 2>/dev/null \
+                 | grep -vE "$ALLOWLIST" || true)
+          if [ -n "$HITS" ]; then
+            echo "Hardcoded accent colors found:"
+            echo "$HITS"
+            echo ""
+            echo "Use Tailwind's accent-cyan/accent-signal classes or the --v2-accent CSS var."
+            exit 1
+          fi
+          echo "No hardcoded accent colors detected."
