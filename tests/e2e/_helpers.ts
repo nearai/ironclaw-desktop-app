@@ -482,6 +482,18 @@ export async function mockGateway(
     return `mock-thread-${lastThreadId}`;
   }
 
+  // Per-thread history. The chat surface's post-stream reconcile
+  // (`messages.loadHistory(threadId)`) replaces the local byThread
+  // entry with whatever the server returns, so if `/api/chat/history`
+  // returns empty turns we wipe the optimistic user bubble + the
+  // streamed assistant reply. We side-step that by remembering each
+  // turn the chat surface POSTs to `/api/chat/send` and serving the
+  // pair back on the next history fetch.
+  const turnsByThread = new Map<
+    string,
+    Array<{ turn_number: number; user_input: string; response: string }>
+  >();
+
   // Host prefix: ALL gateway routes are anchored to `127.0.0.1|localhost`
   // on the known IronClaw ports. Without this anchor a regex like
   // `/\/api\/health/` would also match Vite dev-server module requests
@@ -615,16 +627,33 @@ export async function mockGateway(
   // Returns `{message_id, thread_id}` and triggers the SSE stream below
   // by simply existing — the chat surface opens the EventSource after
   // a successful send, and our route handler for /api/chat/events emits
-  // the canned reply.
+  // the canned reply. We also stash the (user_input, response) pair in
+  // `turnsByThread` so the eventual `/api/chat/history` fetch returns
+  // a server-confirmed view of the conversation and the chat surface's
+  // post-stream reconcile doesn't wipe the optimistic bubble.
   await page.route(
     new RegExp(`^https?://${GATEWAY_HOSTS}/api/chat/send$`),
     async (route: Route) => {
       let threadId = '';
+      let content = '';
       try {
-        const body = route.request().postDataJSON() as { thread_id?: string } | null;
+        const body = route.request().postDataJSON() as {
+          thread_id?: string;
+          content?: string;
+        } | null;
         threadId = body?.thread_id ?? '';
+        content = body?.content ?? '';
       } catch {
         // ignore
+      }
+      if (threadId) {
+        const existing = turnsByThread.get(threadId) ?? [];
+        existing.push({
+          turn_number: existing.length + 1,
+          user_input: content,
+          response: mockedReply
+        });
+        turnsByThread.set(threadId, existing);
       }
       await route.fulfill({
         status: 200,
@@ -721,21 +750,33 @@ export async function mockGateway(
   );
 
   // --- /api/chat/history -------------------------------------------------
-  // Returns an empty turn list so the post-stream reconcile doesn't
-  // clobber the optimistic + streamed bubbles. The chat surface
-  // intentionally tolerates an empty history here (it just falls back
-  // to whatever the messages store has buffered).
+  // Returns the (user, assistant) turns we recorded from earlier
+  // `/api/chat/send` calls so the chat surface's post-stream reconcile
+  // (which replaces local optimistic state with the server-confirmed
+  // history) doesn't wipe the test's expected bubbles.
   await page.route(
     new RegExp(`^https?://${GATEWAY_HOSTS}/api/chat/history(?:\\?.*)?$`),
     async (route: Route) => {
+      const url = new URL(route.request().url());
+      const threadId = url.searchParams.get('thread_id') ?? '';
+      const turns = turnsByThread.get(threadId) ?? [];
+      const now = new Date().toISOString();
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          thread_id: '',
-          turns: [],
+          thread_id: threadId,
+          turns: turns.map((t) => ({
+            turn_number: t.turn_number,
+            user_message_id: `mock-user-${threadId}-${t.turn_number}`,
+            user_input: t.user_input,
+            response: t.response,
+            response_id: `mock-resp-${threadId}-${t.turn_number}`,
+            started_at: now,
+            completed_at: now
+          })),
           has_more: false,
-          oldest_timestamp: null
+          oldest_timestamp: turns.length > 0 ? now : null
         })
       });
     }

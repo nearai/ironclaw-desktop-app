@@ -2,15 +2,13 @@
 // reply render in the stream.
 //
 // We seed settings with `onboardingComplete: true` to skip the wizard.
-// The layout's first-run guard has a race against `connection.init`
-// (the sidebar's onMount calls init() and takes the `initialized` flag
-// BEFORE the layout's onMount fires; the layout's `init().then(...)`
-// then returns immediately while `connection.settings` still holds
-// `DEFAULT_SETTINGS` where `onboardingComplete` is `false`). That bumps
-// us to `/onboarding` on first paint. We bypass it by re-asserting the
-// settings + driving SvelteKit's goto directly from a `page.evaluate`
-// — clicking the wizard's "Skip onboarding" button is unreliable under
-// Vite dev's HMR rebinding, and the JS-driven path avoids that.
+// The `mockTauri()` helper detects that flag and pre-seeds the
+// connection store before the layout mounts, so the layout's first-run
+// guard sees the right `onboardingComplete` value and never bounces us
+// to `/onboarding`. (Without the pre-seed there's a known race: the
+// sidebar's onMount takes the `initialized` flag before the layout's
+// runs, then the layout's `init().then(...)` callback fires against
+// `DEFAULT_SETTINGS` and unconditionally redirects.)
 //
 // The mocked gateway answers `/api/chat/send` with `{message_id,
 // thread_id, status: queued}` and `/api/chat/events` with a single SSE
@@ -54,53 +52,9 @@ test('user can send a message and see it in the stream', async ({ page }) => {
 
   await page.goto('/');
 
-  // Settle the layout's redirect race (see file-level comment). The
-  // race fires somewhere between 200ms and 1.5s after navigation. Race
-  // a "wait for redirect" against a "wait for chat surface" — whichever
-  // resolves first wins.
-  const sawRedirect = await Promise.race([
-    page
-      .waitForURL(/\/onboarding/, { timeout: 4000 })
-      .then(() => true)
-      .catch(() => false),
-    page
-      .getByRole('button', { name: /^New Chat$/ })
-      .waitFor({ timeout: 4000 })
-      .then(() => false)
-      .catch(() => false)
-  ]);
-
-  if (sawRedirect || page.url().includes('/onboarding')) {
-    // Bounced. Re-confirm the settings and use a direct module-level
-    // `goto('/')` to return — this works around an apparent
-    // click-handler binding issue in the wizard's Skip button under
-    // Vite dev mode, which the chat surface doesn't share.
-    await page.evaluate(async () => {
-      // Re-import the modules from the Vite module cache so we hit
-      // the same singleton instances the app uses.
-      const settingsMod = await import(
-        /* @vite-ignore */ '/src/lib/stores/settings.svelte.ts' as string
-      );
-      const connMod = await import(
-        /* @vite-ignore */ '/src/lib/stores/connection.svelte.ts' as string
-      );
-      const navMod = await import(
-        /* @vite-ignore */ '/node_modules/@sveltejs/kit/src/runtime/app/navigation.js' as string
-      );
-      const cur = await settingsMod.loadSettings();
-      await settingsMod.saveSettings({ ...cur, onboardingComplete: true });
-      await connMod.connection.reloadSettings();
-      await navMod.goto('/');
-    });
-    await page.waitForURL((url) => !url.pathname.startsWith('/onboarding'), {
-      timeout: 5000
-    });
-  }
-
-  // Wait for `connection.client` to resolve (token + URL hydrated) so
-  // the "New Chat" button is enabled. The button lives in the left
-  // thread rail and renders unconditionally once the chat surface
-  // mounts; `disabled` flips false once `connection.client` is non-null.
+  // No onboarding redirect should fire (the pre-seed in mockTauri
+  // prevents it). Land directly on the chat surface. Wait for
+  // `connection.client` to resolve so the "New Chat" button is enabled.
   const newChat = page.getByRole('button', { name: /^New Chat$/ });
   await expect(newChat).toBeEnabled({ timeout: 10_000 });
   await newChat.click();

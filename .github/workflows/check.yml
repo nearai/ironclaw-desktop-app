@@ -32,6 +32,10 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      # Sidecar binaries are gitignored — fetch before cargo check so tauri-build
+      # can resolve the bundle.externalBin paths.
+      - name: Download sidecar binaries
+        run: bash src-tauri/binaries/download.sh
       - run: cargo check --manifest-path src-tauri/Cargo.toml
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
         continue-on-error: true  # warn-don't-block until clippy is clean
