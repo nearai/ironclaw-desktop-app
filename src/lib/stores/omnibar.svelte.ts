@@ -19,6 +19,7 @@
 //     navigable actions without taking a dep on the omnibar component.
 
 import type { IronClawClient } from '$lib/api/ironclaw';
+import { fuzzyMatch } from '$lib/util/fuzzy';
 import { getMessages, listCachedThreadIds } from '$lib/util/idb-cache';
 import { searchCachedMessages, type SearchableMessage } from '$lib/util/message-search';
 import { connection } from './connection.svelte';
@@ -295,6 +296,14 @@ function scoreText(query: string, title: string, extra: string[] = []): number {
   if (hay.includes(query)) return 1;
   for (const e of extra) {
     if (e.toLowerCase().includes(query)) return 0.8;
+  }
+  // R94: subsequence fuzzy fallback — catches "gth" → "GitHub" that the
+  // substring tiers above miss. Scored in a low band (<= 0.7) so a fuzzy
+  // hit never outranks a real prefix/word-boundary/substring/extra match;
+  // it only promotes items that would otherwise score 0.
+  const fz = fuzzyMatch(query, title);
+  if (fz.matched && fz.score > 0) {
+    return Math.min(0.7, 0.1 + fz.score / 1000);
   }
   return 0;
 }
