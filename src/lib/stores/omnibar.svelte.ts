@@ -301,6 +301,10 @@ function scoreText(query: string, title: string, extra: string[] = []): number {
   // substring tiers above miss. Scored in a low band (<= 0.7) so a fuzzy
   // hit never outranks a real prefix/word-boundary/substring/extra match;
   // it only promotes items that would otherwise score 0.
+  // fuzzyMatch is ~O(query × target²); titles here are short, but guard
+  // against a pathologically long one lagging the per-keystroke search
+  // (review P2). Anything over 200 chars skips the fuzzy tier.
+  if (title.length > 200) return 0;
   const fz = fuzzyMatch(query, title);
   if (fz.matched && fz.score > 0) {
     return Math.min(0.7, 0.1 + fz.score / 1000);
