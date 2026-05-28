@@ -148,11 +148,17 @@ export class IronClawClient {
     await diag(`request ${method} ${url} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`);
     let res: Response;
     try {
+      // Spread `init` LAST for signal/etc., but strip its `headers` first —
+      // they're already merged into `headers` above, and re-spreading the
+      // raw `init.headers` here would clobber the merged set (dropping the
+      // Authorization/Accept headers). Keeping headers merge-only lets
+      // callers add request-specific headers (e.g. X-Confirm-Action) safely.
+      const { headers: _mergedAlready, ...restInit } = init ?? {};
       res = await fetchImpl(url, {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
-        ...init
+        ...restInit
       });
     } catch (err) {
       await diag(
@@ -1179,12 +1185,21 @@ export class IronClawClient {
   }
 
   async installSkill(source: string): Promise<{ ok: boolean }> {
-    // The gateway accepts `slug` or `download_key`. We treat the caller's
-    // single argument as a slug, since that's the catalog-driven flow.
-    const res = await this.request<{ status: string }>('POST', '/api/skills/install', {
-      slug: source
-    });
-    return { ok: res?.status === 'queued' || res?.status === 'installed' };
+    // Verified live against IronClaw v0.29 (2026-05-28): the install body
+    // field is `name` (the catalog slug value, e.g. "web"), and the request
+    // MUST carry an `X-Confirm-Action: true` header — installs mutate the
+    // workspace and the gateway refuses them otherwise (400 "Skill install
+    // requires X-Confirm-Action: true header"). The earlier `{slug}` body
+    // without the header returned 400 "missing field `name`". The response
+    // is `{success, message}` on v0.29, `{status}` on older builds — accept
+    // both.
+    const res = await this.request<{ status?: string; success?: boolean; message?: string }>(
+      'POST',
+      '/api/skills/install',
+      { name: source },
+      { headers: { 'X-Confirm-Action': 'true' } }
+    );
+    return { ok: res?.success === true || res?.status === 'queued' || res?.status === 'installed' };
   }
 
   // ---- Routines --------------------------------------------------------------

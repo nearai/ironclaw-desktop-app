@@ -256,3 +256,41 @@ describe('IronClawClient.getSettings', () => {
     expect(JSON.stringify(s)).toContain('Bearer ');
   });
 });
+
+describe('IronClawClient.installSkill', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Verified live against IronClaw v0.29: install needs the body field
+  // `name` (the slug value) AND an `X-Confirm-Action: true` header. The
+  // previous client sent `{slug}` and no header → 400. This locks the
+  // contract + proves the request() header-merge keeps the auth header.
+  it('POSTs {name} with X-Confirm-Action and preserves the auth header', async () => {
+    let capturedUrl = '';
+    let capturedInit: RequestInit | undefined;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async (url: string, init: RequestInit) => {
+      capturedUrl = String(url);
+      capturedInit = init;
+      return fetchOk({ success: true, message: "Skill 'web' installed" });
+    }) as unknown as typeof fetch);
+
+    const c = makeClient();
+    const res = await c.installSkill('web');
+
+    expect(res.ok).toBe(true);
+    expect(capturedUrl).toMatch(/\/api\/skills\/install$/);
+    expect(capturedInit?.method).toBe('POST');
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({ name: 'web' });
+    const h = capturedInit?.headers as Record<string, string>;
+    expect(h['X-Confirm-Action']).toBe('true');
+    // The merged Authorization header must survive (request() header fix).
+    expect(h.Authorization).toBe('Bearer tok');
+  });
+
+  it('treats a legacy {status:"installed"} response as ok', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(fetchOk({ status: 'installed' }));
+    const c = makeClient();
+    expect((await c.installSkill('web')).ok).toBe(true);
+  });
+});
