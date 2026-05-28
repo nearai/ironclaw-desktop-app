@@ -3564,3 +3564,42 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
       return null;
   }
 }
+
+// ---- Replay events ---------------------------------------------------------
+
+export interface IronClawClient {
+  getThreadEvents(
+    threadId: string,
+    sinceTs?: number,
+    limit?: number
+  ): Promise<{
+    events: import('./types').ReplayEvent[];
+    nextSinceTs: number;
+  }>;
+}
+
+IronClawClient.prototype.getThreadEvents = async function getThreadEvents(
+  this: IronClawClient,
+  threadId: string,
+  sinceTs?: number,
+  limit = 500
+): Promise<{
+  events: import('./types').ReplayEvent[];
+  nextSinceTs: number;
+}> {
+  const params = new URLSearchParams();
+  if (sinceTs) params.set('since_ts', String(sinceTs));
+  params.set('limit', String(limit));
+  const url = `${this.baseUrl}/api/chat/threads/${encodeURIComponent(threadId)}/events?${params}`;
+  const maybeTauri = await loadTauriFetch();
+  const fetchImpl = maybeTauri ?? fetch;
+  const res = await fetchImpl(url, {
+    headers: this.token ? { Authorization: `Bearer ${this.token}` } : {}
+  });
+  if (!res.ok) throw new Error(`getThreadEvents ${res.status}`);
+  const body = await res.json();
+  return {
+    events: body.events ?? [],
+    nextSinceTs: body.next_since_ts ?? Date.now()
+  };
+};

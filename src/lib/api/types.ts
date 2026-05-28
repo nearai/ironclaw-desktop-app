@@ -1126,3 +1126,23 @@ export interface UserProfile {
   /** Optional avatar URL. */
   avatar_url?: string;
 }
+
+// ---- Replay ----------------------------------------------------------------
+
+export type ReplayEventKind =
+  | 'user_message'
+  | 'assistant_message'
+  | 'tool_call'
+  | 'tool_result'
+  | 'reasoning'
+  | 'error';
+
+export interface ReplayEvent {
+  id: string;
+  thread_id: string;
+  turn_index: number;
+  ts: string;
+  kind: ReplayEventKind;
+  actor: 'user' | 'assistant' | 'tool';
+  payload: Record<string, unknown>;
+}
