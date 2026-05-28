@@ -22,7 +22,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { IronClawClient } from '$lib/api/ironclaw';
-import { inTauri } from '$lib/utils/runtime';
+import { diagEnabled, inTauri } from '$lib/utils/runtime';
 import { notifications } from './notifications.svelte';
 import { telemetry } from './telemetry.svelte';
 import {
@@ -459,13 +459,17 @@ class ConnectionStore {
 
     // Remote mode — load the stored bearer for this profile and ping.
     this.token = await getToken(profile.id);
-    // DIAG: side-channel to Rust stderr so we can see prod state without devtools.
-    try {
-      // @ts-expect-error — Tauri global available at runtime
-      await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
-        msg: `applyModeAndConnect remote: token=${this.token ? `len${this.token.length}` : 'null'} baseUrl=${this.baseUrl} hasClient=${!!this.client}`
-      });
-    } catch (_) {}
+    // Side-channel to Rust stderr so we can see prod state without devtools.
+    // Gated on diagEnabled() so release builds stay quiet unless the user
+    // opts in via Settings → Debug mode.
+    if (diagEnabled()) {
+      try {
+        // @ts-expect-error — Tauri global available at runtime
+        await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
+          msg: `applyModeAndConnect remote: token=${this.token ? `len${this.token.length}` : 'null'} baseUrl=${this.baseUrl} hasClient=${!!this.client}`
+        });
+      } catch (_) {}
+    }
     if (this.client) {
       await this.ping();
       this.startPolling();

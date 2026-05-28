@@ -14,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.2", features = ["macos-private-api", "tray-icon", "image-png", "devtools"] }
+tauri = { version = "2.2", features = ["macos-private-api", "tray-icon", "image-png"] }
 tauri-plugin-shell = "2.2"
 tauri-plugin-updater = "2"
 tauri-plugin-dialog = "2"
@@ -44,3 +44,9 @@ tempfile = "3"
 # usable bundled app; `tauri dev` disables this feature for the Vite dev server.
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+# Devtools (right-click → Inspect Element) for support builds. Enabled
+# during the R35/R37 debugging spree; default OFF for the public release.
+# To opt in for a local debug bundle:
+#   cargo build --release --features dev-devtools \
+#     --manifest-path src-tauri/Cargo.toml
+dev-devtools = ["tauri/devtools"]

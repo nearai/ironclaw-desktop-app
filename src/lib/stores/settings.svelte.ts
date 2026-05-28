@@ -838,6 +838,34 @@ export async function getDiagnosticReport(profileId: string): Promise<Diagnostic
   }
 }
 
+/** How the running binary was built, surfaced from `build_provenance` (R38).
+ *  `build_kind` is the user-facing summary:
+ *    - "public"  — release, no devtools, intended for end users
+ *    - "support" — release with `dev-devtools` feature flag, for debugging
+ *      a specific user's install
+ *    - "dev"     — debug build (cargo run / npm run tauri dev)
+ *  `signing` reflects what `codesign -dvv` reports for the .app bundle —
+ *  `"developer-id"` is the only state safe for distribution; everything else
+ *  triggers Gatekeeper warnings on a fresh machine. */
+export interface BuildProvenance {
+  schema: 'ironclaw-build-provenance.v1';
+  version: string;
+  profile: 'debug' | 'release';
+  devtools: boolean;
+  signing: 'developer-id' | 'adhoc' | 'unsigned' | 'unknown';
+  build_kind: 'public' | 'support' | 'dev';
+}
+
+export async function getBuildProvenance(): Promise<BuildProvenance | null> {
+  if (!inTauri()) return null;
+  try {
+    return await invoke<BuildProvenance>('build_provenance');
+  } catch (err) {
+    console.warn('getBuildProvenance failed', err);
+    return null;
+  }
+}
+
 // ---- OpenRouter key (Keychain, per-profile) ------------------------------
 
 export async function getOpenRouterKey(profileId: string): Promise<string | null> {

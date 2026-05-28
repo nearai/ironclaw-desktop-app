@@ -48,7 +48,21 @@ import type {
   UserToken
 } from './types';
 import { containsSecret, redactJsonObject, redactSecrets } from '$lib/utils/redact';
-import { inTauri } from '$lib/utils/runtime';
+import { diagEnabled, inTauri } from '$lib/utils/runtime';
+
+// Single-call wrapper around the `diag_log` IPC. Gated on `diagEnabled()`
+// so release builds stay quiet unless the user opts in via Settings
+// → Debug mode. Drops every failure on the floor — diagnostics must
+// never block a real request.
+async function diag(msg: string): Promise<void> {
+  if (!diagEnabled()) return;
+  try {
+    // @ts-expect-error — Tauri global at runtime
+    await window.__TAURI_INTERNALS__?.invoke?.('diag_log', { msg });
+  } catch {
+    /* ignore */
+  }
+}
 
 // Lazy load of Tauri http plugin. Top-level static import crashed the
 // entire JS bundle on production webview load (Webview JS never
@@ -123,13 +137,7 @@ export class IronClawClient {
     // isn't available.
     const maybeTauri = await loadTauriFetch();
     const fetchImpl = maybeTauri ?? fetch;
-    // DIAG (R35): side-channel to Rust stderr for visibility without devtools.
-    try {
-      // @ts-expect-error — Tauri global at runtime
-      await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
-        msg: `request ${method} ${url} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`
-      });
-    } catch (_) {}
+    await diag(`request ${method} ${url} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`);
     let res: Response;
     try {
       res = await fetchImpl(url, {
@@ -139,21 +147,12 @@ export class IronClawClient {
         ...init
       });
     } catch (err) {
-      // DIAG: capture network-level errors that would otherwise be silent
-      try {
-        // @ts-expect-error — Tauri global at runtime
-        await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
-          msg: `request FAILED ${method} ${url}: ${err instanceof Error ? err.message : String(err)}`
-        });
-      } catch (_) {}
+      await diag(
+        `request FAILED ${method} ${url}: ${err instanceof Error ? err.message : String(err)}`
+      );
       throw err;
     }
-    try {
-      // @ts-expect-error — Tauri global at runtime
-      await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
-        msg: `request OK ${method} ${url} status=${res.status}`
-      });
-    } catch (_) {}
+    await diag(`request OK ${method} ${url} status=${res.status}`);
 
     if (!res.ok) {
       let detail = res.statusText;
@@ -428,12 +427,9 @@ export class IronClawClient {
 
     const maybeTauri = await loadTauriFetch();
     const fetchImpl = maybeTauri ?? fetch;
-    try {
-      // @ts-expect-error — Tauri global at runtime
-      await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
-        msg: `streamEvents GET ${url.toString().replace(/token=[^&]*/, 'token=REDACTED')} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`
-      });
-    } catch (_) {}
+    await diag(
+      `streamEvents GET ${url.toString().replace(/token=[^&]*/, 'token=REDACTED')} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`
+    );
     const res = await fetchImpl(url.toString(), {
       method: 'GET',
       headers: { Accept: 'text/event-stream' },
@@ -514,13 +510,7 @@ export class IronClawClient {
     // (incl. SSE chunks) flows back as a normal ReadableStream.
     const maybeTauri = await loadTauriFetch();
     const fetchImpl = maybeTauri ?? fetch;
-    // DIAG (R37): visibility into SSE transport for the connection bug.
-    try {
-      // @ts-expect-error — Tauri global at runtime
-      await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
-        msg: `streamResponse POST ${url} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`
-      });
-    } catch (_) {}
+    await diag(`streamResponse POST ${url} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`);
     const res = await fetchImpl(url, {
       method: 'POST',
       headers,

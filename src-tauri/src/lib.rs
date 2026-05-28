@@ -104,6 +104,79 @@ async fn get_token_source(app: AppHandle, profile_id: String) -> Result<String, 
     keychain::get_source(&app, &profile_id)
 }
 
+/// Describes how the running binary was built. Lets the About dialog
+/// signal to a user whether they're on an Apple-notarised release
+/// (`signing: "developer-id"`), the ad-hoc dev/CI bundle
+/// (`signing: "adhoc"`), or an unsigned build straight out of cargo.
+/// Also reports whether devtools + diag scaffolding are compiled in.
+///
+/// Schema v1:
+///   {
+///     "version": "0.2.10",
+///     "profile":  "release" | "debug",
+///     "devtools": bool,
+///     "signing":  "developer-id" | "adhoc" | "unsigned" | "unknown",
+///     "build_kind": "public" | "support" | "dev",
+///   }
+#[tauri::command]
+async fn build_provenance(app: AppHandle) -> Result<serde_json::Value, String> {
+    let version = env!("CARGO_PKG_VERSION").to_string();
+    let profile = if cfg!(debug_assertions) { "debug" } else { "release" };
+    let devtools = cfg!(feature = "dev-devtools");
+    // Probe the running .app's signature via `codesign -dvv`. Anything we
+    // can't determine resolves to "unknown" — the field is informational,
+    // not enforced.
+    let exe = app
+        .path()
+        .resource_dir()
+        .ok()
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        .and_then(|p| p.parent().map(|p| p.to_path_buf()));
+    let signing = exe
+        .as_ref()
+        .map(|app_path| {
+            let out = std::process::Command::new("codesign")
+                .args(["-dvv", "--"])
+                .arg(app_path)
+                .output();
+            match out {
+                Ok(o) => {
+                    let combined = format!(
+                        "{}{}",
+                        String::from_utf8_lossy(&o.stdout),
+                        String::from_utf8_lossy(&o.stderr)
+                    );
+                    if combined.contains("Developer ID Application") {
+                        "developer-id"
+                    } else if combined.contains("adhoc") {
+                        "adhoc"
+                    } else if combined.contains("not signed") || !combined.contains("Signature") {
+                        "unsigned"
+                    } else {
+                        "unknown"
+                    }
+                }
+                Err(_) => "unknown",
+            }
+        })
+        .unwrap_or("unknown");
+    let build_kind = if profile == "debug" {
+        "dev"
+    } else if devtools {
+        "support"
+    } else {
+        "public"
+    };
+    Ok(serde_json::json!({
+        "schema": "ironclaw-build-provenance.v1",
+        "version": version,
+        "profile": profile,
+        "devtools": devtools,
+        "signing": signing,
+        "build_kind": build_kind,
+    }))
+}
+
 /// Self-describing diagnostic blob the user can paste into an issue. Includes
 /// the app version, the host OS / arch / kernel, the active token source
 /// (without the token value), and a snapshot of in-process state that's
@@ -688,6 +761,7 @@ pub fn run() {
             delete_token,
             get_token_source,
             diagnostic_report,
+            build_provenance,
             get_openrouter_key,
             set_openrouter_key,
             delete_openrouter_key,
