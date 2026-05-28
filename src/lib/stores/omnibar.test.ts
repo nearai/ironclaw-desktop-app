@@ -116,4 +116,48 @@ describe('omnibar store', () => {
       }, 120);
     });
   });
+
+  it('fuzzy fallback surfaces a subsequence match', () => {
+    omnibar.registerCommand({ id: 'cmd:d', title: 'GitHub Dashboard', action: () => {} });
+    omnibar.show();
+    return new Promise<void>((resolve) => {
+      omnibar.setQuery('ghd');
+      setTimeout(() => {
+        const ids = omnibar.results.map((r) => r.id);
+        expect(ids).toContain('cmd:cmd:d');
+        resolve();
+      }, 120);
+    });
+  });
+
+  it('fuzzy never outranks a substring match', () => {
+    omnibar.registerCommand({ id: 'cmd:settings', title: 'Settings', action: () => {} });
+    omnibar.registerCommand({ id: 'cmd:e', title: 'Secure Tunnel', action: () => {} });
+    omnibar.show();
+    return new Promise<void>((resolve) => {
+      omnibar.setQuery('set');
+      setTimeout(() => {
+        const ids = omnibar.results.map((r) => r.id);
+        const settingsIndex = ids.indexOf('cmd:cmd:settings');
+        const tunnelIndex = ids.indexOf('cmd:cmd:e');
+        expect(settingsIndex).toBeGreaterThanOrEqual(0);
+        expect(tunnelIndex).toBeGreaterThanOrEqual(0);
+        expect(settingsIndex).toBeLessThan(tunnelIndex);
+        resolve();
+      }, 120);
+    });
+  });
+
+  it('non-subsequence query drops the item', () => {
+    omnibar.registerCommand({ id: 'cmd:f', title: 'Knowledge', action: () => {} });
+    omnibar.show();
+    return new Promise<void>((resolve) => {
+      omnibar.setQuery('zzz');
+      setTimeout(() => {
+        const ids = omnibar.results.map((r) => r.id);
+        expect(ids).not.toContain('cmd:cmd:f');
+        resolve();
+      }, 120);
+    });
+  });
 });
