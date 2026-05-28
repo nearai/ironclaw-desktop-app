@@ -1,0 +1,313 @@
+// Omnibar — universal search + action launcher.
+//
+// Cmd+Space opens an overlay that federates across every navigable
+// surface in the app: threads (by title), memory docs (by path +
+// content snippet preview), skills (by name + description), and
+// commands (the sidebar actions + kebab actions registered elsewhere).
+//
+// Distinct from the Cmd+K command palette (R27) — the palette is a
+// curated list of system actions; the omnibar is fuzzy federated
+// search that lands the user inside content. They co-exist because
+// the muscle memory is different: ⌘K for "what can I do?",
+// ⌘Space for "where's the thing I'm thinking about?".
+//
+// This store owns:
+//   - Open/closed state (Cmd+Space toggles).
+//   - The query string + debounced search across sources.
+//   - The result list (typed) + active-index for keyboard navigation.
+//   - A pluggable "commands provider" so other modules can register
+//     navigable actions without taking a dep on the omnibar component.
+
+import type { IronClawClient } from '$lib/api/ironclaw';
+import { connection } from './connection.svelte';
+import { threads as threadsStore } from './threads.svelte';
+import { threadRename } from './thread-rename.svelte';
+
+export type OmniResultKind = 'thread' | 'memory' | 'skill' | 'command';
+
+export interface OmniResult {
+  id: string;
+  kind: OmniResultKind;
+  title: string;
+  /** One-line subtitle for context (e.g. "23 messages · 2h ago"). */
+  subtitle?: string;
+  /** Optional matching snippet (memory content excerpt). */
+  snippet?: string;
+  /** Numeric score for ranking. Higher = better. */
+  score: number;
+  /** Invoked when the user picks this result. */
+  action: () => void | Promise<void>;
+}
+
+/**
+ * Register a navigable command (sidebar nav, kebab action, etc.) so
+ * it surfaces alongside content results. Modules call this once on
+ * mount; the omnibar reads the registry on every search.
+ */
+export interface OmniCommand {
+  id: string;
+  title: string;
+  subtitle?: string;
+  /** Keywords to match against (lowercase). The title is added
+   *  automatically; this is for synonyms / hidden aliases. */
+  keywords?: string[];
+  action: () => void | Promise<void>;
+}
+
+const SEARCH_DEBOUNCE_MS = 80;
+const MAX_RESULTS_PER_KIND = 8;
+const MAX_RESULTS_TOTAL = 24;
+
+class OmnibarStore {
+  open = $state<boolean>(false);
+  query = $state<string>('');
+  results = $state<OmniResult[]>([]);
+  activeIdx = $state<number>(0);
+  loading = $state<boolean>(false);
+  /** Last error from a memory/skill fetch — not surfaced as a toast,
+   *  but the omnibar shows a tiny inline note when present. */
+  error = $state<string | null>(null);
+
+  private commands: OmniCommand[] = [];
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private searchAbort: AbortController | null = null;
+
+  /**
+   * Register a static command. Idempotent — re-registering the same
+   * id replaces the entry. The registration order is preserved so
+   * static commands have a stable display order when scores tie.
+   */
+  registerCommand(cmd: OmniCommand): void {
+    const idx = this.commands.findIndex((c) => c.id === cmd.id);
+    if (idx >= 0) {
+      this.commands[idx] = cmd;
+    } else {
+      this.commands.push(cmd);
+    }
+  }
+
+  unregisterCommand(id: string): void {
+    this.commands = this.commands.filter((c) => c.id !== id);
+  }
+
+  show(): void {
+    this.open = true;
+    // Re-run search so the latest threads / memory state is reflected.
+    void this.runSearch(this.query);
+  }
+
+  hide(): void {
+    this.open = false;
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+    this.searchAbort?.abort();
+  }
+
+  toggle(): void {
+    if (this.open) {
+      this.hide();
+    } else {
+      this.show();
+    }
+  }
+
+  setQuery(q: string): void {
+    this.query = q;
+    if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    this.debounceTimer = setTimeout(() => {
+      void this.runSearch(q);
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  moveActive(delta: number): void {
+    if (this.results.length === 0) {
+      this.activeIdx = 0;
+      return;
+    }
+    const n = this.results.length;
+    this.activeIdx = (this.activeIdx + delta + n) % n;
+  }
+
+  setActive(idx: number): void {
+    if (idx < 0 || idx >= this.results.length) return;
+    this.activeIdx = idx;
+  }
+
+  async invokeActive(): Promise<void> {
+    const r = this.results[this.activeIdx];
+    if (!r) return;
+    this.hide();
+    try {
+      await r.action();
+    } catch (err) {
+      console.warn('[omnibar] action failed', err);
+    }
+  }
+
+  private async runSearch(rawQuery: string): Promise<void> {
+    const q = rawQuery.trim().toLowerCase();
+    this.searchAbort?.abort();
+    const abort = new AbortController();
+    this.searchAbort = abort;
+
+    this.loading = true;
+    this.error = null;
+    const merged: OmniResult[] = [];
+
+    // 1) Commands — always included so the omnibar can launch
+    //    "Settings", "Knowledge", etc. even with an empty query.
+    for (const cmd of this.commands) {
+      const score = scoreText(q, cmd.title, cmd.keywords ?? []);
+      if (q === '' || score > 0) {
+        merged.push({
+          id: `cmd:${cmd.id}`,
+          kind: 'command',
+          title: cmd.title,
+          subtitle: cmd.subtitle,
+          score: score + 0.5, // commands get a small base bias when q is empty
+          action: cmd.action
+        });
+      }
+    }
+
+    // 2) Threads — title match on the loaded set. The threads store
+    //    is hydrated whenever the user has visited the chat surface;
+    //    on a cold open of the omnibar, this falls through to whatever
+    //    happens to be in memory.
+    for (const t of threadsStore.threads) {
+      const title = threadRename.displayTitle(t.id, t.title);
+      const score = scoreText(q, title);
+      if (score > 0 || q === '') {
+        const turns = t.message_count ?? 0;
+        merged.push({
+          id: `thread:${t.id}`,
+          kind: 'thread',
+          title,
+          subtitle: turns > 0 ? `${turns} turn${turns === 1 ? '' : 's'}` : 'New thread',
+          score,
+          action: () => {
+            // Defer the import — keeps the omnibar bundle independent
+            // of the chat-route specifics.
+            window.location.assign(`/?thread=${encodeURIComponent(t.id)}`);
+          }
+        });
+      }
+    }
+
+    // 3) Memory + skills are network calls — only run when q is at
+    //    least 2 chars so the empty-open is fast.
+    const client: IronClawClient | null = connection.client;
+    if (client && q.length >= 2) {
+      try {
+        const [memHits, skillHits] = await Promise.all([
+          fetchMemoryHits(client, q, abort.signal),
+          fetchSkillHits(client, q, abort.signal)
+        ]);
+        merged.push(...memHits, ...skillHits);
+      } catch (err) {
+        if (!abort.signal.aborted) {
+          this.error = (err as Error).message;
+        }
+      }
+    }
+
+    if (abort.signal.aborted) return;
+
+    // Per-kind cap, then sort by score desc, then truncate to total.
+    const byKind = new Map<OmniResultKind, OmniResult[]>();
+    for (const r of merged) {
+      const slot = byKind.get(r.kind) ?? [];
+      slot.push(r);
+      byKind.set(r.kind, slot);
+    }
+    const capped: OmniResult[] = [];
+    for (const slot of byKind.values()) {
+      slot.sort((a, b) => b.score - a.score);
+      capped.push(...slot.slice(0, MAX_RESULTS_PER_KIND));
+    }
+    capped.sort((a, b) => b.score - a.score);
+
+    this.results = capped.slice(0, MAX_RESULTS_TOTAL);
+    this.activeIdx = 0;
+    this.loading = false;
+  }
+}
+
+// Fuzzy-ish score: 3 if query is a prefix, 2 if it appears as a word
+// boundary, 1 if it's a substring anywhere, 0 otherwise. Cheap +
+// good enough for an 80ms debounced search.
+function scoreText(query: string, title: string, extra: string[] = []): number {
+  if (query === '') return 0;
+  const hay = title.toLowerCase();
+  if (hay.startsWith(query)) return 3;
+  if (new RegExp(`\\b${escapeRegex(query)}`).test(hay)) return 2;
+  if (hay.includes(query)) return 1;
+  for (const e of extra) {
+    if (e.toLowerCase().includes(query)) return 0.8;
+  }
+  return 0;
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
+async function fetchMemoryHits(
+  client: IronClawClient,
+  q: string,
+  signal: AbortSignal
+): Promise<OmniResult[]> {
+  if (signal.aborted) return [];
+  try {
+    const hits = await client.searchMemory(q, MAX_RESULTS_PER_KIND);
+    if (signal.aborted) return [];
+    return hits.map((h, i) => ({
+      id: `mem:${h.path}`,
+      kind: 'memory' as const,
+      title: h.path,
+      subtitle: `Memory · score ${h.score.toFixed(2)}`,
+      snippet: h.snippet,
+      score: Math.max(0.5, 2 - i * 0.1),
+      action: () => {
+        window.location.assign(`/memory?path=${encodeURIComponent(h.path)}`);
+      }
+    }));
+  } catch {
+    return [];
+  }
+}
+
+async function fetchSkillHits(
+  client: IronClawClient,
+  q: string,
+  signal: AbortSignal
+): Promise<OmniResult[]> {
+  if (signal.aborted) return [];
+  try {
+    const skills = await client.listSkills();
+    if (signal.aborted) return [];
+    return skills
+      .map((s) => ({
+        skill: s,
+        score: scoreText(q, s.name, [s.description ?? ''])
+      }))
+      .filter((row) => row.score > 0)
+      .slice(0, MAX_RESULTS_PER_KIND)
+      .map((row) => ({
+        id: `skill:${row.skill.name}`,
+        kind: 'skill' as const,
+        title: row.skill.name,
+        subtitle: row.skill.description?.slice(0, 80),
+        score: row.score,
+        action: () => {
+          window.location.assign(`/skills?id=${encodeURIComponent(row.skill.name)}`);
+        }
+      }));
+  } catch {
+    return [];
+  }
+}
+
+export const omnibar = new OmnibarStore();

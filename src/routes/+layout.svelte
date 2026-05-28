@@ -18,6 +18,9 @@
   import { palette } from '$lib/stores/shortcuts.svelte';
   import { globalSearch } from '$lib/stores/global-search.svelte';
   import { threadSwitcher } from '$lib/stores/thread-switcher.svelte';
+  // LANE B3 — Omnibar (R55)
+  import Omnibar from '$lib/components/Omnibar.svelte';
+  import { omnibar } from '$lib/stores/omnibar.svelte';
   import { quickCapture } from '$lib/stores/quick-capture.svelte';
   import { tray } from '$lib/stores/tray.svelte';
   import { updater } from '$lib/stores/updater.svelte';
@@ -183,6 +186,17 @@
     if (mod && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       palette.togglePalette();
+      return;
+    }
+
+    // LANE B3 — Omnibar: Cmd+Space (R55). Mnemonic: Space = the
+    // negative-space "find anything" mode. Distinct from Cmd+K
+    // (curated palette) and Cmd+T (thread switcher only). Onboarding
+    // gate matches the other overlays — the wizard owns the screen
+    // and the toggle is a no-op render at the bottom of the layout.
+    if (mod && e.key === ' ' && !isOnboarding) {
+      e.preventDefault();
+      omnibar.toggle();
       return;
     }
 
@@ -367,6 +381,63 @@
     // enabled/endpoint check so it's a no-op when the user has opted
     // out (or hasn't opted in yet).
     telemetry.recordEvent('app:launched');
+
+    // LANE B3 — Omnibar (R55). Register the baseline navigation
+    // commands so an empty-query omnibar already has surfaces to
+    // jump to. Done once at layout mount; cmd ids are stable so
+    // re-registering is a noop on HMR.
+    const navCommands: Array<{
+      id: string;
+      title: string;
+      keywords?: string[];
+      path: string;
+    }> = [
+      { id: 'go:chat', title: 'Open Chat', keywords: ['threads', 'conversation'], path: '/' },
+      {
+        id: 'go:knowledge',
+        title: 'Open Knowledge',
+        keywords: ['docs', 'memory'],
+        path: '/knowledge'
+      },
+      { id: 'go:memory', title: 'Open Memory', keywords: ['knowledge'], path: '/memory' },
+      { id: 'go:skills', title: 'Open Skills', keywords: ['tools'], path: '/skills' },
+      {
+        id: 'go:ironhub',
+        title: 'Browse IronHub',
+        keywords: ['marketplace', 'install'],
+        path: '/skills/ironhub'
+      },
+      {
+        id: 'go:routines',
+        title: 'Open Routines',
+        keywords: ['cron', 'schedule'],
+        path: '/routines'
+      },
+      { id: 'go:logs', title: 'Open Logs', path: '/logs' },
+      {
+        id: 'go:extensions',
+        title: 'Open Extensions',
+        keywords: ['mcp', 'integrations'],
+        path: '/extensions'
+      },
+      { id: 'go:jobs', title: 'Open Jobs', keywords: ['queue', 'background'], path: '/jobs' },
+      { id: 'go:council', title: 'Open Council', keywords: ['models', 'fanout'], path: '/council' },
+      {
+        id: 'go:settings',
+        title: 'Open Settings',
+        keywords: ['preferences', 'config'],
+        path: '/settings'
+      }
+    ];
+    for (const cmd of navCommands) {
+      omnibar.registerCommand({
+        id: cmd.id,
+        title: cmd.title,
+        keywords: cmd.keywords,
+        subtitle: cmd.path,
+        action: () => goto(cmd.path)
+      });
+    }
 
     void connection.init().then(() => {
       // Last-resort escape hatch (R34d). If a previous wizard run failed
@@ -574,6 +645,15 @@
      wizard's keyboard handlers. -->
 {#if !isOnboarding}
   <GlobalSearch />
+{/if}
+
+<!-- LANE B3 — Omnibar (Cmd+Space) (R55). Federated search + action
+     launcher. Distinct from GlobalSearch (Cmd+Shift+F, surface-level
+     hits in URL params) and CommandPalette (Cmd+K, curated actions).
+     The omnibar covers content + commands in one overlay with fuzzy
+     ranking. Onboarding gate matches the other overlays. -->
+{#if !isOnboarding}
+  <Omnibar />
 {/if}
 
 <!-- Quick thread switcher (Cmd+T). Laser-focused on jumping between chat
