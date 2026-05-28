@@ -4,7 +4,36 @@ Captured at the end of the ~3-hour autonomous build window the lead
 delegated. This is the "what landed, what's pending, what's broken"
 sheet — read this first when you come back.
 
-## LATEST — v0.3.0 cut (read this first)
+## LATEST — v0.3.3 + production build validated (read this first)
+
+Trail now **v0.2.20 → v0.3.3** (10 tags). Since the v0.3.0 cut:
+
+- **R89/R68 recap** shipped — a non-destructive "Recap" panel that
+  summarizes a thread (summarize util + one-off completion, never mutates
+  the transcript) and shows **R92 thread stats** (count / est. tokens /
+  span) from the same history.
+- **Waves 6 & 7** added six pure utils. Honest finding: only three had a
+  *safe* consumer and are wired — `format-time`→streams, `fuzzy`→omnibar
+  recall, `thread-stats`→recap. The other three (`cost-estimate`,
+  `text-diff`, `contrast`) are tested library code with **no safe consumer
+  today** (usage dashboard uses server-provided costs; prompt-diff has a
+  working bespoke LCS; tints are curated presets). I deliberately did NOT
+  retrofit working surfaces just to use a util — that's over-engineering.
+- **Production build validated** (`npm run tauri build`, exit 0):
+  `IronClaw.app` refreshed to **0.3.3** (was stale at 0.2.10), DMG (~52 MB)
+  builds. Updater `.sig` needs `TAURI_SIGNING_PRIVATE_KEY` (CI secret) —
+  local bundle unsigned by design.
+- A focused **second review** of the post-v0.3.0 code is queued/running.
+
+Candor: the app is feature- and test-complete (60 test files, 457+ cases,
+0 type errors). Genuine high-value work has thinned — I've stopped
+manufacturing util waves and am pacing on real QA + release validation
+rather than padding. Standing blockers unchanged: **R76 GitHub billing
+(your action)** and the gateway sub-agents endpoint.
+
+---
+
+## v0.3.0 cut
 
 **The elite milestone shipped: tag `v0.3.0` is pushed.** Second window
 extended the trail to **v0.2.18 → v0.3.0** (tags v0.2.20, .21, .22, .23,

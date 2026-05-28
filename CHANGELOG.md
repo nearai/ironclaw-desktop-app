@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.3.1 – v0.3.3 — Recap + util library (2026-05-28)
+
+Post-milestone increments on the v0.3.x line:
+
+- **Thread recap** (v0.3.1, R89/R68): a "Recap" button in the chat header
+  summarizes the whole conversation into a dismissable panel via the
+  summarize util + a one-off (non-thread) completion. Non-destructive —
+  never mutates or posts into the thread. The panel also shows at-a-glance
+  **thread stats** (message count, estimated tokens, time span) computed
+  from the same history (v0.3.3, R92).
+- **Util library** (v0.3.1–v0.3.2): six tested pure utils under
+  `src/lib/util/` — `summarize`, `message-search`, `html-export`,
+  `cost-estimate`, `thread-stats`, `format-time`, `fuzzy`, `text-diff`,
+  `contrast`. Wired into surfaces where there's a real consumer:
+  `format-time` → streams relative timestamps, `fuzzy` → omnibar
+  subsequence-recall fallback, `thread-stats` → recap panel. The rest
+  remain available library code (no retrofitting working surfaces just to
+  use them).
+- **Production build validated** at v0.3.2: `npm run tauri build` compiles
+  the Rust release and bundles `IronClaw.app` + `IronClaw_<ver>_aarch64.dmg`.
+  (Updater `.sig` signing still needs `TAURI_SIGNING_PRIVATE_KEY`, supplied
+  as a CI secret — the local bundle is unsigned by design.)
+
 ## v0.3.0 — Elite milestone (2026-05-28)
 
 The roadmap's v0.3.0 gate. Everything in Waves 1–5 (R49–R88) is merged,
