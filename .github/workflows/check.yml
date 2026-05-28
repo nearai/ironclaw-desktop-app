@@ -40,5 +40,6 @@ jobs:
       - name: Download sidecar binaries
         run: bash src-tauri/binaries/download.sh
       - run: cargo check --manifest-path src-tauri/Cargo.toml
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
         continue-on-error: true  # warn-don't-block until clippy is clean
