@@ -124,6 +124,22 @@ export interface AttachmentInput {
   data_base64: string;
 }
 
+export interface ImageGenerationResult {
+  images: Array<{
+    url?: string;
+    base64?: string;
+    mime: string;
+  }>;
+  model_used: string;
+  cost_tokens?: number;
+}
+
+export interface ImageGenerationOptions {
+  size?: '256x256' | '512x512' | '1024x1024';
+  n?: number;
+  model?: string;
+}
+
 export interface MemoryHit {
   path: string;
   snippet: string;

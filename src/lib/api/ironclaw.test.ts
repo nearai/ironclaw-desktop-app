@@ -157,6 +157,21 @@ describe('IronClawClient.listThreads', () => {
   });
 });
 
+describe('IronClawClient.generateImage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('throws a clear gateway-version error while the endpoint is not wired', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const c = makeClient();
+    await expect(c.generateImage('a red apple')).rejects.toThrow(
+      'Image generation not implemented on this gateway version'
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe('IronClawClient.gatewayStatus', () => {
   afterEach(() => {
     vi.restoreAllMocks();

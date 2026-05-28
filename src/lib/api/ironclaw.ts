@@ -21,6 +21,8 @@ import type {
   ExtensionTool,
   GatewayStatus,
   HealthStatus,
+  ImageGenerationOptions,
+  ImageGenerationResult,
   Job,
   JobDetail,
   JobEvent,
@@ -404,6 +406,15 @@ export class IronClawClient {
       thread_id: res.thread_id ?? threadId ?? '',
       message_id: res.message_id
     };
+  }
+
+  async generateImage(
+    prompt: string,
+    options: ImageGenerationOptions = {}
+  ): Promise<ImageGenerationResult> {
+    void prompt;
+    void options;
+    throw new Error('Image generation not implemented on this gateway version');
   }
 
   async postReplyThread(
