@@ -56,6 +56,7 @@
   import Mermaid from './markdown-renderers/Mermaid.svelte';
   import MathRenderer from './markdown-renderers/Math.svelte';
   import Plotly from './markdown-renderers/Plotly.svelte';
+  import PythonBlock from './markdown-renderers/PythonBlock.svelte';
 
   // `registerLanguage` auto-registers each grammar's declared aliases too, so
   // explicit aliasing below is only needed where we want to add forms that
@@ -137,8 +138,9 @@
     }
   }
 
-  function rendererPlaceholder(kind: 'mermaid' | 'plotly', source: string): string {
-    const label = kind === 'mermaid' ? 'Rendering diagram...' : 'Rendering chart...';
+  function rendererPlaceholder(kind: 'mermaid' | 'plotly' | 'python', source: string): string {
+    const label =
+      kind === 'mermaid' ? 'Rendering diagram...' : kind === 'plotly' ? 'Rendering chart...' : '';
     return `<div class="md-renderer-host md-renderer-host--${kind}" data-md-renderer="${kind}" data-source="${encodeRendererSource(
       source
     )}">${label}</div>`;
@@ -169,6 +171,9 @@
         const info = lang?.trim().split(/\s+/u)[0]?.toLowerCase() ?? '';
         if (info === 'mermaid' || info === 'plotly') {
           return rendererPlaceholder(info, text);
+        }
+        if (info === 'python' || info === 'py') {
+          return rendererPlaceholder('python', text);
         }
 
         const id = resolveLang(lang);
@@ -330,6 +335,8 @@
         mountedRenderers.push(mount(Mermaid, { target, props: { source } }));
       } else if (kind === 'plotly') {
         mountedRenderers.push(mount(Plotly, { target, props: { source } }));
+      } else if (kind === 'python') {
+        mountedRenderers.push(mount(PythonBlock, { target, props: { code: source } }));
       } else if (kind === 'math') {
         mountedRenderers.push(
           mount(MathRenderer, {

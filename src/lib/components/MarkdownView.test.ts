@@ -15,14 +15,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, waitFor } from '@testing-library/svelte';
 
-import MarkdownView from './MarkdownView.svelte';
-
 const rendererMocks = vi.hoisted(() => ({
   mermaidInitialize: vi.fn(),
   mermaidRender: vi.fn(),
   katexRenderToString: vi.fn(),
   plotlyNewPlot: vi.fn(),
-  plotlyPurge: vi.fn()
+  plotlyPurge: vi.fn(),
+  invoke: vi.fn(async () => ({ stdout: '', stderr: '', exit_code: 0, truncated: false })),
+  inTauri: vi.fn(() => true)
 }));
 
 vi.mock('mermaid', () => ({
@@ -47,6 +47,11 @@ vi.mock('plotly.js-dist-min', () => ({
   }
 }));
 
+vi.mock('@tauri-apps/api/core', () => ({ invoke: rendererMocks.invoke }));
+vi.mock('$lib/utils/runtime', () => ({ inTauri: rendererMocks.inTauri }));
+
+import MarkdownView from './MarkdownView.svelte';
+
 describe('MarkdownView sanitization + renderer', () => {
   beforeEach(() => {
     rendererMocks.mermaidInitialize.mockReset();
@@ -54,6 +59,8 @@ describe('MarkdownView sanitization + renderer', () => {
     rendererMocks.katexRenderToString.mockReset();
     rendererMocks.plotlyNewPlot.mockReset();
     rendererMocks.plotlyPurge.mockReset();
+    rendererMocks.invoke.mockReset();
+    rendererMocks.inTauri.mockReset();
 
     rendererMocks.mermaidRender.mockResolvedValue({
       svg: '<svg data-testid="mermaid-svg" viewBox="0 0 10 10"></svg>'
@@ -65,6 +72,13 @@ describe('MarkdownView sanitization + renderer', () => {
     rendererMocks.plotlyNewPlot.mockImplementation(async (host: HTMLDivElement) => {
       host.classList.add('js-plotly-plot');
     });
+    rendererMocks.invoke.mockResolvedValue({
+      stdout: '',
+      stderr: '',
+      exit_code: 0,
+      truncated: false
+    });
+    rendererMocks.inTauri.mockReturnValue(true);
   });
 
   it('renders h1/h2/h3 with id attributes for anchors', () => {
@@ -295,6 +309,17 @@ describe('MarkdownView sanitization + renderer', () => {
       { title: 'Demo' },
       expect.objectContaining({ responsive: true, displayModeBar: false })
     );
+  });
+
+  it('renders python fences through the PythonBlock renderer', async () => {
+    const { container } = render(MarkdownView, {
+      props: { markdown: '```python\nprint(42)\n```' }
+    });
+
+    await waitFor(() => {
+      const button = container.querySelector<HTMLButtonElement>('button');
+      expect(button?.textContent?.trim()).toBe('Run');
+    });
   });
 
   it('falls back to code-shaped output when renderer parsing fails', async () => {

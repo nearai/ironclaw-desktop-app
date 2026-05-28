@@ -24,6 +24,7 @@ mod crashes;
 mod ironhub;
 mod keychain;
 mod notes_export;
+mod sandbox_exec;
 mod settings;
 mod sidecar;
 mod spotlight;
@@ -863,6 +864,7 @@ pub fn run() {
             fetch_ironhub_skill,
             install_ironhub_skill_local,
             notes_export::export_to_notes,
+            sandbox_exec::run_python_snippet,
             start_sidecar,
             stop_sidecar,
             sidecar_status,
