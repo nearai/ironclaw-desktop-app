@@ -38,6 +38,7 @@
   import LightboxModal from '$lib/components/LightboxModal.svelte';
   import ToolFlowPanel from '$lib/components/ToolFlowPanel.svelte';
   import { toolFlow } from '$lib/stores/tool-flow.svelte';
+  import Icon from '$lib/components/Icon.svelte';
 
   // ---- Pane widths (drag-to-resize) ----------------------------------------
   //
@@ -190,19 +191,114 @@
   let contentVersion = $state(0);
 
   // -- attachments ------------------------------------------------------------
-  // v1 supports IMAGES only — server probe confirmed native `attachments[]`
-  // support on `/api/chat/send` with `{name, mime_type, data_base64}`. We
-  // cap at 5 files per send and 5 MB per file so a malformed paste doesn't
-  // OOM the in-memory base64 conversion. The strip renders ABOVE the
-  // textarea, flush against its top border.
+  // v2 (R49): supports IMAGES + DOCUMENTS + SPREADSHEETS + TEXT.
   //
-  // TODO(2026-06): extend `ALLOWED_MIME` to `application/pdf` and
-  // `text/plain` once the gateway's vision/text pipelines surface them
-  // back through the model — current /api/chat/send accepts any mime but
-  // only images are wired through `image_analyze`.
-  const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+  // Gateway probe (verified 2026-05-28 against baremetal3 v0.29):
+  // `/api/chat/send` with `{attachments: [{name, mime_type, data_base64}]}`
+  // returns `{status: "accepted"}` for any mime — the gateway stores the
+  // bytes at `.ironclaw/attachments/<owner>/<thread>/<date>/<msg>-<name>`
+  // and rewrites the user's content to append an `<attachments>` block.
+  // Whether the model actually READS the file depends on the provider —
+  // images go through the vision pipeline, PDFs land via attachment-block
+  // reference (Claude/GPT-4o reads them, others see the filename only).
+  //
+  // Per-file size cap raised to 25 MB to cover typical PDFs / xlsx / docx;
+  // total-files cap stays at 5 so the in-memory base64 doesn't blow up the
+  // JSON body. The strip renders ABOVE the textarea, flush against its top
+  // border; non-image attachments render as a file-icon chip instead of a
+  // thumbnail.
+  const ALLOWED_MIME = new Set([
+    // images (existing vision path)
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+    // documents — PDF goes through the model's PDF reader where supported
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+    'application/rtf',
+    // spreadsheets
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    'text/csv',
+    'text/tab-separated-values',
+    // presentations
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation', // .pptx
+    // text / data
+    'text/plain',
+    'text/markdown',
+    'text/x-markdown',
+    'application/json',
+    'application/x-yaml',
+    'text/yaml',
+    'application/xml',
+    'text/xml',
+    'text/html'
+  ]);
+  // Browsers report some extensions with an empty `file.type` (e.g. `.md`,
+  // `.csv` on Safari). Fall back to the file extension so the user isn't
+  // confused by a paste that "silently disappears."
+  const EXT_TO_MIME: Record<string, string> = {
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    rtf: 'application/rtf',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    csv: 'text/csv',
+    tsv: 'text/tab-separated-values',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    txt: 'text/plain',
+    md: 'text/markdown',
+    markdown: 'text/markdown',
+    json: 'application/json',
+    yaml: 'application/x-yaml',
+    yml: 'application/x-yaml',
+    xml: 'application/xml',
+    html: 'text/html',
+    htm: 'text/html'
+  };
+  function inferMime(file: File): string {
+    if (file.type) return file.type;
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    return ext ? (EXT_TO_MIME[ext] ?? '') : '';
+  }
+  function isImageMime(mime: string): boolean {
+    return mime.startsWith('image/');
+  }
+  /** Short type tag for the chip when there's no thumbnail. Falls back to
+   *  the extension uppercased so a `.foo.bar.baz` paste still gets a chip. */
+  function shortType(mime: string, name: string): string {
+    const map: Record<string, string> = {
+      'application/pdf': 'PDF',
+      'application/msword': 'DOC',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+      'application/rtf': 'RTF',
+      'application/vnd.ms-excel': 'XLS',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'XLSX',
+      'text/csv': 'CSV',
+      'text/tab-separated-values': 'TSV',
+      'application/vnd.ms-powerpoint': 'PPT',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PPTX',
+      'text/plain': 'TXT',
+      'text/markdown': 'MD',
+      'text/x-markdown': 'MD',
+      'application/json': 'JSON',
+      'application/x-yaml': 'YAML',
+      'text/yaml': 'YAML',
+      'application/xml': 'XML',
+      'text/xml': 'XML',
+      'text/html': 'HTML'
+    };
+    if (map[mime]) return map[mime];
+    const ext = name.split('.').pop()?.toUpperCase();
+    return ext ?? 'FILE';
+  }
   const MAX_ATTACHMENTS = 5;
-  const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+  const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
   /** One pending attachment held in the composer. `previewUrl` is a blob:
    *  URL we keep alive while the chip is mounted; revoked on remove/send so
@@ -1092,7 +1188,11 @@
         rejectedSlot++;
         continue;
       }
-      if (!ALLOWED_MIME.has(file.type)) {
+      // Resolve mime via the browser-provided type with an extension-based
+      // fallback for cases where the OS reports `''` (Safari + `.md`/`.csv`
+      // are the usual offenders).
+      const mime = inferMime(file);
+      if (!mime || !ALLOWED_MIME.has(mime)) {
         rejectedType++;
         continue;
       }
@@ -1105,9 +1205,11 @@
         accepted.push({
           id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
           name: file.name || 'attachment',
-          mime: file.type,
+          mime,
           size: file.size,
-          previewUrl: URL.createObjectURL(file),
+          // Only generate a blob URL for image previews — non-images render
+          // an icon chip and never touch the URL, so we skip the alloc.
+          previewUrl: isImageMime(mime) ? URL.createObjectURL(file) : '',
           dataBase64
         });
       } catch (err) {
@@ -1116,10 +1218,13 @@
     }
 
     if (rejectedType > 0) {
-      toasts.show('Only images supported in v1', 'error');
+      toasts.show(
+        `${rejectedType} file(s) rejected — unsupported type. Allowed: images, PDF, DOCX, XLSX, PPTX, CSV, TXT, MD, JSON.`,
+        'error'
+      );
     }
     if (rejectedSize > 0) {
-      toasts.show(`${rejectedSize} file(s) exceed the 5 MB limit`, 'error');
+      toasts.show(`${rejectedSize} file(s) exceed the 25 MB limit`, 'error');
     }
     if (rejectedSlot > 0) {
       toasts.show(`Max ${MAX_ATTACHMENTS} attachments per message`, 'error');
@@ -1313,10 +1418,19 @@
       // before the gateway echoes it back. The blob URL is kept alive
       // until clearAttachments() runs below — by then the message has been
       // committed to the messages store so the DOM holds the reference.
+      //
+      // Non-image attachments (PDF / DOCX / CSV / etc.) have no usable
+      // blob preview, so we render a compact text mention instead — the
+      // user sees confirmation of what they attached, without a broken
+      // `![alt]()` link.
       let optimisticContent = content;
       if (pendingAttachments.length > 0) {
         const previews = pendingAttachments
-          .map((a) => `![${a.name}](${a.previewUrl})`)
+          .map((a) =>
+            isImageMime(a.mime) && a.previewUrl
+              ? `![${a.name}](${a.previewUrl})`
+              : `📎 **${a.name}** \`${shortType(a.mime, a.name)}\` · ${fmtBytes(a.size)}`
+          )
           .join('\n\n');
         optimisticContent = content ? `${content}\n\n${previews}` : previews;
       }
@@ -3078,10 +3192,10 @@
           bind:this={attachmentInputEl}
           onchange={onFileInputChange}
           type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp"
+          accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/markdown,application/json,application/x-yaml,application/xml,text/html,.pdf,.doc,.docx,.rtf,.xls,.xlsx,.csv,.tsv,.ppt,.pptx,.txt,.md,.markdown,.json,.yaml,.yml,.xml,.html,.htm"
           multiple
           class="hidden"
-          aria-label="Attach images"
+          aria-label="Attach files"
         />
 
         <!-- slash-command autocomplete — anchored to this wrapper so the
@@ -3106,11 +3220,26 @@
                 class="group flex items-center gap-2 bg-bg-deep border border-border-subtle rounded-md pl-1 pr-2 py-1 hover:border-accent-cyan/50 transition-colors"
                 title={`${a.name} · ${fmtBytes(a.size)}`}
               >
-                <img
-                  src={a.previewUrl}
-                  alt={a.name}
-                  class="w-12 h-12 object-cover rounded shrink-0"
-                />
+                {#if isImageMime(a.mime) && a.previewUrl}
+                  <img
+                    src={a.previewUrl}
+                    alt={a.name}
+                    class="w-12 h-12 object-cover rounded shrink-0"
+                  />
+                {:else}
+                  <!-- Non-image attachments: icon + extension tag. No
+                       thumbnail so the chip stays compact and the type is
+                       immediately readable. -->
+                  <div
+                    class="w-12 h-12 rounded shrink-0 bg-bg-base border border-border-subtle flex flex-col items-center justify-center gap-0.5"
+                    aria-hidden="true"
+                  >
+                    <Icon name="file" class="w-4 h-4 text-accent-cyan" />
+                    <span class="text-[8px] font-mono font-semibold text-text-muted leading-none">
+                      {shortType(a.mime, a.name)}
+                    </span>
+                  </div>
+                {/if}
                 <div class="flex flex-col min-w-0 max-w-[160px]">
                   <span class="text-xs text-text-primary truncate">{a.name}</span>
                   <span class="text-[10px] text-text-muted">{fmtBytes(a.size)}</span>
@@ -3151,10 +3280,10 @@
             onclick={openFilePicker}
             disabled={!connection.client || attachments.length >= MAX_ATTACHMENTS}
             class="shrink-0 w-9 h-9 rounded-md text-text-muted hover:text-accent-cyan hover:bg-accent-cyan/10 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-            aria-label="Attach image"
+            aria-label="Attach file"
             title={attachments.length >= MAX_ATTACHMENTS
               ? `Max ${MAX_ATTACHMENTS} attachments per message`
-              : 'Attach image (PNG/JPEG/GIF/WebP, max 5 MB each)'}
+              : 'Attach file (images / PDF / DOCX / XLSX / PPTX / CSV / TXT / MD / JSON, max 25 MB each)'}
           >
             <svg
               viewBox="0 0 24 24"
