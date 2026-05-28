@@ -106,6 +106,11 @@ export interface MemoryNode {
   path: string;
   type: 'file' | 'dir';
   size?: number;
+  /** ISO-8601 timestamp of the last write, when the server reports it.
+   *  `/api/memory/list` and `/api/memory/tree` may emit `updated_at` per
+   *  entry; `null` from the wire is normalized to `undefined` so callers
+   *  can use a simple `node.updated_at ?? '—'` ternary. */
+  updated_at?: string;
 }
 
 export type SkillTrust = 'Bundled' | 'Verified' | 'Unverified' | string;
@@ -639,12 +644,7 @@ export interface LlmModel {
  * requires approval and cannot be set to always_allow"}`. Setting them
  * to `ask_each_time` or `disabled` works fine.
  */
-export type ToolPermission =
-  | 'ask_each_time'
-  | 'always_allow'
-  | 'disabled'
-  | 'locked'
-  | string;
+export type ToolPermission = 'ask_each_time' | 'always_allow' | 'disabled' | 'locked' | string;
 
 /**
  * One row of the per-tool permission list.

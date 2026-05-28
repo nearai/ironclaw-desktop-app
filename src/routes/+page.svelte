@@ -16,6 +16,8 @@
   import { pins } from '$lib/stores/pins.svelte';
   import { threadRename } from '$lib/stores/thread-rename.svelte';
   import { threadModel } from '$lib/stores/thread-model.svelte';
+  import { perThreadPrompts } from '$lib/stores/per-thread-prompts.svelte';
+  import PerThreadPromptModal from '$lib/components/PerThreadPromptModal.svelte';
   import { slashUsage } from '$lib/stores/slash-usage.svelte';
   import { composerInsert } from '$lib/stores/templates.svelte';
   import { telemetry } from '$lib/stores/telemetry.svelte';
@@ -34,6 +36,8 @@
   import ChatSearch from './ChatSearch.svelte';
   import ResizeHandle from '$lib/components/ResizeHandle.svelte';
   import LightboxModal from '$lib/components/LightboxModal.svelte';
+  import ToolFlowPanel from '$lib/components/ToolFlowPanel.svelte';
+  import { toolFlow } from '$lib/stores/tool-flow.svelte';
 
   // ---- Pane widths (drag-to-resize) ----------------------------------------
   //
@@ -91,6 +95,15 @@
   let showRenameTooltip = $state(false);
   let expandedTools = $state<Record<string, boolean>>({});
   let retryingIds = $state<Record<string, boolean>>({});
+
+  // Per-thread system-prompt modal (R43). Opened from the kebab menu;
+  // owns the visible state (and bumps `promptVersion` on close so the
+  // header chip + the in-flight stream pick up the new override
+  // without a hard reload). `promptVersion` is read inside
+  // `streamResponse` via `untrack` so we don't accidentally rerun the
+  // whole effect just because the user opened the modal.
+  let promptModalOpen = $state(false);
+  let promptVersion = $state(0);
 
   // Scroll-to-bottom FAB state. The threshold mirrors the prompt: any drift
   // >100px from the bottom of the stream counts as "scrolled up". We only
@@ -1308,6 +1321,13 @@
         optimisticContent = content ? `${content}\n\n${previews}` : previews;
       }
 
+      // Reset the tool-flow ledger for this thread — each user turn
+      // starts with an empty rail so the prior turn's calls don't
+      // appear under the new question. `message_start` would also
+      // clear inside the store, but the gateway doesn't reliably emit
+      // it, so we belt-and-brace at the send call site.
+      toolFlow.clear(threadId);
+
       // Append the optimistic user message — keep its id so we can mark it
       // failed (and offer retry) if the send/stream pair errors out.
       const localId = messages.appendUserMessage(threadId, optimisticContent);
@@ -1420,7 +1440,23 @@
         usedPath = 'responses';
         messages.beginStream(threadId);
         try {
-          for await (const ev of connection.client.streamResponse(content, threadId, signal)) {
+          // Per-thread system-prompt override (R43). When the user has
+          // attached a custom prompt via the kebab → "Custom system
+          // prompt…" modal, we forward it as the Responses-API
+          // `instructions` field. Omitted entirely otherwise so the
+          // wire shape matches the pre-R43 send for vanilla threads.
+          // `promptVersion` is read here only to bind the streaming
+          // path's reactivity to the modal's save signal — it does not
+          // appear on the wire.
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const _promptVer = promptVersion;
+          const overridePrompt = perThreadPrompts.get(threadId) ?? undefined;
+          for await (const ev of connection.client.streamResponse(
+            content,
+            threadId,
+            signal,
+            overridePrompt
+          )) {
             handleEvent(threadId, ev);
           }
         } catch (err) {
@@ -1581,6 +1617,12 @@
   }
 
   function handleEvent(threadId: string, ev: ChatEvent) {
+    // Mirror every chat event into the tool-flow ledger so the right-rail
+    // visualizer (`ToolFlowPanel`) stays in sync without forking the
+    // dispatch logic. The store itself drops events it doesn't care
+    // about (content_delta, message_end, error, tool_call_delta) — see
+    // `tool-flow.svelte.ts`.
+    toolFlow.record(threadId, ev);
     switch (ev.type) {
       case 'message_start':
         // No-op today — the gateway doesn't emit these.
@@ -1674,6 +1716,29 @@
     if (!threadRename.has(currentThread.id)) return;
     threadRename.unset(currentThread.id);
     toasts.show('Reverted to server title', 'info');
+  }
+
+  /**
+   * Open the per-thread system-prompt modal (R43). The modal reads
+   * the current override directly from the store, so we don't pass
+   * it through — just close the kebab dropdown and flip `open`.
+   */
+  function openPerThreadPromptModal() {
+    renameMenuOpen = false;
+    if (!currentThread) return;
+    promptModalOpen = true;
+  }
+
+  /**
+   * Called by the modal whenever it persists / clears an override.
+   * Bumping `promptVersion` invalidates the cached chip render and
+   * — more importantly — guarantees that the next streamResponse
+   * call site reads the freshest override from the store (Svelte's
+   * `$derived` already does this, but we keep the bump for surfaces
+   * that want a single "something changed" signal).
+   */
+  function onPromptChanged() {
+    promptVersion += 1;
   }
 
   function dismissRenameTooltip() {
@@ -2554,6 +2619,27 @@
               </span>
             {/if}
             <!--
+              Per-thread system-prompt indicator chip (R43). Shows ONLY
+              when the user has attached a custom prompt via the kebab
+              menu → "Custom system prompt…". Reading `promptVersion`
+              keeps the chip reactive to Save / Reset events fired
+              from the modal — the underlying $state on the store
+              already drives re-renders, but having the explicit
+              version reference here documents the dependency for
+              future readers.
+            -->
+            {#if currentThread && promptVersion >= 0 && perThreadPrompts.hasOverride(currentThread.id)}
+              <button
+                type="button"
+                onclick={openPerThreadPromptModal}
+                class="inline-flex items-center justify-center px-2 py-0.5 rounded-full border border-accent-gold/50 text-[10px] font-medium text-accent-gold flex-shrink-0 select-none hover:bg-accent-gold/10 transition-colors"
+                title="This thread uses a custom system prompt. Click the kebab menu → Custom system prompt to view or edit."
+                aria-label="Custom system prompt active for this thread"
+              >
+                Custom prompt
+              </button>
+            {/if}
+            <!--
               Kebab menu — single action ("Revert to server title") for
               now. Triggers via the chevron OR the right-click handler
               on the title button above. The dropdown auto-closes on
@@ -2608,6 +2694,14 @@
                     class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Revert to server title
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onclick={openPerThreadPromptModal}
+                    class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle"
+                  >
+                    Custom system prompt…
                   </button>
                 </div>
               {/if}
@@ -3209,6 +3303,22 @@
     </div>
   </div>
 
+  <!-- ====================== Right: tool-flow visualizer ==================
+       Always-on rail (hidden below Tailwind's xl breakpoint, 1280px) that
+       streams the chronological tool-call ledger for the active thread.
+       Distinct from the toggled inspector below — that one is opt-in and
+       only renders the legacy `tools` array; this one is always visible
+       on widescreens and reflects the per-event ledger maintained by the
+       `toolFlow` store. Width is fixed at 320px per the v2 design
+       vocabulary so we don't add a second draggable handle to the layout
+       for a primarily-passive surface. -->
+  <aside
+    class="hidden xl:block shrink-0 h-full w-[320px] border-l border-border-subtle bg-bg-base/40"
+    aria-label="Tool flow"
+  >
+    <ToolFlowPanel threadId={currentId} />
+  </aside>
+
   <!-- ====================== Right: tool inspector ========================
        Width driven by `effectiveInspectorWidth`. The handle sits to the
        left of the aside so the user drags the boundary between the
@@ -3325,6 +3435,23 @@
 {#if lightboxSrc}
   <LightboxModal src={lightboxSrc} alt={lightboxAlt} onClose={closeLightbox} />
 {/if}
+
+<!-- =========================== Per-thread system-prompt modal (R43) ========
+     Sibling to the lightbox so the overlay layers above the chat without
+     having to plumb the modal's state through the main grid. Owns its
+     own internal draft + char-count state; persists through the
+     `perThreadPrompts` store. `onChanged` bumps `promptVersion` so the
+     header chip and the streaming path pick up the new value without a
+     hard reload. -->
+<PerThreadPromptModal
+  bind:open={promptModalOpen}
+  threadId={currentThread?.id ?? null}
+  threadTitle={currentThread
+    ? threadRename.displayTitle(currentThread.id, currentThread.title)
+    : ''}
+  onClose={() => (promptModalOpen = false)}
+  onChanged={onPromptChanged}
+/>
 
 <!-- =========================== Branch confirm dialog ======================
      Small modal — same backdrop pattern as NewProfileModal. Click the

@@ -45,6 +45,9 @@
   import TokenSourceBadgeStory, {
     meta as tokenSourceBadgeMeta
   } from './stories/TokenSourceBadge.story.svelte';
+  import ToolFlowPanelStory, {
+    meta as toolFlowPanelMeta
+  } from './stories/ToolFlowPanel.story.svelte';
 
   // Registry. Order here is the order in the sidebar. Ids are stable
   // slugs used in the URL hash.
@@ -109,6 +112,12 @@
       title: tokenSourceBadgeMeta.title,
       description: tokenSourceBadgeMeta.description,
       Story: TokenSourceBadgeStory
+    },
+    {
+      id: 'tool-flow-panel',
+      title: toolFlowPanelMeta.title,
+      description: toolFlowPanelMeta.description,
+      Story: ToolFlowPanelStory
     }
   ];
 

@@ -41,6 +41,7 @@
       | 'chat'
       | 'council'
       | 'knowledge'
+      | 'memory'
       | 'logs'
       | 'routines'
       | 'jobs'
@@ -69,6 +70,13 @@
     // an admin one.
     { href: '/council', label: 'Council', icon: 'council', shortcut: '⌘0' },
     { href: '/knowledge', label: 'Knowledge', icon: 'knowledge', shortcut: '⌘2' },
+    // Memory sits between Knowledge and Skills as a sibling surface — same
+    // backend (`/api/memory/*`), different mental model: flat card list of
+    // what the agent has accumulated, vs Knowledge's hierarchical tree.
+    // Cmd+M instead of a digit slot: 1..9 are full and the alphabetical
+    // mnemonic (M for Memory) reads better than carrying the "Cmd+0 also
+    // works" pattern Council uses.
+    { href: '/memory', label: 'Memory', icon: 'memory', shortcut: '⌘M' },
     { href: '/skills', label: 'Skills', icon: 'skills', shortcut: '⌘3', badgeKey: 'skills' },
     {
       href: '/routines',
@@ -721,6 +729,28 @@
             </svg>
           {:else if item.icon === 'knowledge'}
             <Icon name="folder" class="w-4 h-4" />
+          {:else if item.icon === 'memory'}
+            <!-- Memory glyph: stacked cards. Visually distinct from the
+                 single-folder knowledge icon (which represents the on-disk
+                 tree) — three offset rectangles read as "accumulated
+                 entries" at thumbnail size. Inline SVG to match the rest
+                 of the 1.7-stroke / currentColor icons in the set. -->
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="8" width="14" height="11" rx="1.5" />
+              <path
+                d="M7 8V6.5A1.5 1.5 0 0 1 8.5 5H19a1.5 1.5 0 0 1 1.5 1.5V17a1.5 1.5 0 0 1-1.5 1.5h-1.5"
+              />
+              <path d="M11 4.5V3.5A1 1 0 0 1 12 2.5h7a1 1 0 0 1 1 1V14" opacity="0.5" />
+            </svg>
           {:else if item.icon === 'skills'}
             <Icon name="tool" class="w-4 h-4" />
           {:else if item.icon === 'extensions'}

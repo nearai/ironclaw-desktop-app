@@ -237,6 +237,19 @@
       return;
     }
 
+    // Cmd+M → memory inspector. Mnemonic chord rather than a digit slot
+    // because 1..9 are already full; the M-for-Memory mapping reads
+    // better than carrying Council's "Cmd+0 also exists" pattern. Use
+    // `e.code === 'KeyM'` so the chord stays stable under non-QWERTY
+    // layouts (Dvorak/Colemak users still get Cmd+M on the physical M
+    // key). Skipped on onboarding for the same reason as the other
+    // route chords below — the wizard owns the screen until done.
+    if (mod && !e.shiftKey && !e.altKey && e.code === 'KeyM' && !isOnboarding) {
+      e.preventDefault();
+      void goto('/memory');
+      return;
+    }
+
     // Cmd+1..9 → top-level routes. Match by `e.key` so the digit is correct
     // across keyboard layouts; modifiers aren't required to interpret it.
     // Cmd+8 is gated on `settings.adminMode` and Cmd+9 on

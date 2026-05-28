@@ -485,7 +485,20 @@ export class IronClawClient {
   async *streamResponse(
     input: string,
     threadId: string | null,
-    signal: AbortSignal
+    signal: AbortSignal,
+    /**
+     * Per-call system-prompt override (R43). The gateway may or may
+     * not honor this; older gateways ignore the field, newer ones
+     * layer it on top of the admin SYSTEM.md. The Responses API spec
+     * uses `instructions` for per-call system-prompt overrides, so
+     * we wire it onto the request body at the top level (not under
+     * `metadata`).
+     *
+     * Omitted entirely when undefined so a non-overriding send hits
+     * the same wire shape the gateway has been seeing — keeps the
+     * change strictly additive for legacy gateways.
+     */
+    systemPrompt?: string
   ): AsyncIterable<ChatEvent> {
     const url = `${this.baseUrl}/api/v1/responses`;
     const headers: Record<string, string> = {
@@ -499,7 +512,15 @@ export class IronClawClient {
       // Gateway rejects an explicit `model` field today (400 invalid_request).
       // Omit and let the server pick. If a future build accepts `"default"`,
       // we can pass it through.
-      ...(threadId ? { metadata: { thread_id: threadId } } : {})
+      ...(threadId ? { metadata: { thread_id: threadId } } : {}),
+      // Per-call system-prompt override (R43). The gateway may or may not
+      // honor this; older gateways ignore the field, newer ones layer it on
+      // top of the admin SYSTEM.md. Only include when a non-empty prompt is
+      // supplied so the wire shape stays identical to the pre-R43 send for
+      // threads with no override.
+      ...(typeof systemPrompt === 'string' && systemPrompt.trim() !== ''
+        ? { instructions: systemPrompt }
+        : {})
     };
 
     // SSE streaming MUST also go through the Tauri http plugin in
@@ -794,12 +815,50 @@ export class IronClawClient {
   async listMemory(prefix?: string): Promise<MemoryNode[]> {
     const qs = prefix ? `?path=${encodeURIComponent(prefix)}` : '';
     const res = await this.request<{
-      entries: Array<{ path: string; is_dir: boolean; size?: number }>;
+      entries: Array<{
+        path: string;
+        is_dir: boolean;
+        size?: number;
+        updated_at?: string | null;
+      }>;
     }>('GET', `/api/memory/list${qs}`);
     return (res?.entries ?? []).map((e) => ({
       path: e.path,
       type: e.is_dir ? 'dir' : 'file',
-      size: e.size
+      size: e.size,
+      // Normalize `null` → `undefined` so the field stays "missing" rather
+      // than carrying an explicit null through the UI's `?? '—'` checks.
+      updated_at: e.updated_at ?? undefined
+    }));
+  }
+
+  /**
+   * Flatten the entire memory store into one list via `/api/memory/tree`.
+   *
+   * Wire: `GET /api/memory/tree[?depth=N]` returns `{ entries: Array<{
+   * path, is_dir, updated_at? }> }`. Depth is omitted by default so the
+   * caller gets every file in one round-trip — the inspector surface uses
+   * this for its flat card list. For the knowledge tree we keep using
+   * `listMemory(prefix)` because that page wants per-level expansion.
+   *
+   * Directories are included as entries (mirrors the wire shape); callers
+   * filter to `type === 'file'` when they only care about leaf docs.
+   */
+  async getMemoryTree(depth?: number): Promise<MemoryNode[]> {
+    const qs = depth !== undefined ? `?depth=${depth}` : '';
+    const res = await this.request<{
+      entries: Array<{
+        path: string;
+        is_dir: boolean;
+        size?: number;
+        updated_at?: string | null;
+      }>;
+    }>('GET', `/api/memory/tree${qs}`);
+    return (res?.entries ?? []).map((e) => ({
+      path: e.path,
+      type: e.is_dir ? 'dir' : 'file',
+      size: e.size,
+      updated_at: e.updated_at ?? undefined
     }));
   }
 
