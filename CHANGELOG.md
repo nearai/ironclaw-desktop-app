@@ -1,5 +1,106 @@
 # Changelog
 
+## v0.2.9 (unreleased) — Ringfence + token-source visibility
+
+- **Ringfence the v0.2.7 / v0.2.8 fixes** so a follow-up review pass
+  doesn't mistakenly strip them. Both the `default = ["custom-protocol"]`
+  Cargo feature and the keychain file fallback are load-bearing for
+  release-mode connectivity; added block comments + a `CONTRIBUTING.md`
+  section explaining the rationale.
+- **`get_token_source` Tauri command** reporting whether the active
+  bearer came from the Keychain, the file fallback, or is absent.
+- **`TokenSourceBadge.svelte`** — pill component surfacing that state
+  in the UI (cyan / gold / muted with tooltip per state). 5 new vitest
+  cases cover the JS wrapper.
+- **`scripts/stage-token.sh`** — writes a token straight into the file
+  fallback so headless dev loops aren't blocked by the macOS keychain
+  ACL prompt.
+
+## v0.2.8 (unreleased) — APP WORKS (keychain timeout + file fallback)
+
+After R34g unblocked the webview (v0.2.7), the production .app _still_
+showed "Disconnected" because `keyring::Entry::get_password()` was
+blocking forever waiting for an invisible macOS ACL grant. Every
+`cargo --release` rebuild produces a new ad-hoc signature, so the
+previous "Always Allow" no longer applies and the new prompt may
+never surface. The synchronous call wedged the entire Tauri IPC
+dispatcher — no fetches, no UI updates.
+
+Fixed by running the keychain read on a worker thread with a
+2-second timeout, then falling through to a plaintext file in
+`app_data_dir/tokens/<account>.token` (mode 0600). Writes mirror to
+both stores so a future build can read from either. Verified the
+fix end-to-end: launching the bundled app now produces successful
+fetches against `/api/health`, `/api/profile`, `/api/skills`,
+`/api/chat/threads`, `/api/routines/summary`, `/api/jobs/summary`,
+`/api/extensions`, `/api/extensions/readiness`, and
+`/api/extensions/tools` — all status 200.
+
+Also wires a `diag_log` Tauri command that the frontend uses to pipe
+state into `RUST_LOG`, giving the production .app an observability
+surface without devtools (also load-bearing for further debug, see
+v0.2.9 ringfence).
+
+## v0.2.7 (unreleased) — ROOT CAUSE (Cargo `custom-protocol` feature default)
+
+The reason every prior production build of the `.app` showed
+"Disconnected" forever: `src-tauri/Cargo.toml` was missing
+`default = ["custom-protocol"]`. Without it, Tauri treats every
+`cargo build` (even `--release`) as a dev build and points the
+webview at `build.devUrl` (`http://localhost:1420`) which isn't
+running in production — so the webview loaded a blank page and zero
+JS ever ran. None of the prior 6 hours of debugging (ATS, CSP, http
+plugin, keychain) addressed this; they were all chasing downstream
+symptoms.
+
+Fix is one line in Cargo.toml plus a compile-time error so the
+regression can't ship again. Frontend assets now embed properly into
+the binary; the webview boots; `connection.init()` actually runs.
+
+## v0.2.6 (unreleased) — Diagnostic infrastructure (now removable)
+
+Added smoke-test localStorage writes and `window.onerror` capture in
+`app.html`, plus `tauri = { features = [..., "devtools"] }` so right
+click → Inspect works in release. All used to triangulate the v0.2.7
+root cause. The smoke-test scripts were removed in v0.2.7; `devtools`
+stays on for now while we land the rest of R35.
+
+## v0.2.5 (unreleased) — Onboarding repair + CORS bypass
+
+- **Onboarding wizard end-to-end repair** (R34d/e):
+  - Bidirectional `/onboarding` redirect: layout now routes the user
+    OUT of the wizard once `onboardingComplete: true`, not just IN
+    when it's false. Stops the trap when WebKit URL restore or any
+    other path lands on `/onboarding`.
+  - `connection.init()` promise-cached so concurrent callers all
+    observe the SAME loaded settings (eliminates the
+    DEFAULT-`onboardingComplete: false` race that triggered the
+    invisible re-entry into the wizard).
+  - Onboarding `skip()` now reads fresh settings from disk and
+    flips only `onboardingComplete`, preserving the user's
+    `mode: remote` against the wizard's in-memory draft (which had
+    been writing `mode: local` to disk just by _navigating_ through
+    step 2).
+  - Step-2 "Skip for now" is wired to `skip()` instead of
+    `step = 3` so it actually escapes the wizard.
+  - `localStorage["ironclaw-onboarding-bypass"]` escape hatch in
+    `+layout.svelte` so a future trap can be cleared without
+    re-installing.
+- **`DataCloneError` audit** (R34f): Svelte 5 `$state` proxies are
+  not structured-cloneable through Tauri IPC.
+  `settings.svelte.ts:saveSettings` now `JSON.parse(JSON.stringify(s))`
+  before `invoke()`. `notifications.svelte.ts:pushTrayRecent` got the
+  same treatment after the audit found one more vulnerable site.
+- **Tauri HTTP plugin** (`@tauri-apps/plugin-http` + `tauri-plugin-http`)
+  added so production fetches route through Rust and bypass WKWebView
+  CORS (gateway doesn't whitelist `tauri://localhost`). Falls back
+  to native fetch in browser/vitest contexts.
+- **`NSAllowsLocalNetworking` Info.plist** committed at
+  `src-tauri/Info.plist` so the ATS exception is part of the build
+  pipeline instead of a manual `plutil` patch.
+- **Capability**: `http:default` grants `127.0.0.1:*`, `localhost:*`,
+  `https://**`.
+
 ## v0.2.2 (unreleased) — P0 ATS fix (HTTP gateway connectivity in release builds)
 
 - **App Transport Security exception baked into the bundle** — release
@@ -13,7 +114,7 @@
   Fixed by adding a sidecar `src-tauri/Info.plist` that tauri-bundler
   auto-merges into the bundled plist on every build. Uses the narrow
   `NSAllowsLocalNetworking = true` scope (covers 127.0.0.1, localhost,
-  *.local only) rather than the blanket `NSAllowsArbitraryLoads`, so
+  \*.local only) rather than the blanket `NSAllowsArbitraryLoads`, so
   production HTTPS gateways are unaffected and we don't broaden the
   attack surface. Verified post-build via
   `plutil -p IronClaw.app/Contents/Info.plist`.
@@ -120,19 +221,19 @@ alongside the DMGs.
 Four of the audit v3 v0.2/1.0 recommendations landed:
 
 - **env_logger init** (23a / R22b fix) — added `env_logger = "0.11"`
-  + 9 log statements at meaningful checkpoints (startup with version,
-  sidecar spawn/health/stop, keychain access slot name without
-  values, tray registration, window-close/exit hooks). Default
-  filter `ironclaw_desktop_lib=info,warn`; override via
-  `RUST_LOG=debug npm run tauri dev`. Sidecar passthrough + tray
-  errors + keychain failures now reach stdout. Closes R22b's
-  "real bugs invisible until you wire env_logger" gap.
+  - 9 log statements at meaningful checkpoints (startup with version,
+    sidecar spawn/health/stop, keychain access slot name without
+    values, tray registration, window-close/exit hooks). Default
+    filter `ironclaw_desktop_lib=info,warn`; override via
+    `RUST_LOG=debug npm run tauri dev`. Sidecar passthrough + tray
+    errors + keychain failures now reach stdout. Closes R22b's
+    "real bugs invisible until you wire env_logger" gap.
 - **Restrictive CSP** (23b) — replaced `app.security.csp: null` with
   explicit policy covering 10 directives. Highlights: script-src
   bans inline + eval (the meaningful XSS guard), object-src/frame-
   src 'none' blocks plugins + iframes, base-uri 'self' blocks
   `<base>` rewrite. Looseness documented: connect-src `http://*
-  https://*` is unavoidable until gateway URLs route through Rust
+https://*` is unavoidable until gateway URLs route through Rust
   proxy; style-src 'unsafe-inline' is required by Svelte 5 scoped
   CSS. ARCHITECTURE.md updated with the policy + reasoning.
 - **Composite tray icons option-B** (23c) — replaced `set_title` text
@@ -363,8 +464,8 @@ All gates green: 440 files, 34/34 tests, build clean.
   strobing), `MAX_FILES=20`, `MAX_SIZE=1MB`, MIME allowlist
   (`text/markdown`, `text/plain`, `application/json`, plus
   extension-fallback for empty-MIME drops). Sequential `writeMemory`
-  + aggregate summary toast (all-ok / partial / all-failed). Modal
-  stays open if every write failed for retry.
+  - aggregate summary toast (all-ok / partial / all-failed). Modal
+    stays open if every write failed for retry.
 - **GlobalSearch surface-filter chips** (16c) — pill row above
   results — All / Knowledge / Threads / Jobs / Skills / Routines /
   Extensions. Each pill shows result count. Active pill cyan.
@@ -424,15 +525,15 @@ All gates green: 434 svelte files / 0 errors, 34/34 tests,
 
 - **Testing infrastructure** (14a) — vitest +
   `@testing-library/svelte` + `@testing-library/jest-dom` + jsdom
-  + mocked Tauri IPC. 34 starter tests across 4 files covering
-  `redact` utility (Bearer / `sk-` / `api-key` / JWT / JSON walk /
-  preserveTips), `IronClawClient` parsers (`getHistory`
-  turns→messages expansion, `listThreads` `turn_count`→
-  `message_count`, `gatewayStatus` `uptime_secs`, `getSettings`
-  array→map fold), settings store migrations (empty→defaults,
-  legacy flat→profile, orphan re-anchor), Icon component (known
-  names, fallback). Hooked into `.github/workflows/check.yml`
-  between `npm run check` and `build`.
+  - mocked Tauri IPC. 34 starter tests across 4 files covering
+    `redact` utility (Bearer / `sk-` / `api-key` / JWT / JSON walk /
+    preserveTips), `IronClawClient` parsers (`getHistory`
+    turns→messages expansion, `listThreads` `turn_count`→
+    `message_count`, `gatewayStatus` `uptime_secs`, `getSettings`
+    array→map fold), settings store migrations (empty→defaults,
+    legacy flat→profile, orphan re-anchor), Icon component (known
+    names, fallback). Hooked into `.github/workflows/check.yml`
+    between `npm run check` and `build`.
 - **Cross-surface global search** (14b) — **Cmd+Shift+F** opens a
   full-width top-of-viewport modal that searches across knowledge /
   threads / jobs / skills / routines / extensions in parallel via
@@ -535,8 +636,8 @@ secrets-redaction layer. All gates green: `npm run check` (0 errors),
   per-client; soft-falls-back to the legacy chat path on 404/405. Per-user
   opt-out via Settings → Advanced.
 - **About dialog** (Round 7b) — modal showing app + gateway + profile
-  + sidecar + system info. Mounted in layout, triggered from Cmd
-  palette + Settings → About card link.
+  - sidecar + system info. Mounted in layout, triggered from Cmd
+    palette + Settings → About card link.
 - **Sidebar v2** (Round 7c) — 224→56 px collapse with hover-tooltips on
   icons; per-nav badge counts (threads / skills / routines / extensions
   / jobs / missions) bound to live store data; gold dot on Settings when
@@ -563,7 +664,7 @@ Five+ wire-shape mismatches that meant chat was silently broken on the
 legacy path. All resolved before Round 8 work began:
 
 - `getHistory` — server returns `{turns:[{turn_number, user_message_id,
-  user_input, response, ...}]}`, not `{messages:[]}`. Client now expands
+user_input, response, ...}]}`, not `{messages:[]}`. Client now expands
   each turn into user + assistant `Message` rows.
 - `streamEvents` — server emits `event: response` with `type:"response"`,
   not `"text_response"`. Bound the right events in `normalizeEvent`;
@@ -636,13 +737,13 @@ union), `AttachmentInput`, `Job`, `JobSummary`.
 
 Top client chunks (gzip in parens):
 
-| Chunk                  | Size       | Gzip      |
-|------------------------|------------|-----------|
-| `chunks/DfDYC6eE.js`   | 143.60 kB  | 46.88 kB  | ← shared kernel
-| `nodes/11.…` (jobs)    |  81.14 kB  | 21.37 kB  |
-| `nodes/0.…` (chat)     |  67.23 kB  | 20.10 kB  |
-| `chunks/DwQK25nF.js`   |  62.28 kB  | 18.18 kB  | ← markdown pipeline
-| `nodes/3.…` (settings) |  46.11 kB  | 13.41 kB  |
+| Chunk                  | Size      | Gzip     |
+| ---------------------- | --------- | -------- | ------------------- |
+| `chunks/DfDYC6eE.js`   | 143.60 kB | 46.88 kB | ← shared kernel     |
+| `nodes/11.…` (jobs)    | 81.14 kB  | 21.37 kB |
+| `nodes/0.…` (chat)     | 67.23 kB  | 20.10 kB |
+| `chunks/DwQK25nF.js`   | 62.28 kB  | 18.18 kB | ← markdown pipeline |
+| `nodes/3.…` (settings) | 46.11 kB  | 13.41 kB |
 
 `highlight.js` remains at the trimmed 12-language pack from R6
 (~140 KB raw, dominant chunk previously 1017 KB before code-split).
