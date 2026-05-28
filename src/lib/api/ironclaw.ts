@@ -3423,6 +3423,7 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
       // "Calling LLM…" or per-step token counts.
       return null;
     case 'tool_start':
+    case 'tool_started':
     case 'tool_called':
       return {
         type: 'tool_call',
@@ -3431,10 +3432,11 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
       };
     case 'tool_result':
     case 'tool_completed':
-      // `tool_completed` is the IronClaw v0.29+ name for what older
-      // gateways called `tool_result`. Payload shape is the same:
-      // `{tool|name, result}`. Mapped identically — the UI doesn't
-      // care which name the wire used.
+    case 'tool_finished':
+      // `tool_started` / `tool_completed` are the IronClaw v0.29+ names
+      // for what older gateways called `tool_start` / `tool_result`.
+      // Payload shape is the same: `{tool|name, result|output}`. Mapped
+      // identically — the UI doesn't care which name the wire used.
       return {
         type: 'tool_result',
         name: String(raw.tool ?? raw.name ?? ''),
@@ -3456,6 +3458,12 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
     case 'error':
       return { type: 'error', message: String(raw.message ?? 'Unknown error') };
     default:
-      return { type: 'error', message: `Unknown event type: ${type}` };
+      // Unknown event type — drop silently to match mapResponsesEvent.
+      // Previously surfaced as a user-visible error chip + toast spam
+      // (e.g. v0.2.10 hit a flood of `tool_started` errors before that
+      // alias was wired). The UI is not the right place to discover
+      // wire-format drift; that's a job for ironclaw_diag at the
+      // request layer + the gateway's own changelog.
+      return null;
   }
 }
