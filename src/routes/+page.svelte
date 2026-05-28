@@ -52,6 +52,9 @@
   import ReplayBar from '$lib/components/ReplayBar.svelte';
   import { replay } from '$lib/stores/replay.svelte';
   import { replayUI } from '$lib/stores/replay-ui.svelte';
+  // LANE W3 — reply-thread panel (R80, consumes R79 store)
+  import ReplyThreadPanel from '$lib/components/ReplyThreadPanel.svelte';
+  import { replyThreadUI } from '$lib/stores/reply-thread-ui.svelte';
 
   // ---- Pane widths (drag-to-resize) ----------------------------------------
   //
@@ -3290,7 +3293,18 @@
           }}
         />
       {/if}
-      <!-- LANE W3 — reply-thread panel mount (Slack-style replies anchor here) -->
+      <!-- LANE W3 — reply-thread panel (R80): anchored to the right
+           edge of the chat stream as a sliding panel when the user
+           opens a reply thread. Hidden when no parent is selected. -->
+      {#if replyThreadUI.openParent && replyThreadUI.openThreadId}
+        <div class="absolute right-0 top-0 bottom-0 z-10">
+          <ReplyThreadPanel
+            parentMessage={replyThreadUI.openParent}
+            parentThreadId={replyThreadUI.openThreadId}
+            onClose={() => replyThreadUI.close()}
+          />
+        </div>
+      {/if}
 
       <!-- scroll-to-bottom FAB — shown when new content arrives off-screen -->
       {#if showScrollFab}
