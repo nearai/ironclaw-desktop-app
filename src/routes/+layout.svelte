@@ -31,6 +31,7 @@
   import { broadcast } from '$lib/stores/broadcast.svelte';
   import { pins } from '$lib/stores/pins.svelte';
   import { threadRename } from '$lib/stores/thread-rename.svelte';
+  import { threadSync } from '$lib/stores/thread-sync.svelte';
   import { presets, presetsModal } from '$lib/stores/presets.svelte';
   import { templates, templatesModal } from '$lib/stores/templates.svelte';
   import { skillEditor } from '$lib/stores/skill-editor.svelte';
@@ -413,6 +414,7 @@
     // enabled/endpoint check so it's a no-op when the user has opted
     // out (or hasn't opted in yet).
     telemetry.recordEvent('app:launched');
+    threadSync.start({ intervalMs: 3_000 });
 
     // LANE B3 — Omnibar (R55). Register the baseline navigation
     // commands so an empty-query omnibar already has surfaces to
@@ -623,6 +625,7 @@
       // detach the message listener so a layout remount (HMR, route
       // pivot in dev) does not stack handlers.
       broadcast.teardown();
+      threadSync.stop();
     };
   });
 </script>

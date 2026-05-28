@@ -657,7 +657,7 @@ export class IronClawClient {
 
   private _capabilitiesCache: { responses_api: boolean } | null = null;
 
-  async listThreads(): Promise<Thread[]> {
+  async listThreads(signal?: AbortSignal): Promise<Thread[]> {
     // Wire (verified 2026-05-27): each thread carries `turn_count` (one turn =
     // one user msg + one assistant response rolled into one row). Older /
     // future server builds may emit `message_count`; accept either. The
@@ -675,7 +675,7 @@ export class IronClawClient {
         turn_count?: number;
         message_count?: number;
       }>;
-    }>('GET', '/api/chat/threads');
+    }>('GET', '/api/chat/threads', undefined, { signal });
     return (res?.threads ?? []).map((t) => ({
       id: t.id,
       title: t.title ?? '',
@@ -683,6 +683,46 @@ export class IronClawClient {
       updated_at: t.last_message_at ?? t.updated_at ?? t.created_at,
       message_count: t.turn_count ?? t.message_count ?? 0
     }));
+  }
+
+  async pollThreadChanges(
+    since: number,
+    signal?: AbortSignal
+  ): Promise<{
+    changed: Thread[];
+    deleted: string[];
+    nextSince: number;
+  }> {
+    const url = `${this.baseUrl}/api/chat/threads/poll?since=${since}`;
+    const maybeTauri = await loadTauriFetch();
+    const fetchImpl = maybeTauri ?? fetch;
+    const res = await fetchImpl(url, {
+      headers: this.token ? { Authorization: `Bearer ${this.token}` } : {},
+      signal
+    });
+    if (!res.ok) throw new Error(`pollThreadChanges ${res.status}`);
+    const body = await res.json();
+    return {
+      changed: (body.changed ?? []).map(
+        (t: {
+          id: string;
+          title?: string;
+          created_at?: string;
+          updated_at?: string;
+          last_message_at?: string;
+          turn_count?: number;
+          message_count?: number;
+        }) => ({
+          id: t.id,
+          title: t.title ?? '',
+          created_at: t.created_at ?? t.updated_at ?? t.last_message_at ?? '',
+          updated_at: t.last_message_at ?? t.updated_at ?? t.created_at ?? '',
+          message_count: t.turn_count ?? t.message_count ?? 0
+        })
+      ),
+      deleted: body.deleted ?? [],
+      nextSince: body.next_since ?? Date.now()
+    };
   }
 
   /**
