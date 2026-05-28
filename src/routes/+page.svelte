@@ -11,6 +11,8 @@
   import { threads } from '$lib/stores/threads.svelte';
   import { messages, type ToolInvocation } from '$lib/stores/messages.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
+  // LANE B9 — editable bubble swap (R69)
+  import EditableBubble from '$lib/components/EditableBubble.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { pins } from '$lib/stores/pins.svelte';
@@ -1756,6 +1758,50 @@
     }
   }
 
+  /**
+   * LANE B9 (R69) — commit an in-place edit on a user message bubble.
+   *
+   * Wikipedia-style "rewrite history" semantics: every message at or after
+   * `msgId` is dropped from the local thread, then the edited content is
+   * pushed back through the normal send + stream pipeline. Distinct from
+   * R19b Branch (which forks a fresh thread leaving the original intact).
+   *
+   * The messages store doesn't expose a dedicated truncate API — its
+   * `byThread` rune is public-readable so we slice + write directly. The
+   * edited message itself is dropped from the slice; `sendMessage()` will
+   * append a fresh optimistic user row a moment later.
+   *
+   * Out of scope: the server doesn't currently support history truncation
+   * over the wire, so the next `loadHistory()` call could resurrect the
+   * older rows. That's acceptable for v1 — the edit takes effect locally
+   * for the rest of the session and the resend updates server state from
+   * the edit point onward.
+   */
+  async function handleBubbleEdit(msgId: string, newContent: string): Promise<void> {
+    const tid = threads.currentId;
+    if (!tid) return;
+    try {
+      const current = messages.get(tid);
+      const idx = current.findIndex((m) => m.id === msgId);
+      if (idx < 0) return;
+      const truncated = current.slice(0, idx);
+      // Direct write to the public `byThread` rune — no truncate API
+      // exists today and the store author has marked the field
+      // `$state<...>` so it's intended to be writable from callers.
+      messages.byThread = { ...messages.byThread, [tid]: truncated };
+      // Stop any in-flight stream against this thread — its assistant
+      // turn is one of the rows we just dropped.
+      if (abortController) {
+        abortController.abort();
+        abortController = null;
+      }
+      input = newContent;
+      await onSend();
+    } catch (err) {
+      toasts.show(`Edit failed: ${(err as Error).message}`, 'error');
+    }
+  }
+
   function handleEvent(threadId: string, ev: ChatEvent) {
     // Mirror every chat event into the tool-flow ledger so the right-rail
     // visualizer (`ToolFlowPanel`) stays in sync without forking the
@@ -3068,11 +3114,21 @@
                       ? 'background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.45);'
                       : 'background:rgba(76,167,230,0.10);border-color:rgba(251,191,36,0.4);'}
                   >
-                    {#if userHasImage}
-                      <MarkdownView markdown={userDisplay} />
-                    {:else}
-                      {userDisplay}
-                    {/if}
+                    <!-- LANE B9 (R69) — editable user bubble. We synthesize a
+                         msg-like object with the cleaned content so the
+                         textarea pre-fill (and the rendered MarkdownView in
+                         view mode) both show the same text the user sees
+                         today — the `<attachments>` tag block is purely
+                         internal. The id passes through unchanged so
+                         `handleBubbleEdit` can still look the row up in the
+                         messages store. `userHasImage` continues to drive the
+                         `whitespace-pre-wrap` class above so non-markdown
+                         bubbles keep their original wrapping. -->
+                    <EditableBubble
+                      msg={{ ...msg, content: userDisplay }}
+                      onEditSubmit={handleBubbleEdit}
+                      disabled={isStreaming}
+                    />
                   </div>
                   {#if failed && currentId}
                     {@const isRetrying = !!retryingIds[msg.id]}
