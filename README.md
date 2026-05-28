@@ -14,6 +14,49 @@ Apple Silicon and Intel both shipped. Unsigned-by-Apple (the updater signature i
 
 IronClaw ships with a TUI and a web UI served by its own gateway. This app gives it a polished native shell with macOS conventions: Cmd+K palette, Keychain-backed credentials, native notifications, menu-bar status, sidecar lifecycle managed for you.
 
+## 5-minute dev bring-up
+
+If you've cloned the repo and have a remote gateway reachable over an SSH alias:
+
+```bash
+bash scripts/dev-up.sh
+```
+
+That single command:
+
+1. Opens the SSH tunnel to the remote gateway (idempotent, skips if already up).
+2. Verifies the gateway responds.
+3. Stages your bearer token into the file-fallback slot the Rust side falls back to when the macOS keychain ACL prompt hangs (see [v0.2.8 fix](CHANGELOG.md)).
+4. Builds the frontend and the Rust binary, ad-hoc-signs the bundle.
+5. Launches the app with `RUST_LOG=info` captured to `/tmp/ironclaw_dev.log` and surfaces the first ~10s of `ironclaw_diag` events so you can see the token load + first fetches.
+
+Useful flags:
+
+```bash
+bash scripts/dev-up.sh --skip-build         # just re-launch the existing bundle
+bash scripts/dev-up.sh --no-tunnel          # use a custom IRONCLAW_GATEWAY_URL
+bash scripts/dev-up.sh --profile alt-svr    # bring up a non-default profile
+
+IRONCLAW_TUNNEL_HOST=my-prod-box \
+IRONCLAW_TUNNEL_PORT=23456 \
+  bash scripts/dev-up.sh                    # point at a different remote
+```
+
+If the file-fallback ever stops feeling clean (handing the machine off, sharing the bundle, etc.), wipe it:
+
+```bash
+bash scripts/clear-token.sh default         # one profile
+bash scripts/clear-token.sh --all           # nuke every file-fallback
+```
+
+For the keychain entry itself, use the `security` CLI:
+
+```bash
+security delete-generic-password \
+  -s com.openclaw.ironclaw-desktop \
+  -a 'gateway-token:default'
+```
+
 ## Quick tour
 
 Every surface is one chord away. Memorize these seven and you have the app:
@@ -28,17 +71,17 @@ Every surface is one chord away. Memorize these seven and you have the app:
 
 Top-level routes:
 
-| Chord | Surface       |
-| ----- | ------------- |
-| Cmd+1 | Chat          |
-| Cmd+2 | Knowledge     |
-| Cmd+3 | Skills        |
-| Cmd+4 | Routines      |
-| Cmd+5 | Jobs          |
-| Cmd+6 | Logs          |
-| Cmd+7 | Extensions    |
-| Cmd+8 | Admin *(gated on `adminMode`)*       |
-| Cmd+9 | Missions *(gated on `engineV2Enabled`)* |
+| Chord | Surface                                 |
+| ----- | --------------------------------------- |
+| Cmd+1 | Chat                                    |
+| Cmd+2 | Knowledge                               |
+| Cmd+3 | Skills                                  |
+| Cmd+4 | Routines                                |
+| Cmd+5 | Jobs                                    |
+| Cmd+6 | Logs                                    |
+| Cmd+7 | Extensions                              |
+| Cmd+8 | Admin _(gated on `adminMode`)_          |
+| Cmd+9 | Missions _(gated on `engineV2Enabled`)_ |
 
 The menu-bar tray gives you Show/Hide, Restart sidecar, Open Settings, Quit even when the window is hidden.
 
@@ -417,22 +460,22 @@ the bump justified in the commit message so future reviewers can sanity-check
 the trade-off (a fat dep that landed for one feature is the kind of thing
 that should get noticed twice).
 
-If a bump is *not* intentional — i.e. the check failed on your PR and you
+If a bump is _not_ intentional — i.e. the check failed on your PR and you
 weren't expecting it — run `bash scripts/bundle-compare.sh` to see which
 files grew and decide whether the regression is fixable (lazy-load, tree-
 shake, drop the import) before raising the budget.
 
 ## Troubleshooting
 
-| Symptom | Fix |
-| ------- | --- |
-| Status bar shows **Disconnected** even though the server is up | Check the SSH tunnel is still alive (`bash scripts/tunnel.sh status`). If the gateway port shifted, re-enter the URL under **Settings → Profile → Base URL**. Re-paste the token under **Settings → Profile → Gateway token** to refresh the Keychain entry. |
-| macOS warns **"App can't be opened because it is from an unidentified developer"** | The DMG is unsigned. Right-click the `.app` in Finder → **Open** → confirm in the dialog. macOS remembers the exception per binary, so subsequent launches work normally. Or strip the quarantine attribute: `xattr -d com.apple.quarantine /Applications/IronClaw.app`. |
-| Local sidecar fails to spawn on launch | Most often a NEAR.AI Cloud sign-in problem — open the IronClaw web UI (button in **Settings → Local sidecar**) and re-authenticate. If you're on the OpenRouter backend, check the OpenRouter key is set under **Settings → Profile → LLM backend**. Logs live at `~/Library/Application Support/com.ironclaw.desktop/sidecar.log`. |
-| Tray icon missing from the menu bar | **Settings → Advanced → "Show in menu bar"**. The toggle is on by default; if it ever flips off it usually means a startup crash before tray init. Restart the app, then re-toggle. |
-| **Cmd+K** (or any other chord) doesn't open the palette | The shortcut only fires when the app window has focus. Cmd+Tab into IronClaw first, then try again. The tray "Show window" item brings it forward even when hidden. |
-| Sidecar dies repeatedly with "port already in use" | Another IronClaw process is bound to the local port. Open Activity Monitor, kill stray `ironclaw` processes, then **Settings → Local sidecar → Restart**. If the conflict is with a different service, change the local port in **Settings → Local sidecar → Port**. |
-| Updater banner says "signature verification failed" | Means the release wasn't signed with the pubkey wired into your build. Either update to a release built after signing landed, or download the new DMG manually from the GitHub Releases page. |
+| Symptom                                                                            | Fix                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status bar shows **Disconnected** even though the server is up                     | Check the SSH tunnel is still alive (`bash scripts/tunnel.sh status`). If the gateway port shifted, re-enter the URL under **Settings → Profile → Base URL**. Re-paste the token under **Settings → Profile → Gateway token** to refresh the Keychain entry.                                                                        |
+| macOS warns **"App can't be opened because it is from an unidentified developer"** | The DMG is unsigned. Right-click the `.app` in Finder → **Open** → confirm in the dialog. macOS remembers the exception per binary, so subsequent launches work normally. Or strip the quarantine attribute: `xattr -d com.apple.quarantine /Applications/IronClaw.app`.                                                            |
+| Local sidecar fails to spawn on launch                                             | Most often a NEAR.AI Cloud sign-in problem — open the IronClaw web UI (button in **Settings → Local sidecar**) and re-authenticate. If you're on the OpenRouter backend, check the OpenRouter key is set under **Settings → Profile → LLM backend**. Logs live at `~/Library/Application Support/com.ironclaw.desktop/sidecar.log`. |
+| Tray icon missing from the menu bar                                                | **Settings → Advanced → "Show in menu bar"**. The toggle is on by default; if it ever flips off it usually means a startup crash before tray init. Restart the app, then re-toggle.                                                                                                                                                 |
+| **Cmd+K** (or any other chord) doesn't open the palette                            | The shortcut only fires when the app window has focus. Cmd+Tab into IronClaw first, then try again. The tray "Show window" item brings it forward even when hidden.                                                                                                                                                                 |
+| Sidecar dies repeatedly with "port already in use"                                 | Another IronClaw process is bound to the local port. Open Activity Monitor, kill stray `ironclaw` processes, then **Settings → Local sidecar → Restart**. If the conflict is with a different service, change the local port in **Settings → Local sidecar → Port**.                                                                |
+| Updater banner says "signature verification failed"                                | Means the release wasn't signed with the pubkey wired into your build. Either update to a release built after signing landed, or download the new DMG manually from the GitHub Releases page.                                                                                                                                       |
 
 For anything not covered here, capture the full log with `RUST_LOG=debug npm run tauri dev` (see [Develop](#develop)) and open an issue with the trace.
 
