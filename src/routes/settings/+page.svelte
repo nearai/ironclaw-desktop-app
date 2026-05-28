@@ -1981,7 +1981,12 @@
             {activeProfile.name}
           </div>
         </div>
-        <a href="#profiles" class="text-xs text-accent-cyan hover:underline"> Manage profiles </a>
+        <a
+          href="#profiles"
+          class="text-xs text-accent-cyan underline decoration-dotted hover:decoration-solid"
+        >
+          Manage profiles
+        </a>
       </div>
 
       <!-- Connection mode -->
@@ -2190,7 +2195,7 @@
                 type="button"
                 onclick={() => void onRefreshSignIn()}
                 disabled={signIn.inflight}
-                class="ml-auto text-xs text-accent-cyan hover:underline disabled:opacity-50"
+                class="ml-auto text-xs text-accent-cyan underline decoration-dotted hover:decoration-solid disabled:opacity-50"
               >
                 {signIn.inflight ? 'Refreshing…' : 'Refresh'}
               </button>
@@ -2289,7 +2294,7 @@
                   type="button"
                   onclick={() => void onRefreshSignIn()}
                   disabled={signIn.inflight}
-                  class="text-xs text-accent-cyan hover:underline disabled:opacity-50"
+                  class="text-xs text-accent-cyan underline decoration-dotted hover:decoration-solid disabled:opacity-50"
                 >
                   {signIn.inflight ? 'Refreshing…' : 'Refresh'}
                 </button>
@@ -2620,9 +2625,16 @@
                  row's visual identity stays consistent with the sidebar
                  popover + brand glyph. -->
             {#if isActiveRow}
+              <!-- A bare <span> with `aria-label` violates WAI-ARIA (label
+                   is prohibited on elements without an implicit/explicit
+                   role) — axe flagged this as serious in the automated
+                   sweep. `role="img"` gives the dot a non-generic role
+                   so screen readers announce "Active profile" without
+                   axe complaining. -->
               <span
                 class="w-2 h-2 rounded-full shrink-0"
                 style="background-color: {rowTint.accent};"
+                role="img"
                 aria-label="Active profile"
               ></span>
             {:else}
@@ -2746,7 +2758,7 @@
                 <button
                   type="button"
                   onclick={() => void onSwitchProfile(profile.id)}
-                  class="text-xs text-accent-cyan hover:underline px-1"
+                  class="text-xs text-accent-cyan underline decoration-dotted hover:decoration-solid px-1"
                 >
                   Switch
                 </button>

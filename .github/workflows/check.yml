@@ -18,6 +18,9 @@ jobs:
       - run: npm run check
       - run: npm run test
       - run: npm run build
+      - name: Check bundle size budget
+        run: SKIP_BUILD=1 bash scripts/check-bundle-size.sh
+        continue-on-error: false
 
   rust:
     runs-on: macos-14

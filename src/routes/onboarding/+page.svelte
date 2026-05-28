@@ -64,9 +64,7 @@
     if (!activeProfile) return;
     settings = {
       ...settings,
-      profiles: settings.profiles.map((p) =>
-        p.id === activeProfile.id ? { ...p, ...patch } : p
-      )
+      profiles: settings.profiles.map((p) => (p.id === activeProfile.id ? { ...p, ...patch } : p))
     };
   }
 
@@ -104,9 +102,7 @@
   /** Live-chat probe state. Populated after `health()` succeeds; orthogonal to
    *  the gateway-reachability result so a failed chat probe never demotes a
    *  healthy gateway back to "fail". */
-  let chatStatus = $state<
-    'idle' | 'probing' | 'ok' | 'timeout' | 'error' | 'skipped'
-  >('idle');
+  let chatStatus = $state<'idle' | 'probing' | 'ok' | 'timeout' | 'error' | 'skipped'>('idle');
   let chatPreview = $state<string | null>(null);
   let chatHint = $state<string | null>(null);
   /** User-opt-out for the live-chat probe. Set via the "Skip LLM test" link
@@ -296,9 +292,7 @@
     if (current && current !== 'http://127.0.0.1:3100') return;
     detectionScanning = true;
     try {
-      const settled = await Promise.allSettled(
-        DETECT_PORTS.map((p) => probeCandidate(p))
-      );
+      const settled = await Promise.allSettled(DETECT_PORTS.map((p) => probeCandidate(p)));
       const hit = settled
         .map((r) => (r.status === 'fulfilled' ? r.value : null))
         .find((u): u is string => !!u);
@@ -543,9 +537,7 @@
         // ignore — health passed, that's enough to call this OK
       }
       testStatus = 'ok';
-      testMessage = testVersion
-        ? `Connected to IronClaw ${testVersion}`
-        : 'Connected to IronClaw';
+      testMessage = testVersion ? `Connected to IronClaw ${testVersion}` : 'Connected to IronClaw';
       // Remote gateways are pre-authenticated via the bearer token, so the
       // chat probe is unconditional here. A 401 from the chat probe still
       // demotes to `chatStatus='error'` (without flipping the gateway state).
@@ -739,9 +731,7 @@
     if (!tintTouched) return s;
     return {
       ...s,
-      profiles: s.profiles.map((p) =>
-        p.id === s.activeProfileId ? { ...p, tint: chosenTint } : p
-      )
+      profiles: s.profiles.map((p) => (p.id === s.activeProfileId ? { ...p, tint: chosenTint } : p))
     };
   }
 
@@ -822,10 +812,7 @@
             aria-current={isActive ? 'step' : undefined}
           ></span>
           {#if n < 3}
-            <span
-              class="w-8 h-px"
-              class:bg-accent-cyan={isDone}
-              class:bg-border-subtle={!isDone}
+            <span class="w-8 h-px" class:bg-accent-cyan={isDone} class:bg-border-subtle={!isDone}
             ></span>
           {/if}
         </div>
@@ -841,9 +828,7 @@
       {#if step === 1}
         <div class="space-y-8 animate-step">
           <div class="text-center space-y-2">
-            <h1 class="text-3xl font-semibold text-text-primary">
-              Welcome to IronClaw
-            </h1>
+            <h1 class="text-3xl font-semibold text-text-primary">Welcome to IronClaw</h1>
             <p class="text-text-muted text-sm">
               Let's get you connected. Pick how you'd like to run it.
             </p>
@@ -877,8 +862,7 @@
                 <h2 class="text-base font-semibold text-text-primary">Local</h2>
               </div>
               <p class="text-sm text-text-muted leading-relaxed flex-1">
-                Run IronClaw on this Mac. Private. Free with NEAR.AI Cloud.
-                ~150MB bundled.
+                Run IronClaw on this Mac. Private. Free with NEAR.AI Cloud. ~150MB bundled.
               </p>
               <div
                 class="mt-4 text-xs text-accent-cyan opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
@@ -928,8 +912,7 @@
                 <h2 class="text-base font-semibold text-text-primary">Remote</h2>
               </div>
               <p class="text-sm text-text-muted leading-relaxed flex-1">
-                Connect to an IronClaw server you (or your team) operate.
-                Bring your URL + token.
+                Connect to an IronClaw server you (or your team) operate. Bring your URL + token.
               </p>
               <div
                 class="mt-4 text-xs text-accent-gold opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
@@ -993,13 +976,10 @@
         <div class="space-y-6 animate-step">
           {#if activeProfile?.mode === 'local'}
             <div class="space-y-2">
-              <h1 class="text-2xl font-semibold text-text-primary">
-                Set up NEAR.AI Cloud
-              </h1>
+              <h1 class="text-2xl font-semibold text-text-primary">Set up NEAR.AI Cloud</h1>
               <p class="text-text-muted text-sm">
-                We'll set up NEAR.AI Cloud — IronClaw's built-in inference.
-                You'll sign in with your NEAR account after we start the
-                sidecar.
+                We'll set up NEAR.AI Cloud — IronClaw's built-in inference. You'll sign in with your
+                NEAR account after we start the sidecar.
               </p>
             </div>
 
@@ -1022,9 +1002,7 @@
                 </div>
                 <div class="flex-1 space-y-1">
                   <div class="flex items-center gap-2">
-                    <span class="text-sm font-semibold text-text-primary"
-                      >NEAR.AI Cloud</span
-                    >
+                    <span class="text-sm font-semibold text-text-primary">NEAR.AI Cloud</span>
                     <span
                       class="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/30"
                     >
@@ -1032,8 +1010,8 @@
                     </span>
                   </div>
                   <p class="text-xs text-text-muted">
-                    Free during private preview. No API key required — sign in
-                    with your NEAR account when the sidecar starts.
+                    Free during private preview. No API key required — sign in with your NEAR
+                    account when the sidecar starts.
                   </p>
                 </div>
               </div>
@@ -1062,19 +1040,14 @@
                     </button>
                   </div>
                   <div>
-                    <label
-                      for="onb-orkey"
-                      class="block text-xs text-text-muted mb-1"
-                    >
+                    <label for="onb-orkey" class="block text-xs text-text-muted mb-1">
                       OpenRouter key
                     </label>
                     <input
                       id="onb-orkey"
                       type="password"
                       bind:value={openRouterInput}
-                      placeholder={openRouterStored
-                        ? '•••• stored in macOS Keychain'
-                        : 'sk-or-...'}
+                      placeholder={openRouterStored ? '•••• stored in macOS Keychain' : 'sk-or-...'}
                       class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[44px]"
                     />
                   </div>
@@ -1083,7 +1056,7 @@
                     <button
                       type="button"
                       onclick={() => openExternal('https://openrouter.ai/keys')}
-                      class="text-accent-cyan hover:underline inline-flex items-center gap-1"
+                      class="text-accent-cyan underline decoration-dotted hover:decoration-solid inline-flex items-center gap-1"
                     >
                       Get one at openrouter.ai
                       <svg
@@ -1110,19 +1083,14 @@
                 Where is your IronClaw server?
               </h1>
               <p class="text-text-muted text-sm">
-                Enter the URL and gateway token. The token is stored in your
-                macOS Keychain — never in plain text on disk.
+                Enter the URL and gateway token. The token is stored in your macOS Keychain — never
+                in plain text on disk.
               </p>
             </div>
 
             <div class="surface p-5 space-y-5">
               <div>
-                <label
-                  for="onb-url"
-                  class="block text-xs text-text-muted mb-1"
-                >
-                  Base URL
-                </label>
+                <label for="onb-url" class="block text-xs text-text-muted mb-1"> Base URL </label>
                 {#if detectionScanning && !detectedUrl}
                   <!-- Live scan indicator. Replaced with the detect banner
                        once Promise.allSettled resolves and a hit is found,
@@ -1257,8 +1225,7 @@
                   id="onb-url"
                   type="text"
                   value={activeProfile?.remoteBaseUrl ?? 'http://127.0.0.1:18789'}
-                  oninput={(e) =>
-                    patchActiveProfile({ remoteBaseUrl: e.currentTarget.value })}
+                  oninput={(e) => patchActiveProfile({ remoteBaseUrl: e.currentTarget.value })}
                   placeholder="e.g. http://127.0.0.1:18789 (via ssh -L)"
                   class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[44px]"
                 />
@@ -1266,26 +1233,20 @@
                   Tip: tunnel a private server over SSH first, e.g.
                   <code class="font-mono text-text-primary"
                     >ssh -L 18789:127.0.0.1:3100 user@host</code
-                  >, then use <code class="font-mono text-text-primary"
-                    >http://127.0.0.1:18789</code
-                  >.
+                  >, then use
+                  <code class="font-mono text-text-primary">http://127.0.0.1:18789</code>.
                 </p>
               </div>
 
               <div>
-                <label
-                  for="onb-token"
-                  class="block text-xs text-text-muted mb-1"
-                >
+                <label for="onb-token" class="block text-xs text-text-muted mb-1">
                   Gateway token
                 </label>
                 <input
                   id="onb-token"
                   type="password"
                   bind:value={tokenInput}
-                  placeholder={tokenStored
-                    ? '•••• stored in macOS Keychain'
-                    : 'ironclaw-...'}
+                  placeholder={tokenStored ? '•••• stored in macOS Keychain' : 'ironclaw-...'}
                   class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[44px]"
                 />
               </div>
@@ -1334,16 +1295,13 @@
       {:else}
         <div class="space-y-6 animate-step">
           <div class="space-y-2 text-center">
-            <h1 class="text-2xl font-semibold text-text-primary">
-              Let's confirm it works
-            </h1>
+            <h1 class="text-2xl font-semibold text-text-primary">Let's confirm it works</h1>
             <p class="text-text-muted text-sm">
               {#if activeProfile?.mode === 'local'}
                 We'll spawn the bundled sidecar and ping its health endpoint.
               {:else}
                 We'll send a health check to
-                <code class="font-mono text-text-primary"
-                  >{activeProfile?.remoteBaseUrl ?? ''}</code
+                <code class="font-mono text-text-primary">{activeProfile?.remoteBaseUrl ?? ''}</code
                 >.
               {/if}
             </p>
@@ -1351,9 +1309,7 @@
 
           <div class="surface p-6 flex flex-col items-center gap-4">
             <!-- Status pane -->
-            <div
-              class="w-full min-h-[120px] flex flex-col items-center justify-center text-center"
-            >
+            <div class="w-full min-h-[120px] flex flex-col items-center justify-center text-center">
               {#if testStatus === 'idle'}
                 <!-- Brief idle frame; the $effect fires runTest() on mount,
                      so this state is only visible for a single tick. The
@@ -1508,9 +1464,7 @@
                       <line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                   </div>
-                  <p
-                    class="text-sm text-red-300 font-medium max-w-md break-words"
-                  >
+                  <p class="text-sm text-red-300 font-medium max-w-md break-words">
                     {testMessage ?? 'Connection failed'}
                   </p>
                 </div>
@@ -1623,9 +1577,7 @@
       >
         Skip onboarding
       </button>
-      <span class="text-[10px] text-text-muted/70">
-        Configure later in Settings
-      </span>
+      <span class="text-[10px] text-text-muted/70"> Configure later in Settings </span>
     </div>
   </footer>
 </section>

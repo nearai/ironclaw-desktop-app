@@ -59,7 +59,7 @@
             <button
               type="button"
               onclick={() => (expr = p.value)}
-              class="shrink-0 text-[10px] font-mono uppercase tracking-widest text-accent-cyan hover:underline"
+              class="shrink-0 text-[10px] font-mono uppercase tracking-widest text-accent-cyan underline decoration-dotted hover:decoration-solid"
             >
               Try
             </button>

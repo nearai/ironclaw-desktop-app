@@ -73,9 +73,7 @@
   let syncScrollGuard = false;
 
   const isDisconnected = $derived(
-    connection.status === 'disconnected' ||
-      connection.status === 'idle' ||
-      !connection.client
+    connection.status === 'disconnected' || connection.status === 'idle' || !connection.client
   );
 
   // Use TextEncoder for an honest byte count — naïve `length` counts UTF-16
@@ -388,7 +386,10 @@
     <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
       <div class="text-sm text-text-primary mb-2">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check <a href="/settings" class="text-accent-cyan hover:underline">Settings</a> to configure the connection.
+        Check <a
+          href="/settings"
+          class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
+        > to configure the connection.
       </div>
     </div>
   {:else if loadState === 'loading'}
@@ -419,11 +420,7 @@
          layouts via Tailwind responsive grid-cols below. -->
     <div class="flex items-center gap-3 mb-3">
       <label class="inline-flex items-center gap-2 cursor-pointer text-xs text-text-muted">
-        <input
-          type="checkbox"
-          bind:checked={showPreview}
-          class="accent-accent-cyan w-3.5 h-3.5"
-        />
+        <input type="checkbox" bind:checked={showPreview} class="accent-accent-cyan w-3.5 h-3.5" />
         <span>Preview</span>
       </label>
       <span class="text-[10px] text-text-muted font-mono">
@@ -445,10 +442,7 @@
          viewports show 50/50 columns. The min-h-0 on inner panes lets
          them shrink so the parent flex layout doesn't blow past the
          viewport. -->
-    <div
-      class="flex-1 min-h-0 grid grid-cols-1 gap-4"
-      class:lg:grid-cols-2={showPreview}
-    >
+    <div class="flex-1 min-h-0 grid grid-cols-1 gap-4" class:lg:grid-cols-2={showPreview}>
       <textarea
         bind:value={draft}
         bind:this={editorEl}
@@ -468,7 +462,9 @@
             <!-- Token-mask banner. Sits above the rendered preview so the
                  reader knows the visible markdown has been sanitized;
                  the editor textarea on the left still shows raw bytes. -->
-            <div class="mb-3 px-3 py-2 rounded-md border border-accent-gold/60 bg-accent-gold/10 text-[11px] text-accent-gold flex items-start gap-2">
+            <div
+              class="mb-3 px-3 py-2 rounded-md border border-accent-gold/60 bg-accent-gold/10 text-[11px] text-accent-gold flex items-start gap-2"
+            >
               <span aria-hidden="true">⚠</span>
               <span class="flex-1">
                 Token-like patterns detected — view masked. Edit mode shows raw.
@@ -542,8 +538,8 @@
       <!-- Hard-limit helper. Save is already disabled above; this just
            gives the operator a plain-language explanation. -->
       <div class="mt-2 text-xs text-red-400">
-        Prompt is over the 64 KB cap. Trim it before saving — the gateway
-        will reject anything larger with a 413.
+        Prompt is over the 64 KB cap. Trim it before saving — the gateway will reject anything
+        larger with a 413.
       </div>
     {/if}
 
@@ -582,7 +578,9 @@
             <span class="opacity-50 mx-2">·</span>
             <span class="text-green-400">+</span> current draft
           </div>
-          <div class="bg-bg-deep border border-border-subtle rounded-md overflow-auto max-h-[400px] font-mono text-xs">
+          <div
+            class="bg-bg-deep border border-border-subtle rounded-md overflow-auto max-h-[400px] font-mono text-xs"
+          >
             {#if diffLines.length === 0}
               <div class="p-4 text-text-muted italic">No differences.</div>
             {:else}
@@ -593,8 +591,7 @@
                     : line.type === 'del'
                       ? 'bg-red-500/10 text-red-300 border-l-2 border-red-500/60'
                       : 'text-text-muted border-l-2 border-transparent'}
-                {@const sigil =
-                  line.type === 'add' ? '+ ' : line.type === 'del' ? '- ' : '  '}
+                {@const sigil = line.type === 'add' ? '+ ' : line.type === 'del' ? '- ' : '  '}
                 <div class="px-3 py-0.5 whitespace-pre-wrap break-words {cls}">
                   <span class="select-none opacity-60">{sigil}</span>{line.text || ' '}
                 </div>
@@ -604,13 +601,19 @@
         {:else}
           <div class="flex flex-col gap-2">
             {#each history as entry, i (entry.timestamp + '-' + i)}
-              <div class="flex items-start gap-3 p-3 bg-bg-deep border border-border-subtle rounded-md hover:border-text-muted transition">
+              <div
+                class="flex items-start gap-3 p-3 bg-bg-deep border border-border-subtle rounded-md hover:border-text-muted transition"
+              >
                 <div class="flex-1 min-w-0">
                   <div class="text-xs text-text-primary font-mono">
                     {formatTimestamp(entry.timestamp)}
-                    <span class="text-text-muted ml-2">· {entry.length.toLocaleString()} bytes</span>
+                    <span class="text-text-muted ml-2">· {entry.length.toLocaleString()} bytes</span
+                    >
                   </div>
-                  <div class="text-xs text-text-muted mt-1 truncate" title={entry.prompt.slice(0, 500)}>
+                  <div
+                    class="text-xs text-text-muted mt-1 truncate"
+                    title={entry.prompt.slice(0, 500)}
+                  >
                     {previewSnippet(entry.prompt)}
                   </div>
                 </div>

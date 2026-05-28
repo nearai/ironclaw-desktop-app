@@ -9,7 +9,6 @@
     "core:webview:allow-create-webview-window",
     "core:app:default",
     "updater:default",
-    "dialog:default",
     "notification:default",
     {
       "identifier": "shell:allow-execute",

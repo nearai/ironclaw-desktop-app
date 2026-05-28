@@ -179,12 +179,20 @@
      The `role="separator"` is the WAI-ARIA pattern for a draggable splitter
      between two regions, so the a11y noninteractive-element check is
      suppressed below — the splitter pattern is the conventional one for
-     resize handles even though it's technically a div with mouse listeners. -->
+     resize handles even though it's technically a div with mouse listeners.
+     A11y fix (Round 19b automated sweep): a focusable separator MUST carry
+     `aria-valuenow`/`min`/`max` per WAI-ARIA 1.2 — axe flagged the missing
+     attrs as `aria-required-attr` critical. We pair `lastReportedWidth`
+     into `aria-valuenow` so screen readers can announce the pane width
+     during a keyboard-driven resize once that lands. -->
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
   role="separator"
   aria-orientation="vertical"
   aria-label="Resize pane"
+  aria-valuenow={lastReportedWidth ?? initialWidth ?? defaultWidth}
+  aria-valuemin={min}
+  aria-valuemax={max}
   tabindex="-1"
   class="resize-handle"
   class:dragging

@@ -201,6 +201,38 @@ npm run build    # vite frontend build (no Tauri compile)
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
+### Accessibility
+
+`tests/e2e/a11y.spec.ts` is an automated axe-core sweep that visits every
+top-level surface (`/`, `/knowledge`, `/skills`, `/routines`, `/jobs`,
+`/logs`, `/extensions`, `/admin`, `/settings`, `/missions`) and asserts
+the route has no critical/serious axe violations. Runs in CI on every PR
+via `.github/workflows/e2e.yml` and locally via:
+
+```bash
+npm run test:e2e -- a11y.spec.ts
+```
+
+How to read the output:
+
+- **Critical / serious** violations fail the build. If the spec reports
+  one, the assertion message includes the offending element's selector
+  and HTML snippet so you can locate it without re-running locally.
+- **Moderate / minor** violations are logged with a
+  `[a11y][<route>]` prefix but don't fail. Grep CI logs for that prefix
+  to see the per-route count. Most of these are
+  `aria-labelledby` / `aria-describedby` references that resolve at
+  runtime but axe can't dereference in the headless DOM (the referenced
+  element is in a portaled overlay that mounts on hover/focus).
+- **`color-contrast`** is excluded from the suite. Manual review confirmed
+  the navy/cyan/gold brand tokens meet WCAG AA; axe routinely false-flags
+  tailwind opacity utilities because it can't model the underlying opaque
+  background. See the spec header comment for the full rationale.
+
+When adding a new route, append it to the `ROUTES` array in the spec and
+extend the surface mock in `tests/e2e/_helpers.ts` (`mockGatewaySurfaces`)
+with any new list/summary endpoints the route reads on mount.
+
 ## Local sidecar binaries
 
 The bundled IronClaw binaries are downloaded out-of-band (they're large and gitignored):
@@ -349,6 +381,46 @@ UPDATE_BASELINE=1 bash scripts/bundle-compare.sh
 TODO: wire `bundle-compare.sh` into the PR workflow under
 `.github/workflows/` so each PR posts a bundle diff comment against
 `main`'s baseline. For v1 the scripts are local-only.
+
+### Bundle size budget (CI-enforced)
+
+`scripts/check-bundle-size.sh` enforces hard ceilings on the gzipped JS
+shipped to users. It sums `build/_app/immutable/{entry,chunks,nodes}/*.js`
+(CSS/fonts/images excluded — those rarely cause regressions) and compares
+against `scripts/bundle-budget.json`:
+
+```json
+{
+  "total_gzip_kb": 360,
+  "entry_gzip_kb": 6,
+  "largest_chunk_gzip_kb": 55
+}
+```
+
+Exit codes: `0` under budget, `1` over (fails CI), `2` within 90% of budget
+(warning — CI treats this as a soft signal, not a block). The check runs on
+every PR via `.github/workflows/check.yml` after `npm run build`.
+
+To run locally:
+
+```bash
+bash scripts/check-bundle-size.sh             # builds first, then checks
+SKIP_BUILD=1 bash scripts/check-bundle-size.sh   # use existing build/
+```
+
+**Bumping the budget intentionally.** When a feature legitimately needs the
+size (new vendor dep, new route bundle, etc.) and the bump survives a
+`bundle-compare.sh` sanity check, edit `scripts/bundle-budget.json` in the
+same PR that adds the dep. Convention: leave ~10% headroom above the new
+actuals so the next minor change doesn't immediately re-trip the gate. Keep
+the bump justified in the commit message so future reviewers can sanity-check
+the trade-off (a fat dep that landed for one feature is the kind of thing
+that should get noticed twice).
+
+If a bump is *not* intentional — i.e. the check failed on your PR and you
+weren't expecting it — run `bash scripts/bundle-compare.sh` to see which
+files grew and decide whether the regression is fixable (lazy-load, tree-
+shake, drop the import) before raising the budget.
 
 ## Troubleshooting
 

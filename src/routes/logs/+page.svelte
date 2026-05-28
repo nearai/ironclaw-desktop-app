@@ -667,7 +667,10 @@
       <div class="text-sm text-text-primary">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
         Check
-        <a href="/settings" class="text-accent-cyan hover:underline">Settings</a>
+        <a
+          href="/settings"
+          class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
+        >
         to verify the gateway connection.
       </div>
     </div>

@@ -92,9 +92,7 @@
   let pollTimer: ReturnType<typeof setInterval> | null = null;
 
   const isDisconnected = $derived(
-    connection.status === 'disconnected' ||
-      connection.status === 'idle' ||
-      !connection.client
+    connection.status === 'disconnected' || connection.status === 'idle' || !connection.client
   );
 
   // ---- Lifecycle --------------------------------------------------------
@@ -274,12 +272,13 @@
 
 <div class="flex flex-col flex-1 min-h-0">
   {#if isDisconnected}
-    <div
-      class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]"
-    >
+    <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
       <div class="text-sm text-text-primary mb-2">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check <a href="/settings" class="text-accent-cyan hover:underline">Settings</a>
+        Check <a
+          href="/settings"
+          class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
+        >
         to configure the connection.
       </div>
     </div>
@@ -308,16 +307,14 @@
       </div>
     </div>
   {:else if loadState === 'error'}
-    <div
-      class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]"
-    >
+    <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
       <div class="text-sm text-red-400 mb-2">Couldn't load usage</div>
       <div class="text-xs text-text-muted max-w-md mb-4">
         {loadError ?? 'Unknown error'}
       </div>
       <div class="text-[11px] text-text-muted/70 max-w-md mb-4">
-        Usage data is admin-only. If you keep seeing this, switch profile or use a
-        token with the admin role.
+        Usage data is admin-only. If you keep seeing this, switch profile or use a token with the
+        admin role.
       </div>
       <button
         type="button"
@@ -331,8 +328,7 @@
     <!-- Header row: profile-agnostic title + refresh button. -->
     <div class="flex items-center justify-between gap-3 mb-4">
       <div class="text-xs text-text-muted">
-        Usage rollup. 30-day window for the summary cards; the table reflects
-        the selected period.
+        Usage rollup. 30-day window for the summary cards; the table reflects the selected period.
       </div>
       <button
         type="button"
@@ -353,9 +349,7 @@
         >
           <polyline points="23 4 23 10 17 10"></polyline>
           <polyline points="1 20 1 14 7 14"></polyline>
-          <path
-            d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"
-          ></path>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
         </svg>
         {refreshing ? 'Refreshing…' : 'Refresh'}
       </button>
@@ -367,9 +361,7 @@
       <!-- Users card. Sub-stats inline; keeps the card scannable without
            a tooltip. -->
       <div class="surface p-4 flex flex-col">
-        <div class="text-[10px] uppercase tracking-wider text-text-muted mb-2">
-          Users
-        </div>
+        <div class="text-[10px] uppercase tracking-wider text-text-muted mb-2">Users</div>
         <div class="text-2xl font-semibold text-text-primary leading-none mb-3">
           {formatInt(summary?.users?.total)}
         </div>
@@ -397,9 +389,7 @@
 
       <!-- Jobs card. Single number; sub-line clarifies "total queued + run". -->
       <div class="surface p-4 flex flex-col">
-        <div class="text-[10px] uppercase tracking-wider text-text-muted mb-2">
-          Jobs
-        </div>
+        <div class="text-[10px] uppercase tracking-wider text-text-muted mb-2">Jobs</div>
         <div class="text-2xl font-semibold text-text-primary leading-none mb-3">
           {formatInt(summary?.jobs?.total)}
         </div>
@@ -412,24 +402,14 @@
            gateway exposes a real daily/weekly time-series; see TODO above
            the derived `llmCallsSpark` for the swap. -->
       <div class="surface p-4 flex flex-col">
-        <div class="text-[10px] uppercase tracking-wider text-text-muted mb-2">
-          LLM calls (30d)
-        </div>
+        <div class="text-[10px] uppercase tracking-wider text-text-muted mb-2">LLM calls (30d)</div>
         <div class="text-3xl font-semibold text-accent-cyan leading-none mb-3">
           {formatInt(llmCalls)}
         </div>
         <div class="mb-2 text-accent-cyan">
-          <Sparkline
-            data={llmCallsSpark}
-            variant="bars"
-            width={160}
-            height={32}
-            color="#4ca7e6"
-          />
+          <Sparkline data={llmCallsSpark} variant="bars" width={160} height={32} color="#4ca7e6" />
         </div>
-        <div class="text-[11px] text-text-muted mt-auto">
-          Across all users + models.
-        </div>
+        <div class="text-[11px] text-text-muted mt-auto">Across all users + models.</div>
       </div>
 
       <!-- Total cost (30d) card. Accent-gold for monetary callouts. -->
@@ -451,9 +431,7 @@
          The bar is purely informational — no axis labels, no tooltip. -->
     <div class="surface p-4 mb-4">
       <div class="flex items-baseline justify-between mb-3">
-        <div class="text-[10px] uppercase tracking-wider text-text-muted">
-          Tokens (30d)
-        </div>
+        <div class="text-[10px] uppercase tracking-wider text-text-muted">Tokens (30d)</div>
         <div class="text-xs text-text-muted font-mono">
           Total <span class="text-text-primary">{formatInt(totalTokens)}</span>
         </div>
@@ -479,14 +457,8 @@
         role="img"
         aria-label="Input vs output token share"
       >
-        <div
-          class="bg-accent-cyan h-full"
-          style="width: {tokenBars.inputPct}%"
-        ></div>
-        <div
-          class="bg-accent-gold h-full"
-          style="width: {tokenBars.outputPct}%"
-        ></div>
+        <div class="bg-accent-cyan h-full" style="width: {tokenBars.inputPct}%"></div>
+        <div class="bg-accent-gold h-full" style="width: {tokenBars.outputPct}%"></div>
       </div>
       <div class="flex justify-between text-[10px] text-text-muted/80 mt-1 font-mono">
         <span>Input {tokenBars.inputPct}%</span>
@@ -497,9 +469,7 @@
     <!-- Period pills + search. Period drives the table refetch via the
          $effect above. Search is a client-side filter — no extra request. -->
     <div class="surface p-3 mb-3 flex flex-wrap items-center gap-2">
-      <span class="text-[10px] uppercase tracking-wider text-text-muted mr-1">
-        Period
-      </span>
+      <span class="text-[10px] uppercase tracking-wider text-text-muted mr-1"> Period </span>
       {#each PERIOD_PILLS as pill (pill.v)}
         {@const active = period === pill.v}
         <button
@@ -547,8 +517,8 @@
       {#if filteredRows.length === 0}
         <div class="p-10 text-center text-xs text-text-muted">
           {#if events.length === 0}
-            No LLM usage recorded yet. Once IronClaw starts handling requests,
-            costs and call counts appear here.
+            No LLM usage recorded yet. Once IronClaw starts handling requests, costs and call counts
+            appear here.
           {:else}
             No rows match the current search.
           {/if}
@@ -569,10 +539,7 @@
             <div
               class="grid grid-cols-[1.2fr_1.5fr_80px_110px_110px_110px] items-center gap-4 px-4 py-2.5 border-b border-border-subtle/60 hover:bg-bg-deep/40 transition-colors text-sm"
             >
-              <div
-                class="font-mono text-text-primary truncate"
-                title={row.user_id ?? ''}
-              >
+              <div class="font-mono text-text-primary truncate" title={row.user_id ?? ''}>
                 {row.user_id ?? '—'}
               </div>
               <div class="font-mono text-text-muted truncate" title={row.model ?? ''}>
@@ -598,12 +565,10 @@
 
     <!-- Uptime footer. Tiny, right-aligned so it reads as metadata, not
          a primary metric. -->
-    <div
-      class="mt-3 flex items-center justify-between gap-3 text-[11px] text-text-muted"
-    >
+    <div class="mt-3 flex items-center justify-between gap-3 text-[11px] text-text-muted">
       <span>
-        {filteredRows.length} row{filteredRows.length === 1 ? '' : 's'} ·
-        period <span class="text-text-primary">{period}</span>
+        {filteredRows.length} row{filteredRows.length === 1 ? '' : 's'} · period
+        <span class="text-text-primary">{period}</span>
       </span>
       <span>
         Server uptime

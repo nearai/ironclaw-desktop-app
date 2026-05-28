@@ -104,9 +104,7 @@
   /** Which credential UI to render. Falls back to `'api_key'` when the
    *  registry omits the field — matches what the OpenRouter / OpenAI
    *  builtins do. */
-  const credentialKind = $derived<string>(
-    selectedProvider?.credential_kind ?? 'api_key'
-  );
+  const credentialKind = $derived<string>(selectedProvider?.credential_kind ?? 'api_key');
 
   /** True when the provider's `can_list_models` flag is set. Drives the
    *  default-model surface (dropdown vs free text). */
@@ -274,8 +272,7 @@
     try {
       // Persist the provider id on the active profile; derive the
       // legacy `llmBackend` for older code paths.
-      const legacyBackend: LlmBackend =
-        provider.id === 'openrouter' ? 'openrouter' : 'nearai';
+      const legacyBackend: LlmBackend = provider.id === 'openrouter' ? 'openrouter' : 'nearai';
       await updateProfile(profile.id, {
         llmProviderId: provider.id,
         llmBackend: legacyBackend
@@ -368,8 +365,9 @@
   <div>
     <h2 class="text-sm font-semibold text-text-primary">LLM provider</h2>
     <p class="text-xs text-text-muted mt-1">
-      The bundled sidecar uses this provider for inference. The list comes
-      from the gateway's <code class="font-mono">/api/llm/providers</code>
+      The bundled sidecar uses this provider for inference. The list comes from the gateway's <code
+        class="font-mono">/api/llm/providers</code
+      >
       registry.
     </p>
   </div>
@@ -383,12 +381,7 @@
   {:else}
     <!-- Provider dropdown -->
     <div>
-      <label
-        for="llm-provider-select"
-        class="block text-xs text-text-muted mb-1"
-      >
-        Provider
-      </label>
+      <label for="llm-provider-select" class="block text-xs text-text-muted mb-1"> Provider </label>
       <select
         id="llm-provider-select"
         bind:value={selectedId}
@@ -418,16 +411,22 @@
         </div>
         <div class="flex items-center gap-2 text-[10px] uppercase tracking-wide">
           {#if selectedProvider.configured}
-            <span class="px-1.5 py-0.5 rounded bg-green-500/10 text-green-300 border border-green-500/30">
+            <span
+              class="px-1.5 py-0.5 rounded bg-green-500/10 text-green-300 border border-green-500/30"
+            >
               configured
             </span>
           {:else}
-            <span class="px-1.5 py-0.5 rounded bg-accent-gold/10 text-accent-gold border border-accent-gold/30">
+            <span
+              class="px-1.5 py-0.5 rounded bg-accent-gold/10 text-accent-gold border border-accent-gold/30"
+            >
               needs setup
             </span>
           {/if}
           {#if selectedProvider.builtin}
-            <span class="px-1.5 py-0.5 rounded bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/30">
+            <span
+              class="px-1.5 py-0.5 rounded bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/30"
+            >
               builtin
             </span>
           {/if}
@@ -437,10 +436,7 @@
       <!-- Base URL -->
       {#if selectedProvider.base_url_required}
         <div>
-          <label
-            for="llm-base-url"
-            class="block text-xs text-text-muted mb-1"
-          >
+          <label for="llm-base-url" class="block text-xs text-text-muted mb-1">
             Base URL <span class="text-accent-gold">·</span> required
           </label>
           <input
@@ -464,10 +460,7 @@
 
       <!-- Default model -->
       <div>
-        <label
-          for="llm-default-model"
-          class="block text-xs text-text-muted mb-1"
-        >
+        <label for="llm-default-model" class="block text-xs text-text-muted mb-1">
           Default model
         </label>
         {#if canListModels && modelOptions.length > 0}
@@ -494,7 +487,7 @@
             type="button"
             onclick={() => void onListModels()}
             disabled={modelsLoading || !connection.client}
-            class="mt-2 text-xs text-accent-cyan hover:underline disabled:opacity-50"
+            class="mt-2 text-xs text-accent-cyan underline decoration-dotted hover:decoration-solid disabled:opacity-50"
           >
             {modelsLoading ? 'Listing…' : 'List models'}
           </button>
@@ -507,19 +500,12 @@
       <!-- Credentials, per credential_kind -->
       {#if credentialKind === 'api_key' || credentialKind === 'open_ai_compatible'}
         <div>
-          <label
-            for="llm-api-key"
-            class="block text-xs text-text-muted mb-1"
-          >
-            API key
-          </label>
+          <label for="llm-api-key" class="block text-xs text-text-muted mb-1"> API key </label>
           <input
             id="llm-api-key"
             type="password"
             bind:value={credentialDraft}
-            placeholder={credentialStored
-              ? '•••• stored in macOS Keychain'
-              : 'sk-…'}
+            placeholder={credentialStored ? '•••• stored in macOS Keychain' : 'sk-…'}
             class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan min-h-[44px]"
           />
         </div>
@@ -540,29 +526,21 @@
         </div>
       {:else if credentialKind === 'file_based_credentials'}
         <div>
-          <label
-            for="llm-cred-file"
-            class="block text-xs text-text-muted mb-1"
-          >
+          <label for="llm-cred-file" class="block text-xs text-text-muted mb-1">
             Credentials file path
           </label>
           <input
             id="llm-cred-file"
             type="text"
             bind:value={credentialDraft}
-            placeholder={credentialStored
-              ? '(stored)'
-              : '/path/to/credentials.json'}
+            placeholder={credentialStored ? '(stored)' : '/path/to/credentials.json'}
             class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan min-h-[44px]"
           />
         </div>
       {:else if credentialKind === 'aws_credentials'}
         <div class="space-y-3">
           <div>
-            <label
-              for="aws-access-key"
-              class="block text-xs text-text-muted mb-1"
-            >
+            <label for="aws-access-key" class="block text-xs text-text-muted mb-1">
               Access key id
             </label>
             <input
@@ -574,10 +552,7 @@
             />
           </div>
           <div>
-            <label
-              for="aws-secret-key"
-              class="block text-xs text-text-muted mb-1"
-            >
+            <label for="aws-secret-key" class="block text-xs text-text-muted mb-1">
               Secret access key
             </label>
             <input
@@ -589,12 +564,7 @@
             />
           </div>
           <div>
-            <label
-              for="aws-region"
-              class="block text-xs text-text-muted mb-1"
-            >
-              Region
-            </label>
+            <label for="aws-region" class="block text-xs text-text-muted mb-1"> Region </label>
             <input
               id="aws-region"
               type="text"
@@ -612,8 +582,8 @@
         </div>
       {:else}
         <div class="text-xs text-text-muted">
-          Credential kind <code class="font-mono">{credentialKind}</code> is
-          not yet supported by this picker. Configure via
+          Credential kind <code class="font-mono">{credentialKind}</code> is not yet supported by
+          this picker. Configure via
           <code class="font-mono">/api/llm/providers</code> directly.
         </div>
       {/if}

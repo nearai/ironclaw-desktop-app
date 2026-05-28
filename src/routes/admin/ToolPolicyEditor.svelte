@@ -105,9 +105,7 @@
   let forbidden = $state(false);
 
   const isDisconnected = $derived(
-    connection.status === 'disconnected' ||
-      connection.status === 'idle' ||
-      !connection.client
+    connection.status === 'disconnected' || connection.status === 'idle' || !connection.client
   );
 
   // Normalize a wire state to one of the three writable values. Anything
@@ -158,9 +156,7 @@
     });
   });
 
-  const filterActive = $derived(
-    stateFilter !== 'all' || debouncedSearch.trim().length > 0
-  );
+  const filterActive = $derived(stateFilter !== 'all' || debouncedSearch.trim().length > 0);
 
   // Dirty whenever any draft state diverges from the server snapshot.
   // We compare per-tool rather than a serialized projection so the count
@@ -277,10 +273,7 @@
     // avoids the round-trip and keeps the UI consistent.
     const row = allRows.find((r) => r.name === name);
     if (row?.locked && next === 'always_allow') {
-      toasts.show(
-        `"${name}" is locked and cannot be set to always_allow.`,
-        'error'
-      );
+      toasts.show(`"${name}" is locked and cannot be set to always_allow.`, 'error');
       return;
     }
     draftStates = { ...draftStates, [name]: next };
@@ -328,10 +321,7 @@
     for (const r of target) nextDraft[r.name] = next;
     draftStates = nextDraft;
     if (skipped > 0) {
-      toasts.show(
-        `Skipped ${skipped} locked tool${skipped === 1 ? '' : 's'}.`,
-        'info'
-      );
+      toasts.show(`Skipped ${skipped} locked tool${skipped === 1 ? '' : 's'}.`, 'info');
     }
   }
 
@@ -355,19 +345,14 @@
       return;
     }
     if (scope.length > 5) {
-      const ok = confirm(
-        `Reset ${scope.length} tool${scope.length === 1 ? '' : 's'} to default?`
-      );
+      const ok = confirm(`Reset ${scope.length} tool${scope.length === 1 ? '' : 's'} to default?`);
       if (!ok) return;
     }
     const nextDraft: Record<string, WritableState> = { ...draftStates };
     for (const r of scope) {
       // Defensive: never reset a locked tool to always_allow even if the
       // server somehow claims that as the default — the write would 400.
-      const def =
-        r.locked && r.defaultState === 'always_allow'
-          ? 'ask_each_time'
-          : r.defaultState;
+      const def = r.locked && r.defaultState === 'always_allow' ? 'ask_each_time' : r.defaultState;
       nextDraft[r.name] = def;
     }
     draftStates = nextDraft;
@@ -495,7 +480,10 @@
     <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
       <div class="text-sm text-text-primary mb-2">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check <a href="/settings" class="text-accent-cyan hover:underline">Settings</a> to configure the connection.
+        Check <a
+          href="/settings"
+          class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
+        > to configure the connection.
       </div>
     </div>
   {:else if loadState === 'loading'}
@@ -561,8 +549,18 @@
         </div>
 
         <div class="flex-1 min-w-[200px] relative max-w-md ml-auto">
-          <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <span
+            class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <circle cx="11" cy="11" r="7" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
@@ -644,12 +642,12 @@
     <div class="flex-1 min-h-0 overflow-auto surface">
       {#if filteredRows.length === 0}
         <div class="p-10 text-center text-xs text-text-muted">
-          {filterActive
-            ? 'No tools match the current filter.'
-            : 'No tools available.'}
+          {filterActive ? 'No tools match the current filter.' : 'No tools available.'}
         </div>
       {:else}
-        <div class="grid grid-cols-[1fr_140px_320px] sticky top-0 bg-bg-surface border-b border-border-subtle px-4 py-2 text-[10px] uppercase tracking-wider text-text-muted z-10">
+        <div
+          class="grid grid-cols-[1fr_140px_320px] sticky top-0 bg-bg-surface border-b border-border-subtle px-4 py-2 text-[10px] uppercase tracking-wider text-text-muted z-10"
+        >
           <div>Tool</div>
           <div>Status</div>
           <div class="text-right">Permission</div>
@@ -673,7 +671,15 @@
                       aria-label="Locked: {row.lockedReason ||
                         'This tool cannot be set to always_allow.'}"
                     >
-                      <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-3.5 h-3.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
                         <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                         <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                       </svg>
@@ -715,13 +721,11 @@
                     onclick={() => setState(row.name, opt.v)}
                     disabled={disabledForLock}
                     title={disabledForLock
-                      ? row.lockedReason ||
-                        'This tool cannot be set to always_allow.'
+                      ? row.lockedReason || 'This tool cannot be set to always_allow.'
                       : opt.label}
                     class="px-2.5 py-1 rounded text-[11px] font-semibold transition min-h-[28px] border disabled:cursor-not-allowed disabled:opacity-30"
                     class:bg-green-500={active && opt.tint === 'green'}
-                    class:text-bg-deep={active &&
-                      (opt.tint === 'green' || opt.tint === 'gold')}
+                    class:text-bg-deep={active && (opt.tint === 'green' || opt.tint === 'gold')}
                     class:bg-accent-gold={active && opt.tint === 'gold'}
                     class:bg-red-500={active && opt.tint === 'red'}
                     class:text-white={active && opt.tint === 'red'}
@@ -749,9 +753,7 @@
       <div class="text-xs text-text-muted">
         {#if dirty}
           <span class="text-accent-gold"
-            >{changedNames.length} unsaved change{changedNames.length === 1
-              ? ''
-              : 's'}.</span
+            >{changedNames.length} unsaved change{changedNames.length === 1 ? '' : 's'}.</span
           >
         {:else if saveState === 'saved'}
           <span class="text-accent-cyan">Saved.</span>

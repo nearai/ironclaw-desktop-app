@@ -82,9 +82,7 @@
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   const isDisconnected = $derived(
-    connection.status === 'disconnected' ||
-      connection.status === 'idle' ||
-      !connection.client
+    connection.status === 'disconnected' || connection.status === 'idle' || !connection.client
   );
 
   // Pill defs (label + value) shared between both tabs.
@@ -154,9 +152,7 @@
       // timestamp field, swap in a comparator here without other code moving.
       // TODO(extensions:+page.svelte:applySort): wire installed_at sort once
       // the gateway exposes it on /api/extensions.
-      out.sort((a, b) =>
-        (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name)
-      );
+      out.sort((a, b) => (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name));
     }
     // Pin-first hoist: stable-sort so explicitly pinned extensions float
     // to the top of the grid regardless of the underlying sort. Pinned
@@ -177,27 +173,17 @@
 
   const filteredInstalled = $derived.by(() => {
     const q = debouncedQuery.trim().toLowerCase();
-    return applySort(
-      installed.filter((e) => matchesCategory(e) && matchesSearch(e, q))
-    );
+    return applySort(installed.filter((e) => matchesCategory(e) && matchesSearch(e, q)));
   });
 
   const filteredRegistry = $derived.by(() => {
     const q = debouncedQuery.trim().toLowerCase();
-    return applySort(
-      registry.filter((e) => matchesCategory(e) && matchesSearch(e, q))
-    );
+    return applySort(registry.filter((e) => matchesCategory(e) && matchesSearch(e, q)));
   });
 
-  const visibleList = $derived(
-    activeTab === 'installed' ? filteredInstalled : filteredRegistry
-  );
-  const sourceLen = $derived(
-    activeTab === 'installed' ? installed.length : registry.length
-  );
-  const filterActive = $derived(
-    debouncedQuery.trim().length > 0 || categoryFilter !== 'all'
-  );
+  const visibleList = $derived(activeTab === 'installed' ? filteredInstalled : filteredRegistry);
+  const sourceLen = $derived(activeTab === 'installed' ? installed.length : registry.length);
+  const filterActive = $derived(debouncedQuery.trim().length > 0 || categoryFilter !== 'all');
 
   // ────────────────────────────────────────────────────────────────────────
   // Lifecycle: hydrate prefs, debounce search, auto-load on connection.
@@ -448,9 +434,9 @@
     registryError = null;
     try {
       const list = await client.listRegistry();
-      registry = list.slice().sort((a, b) =>
-        (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name)
-      );
+      registry = list
+        .slice()
+        .sort((a, b) => (a.display_name ?? a.name).localeCompare(b.display_name ?? b.name));
       registryState = 'loaded';
       // Same as loadInstalled — try to satisfy the deep-link if either
       // list now contains the target.
@@ -595,7 +581,11 @@
   </header>
 
   <!-- Tabs -->
-  <div class="mb-4 flex items-center gap-1 border-b border-border-subtle" role="tablist" aria-label="Extension sources">
+  <div
+    class="mb-4 flex items-center gap-1 border-b border-border-subtle"
+    role="tablist"
+    aria-label="Extension sources"
+  >
     <button
       type="button"
       role="tab"
@@ -669,8 +659,18 @@
 
     <div class="flex flex-wrap items-center gap-3">
       <div class="relative flex-1 min-w-[200px] max-w-md">
-        <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted">
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <span
+          class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <circle cx="11" cy="11" r="7" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
@@ -711,7 +711,7 @@
         <button
           type="button"
           onclick={clearFilters}
-          class="text-accent-cyan hover:underline"
+          class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
         >
           Clear filters
         </button>
@@ -725,12 +725,17 @@
       <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
         <div class="text-sm text-text-primary mb-2">IronClaw is offline</div>
         <div class="text-xs text-text-muted">
-          Check <a href="/settings" class="text-accent-cyan hover:underline">Settings</a> to configure the connection.
+          Check <a
+            href="/settings"
+            class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
+          > to configure the connection.
         </div>
       </div>
     {:else if activeTab === 'installed'}
       {#if installedState === 'error'}
-        <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
+        <div
+          class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]"
+        >
           <div class="text-sm text-red-400 mb-2">Failed to load extensions</div>
           <div class="text-xs text-text-muted font-mono mb-4 max-w-md break-words">
             {installedError ?? 'Unknown error'}
@@ -746,7 +751,9 @@
       {:else if showInstalledSkeleton}
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {#each Array(6) as _, i (i)}
-            <div class="rounded-lg border border-border-subtle bg-bg-surface p-4 min-h-[180px] animate-pulse">
+            <div
+              class="rounded-lg border border-border-subtle bg-bg-surface p-4 min-h-[180px] animate-pulse"
+            >
               <div class="h-4 w-1/3 bg-border-subtle rounded mb-3"></div>
               <div class="h-3 w-full bg-border-subtle rounded mb-2"></div>
               <div class="h-3 w-4/5 bg-border-subtle rounded mb-6"></div>
@@ -758,18 +765,32 @@
           {/each}
         </div>
       {:else if installed.length === 0}
-        <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
+        <div
+          class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]"
+        >
           <div class="text-sm text-text-primary mb-1">No extensions installed</div>
           <div class="text-xs text-text-muted">
-            Browse the <button type="button" onclick={() => setTab('registry')} class="text-accent-cyan hover:underline">Registry</button> to add some.
+            Browse the <button
+              type="button"
+              onclick={() => setTab('registry')}
+              class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
+              >Registry</button
+            > to add some.
           </div>
         </div>
       {:else if filteredInstalled.length === 0}
-        <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
+        <div
+          class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]"
+        >
           <div class="text-sm text-text-primary mb-1">No matching extensions</div>
           <div class="text-xs text-text-muted">
             Adjust the filters or
-            <button type="button" onclick={clearFilters} class="text-accent-cyan hover:underline">clear them</button>
+            <button
+              type="button"
+              onclick={clearFilters}
+              class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
+              >clear them</button
+            >
             to see all {installed.length}.
           </div>
         </div>
@@ -800,7 +821,9 @@
       {/if}
     {:else if activeTab === 'registry'}
       {#if registryState === 'error'}
-        <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
+        <div
+          class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]"
+        >
           <div class="text-sm text-red-400 mb-2">Failed to load registry</div>
           <div class="text-xs text-text-muted font-mono mb-4 max-w-md break-words">
             {registryError ?? 'Unknown error'}
@@ -816,7 +839,9 @@
       {:else if showRegistrySkeleton}
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {#each Array(6) as _, i (i)}
-            <div class="rounded-lg border border-border-subtle bg-bg-surface p-4 min-h-[180px] animate-pulse">
+            <div
+              class="rounded-lg border border-border-subtle bg-bg-surface p-4 min-h-[180px] animate-pulse"
+            >
               <div class="h-4 w-1/3 bg-border-subtle rounded mb-3"></div>
               <div class="h-3 w-full bg-border-subtle rounded mb-2"></div>
               <div class="h-3 w-4/5 bg-border-subtle rounded mb-6"></div>
@@ -824,11 +849,15 @@
           {/each}
         </div>
       {:else if registry.length === 0}
-        <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
+        <div
+          class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]"
+        >
           <div class="text-sm text-text-muted">The registry is empty.</div>
         </div>
       {:else if filteredRegistry.length === 0}
-        <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
+        <div
+          class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]"
+        >
           <div class="text-sm text-text-primary mb-1">No matching extensions</div>
           <div class="text-xs text-text-muted">
             {#if debouncedQuery.trim().length > 0}
@@ -836,7 +865,12 @@
             {:else}
               No registry entries match the current filters.
             {/if}
-            <button type="button" onclick={clearFilters} class="text-accent-cyan hover:underline ml-1">Clear</button>
+            <button
+              type="button"
+              onclick={clearFilters}
+              class="text-accent-cyan underline decoration-dotted hover:decoration-solid ml-1"
+              >Clear</button
+            >
           </div>
         </div>
       {:else}
@@ -859,9 +893,5 @@
 </section>
 
 {#if setupTarget}
-  <SetupDrawer
-    extension={setupTarget}
-    onClose={closeSetup}
-    onSaved={handleSetupSaved}
-  />
+  <SetupDrawer extension={setupTarget} onClose={closeSetup} onSaved={handleSetupSaved} />
 {/if}

@@ -20,8 +20,18 @@
 //      `/api/v1/responses`). Other endpoints fall through to a default
 //      404 so a missing mock surfaces loudly instead of silently hanging
 //      the test.
+//
+//   3. Surface-wide mocks (`mockGatewaySurfaces`). The a11y spec visits
+//      every top-level route, and most of them call into list/summary
+//      endpoints on mount (skills, routines, jobs, extensions, missions,
+//      knowledge tree, admin tool-policy + usage). The surface mock adds
+//      thin handlers for those endpoints so each route can render its
+//      full layout (loading → loaded with 2-3 fixture rows) without
+//      hanging on `/api/...` 404s.
 
 import type { Page, Route } from '@playwright/test';
+import { expect } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 // ---- Tauri shim -----------------------------------------------------------
 
@@ -105,10 +115,7 @@ const DEFAULT_FRESH_SETTINGS: TauriMockSettings = {
  * navigation. Uses `addInitScript`, which Playwright re-runs on every
  * navigation in the page lifetime.
  */
-export async function mockTauri(
-  page: Page,
-  overrides: TauriMockOverrides = {}
-): Promise<void> {
+export async function mockTauri(page: Page, overrides: TauriMockOverrides = {}): Promise<void> {
   const settings = overrides.settings ?? DEFAULT_FRESH_SETTINGS;
   const token = overrides.token ?? null;
   const localToken = overrides.localToken ?? 'local-token-abc123';
@@ -173,7 +180,10 @@ export async function mockTauri(
             const next = pick<{ settings: TauriMockSettings }>(args, 'settings');
             if (next) state.settings = JSON.parse(JSON.stringify(next)) as TauriMockSettings;
             // eslint-disable-next-line no-console
-            console.log('[mockTauri] save_settings onboardingComplete=', state.settings.onboardingComplete);
+            console.log(
+              '[mockTauri] save_settings onboardingComplete=',
+              state.settings.onboardingComplete
+            );
             return null;
           }
 
@@ -343,7 +353,13 @@ export async function mockTauri(
   // RELIES on the wizard redirect, and pre-seeding would prevent it.
   if (settings.onboardingComplete === true) {
     await page.addInitScript(
-      ({ seedSettings, seedToken }: { seedSettings: TauriMockSettings; seedToken: string | null }) => {
+      ({
+        seedSettings,
+        seedToken
+      }: {
+        seedSettings: TauriMockSettings;
+        seedToken: string | null;
+      }) => {
         // Run after the document is parsed but before the layout's
         // onMount fires. SvelteKit boots from `<script type="module">`,
         // which runs after DOMContentLoaded, but our pre-seed needs to
@@ -450,10 +466,7 @@ export interface GatewayMockOverrides {
  * Returns a `Promise<void>` — Playwright route handlers are registered
  * synchronously but `page.route` itself is async.
  */
-export async function mockGateway(
-  page: Page,
-  overrides: GatewayMockOverrides = {}
-): Promise<void> {
+export async function mockGateway(page: Page, overrides: GatewayMockOverrides = {}): Promise<void> {
   const version = overrides.version ?? '0.29.4';
   const llmBackend = overrides.llmBackend ?? 'nearai';
   const threads = overrides.threads ?? [];
@@ -510,18 +523,15 @@ export async function mockGateway(
   // they come after. The catch-all 404s any unmatched gateway-host /api/
   // call so a missing mock surfaces as a clear failure (rather than the
   // request hanging until the connection store's timeout fires).
-  await page.route(
-    new RegExp(`^https?://${GATEWAY_HOSTS}/api/`),
-    async (route: Route) => {
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[mockGateway] unmatched API call:',
-        route.request().method(),
-        route.request().url()
-      );
-      await route.fulfill({ status: 404, body: 'Not Found' });
-    }
-  );
+  await page.route(new RegExp(`^https?://${GATEWAY_HOSTS}/api/`), async (route: Route) => {
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[mockGateway] unmatched API call:',
+      route.request().method(),
+      route.request().url()
+    );
+    await route.fulfill({ status: 404, body: 'Not Found' });
+  });
 
   // --- /api/health -------------------------------------------------------
   await page.route(
@@ -786,4 +796,538 @@ export async function mockGateway(
   // FIRST so the specific routes above shadow it — Playwright dispatches
   // route handlers in reverse-registration order). No further routes
   // beyond this comment.
+}
+
+// ---- Surface mocks --------------------------------------------------------
+//
+// `mockGateway` covers chat + onboarding endpoints. Adding the per-surface
+// list/summary mocks below lets every top-level route render its full
+// loaded state for the a11y sweep. Each handler returns the lightest
+// realistic shape — 2 to 3 fixture rows where the route reads from a list,
+// or an empty `{...: []}` envelope where the route only needs the call to
+// succeed for the page to leave its loading skeleton.
+
+/** Per-test overrides for `mockGatewaySurfaces`. All fields optional. */
+export interface SurfaceMockOverrides {
+  /** Skills returned by `/api/skills`. Default: 2 fixture skills. */
+  skills?: Array<{ name: string; description: string; version: string }>;
+  /** Routines returned by `/api/routines`. Default: 2 fixture routines. */
+  routines?: Array<{
+    id: string;
+    name: string;
+    enabled: boolean;
+    trigger_summary?: string;
+    last_run_at?: string;
+    next_fire_at?: string;
+  }>;
+  /** Jobs returned by `/api/jobs`. Default: 2 fixture jobs. */
+  jobs?: Array<{
+    id: string;
+    title?: string;
+    state?: string;
+    user_id?: string;
+    created_at?: string;
+  }>;
+  /** Extensions returned by `/api/extensions`. Default: 2 fixture rows. */
+  extensions?: Array<{
+    name: string;
+    display_name?: string;
+    kind?: string;
+    description?: string;
+    version?: string;
+    active?: boolean;
+  }>;
+  /** Memory tree nodes from `/api/memory/list`. Default: 3 fixture nodes. */
+  memoryNodes?: Array<{ path: string; type: 'file' | 'dir' }>;
+  /** Whether the user has admin role for `/api/admin/*` reads. Default: true. */
+  isAdmin?: boolean;
+}
+
+/**
+ * Register list/summary mocks for the per-surface routes the a11y spec
+ * sweeps (skills / routines / jobs / extensions / missions / knowledge /
+ * admin). Must be called BEFORE `mockGateway`'s catch-all is in place — or,
+ * more practically, AFTER `mockGateway` so Playwright's reverse-registration
+ * order lets these specific routes win over the catch-all.
+ *
+ * Returns a `Promise<void>`. Safe to call once per test.
+ */
+export async function mockGatewaySurfaces(
+  page: Page,
+  overrides: SurfaceMockOverrides = {}
+): Promise<void> {
+  const skills = overrides.skills ?? [
+    { name: 'web-search', description: 'Search the web via SerpAPI.', version: '0.1.0' },
+    { name: 'pdf-reader', description: 'Extract text from PDFs.', version: '0.2.1' }
+  ];
+  const routines = overrides.routines ?? [
+    {
+      id: 'r1',
+      name: 'Daily briefing',
+      enabled: true,
+      trigger_summary: 'cron: 08:30 EDT',
+      last_run_at: new Date(Date.now() - 86_400_000).toISOString(),
+      next_fire_at: new Date(Date.now() + 3_600_000).toISOString()
+    },
+    {
+      id: 'r2',
+      name: 'Weekly digest',
+      enabled: false,
+      trigger_summary: 'cron: Mon 09:00 UTC'
+    }
+  ];
+  const jobs = overrides.jobs ?? [
+    {
+      id: 'j1',
+      title: 'Index docs',
+      state: 'completed',
+      user_id: 'default',
+      created_at: new Date().toISOString()
+    },
+    {
+      id: 'j2',
+      title: 'Rebuild skill bundles',
+      state: 'in_progress',
+      user_id: 'default',
+      created_at: new Date().toISOString()
+    }
+  ];
+  const extensions = overrides.extensions ?? [
+    {
+      name: 'hermes',
+      display_name: 'Hermes',
+      kind: 'mcp',
+      description: 'Hermes messaging gateway.',
+      version: '2026.5.7',
+      active: true
+    },
+    {
+      name: 'github',
+      display_name: 'GitHub',
+      kind: 'mcp',
+      description: 'GitHub repo + issue search.',
+      version: '0.4.0',
+      active: false
+    }
+  ];
+  const memoryNodes = overrides.memoryNodes ?? [
+    { path: 'README.md', type: 'file' as const },
+    { path: 'notes', type: 'dir' as const },
+    { path: 'projects', type: 'dir' as const }
+  ];
+  const isAdmin = overrides.isAdmin !== false;
+
+  const GATEWAY_HOSTS = '(?:127\\.0\\.0\\.1|localhost):(?:3100|3334|3000|8080|18789|22821|4444)';
+
+  // --- Skills ----------------------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/skills(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ skills })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/skills/search$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ installed: skills, catalog: [] })
+      });
+    }
+  );
+
+  // --- Routines --------------------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/routines(?:\\?.*)?$`),
+    async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ routines })
+        });
+        return;
+      }
+      await route.fulfill({ status: 405, body: '{}' });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/routines/summary(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          total: routines.length,
+          enabled: routines.filter((r) => r.enabled).length,
+          failing: 0,
+          runs_today: 0
+        })
+      });
+    }
+  );
+  // Per-routine runs (route page may fetch the latest run for an enabled
+  // routine when surfacing its "last run" tag). Return an empty list so
+  // the call resolves without painting a run row.
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/routines/[^/]+/runs(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ runs: [] })
+      });
+    }
+  );
+
+  // --- Jobs ------------------------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/jobs(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ jobs })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/jobs/summary(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          total: jobs.length,
+          pending: jobs.filter((j) => j.state === 'pending').length,
+          in_progress: jobs.filter((j) => j.state === 'in_progress').length,
+          completed: jobs.filter((j) => j.state === 'completed').length,
+          failed: 0,
+          stuck: 0
+        })
+      });
+    }
+  );
+
+  // --- Extensions ------------------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/extensions(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ extensions })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/extensions/readiness(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          extensions: extensions.map((e) => ({
+            name: e.name,
+            phase: e.active ? 'ready' : 'needs_setup',
+            authenticated: e.active === true,
+            active: e.active === true
+          }))
+        })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/extensions/tools(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ tools: [] })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/extensions/registry(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ registry: [] })
+      });
+    }
+  );
+
+  // --- Memory / knowledge ---------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/memory/list(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ nodes: memoryNodes })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/memory/search$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ hits: [] })
+      });
+    }
+  );
+
+  // --- Engine v2 (missions) -------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/engine/missions(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ missions: [] })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/engine/projects(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ projects: [] })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/engine/threads(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ threads: [] })
+      });
+    }
+  );
+
+  // --- Admin -----------------------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/settings/tools(?:/[^?]*)?(?:\\?.*)?$`),
+    async (route: Route) => {
+      if (!isAdmin) {
+        await route.fulfill({ status: 403, body: '{}' });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          tools: [
+            { name: 'web_search', state: 'allow', category: 'search' },
+            { name: 'shell_exec', state: 'ask_each_time', category: 'system' }
+          ]
+        })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/admin/system-prompt(?:\\?.*)?$`),
+    async (route: Route) => {
+      if (!isAdmin) {
+        await route.fulfill({ status: 403, body: '{}' });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ prompt: '# SYSTEM\nMock prompt.\n', updated_at: null })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/admin/usage/summary(?:\\?.*)?$`),
+    async (route: Route) => {
+      if (!isAdmin) {
+        await route.fulfill({ status: 403, body: '{}' });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          users: { total: 1, active: 1, suspended: 0, admins: 1 },
+          jobs: { total: jobs.length },
+          usage_30d: {
+            llm_calls: 0,
+            input_tokens: 0,
+            output_tokens: 0,
+            total_cost: '0.00'
+          },
+          uptime_seconds: 3600
+        })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/admin/usage(?:\\?.*)?$`),
+    async (route: Route) => {
+      if (!isAdmin) {
+        await route.fulfill({ status: 403, body: '{}' });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ period: 'day', since: null, usage: [] })
+      });
+    }
+  );
+
+  // --- Logs ------------------------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/logs/level(?:\\?.*)?$`),
+    async (route: Route) => {
+      if (route.request().method() === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ level: 'info' })
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ level: 'info' })
+      });
+    }
+  );
+  // SSE stream — emit a single retry directive and keep the connection
+  // open-ish (Playwright closes the route after fulfill; the EventSource
+  // re-tries silently). This is enough to let the page mount its log view
+  // without errors painting.
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/logs/events(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive'
+        },
+        body: 'retry: 60000\n\n'
+      });
+    }
+  );
+
+  // --- Settings --------------------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/settings(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ settings: {} })
+      });
+    }
+  );
+}
+
+// ---- Accessibility helper -------------------------------------------------
+
+/** Severity classes axe reports. */
+type AxeImpact = 'critical' | 'serious' | 'moderate' | 'minor';
+
+/** Per-violation summary we log to the console for moderate/minor findings. */
+interface ViolationSummary {
+  id: string;
+  impact: AxeImpact;
+  help: string;
+  nodes: number;
+  helpUrl: string;
+}
+
+/**
+ * Run axe against the current page and assert there are no critical/serious
+ * violations. Moderate / minor violations are logged to the test console
+ * so we can see them in CI output without failing the build.
+ *
+ * `color-contrast` is excluded — manual brand-token review confirmed WCAG
+ * AA on the navy/cyan/gold palette and axe routinely reports false
+ * positives against tailwind opacity utilities. See the spec header
+ * comment in `a11y.spec.ts` for the full rationale.
+ *
+ * Pass `extraDisable` to add route-specific rule exclusions when a
+ * known-false-positive needs scoping down — keep that list short and
+ * documented at the call site.
+ */
+export async function expectNoSeriousA11y(
+  page: Page,
+  opts: { routeLabel: string; extraDisable?: string[] } = { routeLabel: 'unknown' }
+): Promise<void> {
+  const disabled = ['color-contrast', ...(opts.extraDisable ?? [])];
+  const results = await new AxeBuilder({ page }).disableRules(disabled).analyze();
+
+  const violations = results.violations as Array<{
+    id: string;
+    impact?: AxeImpact | null;
+    help: string;
+    helpUrl: string;
+    nodes: unknown[];
+  }>;
+
+  const bySeverity = (impact: AxeImpact): ViolationSummary[] =>
+    violations
+      .filter((v) => (v.impact ?? 'minor') === impact)
+      .map((v) => ({
+        id: v.id,
+        impact: v.impact ?? 'minor',
+        help: v.help,
+        nodes: Array.isArray(v.nodes) ? v.nodes.length : 0,
+        helpUrl: v.helpUrl,
+        // Include the offending HTML targets for blocking violations so a
+        // CI failure surfaces enough context to triage without re-running
+        // the spec locally. `target` is the axe-standard CSS selector
+        // path; `html` is the element snippet (truncated to ~200 chars
+        // per node to keep the assertion message readable).
+        targets: Array.isArray(v.nodes)
+          ? (v.nodes as Array<{ target?: unknown; html?: string }>).slice(0, 5).map((n) => ({
+              selector: Array.isArray(n.target) ? n.target.join(' > ') : String(n.target ?? ''),
+              html: typeof n.html === 'string' ? n.html.slice(0, 200) : ''
+            }))
+          : []
+      }));
+
+  const critical = bySeverity('critical');
+  const serious = bySeverity('serious');
+  const moderate = bySeverity('moderate');
+  const minor = bySeverity('minor');
+
+  // Log moderate / minor so they show up in CI output. Use a consistent
+  // prefix so a grep over the run log surfaces every finding across
+  // every route.
+  if (moderate.length + minor.length > 0) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[a11y][${opts.routeLabel}] moderate=${moderate.length} minor=${minor.length}`,
+      JSON.stringify([...moderate, ...minor], null, 2)
+    );
+  }
+
+  // Critical + serious gate the build. Compose both lists into a single
+  // assertion message so a regression shows ALL blocking violations at
+  // once, not just the first.
+  const blocking = [...critical, ...serious];
+  expect(
+    blocking,
+    `Route ${opts.routeLabel} has ${blocking.length} blocking a11y violation(s): ${JSON.stringify(blocking, null, 2)}`
+  ).toEqual([]);
 }

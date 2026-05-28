@@ -2111,7 +2111,11 @@
             No conversations yet. Start a new chat to begin.
           {:else}
             <span class="text-text-muted">Not connected.</span>
-            <a href="/settings" class="text-accent-cyan hover:underline">Configure in Settings →</a>
+            <a
+              href="/settings"
+              class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
+              >Configure in Settings →</a
+            >
           {/if}
         </div>
       {:else if !threadsVirtualized}
@@ -2616,7 +2620,9 @@
             {#if !connection.client}
               <p class="text-sm text-text-primary">IronClaw is offline</p>
               <p class="text-xs text-text-muted mt-1">
-                <a href="/settings" class="text-accent-cyan hover:underline"
+                <a
+                  href="/settings"
+                  class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
                   >Configure the gateway in Settings</a
                 > to start chatting.
               </p>

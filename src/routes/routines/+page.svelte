@@ -112,12 +112,7 @@
             filterKey = f;
           }
           const s = parsed.sort;
-          if (
-            s === 'name' ||
-            s === 'next_run' ||
-            s === 'last_run' ||
-            s === 'schedule'
-          ) {
+          if (s === 'name' || s === 'next_run' || s === 'last_run' || s === 'schedule') {
             sortKey = s;
           }
         }
@@ -195,9 +190,7 @@
 
   const filteredRoutines = $derived.by(() => {
     const q = debouncedQuery.trim().toLowerCase();
-    return applySort(
-      routines.filter((r) => matchesFilter(r) && matchesSearch(r, q))
-    );
+    return applySort(routines.filter((r) => matchesFilter(r) && matchesSearch(r, q)));
   });
 
   /**
@@ -226,9 +219,7 @@
     return filteredRoutines.filter((r) => !pinnedSet.has(r.id));
   });
 
-  const filterActive = $derived(
-    debouncedQuery.trim().length > 0 || filterKey !== 'all'
-  );
+  const filterActive = $derived(debouncedQuery.trim().length > 0 || filterKey !== 'all');
 
   // ────────────────────────────────────────────────────────────────────────
   // Sparkline data. We bucket each enabled routine's `last_run` timestamp
@@ -267,21 +258,15 @@
     return buckets;
   });
 
-  const sparkTotal = $derived(
-    sparkBuckets.reduce((acc, b) => acc + b.success + b.failed, 0)
-  );
+  const sparkTotal = $derived(sparkBuckets.reduce((acc, b) => acc + b.success + b.failed, 0));
 
-  const sparkMax = $derived(
-    sparkBuckets.reduce((m, b) => Math.max(m, b.success + b.failed), 0)
-  );
+  const sparkMax = $derived(sparkBuckets.reduce((m, b) => Math.max(m, b.success + b.failed), 0));
 
   /** Flattened per-bucket count series feeding `<Sparkline variant="bars">`.
    *  v1 sums success + failed into a single channel; once the gateway
    *  exposes success/failure attribution we can render two stacked
    *  Sparklines or switch back to a hand-rolled stacked-bar block. */
-  const sparkSeries = $derived<number[]>(
-    sparkBuckets.map((b) => b.success + b.failed)
-  );
+  const sparkSeries = $derived<number[]>(sparkBuckets.map((b) => b.success + b.failed));
 
   // Deep-link target id from `?open=<id>` (set by CommandPalette). Captured
   // once on mount; if the routine list hasn't loaded the target yet on the
@@ -407,10 +392,7 @@
     if (!opts.silent) refreshing = true;
     try {
       // Fire both in parallel — the summary call is independent of the list.
-      const [sum, list] = await Promise.all([
-        client.routinesSummary(),
-        client.listRoutines()
-      ]);
+      const [sum, list] = await Promise.all([client.routinesSummary(), client.listRoutines()]);
       summary = sum;
       routines = list;
       loadError = null;
@@ -508,10 +490,7 @@
     try {
       const res = await client.toggleRoutine(id, next);
       if (!res.ok) throw new Error('Server did not confirm toggle.');
-      toasts.show(
-        next ? `Enabled: ${routine.name}` : `Disabled: ${routine.name}`,
-        'success'
-      );
+      toasts.show(next ? `Enabled: ${routine.name}` : `Disabled: ${routine.name}`, 'success');
       // Re-sync from server so summary counters reflect reality.
       void refresh({ silent: true });
     } catch (err) {
@@ -645,7 +624,9 @@
             stroke-linejoin="round"
             aria-hidden="true"
           >
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            <polygon
+              points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+            />
           </svg>
         </button>
         <button
@@ -667,7 +648,15 @@
           aria-label="View {routine.name}"
           class="p-2 rounded-md text-accent-cyan hover:bg-accent-cyan/10 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
         >
-          <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <line x1="5" y1="12" x2="19" y2="12" />
             <polyline points="12 5 19 12 12 19" />
           </svg>
@@ -690,7 +679,16 @@
         disabled={refreshing}
         class="flex items-center gap-2 px-3 py-2 rounded-md border border-border-subtle text-xs text-text-muted hover:border-accent-cyan hover:text-accent-cyan transition-colors disabled:opacity-50 min-h-[36px]"
       >
-        <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class:animate-spin={refreshing}>
+        <svg
+          viewBox="0 0 24 24"
+          class="w-3.5 h-3.5"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class:animate-spin={refreshing}
+        >
           <polyline points="23 4 23 10 17 10" />
           <polyline points="1 20 1 14 7 14" />
           <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -703,14 +701,27 @@
   {#if connection.status !== 'connected'}
     <!-- Connection guard: deny all reads until the gateway is up. -->
     <div class="surface flex-1 flex flex-col items-center justify-center gap-2 p-8">
-      <svg viewBox="0 0 24 24" class="w-8 h-8 text-text-muted" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <svg
+        viewBox="0 0 24 24"
+        class="w-8 h-8 text-text-muted"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+        />
         <line x1="12" y1="9" x2="12" y2="13" />
         <line x1="12" y1="17" x2="12.01" y2="17" />
       </svg>
       <div class="text-sm text-text-primary">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check <a href="/settings" class="text-accent-cyan hover:underline">Settings</a> to verify the gateway connection.
+        Check <a
+          href="/settings"
+          class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
+        > to verify the gateway connection.
       </div>
     </div>
   {:else}
@@ -757,12 +768,7 @@
             title="Recent routine runs over the past 24 hours"
             aria-label="Recent routine runs over the past 24 hours"
           >
-            <Sparkline
-              data={sparkSeries}
-              variant="bars"
-              width={160}
-              height={40}
-            />
+            <Sparkline data={sparkSeries} variant="bars" width={160} height={40} />
           </div>
           <div class="text-xs text-text-muted mt-2 uppercase tracking-wide">Recent runs</div>
         </div>
@@ -801,8 +807,18 @@
 
       <div class="flex flex-wrap items-center gap-3">
         <div class="relative flex-1 min-w-[200px] max-w-md">
-          <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted">
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <span
+            class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <circle cx="11" cy="11" r="7" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
@@ -839,7 +855,7 @@
           <button
             type="button"
             onclick={clearFilters}
-            class="text-accent-cyan hover:underline"
+            class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
           >
             Clear filters
           </button>
@@ -867,14 +883,21 @@
         </div>
       {:else if routines.length === 0}
         <div class="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
-          <svg viewBox="0 0 24 24" class="w-10 h-10 text-text-muted" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            class="w-10 h-10 text-text-muted"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
           </svg>
           <div class="text-sm text-text-primary">No routines configured yet.</div>
           <div class="text-xs text-text-muted max-w-sm">
-            Create routines via IronClaw's TUI or admin API. They'll show up here
-            automatically.
+            Create routines via IronClaw's TUI or admin API. They'll show up here automatically.
           </div>
           <button
             type="button"
@@ -882,7 +905,16 @@
             disabled={refreshing}
             class="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-md border border-border-subtle text-xs text-text-muted hover:border-accent-cyan hover:text-accent-cyan transition-colors disabled:opacity-50"
           >
-            <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class:animate-spin={refreshing}>
+            <svg
+              viewBox="0 0 24 24"
+              class="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class:animate-spin={refreshing}
+            >
               <polyline points="23 4 23 10 17 10" />
               <polyline points="1 20 1 14 7 14" />
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
@@ -937,9 +969,15 @@
                         >
                           <div class="text-text-muted mb-1">cron format: m h dom mon dow</div>
                           <div class="text-text-muted mb-2">Examples:</div>
-                          <div><span class="text-accent-cyan">0 9 * * *</span>      every day at 9am</div>
-                          <div><span class="text-accent-cyan">*/15 * * * *</span>   every 15 minutes</div>
-                          <div><span class="text-accent-cyan">0 0 * * 0</span>      every Sunday at midnight</div>
+                          <div>
+                            <span class="text-accent-cyan">0 9 * * *</span> every day at 9am
+                          </div>
+                          <div>
+                            <span class="text-accent-cyan">*/15 * * * *</span> every 15 minutes
+                          </div>
+                          <div>
+                            <span class="text-accent-cyan">0 0 * * 0</span> every Sunday at midnight
+                          </div>
                         </div>
                       {/if}
                     </span>
@@ -974,7 +1012,9 @@
                         stroke-linejoin="round"
                         aria-hidden="true"
                       >
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                        <polygon
+                          points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                        />
                       </svg>
                       Pinned
                     </span>

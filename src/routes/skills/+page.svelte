@@ -67,9 +67,7 @@
       const parsed = JSON.parse(raw) as Partial<PersistedPrefs>;
       const view: ViewMode = parsed.viewMode === 'grouped' ? 'grouped' : 'flat';
       const sort: SortMode =
-        parsed.sortMode === 'trust' || parsed.sortMode === 'recent'
-          ? parsed.sortMode
-          : 'alpha';
+        parsed.sortMode === 'trust' || parsed.sortMode === 'recent' ? parsed.sortMode : 'alpha';
       return { viewMode: view, sortMode: sort };
     } catch {
       return { ...DEFAULT_PREFS };
@@ -84,9 +82,7 @@
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) return [];
       // Defensive: drop anything that isn't a string, then cap length.
-      return parsed
-        .filter((v): v is string => typeof v === 'string')
-        .slice(0, RECENT_LIMIT);
+      return parsed.filter((v): v is string => typeof v === 'string').slice(0, RECENT_LIMIT);
     } catch {
       return [];
     }
@@ -118,10 +114,7 @@
    * them runs anything. Drawer opens (just viewing) do NOT count.
    */
   function pushRecent(name: string) {
-    const next = [name, ...recentNames.filter((n) => n !== name)].slice(
-      0,
-      RECENT_LIMIT
-    );
+    const next = [name, ...recentNames.filter((n) => n !== name)].slice(0, RECENT_LIMIT);
     recentNames = next;
     persistRecent();
   }
@@ -139,9 +132,7 @@
     const q = debouncedQuery.trim().toLowerCase();
     if (!q) return skills;
     return skills.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        (s.description ?? '').toLowerCase().includes(q)
+      (s) => s.name.toLowerCase().includes(q) || (s.description ?? '').toLowerCase().includes(q)
     );
   });
 
@@ -195,9 +186,7 @@
       // Coalesce unknown trust values into Unverified so they aren't
       // hidden — better to surface them under the highest-suspicion bucket.
       const bucket =
-        key === 'Bundled' || key === 'Verified' || key === 'Unverified'
-          ? key
-          : 'Unverified';
+        key === 'Bundled' || key === 'Verified' || key === 'Unverified' ? key : 'Unverified';
       const arr = byTrust.get(bucket) ?? [];
       arr.push(s);
       byTrust.set(bucket, arr);
@@ -209,9 +198,7 @@
     ];
     return order
       .map(({ id, label }) => {
-        const items = (byTrust.get(id) ?? []).slice().sort((a, b) =>
-          a.name.localeCompare(b.name)
-        );
+        const items = (byTrust.get(id) ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
         return { id: id as string, label, items };
       })
       .filter((s) => s.items.length > 0);
@@ -409,9 +396,7 @@
     void tick().then(() => {
       const name = lastFocusedName;
       if (!name || typeof document === 'undefined') return;
-      const el = document.querySelector<HTMLElement>(
-        `[data-skill-card="${cssEscape(name)}"]`
-      );
+      const el = document.querySelector<HTMLElement>(`[data-skill-card="${cssEscape(name)}"]`);
       el?.focus();
     });
   }
@@ -470,9 +455,7 @@
    */
   function columnCountFor(name: string): number {
     if (typeof document === 'undefined') return 1;
-    const card = document.querySelector<HTMLElement>(
-      `[data-skill-card="${cssEscape(name)}"]`
-    );
+    const card = document.querySelector<HTMLElement>(`[data-skill-card="${cssEscape(name)}"]`);
     const grid = card?.parentElement;
     if (!grid) return 1;
     const style = window.getComputedStyle(grid);
@@ -482,9 +465,7 @@
 
   function focusByName(name: string) {
     if (typeof document === 'undefined') return;
-    const el = document.querySelector<HTMLElement>(
-      `[data-skill-card="${cssEscape(name)}"]`
-    );
+    const el = document.querySelector<HTMLElement>(`[data-skill-card="${cssEscape(name)}"]`);
     el?.focus();
   }
 
@@ -492,10 +473,7 @@
     lastFocusedName = skill.name;
   }
 
-  function handleArrowKey(
-    skill: Skill,
-    key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'
-  ) {
+  function handleArrowKey(skill: Skill, key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight') {
     const order = navOrder;
     const idx = order.findIndex((s) => s.name === skill.name);
     if (idx < 0) return;
@@ -519,9 +497,7 @@
   }
 
   const isDisconnected = $derived(
-    connection.status === 'disconnected' ||
-      connection.status === 'idle' ||
-      !connection.client
+    connection.status === 'disconnected' || connection.status === 'idle' || !connection.client
   );
 
   const showSkeleton = $derived(
@@ -602,7 +578,15 @@
   <!-- Search bar -->
   <div class="mb-5 relative max-w-md">
     <span class="pointer-events-none absolute inset-y-0 left-3 flex items-center text-text-muted">
-      <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        viewBox="0 0 24 24"
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <circle cx="11" cy="11" r="7" />
         <line x1="21" y1="21" x2="16.65" y2="16.65" />
       </svg>
@@ -623,7 +607,10 @@
       <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
         <div class="text-sm text-text-primary mb-2">IronClaw is offline</div>
         <div class="text-xs text-text-muted">
-          Check <a href="/settings" class="text-accent-cyan hover:underline">Settings</a> to configure the connection.
+          Check <a
+            href="/settings"
+            class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
+          > to configure the connection.
         </div>
       </div>
     {:else if loadState === 'error'}
@@ -643,7 +630,9 @@
     {:else if showSkeleton}
       <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {#each Array(6) as _, i (i)}
-          <div class="rounded-lg border border-border-subtle bg-bg-surface p-4 min-h-[160px] animate-pulse">
+          <div
+            class="rounded-lg border border-border-subtle bg-bg-surface p-4 min-h-[160px] animate-pulse"
+          >
             <div class="h-4 w-1/3 bg-border-subtle rounded mb-3"></div>
             <div class="h-3 w-full bg-border-subtle rounded mb-2"></div>
             <div class="h-3 w-4/5 bg-border-subtle rounded mb-6"></div>
@@ -718,7 +707,9 @@
                       stroke-linejoin="round"
                       aria-hidden="true"
                     >
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      <polygon
+                        points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                      />
                     </svg>
                   {/if}
                   {section.label}
@@ -757,9 +748,5 @@
 </section>
 
 {#if selectedSkill}
-  <SkillDrawer
-    skill={selectedSkill}
-    onClose={closeDrawer}
-    onLaunch={handleOpenInChat}
-  />
+  <SkillDrawer skill={selectedSkill} onClose={closeDrawer} onLaunch={handleOpenInChat} />
 {/if}

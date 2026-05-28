@@ -42,9 +42,7 @@
   const PROJECTS_RAIL_STORAGE_KEY = 'ironclaw-missions-projects-width';
 
   let projectsRailWidth = $state<number>(PROJECTS_RAIL_DEFAULT);
-  let viewportWidth = $state<number>(
-    typeof window === 'undefined' ? 1280 : window.innerWidth
-  );
+  let viewportWidth = $state<number>(typeof window === 'undefined' ? 1280 : window.innerWidth);
   const resizeEnabled = $derived(viewportWidth >= NARROW_VIEWPORT_PX);
   const effectiveProjectsRailWidth = $derived(
     resizeEnabled ? projectsRailWidth : PROJECTS_RAIL_DEFAULT
@@ -76,18 +74,14 @@
    *  closed). We resolve from the in-memory list rather than calling
    *  getMission() so the drawer stays in sync with list refreshes. */
   const selectedMission = $derived<EngineMission | null>(
-    selectedMissionId
-      ? missions.find((m) => m.id === selectedMissionId) ?? null
-      : null
+    selectedMissionId ? (missions.find((m) => m.id === selectedMissionId) ?? null) : null
   );
 
   /** Whether the synthetic "All projects" row is the active selection.
    *  Pulled out so the template doesn't need a misplaced {@const} inside
    *  the bare <ul> (svelte requires {@const} live inside an {#if} /
    *  {#each} / {#snippet} block). */
-  const allProjectsSelected = $derived<boolean>(
-    selectedProjectId === ALL_PROJECTS_ID
-  );
+  const allProjectsSelected = $derived<boolean>(selectedProjectId === ALL_PROJECTS_ID);
 
   /** Missions filtered to the selected project. Note: the current wire
    *  doesn't always emit `project_id` on mission rows — when the field
@@ -180,10 +174,7 @@
         const raw = localStorage.getItem(PROJECTS_RAIL_STORAGE_KEY);
         const parsed = raw === null ? NaN : Number.parseInt(raw, 10);
         if (Number.isFinite(parsed)) {
-          projectsRailWidth = Math.min(
-            Math.max(parsed, PROJECTS_RAIL_MIN),
-            PROJECTS_RAIL_MAX
-          );
+          projectsRailWidth = Math.min(Math.max(parsed, PROJECTS_RAIL_MIN), PROJECTS_RAIL_MAX);
         }
       }
     } catch {
@@ -246,7 +237,7 @@
         missionsRes.status === 'rejected' &&
         threadsRes.status === 'rejected';
       loadError = allFailed
-        ? (projectsRes.reason as Error)?.message ?? 'Failed to load Engine v2 data'
+        ? ((projectsRes.reason as Error)?.message ?? 'Failed to load Engine v2 data')
         : null;
       if (!opts.silent && loadError !== null) {
         toasts.show(`Refresh failed: ${loadError}`, 'error');
@@ -308,13 +299,18 @@
         stroke-linecap="round"
         stroke-linejoin="round"
       >
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+        <path
+          d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"
+        />
         <line x1="12" y1="9" x2="12" y2="13" />
         <line x1="12" y1="17" x2="12.01" y2="17" />
       </svg>
       <div class="text-sm text-text-primary">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check <a href="/settings" class="text-accent-cyan hover:underline">Settings</a> to verify the gateway connection.
+        Check <a
+          href="/settings"
+          class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
+        > to verify the gateway connection.
       </div>
     </div>
   {:else if initialLoad && projects.length === 0 && missions.length === 0 && !loadError}
@@ -350,14 +346,10 @@
         aria-label="Engine v2 projects"
       >
         <header class="px-4 py-3 border-b border-border-subtle">
-          <h2 class="text-xs font-semibold text-text-muted uppercase tracking-wide">
-            Projects
-          </h2>
+          <h2 class="text-xs font-semibold text-text-muted uppercase tracking-wide">Projects</h2>
         </header>
         {#if projects.length === 0}
-          <div class="flex-1 p-4 text-xs text-text-muted italic">
-            No engine projects yet.
-          </div>
+          <div class="flex-1 p-4 text-xs text-text-muted italic">No engine projects yet.</div>
         {:else}
           <ul class="flex-1 overflow-auto py-2">
             <!-- "All projects" pseudo-row. Always present; selecting it
@@ -438,7 +430,9 @@
 
       <!-- Center pane: missions list. Cards are click-to-open-drawer. -->
       <div class="flex-1 surface flex flex-col overflow-hidden">
-        <header class="px-5 py-3 border-b border-border-subtle flex items-center justify-between gap-3">
+        <header
+          class="px-5 py-3 border-b border-border-subtle flex items-center justify-between gap-3"
+        >
           <h2 class="text-xs font-semibold text-text-muted uppercase tracking-wide">
             Missions
             {#if filteredMissions.length > 0}
@@ -519,13 +513,17 @@
                       {/if}
                     </div>
                     <span
-                      class="inline-block shrink-0 px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {statusBadgeClass(mission.status)}"
+                      class="inline-block shrink-0 px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {statusBadgeClass(
+                        mission.status
+                      )}"
                     >
                       {mission.status ?? 'unknown'}
                     </span>
                   </div>
 
-                  <div class="mt-3 flex items-center justify-between gap-3 text-[11px] text-text-muted">
+                  <div
+                    class="mt-3 flex items-center justify-between gap-3 text-[11px] text-text-muted"
+                  >
                     <span class="truncate" title={mission.cadence_description ?? ''}>
                       {#if mission.cadence_description}
                         {mission.cadence_description}
@@ -550,9 +548,5 @@
 </section>
 
 {#if selectedMission}
-  <MissionDetail
-    mission={selectedMission}
-    threads={engineThreads}
-    onclose={closeDetail}
-  />
+  <MissionDetail mission={selectedMission} threads={engineThreads} onclose={closeDetail} />
 {/if}
