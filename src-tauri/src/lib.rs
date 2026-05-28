@@ -25,6 +25,7 @@ mod ironhub;
 mod keychain;
 mod settings;
 mod sidecar;
+mod spotlight;
 mod tray;
 mod tts;
 mod windows;
@@ -769,6 +770,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SidecarState::default())
         .manage(tts::TtsState::default())
+        .manage(spotlight::SpotlightIndexer::default())
         // Cached "Recent notifications" submenu entries. Lives in app
         // state so `update_tray_recent` can swap the menu on demand
         // and so we can re-seed the menu after future
@@ -823,6 +825,8 @@ pub fn run() {
             tts::say_text,
             tts::stop_tts,
             tts::list_voices,
+            spotlight::spotlight_index_thread,
+            spotlight::spotlight_remove_thread,
             windows::open_profile_window,
             windows::list_open_profile_windows,
         ])

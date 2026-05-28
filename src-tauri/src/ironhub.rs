@@ -333,7 +333,7 @@ fn write_skill_to(root: &Path, slug: &str, content: &str) -> Result<(PathBuf, u6
             );
         }
     }
-    Ok((dest, content.as_bytes().len() as u64))
+    Ok((dest, content.len() as u64))
 }
 
 /// Public entrypoint: write the SKILL.md for `slug` into the local

@@ -107,6 +107,7 @@ class ThreadStore {
     this.error = null;
     try {
       this.threads = await connection.client.listThreads();
+      for (const thread of this.threads) void this.indexInSpotlight(thread.id);
       // If the previously-selected thread is gone, drop the selection so the
       // composer auto-creates on next send rather than 404'ing.
       if (this.currentId && !this.threads.some((t) => t.id === this.currentId)) {
@@ -146,6 +147,7 @@ class ThreadStore {
       if (!id) return null;
       await this.loadThreads();
       this.currentId = id;
+      void this.indexInSpotlight(id);
       // Mirror selectThread's recent-tracking so a freshly-created thread
       // shows up at the top of the Cmd+T switcher's Recent section.
       this.recent = recordRecentThread(id);
@@ -165,6 +167,32 @@ class ThreadStore {
    */
   renameLocal(id: string, title: string): void {
     this.threads = this.threads.map((t) => (t.id === id ? { ...t, title } : t));
+    void this.indexInSpotlight(id);
+  }
+
+  private async indexInSpotlight(threadId: string): Promise<void> {
+    if (typeof window === 'undefined') return;
+    if (!('__TAURI_INTERNALS__' in window)) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const messages = (await import('./messages.svelte')).messages
+        .get(threadId)
+        .slice(-50)
+        .map((m) => ({ role: m.role, content: m.content }));
+      const thread = this.threads.find((t) => t.id === threadId);
+      if (!thread) return;
+      await invoke('spotlight_index_thread', {
+        snapshot: {
+          id: threadId,
+          title: thread.title ?? '(untitled)',
+          created_at: thread.created_at,
+          updated_at: thread.updated_at,
+          messages
+        }
+      });
+    } catch {
+      // Spotlight indexing is best-effort.
+    }
   }
 }
 
