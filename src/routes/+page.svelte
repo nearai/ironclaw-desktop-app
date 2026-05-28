@@ -48,6 +48,10 @@
   // LANE B1 — voice answer (R51)
   import VoiceAnswerBar from '$lib/components/VoiceAnswerBar.svelte';
   import { voiceAnswer } from '$lib/stores/voice-answer.svelte';
+  // LANE B5 — time-travel replay (R58, consumes R59 events store)
+  import ReplayBar from '$lib/components/ReplayBar.svelte';
+  import { replay } from '$lib/stores/replay.svelte';
+  import { replayUI } from '$lib/stores/replay-ui.svelte';
 
   // ---- Pane widths (drag-to-resize) ----------------------------------------
   //
@@ -669,6 +673,24 @@
     // tab if it isn't already in the strip.
     chatTabs.bindProfile(connection.activeProfile?.id ?? null);
     if (id) chatTabs.open(id);
+
+    // LANE B5 — time-travel replay (R58): Cmd+. toggles the replay bar
+    // for the current thread. Opening triggers a one-shot fetch of the
+    // event timeline via replay.loadFor(); the bar consumes the loaded
+    // events.
+    const onReplayShortcut = (ev: KeyboardEvent) => {
+      const mod = ev.metaKey || ev.ctrlKey;
+      if (!mod || ev.key !== '.') return;
+      const tid = threads.currentId;
+      if (!tid) return;
+      ev.preventDefault();
+      replayUI.toggle(tid);
+      if (replayUI.isOpenFor(tid)) {
+        void replay.loadFor(tid);
+      }
+    };
+    window.addEventListener('keydown', onReplayShortcut);
+    onDestroy(() => window.removeEventListener('keydown', onReplayShortcut));
 
     // Hydrate pane widths from localStorage. ResizeHandle pushes the
     // hydrated value back via `onresize` on its own mount, but reading
@@ -3256,7 +3278,18 @@
         {/if}
       </div>
 
-      <!-- LANE B5 — replay bar (time-travel scrub bar lands here) -->
+      <!-- LANE B5 — replay bar (R58): mounted only when the user has
+           explicitly opened replay for this thread. The bar reads from
+           the replay store; opening fetches the event timeline via the
+           replay.loadFor() call wired below. -->
+      {#if currentId && replayUI.isOpenFor(currentId)}
+        <ReplayBar
+          threadId={currentId}
+          onClose={() => {
+            if (currentId) replayUI.close(currentId);
+          }}
+        />
+      {/if}
       <!-- LANE W3 — reply-thread panel mount (Slack-style replies anchor here) -->
 
       <!-- scroll-to-bottom FAB — shown when new content arrives off-screen -->
