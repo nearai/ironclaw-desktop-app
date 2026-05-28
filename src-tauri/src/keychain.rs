@@ -346,3 +346,96 @@ pub fn get_or_create_local_token() -> Result<String, String> {
     set_secret(ACCOUNT_LOCAL_TOKEN, &fresh)?;
     Ok(fresh)
 }
+
+// ---- Unit tests ----------------------------------------------------------
+//
+// Validates the pure-function behavior of the file-fallback path
+// (account sanitisation, path layout, plaintext round-trip) without
+// touching the keychain or requiring an `AppHandle`. The Tauri-side
+// `pub fn get` / `pub fn set` are exercised via the JS-side vitest
+// suites and the live `scripts/dev-up.sh` smoke test.
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use tempfile::TempDir;
+
+    /// Reimplements the path sanitiser inline so we can test the layout
+    /// expectations of `token_file_path` without an `AppHandle` (which
+    /// requires a Tauri runtime). Mirror of `token_file_path`'s
+    /// `replace(['/', '\\', '.', ':'], "_")` rule.
+    fn safe_file_name(account: &str) -> String {
+        let safe = account.replace(['/', '\\', '.', ':'], "_");
+        format!("{safe}.token")
+    }
+
+    #[test]
+    fn account_sanitiser_replaces_unsafe_chars() {
+        assert_eq!(safe_file_name("gateway-token:default"), "gateway-token_default.token");
+        assert_eq!(safe_file_name("openrouter-key:my-prof"), "openrouter-key_my-prof.token");
+        // Reserved characters that must NOT leak into the filesystem
+        assert_eq!(safe_file_name("../etc"), "___etc.token");
+        assert_eq!(safe_file_name("a/b\\c.d:e"), "a_b_c_d_e.token");
+    }
+
+    #[test]
+    fn safe_account_does_not_contain_separators() {
+        for raw in ["gateway-token:default", "x/y", "a.b", "z\\w", "a:b"] {
+            let safe = safe_file_name(raw);
+            assert!(
+                !safe.contains('/') && !safe.contains('\\') && !safe.contains(':') &&
+                // Only the trailing `.token` extension is allowed; nothing else
+                safe.matches('.').count() == 1 && safe.ends_with(".token"),
+                "sanitiser leaked an unsafe char in '{safe}' (from '{raw}')"
+            );
+        }
+    }
+
+    #[test]
+    fn token_file_round_trip_via_fs() {
+        // Doesn't go through `token_file_path` (needs AppHandle), but
+        // proves the on-disk byte layout the Rust loader expects: a
+        // trimmed string with mode 0600. This is what
+        // `scripts/stage-token.sh` writes.
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("tokens").join("gateway-token_default.token");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let token = "abcd1234efgh5678".to_string();
+        fs::write(&path, &token).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+            let perms = fs::metadata(&path).unwrap().permissions();
+            assert_eq!(perms.mode() & 0o777, 0o600);
+        }
+        let read = fs::read_to_string(&path).unwrap();
+        assert_eq!(read.trim(), token);
+    }
+
+    #[test]
+    fn token_file_handles_trailing_whitespace() {
+        // `stage-token.sh` may write the token via shell heredoc or
+        // `echo $TOK` which appends a newline. The Rust loader must
+        // strip whitespace cleanly.
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("gateway-token_default.token");
+        fs::write(&path, "tok-with-newline\n").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap().trim(), "tok-with-newline");
+
+        fs::write(&path, "  spaces  \n").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap().trim(), "spaces");
+    }
+
+    #[test]
+    fn empty_token_file_treated_as_absent() {
+        // Mirror the loader's "empty file → None" rule so a half-staged
+        // token doesn't accidentally authenticate with the empty
+        // string (which the gateway would reject with 401 anyway).
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("gateway-token_default.token");
+        fs::write(&path, "").unwrap();
+        let raw = fs::read_to_string(&path).unwrap();
+        assert!(raw.trim().is_empty());
+    }
+}

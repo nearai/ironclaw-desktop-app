@@ -34,6 +34,9 @@ tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", 
 log = "0.4"
 env_logger = "0.11"
 
+[dev-dependencies]
+tempfile = "3"
+
 [features]
 # Tauri treats builds without `custom-protocol` as dev builds and points the
 # webview at `build.devUrl` instead of embedding/serving `frontendDist`.
