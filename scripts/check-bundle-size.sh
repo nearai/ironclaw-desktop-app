@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
-# Enforce a gzipped-size budget on the SvelteKit build output. Sums
-# build/_app/immutable/{entry,chunks,nodes}/*.js gzipped (matches what users
-# download over the wire), compares against scripts/bundle-budget.json.
+# Enforce gzipped-size budgets on the SvelteKit build output. The primary
+# "total" gate is the largest eager route graph: entry + app shell + layout
+# nodes + the selected route node + their static imports. Lazy route chunks are
+# checked per route instead of being summed into the startup budget.
 #
 # Designed to be cheap, deterministic, and CI-friendly. No deps beyond what
 # ships with bash + gzip + awk + find. Pairs with scripts/analyze-bundle.sh
@@ -69,7 +70,7 @@ fi
 
 # ---------------------------------------------------------------------------
 # Parse the budget file. Pure-awk, no jq dep. Keys we care about:
-#   total_gzip_kb, entry_gzip_kb, largest_chunk_gzip_kb
+#   total_gzip_kb, entry_gzip_kb, largest_chunk_gzip_kb, route_gzip_kb
 # Missing keys default to 0 which means "no limit" (won't trip).
 # ---------------------------------------------------------------------------
 parse_budget_key() {
@@ -101,6 +102,7 @@ read_budget() {
 BUDGET_TOTAL_KB=$(read_budget total_gzip_kb)
 BUDGET_ENTRY_KB=$(read_budget entry_gzip_kb)
 BUDGET_LARGEST_KB=$(read_budget largest_chunk_gzip_kb)
+BUDGET_ROUTE_KB=$(read_budget route_gzip_kb)
 
 if (( BUDGET_TOTAL_KB == 0 && BUDGET_ENTRY_KB == 0 && BUDGET_LARGEST_KB == 0 )); then
   echo "${RED}ERROR${RESET} no budget keys found in ${BUDGET_FILE}" >&2
@@ -140,6 +142,14 @@ status_label() {
   fi
 }
 
+worst_state() {
+  local s1="$1" s2="$2"
+  # OVER > WARN > OK
+  if [[ "${s1}" == "OVER" || "${s2}" == "OVER" ]]; then echo "OVER"; return; fi
+  if [[ "${s1}" == "WARN" || "${s2}" == "WARN" ]]; then echo "WARN"; return; fi
+  echo "OK"
+}
+
 # ---------------------------------------------------------------------------
 # Sum the three JS scopes. Use find so a missing dir doesn't break the script.
 # ---------------------------------------------------------------------------
@@ -173,6 +183,100 @@ TOTAL_KB=$(to_kb "${TOTAL_BYTES}")
 ENTRY_KB=$(to_kb "${ENTRY_BYTES}")
 LARGEST_KB=$(to_kb "${LARGEST_BYTES}")
 
+ALL_JS_BYTES=${TOTAL_BYTES}
+ALL_JS_KB=${TOTAL_KB}
+
+# ---------------------------------------------------------------------------
+# SvelteKit route graph budgets. The final static build does not copy Vite's
+# manifest, but it remains under .svelte-kit/output/client after `npm run
+# build`. Use it when present to measure actual eager downloads per route.
+# ---------------------------------------------------------------------------
+ROUTE_ROWS=""
+ROUTE_MAX_BYTES=0
+ROUTE_MAX_PATH=""
+MANIFEST_PATH="${PROJECT_ROOT}/.svelte-kit/output/client/.vite/manifest.json"
+APP_JS_PATH="${PROJECT_ROOT}/.svelte-kit/generated/client-optimized/app.js"
+
+if [[ -f "${MANIFEST_PATH}" && -f "${APP_JS_PATH}" ]]; then
+  ROUTE_TMP="$(mktemp -t ironclaw-route-rows.XXXXXX)"
+  PROJECT_ROOT="${PROJECT_ROOT}" node <<'NODE' > "${ROUTE_TMP}"
+const fs = require('fs');
+const path = require('path');
+const zlib = require('zlib');
+
+const projectRoot = process.env.PROJECT_ROOT;
+const clientRoot = path.join(projectRoot, '.svelte-kit/output/client');
+const manifest = JSON.parse(
+  fs.readFileSync(path.join(clientRoot, '.vite/manifest.json'), 'utf8')
+);
+const appSource = fs.readFileSync(
+  path.join(projectRoot, '.svelte-kit/generated/client-optimized/app.js'),
+  'utf8'
+);
+
+const dictionaryMatch = appSource.match(/export const dictionary = \{([\s\S]*?)\n\t\};/);
+if (!dictionaryMatch) process.exit(0);
+
+const routes = [];
+for (const match of dictionaryMatch[1].matchAll(/"([^"]+)": \[([0-9]+)\]/g)) {
+  routes.push([match[1], Number(match[2])]);
+}
+
+const gzipMemo = new Map();
+function gzipSize(file) {
+  if (!gzipMemo.has(file)) {
+    const body = fs.readFileSync(path.join(clientRoot, file));
+    gzipMemo.set(file, zlib.gzipSync(body, { level: 9 }).length);
+  }
+  return gzipMemo.get(file);
+}
+
+function walk(keys) {
+  const seen = new Set();
+  const stack = [...keys];
+  let bytes = 0;
+  while (stack.length > 0) {
+    const key = stack.pop();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    const entry = manifest[key];
+    if (!entry) continue;
+    bytes += gzipSize(entry.file);
+    for (const imported of entry.imports ?? []) stack.push(imported);
+  }
+  return bytes;
+}
+
+const startKey = '../../node_modules/@sveltejs/kit/src/runtime/client/entry.js';
+const appKey = '.svelte-kit/generated/client-optimized/app.js';
+const layoutKeys = [
+  '.svelte-kit/generated/client-optimized/nodes/0.js',
+  '.svelte-kit/generated/client-optimized/nodes/1.js'
+];
+
+for (const [route, node] of routes) {
+  const nodeKey = `.svelte-kit/generated/client-optimized/nodes/${node}.js`;
+  const bytes = walk([startKey, appKey, ...layoutKeys, nodeKey]);
+  console.log(`${route}|${bytes}`);
+}
+NODE
+  ROUTE_ROWS="$(cat "${ROUTE_TMP}")"
+  rm -f "${ROUTE_TMP}"
+
+  while IFS='|' read -r route bytes; do
+    [[ -z "${route}" || -z "${bytes}" ]] && continue
+    if (( bytes > ROUTE_MAX_BYTES )); then
+      ROUTE_MAX_BYTES=${bytes}
+      ROUTE_MAX_PATH=${route}
+    fi
+  done <<< "${ROUTE_ROWS}"
+
+  if (( ROUTE_MAX_BYTES > 0 )); then
+    TOTAL_BYTES=${ROUTE_MAX_BYTES}
+    TOTAL_KB=$(to_kb "${TOTAL_BYTES}")
+  fi
+fi
+
 # ---------------------------------------------------------------------------
 # Compute usage percentages. If a budget is 0 we treat it as disabled (0%).
 # ---------------------------------------------------------------------------
@@ -188,14 +292,25 @@ pct_of_budget() {
 TOTAL_PCT=$(pct_of_budget "${TOTAL_KB}" "${BUDGET_TOTAL_KB}")
 ENTRY_PCT=$(pct_of_budget "${ENTRY_KB}" "${BUDGET_ENTRY_KB}")
 LARGEST_PCT=$(pct_of_budget "${LARGEST_KB}" "${BUDGET_LARGEST_KB}")
+ROUTE_STATUS=OK
+if [[ -n "${ROUTE_ROWS}" && "${BUDGET_ROUTE_KB}" != "0" ]]; then
+  while IFS='|' read -r route bytes; do
+    [[ -z "${route}" || -z "${bytes}" ]] && continue
+    route_kb=$(to_kb "${bytes}")
+    route_pct=$(pct_of_budget "${route_kb}" "${BUDGET_ROUTE_KB}")
+    route_status=$(status_label "${route_pct}")
+    ROUTE_STATUS=$(worst_state "${ROUTE_STATUS}" "${route_status}")
+  done <<< "${ROUTE_ROWS}"
+fi
 
 # ---------------------------------------------------------------------------
 # Render the report. Column-aligned, color per row, single-line summary at
 # the end so CI logs are scannable.
 # ---------------------------------------------------------------------------
 echo
-echo "${BOLD}Bundle size check${RESET}  ${DIM}(gzipped, entry+chunks+nodes JS)${RESET}"
+echo "${BOLD}Bundle size check${RESET}  ${DIM}(gzipped eager route JS; lazy chunks checked per route)${RESET}"
 echo "${DIM}budget: ${BUDGET_FILE##*/}   build: ${FILE_COUNT} files under ${BUILD_DIR##*/Users/}${RESET}"
+echo "${DIM}all emitted JS: ${ALL_JS_KB} KB gzip across entry/chunks/nodes${RESET}"
 echo
 printf '  %-18s %10s %10s %8s   %s\n' 'METRIC' 'ACTUAL' 'BUDGET' 'USAGE' 'STATUS'
 printf '  %-18s %10s %10s %8s   %s\n' '------' '------' '------' '-----' '------'
@@ -214,23 +329,28 @@ emit_row() {
     "${extra:+  ${DIM}${extra}${RESET}}"
 }
 
-emit_row "total"          "${TOTAL_KB}"   "${BUDGET_TOTAL_KB}"   "${TOTAL_PCT}"
+emit_row "total"          "${TOTAL_KB}"   "${BUDGET_TOTAL_KB}"   "${TOTAL_PCT}" "${ROUTE_MAX_PATH:+max route ${ROUTE_MAX_PATH}}"
 emit_row "entry"          "${ENTRY_KB}"   "${BUDGET_ENTRY_KB}"   "${ENTRY_PCT}"
 emit_row "largest chunk"  "${LARGEST_KB}" "${BUDGET_LARGEST_KB}" "${LARGEST_PCT}" "${LARGEST_PATH##*/}"
 echo
+
+if [[ -n "${ROUTE_ROWS}" ]]; then
+  echo "${BOLD}Per-route eager load${RESET}"
+  printf '  %-22s %10s %10s %8s   %s\n' 'ROUTE' 'ACTUAL' 'BUDGET' 'USAGE' 'STATUS'
+  printf '  %-22s %10s %10s %8s   %s\n' '-----' '------' '------' '-----' '------'
+  while IFS='|' read -r route bytes; do
+    [[ -z "${route}" || -z "${bytes}" ]] && continue
+    route_kb=$(to_kb "${bytes}")
+    route_pct=$(pct_of_budget "${route_kb}" "${BUDGET_ROUTE_KB}")
+    emit_row "${route}" "${route_kb}" "${BUDGET_ROUTE_KB}" "${route_pct}"
+  done <<< "${ROUTE_ROWS}"
+  echo
+fi
 
 # ---------------------------------------------------------------------------
 # Decide exit code. OVER wins over WARN, WARN wins over OK.
 # A metric with budget=0 is disabled and never trips.
 # ---------------------------------------------------------------------------
-worst_state() {
-  local s1="$1" s2="$2"
-  # OVER > WARN > OK
-  if [[ "${s1}" == "OVER" || "${s2}" == "OVER" ]]; then echo "OVER"; return; fi
-  if [[ "${s1}" == "WARN" || "${s2}" == "WARN" ]]; then echo "WARN"; return; fi
-  echo "OK"
-}
-
 TOTAL_STATUS=$(status_label "${TOTAL_PCT}")
 ENTRY_STATUS=$(status_label "${ENTRY_PCT}")
 LARGEST_STATUS=$(status_label "${LARGEST_PCT}")
@@ -239,8 +359,9 @@ LARGEST_STATUS=$(status_label "${LARGEST_PCT}")
 [[ "${BUDGET_TOTAL_KB}"   == "0" ]] && TOTAL_STATUS=OK
 [[ "${BUDGET_ENTRY_KB}"   == "0" ]] && ENTRY_STATUS=OK
 [[ "${BUDGET_LARGEST_KB}" == "0" ]] && LARGEST_STATUS=OK
+[[ "${BUDGET_ROUTE_KB}"   == "0" ]] && ROUTE_STATUS=OK
 
-WORST=$(worst_state "${TOTAL_STATUS}" "$(worst_state "${ENTRY_STATUS}" "${LARGEST_STATUS}")")
+WORST=$(worst_state "${TOTAL_STATUS}" "$(worst_state "${ENTRY_STATUS}" "$(worst_state "${LARGEST_STATUS}" "${ROUTE_STATUS}")")")
 
 case "${WORST}" in
   OVER)
@@ -249,6 +370,7 @@ case "${WORST}" in
     [[ "${TOTAL_STATUS}"   == "OVER" ]] && echo "  ${RED}> total${RESET}         ${TOTAL_KB} KB / ${BUDGET_TOTAL_KB} KB   (over by $(awk -v a=${TOTAL_KB} -v b=${BUDGET_TOTAL_KB} 'BEGIN{printf "%.1f", a-b}') KB)"
     [[ "${ENTRY_STATUS}"   == "OVER" ]] && echo "  ${RED}> entry${RESET}         ${ENTRY_KB} KB / ${BUDGET_ENTRY_KB} KB   (over by $(awk -v a=${ENTRY_KB} -v b=${BUDGET_ENTRY_KB} 'BEGIN{printf "%.1f", a-b}') KB)"
     [[ "${LARGEST_STATUS}" == "OVER" ]] && echo "  ${RED}> largest chunk${RESET} ${LARGEST_KB} KB / ${BUDGET_LARGEST_KB} KB   ${DIM}${LARGEST_PATH}${RESET}"
+    [[ "${ROUTE_STATUS}"   == "OVER" ]] && echo "  ${RED}> route eager load${RESET} exceeded ${BUDGET_ROUTE_KB} KB"
     echo
     echo "  ${DIM}Inspect what grew:   bash scripts/analyze-bundle.sh${RESET}"
     echo "  ${DIM}Diff vs baseline:    bash scripts/bundle-compare.sh${RESET}"

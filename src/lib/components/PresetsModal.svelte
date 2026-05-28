@@ -57,9 +57,7 @@
       if (target === 'save' || presets.presets.length === 0) {
         saveInputEl?.focus();
       } else {
-        const btn = document.querySelector(
-          '[data-preset-first-apply]'
-        ) as HTMLButtonElement | null;
+        const btn = document.querySelector('[data-preset-first-apply]') as HTMLButtonElement | null;
         btn?.focus();
       }
     });
@@ -227,16 +225,12 @@
       aria-label="Workspace presets"
     >
       <!-- Header -->
-      <div
-        class="flex items-center justify-between px-5 py-4 border-b border-border-subtle"
-      >
+      <div class="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
         <div>
-          <div class="text-sm font-medium text-text-primary">
-            Workspace presets
-          </div>
+          <div class="text-sm font-medium text-text-primary">Workspace presets</div>
           <div class="text-xs text-text-muted/70 mt-0.5">
-            Snapshot the current layout — route, panel widths, thread,
-            sidebar state — to restore later.
+            Snapshot the current layout — route, panel widths, thread, sidebar state — to restore
+            later.
           </div>
         </div>
         <button
@@ -261,9 +255,7 @@
       </div>
 
       <!-- Save row -->
-      <div
-        class="px-5 py-3 border-b border-border-subtle bg-bg-surface/30 flex items-center gap-2"
-      >
+      <div class="px-5 py-3 border-b border-border-subtle bg-bg-surface/30 flex items-center gap-2">
         <input
           bind:this={saveInputEl}
           bind:value={saveName}
@@ -361,9 +353,7 @@
                     stroke-linejoin="round"
                   >
                     <path d="M12 20h9" />
-                    <path
-                      d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"
-                    />
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
                   </svg>
                 </button>
                 <button

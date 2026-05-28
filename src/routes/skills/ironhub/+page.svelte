@@ -19,9 +19,8 @@
   // via `surfaceRefresh` so the next visit to that page picks up the new
   // entry without a manual reload.
 
-  import { onMount } from 'svelte';
+  import { onMount, type Component } from 'svelte';
   import { goto } from '$app/navigation';
-  import MarkdownView from '$lib/components/MarkdownView.svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import {
@@ -35,6 +34,7 @@
 
   type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
+  let MarkdownView = $state<Component<any> | null>(null);
   let loadState = $state<LoadState>('idle');
   let loadError = $state<string | null>(null);
   let catalog = $state<IronHubCatalog | null>(null);
@@ -63,7 +63,8 @@
   const SKELETON_TOOLS = 3;
   const SKELETON_SKILLS = 6;
 
-  onMount(() => {
+  onMount(async () => {
+    MarkdownView = (await import('$lib/components/MarkdownView.svelte')).default;
     void load();
   });
 

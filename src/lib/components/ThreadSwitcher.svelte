@@ -187,9 +187,7 @@
   $effect(() => {
     void activeIndex;
     void tick().then(() => {
-      const el = listEl?.querySelector(
-        `[data-row-index="${activeIndex}"]`
-      ) as HTMLElement | null;
+      const el = listEl?.querySelector(`[data-row-index="${activeIndex}"]`) as HTMLElement | null;
       el?.scrollIntoView({ block: 'nearest' });
     });
   });
@@ -332,9 +330,7 @@
           stroke-linecap="round"
           stroke-linejoin="round"
         >
-          <path
-            d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-          />
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
         </svg>
         <input
           bind:this={inputEl}
@@ -417,9 +413,7 @@
                       >
                         {#each highlight(title, query.trim()) as seg, i (i)}
                           {#if seg.hit}
-                            <mark
-                              class="bg-accent-gold/20 text-accent-gold rounded-sm px-0.5"
-                            >
+                            <mark class="bg-accent-gold/20 text-accent-gold rounded-sm px-0.5">
                               {seg.text}
                             </mark>
                           {:else}
@@ -439,12 +433,13 @@
                           </span>
                         {/if}
                       </span>
-                      <span
-                        class="text-xs text-text-muted/70 truncate block mt-0.5"
-                      >
+                      <span class="text-xs text-text-muted/70 truncate block mt-0.5">
                         {#if relTime}{relTime}{/if}
-                        {#if relTime && count > 0}<span class="mx-1.5 text-text-muted/40">·</span>{/if}
-                        {#if count > 0}{count} message{count === 1 ? '' : 's'}{:else if !relTime}Empty{/if}
+                        {#if relTime && count > 0}<span class="mx-1.5 text-text-muted/40">·</span
+                          >{/if}
+                        {#if count > 0}{count} message{count === 1
+                            ? ''
+                            : 's'}{:else if !relTime}Empty{/if}
                       </span>
                     </span>
                   </div>

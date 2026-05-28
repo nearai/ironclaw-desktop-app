@@ -152,7 +152,10 @@
       // h1/h2/h3 get IDs + an anchor handle. Deeper levels stay as plain
       // headings (matches the spec). We render inline tokens through the
       // parser so any inline markup (code, em, links) keeps working.
-      heading(this: { parser: { parseInline: (t: Tokens.Generic[]) => string } }, { tokens, depth }: Tokens.Heading): string {
+      heading(
+        this: { parser: { parseInline: (t: Tokens.Generic[]) => string } },
+        { tokens, depth }: Tokens.Heading
+      ): string {
         const inner = this.parser.parseInline(tokens as Tokens.Generic[]);
         if (depth > 3) {
           return `<h${depth}>${inner}</h${depth}>\n`;
@@ -167,11 +170,17 @@
       // Detect admonition syntax on the first inline text token. If matched,
       // render as a callout container; otherwise fall back to a plain
       // blockquote (handled by CSS — left cyan border, italic, muted).
-      blockquote(this: { parser: { parse: (t: Tokens.Generic[]) => string } }, { tokens }: Tokens.Blockquote): string {
+      blockquote(
+        this: { parser: { parse: (t: Tokens.Generic[]) => string } },
+        { tokens }: Tokens.Blockquote
+      ): string {
         const first = tokens?.[0] as Tokens.Generic | undefined;
         const firstInline = (first?.tokens?.[0] as Tokens.Generic | undefined) ?? undefined;
         const candidate =
-          (firstInline?.type === 'text' && typeof firstInline.text === 'string' && firstInline.text) || '';
+          (firstInline?.type === 'text' &&
+            typeof firstInline.text === 'string' &&
+            firstInline.text) ||
+          '';
         const match = candidate.match(CALLOUT_RE);
         if (match && first && Array.isArray(first.tokens)) {
           const kind = match[1].toUpperCase();
@@ -347,7 +356,9 @@
     color: #4ca7e6;
     opacity: 0;
     text-decoration: none;
-    transition: opacity 120ms ease, color 120ms ease;
+    transition:
+      opacity 120ms ease,
+      color 120ms ease;
   }
   .markdown :global(h1.md-heading:hover .md-anchor),
   .markdown :global(h2.md-heading:hover .md-anchor),
@@ -442,7 +453,10 @@
     line-height: 1;
     cursor: pointer;
     opacity: 0;
-    transition: opacity 120ms ease, background 120ms ease, border-color 120ms ease;
+    transition:
+      opacity 120ms ease,
+      background 120ms ease,
+      border-color 120ms ease;
   }
   .markdown :global(pre:hover .copy-btn),
   .markdown :global(pre .copy-btn:focus-visible) {

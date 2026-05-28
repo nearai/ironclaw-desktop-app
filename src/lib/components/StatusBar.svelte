@@ -119,9 +119,7 @@
    *  registry entry still reads sensibly. */
   const providerLabel = $derived.by(() => {
     const id =
-      connection.activeProfile.llmProviderId ??
-      connection.activeProfile.llmBackend ??
-      'nearai';
+      connection.activeProfile.llmProviderId ?? connection.activeProfile.llmBackend ?? 'nearai';
     if (id === 'nearai') return 'NEAR.AI';
     if (id === 'openrouter') return 'OpenRouter';
     return id;

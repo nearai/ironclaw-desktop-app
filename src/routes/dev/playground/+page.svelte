@@ -19,112 +19,25 @@
   // `/dev/playground#sparkline` lands on the right story. Bidirectional:
   // selecting a story in the sidebar updates the hash.
 
-  import { onMount } from 'svelte';
+  import { onMount, type Component } from 'svelte';
   import { goto } from '$app/navigation';
   import { toasts } from '$lib/stores/toasts.svelte';
 
-  import PlaygroundShell, { type StoryEntry } from './PlaygroundShell.svelte';
+  import type { StoryEntry } from './PlaygroundShell.svelte';
 
   // Story imports. Each .story.svelte module exports `meta` and the
   // default Svelte component. We collate them into a single registry
   // here so the shell stays component-agnostic.
-  import IconStory, { meta as iconMeta } from './stories/Icon.story.svelte';
-  import MaskedValueStory, { meta as maskedValueMeta } from './stories/MaskedValue.story.svelte';
-  import SparklineStory, { meta as sparklineMeta } from './stories/Sparkline.story.svelte';
-  import ToastsStory, { meta as toastsMeta } from './stories/Toasts.story.svelte';
-  import MarkdownViewStory, { meta as markdownViewMeta } from './stories/MarkdownView.story.svelte';
-  import CronPreviewStory, { meta as cronPreviewMeta } from './stories/CronPreview.story.svelte';
-  import NewProfileModalStory, {
-    meta as newProfileModalMeta
-  } from './stories/NewProfileModal.story.svelte';
-  import LightboxModalStory, {
-    meta as lightboxModalMeta
-  } from './stories/LightboxModal.story.svelte';
-  import AboutDialogStory, { meta as aboutDialogMeta } from './stories/AboutDialog.story.svelte';
-  import PresetsModalStory, { meta as presetsModalMeta } from './stories/PresetsModal.story.svelte';
-  import TokenSourceBadgeStory, {
-    meta as tokenSourceBadgeMeta
-  } from './stories/TokenSourceBadge.story.svelte';
-  import ToolFlowPanelStory, {
-    meta as toolFlowPanelMeta
-  } from './stories/ToolFlowPanel.story.svelte';
 
   // Registry. Order here is the order in the sidebar. Ids are stable
   // slugs used in the URL hash.
-  const STORIES: StoryEntry[] = [
-    { id: 'icon', title: iconMeta.title, description: iconMeta.description, Story: IconStory },
-    {
-      id: 'masked-value',
-      title: maskedValueMeta.title,
-      description: maskedValueMeta.description,
-      Story: MaskedValueStory
-    },
-    {
-      id: 'sparkline',
-      title: sparklineMeta.title,
-      description: sparklineMeta.description,
-      Story: SparklineStory
-    },
-    {
-      id: 'toasts',
-      title: toastsMeta.title,
-      description: toastsMeta.description,
-      Story: ToastsStory
-    },
-    {
-      id: 'markdown-view',
-      title: markdownViewMeta.title,
-      description: markdownViewMeta.description,
-      Story: MarkdownViewStory
-    },
-    {
-      id: 'cron-preview',
-      title: cronPreviewMeta.title,
-      description: cronPreviewMeta.description,
-      Story: CronPreviewStory
-    },
-    {
-      id: 'new-profile-modal',
-      title: newProfileModalMeta.title,
-      description: newProfileModalMeta.description,
-      Story: NewProfileModalStory
-    },
-    {
-      id: 'lightbox-modal',
-      title: lightboxModalMeta.title,
-      description: lightboxModalMeta.description,
-      Story: LightboxModalStory
-    },
-    {
-      id: 'about-dialog',
-      title: aboutDialogMeta.title,
-      description: aboutDialogMeta.description,
-      Story: AboutDialogStory
-    },
-    {
-      id: 'presets-modal',
-      title: presetsModalMeta.title,
-      description: presetsModalMeta.description,
-      Story: PresetsModalStory
-    },
-    {
-      id: 'token-source-badge',
-      title: tokenSourceBadgeMeta.title,
-      description: tokenSourceBadgeMeta.description,
-      Story: TokenSourceBadgeStory
-    },
-    {
-      id: 'tool-flow-panel',
-      title: toolFlowPanelMeta.title,
-      description: toolFlowPanelMeta.description,
-      Story: ToolFlowPanelStory
-    }
-  ];
+  let PlaygroundShell = $state<Component<any> | null>(null);
+  let STORIES = $state<StoryEntry[]>([]);
 
   // Active id lives in state and is synced bidirectionally with the URL
   // hash. The default falls through to the first story when the hash is
   // empty or matches no registered id.
-  let activeId = $state<string>(STORIES[0].id);
+  let activeId = $state<string>('icon');
   let allowed = $state<boolean>(false);
 
   function readHash(): string {
@@ -169,10 +82,120 @@
       void goto('/');
       return;
     }
-    allowed = true;
-    activeId = pickInitialId();
-    window.addEventListener('hashchange', onHashChange);
+    let mounted = true;
+    void (async () => {
+      const [
+        shellModule,
+        iconModule,
+        maskedValueModule,
+        sparklineModule,
+        toastsModule,
+        markdownViewModule,
+        cronPreviewModule,
+        newProfileModalModule,
+        lightboxModalModule,
+        aboutDialogModule,
+        presetsModalModule,
+        tokenSourceBadgeModule,
+        toolFlowPanelModule
+      ] = await Promise.all([
+        import('./PlaygroundShell.svelte'),
+        import('./stories/Icon.story.svelte'),
+        import('./stories/MaskedValue.story.svelte'),
+        import('./stories/Sparkline.story.svelte'),
+        import('./stories/Toasts.story.svelte'),
+        import('./stories/MarkdownView.story.svelte'),
+        import('./stories/CronPreview.story.svelte'),
+        import('./stories/NewProfileModal.story.svelte'),
+        import('./stories/LightboxModal.story.svelte'),
+        import('./stories/AboutDialog.story.svelte'),
+        import('./stories/PresetsModal.story.svelte'),
+        import('./stories/TokenSourceBadge.story.svelte'),
+        import('./stories/ToolFlowPanel.story.svelte')
+      ]);
+      if (!mounted) return;
+
+      PlaygroundShell = shellModule.default;
+      STORIES = [
+        {
+          id: 'icon',
+          title: iconModule.meta.title,
+          description: iconModule.meta.description,
+          Story: iconModule.default
+        },
+        {
+          id: 'masked-value',
+          title: maskedValueModule.meta.title,
+          description: maskedValueModule.meta.description,
+          Story: maskedValueModule.default
+        },
+        {
+          id: 'sparkline',
+          title: sparklineModule.meta.title,
+          description: sparklineModule.meta.description,
+          Story: sparklineModule.default
+        },
+        {
+          id: 'toasts',
+          title: toastsModule.meta.title,
+          description: toastsModule.meta.description,
+          Story: toastsModule.default
+        },
+        {
+          id: 'markdown-view',
+          title: markdownViewModule.meta.title,
+          description: markdownViewModule.meta.description,
+          Story: markdownViewModule.default
+        },
+        {
+          id: 'cron-preview',
+          title: cronPreviewModule.meta.title,
+          description: cronPreviewModule.meta.description,
+          Story: cronPreviewModule.default
+        },
+        {
+          id: 'new-profile-modal',
+          title: newProfileModalModule.meta.title,
+          description: newProfileModalModule.meta.description,
+          Story: newProfileModalModule.default
+        },
+        {
+          id: 'lightbox-modal',
+          title: lightboxModalModule.meta.title,
+          description: lightboxModalModule.meta.description,
+          Story: lightboxModalModule.default
+        },
+        {
+          id: 'about-dialog',
+          title: aboutDialogModule.meta.title,
+          description: aboutDialogModule.meta.description,
+          Story: aboutDialogModule.default
+        },
+        {
+          id: 'presets-modal',
+          title: presetsModalModule.meta.title,
+          description: presetsModalModule.meta.description,
+          Story: presetsModalModule.default
+        },
+        {
+          id: 'token-source-badge',
+          title: tokenSourceBadgeModule.meta.title,
+          description: tokenSourceBadgeModule.meta.description,
+          Story: tokenSourceBadgeModule.default
+        },
+        {
+          id: 'tool-flow-panel',
+          title: toolFlowPanelModule.meta.title,
+          description: toolFlowPanelModule.meta.description,
+          Story: toolFlowPanelModule.default
+        }
+      ];
+      allowed = true;
+      activeId = pickInitialId();
+      window.addEventListener('hashchange', onHashChange);
+    })();
     return () => {
+      mounted = false;
       window.removeEventListener('hashchange', onHashChange);
     };
   });

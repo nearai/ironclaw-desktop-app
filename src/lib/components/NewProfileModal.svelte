@@ -107,12 +107,10 @@
       tabindex="-1"
     >
       <header class="space-y-1">
-        <h2 id="new-profile-title" class="text-lg font-semibold text-text-primary">
-          New profile
-        </h2>
+        <h2 id="new-profile-title" class="text-lg font-semibold text-text-primary">New profile</h2>
         <p class="text-xs text-text-muted">
-          Profiles let you keep separate URLs, tokens, and modes for each gateway
-          you connect to (e.g. abby-remote, local-sidecar).
+          Profiles let you keep separate URLs, tokens, and modes for each gateway you connect to
+          (e.g. abby-remote, local-sidecar).
         </p>
       </header>
 

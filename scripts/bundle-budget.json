@@ -1,6 +1,7 @@
 {
-  "_comment": "Gzipped size budget for build/_app/immutable/{entry,chunks,nodes}/*.js. Assets (CSS/fonts/images) excluded. See README 'Bundle analysis' for how to bump intentionally.",
-  "total_gzip_kb": 360,
-  "entry_gzip_kb": 6,
-  "largest_chunk_gzip_kb": 55
+  "_comment": "Gzipped size budget for SvelteKit eager route JS. Assets (CSS/fonts/images) excluded. See README 'Bundle analysis' for how to bump intentionally.",
+  "total_gzip_kb": 320,
+  "entry_gzip_kb": 200,
+  "largest_chunk_gzip_kb": 110,
+  "route_gzip_kb": 240
 }

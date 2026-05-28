@@ -267,7 +267,7 @@
           />
         {/each}
       {:else if variant === 'area'}
-        <polygon points={areaPoints} fill={fill} stroke="none" />
+        <polygon points={areaPoints} {fill} stroke="none" />
         <polyline
           points={linePoints}
           fill="none"

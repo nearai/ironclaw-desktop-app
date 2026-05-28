@@ -75,14 +75,11 @@
           <line x1="12" y1="8" x2="12" y2="12" />
           <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
-        <h1 class="text-xl font-semibold text-text-primary">
-          Something went wrong on this page
-        </h1>
+        <h1 class="text-xl font-semibold text-text-primary">Something went wrong on this page</h1>
       </div>
       <p class="text-sm text-text-muted leading-relaxed">
-        The rest of IronClaw is still running — use the sidebar or the buttons
-        below to move on. If this keeps happening, copy the error and file an
-        issue so we can fix it.
+        The rest of IronClaw is still running — use the sidebar or the buttons below to move on. If
+        this keeps happening, copy the error and file an issue so we can fix it.
         {#if status && status !== 500}
           <span class="text-text-muted/70">(status {status})</span>
         {/if}
@@ -102,8 +99,7 @@
         Error message
       </summary>
       <pre
-        class="px-4 pb-4 pt-1 text-xs font-mono text-red-300 whitespace-pre-wrap break-words leading-relaxed"
-      >{message}</pre>
+        class="px-4 pb-4 pt-1 text-xs font-mono text-red-300 whitespace-pre-wrap break-words leading-relaxed">{message}</pre>
     </details>
 
     <!-- Stack trace: collapsed by default to avoid wall-of-text. Only
@@ -120,8 +116,7 @@
           Stack trace
         </summary>
         <pre
-          class="px-4 pb-4 pt-1 text-[11px] font-mono text-text-muted whitespace-pre-wrap break-words leading-relaxed max-h-80 overflow-auto"
-        >{stack}</pre>
+          class="px-4 pb-4 pt-1 text-[11px] font-mono text-text-muted whitespace-pre-wrap break-words leading-relaxed max-h-80 overflow-auto">{stack}</pre>
       </details>
     {/if}
 

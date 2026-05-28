@@ -101,7 +101,11 @@ export function redactSecrets(text: string, opts: RedactOptions = {}): string {
       // index — simpler and faster than re-running the regex.
       const start = match.lastIndexOf(secret);
       if (start < 0) return match;
-      return match.slice(0, start) + maskSecret(secret, preserveTips) + match.slice(start + secret.length);
+      return (
+        match.slice(0, start) +
+        maskSecret(secret, preserveTips) +
+        match.slice(start + secret.length)
+      );
     });
   }
   return out;

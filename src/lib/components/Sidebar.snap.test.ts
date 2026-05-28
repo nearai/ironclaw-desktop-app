@@ -16,15 +16,10 @@ import { render } from '@testing-library/svelte';
 import { tick } from 'svelte';
 
 // ---- Stubs (hoisted so `vi.mock` factories can capture them) ----------
-const { connectionStub, signInStub, threadsStub, updaterStub, toastsStub, pageStub } =
-  vi.hoisted(() => ({
+const { connectionStub, signInStub, threadsStub, updaterStub, toastsStub, pageStub } = vi.hoisted(
+  () => ({
     connectionStub: {
-      status: 'connected' as
-        | 'idle'
-        | 'connecting'
-        | 'connected'
-        | 'disconnected'
-        | 'error',
+      status: 'connected' as 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error',
       lastError: null as string | null,
       sidecarStatus: 'idle' as 'idle' | 'starting' | 'running' | 'exited' | 'error',
       sidecarPort: null as number | null,
@@ -81,7 +76,8 @@ const { connectionStub, signInStub, threadsStub, updaterStub, toastsStub, pageSt
     pageStub: {
       url: { pathname: '/' }
     }
-  }));
+  })
+);
 
 vi.mock('$app/state', () => ({
   page: pageStub,

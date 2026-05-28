@@ -286,7 +286,9 @@
     <div class="min-w-0 flex-1">
       <div class="flex items-center gap-2 mb-2">
         <span
-          class="inline-block px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {stateBadgeClass(detail?.state ?? job.state)}"
+          class="inline-block px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {stateBadgeClass(
+            detail?.state ?? job.state
+          )}"
         >
           {detail?.state ?? job.state}
         </span>
@@ -296,7 +298,10 @@
           </span>
         {/if}
       </div>
-      <h2 class="text-lg font-semibold text-text-primary truncate" title={detail?.title ?? job.title}>
+      <h2
+        class="text-lg font-semibold text-text-primary truncate"
+        title={detail?.title ?? job.title}
+      >
         {detail?.title || job.title || 'Untitled job'}
       </h2>
       <div class="mt-1 text-[11px] font-mono text-text-muted truncate" title={job.id}>
@@ -310,7 +315,9 @@
         {#if detail?.started_at ?? job.started_at}
           <div class="flex items-center gap-2">
             <dt class="text-text-muted w-24 shrink-0">Started</dt>
-            <dd class="text-text-primary">{shortTimestamp(detail?.started_at ?? job.started_at)}</dd>
+            <dd class="text-text-primary">
+              {shortTimestamp(detail?.started_at ?? job.started_at)}
+            </dd>
           </div>
         {/if}
         {#if detail?.completed_at}
@@ -351,7 +358,15 @@
       class="text-text-muted hover:text-text-primary transition-colors p-1 -m-1"
       aria-label="Close detail panel"
     >
-      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        viewBox="0 0 24 24"
+        class="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
@@ -370,7 +385,7 @@
         {cancelling ? 'Cancelling…' : 'Cancel job'}
       </button>
     {/if}
-    {#if detail?.can_restart && ((detail.state === 'failed') || (detail.state === 'cancelled') || (detail.state === 'stuck'))}
+    {#if detail?.can_restart && (detail.state === 'failed' || detail.state === 'cancelled' || detail.state === 'stuck')}
       <button
         type="button"
         onclick={() => void onRestart()}
@@ -447,12 +462,10 @@
             </span>
           {/if}
         </h3>
-        <label class="flex items-center gap-1.5 text-[11px] text-text-muted cursor-pointer select-none">
-          <input
-            type="checkbox"
-            bind:checked={autoscroll}
-            class="accent-accent-cyan"
-          />
+        <label
+          class="flex items-center gap-1.5 text-[11px] text-text-muted cursor-pointer select-none"
+        >
+          <input type="checkbox" bind:checked={autoscroll} class="accent-accent-cyan" />
           Autoscroll
         </label>
       </div>
@@ -486,7 +499,10 @@
                 {/if}
               </button>
               {#if expanded && evt.data !== undefined && evt.data !== null}
-                <pre class="mt-1 ml-4 whitespace-pre-wrap text-text-primary bg-bg-surface/50 rounded px-2 py-1 border border-border-subtle/40">{prettyPayload(evt.data)}</pre>
+                <pre
+                  class="mt-1 ml-4 whitespace-pre-wrap text-text-primary bg-bg-surface/50 rounded px-2 py-1 border border-border-subtle/40">{prettyPayload(
+                    evt.data
+                  )}</pre>
               {/if}
             </div>
           {/each}
@@ -521,14 +537,34 @@
       {:else}
         <ul class="text-xs space-y-0.5">
           {#each files as f (f.path)}
-            <li class="flex items-center gap-2 px-2 py-1 rounded hover:bg-bg-deep/50 transition-colors">
+            <li
+              class="flex items-center gap-2 px-2 py-1 rounded hover:bg-bg-deep/50 transition-colors"
+            >
               <span class="shrink-0 text-text-muted">
                 {#if f.is_dir}
-                  <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path
+                      d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                    />
                   </svg>
                 {:else}
-                  <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                     <polyline points="14 2 14 8 20 8" />
                   </svg>

@@ -69,8 +69,9 @@ describe('Toasts component', () => {
     });
     // The container iterates `toasts.toasts.slice().reverse()` — so the
     // newest message renders before older ones in document order.
-    const rendered = Array.from(container.querySelectorAll('[role="status"]'))
-      .map((el) => el.textContent?.trim() ?? '');
+    const rendered = Array.from(container.querySelectorAll('[role="status"]')).map(
+      (el) => el.textContent?.trim() ?? ''
+    );
     expect(rendered).toHaveLength(3);
     expect(rendered[0]).toContain('third');
     expect(rendered[2]).toContain('first');

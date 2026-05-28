@@ -70,8 +70,7 @@ class WindowFocusStore {
     if (!this.installed) return;
     if (this.onFocus) window.removeEventListener('focus', this.onFocus);
     if (this.onBlur) window.removeEventListener('blur', this.onBlur);
-    if (this.onVisibility)
-      document.removeEventListener('visibilitychange', this.onVisibility);
+    if (this.onVisibility) document.removeEventListener('visibilitychange', this.onVisibility);
     this.installed = false;
     this.onFocus = null;
     this.onBlur = null;

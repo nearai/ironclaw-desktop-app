@@ -17,16 +17,16 @@
   //     within the same session (handy when the user wants to jump to a
   //     promoted thread and come back). Cleared on full reload.
 
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, type Component } from 'svelte';
   import { goto } from '$app/navigation';
   import type { LlmProvider } from '$lib/api/types';
   import { connection } from '$lib/stores/connection.svelte';
   import { council } from '$lib/stores/council.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
-  import CouncilColumn from '$lib/components/CouncilColumn.svelte';
 
   // ---- Local state ------------------------------------------------------
+  let CouncilColumn = $state<Component<any> | null>(null);
 
   /** Prompt composer text. Not persisted — a council session is
    *  ephemeral by design (unlike chat threads). */
@@ -184,7 +184,8 @@
 
   // ---- Lifecycle -------------------------------------------------------
 
-  onMount(() => {
+  onMount(async () => {
+    CouncilColumn = (await import('$lib/components/CouncilColumn.svelte')).default;
     council.hydrate();
     void loadCatalog();
     surfaceRefresh.register(async () => {

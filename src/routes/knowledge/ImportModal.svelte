@@ -11,11 +11,7 @@
    * modal we trust whatever the route handed us — the route already
    * normalized.
    */
-  export const ALLOWED_MIME_TYPES = new Set([
-    'text/markdown',
-    'text/plain',
-    'application/json'
-  ]);
+  export const ALLOWED_MIME_TYPES = new Set(['text/markdown', 'text/plain', 'application/json']);
 
   /** Cap individual files. Matches the prompt's 1 MB ceiling. */
   export const MAX_FILE_SIZE = 1024 * 1024;
@@ -104,9 +100,7 @@
    * row's path is valid (or untouched — same suppress-on-first-render
    * pattern as NewDocModal so the modal opens clean).
    */
-  const pathErrors = $derived(
-    rows.map((r) => (r.touched ? validateMemoryPath(r.path) : null))
-  );
+  const pathErrors = $derived(rows.map((r) => (r.touched ? validateMemoryPath(r.path) : null)));
 
   /**
    * True only when every row has a valid path AND no two rows share the
@@ -260,10 +254,13 @@
   <header class="flex items-center justify-between gap-4 px-5 py-4 border-b border-border-subtle">
     <div>
       <h2 id="import-doc-title" class="text-sm font-semibold text-text-primary">
-        Import {rows.length} {rows.length === 1 ? 'file' : 'files'}
+        Import {rows.length}
+        {rows.length === 1 ? 'file' : 'files'}
       </h2>
       <p class="text-[11px] text-text-muted mt-0.5">
-        Review destination paths, then import. Defaults to <code class="font-mono">imports/&lcub;name&rcub;</code>.
+        Review destination paths, then import. Defaults to <code class="font-mono"
+          >imports/&lcub;name&rcub;</code
+        >.
       </p>
     </div>
     <button
@@ -358,7 +355,13 @@
         class="inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-accent-cyan text-bg-deep text-xs font-semibold hover:brightness-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {#if submitting}
-          <svg viewBox="0 0 24 24" class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3 h-3 animate-spin"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <circle cx="12" cy="12" r="10" opacity="0.25" />
             <path d="M22 12a10 10 0 0 0-10-10" />
           </svg>

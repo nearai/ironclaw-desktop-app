@@ -51,22 +51,19 @@
       case 'Bundled':
         return {
           label: 'Bundled',
-          classes:
-            'border-accent-cyan/60 text-accent-cyan bg-accent-cyan/10',
+          classes: 'border-accent-cyan/60 text-accent-cyan bg-accent-cyan/10',
           warn: false
         };
       case 'Verified':
         return {
           label: 'Verified',
-          classes:
-            'border-emerald-400/60 text-emerald-300 bg-emerald-500/10',
+          classes: 'border-emerald-400/60 text-emerald-300 bg-emerald-500/10',
           warn: false
         };
       case 'Unverified':
         return {
           label: 'Unverified',
-          classes:
-            'border-accent-gold/60 text-accent-gold bg-accent-gold/10',
+          classes: 'border-accent-gold/60 text-accent-gold bg-accent-gold/10',
           warn: true
         };
       default:
@@ -126,14 +123,9 @@
   aria-labelledby="skill-drawer-title"
 >
   <!-- Header -->
-  <header
-    class="flex items-start justify-between gap-4 px-6 py-5 border-b border-border-subtle"
-  >
+  <header class="flex items-start justify-between gap-4 px-6 py-5 border-b border-border-subtle">
     <div class="min-w-0">
-      <h2
-        id="skill-drawer-title"
-        class="text-lg font-semibold text-accent-cyan break-words"
-      >
+      <h2 id="skill-drawer-title" class="text-lg font-semibold text-accent-cyan break-words">
         {skill.name}
       </h2>
       <div class="mt-1 flex flex-wrap items-center gap-2">
@@ -158,7 +150,9 @@
                 stroke-linejoin="round"
                 aria-hidden="true"
               >
-                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                <path
+                  d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+                />
                 <line x1="12" y1="9" x2="12" y2="13" />
                 <line x1="12" y1="17" x2="12.01" y2="17" />
               </svg>
@@ -188,7 +182,15 @@
       aria-label="Close"
       class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition"
     >
-      <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        viewBox="0 0 24 24"
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
@@ -246,8 +248,19 @@
                   aria-label="Reveal bundle in Finder"
                   title="Reveal in Finder"
                 >
-                  <svg viewBox="0 0 24 24" class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="w-3 h-3"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path
+                      d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"
+                    />
                   </svg>
                   Reveal
                 </button>
@@ -260,9 +273,7 @@
 
     <!-- Run skill -->
     <section>
-      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
-        Run skill
-      </h3>
+      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">Run skill</h3>
       <label for="skill-input" class="block text-xs text-text-muted mb-1">
         Input / arguments
       </label>
@@ -279,12 +290,24 @@
           class="mt-3 flex items-start gap-2 rounded-md border border-accent-gold/40 bg-accent-gold/10 px-3 py-2 text-xs text-accent-gold"
           role="note"
         >
-          <svg viewBox="0 0 24 24" class="w-4 h-4 mt-0.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+          <svg
+            viewBox="0 0 24 24"
+            class="w-4 h-4 mt-0.5 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path
+              d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+            />
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          <span>This skill is unverified. Review the source before running on production data.</span>
+          <span>This skill is unverified. Review the source before running on production data.</span
+          >
         </div>
       {/if}
 
@@ -304,9 +327,7 @@
 
     <!-- Output placeholder -->
     <section>
-      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">
-        Output
-      </h3>
+      <h3 class="text-xs font-semibold uppercase tracking-wide text-text-muted mb-2">Output</h3>
       <div class="surface p-4 text-xs text-text-muted leading-relaxed">
         Skill execution coming in v1.1 — for now, invoke via chat with
         <code class="font-mono text-accent-cyan bg-bg-deep px-1.5 py-0.5 rounded">

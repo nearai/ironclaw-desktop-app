@@ -23,8 +23,10 @@
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
-  import MissionDetail from './MissionDetail.svelte';
-  import ResizeHandle from '$lib/components/ResizeHandle.svelte';
+  let MissionDetail = $state<typeof import('./MissionDetail.svelte').default | null>(null);
+  let ResizeHandle = $state<typeof import('$lib/components/ResizeHandle.svelte').default | null>(
+    null
+  );
 
   // ---- Projects-rail width (drag-to-resize) ---------------------------------
   //
@@ -160,7 +162,14 @@
     selectedMissionId = null;
   }
 
-  onMount(() => {
+  onMount(async () => {
+    const [missionDetailModule, resizeHandleModule] = await Promise.all([
+      import('./MissionDetail.svelte'),
+      import('$lib/components/ResizeHandle.svelte')
+    ]);
+    MissionDetail = missionDetailModule.default;
+    ResizeHandle = resizeHandleModule.default;
+
     void refresh();
     pollTimer = setInterval(() => {
       void refresh({ silent: true });

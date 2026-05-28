@@ -3,11 +3,7 @@
   import { open as openUrl } from '@tauri-apps/plugin-shell';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
-  import type {
-    Extension,
-    ExtensionSetupField,
-    ExtensionSetupSchema
-  } from '$lib/api/types';
+  import type { Extension, ExtensionSetupField, ExtensionSetupSchema } from '$lib/api/types';
 
   type Props = {
     extension: Extension;
@@ -24,14 +20,14 @@
   // key by `field.key` so multiple oauth fields on the same drawer could each
   // have an independent flow (unlikely in practice, but the schema allows it).
   type OAuthPhase =
-    | 'idle'        // no flow ever started, render plain "Sign in" button
-    | 'starting'    // POST /login/start in flight
-    | 'pending'     // waiting for user authorization; polling /login/poll
-    | 'authorized'  // success — flow complete
-    | 'denied'      // user denied; offer retry
-    | 'expired'     // device code expired; offer retry
-    | 'failed'      // server error (incl. "Server does not support OAuth"); offer retry
-    | 'cancelled';  // user cancelled mid-flow; back to idle on next click
+    | 'idle' // no flow ever started, render plain "Sign in" button
+    | 'starting' // POST /login/start in flight
+    | 'pending' // waiting for user authorization; polling /login/poll
+    | 'authorized' // success — flow complete
+    | 'denied' // user denied; offer retry
+    | 'expired' // device code expired; offer retry
+    | 'failed' // server error (incl. "Server does not support OAuth"); offer retry
+    | 'cancelled'; // user cancelled mid-flow; back to idle on next click
 
   type OAuthState = {
     phase: OAuthPhase;
@@ -287,9 +283,7 @@
       const intervalSeconds =
         typeof res.interval === 'number' && res.interval > 0 ? res.interval : 5;
       const expiresIn =
-        typeof res.expires_in === 'number' && res.expires_in > 0
-          ? res.expires_in
-          : 0;
+        typeof res.expires_in === 'number' && res.expires_in > 0 ? res.expires_in : 0;
       const expiresAt = expiresIn > 0 ? Date.now() + expiresIn * 1000 : undefined;
 
       patchOAuth(field.key, {
@@ -462,10 +456,7 @@
       identity: undefined,
       error: undefined
     });
-    toasts.show(
-      `Cleared local state (server-side disconnect not yet supported).`,
-      'info'
-    );
+    toasts.show(`Cleared local state (server-side disconnect not yet supported).`, 'info');
   }
 
   async function copyToClipboard(text: string, label: string) {
@@ -530,14 +521,9 @@
   aria-labelledby="extension-setup-title"
 >
   <!-- Header -->
-  <header
-    class="flex items-start justify-between gap-4 px-6 py-5 border-b border-border-subtle"
-  >
+  <header class="flex items-start justify-between gap-4 px-6 py-5 border-b border-border-subtle">
     <div class="min-w-0">
-      <h2
-        id="extension-setup-title"
-        class="text-lg font-semibold text-accent-cyan break-words"
-      >
+      <h2 id="extension-setup-title" class="text-lg font-semibold text-accent-cyan break-words">
         {title}
       </h2>
       <div class="mt-1 flex flex-wrap items-center gap-2">
@@ -547,7 +533,9 @@
           </span>
         {/if}
         {#if extension.category}
-          <span class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border border-border-subtle text-text-muted">
+          <span
+            class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border border-border-subtle text-text-muted"
+          >
             {extension.category}
           </span>
         {/if}
@@ -559,7 +547,15 @@
       aria-label="Close"
       class="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition"
     >
-      <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        viewBox="0 0 24 24"
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
@@ -591,7 +587,9 @@
       </div>
     {:else if schema && schema.fields.length === 0 && !schema.oauth_url}
       <div class="surface p-6 text-sm text-text-muted">
-        This extension has no setup fields. {extension.ready ? 'It is ready to use.' : 'Activate it from the card to enable.'}
+        This extension has no setup fields. {extension.ready
+          ? 'It is ready to use.'
+          : 'Activate it from the card to enable.'}
       </div>
     {:else if schema}
       <form onsubmit={handleSubmit} class="space-y-5">
@@ -605,7 +603,15 @@
             onclick={() => launchOAuthUrl(schema!.oauth_url!)}
             class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-accent-gold text-bg-deep text-sm font-semibold hover:brightness-95 transition min-h-[44px]"
           >
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
               <polyline points="15 3 21 3 21 9" />
               <line x1="10" y1="14" x2="21" y2="3" />
@@ -618,13 +624,13 @@
           {@const isOAuthField = field.type === 'oauth'}
           {@const oauthState = oauthByField[field.key]}
           {@const isThisFlowActive =
-            isOAuthField &&
-            (oauthState?.phase === 'starting' || oauthState?.phase === 'pending')}
+            isOAuthField && (oauthState?.phase === 'starting' || oauthState?.phase === 'pending')}
           {@const lockedByOtherFlow = !isOAuthField && otherFieldsLocked}
-          <div
-            class="space-y-1.5 {lockedByOtherFlow ? 'opacity-40 pointer-events-none' : ''}"
-          >
-            <label for={`ext-field-${field.key}`} class="block text-xs font-semibold text-text-primary">
+          <div class="space-y-1.5 {lockedByOtherFlow ? 'opacity-40 pointer-events-none' : ''}">
+            <label
+              for={`ext-field-${field.key}`}
+              class="block text-xs font-semibold text-text-primary"
+            >
               {field.label}
               {#if field.required}
                 <span class="text-accent-cyan" aria-label="required">*</span>
@@ -641,7 +647,11 @@
                   type="checkbox"
                   checked={Boolean(values[field.key])}
                   disabled={lockedByOtherFlow}
-                  onchange={(e) => (values = { ...values, [field.key]: (e.currentTarget as HTMLInputElement).checked })}
+                  onchange={(e) =>
+                    (values = {
+                      ...values,
+                      [field.key]: (e.currentTarget as HTMLInputElement).checked
+                    })}
                   class="sr-only peer"
                 />
                 <span
@@ -656,7 +666,11 @@
                 id={`ext-field-${field.key}`}
                 value={String(values[field.key] ?? '')}
                 disabled={lockedByOtherFlow}
-                onchange={(e) => (values = { ...values, [field.key]: (e.currentTarget as HTMLSelectElement).value })}
+                onchange={(e) =>
+                  (values = {
+                    ...values,
+                    [field.key]: (e.currentTarget as HTMLSelectElement).value
+                  })}
                 class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px] disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {#if !field.required}
@@ -681,9 +695,7 @@
                   <div class="flex items-center gap-2 min-w-0">
                     <span class="text-accent-cyan text-base leading-none">✓</span>
                     <span class="text-sm text-text-primary truncate">
-                      {oauthState.identity
-                        ? `Connected as ${oauthState.identity}`
-                        : 'Authorized'}
+                      {oauthState.identity ? `Connected as ${oauthState.identity}` : 'Authorized'}
                     </span>
                   </div>
                   <button
@@ -738,9 +750,17 @@
                   </div>
 
                   <!-- Countdown + waiting state -->
-                  <div class="flex items-center justify-between gap-3 pt-2 border-t border-border-subtle">
+                  <div
+                    class="flex items-center justify-between gap-3 pt-2 border-t border-border-subtle"
+                  >
                     <div class="flex items-center gap-2 text-xs text-text-muted">
-                      <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" stroke-width="2">
+                      <svg
+                        viewBox="0 0 24 24"
+                        class="w-3.5 h-3.5 animate-spin"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
                         <circle cx="12" cy="12" r="10" opacity="0.25" />
                         <path d="M22 12a10 10 0 0 0-10-10" />
                       </svg>
@@ -785,13 +805,27 @@
                   class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-95 transition min-h-[44px] disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   {#if oauthState?.phase === 'starting'}
-                    <svg viewBox="0 0 24 24" class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" stroke-width="2">
+                    <svg
+                      viewBox="0 0 24 24"
+                      class="w-4 h-4 animate-spin"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
                       <circle cx="12" cy="12" r="10" opacity="0.25" />
                       <path d="M22 12a10 10 0 0 0-10-10" />
                     </svg>
                     Starting…
                   {:else}
-                    <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <svg
+                      viewBox="0 0 24 24"
+                      class="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
                       <path d="M15 3h6v6" />
                       <path d="M10 14L21 3" />
                       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
@@ -806,7 +840,11 @@
                 type={field.type === 'password' ? 'password' : 'text'}
                 value={String(values[field.key] ?? '')}
                 disabled={lockedByOtherFlow}
-                oninput={(e) => (values = { ...values, [field.key]: (e.currentTarget as HTMLInputElement).value })}
+                oninput={(e) =>
+                  (values = {
+                    ...values,
+                    [field.key]: (e.currentTarget as HTMLInputElement).value
+                  })}
                 placeholder={field.placeholder ?? ''}
                 autocomplete={field.type === 'password' ? 'new-password' : 'off'}
                 class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px] font-mono disabled:opacity-60 disabled:cursor-not-allowed"
@@ -830,7 +868,13 @@
             class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-95 transition min-h-[40px] disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {#if submitting}
-              <svg viewBox="0 0 24 24" class="w-3.5 h-3.5 animate-spin" fill="none" stroke="currentColor" stroke-width="2">
+              <svg
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5 animate-spin"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
                 <circle cx="12" cy="12" r="10" opacity="0.25" />
                 <path d="M22 12a10 10 0 0 0-10-10" />
               </svg>

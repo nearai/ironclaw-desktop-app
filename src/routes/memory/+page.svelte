@@ -24,15 +24,16 @@
   // and the row stays in place; no silent "succeeded" state. Once the
   // server lands the route the UI just works.
 
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, type Component } from 'svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import type { IronClawClient } from '$lib/api/ironclaw';
   import type { MemoryNode } from '$lib/api/types';
-  import MarkdownView from '$lib/components/MarkdownView.svelte';
 
   // ---- List + selection state ----------------------------------------------
+  let MarkdownView = $state<Component<any> | null>(null);
+
   // `nodes` is the full file-only set (the tree endpoint returns both files
   // and dirs; we filter to leaves at load time so the rest of the view
   // never has to think about it).
@@ -99,6 +100,7 @@
 
   // ---- Lifecycle -----------------------------------------------------------
   onMount(async () => {
+    MarkdownView = (await import('$lib/components/MarkdownView.svelte')).default;
     // The sidebar's connection.init() may still be in flight if the user
     // landed directly on /memory; wait one beat so we don't fire a request
     // with a null client.

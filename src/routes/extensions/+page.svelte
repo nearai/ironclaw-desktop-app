@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick, type Component } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
@@ -7,8 +7,6 @@
   import { pins } from '$lib/stores/pins.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import type { Extension, ExtensionTool } from '$lib/api/types';
-  import ExtensionCard from './ExtensionCard.svelte';
-  import SetupDrawer from './SetupDrawer.svelte';
 
   type Tab = 'installed' | 'registry';
   type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
@@ -28,6 +26,8 @@
 
   const KNOWN_CATEGORIES = new Set(['mcp', 'oauth', 'channel']);
 
+  let ExtensionCard = $state<Component<any> | null>(null);
+  let SetupDrawer = $state<Component<any> | null>(null);
   let activeTab = $state<Tab>('installed');
 
   let installedState = $state<LoadState>('idle');
@@ -264,6 +264,15 @@
   });
 
   onMount(() => {
+    void (async () => {
+      const [extensionCardModule, setupDrawerModule] = await Promise.all([
+        import('./ExtensionCard.svelte'),
+        import('./SetupDrawer.svelte')
+      ]);
+      ExtensionCard = extensionCardModule.default;
+      SetupDrawer = setupDrawerModule.default;
+    })();
+
     // Capture deep-link target synchronously so a slow connection init
     // doesn't race with a URL-param mutation from elsewhere.
     pendingFocusName = page.url.searchParams.get('focus');

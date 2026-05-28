@@ -101,21 +101,13 @@ export interface WorkspacePreset {
  */
 function makeId(): string {
   try {
-    if (
-      typeof crypto !== 'undefined' &&
-      typeof crypto.randomUUID === 'function'
-    ) {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
       return crypto.randomUUID();
     }
   } catch {
     // Fall through to the seeded fallback.
   }
-  return (
-    'p_' +
-    Math.random().toString(16).slice(2, 10) +
-    '_' +
-    Date.now().toString(36)
-  );
+  return 'p_' + Math.random().toString(16).slice(2, 10) + '_' + Date.now().toString(36);
 }
 
 /** Read an integer from localStorage; null when missing/malformed. */
@@ -154,11 +146,7 @@ function readBool(key: string, encoding: '01' | 'truefalse'): boolean | undefine
   }
 }
 
-function writeBool(
-  key: string,
-  value: boolean,
-  encoding: '01' | 'truefalse'
-): void {
+function writeBool(key: string, value: boolean, encoding: '01' | 'truefalse'): void {
   if (typeof localStorage === 'undefined') return;
   try {
     if (encoding === '01') {
@@ -224,22 +212,13 @@ function coercePresets(raw: unknown): WorkspacePreset[] {
     if (typeof e.chatRailWidth === 'number' && Number.isFinite(e.chatRailWidth)) {
       preset.chatRailWidth = e.chatRailWidth;
     }
-    if (
-      typeof e.chatInspectorWidth === 'number' &&
-      Number.isFinite(e.chatInspectorWidth)
-    ) {
+    if (typeof e.chatInspectorWidth === 'number' && Number.isFinite(e.chatInspectorWidth)) {
       preset.chatInspectorWidth = e.chatInspectorWidth;
     }
-    if (
-      typeof e.knowledgeTreeWidth === 'number' &&
-      Number.isFinite(e.knowledgeTreeWidth)
-    ) {
+    if (typeof e.knowledgeTreeWidth === 'number' && Number.isFinite(e.knowledgeTreeWidth)) {
       preset.knowledgeTreeWidth = e.knowledgeTreeWidth;
     }
-    if (
-      typeof e.missionsProjectsWidth === 'number' &&
-      Number.isFinite(e.missionsProjectsWidth)
-    ) {
+    if (typeof e.missionsProjectsWidth === 'number' && Number.isFinite(e.missionsProjectsWidth)) {
       preset.missionsProjectsWidth = e.missionsProjectsWidth;
     }
     if (typeof e.sidebarCollapsed === 'boolean') {
@@ -259,9 +238,7 @@ function coercePresets(raw: unknown): WorkspacePreset[] {
 /** Capture the current workspace state from live stores + localStorage. */
 function captureCurrent(name: string): WorkspacePreset {
   const activePath =
-    typeof window !== 'undefined' && window.location?.pathname
-      ? window.location.pathname
-      : '/';
+    typeof window !== 'undefined' && window.location?.pathname ? window.location.pathname : '/';
   const preset: WorkspacePreset = {
     id: makeId(),
     name,
@@ -371,38 +348,23 @@ class PresetStore {
     }
     if (preset.chatInspectorWidth !== undefined) {
       writeInt(CHAT_INSPECTOR_LS_KEY, preset.chatInspectorWidth);
-      notifyStorage(
-        CHAT_INSPECTOR_LS_KEY,
-        String(Math.round(preset.chatInspectorWidth))
-      );
+      notifyStorage(CHAT_INSPECTOR_LS_KEY, String(Math.round(preset.chatInspectorWidth)));
     }
     if (preset.knowledgeTreeWidth !== undefined) {
       writeInt(KNOWLEDGE_TREE_LS_KEY, preset.knowledgeTreeWidth);
-      notifyStorage(
-        KNOWLEDGE_TREE_LS_KEY,
-        String(Math.round(preset.knowledgeTreeWidth))
-      );
+      notifyStorage(KNOWLEDGE_TREE_LS_KEY, String(Math.round(preset.knowledgeTreeWidth)));
     }
     if (preset.missionsProjectsWidth !== undefined) {
       writeInt(MISSIONS_PROJECTS_LS_KEY, preset.missionsProjectsWidth);
-      notifyStorage(
-        MISSIONS_PROJECTS_LS_KEY,
-        String(Math.round(preset.missionsProjectsWidth))
-      );
+      notifyStorage(MISSIONS_PROJECTS_LS_KEY, String(Math.round(preset.missionsProjectsWidth)));
     }
     if (preset.sidebarCollapsed !== undefined) {
       writeBool(SIDEBAR_COLLAPSED_LS_KEY, preset.sidebarCollapsed, '01');
-      notifyStorage(
-        SIDEBAR_COLLAPSED_LS_KEY,
-        preset.sidebarCollapsed ? '1' : '0'
-      );
+      notifyStorage(SIDEBAR_COLLAPSED_LS_KEY, preset.sidebarCollapsed ? '1' : '0');
     }
     if (preset.statusBarVisible !== undefined) {
       writeBool(STATUSBAR_VISIBLE_LS_KEY, preset.statusBarVisible, 'truefalse');
-      notifyStorage(
-        STATUSBAR_VISIBLE_LS_KEY,
-        preset.statusBarVisible ? 'true' : 'false'
-      );
+      notifyStorage(STATUSBAR_VISIBLE_LS_KEY, preset.statusBarVisible ? 'true' : 'false');
     }
 
     // Step 3 — tray badge via the public setter (reactive, no remount).
@@ -419,9 +381,7 @@ class PresetStore {
     // Step 5 — navigate. Same-route goto is a no-op for component
     // remount under SvelteKit, so we surface the limitation via toast.
     const currentPath =
-      typeof window !== 'undefined' && window.location?.pathname
-        ? window.location.pathname
-        : '/';
+      typeof window !== 'undefined' && window.location?.pathname ? window.location.pathname : '/';
     const sameRoute = currentPath === preset.activePath;
     try {
       await goto(preset.activePath);
@@ -431,10 +391,7 @@ class PresetStore {
     }
 
     if (sameRoute) {
-      toasts.show(
-        `Applied "${preset.name}" — revisit the page to refresh pane widths.`,
-        'info'
-      );
+      toasts.show(`Applied "${preset.name}" — revisit the page to refresh pane widths.`, 'info');
     } else {
       toasts.show(`Applied "${preset.name}".`, 'success');
     }
@@ -472,10 +429,7 @@ class PresetStore {
   private persist(): void {
     if (typeof window === 'undefined') return;
     try {
-      window.localStorage.setItem(
-        PRESETS_LS_KEY,
-        JSON.stringify(this.presets)
-      );
+      window.localStorage.setItem(PRESETS_LS_KEY, JSON.stringify(this.presets));
     } catch {
       // Storage may be full or disabled — non-fatal.
     }

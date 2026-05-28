@@ -302,7 +302,12 @@
 
   /** Whether to render the TOC rail at all. */
   const showToc = $derived(
-    !editing && !loading && !error && isMarkdown && viewportWide && outline.length >= MIN_OUTLINE_ENTRIES
+    !editing &&
+      !loading &&
+      !error &&
+      isMarkdown &&
+      viewportWide &&
+      outline.length >= MIN_OUTLINE_ENTRIES
   );
 </script>
 
@@ -322,7 +327,9 @@
       <path d="M9 1.5H4a1 1 0 0 0-1 1V13.5a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V5.5z" />
       <polyline points="9 1.5 9 5.5 13 5.5" />
     </svg>
-    <span class="text-xs font-mono text-text-primary truncate flex-1 min-w-0" title={path}>{path}</span>
+    <span class="text-xs font-mono text-text-primary truncate flex-1 min-w-0" title={path}
+      >{path}</span
+    >
 
     <!-- Bookmark toggle. Always visible (even in edit mode) so the user can
          star a doc while drafting changes without losing their place. The
@@ -370,7 +377,13 @@
         class="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-md bg-accent-cyan text-bg-deep font-semibold hover:brightness-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {#if saving}
-          <svg viewBox="0 0 24 24" class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3 h-3 animate-spin"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <circle cx="12" cy="12" r="10" opacity="0.25" />
             <path d="M22 12a10 10 0 0 0-10-10" />
           </svg>
@@ -554,4 +567,3 @@
     border-left-color: #4ca7e6;
   }
 </style>
-

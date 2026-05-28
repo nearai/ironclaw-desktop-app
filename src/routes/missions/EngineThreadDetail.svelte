@@ -151,9 +151,11 @@
     for (const e of events) {
       const tag = Object.keys(e.kind ?? {})[0];
       if (tag !== 'StepCompleted') continue;
-      const payload = (e.kind as Record<string, unknown>)[tag] as {
-        tokens?: { input_tokens?: number; output_tokens?: number };
-      } | undefined;
+      const payload = (e.kind as Record<string, unknown>)[tag] as
+        | {
+            tokens?: { input_tokens?: number; output_tokens?: number };
+          }
+        | undefined;
       const inT = payload?.tokens?.input_tokens ?? 0;
       const outT = payload?.tokens?.output_tokens ?? 0;
       total += inT + outT;
@@ -296,7 +298,7 @@
         eventsRes.status === 'rejected' &&
         stepsRes.status === 'rejected';
       loadError = allFailed
-        ? (detailRes.reason as Error)?.message ?? 'Failed to load thread detail'
+        ? ((detailRes.reason as Error)?.message ?? 'Failed to load thread detail')
         : null;
       if (!opts.silent && loadError !== null) {
         toasts.show(`Refresh failed: ${loadError}`, 'error');
@@ -382,7 +384,9 @@
         </button>
         <span class="text-text-muted">·</span>
         <span
-          class="inline-block px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {stateBadgeClass(currentState)}"
+          class="inline-block px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {stateBadgeClass(
+            currentState
+          )}"
         >
           {currentState}
         </span>
@@ -425,13 +429,7 @@
                spark is intentionally narrow (90×16) so it slots into
                the metadata dl without breaking the row's baseline. -->
           <span class="ml-1 text-accent-cyan" title="Cumulative tokens per step">
-            <Sparkline
-              data={tokenSeries}
-              variant="area"
-              width={90}
-              height={16}
-              color="#4ca7e6"
-            />
+            <Sparkline data={tokenSeries} variant="area" width={90} height={16} color="#4ca7e6" />
           </span>
         </div>
         {#if detail?.total_cost_usd !== undefined}
@@ -526,8 +524,11 @@
         <h3 class="text-xs uppercase tracking-wide text-text-muted mb-2">Goal</h3>
         {#if (detail?.goal ?? thread.goal)?.trim()}
           <pre
-            class="text-xs text-text-primary bg-bg-deep border border-border-subtle rounded-md p-3 whitespace-pre-wrap font-mono leading-relaxed"
-          >{(detail?.goal ?? thread.goal ?? '').trim()}</pre>
+            class="text-xs text-text-primary bg-bg-deep border border-border-subtle rounded-md p-3 whitespace-pre-wrap font-mono leading-relaxed">{(
+              detail?.goal ??
+              thread.goal ??
+              ''
+            ).trim()}</pre>
         {:else}
           <p class="text-xs text-text-muted italic">No goal recorded.</p>
         {/if}
@@ -560,7 +561,9 @@
                 >
                   <div class="flex items-center gap-2 min-w-0">
                     <span
-                      class="inline-block shrink-0 px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {roleBadgeClass(msg.role)}"
+                      class="inline-block shrink-0 px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {roleBadgeClass(
+                        msg.role
+                      )}"
                     >
                       {msg.role ?? 'unknown'}
                     </span>
@@ -575,7 +578,10 @@
                   </div>
                   <div class="flex items-center gap-2 shrink-0">
                     {#if msg.timestamp}
-                      <span class="text-[10px] text-text-muted" title={shortTimestamp(msg.timestamp)}>
+                      <span
+                        class="text-[10px] text-text-muted"
+                        title={shortTimestamp(msg.timestamp)}
+                      >
                         {relativeTime(msg.timestamp)}
                       </span>
                     {/if}
@@ -600,8 +606,7 @@
                            markdown); render in a mono block so escape
                            sequences and code fences are unambiguous. -->
                       <pre
-                        class="mt-2 text-xs text-text-primary whitespace-pre-wrap font-mono leading-relaxed max-h-[400px] overflow-auto"
-                      >{msg.content}</pre>
+                        class="mt-2 text-xs text-text-primary whitespace-pre-wrap font-mono leading-relaxed max-h-[400px] overflow-auto">{msg.content}</pre>
                     {:else}
                       <div class="mt-2 text-sm text-text-primary">
                         <MarkdownView markdown={msg.content ?? ''} />
@@ -634,15 +639,13 @@
           <p class="text-xs text-text-muted italic">No events recorded.</p>
         {:else}
           <ol class="space-y-2">
-            {#each timeline as row, i (`${row.source}-${row.source === 'event' ? row.event.id ?? i : row.step.id ?? i}`)}
+            {#each timeline as row, i (`${row.source}-${row.source === 'event' ? (row.event.id ?? i) : (row.step.id ?? i)}`)}
               {#if row.source === 'event'}
                 {@const e = row.event}
                 {@const tag = eventKindTag(e)}
                 {@const payload = eventKindPayload(e)}
                 {@const key = `evt-${e.id ?? i}`}
-                <li
-                  class="border rounded-md px-3 py-2 text-xs {eventTintClass(tag)}"
-                >
+                <li class="border rounded-md px-3 py-2 text-xs {eventTintClass(tag)}">
                   <div class="flex items-center justify-between gap-2">
                     <div class="flex items-center gap-2 min-w-0">
                       <span class="font-mono uppercase tracking-wide text-[10px] text-text-primary">
@@ -656,7 +659,9 @@
                       {:else if tag === 'MessageAdded' && payload && typeof payload === 'object'}
                         {@const p = payload as { role?: string }}
                         <span
-                          class="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {roleBadgeClass(p.role)}"
+                          class="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {roleBadgeClass(
+                            p.role
+                          )}"
                         >
                           {p.role}
                         </span>
@@ -672,7 +677,10 @@
                         {/if}
                       {/if}
                     </div>
-                    <span class="text-[10px] text-text-muted shrink-0" title={shortTimestamp(e.timestamp)}>
+                    <span
+                      class="text-[10px] text-text-muted shrink-0"
+                      title={shortTimestamp(e.timestamp)}
+                    >
                       {relativeTime(e.timestamp)}
                     </span>
                   </div>
@@ -689,7 +697,9 @@
                       };
                     }}
                     {#if p.tokens}
-                      <div class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-text-muted font-mono">
+                      <div
+                        class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-text-muted font-mono"
+                      >
                         <span>in {fmtTokens(p.tokens.input_tokens)}</span>
                         <span>out {fmtTokens(p.tokens.output_tokens)}</span>
                         {#if p.tokens.cache_read_tokens}
@@ -733,8 +743,7 @@
                       </button>
                       {#if isOpen(key, false)}
                         <pre
-                          class="mt-1 text-[10px] text-text-primary bg-bg-surface border border-border-subtle rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px]"
-                        >{p.params_summary}</pre>
+                          class="mt-1 text-[10px] text-text-primary bg-bg-surface border border-border-subtle rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px]">{p.params_summary}</pre>
                         {#if p.call_id}
                           <div class="mt-1 text-[10px] text-text-muted font-mono">
                             call_id: {shortId(p.call_id)}
@@ -747,7 +756,10 @@
                   {#if tag === 'MessageAdded' && payload && typeof payload === 'object'}
                     {@const p = payload as { content_preview?: string }}
                     {#if p.content_preview}
-                      <div class="mt-1 text-[11px] text-text-muted truncate" title={p.content_preview}>
+                      <div
+                        class="mt-1 text-[11px] text-text-muted truncate"
+                        title={p.content_preview}
+                      >
                         {p.content_preview}
                       </div>
                     {/if}
@@ -756,8 +768,9 @@
                   {#if !['StateChanged', 'MessageAdded', 'StepStarted', 'StepCompleted', 'ActionExecuted'].includes(tag)}
                     <!-- Unknown variant: render the raw payload as JSON. -->
                     <pre
-                      class="mt-1 text-[10px] text-text-primary bg-bg-surface border border-border-subtle rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px]"
-                    >{payloadJson(payload)}</pre>
+                      class="mt-1 text-[10px] text-text-primary bg-bg-surface border border-border-subtle rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px]">{payloadJson(
+                        payload
+                      )}</pre>
                   {/if}
                 </li>
               {:else}
@@ -774,7 +787,9 @@
                       </span>
                       {#if s.kind}
                         <span
-                          class="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {roleBadgeClass(s.kind)}"
+                          class="inline-block px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {roleBadgeClass(
+                            s.kind
+                          )}"
                         >
                           {s.kind}
                         </span>
@@ -786,7 +801,10 @@
                       {/if}
                     </div>
                     {#if s.created_at}
-                      <span class="text-[10px] text-text-muted shrink-0" title={shortTimestamp(s.created_at)}>
+                      <span
+                        class="text-[10px] text-text-muted shrink-0"
+                        title={shortTimestamp(s.created_at)}
+                      >
                         {relativeTime(s.created_at)}
                       </span>
                     {/if}
@@ -826,8 +844,9 @@
                     </button>
                     {#if isOpen(`${key}-args`, false)}
                       <pre
-                        class="mt-1 text-[10px] text-text-primary bg-bg-surface border border-border-subtle rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px]"
-                      >{payloadJson(s.tool_args)}</pre>
+                        class="mt-1 text-[10px] text-text-primary bg-bg-surface border border-border-subtle rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px]">{payloadJson(
+                          s.tool_args
+                        )}</pre>
                     {/if}
                   {/if}
 
@@ -853,8 +872,9 @@
                     </button>
                     {#if isOpen(`${key}-result`, false)}
                       <pre
-                        class="mt-1 text-[10px] text-text-primary bg-bg-surface border border-border-subtle rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px]"
-                      >{payloadJson(s.tool_result)}</pre>
+                        class="mt-1 text-[10px] text-text-primary bg-bg-surface border border-border-subtle rounded p-2 whitespace-pre-wrap font-mono overflow-auto max-h-[200px]">{payloadJson(
+                          s.tool_result
+                        )}</pre>
                     {/if}
                   {/if}
                 </li>

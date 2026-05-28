@@ -324,7 +324,16 @@
     aria-label="Previous match"
     class="p-1 rounded text-text-muted hover:text-accent-cyan hover:bg-bg-deep transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
   >
-    <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      class="w-3.5 h-3.5"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
       <polyline points="18 15 12 9 6 15" />
     </svg>
   </button>
@@ -336,7 +345,16 @@
     aria-label="Next match"
     class="p-1 rounded text-text-muted hover:text-accent-cyan hover:bg-bg-deep transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
   >
-    <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      class="w-3.5 h-3.5"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
       <polyline points="6 9 12 15 18 9" />
     </svg>
   </button>
@@ -348,7 +366,16 @@
     aria-label="Close find bar"
     class="p-1 rounded text-text-muted hover:text-text-primary hover:bg-bg-deep transition-colors"
   >
-    <svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      class="w-3.5 h-3.5"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="2.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
     </svg>

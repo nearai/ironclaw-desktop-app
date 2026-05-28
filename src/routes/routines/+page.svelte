@@ -1,12 +1,9 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, type Component } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import type { Routine, RoutineSummary } from '$lib/api/types';
   import { connection } from '$lib/stores/connection.svelte';
-  import DetailPanel from './DetailPanel.svelte';
-  import Sparkline from '$lib/components/Sparkline.svelte';
-  import CronPreview from '$lib/components/CronPreview.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { pins } from '$lib/stores/pins.svelte';
@@ -23,6 +20,10 @@
   type SortKey = 'name' | 'next_run' | 'last_run' | 'schedule';
   type Prefs = { search: string; filter: EnabledFilter; sort: SortKey };
   const DEFAULT_PREFS: Prefs = { search: '', filter: 'all', sort: 'name' };
+
+  let DetailPanel = $state<Component<any> | null>(null);
+  let Sparkline = $state<Component<any> | null>(null);
+  let CronPreview = $state<Component<any> | null>(null);
 
   // Loaded data
   let routines = $state<Routine[]>([]);
@@ -275,6 +276,17 @@
   let pendingOpenId: string | null = null;
 
   onMount(() => {
+    void (async () => {
+      const [detailPanelModule, sparklineModule, cronPreviewModule] = await Promise.all([
+        import('./DetailPanel.svelte'),
+        import('$lib/components/Sparkline.svelte'),
+        import('$lib/components/CronPreview.svelte')
+      ]);
+      DetailPanel = detailPanelModule.default;
+      Sparkline = sparklineModule.default;
+      CronPreview = cronPreviewModule.default;
+    })();
+
     pendingOpenId = page.url.searchParams.get('open');
     void (async () => {
       await refresh();

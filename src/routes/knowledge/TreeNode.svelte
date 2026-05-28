@@ -67,9 +67,7 @@
   // Effective expansion: forceExpanded wins when non-null, otherwise the
   // per-node state. Directories that are forced open need their children
   // fetched at least once; the effect below handles the lazy load.
-  const effectiveExpanded = $derived(
-    forceExpanded === null ? expanded : forceExpanded
-  );
+  const effectiveExpanded = $derived(forceExpanded === null ? expanded : forceExpanded);
 
   $effect(() => {
     if (node.type !== 'dir') return;
@@ -159,7 +157,9 @@
       stroke-linecap="round"
       stroke-linejoin="round"
     >
-      <path d="M1.5 4.5a1 1 0 0 1 1-1h3.4l1.5 1.5h6.1a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H2.5a1 1 0 0 1-1-1z" />
+      <path
+        d="M1.5 4.5a1 1 0 0 1 1-1h3.4l1.5 1.5h6.1a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H2.5a1 1 0 0 1-1-1z"
+      />
     </svg>
     <span class="truncate flex-1 min-w-0">{displayName}</span>
     {#if isBookmarked}

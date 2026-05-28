@@ -10,12 +10,7 @@ import { render } from '@testing-library/svelte';
 
 const { connectionStub } = vi.hoisted(() => ({
   connectionStub: {
-    status: 'disconnected' as
-      | 'idle'
-      | 'connecting'
-      | 'connected'
-      | 'disconnected'
-      | 'error',
+    status: 'disconnected' as 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error',
     lastError: null as string | null,
     sidecarStatus: 'idle' as 'idle' | 'starting' | 'running' | 'exited' | 'error',
     sidecarPort: null as number | null,

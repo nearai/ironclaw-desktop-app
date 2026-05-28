@@ -54,9 +54,7 @@
    *  client" (token missing / disconnected mode) and any non-connected
    *  status as offline so the offline banner + disabled Send button
    *  match the user's mental model. */
-  const offline = $derived(
-    !connection.client || connection.status !== 'connected'
-  );
+  const offline = $derived(!connection.client || connection.status !== 'connected');
 
   /** Trim-checked content used for the send-enable check and for the
    *  actual wire payload. We don't want to fire blank or whitespace-only
@@ -102,9 +100,7 @@
     // user might have created or renamed the thread from another
     // window / surface since we last loaded).
     const list = await client.listThreads();
-    const existing = list.find(
-      (t) => (t.title ?? '').trim() === QUICK_CAPTURE_THREAD_TITLE
-    );
+    const existing = list.find((t) => (t.title ?? '').trim() === QUICK_CAPTURE_THREAD_TITLE);
     if (existing) return existing.id;
     // Create returns `{ id }`. Title collisions are not enforced
     // server-side as of v0.29.0, but the lookup above means the only
@@ -174,9 +170,7 @@
    *  guard is designed to prevent. */
   function close() {
     if (trimmed.length > 0) {
-      const ok = typeof window !== 'undefined'
-        ? window.confirm('Discard this capture?')
-        : true;
+      const ok = typeof window !== 'undefined' ? window.confirm('Discard this capture?') : true;
       if (!ok) return;
     }
     quickCapture.close();
@@ -225,9 +219,7 @@
     }
     try {
       const list = await client.listThreads();
-      const existing = list.find(
-        (t) => (t.title ?? '').trim() === QUICK_CAPTURE_THREAD_TITLE
-      );
+      const existing = list.find((t) => (t.title ?? '').trim() === QUICK_CAPTURE_THREAD_TITLE);
       quickCapture.close();
       if (existing) {
         void goto(`/?thread=${encodeURIComponent(existing.id)}`);
@@ -265,9 +257,7 @@
       <!-- Title bar. Matches the other modals' top strip but with an
            explicit close button (the spec calls for it) — the other
            modals rely on Esc + click-outside alone. -->
-      <div
-        class="flex items-center justify-between gap-3 px-5 py-3 border-b border-border-subtle"
-      >
+      <div class="flex items-center justify-between gap-3 px-5 py-3 border-b border-border-subtle">
         <div class="flex items-center gap-2">
           <svg
             viewBox="0 0 24 24"
@@ -332,9 +322,7 @@
       <!-- Toolbar — Send + View thread + Esc hint. The cyan Send button
            matches the v2 accent vocabulary used by the rest of the app
            (Sidebar pill, status-bar dot). -->
-      <div
-        class="flex items-center justify-between gap-3 px-5 py-3 border-t border-border-subtle"
-      >
+      <div class="flex items-center justify-between gap-3 px-5 py-3 border-t border-border-subtle">
         <div class="flex items-center gap-3 text-[10px] text-text-muted/70 font-mono">
           {#if offline}
             <span class="text-danger">IronClaw is offline.</span>

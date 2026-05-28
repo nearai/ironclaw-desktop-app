@@ -47,9 +47,7 @@
    *  are present, falling back to the id when neither is set. Keeps the
    *  header readable on the common case (`name = "conversation-insights"`)
    *  while leaving room for a richer title once the gateway emits one. */
-  const displayName = $derived<string>(
-    mission.title?.trim() || mission.name?.trim() || mission.id
-  );
+  const displayName = $derived<string>(mission.title?.trim() || mission.name?.trim() || mission.id);
 
   /** Status palette matches the list page so the badge in the panel
    *  reads as the same lifecycle marker. Active=cyan, paused=gold,
@@ -146,7 +144,9 @@
     <div class="min-w-0 flex-1">
       <div class="flex items-center gap-2 mb-2">
         <span
-          class="inline-block px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {statusBadgeClass(mission.status)}"
+          class="inline-block px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {statusBadgeClass(
+            mission.status
+          )}"
         >
           {mission.status ?? 'unknown'}
         </span>
@@ -180,10 +180,7 @@
         {#if mission.created_at}
           <div class="flex items-center gap-2">
             <dt class="text-text-muted w-24 shrink-0">Created</dt>
-            <dd
-              class="text-text-primary"
-              title={shortTimestamp(mission.created_at)}
-            >
+            <dd class="text-text-primary" title={shortTimestamp(mission.created_at)}>
               {shortTimestamp(mission.created_at)}
             </dd>
           </div>
@@ -191,10 +188,7 @@
         {#if mission.updated_at}
           <div class="flex items-center gap-2">
             <dt class="text-text-muted w-24 shrink-0">Updated</dt>
-            <dd
-              class="text-text-primary"
-              title={shortTimestamp(mission.updated_at)}
-            >
+            <dd class="text-text-primary" title={shortTimestamp(mission.updated_at)}>
               {relativeTime(mission.updated_at)}
             </dd>
           </div>
@@ -214,7 +208,15 @@
       class="text-text-muted hover:text-text-primary transition-colors p-1 -m-1"
       aria-label="Close mission detail panel"
     >
-      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        viewBox="0 0 24 24"
+        class="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
@@ -228,8 +230,7 @@
       <h3 class="text-xs uppercase tracking-wide text-text-muted mb-2">Goal</h3>
       {#if mission.goal && mission.goal.trim().length > 0}
         <pre
-          class="text-xs text-text-primary bg-bg-deep border border-border-subtle rounded-md p-3 whitespace-pre-wrap font-mono leading-relaxed"
-        >{mission.goal.trim()}</pre>
+          class="text-xs text-text-primary bg-bg-deep border border-border-subtle rounded-md p-3 whitespace-pre-wrap font-mono leading-relaxed">{mission.goal.trim()}</pre>
       {:else}
         <p class="text-xs text-text-muted italic">No goal recorded.</p>
       {/if}
@@ -264,7 +265,9 @@
                     </div>
                   </div>
                   <span
-                    class="inline-block shrink-0 px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {threadStateBadgeClass(thread.state)}"
+                    class="inline-block shrink-0 px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border font-medium {threadStateBadgeClass(
+                      thread.state
+                    )}"
                   >
                     {thread.state ?? 'unknown'}
                   </span>
@@ -288,8 +291,5 @@
 </aside>
 
 {#if selectedThread}
-  <EngineThreadDetail
-    thread={selectedThread}
-    onclose={closeThreadDetail}
-  />
+  <EngineThreadDetail thread={selectedThread} onclose={closeThreadDetail} />
 {/if}

@@ -20,18 +20,7 @@
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import type { IronClawClient } from '$lib/api/ironclaw';
   import type { MemoryHit, MemoryNode } from '$lib/api/types';
-  import TreeNode from './TreeNode.svelte';
-  import SearchBar from './SearchBar.svelte';
-  import SearchResults from './SearchResults.svelte';
-  import DocViewer from './DocViewer.svelte';
-  import NewDocModal, { validateMemoryPath } from './NewDocModal.svelte';
-  import ImportModal, {
-    ALLOWED_MIME_TYPES,
-    MAX_FILE_SIZE,
-    MAX_FILES_PER_BATCH,
-    type StagedFile
-  } from './ImportModal.svelte';
-  import ResizeHandle from '$lib/components/ResizeHandle.svelte';
+  import type { StagedFile } from './ImportModal.svelte';
 
   // ---- Tree-rail width (drag-to-resize) ------------------------------------
   //
@@ -51,6 +40,21 @@
   const TREE_RAIL_NARROW = 220;
   const NARROW_VIEWPORT_PX = 900;
   const TREE_RAIL_STORAGE_KEY = 'ironclaw-knowledge-tree-width';
+
+  let TreeNode = $state<typeof import('./TreeNode.svelte').default | null>(null);
+  let SearchBar = $state<typeof import('./SearchBar.svelte').default | null>(null);
+  let SearchResults = $state<typeof import('./SearchResults.svelte').default | null>(null);
+  let DocViewer = $state<typeof import('./DocViewer.svelte').default | null>(null);
+  let NewDocModal = $state<typeof import('./NewDocModal.svelte').default | null>(null);
+  let ImportModal = $state<typeof import('./ImportModal.svelte').default | null>(null);
+  let ResizeHandle = $state<typeof import('$lib/components/ResizeHandle.svelte').default | null>(
+    null
+  );
+  let validateMemoryPath: (rawPath: string) => string | null = () =>
+    'Memory path validator is still loading.';
+  let ALLOWED_MIME_TYPES = new Set<string>();
+  let MAX_FILE_SIZE = 0;
+  let MAX_FILES_PER_BATCH = $state(0);
 
   let treeRailWidth = $state<number>(TREE_RAIL_DEFAULT);
   let viewportWidth = $state<number>(typeof window === 'undefined' ? 1280 : window.innerWidth);
@@ -161,6 +165,35 @@
   const selectedBookmarked = $derived(selectedPath !== null && bookmarkSet.has(selectedPath));
 
   onMount(async () => {
+    const [
+      treeNodeModule,
+      searchBarModule,
+      searchResultsModule,
+      docViewerModule,
+      newDocModalModule,
+      importModalModule,
+      resizeHandleModule
+    ] = await Promise.all([
+      import('./TreeNode.svelte'),
+      import('./SearchBar.svelte'),
+      import('./SearchResults.svelte'),
+      import('./DocViewer.svelte'),
+      import('./NewDocModal.svelte'),
+      import('./ImportModal.svelte'),
+      import('$lib/components/ResizeHandle.svelte')
+    ]);
+    TreeNode = treeNodeModule.default;
+    SearchBar = searchBarModule.default;
+    SearchResults = searchResultsModule.default;
+    DocViewer = docViewerModule.default;
+    NewDocModal = newDocModalModule.default;
+    ImportModal = importModalModule.default;
+    ResizeHandle = resizeHandleModule.default;
+    validateMemoryPath = newDocModalModule.validateMemoryPath;
+    ALLOWED_MIME_TYPES = importModalModule.ALLOWED_MIME_TYPES;
+    MAX_FILE_SIZE = importModalModule.MAX_FILE_SIZE;
+    MAX_FILES_PER_BATCH = importModalModule.MAX_FILES_PER_BATCH;
+
     hydratePersisted();
     // Hydrate the tree-rail width from localStorage. ResizeHandle pushes
     // the value back on its own mount too, but reading here lets the

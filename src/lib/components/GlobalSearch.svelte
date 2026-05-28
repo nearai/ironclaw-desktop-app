@@ -31,24 +31,11 @@
   import { connection } from '$lib/stores/connection.svelte';
   import { globalSearch } from '$lib/stores/global-search.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
-  import type {
-    MemoryHit,
-    Thread,
-    Job,
-    Skill,
-    Routine,
-    Extension
-  } from '$lib/api/types';
+  import type { MemoryHit, Thread, Job, Skill, Routine, Extension } from '$lib/api/types';
 
   // -- types ----------------------------------------------------------------
 
-  type Surface =
-    | 'Knowledge'
-    | 'Threads'
-    | 'Jobs'
-    | 'Skills'
-    | 'Routines'
-    | 'Extensions';
+  type Surface = 'Knowledge' | 'Threads' | 'Jobs' | 'Skills' | 'Routines' | 'Extensions';
 
   /** Filter pill identity. `All` means "render every surface as before";
    *  the named values scope rendering + count display to a single surface. */
@@ -226,10 +213,7 @@
   function recordRecent(q: string) {
     const trimmed = q.trim();
     if (!trimmed) return;
-    const next = [trimmed, ...recent.filter((v) => v !== trimmed)].slice(
-      0,
-      RECENT_MAX
-    );
+    const next = [trimmed, ...recent.filter((v) => v !== trimmed)].slice(0, RECENT_MAX);
     recent = next;
     persistRecent(next);
   }
@@ -408,8 +392,7 @@
   let knowledgeGeneration = 0;
   $effect(() => {
     const q = debounced.trim();
-    const wantKnowledge =
-      activeFilter === 'All' || activeFilter === 'Knowledge';
+    const wantKnowledge = activeFilter === 'All' || activeFilter === 'Knowledge';
     if (!q || !connection.client || !wantKnowledge) {
       knowledgeHits = [];
       loadingKnowledge = false;
@@ -518,9 +501,7 @@
         showAllHref: '/jobs'
       };
     }
-    const matched = (jobsCache ?? []).filter(
-      (j) => localMatch(j.title, q) || localMatch(j.id, q)
-    );
+    const matched = (jobsCache ?? []).filter((j) => localMatch(j.title, q) || localMatch(j.id, q));
     const rows: ResultRow[] = matched.map((j) => ({
       id: `job:${j.id}`,
       surface: 'Jobs' as const,
@@ -605,10 +586,7 @@
       };
     }
     const matched = (extensionsCache ?? []).filter(
-      (e) =>
-        localMatch(e.name, q) ||
-        localMatch(e.display_name, q) ||
-        localMatch(e.description, q)
+      (e) => localMatch(e.name, q) || localMatch(e.display_name, q) || localMatch(e.description, q)
     );
     const rows: ResultRow[] = matched.map((e) => ({
       id: `extension:${e.name}`,
@@ -641,9 +619,7 @@
    *  is active, narrow to just that surface's group so the results panel
    *  shows a single (header-less) list. */
   const groups = $derived<Group[]>(
-    activeFilter === 'All'
-      ? allGroups
-      : allGroups.filter((g) => g.surface === activeFilter)
+    activeFilter === 'All' ? allGroups : allGroups.filter((g) => g.surface === activeFilter)
   );
 
   /** Per-surface counts used to badge the filter pills. Derived from the
@@ -687,23 +663,35 @@
 
   function loadingForSurface(s: Surface): boolean {
     switch (s) {
-      case 'Knowledge': return loadingKnowledge;
-      case 'Threads': return loadingThreads;
-      case 'Jobs': return loadingJobs;
-      case 'Skills': return loadingSkills;
-      case 'Routines': return loadingRoutines;
-      case 'Extensions': return loadingExtensions;
+      case 'Knowledge':
+        return loadingKnowledge;
+      case 'Threads':
+        return loadingThreads;
+      case 'Jobs':
+        return loadingJobs;
+      case 'Skills':
+        return loadingSkills;
+      case 'Routines':
+        return loadingRoutines;
+      case 'Extensions':
+        return loadingExtensions;
     }
   }
 
   function errorForSurface(s: Surface): string | null {
     switch (s) {
-      case 'Knowledge': return errorKnowledge;
-      case 'Threads': return errorThreads;
-      case 'Jobs': return errorJobs;
-      case 'Skills': return errorSkills;
-      case 'Routines': return errorRoutines;
-      case 'Extensions': return errorExtensions;
+      case 'Knowledge':
+        return errorKnowledge;
+      case 'Threads':
+        return errorThreads;
+      case 'Jobs':
+        return errorJobs;
+      case 'Skills':
+        return errorSkills;
+      case 'Routines':
+        return errorRoutines;
+      case 'Extensions':
+        return errorExtensions;
     }
   }
 
@@ -735,9 +723,7 @@
   $effect(() => {
     void activeIndex;
     void tick().then(() => {
-      const el = listEl?.querySelector(
-        `[data-row-index="${activeIndex}"]`
-      ) as HTMLElement | null;
+      const el = listEl?.querySelector(`[data-row-index="${activeIndex}"]`) as HTMLElement | null;
       el?.scrollIntoView({ block: 'nearest' });
     });
   });
@@ -876,12 +862,18 @@
 
   function iconForSurface(s: Surface): string {
     switch (s) {
-      case 'Knowledge': return 'file';
-      case 'Threads': return 'chat';
-      case 'Jobs': return 'list';
-      case 'Skills': return 'spark';
-      case 'Routines': return 'clock';
-      case 'Extensions': return 'plug';
+      case 'Knowledge':
+        return 'file';
+      case 'Threads':
+        return 'chat';
+      case 'Jobs':
+        return 'list';
+      case 'Skills':
+        return 'spark';
+      case 'Routines':
+        return 'clock';
+      case 'Extensions':
+        return 'plug';
     }
   }
 
@@ -1066,115 +1058,115 @@
                      is active (spec §2 — "render that surface's results
                      only, without group headers"). -->
                 {#if activeFilter === 'All'}
-                <div
-                  class="px-5 pt-3 pb-1 flex items-center justify-between gap-3"
-                >
-                  <div
-                    class="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-text-muted/70"
-                  >
-                    <span class="text-text-muted">
-                      <!-- Inline glyph per surface — kept inline so we don't
+                  <div class="px-5 pt-3 pb-1 flex items-center justify-between gap-3">
+                    <div
+                      class="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-text-muted/70"
+                    >
+                      <span class="text-text-muted">
+                        <!-- Inline glyph per surface — kept inline so we don't
                            pull the Icon component for a single SVG render. -->
-                      {#if iconForSurface(group.surface) === 'file'}
-                        <svg
-                          viewBox="0 0 24 24"
-                          class="w-3.5 h-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                          <polyline points="14 2 14 8 20 8" />
-                        </svg>
-                      {:else if iconForSurface(group.surface) === 'chat'}
-                        <svg
-                          viewBox="0 0 24 24"
-                          class="w-3.5 h-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                        </svg>
-                      {:else if iconForSurface(group.surface) === 'list'}
-                        <svg
-                          viewBox="0 0 24 24"
-                          class="w-3.5 h-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <line x1="8" y1="6" x2="21" y2="6" />
-                          <line x1="8" y1="12" x2="21" y2="12" />
-                          <line x1="8" y1="18" x2="21" y2="18" />
-                          <line x1="3" y1="6" x2="3.01" y2="6" />
-                          <line x1="3" y1="12" x2="3.01" y2="12" />
-                          <line x1="3" y1="18" x2="3.01" y2="18" />
-                        </svg>
-                      {:else if iconForSurface(group.surface) === 'spark'}
-                        <svg
-                          viewBox="0 0 24 24"
-                          class="w-3.5 h-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path d="M12 3 14 10l6.5 2-6.5 2-2 6.5-2-6.5-6.5-2 6.5-2 2-7Z" />
-                        </svg>
-                      {:else if iconForSurface(group.surface) === 'clock'}
-                        <svg
-                          viewBox="0 0 24 24"
-                          class="w-3.5 h-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <circle cx="12" cy="12" r="10" />
-                          <polyline points="12 6 12 12 16 14" />
-                        </svg>
-                      {:else if iconForSurface(group.surface) === 'plug'}
-                        <svg
-                          viewBox="0 0 24 24"
-                          class="w-3.5 h-3.5"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <path d="M9 2v6M15 2v6" />
-                          <path d="M7 8h10v4a5 5 0 0 1-10 0z" />
-                          <path d="M12 17v5" />
-                        </svg>
-                      {/if}
-                    </span>
-                    <span>{group.surface}</span>
-                    {#if group.total > group.rows.length}
-                      <span class="text-text-muted/60">
-                        ({group.rows.length} of {group.total})
+                        {#if iconForSurface(group.surface) === 'file'}
+                          <svg
+                            viewBox="0 0 24 24"
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                          </svg>
+                        {:else if iconForSurface(group.surface) === 'chat'}
+                          <svg
+                            viewBox="0 0 24 24"
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path
+                              d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+                            />
+                          </svg>
+                        {:else if iconForSurface(group.surface) === 'list'}
+                          <svg
+                            viewBox="0 0 24 24"
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <line x1="8" y1="6" x2="21" y2="6" />
+                            <line x1="8" y1="12" x2="21" y2="12" />
+                            <line x1="8" y1="18" x2="21" y2="18" />
+                            <line x1="3" y1="6" x2="3.01" y2="6" />
+                            <line x1="3" y1="12" x2="3.01" y2="12" />
+                            <line x1="3" y1="18" x2="3.01" y2="18" />
+                          </svg>
+                        {:else if iconForSurface(group.surface) === 'spark'}
+                          <svg
+                            viewBox="0 0 24 24"
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M12 3 14 10l6.5 2-6.5 2-2 6.5-2-6.5-6.5-2 6.5-2 2-7Z" />
+                          </svg>
+                        {:else if iconForSurface(group.surface) === 'clock'}
+                          <svg
+                            viewBox="0 0 24 24"
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                          </svg>
+                        {:else if iconForSurface(group.surface) === 'plug'}
+                          <svg
+                            viewBox="0 0 24 24"
+                            class="w-3.5 h-3.5"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                          >
+                            <path d="M9 2v6M15 2v6" />
+                            <path d="M7 8h10v4a5 5 0 0 1-10 0z" />
+                            <path d="M12 17v5" />
+                          </svg>
+                        {/if}
                       </span>
+                      <span>{group.surface}</span>
+                      {#if group.total > group.rows.length}
+                        <span class="text-text-muted/60">
+                          ({group.rows.length} of {group.total})
+                        </span>
+                      {/if}
+                    </div>
+                    {#if group.total > group.rows.length}
+                      <button
+                        type="button"
+                        onclick={() => activateShowAll(group)}
+                        class="text-[10px] font-mono uppercase tracking-widest text-accent-cyan hover:text-accent-gold transition-colors"
+                      >
+                        Show all
+                      </button>
                     {/if}
                   </div>
-                  {#if group.total > group.rows.length}
-                    <button
-                      type="button"
-                      onclick={() => activateShowAll(group)}
-                      class="text-[10px] font-mono uppercase tracking-widest text-accent-cyan hover:text-accent-gold transition-colors"
-                    >
-                      Show all
-                    </button>
-                  {/if}
-                </div>
                 {/if}
 
                 <!-- Loading / error / empty states for this surface. -->
@@ -1184,9 +1176,7 @@
                   </div>
                 {:else if errorForSurface(group.surface) && group.rows.length === 0}
                   <div class="mx-2 px-3 py-2 text-xs text-text-muted/70 font-mono">
-                    Failed to load {group.surface.toLowerCase()}: {errorForSurface(
-                      group.surface
-                    )}
+                    Failed to load {group.surface.toLowerCase()}: {errorForSurface(group.surface)}
                   </div>
                 {:else}
                   {#each group.rows as row (row.id)}
@@ -1212,9 +1202,7 @@
                         >
                           {#each highlight(row.label, debounced.trim()) as seg, i (i)}
                             {#if seg.hit}
-                              <mark
-                                class="bg-accent-gold/20 text-accent-gold rounded-sm px-0.5"
-                              >
+                              <mark class="bg-accent-gold/20 text-accent-gold rounded-sm px-0.5">
                                 {seg.text}
                               </mark>
                             {:else}
@@ -1226,9 +1214,7 @@
                           <span class="text-xs text-text-muted/70 truncate block">
                             {#each highlight(row.subtitle, debounced.trim()) as seg, i (i)}
                               {#if seg.hit}
-                                <mark
-                                  class="bg-accent-gold/20 text-accent-gold rounded-sm px-0.5"
-                                >
+                                <mark class="bg-accent-gold/20 text-accent-gold rounded-sm px-0.5">
                                   {seg.text}
                                 </mark>
                               {:else}
@@ -1240,14 +1226,10 @@
                         {#if row.snippet}
                           <!-- Knowledge hits render a short snippet preview;
                                other surfaces don't set this field. -->
-                          <span
-                            class="text-xs text-text-muted/60 block mt-0.5 line-clamp-2"
-                          >
+                          <span class="text-xs text-text-muted/60 block mt-0.5 line-clamp-2">
                             {#each highlight(row.snippet, debounced.trim()) as seg, i (i)}
                               {#if seg.hit}
-                                <mark
-                                  class="bg-accent-gold/20 text-accent-gold rounded-sm px-0.5"
-                                >
+                                <mark class="bg-accent-gold/20 text-accent-gold rounded-sm px-0.5">
                                   {seg.text}
                                 </mark>
                               {:else}
@@ -1267,7 +1249,9 @@
                      filtered list if there are more results than
                      ROWS_PER_GROUP". -->
                 {#if activeFilter !== 'All' && group.total > group.rows.length}
-                  <div class="mx-2 mt-2 px-3 py-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-widest">
+                  <div
+                    class="mx-2 mt-2 px-3 py-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-widest"
+                  >
                     <span class="text-text-muted/60">
                       Showing {group.rows.length} of {group.total}
                     </span>

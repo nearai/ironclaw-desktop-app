@@ -13,7 +13,7 @@
   //   6. About + manual update check + bulk export + notifications +
   //      re-run onboarding.
 
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick, type Component } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { invoke } from '@tauri-apps/api/core';
@@ -59,10 +59,8 @@
   import { notifications, SOUND_CHOICES, type SoundChoice } from '$lib/stores/notifications.svelte';
   import { aboutStore } from '$lib/stores/about.svelte';
   import { telemetry } from '$lib/stores/telemetry.svelte';
-  import MaskedValue from '$lib/components/MaskedValue.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { redactJsonObject } from '$lib/utils/redact';
-  import LlmProviderPicker from './LlmProviderPicker.svelte';
 
   // ---- Page state -------------------------------------------------------
   //
@@ -70,6 +68,9 @@
   // edit fields without round-tripping through the connection store on
   // every keystroke. `onSaveSettings` persists; `connection.refresh()`
   // picks the new shape up.
+
+  let MaskedValue = $state<Component<any> | null>(null);
+  let LlmProviderPicker = $state<Component<any> | null>(null);
 
   let settings = $state<AppSettings>({
     activeProfileId: '',
@@ -272,6 +273,13 @@
   });
 
   onMount(async () => {
+    const [maskedValueModule, llmProviderPickerModule] = await Promise.all([
+      import('$lib/components/MaskedValue.svelte'),
+      import('./LlmProviderPicker.svelte')
+    ]);
+    MaskedValue = maskedValueModule.default;
+    LlmProviderPicker = llmProviderPickerModule.default;
+
     settings = await loadSettings();
     await refreshProfileCredentials();
     // Eager Keychain scan for every profile so the per-row "Token: set /

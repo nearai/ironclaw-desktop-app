@@ -26,7 +26,9 @@
   const label = $derived.by(() => {
     switch (updater.status) {
       case 'available':
-        return updater.update ? `IronClaw v${updater.update.version} is available` : 'Update available';
+        return updater.update
+          ? `IronClaw v${updater.update.version} is available`
+          : 'Update available';
       case 'downloading':
         return updater.progress != null ? `Downloading ${updater.progress}%…` : 'Downloading…';
       case 'installing':
@@ -51,7 +53,9 @@
   // notes" link AND collapse the panel on transitions away from the
   // available state (e.g. after a click on Install).
   const hasNotes = $derived(
-    updater.status === 'available' && !!updater.update?.notes && updater.update.notes.trim().length > 0
+    updater.status === 'available' &&
+      !!updater.update?.notes &&
+      updater.update.notes.trim().length > 0
   );
 
   // Collapse the notes panel whenever the banner stops showing the

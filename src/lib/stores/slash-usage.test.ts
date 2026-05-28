@@ -112,9 +112,7 @@ describe('slash-usage store', () => {
   it('score() halves at RECENCY_HALF_LIFE_DAYS (~7d)', () => {
     slashUsage.record('foo');
     slashUsage.record('foo'); // count = 2
-    vi.setSystemTime(
-      new Date(Date.now() + RECENCY_HALF_LIFE_DAYS * MS_PER_DAY)
-    );
+    vi.setSystemTime(new Date(Date.now() + RECENCY_HALF_LIFE_DAYS * MS_PER_DAY));
     // recency = 1 - 7/14 = 0.5; count = 2 → score = 1.0.
     expect(slashUsage.score('foo')).toBeCloseTo(1.0, 5);
   });
@@ -160,7 +158,10 @@ describe('slash-usage store', () => {
     // has something to trim. Each record is one day "newer" than the
     // last, so the youngest skill names should survive.
     const baseDay = new Date('2026-06-01T00:00:00.000Z').getTime();
-    const m = new Map<string, ReturnType<typeof slashUsage.entries.values> extends IterableIterator<infer V> ? V : never>();
+    const m = new Map<
+      string,
+      ReturnType<typeof slashUsage.entries.values> extends IterableIterator<infer V> ? V : never
+    >();
     for (let i = 0; i < MAX_ENTRIES + 5; i += 1) {
       const ts = new Date(baseDay + i * 60_000).toISOString(); // 1-minute steps
       m.set(`skill-${i}`, { skillName: `skill-${i}`, count: 1, lastUsedAt: ts });

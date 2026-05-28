@@ -311,13 +311,16 @@ class MessageStore {
     const existing = this.tools[threadId] ?? [];
     // Attach to the most-recent matching call that hasn't been completed.
     let attached = false;
-    const next = [...existing].reverse().map((t) => {
-      if (!attached && !t.done && t.name === name) {
-        attached = true;
-        return { ...t, result, done: true };
-      }
-      return t;
-    }).reverse();
+    const next = [...existing]
+      .reverse()
+      .map((t) => {
+        if (!attached && !t.done && t.name === name) {
+          attached = true;
+          return { ...t, result, done: true };
+        }
+        return t;
+      })
+      .reverse();
     if (!attached) {
       // No matching open call; record as a standalone result entry.
       next.push({

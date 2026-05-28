@@ -18,14 +18,7 @@
     focusId?: string;
   };
 
-  const {
-    skill,
-    onOpen,
-    onRun,
-    onFocus,
-    onArrowKey,
-    focusId
-  }: Props = $props();
+  const { skill, onOpen, onRun, onFocus, onArrowKey, focusId }: Props = $props();
 
   // Whether this skill is in the user's pinned set. Reactive against
   // the pins store so toggling from any surface (this card, palette,
@@ -64,22 +57,19 @@
       case 'Bundled':
         return {
           label: 'Bundled',
-          classes:
-            'border-accent-cyan/60 text-accent-cyan bg-accent-cyan/10',
+          classes: 'border-accent-cyan/60 text-accent-cyan bg-accent-cyan/10',
           warn: false
         };
       case 'Verified':
         return {
           label: 'Verified',
-          classes:
-            'border-emerald-400/60 text-emerald-300 bg-emerald-500/10',
+          classes: 'border-emerald-400/60 text-emerald-300 bg-emerald-500/10',
           warn: false
         };
       case 'Unverified':
         return {
           label: 'Unverified',
-          classes:
-            'border-accent-gold/60 text-accent-gold bg-accent-gold/10',
+          classes: 'border-accent-gold/60 text-accent-gold bg-accent-gold/10',
           warn: true
         };
       default:
@@ -175,7 +165,9 @@
             stroke-linejoin="round"
             aria-hidden="true"
           >
-            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+            <path
+              d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+            />
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
@@ -204,11 +196,12 @@
         stroke-linejoin="round"
         aria-hidden="true"
       >
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        <polygon
+          points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+        />
       </svg>
     </button>
   </div>
-
 
   <div class="mb-2 pr-20">
     <h3 class="text-sm font-semibold text-accent-cyan break-words">

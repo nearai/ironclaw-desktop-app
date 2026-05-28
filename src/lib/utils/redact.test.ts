@@ -6,11 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import {
-  redactSecrets,
-  redactJsonObject,
-  containsSecret
-} from './redact';
+import { redactSecrets, redactJsonObject, containsSecret } from './redact';
 
 describe('redactSecrets', () => {
   it('masks a Bearer token while preserving the label', () => {
@@ -51,10 +47,7 @@ describe('redactSecrets', () => {
 
 describe('redactJsonObject', () => {
   it('masks a string value under a benign key', () => {
-    const out = redactJsonObject({ api_key: 'sk-foofoofoofoo' }) as Record<
-      string,
-      unknown
-    >;
+    const out = redactJsonObject({ api_key: 'sk-foofoofoofoo' }) as Record<string, unknown>;
     // Either the value is masked via the `sk-` pattern OR via the
     // `api-key` pattern — both are fine. What matters is the secret
     // never appears verbatim.

@@ -103,10 +103,7 @@ class SignInStore {
         this.lastError = null;
         if (prev !== 'signed-in') {
           const label =
-            profile.near_account ??
-            profile.display_name ??
-            profile.user_id ??
-            'NEAR.AI';
+            profile.near_account ?? profile.display_name ?? profile.user_id ?? 'NEAR.AI';
           toasts.show(`Signed in as ${label}`, 'success');
         }
       }

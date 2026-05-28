@@ -152,7 +152,9 @@
       bind:this={dropdownEl}
       class="absolute left-0 right-0 top-full mt-1 z-20 bg-bg-deep border border-border-subtle rounded-md shadow-lg overflow-hidden"
     >
-      <div class="px-3 py-1.5 text-[10px] uppercase tracking-wide text-text-muted border-b border-border-subtle/60">
+      <div
+        class="px-3 py-1.5 text-[10px] uppercase tracking-wide text-text-muted border-b border-border-subtle/60"
+      >
         Recent searches
       </div>
       <ul class="max-h-56 overflow-auto">

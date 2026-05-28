@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, tick } from 'svelte';
+  import { onDestroy, onMount, tick, type Component } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
@@ -7,8 +7,6 @@
   import { pins } from '$lib/stores/pins.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import type { Skill, SkillTrust } from '$lib/api/types';
-  import SkillCard from './SkillCard.svelte';
-  import SkillDrawer from './SkillDrawer.svelte';
 
   type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
   type SortMode = 'alpha' | 'trust' | 'recent';
@@ -29,6 +27,8 @@
     sortMode: 'alpha'
   };
 
+  let SkillCard = $state<Component<any> | null>(null);
+  let SkillDrawer = $state<Component<any> | null>(null);
   let loadState = $state<LoadState>('idle');
   let loadError = $state<string | null>(null);
   let skills = $state<Skill[]>([]);
@@ -320,7 +320,14 @@
     void loadSkills();
   });
 
-  onMount(() => {
+  onMount(async () => {
+    const [skillCardModule, skillDrawerModule] = await Promise.all([
+      import('./SkillCard.svelte'),
+      import('./SkillDrawer.svelte')
+    ]);
+    SkillCard = skillCardModule.default;
+    SkillDrawer = skillDrawerModule.default;
+
     // Hydrate prefs and recents before any user interaction so the first
     // render reflects what the user set last session.
     const p = loadPrefs();

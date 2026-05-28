@@ -149,10 +149,7 @@ export function todayStamp(d: Date = new Date()): string {
  * Build the canonical single-thread JSON shape from a thread + its full
  * message history.
  */
-export function buildThreadJsonShape(
-  thread: Thread,
-  messages: Message[]
-): ThreadExportShape {
+export function buildThreadJsonShape(thread: Thread, messages: Message[]): ThreadExportShape {
   return {
     thread: {
       id: thread.id,

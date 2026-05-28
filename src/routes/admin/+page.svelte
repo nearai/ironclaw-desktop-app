@@ -13,15 +13,15 @@
   // collectively gate it behind `settings.adminMode`. Reaching the URL
   // directly with adminMode off still bounces to /settings on next tick.
 
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, type Component } from 'svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
-  import ToolPolicyEditor from './ToolPolicyEditor.svelte';
-  import SystemPromptEditor from './SystemPromptEditor.svelte';
-  import UsageDashboard from './UsageDashboard.svelte';
 
   type Tab = 'tool-policy' | 'system-prompt' | 'usage';
   let activeTab = $state<Tab>('tool-policy');
+  let ToolPolicyEditor = $state<Component<any> | null>(null);
+  let SystemPromptEditor = $state<Component<any> | null>(null);
+  let UsageDashboard = $state<Component<any> | null>(null);
 
   // The profile-name header mirrors what Settings shows so the admin
   // surface obviously inherits "whatever profile is active right now".
@@ -35,7 +35,16 @@
   // each editor's internals.
   let refreshToken = $state(0);
 
-  onMount(() => {
+  onMount(async () => {
+    const [toolPolicyModule, systemPromptModule, usageModule] = await Promise.all([
+      import('./ToolPolicyEditor.svelte'),
+      import('./SystemPromptEditor.svelte'),
+      import('./UsageDashboard.svelte')
+    ]);
+    ToolPolicyEditor = toolPolicyModule.default;
+    SystemPromptEditor = systemPromptModule.default;
+    UsageDashboard = usageModule.default;
+
     surfaceRefresh.register(async () => {
       refreshToken++;
     });
@@ -57,7 +66,11 @@
 
   <!-- Tabs. Matches the Extensions surface visual treatment so the user
        picks up the pattern across admin-flavored surfaces. -->
-  <div class="mb-5 flex items-center gap-1 border-b border-border-subtle" role="tablist" aria-label="Admin sections">
+  <div
+    class="mb-5 flex items-center gap-1 border-b border-border-subtle"
+    role="tablist"
+    aria-label="Admin sections"
+  >
     <button
       type="button"
       role="tab"

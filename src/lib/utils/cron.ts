@@ -43,7 +43,8 @@ const INVALID: CronDescription = { text: 'Invalid cron expression', valid: false
 // Matches IronClaw routine YAML, which lets operators write `every 1h`
 // instead of `0 * * * *`. The match is case-insensitive and tolerates
 // the singular and plural unit names.
-const EVERY_REGEX = /^every\s+(\d+)\s*(s(?:ec(?:onds?)?)?|m(?:in(?:utes?)?)?|h(?:ours?)?|d(?:ays?)?|w(?:eeks?)?)$/i;
+const EVERY_REGEX =
+  /^every\s+(\d+)\s*(s(?:ec(?:onds?)?)?|m(?:in(?:utes?)?)?|h(?:ours?)?|d(?:ays?)?|w(?:eeks?)?)$/i;
 
 // ─── Shortcut aliases ────────────────────────────────────────────────────
 // Map the standard `@hourly` / `@daily` / etc. directives to their
@@ -58,15 +59,7 @@ const SHORTCUTS: Record<string, string> = {
   '@annually': 'On Jan 1 every year at midnight'
 };
 
-const DAY_NAMES = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday'
-];
+const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const MONTH_NAMES = [
   'Jan',
@@ -86,7 +79,11 @@ const MONTH_NAMES = [
 // Range guards per field. Stored as [min, max] inclusive. dom is 1-31,
 // mon is 1-12, dow is 0-6 (Sunday = 0; 7 also accepted and remapped to
 // 0 to match Vixie cron and Linux cron behaviour).
-const FIELD_RANGES: Array<{ name: 'minute' | 'hour' | 'dom' | 'month' | 'dow'; min: number; max: number }> = [
+const FIELD_RANGES: Array<{
+  name: 'minute' | 'hour' | 'dom' | 'month' | 'dow';
+  min: number;
+  max: number;
+}> = [
   { name: 'minute', min: 0, max: 59 },
   { name: 'hour', min: 0, max: 23 },
   { name: 'dom', min: 1, max: 31 },
@@ -339,13 +336,7 @@ export function describeCron(expr: string): CronDescription {
   // back to the generic "every day at 9:00 AM" template.
 
   // Every minute (`* * * * *`).
-  if (
-    minute.wildcard &&
-    hour.wildcard &&
-    dom.wildcard &&
-    month.wildcard &&
-    dow.wildcard
-  ) {
+  if (minute.wildcard && hour.wildcard && dom.wildcard && month.wildcard && dow.wildcard) {
     return { text: 'Every minute', valid: true };
   }
 
@@ -404,11 +395,7 @@ export function describeCron(expr: string): CronDescription {
 
     // Yearly fixed time on a specific calendar date.
     // `0 9 1 1 *` → "On Jan 1 every year at 9:00 AM".
-    if (
-      dom.values.length === 1 &&
-      month.values.length === 1 &&
-      dow.wildcard
-    ) {
+    if (dom.values.length === 1 && month.values.length === 1 && dow.wildcard) {
       return {
         text: `On ${MONTH_NAMES[month.values[0] - 1]} ${dom.values[0]} every year at ${time}`,
         valid: true
@@ -417,12 +404,7 @@ export function describeCron(expr: string): CronDescription {
 
     // Monthly fixed time on a specific dom (any month).
     // `0 9 1 * *` → "On the 1st of every month at 9:00 AM".
-    if (
-      dom.values.length >= 1 &&
-      !dom.wildcard &&
-      month.wildcard &&
-      dow.wildcard
-    ) {
+    if (dom.values.length >= 1 && !dom.wildcard && month.wildcard && dow.wildcard) {
       return {
         text: `On ${describeDom(dom)} of every month at ${time}`,
         valid: true
@@ -476,7 +458,9 @@ function genericDescribe(
   if (minute.wildcard && hour.wildcard) {
     parts.push('Every minute');
   } else if (minute.wildcard) {
-    parts.push(`Every minute past ${listValues(hour.values)} ${hour.values.length === 1 ? 'hour' : 'hours'}`);
+    parts.push(
+      `Every minute past ${listValues(hour.values)} ${hour.values.length === 1 ? 'hour' : 'hours'}`
+    );
   } else if (hour.wildcard) {
     parts.push(`At minute ${listValues(minute.values)} of every hour`);
   } else {

@@ -21,7 +21,8 @@
 
 <div class="flex items-center justify-between mb-3">
   <h2 class="text-sm text-text-primary">
-    {results.length} {results.length === 1 ? 'result' : 'results'} for
+    {results.length}
+    {results.length === 1 ? 'result' : 'results'} for
     <span class="text-accent-cyan">«{query}»</span>
   </h2>
   <button
@@ -49,10 +50,7 @@
           class:border-accent-cyan={active}
         >
           <div class="flex items-start justify-between gap-3 mb-2">
-            <span
-              class="text-sm font-mono text-accent-cyan truncate"
-              title={hit.path}
-            >
+            <span class="text-sm font-mono text-accent-cyan truncate" title={hit.path}>
               {hit.path}
             </span>
             <span

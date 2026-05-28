@@ -113,7 +113,15 @@
       class="text-text-muted hover:text-text-primary transition-colors p-1 -m-1"
       aria-label="Close detail panel"
     >
-      <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        viewBox="0 0 24 24"
+        class="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <line x1="18" y1="6" x2="6" y2="18" />
         <line x1="6" y1="6" x2="18" y2="18" />
       </svg>
@@ -160,7 +168,11 @@
                 {durationBetween(run.started_at, run.finished_at)}
               </td>
               <td class="py-2.5 pr-3">
-                <span class="inline-block px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border {statusClasses(run.status)}">
+                <span
+                  class="inline-block px-2 py-0.5 rounded text-[10px] uppercase tracking-wide border {statusClasses(
+                    run.status
+                  )}"
+                >
                   {run.status}
                 </span>
               </td>
@@ -173,9 +185,12 @@
                     aria-expanded={expanded}
                   >
                     {#if expanded}
-                      <pre class="font-mono text-[11px] whitespace-pre-wrap text-text-primary bg-bg-deep border border-border-subtle rounded p-2 leading-snug">{run.output}</pre>
+                      <pre
+                        class="font-mono text-[11px] whitespace-pre-wrap text-text-primary bg-bg-deep border border-border-subtle rounded p-2 leading-snug">{run.output}</pre>
                     {:else}
-                      <span class="font-mono text-[11px] text-text-muted">{previewOutput(run.output)}</span>
+                      <span class="font-mono text-[11px] text-text-muted"
+                        >{previewOutput(run.output)}</span
+                      >
                     {/if}
                   </button>
                 {:else}

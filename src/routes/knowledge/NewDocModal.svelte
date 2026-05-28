@@ -111,9 +111,7 @@
   aria-labelledby="new-doc-title"
 >
   <header class="flex items-center justify-between gap-4 px-5 py-4 border-b border-border-subtle">
-    <h2 id="new-doc-title" class="text-sm font-semibold text-text-primary">
-      New document
-    </h2>
+    <h2 id="new-doc-title" class="text-sm font-semibold text-text-primary">New document</h2>
     <button
       type="button"
       onclick={tryClose}
@@ -137,7 +135,10 @@
 
   <form onsubmit={handleSubmit} class="flex flex-col gap-4 px-5 py-4">
     <div class="space-y-1.5">
-      <label for="new-doc-path" class="block text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+      <label
+        for="new-doc-path"
+        class="block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+      >
         Path
       </label>
       <input
@@ -161,7 +162,10 @@
     </div>
 
     <div class="space-y-1.5">
-      <label for="new-doc-body" class="block text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+      <label
+        for="new-doc-body"
+        class="block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+      >
         Content
       </label>
       <textarea
@@ -174,7 +178,9 @@
       ></textarea>
     </div>
 
-    <div class="pt-1 flex items-center justify-end gap-2 border-t border-border-subtle -mx-5 px-5 pt-3">
+    <div
+      class="pt-1 flex items-center justify-end gap-2 border-t border-border-subtle -mx-5 px-5 pt-3"
+    >
       <button
         type="button"
         onclick={tryClose}
@@ -188,7 +194,13 @@
         class="inline-flex items-center gap-2 px-4 py-1.5 rounded-md bg-accent-cyan text-bg-deep text-xs font-semibold hover:brightness-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {#if submitting}
-          <svg viewBox="0 0 24 24" class="w-3 h-3 animate-spin" fill="none" stroke="currentColor" stroke-width="2">
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3 h-3 animate-spin"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
             <circle cx="12" cy="12" r="10" opacity="0.25" />
             <path d="M22 12a10 10 0 0 0-10-10" />
           </svg>

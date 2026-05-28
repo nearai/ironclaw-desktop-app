@@ -180,9 +180,7 @@ describe('IronClawClient.gatewayStatus', () => {
   });
 
   it('still reads uptime_seconds when the server emits the long-form name', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
-      fetchOk({ uptime_seconds: 99 })
-    );
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(fetchOk({ uptime_seconds: 99 }));
     const c = makeClient();
     const s = await c.gatewayStatus();
     expect(s.uptime_seconds).toBe(99);
