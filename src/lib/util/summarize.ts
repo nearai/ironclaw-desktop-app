@@ -35,7 +35,10 @@ export function shouldSummarize(
   opts?: { thresholdTokens?: number; keepRecent?: number }
 ): boolean {
   const keepRecent = normalizeKeepRecent(opts?.keepRecent);
-  const thresholdTokens = opts?.thresholdTokens ?? DEFAULT_THRESHOLD_TOKENS;
+  const thresholdTokens =
+    opts?.thresholdTokens !== undefined && Number.isFinite(opts.thresholdTokens)
+      ? opts.thresholdTokens
+      : DEFAULT_THRESHOLD_TOKENS;
   const foldableMessages = messages.slice(0, Math.max(0, messages.length - keepRecent));
 
   return estimateHistoryTokens(foldableMessages) > thresholdTokens;

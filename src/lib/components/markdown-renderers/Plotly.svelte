@@ -34,7 +34,12 @@
       // Strip raw HTML tags. We allow plain text and Plotly's tiny
       // pseudo-HTML (<b>, <i>, <br>) because the chart text engine
       // expects them; everything else gets escaped to its literal.
-      const stripped = v.replace(/<(?!\/?(b|i|br|sub|sup|em|strong)\b)[^>]*>/gi, '');
+      const allowedOnly = v.replace(/<(?!\/?(b|i|br|sub|sup|em|strong)\b)[^>]*>/gi, '');
+      // R90 P2 (defense-in-depth): the allowlist above keeps allowed tags
+      // but not their attributes, so `<b onclick=…>` would survive. Reduce
+      // every allowed tag to its bare form — Plotly's text engine needs the
+      // tag, never an attribute, so no event handler can ride along.
+      const stripped = allowedOnly.replace(/<(\/?)(b|i|br|sub|sup|em|strong)\b[^>]*>/gi, '<$1$2>');
       return stripped;
     }
     if (Array.isArray(v)) return v.map(sanitizePlotlyValue);

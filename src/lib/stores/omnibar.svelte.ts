@@ -73,6 +73,11 @@ class OmnibarStore {
   private commands: OmniCommand[] = [];
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private searchAbort: AbortController | null = null;
+  /** Per-open snapshot of the IndexedDB message cache, built once on the
+   *  first content search after the omnibar opens (R90 P1: the read used
+   *  to fan out across every cached thread on *every* keystroke). Cleared
+   *  on show()/hide() so each open reflects the latest cache. */
+  private cachedMsgIndex: Record<string, SearchableMessage[]> | null = null;
 
   /**
    * Register a static command. Idempotent — re-registering the same
@@ -94,12 +99,15 @@ class OmnibarStore {
 
   show(): void {
     this.open = true;
+    // Fresh message-cache snapshot for this open.
+    this.cachedMsgIndex = null;
     // Re-run search so the latest threads / memory state is reflected.
     void this.runSearch(this.query);
   }
 
   hide(): void {
     this.open = false;
+    this.cachedMsgIndex = null;
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
@@ -209,7 +217,7 @@ class OmnibarStore {
         const [memHits, skillHits, msgHits] = await Promise.all([
           fetchMemoryHits(client, q, abort.signal),
           fetchSkillHits(client, q, abort.signal),
-          fetchMessageHits(rawQuery)
+          this.messageHits(rawQuery)
         ]);
         merged.push(...memHits, ...skillHits, ...msgHits);
       } catch (err) {
@@ -238,6 +246,41 @@ class OmnibarStore {
     this.results = capped.slice(0, MAX_RESULTS_TOTAL);
     this.activeIdx = 0;
     this.loading = false;
+  }
+
+  /** Search the offline IndexedDB message cache (R62) via the pure R86
+   *  ranking util. The cache snapshot is built once per omnibar-open
+   *  (`cachedMsgIndex`) and reused across keystrokes — R90 P1 fixed the
+   *  original per-keystroke IDB fan-out. Best-effort: any failure yields
+   *  no message hits rather than breaking the rest of the search. */
+  private async messageHits(rawQuery: string): Promise<OmniResult[]> {
+    try {
+      if (this.cachedMsgIndex === null) {
+        this.cachedMsgIndex = await buildMessageIndex();
+      }
+      const hits = searchCachedMessages(rawQuery, this.cachedMsgIndex, {
+        limit: MAX_RESULTS_PER_KIND
+      });
+      const titleFor = (id: string): string => {
+        const t = threadsStore.threads.find((x) => x.id === id);
+        return t ? threadRename.displayTitle(t.id, t.title) : 'Conversation';
+      };
+      return hits.map((h, i) => ({
+        id: `message:${h.threadId}:${h.messageId}`,
+        kind: 'message' as const,
+        title: h.snippet,
+        subtitle: `${h.role} · ${titleFor(h.threadId)}`,
+        // Slot content matches at the "word-boundary" tier, preserving the
+        // util's relevance+recency order via a tiny per-rank decrement.
+        score: 1.6 - i * 0.001,
+        action: async () => {
+          const { goto } = await import('$app/navigation');
+          await goto(`/?thread=${encodeURIComponent(h.threadId)}`);
+        }
+      }));
+    } catch {
+      return [];
+    }
   }
 }
 
@@ -323,23 +366,19 @@ async function fetchSkillHits(
 }
 
 /**
- * Search the offline IndexedDB message cache (R62) for content matches
- * using the pure R86 ranking util. Bounded to the threads already known
- * to the threads store so a keystroke doesn't fan out across every cached
- * thread. Best-effort — any cache/parse failure yields no message hits
- * rather than breaking the rest of the search.
+ * Build a `{threadId -> messages}` snapshot from the IndexedDB message
+ * cache (R62), bounded to the threads the app currently knows about and
+ * capped, so a single build stays cheap. Called once per omnibar-open by
+ * `OmnibarStore.messageHits`; the result is cached and reused across
+ * keystrokes. Best-effort — any cache/parse failure yields an empty map.
  */
-async function fetchMessageHits(rawQuery: string): Promise<OmniResult[]> {
+async function buildMessageIndex(): Promise<Record<string, SearchableMessage[]>> {
+  const byThread: Record<string, SearchableMessage[]> = {};
   try {
     const cachedIds = await listCachedThreadIds();
-    if (cachedIds.length === 0) return [];
-    // Restrict to threads the app currently knows about, capped, so the
-    // per-keystroke IDB read stays cheap.
+    if (cachedIds.length === 0) return byThread;
     const known = new Set(threadsStore.threads.map((t) => t.id));
     const ids = (known.size > 0 ? cachedIds.filter((id) => known.has(id)) : cachedIds).slice(0, 40);
-    if (ids.length === 0) return [];
-
-    const byThread: Record<string, SearchableMessage[]> = {};
     await Promise.all(
       ids.map(async (id) => {
         const msgs = await getMessages(id);
@@ -348,28 +387,10 @@ async function fetchMessageHits(rawQuery: string): Promise<OmniResult[]> {
         }
       })
     );
-
-    const hits = searchCachedMessages(rawQuery, byThread, { limit: MAX_RESULTS_PER_KIND });
-    const titleFor = (id: string): string => {
-      const t = threadsStore.threads.find((x) => x.id === id);
-      return t ? threadRename.displayTitle(t.id, t.title) : 'Conversation';
-    };
-    return hits.map((h, i) => ({
-      id: `message:${h.threadId}:${h.messageId}`,
-      kind: 'message' as const,
-      title: h.snippet,
-      subtitle: `${h.role} · ${titleFor(h.threadId)}`,
-      // Slot content matches at the "word-boundary" tier, preserving the
-      // util's relevance+recency order via a tiny per-rank decrement.
-      score: 1.6 - i * 0.001,
-      action: async () => {
-        const { goto } = await import('$app/navigation');
-        await goto(`/?thread=${encodeURIComponent(h.threadId)}`);
-      }
-    }));
   } catch {
-    return [];
+    // best-effort — return whatever we managed to load
   }
+  return byThread;
 }
 
 export const omnibar = new OmnibarStore();

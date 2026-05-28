@@ -128,6 +128,14 @@
     taskNodes = { ...taskNodes, [taskId]: child.id };
   }
 
+  // Last body written per child node. updateNode replaces the whole nodes
+  // array + re-persists to localStorage + re-renders every node and the
+  // arrow overlay, so we skip the write when the streamed text is unchanged
+  // (R90 P1 — a chatty sub-agent would otherwise force a full canvas
+  // re-render + storage write on every progress chunk). Plain Map, not
+  // $state: pure bookkeeping that must not feed reactivity.
+  const lastWrittenBody = new Map<string, string>();
+
   // Mirror each tracked sub-agent's live state into its child node. The
   // tracked reads (taskNodes + the sub-agent store) drive re-runs; the
   // canvas writes are wrapped in untrack() so updateNode's internal read of
@@ -145,7 +153,11 @@
       return { nodeId, body };
     });
     untrack(() => {
-      for (const { nodeId, body } of updates) canvas.updateNode(nodeId, { body });
+      for (const { nodeId, body } of updates) {
+        if (lastWrittenBody.get(nodeId) === body) continue; // no change → skip
+        lastWrittenBody.set(nodeId, body);
+        canvas.updateNode(nodeId, { body });
+      }
     });
   });
 
