@@ -2602,6 +2602,7 @@
 
   <!-- =========================== Main: stream + composer ================== -->
   <div class="flex-1 flex flex-col min-w-0 h-full">
+    <!-- LANE B2 — chat tabs header (Chrome-style tab strip lands here) -->
     <header
       class="h-12 shrink-0 px-5 flex items-center justify-between border-b border-border-subtle bg-bg-base/40"
     >
@@ -3149,6 +3150,9 @@
         {/if}
       </div>
 
+      <!-- LANE B5 — replay bar (time-travel scrub bar lands here) -->
+      <!-- LANE W3 — reply-thread panel mount (Slack-style replies anchor here) -->
+
       <!-- scroll-to-bottom FAB — shown when new content arrives off-screen -->
       {#if showScrollFab}
         <button
@@ -3186,6 +3190,10 @@
         ondrop={onComposerDrop}
         role="presentation"
       >
+        <!-- LANE B1 — voice-answer bar mount (TTS playback strip lands here) -->
+        <!-- LANE B8 — skill editor mount (right-click-tool-output modal anchors here) -->
+        <!-- LANE B9 — editable bubble swap (per-bubble live edit toggle lands here) -->
+
         <!-- Hidden file input — triggered by the "+" button. `accept` is
              advisory in the OS picker; we re-validate in intakeFiles(). -->
         <input
