@@ -695,6 +695,39 @@
     window.addEventListener('keydown', onReplayShortcut);
     onDestroy(() => window.removeEventListener('keydown', onReplayShortcut));
 
+    // LANE B2 — chat tabs keyboard shortcuts (R52 follow-up):
+    //   Cmd+W      — close current tab (browser convention)
+    //   Cmd+1..9   — switch to tab N (1-indexed)
+    const onTabShortcut = (ev: KeyboardEvent) => {
+      const mod = ev.metaKey || ev.ctrlKey;
+      if (!mod) return;
+      const t = ev.target;
+      if (t instanceof HTMLElement) {
+        const tag = t.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || t.isContentEditable) return;
+      }
+      if (ev.key.toLowerCase() === 'w' && !ev.shiftKey) {
+        const active = chatTabs.activeTabId;
+        if (!active) return;
+        ev.preventDefault();
+        const next = chatTabs.close(active);
+        if (next && next !== threads.currentId) {
+          onSelectThread(next);
+        }
+        return;
+      }
+      const digit = Number(ev.key);
+      if (Number.isInteger(digit) && digit >= 1 && digit <= 9) {
+        const tabId = chatTabs.openTabs[digit - 1];
+        if (!tabId) return;
+        ev.preventDefault();
+        chatTabs.setActive(tabId);
+        if (tabId !== threads.currentId) onSelectThread(tabId);
+      }
+    };
+    window.addEventListener('keydown', onTabShortcut);
+    onDestroy(() => window.removeEventListener('keydown', onTabShortcut));
+
     // Hydrate pane widths from localStorage. ResizeHandle pushes the
     // hydrated value back via `onresize` on its own mount, but reading
     // here lets us render the first frame at the persisted width rather
