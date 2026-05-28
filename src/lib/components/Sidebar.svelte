@@ -49,7 +49,8 @@
       | 'skills'
       | 'extensions'
       | 'missions'
-      | 'admin';
+      | 'admin'
+      | 'spark';
     /** Optional shortcut hint shown to the right of the label. Mirrors the
      *  global shortcuts wired in `src/routes/+layout.svelte`. */
     shortcut?: string;
@@ -62,13 +63,15 @@
   };
 
   const items: NavItem[] = [
+    // Today (R77 / W1). New home tier per docs/WORKSPACE-OS.md — a tile
+    // grid of live + scheduled widgets. Takes Cmd+0 (Council's old slot;
+    // Council moves to ⌘9). Note: the keyboard-shortcut handler in
+    // +layout.svelte still maps '0' → /council; touching that file is
+    // outside this lane's owned-files list, so the ⌘0 label here is
+    // cosmetic until a follow-up renumbers the digit map.
+    { href: '/dashboard', label: 'Today', icon: 'spark', shortcut: '⌘0' },
     { href: '/', label: 'Chat', icon: 'chat', shortcut: '⌘1', badgeKey: 'chat' },
-    // Council sits between Chat and Knowledge. Cmd+0 keeps the existing
-    // 1..9 numbering intact so muscle memory survives the addition —
-    // numerically it lives "after" 9 but visually it's the second row
-    // because LLM fanout is conceptually a chat-adjacent surface, not
-    // an admin one.
-    { href: '/council', label: 'Council', icon: 'council', shortcut: '⌘0' },
+    { href: '/council', label: 'Council', icon: 'council', shortcut: '⌘9' },
     { href: '/knowledge', label: 'Knowledge', icon: 'knowledge', shortcut: '⌘2' },
     // Memory sits between Knowledge and Skills as a sibling surface — same
     // backend (`/api/memory/*`), different mental model: flat card list of
@@ -704,7 +707,9 @@
         aria-label={collapsed ? item.label : undefined}
       >
         <span class="relative shrink-0 inline-flex items-center justify-center">
-          {#if item.icon === 'chat'}
+          {#if item.icon === 'spark'}
+            <Icon name="spark" class="w-4 h-4" />
+          {:else if item.icon === 'chat'}
             <Icon name="chat" class="w-4 h-4" />
           {:else if item.icon === 'council'}
             <!-- Council = multi-provider fanout. Three-stacked-bars glyph
