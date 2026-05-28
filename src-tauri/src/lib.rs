@@ -46,6 +46,15 @@ enum BackendKind {
 
 // ---- Settings -------------------------------------------------------------
 
+/// Diagnostic side-channel: JS can pump strings to Rust stderr so the
+/// (devtools-less) production .app surfaces frontend state through the
+/// already-captured RUST_LOG pipeline. Temporary — drop before final
+/// release.
+#[tauri::command]
+fn diag_log(msg: String) {
+    log::info!(target: "ironclaw_diag", "{msg}");
+}
+
 #[tauri::command]
 async fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
     settings::load(&app)
@@ -59,18 +68,18 @@ async fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), Stri
 // ---- Gateway-token Keychain (per-profile) --------------------------------
 
 #[tauri::command]
-async fn get_token(_app: AppHandle, profile_id: String) -> Result<Option<String>, String> {
-    keychain::get(&profile_id)
+async fn get_token(app: AppHandle, profile_id: String) -> Result<Option<String>, String> {
+    keychain::get(&app, &profile_id)
 }
 
 #[tauri::command]
-async fn set_token(_app: AppHandle, profile_id: String, token: String) -> Result<(), String> {
-    keychain::set(&profile_id, &token)
+async fn set_token(app: AppHandle, profile_id: String, token: String) -> Result<(), String> {
+    keychain::set(&app, &profile_id, &token)
 }
 
 #[tauri::command]
-async fn delete_token(_app: AppHandle, profile_id: String) -> Result<(), String> {
-    keychain::delete(&profile_id)
+async fn delete_token(app: AppHandle, profile_id: String) -> Result<(), String> {
+    keychain::delete(&app, &profile_id)
 }
 
 // ---- OpenRouter-key Keychain (per-profile, local mode) -------------------
@@ -592,6 +601,7 @@ pub fn run() {
         // the initial paint in `tray::create`.
         .manage(tray::TrayIconState::default())
         .invoke_handler(tauri::generate_handler![
+            diag_log,
             get_settings,
             save_settings,
             get_token,

@@ -123,12 +123,37 @@ export class IronClawClient {
     // isn't available.
     const maybeTauri = await loadTauriFetch();
     const fetchImpl = maybeTauri ?? fetch;
-    const res = await fetchImpl(url, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      ...init
-    });
+    // DIAG (R35): side-channel to Rust stderr for visibility without devtools.
+    try {
+      // @ts-expect-error — Tauri global at runtime
+      await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
+        msg: `request ${method} ${url} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`
+      });
+    } catch (_) {}
+    let res: Response;
+    try {
+      res = await fetchImpl(url, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        ...init
+      });
+    } catch (err) {
+      // DIAG: capture network-level errors that would otherwise be silent
+      try {
+        // @ts-expect-error — Tauri global at runtime
+        await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
+          msg: `request FAILED ${method} ${url}: ${err instanceof Error ? err.message : String(err)}`
+        });
+      } catch (_) {}
+      throw err;
+    }
+    try {
+      // @ts-expect-error — Tauri global at runtime
+      await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
+        msg: `request OK ${method} ${url} status=${res.status}`
+      });
+    } catch (_) {}
 
     if (!res.ok) {
       let detail = res.statusText;

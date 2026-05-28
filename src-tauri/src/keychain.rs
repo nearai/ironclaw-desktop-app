@@ -19,8 +19,67 @@
 // the legacy entry. Idempotent — safe to call repeatedly.
 
 use keyring::{Entry, Error as KeyringError};
+use std::fs;
+use std::path::PathBuf;
+use tauri::{AppHandle, Manager};
 
 const SERVICE: &str = "com.openclaw.ironclaw-desktop";
+
+/// Path to the file fallback for an account. Used when the macOS keychain
+/// ACL prompt hangs invisibly (every cargo --release rebuild invalidates
+/// the signature-bound "Always Allow" grant, and the new prompt may be
+/// hidden behind other windows or never surface in a headless dev loop).
+///
+/// Location: app_data_dir/tokens/<account>.token (mode 0600).
+fn token_file_path(app: &AppHandle, account: &str) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("resolve app_data_dir: {e}"))?;
+    let dir = base.join("tokens");
+    fs::create_dir_all(&dir).map_err(|e| format!("create tokens dir: {e}"))?;
+    // Sanitise the account name so it can't escape the tokens dir.
+    let safe = account.replace(['/', '\\', '.', ':'], "_");
+    Ok(dir.join(format!("{safe}.token")))
+}
+
+fn read_token_file(app: &AppHandle, account: &str) -> Option<String> {
+    let path = match token_file_path(app, account) {
+        Ok(p) => p,
+        Err(e) => {
+            log::warn!(target: "ironclaw_keychain", "file fallback path resolve FAILED [{account}]: {e}");
+            return None;
+        }
+    };
+    log::info!(target: "ironclaw_keychain", "file fallback path [{account}]: {}", path.display());
+    let raw = match fs::read_to_string(&path) {
+        Ok(r) => r,
+        Err(e) => {
+            log::warn!(target: "ironclaw_keychain", "file fallback read FAILED [{account}] at {}: {e}", path.display());
+            return None;
+        }
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        log::warn!(target: "ironclaw_keychain", "file fallback EMPTY [{account}]");
+        None
+    } else {
+        log::info!(target: "ironclaw_keychain", "file fallback read OK [{account}] len={}", trimmed.len());
+        Some(trimmed.to_string())
+    }
+}
+
+fn write_token_file(app: &AppHandle, account: &str, value: &str) -> Result<(), String> {
+    let path = token_file_path(app, account)?;
+    fs::write(&path, value).map_err(|e| format!("write token file: {e}"))?;
+    // Make it readable only by the owner. Best-effort.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(&path, fs::Permissions::from_mode(0o600));
+    }
+    Ok(())
+}
 
 const ACCOUNT_GATEWAY_PREFIX: &str = "gateway-token";
 const ACCOUNT_OPENROUTER_PREFIX: &str = "openrouter-key";
@@ -44,23 +103,43 @@ fn get_secret(account: &str) -> Result<Option<String>, String> {
     // Log the slot name only — never the secret value. Useful for tracing
     // which credentials each surface reads on startup / IPC dispatch.
     log::info!(target: "ironclaw_keychain", "read service={SERVICE} account={account}");
-    let e = entry(account)?;
-    match e.get_password() {
-        Ok(s) => {
-            log::info!(
-                target: "ironclaw_keychain",
-                "READ OK [{account}] len={}",
-                s.len()
-            );
+    // CRITICAL: e.get_password() can BLOCK forever on macOS when the
+    // keychain ACL needs user grant. Every cargo --release rebuild
+    // changes the binary's ad-hoc signature, which invalidates the
+    // "Always Allow" grant the user previously gave, and macOS shows a
+    // permission prompt that may be hidden/invisible. The synchronous
+    // blocking call freezes the whole Tauri IPC dispatcher, the
+    // frontend, and the app.
+    //
+    // Run the keychain call on a worker thread with a hard timeout so
+    // a hung prompt cannot wedge the app. On timeout, fall back to a
+    // plaintext token file in app_data_dir/tokens/<account>.token.
+    let account_owned = account.to_string();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = entry(&account_owned).and_then(|e| match e.get_password() {
+            Ok(s) => Ok(Some(s)),
+            Err(KeyringError::NoEntry) => Ok(None),
+            Err(err) => Err(format!("keyring read [{account_owned}]: {err}")),
+        });
+        let _ = tx.send(result);
+    });
+    match rx.recv_timeout(std::time::Duration::from_secs(2)) {
+        Ok(Ok(Some(s))) => {
+            log::info!(target: "ironclaw_keychain", "READ OK [{account}] len={}", s.len());
             Ok(Some(s))
         }
-        Err(KeyringError::NoEntry) => {
-            log::warn!(target: "ironclaw_keychain", "READ NO_ENTRY [{account}] — keyring crate doesn't see the entry");
+        Ok(Ok(None)) => {
+            log::warn!(target: "ironclaw_keychain", "READ NO_ENTRY [{account}]");
             Ok(None)
         }
-        Err(err) => {
+        Ok(Err(err)) => {
             log::warn!(target: "ironclaw_keychain", "READ FAILED [{account}]: {err}");
-            Err(format!("keyring read [{account}]: {err}"))
+            Err(err)
+        }
+        Err(_) => {
+            log::warn!(target: "ironclaw_keychain", "READ TIMEOUT [{account}] after 2s — keychain ACL prompt likely hung; trying file fallback");
+            Err(format!("keychain read [{account}] timed out (likely ACL prompt hung)"))
         }
     }
 }
@@ -117,17 +196,46 @@ fn promote_legacy_if_needed(prefix: &str, profile_id: &str) -> Result<(), String
 
 // ---- Remote gateway bearer ------------------------------------------------
 
-pub fn get(profile_id: &str) -> Result<Option<String>, String> {
-    promote_legacy_if_needed(ACCOUNT_GATEWAY_PREFIX, profile_id)?;
-    get_secret(&account_for(ACCOUNT_GATEWAY_PREFIX, profile_id))
+pub fn get(app: &AppHandle, profile_id: &str) -> Result<Option<String>, String> {
+    // Legacy promotion is best-effort. A hung keychain ACL prompt on the
+    // legacy account would block the actual read below, so we swallow
+    // every error and just continue. The new-account path + file fallback
+    // covers all the cases we actually need.
+    let _ = promote_legacy_if_needed(ACCOUNT_GATEWAY_PREFIX, profile_id);
+    let account = account_for(ACCOUNT_GATEWAY_PREFIX, profile_id);
+    // Try keychain first (with timeout — see get_secret). On hang or error,
+    // fall through to the on-disk file fallback so a stuck macOS keychain
+    // ACL prompt can't wedge the whole app.
+    match get_secret(&account) {
+        Ok(Some(s)) => Ok(Some(s)),
+        Ok(None) => Ok(read_token_file(app, &account)),
+        Err(_) => Ok(read_token_file(app, &account)),
+    }
 }
 
-pub fn set(profile_id: &str, token: &str) -> Result<(), String> {
-    set_secret(&account_for(ACCOUNT_GATEWAY_PREFIX, profile_id), token)
+pub fn set(app: &AppHandle, profile_id: &str, token: &str) -> Result<(), String> {
+    let account = account_for(ACCOUNT_GATEWAY_PREFIX, profile_id);
+    // Write the file fallback FIRST so even if the keychain write hangs,
+    // a subsequent read can still recover the value. Keychain write is
+    // best-effort — log but don't propagate failures.
+    if let Err(err) = write_token_file(app, &account, token) {
+        log::warn!(target: "ironclaw_keychain", "file fallback write FAILED [{account}]: {err}");
+    }
+    match set_secret(&account, token) {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            log::warn!(target: "ironclaw_keychain", "keychain write FAILED [{account}]: {err} — file fallback persisted");
+            Ok(())
+        }
+    }
 }
 
-pub fn delete(profile_id: &str) -> Result<(), String> {
-    delete_secret(&account_for(ACCOUNT_GATEWAY_PREFIX, profile_id))
+pub fn delete(app: &AppHandle, profile_id: &str) -> Result<(), String> {
+    let account = account_for(ACCOUNT_GATEWAY_PREFIX, profile_id);
+    if let Ok(path) = token_file_path(app, &account) {
+        let _ = fs::remove_file(path);
+    }
+    delete_secret(&account)
 }
 
 // ---- OpenRouter API key ---------------------------------------------------

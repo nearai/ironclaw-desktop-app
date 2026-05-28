@@ -459,6 +459,13 @@ class ConnectionStore {
 
     // Remote mode — load the stored bearer for this profile and ping.
     this.token = await getToken(profile.id);
+    // DIAG: side-channel to Rust stderr so we can see prod state without devtools.
+    try {
+      // @ts-expect-error — Tauri global available at runtime
+      await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
+        msg: `applyModeAndConnect remote: token=${this.token ? `len${this.token.length}` : 'null'} baseUrl=${this.baseUrl} hasClient=${!!this.client}`
+      });
+    } catch (_) {}
     if (this.client) {
       await this.ping();
       this.startPolling();
