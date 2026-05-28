@@ -300,13 +300,23 @@
   // Auto-load when the client becomes available. This handles both the cold
   // start (mount-before-connection-init) and reconnects (token added later
   // in /settings without a page navigation).
+  //
+  // IMPORTANT: only re-fire when `loadState === 'idle'`. The previous guard
+  // `if (loadState === 'loading') return` let through `'loaded'` and
+  // `'error'` states, and since this effect reads `loadState` reactively the
+  // state transition at the END of `loadSkills()` ('loading' → 'loaded')
+  // re-ran the effect, which then called `loadSkills()` again → infinite
+  // reload loop, never letting the page reach `networkidle`. Match the
+  // `/extensions` pattern: only the initial `'idle'` slot triggers a fetch,
+  // and dropping back to `'idle'` is the explicit signal (we clear it when
+  // the client goes away).
   $effect(() => {
     const client = connection.client;
     if (!client) {
       loadState = 'idle';
       return;
     }
-    if (loadState === 'loading') return;
+    if (loadState !== 'idle') return;
     void loadSkills();
   });
 
