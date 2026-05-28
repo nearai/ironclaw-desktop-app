@@ -320,9 +320,11 @@ export class IronClawClient {
   /**
    * Stream log entries from the gateway via Server-Sent Events.
    *
-   * Mirrors `streamEvents`: EventSource is used so the browser handles
-   * reconnect-on-disconnect for free; auth is supplied via query token
-   * because EventSource cannot attach custom headers.
+   * Routes through `loadTauriFetch()` for the same reason as
+   * `streamEvents`: the production webview (`tauri://localhost`) hits
+   * CORS on the gateway, and `EventSource` cannot route through the
+   * Tauri http plugin. Auth is via the `?token=` query string per the
+   * gateway's `/api/logs/events` doc.
    *
    * Gateway emits a named event `log` whose payload is a JSON object
    * `{level, target, message, timestamp}`. On connect the server replays
@@ -332,81 +334,35 @@ export class IronClawClient {
     const url = new URL(`${this.baseUrl}/api/logs/events`);
     if (this.token) url.searchParams.set('token', this.token);
 
-    const es = new EventSource(url.toString());
-    const queue: LogEntry[] = [];
-    let resolveNext: ((value: IteratorResult<LogEntry>) => void) | null = null;
-    let done = false;
-    let error: Error | null = null;
-
-    const push = (entry: LogEntry) => {
-      if (resolveNext) {
-        const r = resolveNext;
-        resolveNext = null;
-        r({ value: entry, done: false });
-      } else {
-        queue.push(entry);
-      }
-    };
-
-    const finish = (err?: Error) => {
-      if (done) return;
-      done = true;
-      if (err) error = err;
-      es.close();
-      if (resolveNext) {
-        const r = resolveNext;
-        resolveNext = null;
-        if (err) r(Promise.reject(err) as unknown as IteratorResult<LogEntry>);
-        else r({ value: undefined, done: true });
-      }
-    };
-
-    const handler = (msg: MessageEvent) => {
+    const maybeTauri = await loadTauriFetch();
+    const fetchImpl = maybeTauri ?? fetch;
+    const res = await fetchImpl(url.toString(), {
+      method: 'GET',
+      headers: { Accept: 'text/event-stream' },
+      signal
+    });
+    if (!res.ok) {
+      throw new HttpError(res.status, url.toString(), `${res.status} ${res.statusText}`);
+    }
+    if (!res.body) {
+      throw new Error('logs/events: empty body');
+    }
+    yield* parseSseStream<LogEntry>(res.body, signal, (raw) => {
       try {
-        const parsed = JSON.parse(msg.data) as Record<string, unknown>;
-        push({
-          level: normalizeLogLevel(parsed.level),
-          target: String(parsed.target ?? ''),
-          message: String(parsed.message ?? ''),
-          timestamp: String(parsed.timestamp ?? '')
-        });
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        return [
+          {
+            level: normalizeLogLevel(parsed.level),
+            target: String(parsed.target ?? ''),
+            message: String(parsed.message ?? ''),
+            timestamp: String(parsed.timestamp ?? '')
+          }
+        ];
       } catch {
         // Best-effort: drop malformed payloads rather than poison the stream.
+        return [];
       }
-    };
-
-    // Bind both the named `log` event and the default `message` channel —
-    // the default catches payloads sent without an explicit event name and
-    // shields us from gateway version drift.
-    es.addEventListener('log', handler);
-    es.addEventListener('message', handler);
-    es.addEventListener('error', () => {
-      // EventSource auto-reconnects; surface nothing here. The connection
-      // guard on the route reflects overall status separately.
     });
-
-    if (signal.aborted) {
-      finish();
-    } else {
-      signal.addEventListener('abort', () => finish(), { once: true });
-    }
-
-    try {
-      while (!done) {
-        if (queue.length > 0) {
-          yield queue.shift()!;
-          continue;
-        }
-        const next = await new Promise<IteratorResult<LogEntry>>((resolve) => {
-          resolveNext = resolve;
-        });
-        if (next.done) break;
-        yield next.value;
-      }
-      if (error) throw error;
-    } finally {
-      es.close();
-    }
   }
 
   // ---- Chat ------------------------------------------------------------------
@@ -497,97 +453,6 @@ export class IronClawClient {
         return [{ type: 'error', message: `parse error: ${(e as Error).message}` }];
       }
     });
-    return;
-
-    // Legacy EventSource path — retained but unreachable. The new
-    // tauri-fetch path above is what runs in production. Kept here
-    // briefly so reviewers see the diff context against the old
-    // code. To be deleted in v0.2.11 once we've shipped + smoked.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const es = new EventSource(url.toString());
-    const queue: ChatEvent[] = [];
-    let resolveNext: ((value: IteratorResult<ChatEvent>) => void) | null = null;
-    let done = false;
-    let error: Error | null = null;
-
-    const push = (ev: ChatEvent) => {
-      if (resolveNext) {
-        const r = resolveNext;
-        resolveNext = null;
-        r({ value: ev, done: false });
-      } else {
-        queue.push(ev);
-      }
-    };
-
-    const finish = (err?: Error) => {
-      if (done) return;
-      done = true;
-      if (err) error = err;
-      es.close();
-      if (resolveNext) {
-        const r = resolveNext;
-        resolveNext = null;
-        if (err) r(Promise.reject(err) as unknown as IteratorResult<ChatEvent>);
-        else r({ value: undefined, done: true });
-      }
-    };
-
-    const handler = (msg: MessageEvent) => {
-      try {
-        const parsed = JSON.parse(msg.data) as Record<string, unknown>;
-        const ev = normalizeEvent(parsed);
-        if (ev !== null) push(ev);
-      } catch (e) {
-        push({ type: 'error', message: `parse error: ${(e as Error).message}` });
-      }
-    };
-
-    // Default `message` event covers payloads sent without an explicit
-    // event name; named events are bound individually so we don't lose
-    // them. Wire (verified 2026-05-27): the gateway emits
-    // `event: thinking`, `event: status`, `event: response`,
-    // `event: tool_start`, `event: tool_result`. `thinking` and `status`
-    // are progress chatter that `normalizeEvent` returns `null` for;
-    // the handler drops nulls before pushing onto the queue.
-    es.addEventListener('message', handler);
-    es.addEventListener('response', handler);
-    es.addEventListener('thinking', handler);
-    es.addEventListener('status', handler);
-    es.addEventListener('tool_start', handler);
-    es.addEventListener('tool_result', handler);
-    es.addEventListener('error', (ev) => {
-      if (ev instanceof MessageEvent && typeof ev.data === 'string') {
-        handler(ev);
-      } else {
-        // Browser EventSource emits a generic Event on connection failure;
-        // surface it but keep the stream open — EventSource auto-reconnects.
-        push({ type: 'error', message: 'SSE connection error' });
-      }
-    });
-
-    if (signal.aborted) {
-      finish();
-    } else {
-      signal.addEventListener('abort', () => finish(), { once: true });
-    }
-
-    try {
-      while (!done) {
-        if (queue.length > 0) {
-          yield queue.shift()!;
-          continue;
-        }
-        const next = await new Promise<IteratorResult<ChatEvent>>((resolve) => {
-          resolveNext = resolve;
-        });
-        if (next.done) break;
-        yield next.value;
-      }
-      if (error) throw error;
-    } finally {
-      es.close();
-    }
   }
 
   /**
