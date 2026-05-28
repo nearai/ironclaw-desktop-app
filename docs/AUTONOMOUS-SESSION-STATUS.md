@@ -4,6 +4,48 @@ Captured at the end of the ~3-hour autonomous build window the lead
 delegated. This is the "what landed, what's pending, what's broken"
 sheet — read this first when you come back.
 
+## LATEST — v0.3.0 cut (read this first)
+
+**The elite milestone shipped: tag `v0.3.0` is pushed.** Second window
+extended the trail to **v0.2.18 → v0.3.0** (tags v0.2.20, .21, .22, .23,
+.24, then v0.3.0).
+
+Sequence this window:
+1. Landed all of Waves 1–5 (R49–R88) to `main` — sub-agents (graceful
+   404 degrade), workspace files, spatial canvas + canvas v2 (nodes
+   dispatch sub-agents), the R85/86/87 utils, and their UI integration
+   (HTML export menu, omnibar message search).
+2. Ran an **Opus 4.8 full-codebase + functionality review** (the lead's
+   explicit ask). Verdict: "high-quality, security-conscious." It found
+   **one P0** — an AppleScript injection in `notes_export.rs` (untrusted
+   body interpolated into script source) — now fixed by switching to the
+   `on run argv` pattern (+2 Rust tests). Plus two P1s in the new Wave-5
+   code (omnibar per-keystroke IDB fan-out → cached per-open; canvas
+   effect over-write → diff-guarded) and two P2 hardenings. All in
+   v0.2.24.
+3. R71 a11y pass on the new surfaces (streams filter `aria-pressed`; the
+   rest were already clean). Cut **v0.3.0**.
+
+Health at v0.3.0: **408/408 vitest, 0 svelte-check errors, cargo check +
+Rust unit tests clean, production build OK, bundle budget within limits.**
+
+### Still open
+- **R76 (GitHub Actions billing)** — jobs fail to start (~3s) with a
+  spending-limit message. NOT code-fixable: the lead must update
+  **GitHub → Settings → Billing & plans**. The signed-DMG release
+  workflow fires on the `v0.3.0` tag once billing is restored (re-run
+  the tag or push a patch tag). Local pre-push hook runs the full
+  check+test suite, so correctness stays gated meanwhile.
+- **R68 / R89 (auto-summarization wiring)** — the `summarize.ts` util is
+  shipped + tested, but folding old turns into a summary stub mutates the
+  transcript; that UX (destructive replace vs. non-destructive recap,
+  persistence, expand/collapse) deserves a design call rather than an
+  autonomous guess. Left as a focused follow-up; the util is ready to wire.
+- **R74 (fresh-user simulation v3)** — needs a real app launch / DMG;
+  deferred until the build artifact exists (gated by R76).
+- The bundled `IronClaw.app` on disk is still old — rebuild via
+  `npm run tauri build` (or the CI release once billing is back).
+
 ## What shipped (eight tags)
 
 | Tag | Highlights |
