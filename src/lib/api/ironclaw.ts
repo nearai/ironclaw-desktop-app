@@ -49,14 +49,27 @@ import type {
 } from './types';
 import { containsSecret, redactJsonObject, redactSecrets } from '$lib/utils/redact';
 import { inTauri } from '$lib/utils/runtime';
-// Tauri HTTP plugin — top-level import so the bundler doesn't tree-shake
-// the dynamic-import variant (vite's SSR pass eliminated the conditional
-// dynamic import in v0.2.4's first attempt, leaving the production .app
-// falling back to native fetch and getting blocked by WKWebView CORS).
-// The module just exports a fetch() function shaped like browser fetch;
-// loading it outside Tauri is harmless because we gate the actual call
-// site on `inTauri()`.
-import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
+
+// Lazy load of Tauri http plugin. Top-level static import crashed the
+// entire JS bundle on production webview load (Webview JS never
+// executed, app stuck on "Disconnected" with no keychain reads or
+// fetches). Going back to a dynamic import gated on inTauri(), but
+// caching the promise so we only resolve once per session.
+let tauriFetchPromise: Promise<typeof fetch | null> | null = null;
+function loadTauriFetch(): Promise<typeof fetch | null> {
+  if (!inTauri()) return Promise.resolve(null);
+  if (tauriFetchPromise) return tauriFetchPromise;
+  tauriFetchPromise = import('@tauri-apps/plugin-http')
+    .then((m) => (m && typeof m.fetch === 'function' ? (m.fetch as typeof fetch) : null))
+    .catch((err) => {
+      console.warn(
+        '[ironclaw] Tauri http plugin failed to load; falling back to native fetch',
+        err
+      );
+      return null;
+    });
+  return tauriFetchPromise;
+}
 
 export interface IronClawClientOptions {
   baseUrl: string;
@@ -107,10 +120,9 @@ export class IronClawClient {
     // production webview (tauri://localhost) otherwise fails on against
     // any gateway that doesn't whitelist that origin. Falls back to
     // native fetch in browser / vitest / dev contexts where the plugin
-    // isn't available (and where CORS isn't blocking anyway — vite dev
-    // origin is http://localhost:1420 which IS in the gateway's
-    // allowlist).
-    const fetchImpl = inTauri() ? tauriFetch : fetch;
+    // isn't available.
+    const maybeTauri = await loadTauriFetch();
+    const fetchImpl = maybeTauri ?? fetch;
     const res = await fetchImpl(url, {
       method,
       headers,
