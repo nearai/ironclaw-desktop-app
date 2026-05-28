@@ -1,5 +1,55 @@
 # Changelog
 
+## v0.2.10 — Five new surfaces + release lockdown (2026-05-28)
+
+First public release since v0.2.0 (2026-05-27). Folds in everything
+shipped under the v0.2.1 → v0.2.9 internal version bumps (see entries
+below for the underlying work) plus five user-facing surfaces and
+the release lockdown:
+
+- **Release lockdown** (R38): `diag_log` opt-in (DEV build OR
+  `localStorage['ironclaw-diag']='1'`), `dev-devtools` Cargo feature
+  default-OFF so right-click → Inspect is not available in release
+  bundles, `build_provenance` Tauri command surfaces the build type
+  (debug / release-with-devtools / release) in the About dialog.
+- **IronHub catalog browse + install** (R39): new
+  `/skills/ironhub` route powered by `src-tauri/src/ironhub.rs`
+  (`list_catalog`, `fetch_skill`, `install_skill_local`). Lists the
+  curated `github.com/nearai/ironhub` registry, one-click installs
+  into the active workspace. Path-traversal hardened (no `..`, no
+  `/`, no symlink escapes), install dir always rooted at
+  `app_data_dir/skills/<name>/`. Catalog cache 1h.
+- **LLM Council** (R40): new `/council` route + Cmd+0 shortcut.
+  Sends the same prompt to N selected providers and shows responses
+  side-by-side, with a `Promote` button per response to start a
+  follow-up thread on that provider. Sequential fanout for now (the
+  gateway has no per-call provider override yet); the in-route
+  banner explains the limit. Store ready for parallel mode when
+  the gateway lands per-call overrides.
+- **Tool flow visualizer** (R42): right rail on the chat surface
+  (`hidden xl:block w-[320px]`) renders the tool calls IronClaw
+  made for the active thread, in order, with arguments + results.
+  Powered by `src/lib/stores/tool-flow.svelte.ts` (per-thread
+  Map). 9 vitest cases.
+- **Per-thread system prompt override** (R43): kebab menu →
+  `Custom system prompt…` opens a modal; the prompt overrides the
+  workspace default for that one thread, gold chip on the header
+  shows the override is active. Stored in `localStorage`
+  (`ironclaw-per-thread-prompts`) with defensive filter against
+  `__proto__` / `constructor` / `prototype`. 9 vitest cases.
+- **Memory inspector** (R44): new `/memory` route + Cmd+M shortcut.
+  Two-column list/detail across the IronClaw memory tree with
+  search, create, edit, delete.
+
+Backtest coverage for this trail:
+- R45 codex review (P0/P1/P2 fanout).
+- R46 live dogfood against `baremetal3.agents.near.ai` — 5 smoke
+  specs, 5/5 passing in 7.3s.
+- R47 bundle + perf regression check — 344 / 360 KB gzipped
+  (95.6% of cap), R49 has queued lazy-loads for the three
+  heaviest new modules.
+- R48 fresh-user simulation — wipe + dev-up, time-to-first-chat.
+
 ## v0.2.9 (unreleased) — Ringfence + token-source visibility
 
 - **Ringfence the v0.2.7 / v0.2.8 fixes** so a follow-up review pass
