@@ -15,6 +15,11 @@
 // binary as a child process. Lifecycle is managed via `SidecarState`,
 // exposed through `start_sidecar` / `stop_sidecar` / `sidecar_status`.
 
+#[cfg(all(not(debug_assertions), dev))]
+compile_error!(
+    "Release builds must enable the custom-protocol feature so Tauri embeds frontendDist instead of loading build.devUrl."
+);
+
 mod crashes;
 mod keychain;
 mod settings;

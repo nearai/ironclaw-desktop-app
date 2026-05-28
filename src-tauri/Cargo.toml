@@ -35,4 +35,9 @@ log = "0.4"
 env_logger = "0.11"
 
 [features]
+# Tauri treats builds without `custom-protocol` as dev builds and points the
+# webview at `build.devUrl` instead of embedding/serving `frontendDist`.
+# Keep it enabled by default so plain `cargo build --release` produces a
+# usable bundled app; `tauri dev` disables this feature for the Vite dev server.
+default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
