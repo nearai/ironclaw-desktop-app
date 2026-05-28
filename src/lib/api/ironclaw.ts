@@ -3423,16 +3423,22 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
       // "Calling LLM…" or per-step token counts.
       return null;
     case 'tool_start':
+    case 'tool_called':
       return {
         type: 'tool_call',
         name: String(raw.tool ?? raw.name ?? ''),
         args: raw.args
       };
     case 'tool_result':
+    case 'tool_completed':
+      // `tool_completed` is the IronClaw v0.29+ name for what older
+      // gateways called `tool_result`. Payload shape is the same:
+      // `{tool|name, result}`. Mapped identically — the UI doesn't
+      // care which name the wire used.
       return {
         type: 'tool_result',
         name: String(raw.tool ?? raw.name ?? ''),
-        result: raw.result
+        result: raw.result ?? raw.output
       };
     case 'message_start':
       return {
