@@ -33,6 +33,7 @@
   import { threadRename } from '$lib/stores/thread-rename.svelte';
   import { presets, presetsModal } from '$lib/stores/presets.svelte';
   import { templates, templatesModal } from '$lib/stores/templates.svelte';
+  import { skillEditor } from '$lib/stores/skill-editor.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { telemetry } from '$lib/stores/telemetry.svelte';
   import { invoke } from '@tauri-apps/api/core';
@@ -180,6 +181,14 @@
     if (mod && e.shiftKey && e.key.toLowerCase() === 't' && !isOnboarding) {
       e.preventDefault();
       templatesModal.toggle();
+      return;
+    }
+
+    // LANE B8 — skill editor (R65). Cmd+Shift+E. Onboarding gate matches
+    // the other modal chords.
+    if (mod && e.shiftKey && e.key.toLowerCase() === 'e' && !isOnboarding) {
+      e.preventDefault();
+      skillEditor.show();
       return;
     }
 

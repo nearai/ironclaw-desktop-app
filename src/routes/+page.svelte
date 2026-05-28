@@ -18,6 +18,7 @@
   import { threadModel } from '$lib/stores/thread-model.svelte';
   import { perThreadPrompts } from '$lib/stores/per-thread-prompts.svelte';
   import PerThreadPromptModal from '$lib/components/PerThreadPromptModal.svelte';
+  import SkillEditorModal from '$lib/components/SkillEditorModal.svelte';
   import { slashUsage } from '$lib/stores/slash-usage.svelte';
   import { composerInsert } from '$lib/stores/templates.svelte';
   import { telemetry } from '$lib/stores/telemetry.svelte';
@@ -3229,7 +3230,8 @@
         role="presentation"
       >
         <!-- LANE B1 — voice-answer bar mount (TTS playback strip lands here) -->
-        <!-- LANE B8 — skill editor mount (right-click-tool-output modal anchors here) -->
+        <!-- LANE B8 — skill editor mount (R65) -->
+        <SkillEditorModal />
         <!-- LANE B9 — editable bubble swap (per-bubble live edit toggle lands here) -->
 
         <!-- Hidden file input — triggered by the "+" button. `accept` is
