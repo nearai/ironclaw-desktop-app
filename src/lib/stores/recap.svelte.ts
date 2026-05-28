@@ -60,6 +60,12 @@ class RecapStore {
 
     if (messages.length === 0) {
       this.error = 'Nothing to recap yet.';
+      // Clear loading on this early exit too — the caller (onRecap) sets
+      // loading=true before calling us to show a spinner during the
+      // history fetch, and this branch returns before the try/finally
+      // that would otherwise reset it. Without this the panel spins
+      // forever and never surfaces the error. (Review P1.)
+      this.loading = false;
       return;
     }
 

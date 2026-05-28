@@ -42,6 +42,10 @@ describe('recap store', () => {
 
   it('sets an error and skips the call when there are no messages', async () => {
     const client = clientYielding([{ type: 'content_delta', delta: 'nope' }]);
+    // Mirror the real caller (onRecap), which flips loading on before
+    // calling generate to show a spinner during the history fetch. The
+    // empty-thread early-return must still clear it (review P1 regression).
+    recap.loading = true;
     await recap.generate('thr-2', [], client);
     expect(recap.error).toBe('Nothing to recap yet.');
     expect(recap.summary).toBe('');
