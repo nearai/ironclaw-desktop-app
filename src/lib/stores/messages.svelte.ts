@@ -6,6 +6,7 @@
 // `commitAssistantMessage` once the stream ends.
 
 import type { Message } from '$lib/api/types';
+import { getMessages, putMessages } from '$lib/util/idb-cache';
 import { connection } from './connection.svelte';
 
 /**
@@ -88,6 +89,9 @@ class MessageStore {
    */
   noMoreHistory = $state<Record<string, boolean>>({});
 
+  /** True when the visible history came from IndexedDB before a server refresh. */
+  cached = $state<Record<string, boolean>>({});
+
   get(threadId: string): Message[] {
     return this.byThread[threadId] ?? [];
   }
@@ -123,6 +127,11 @@ class MessageStore {
     return !!this.noMoreHistory[threadId];
   }
 
+  /** True when the current thread history is a stale IndexedDB snapshot. */
+  isCached(threadId: string): boolean {
+    return !!this.cached[threadId];
+  }
+
   /**
    * Load the most recent page of a thread's history. Replaces any existing
    * cached history for the thread — the typical entry point on thread
@@ -135,9 +144,24 @@ class MessageStore {
     threadId: string,
     opts: { limit?: number; offset?: number } = {}
   ): Promise<void> {
-    if (!connection.client || !threadId) return;
+    if (!threadId) return;
     const limit = opts.limit ?? HISTORY_PAGE_SIZE;
     const offset = opts.offset ?? 0;
+    let hydratedFromCache = false;
+    if (offset === 0) {
+      const cached = (await getMessages(threadId)) as Message[] | null;
+      if (cached) {
+        hydratedFromCache = true;
+        this.byThread = { ...this.byThread, [threadId]: cached };
+        this.cached = { ...this.cached, [threadId]: true };
+        this.errors = { ...this.errors, [threadId]: null };
+        this.noMoreHistory = {
+          ...this.noMoreHistory,
+          [threadId]: cached.length < limit
+        };
+      }
+    }
+    if (!connection.client) return;
     this.loading = true;
     try {
       const msgs = await connection.client.getHistory(threadId, limit, offset);
@@ -153,6 +177,8 @@ class MessageStore {
       }
       this.meta = nextMeta;
       this.byThread = { ...this.byThread, [threadId]: msgs };
+      this.cached = { ...this.cached, [threadId]: false };
+      this.errors = { ...this.errors, [threadId]: null };
       // If the first page already returned fewer rows than requested the
       // thread is fully loaded; remember that so we don't poke /history
       // again on every scroll-up.
@@ -160,7 +186,11 @@ class MessageStore {
         ...this.noMoreHistory,
         [threadId]: msgs.length < limit
       };
+      if (offset === 0) {
+        await putMessages(threadId, msgs);
+      }
     } catch (err) {
+      if (hydratedFromCache) return;
       this.errors = { ...this.errors, [threadId]: (err as Error).message };
     } finally {
       this.loading = false;
