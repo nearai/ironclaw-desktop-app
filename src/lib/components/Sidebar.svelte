@@ -50,6 +50,7 @@
       | 'extensions'
       | 'missions'
       | 'admin'
+      | 'canvas'
       | 'spark';
     /** Optional shortcut hint shown to the right of the label. Mirrors the
      *  global shortcuts wired in `src/routes/+layout.svelte`. */
@@ -72,6 +73,9 @@
     { href: '/dashboard', label: 'Today', icon: 'spark', shortcut: '⌘0' },
     { href: '/', label: 'Chat', icon: 'chat', shortcut: '⌘1', badgeKey: 'chat' },
     { href: '/council', label: 'Council', icon: 'council', shortcut: '⌘9' },
+    // Canvas (R84 / W7). Research-mode spatial surface — no digit slot to
+    // avoid renumbering the existing 1..9 muscle memory.
+    { href: '/canvas', label: 'Canvas', icon: 'canvas' },
     { href: '/knowledge', label: 'Knowledge', icon: 'knowledge', shortcut: '⌘2' },
     // Memory sits between Knowledge and Skills as a sibling surface — same
     // backend (`/api/memory/*`), different mental model: flat card list of
@@ -779,6 +783,8 @@
           {:else if item.icon === 'routines'}
             <Icon name="clock" class="w-4 h-4" />
           {:else if item.icon === 'jobs'}
+            <Icon name="layers" class="w-4 h-4" />
+          {:else if item.icon === 'canvas'}
             <Icon name="layers" class="w-4 h-4" />
           {:else if item.icon === 'logs'}
             <Icon name="pulse" class="w-4 h-4" />
