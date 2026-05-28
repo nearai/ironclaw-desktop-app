@@ -21,6 +21,7 @@ compile_error!(
 );
 
 mod crashes;
+mod ironhub;
 mod keychain;
 mod settings;
 mod sidecar;
@@ -232,6 +233,33 @@ async fn diagnostic_report(app: AppHandle, profile_id: String) -> Result<serde_j
             "token_source": token_source,
         },
     }))
+}
+
+// ---- IronHub catalog -----------------------------------------------------
+//
+// Browse + install entrypoints for github.com/nearai/ironhub. See
+// `src-tauri/src/ironhub.rs` for the cache + fetch logic. The commands
+// here are thin Tauri wrappers; the heavy lifting lives in the module.
+
+#[tauri::command]
+async fn list_ironhub_catalog(
+    app: AppHandle,
+    force: Option<bool>,
+) -> Result<serde_json::Value, String> {
+    ironhub::list_catalog(app, force.unwrap_or(false)).await
+}
+
+#[tauri::command]
+async fn fetch_ironhub_skill(slug: String) -> Result<serde_json::Value, String> {
+    ironhub::fetch_skill(slug).await
+}
+
+#[tauri::command]
+async fn install_ironhub_skill_local(
+    state: State<'_, SidecarState>,
+    slug: String,
+) -> Result<serde_json::Value, String> {
+    ironhub::install_skill_local(state, slug).await
 }
 
 // ---- OpenRouter-key Keychain (per-profile, local mode) -------------------
@@ -769,6 +797,9 @@ pub fn run() {
             set_llm_provider_credential,
             delete_llm_provider_credential,
             get_or_create_local_token,
+            list_ironhub_catalog,
+            fetch_ironhub_skill,
+            install_ironhub_skill_local,
             start_sidecar,
             stop_sidecar,
             sidecar_status,

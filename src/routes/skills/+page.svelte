@@ -544,8 +544,17 @@
     </div>
 
     <!-- Header controls: group toggle + sort dropdown. Both update prefs
-         which are persisted to localStorage via $effect. -->
+         which are persisted to localStorage via $effect. The Browse IronHub
+         link sits alongside so the marketplace entrypoint is one click
+         away whenever the user is staring at their installed catalog. -->
     <div class="flex items-center gap-3">
+      <a
+        href="/skills/ironhub"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent-cyan/40 text-xs font-semibold text-accent-cyan hover:bg-accent-cyan/10 transition min-h-[34px]"
+        title="Browse the IronHub catalog and install new skills"
+      >
+        Browse IronHub
+      </a>
       <div
         class="inline-flex items-center gap-1 p-0.5 rounded-lg bg-bg-deep border border-border-subtle"
         role="group"

@@ -33,6 +33,15 @@ uuid = { version = "1", features = ["v4"] }
 tokio = { version = "1", features = ["rt", "rt-multi-thread", "macros", "sync", "time", "net"] }
 log = "0.4"
 env_logger = "0.11"
+# reqwest is already transitive via tauri-plugin-http (0.12). We pin to the
+# same major so cargo dedupes to a single copy in the dependency graph —
+# no extra binary weight, just exposes the type on our direct deps path
+# so `ironhub.rs` can issue GETs to the GitHub contents API + raw blobs.
+# Features kept minimal: default + json (we serde the catalog responses).
+# `rustls-tls` matches what tauri-plugin-http already pulls in; we follow
+# the default-features so the TLS backend stays in sync with the rest of
+# the tree.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 
 [dev-dependencies]
 tempfile = "3"
