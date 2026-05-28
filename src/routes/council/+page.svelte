@@ -24,6 +24,8 @@
   import { council } from '$lib/stores/council.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
+  // R83 (lane W6 lite) — model presence strip
+  import ModelPresenceStrip from '$lib/components/ModelPresenceStrip.svelte';
 
   // ---- Local state ------------------------------------------------------
   let CouncilColumn = $state<Component<any> | null>(null);
@@ -392,6 +394,18 @@
         <div class="text-xs">Write a prompt, pick 2–4 providers, and click Convene Council.</div>
       </div>
     {:else}
+      <!-- R83 (lane W6 lite): model presence strip showing each model's
+           current state at-a-glance. The store's runs[] already carries
+           status + latency; we just render. -->
+      <ModelPresenceStrip
+        runs={council.runs.map((r) => ({
+          providerId: r.providerId,
+          label: providerName(r.providerId),
+          status: r.status,
+          latencyMs: r.latencyMs,
+          error: r.error
+        }))}
+      />
       <div class="flex-1 min-h-0 grid {gridCols} gap-3 overflow-hidden">
         {#each council.runs as run, idx (run.providerId + idx)}
           <CouncilColumn
