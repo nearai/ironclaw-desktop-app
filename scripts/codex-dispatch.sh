@@ -99,6 +99,7 @@ for n in "${TARGETS[@]}"; do
 
   (
     cat "$brief" | codex exec --cd "$worktree" \
+      --full-auto \
       --config model_reasoning_effort=high - \
       > "/tmp/codex-r${n}.log" 2>&1
     code=$?
