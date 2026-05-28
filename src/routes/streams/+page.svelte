@@ -11,6 +11,7 @@
   import { connection } from '$lib/stores/connection.svelte';
   import { streams, type StreamEvent, type StreamEventKind } from '$lib/stores/streams.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
+  import { relativeTime } from '$lib/util/format-time';
 
   onMount(async () => {
     if (!connection.client) await connection.init();
@@ -58,14 +59,11 @@
   }
 
   function formatTime(iso: string): string {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime()) || d.getTime() === 0) return '—';
-    const diff = Date.now() - d.getTime();
-    if (diff < 60_000) return 'just now';
-    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
-    if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
-    return d.toLocaleDateString();
+    // Keep the "—" sentinel for missing/zero timestamps; defer the rest to
+    // the canonical relativeTime util (R93) — richer buckets (w/mo/y).
+    const t = Date.parse(iso);
+    if (Number.isNaN(t) || t === 0) return '—';
+    return relativeTime(t);
   }
 </script>
 
