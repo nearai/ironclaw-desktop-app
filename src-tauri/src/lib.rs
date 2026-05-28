@@ -23,6 +23,7 @@ compile_error!(
 mod crashes;
 mod ironhub;
 mod keychain;
+mod notes_export;
 mod settings;
 mod sidecar;
 mod spotlight;
@@ -835,6 +836,7 @@ pub fn run() {
             list_ironhub_catalog,
             fetch_ironhub_skill,
             install_ironhub_skill_local,
+            notes_export::export_to_notes,
             start_sidecar,
             stop_sidecar,
             sidecar_status,

@@ -254,3 +254,9 @@ export function buildThreadMarkdown(thread: Thread, messages: Message[]): string
   lines.push('');
   return lines.join('\n');
 }
+
+export async function exportToNotes(title: string, body: string): Promise<void> {
+  const { inTauri } = await import('$lib/utils/runtime');
+  if (!inTauri()) throw new Error('Apple Notes export requires the desktop app');
+  await invoke('export_to_notes', { title, body });
+}
