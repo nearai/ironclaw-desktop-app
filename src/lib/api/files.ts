@@ -260,3 +260,11 @@ export async function exportToNotes(title: string, body: string): Promise<void> 
   if (!inTauri()) throw new Error('Apple Notes export requires the desktop app');
   await invoke('export_to_notes', { title, body });
 }
+
+export async function exportMemoryTree(
+  profileId: string,
+  files: Array<{ path: string; content: string }>
+): Promise<string> {
+  if (!inTauri()) throw new Error('Workspace export requires the desktop app');
+  return (await invoke('export_memory_tree', { profileId, files })) as string;
+}

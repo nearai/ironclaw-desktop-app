@@ -25,6 +25,7 @@
   // server lands the route the UI just works.
 
   import { onDestroy, onMount, type Component } from 'svelte';
+  import { exportMemoryTree } from '$lib/api/files';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
@@ -78,6 +79,8 @@
   // New-memory modal. Lazy-mounted so each open seeds fresh state without
   // any reset code.
   let newModalOpen = $state(false);
+  let exportingToFinder = $state(false);
+  let loadedContents = $state<Record<string, string>>({});
 
   // Relative-time tick. Re-render every minute so the "12m ago" labels age
   // without page reloads. Stamped via `nowMs` and read by `relativeTime`.
@@ -207,6 +210,7 @@
     try {
       const res = await client.readMemory(node.path);
       selectedContent = res.content;
+      loadedContents = { ...loadedContents, [node.path]: res.content };
     } catch (err) {
       detailError = (err as Error).message;
       toasts.show(`Failed to load memory: ${detailError}`, 'error');
@@ -255,6 +259,7 @@
       // pass `append:true` here; the editor is a replace, not an append.
       await client.writeMemory(selectedNode.path, draft);
       selectedContent = draft;
+      loadedContents = { ...loadedContents, [selectedNode.path]: draft };
       editing = false;
       draft = '';
       // Stamp the local node with `now` so the list re-sorts and the
@@ -297,6 +302,9 @@
       nodes = nodes.filter((n) => n.path !== removed);
       selectedNode = null;
       selectedContent = '';
+      loadedContents = Object.fromEntries(
+        Object.entries(loadedContents).filter(([path]) => path !== removed)
+      );
       toasts.show('Memory deleted.', 'success');
     } catch (err) {
       toasts.show(`Delete failed: ${(err as Error).message}`, 'error');
@@ -346,6 +354,27 @@
       toasts.show('Path copied.', 'success');
     } catch {
       toasts.show('Copy failed.', 'error');
+    }
+  }
+
+  async function onExportToFinder(): Promise<void> {
+    // Full-content export for every tree node requires a read-per-file
+    // pass; this v1 exports only files opened in the detail pane.
+    const files = nodes
+      .filter((n) => loadedContents[n.path] !== undefined)
+      .map((n) => ({ path: n.path, content: loadedContents[n.path] }));
+    if (files.length === 0) {
+      toasts.show('Open a memory file before exporting to Finder.', 'error');
+      return;
+    }
+    exportingToFinder = true;
+    try {
+      const path = await exportMemoryTree(connection.activeProfile.id, files);
+      toasts.show(`Exported ${files.length} files to ${path}`, 'success');
+    } catch (err) {
+      toasts.show(`Export failed: ${(err as Error).message}`, 'error');
+    } finally {
+      exportingToFinder = false;
     }
   }
 
@@ -462,6 +491,15 @@
           </span>
         </div>
         <div class="flex items-center gap-1.5">
+          <button
+            type="button"
+            onclick={() => void onExportToFinder()}
+            disabled={exportingToFinder}
+            title="Export memory tree to ~/Documents/IronClaw and open in Finder"
+            class="inline-flex items-center justify-center h-7 px-2.5 rounded-md border border-border-subtle text-[11px] text-text-muted hover:text-text-primary hover:border-accent-cyan focus-visible:ring-2 focus-visible:ring-accent-cyan focus-visible:outline-none transition disabled:opacity-50"
+          >
+            {exportingToFinder ? 'Opening…' : 'Open in Finder'}
+          </button>
           <button
             type="button"
             onclick={() => void loadNodes()}

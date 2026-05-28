@@ -21,6 +21,7 @@ compile_error!(
 );
 
 mod crashes;
+mod fs_mount;
 mod ironhub;
 mod keychain;
 mod notes_export;
@@ -863,6 +864,7 @@ pub fn run() {
             list_ironhub_catalog,
             fetch_ironhub_skill,
             install_ironhub_skill_local,
+            fs_mount::export_memory_tree,
             notes_export::export_to_notes,
             sandbox_exec::run_python_snippet,
             start_sidecar,
