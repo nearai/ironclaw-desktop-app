@@ -5,8 +5,10 @@ lane. Codex has no project memory between sessions, so the brief
 repeats: lane, owned files, forbidden files, wire contract, and
 acceptance criteria.
 
-See [`../SWIMMING-LANES.md`](../SWIMMING-LANES.md) for the lane map
-and [`../ROADMAP-ELITE.md`](../ROADMAP-ELITE.md) for the wave order.
+See [`../SWIMMING-LANES.md`](../SWIMMING-LANES.md) for the lane map,
+[`../ROADMAP-ELITE.md`](../ROADMAP-ELITE.md) for the wave order, and
+[`../WORKSPACE-OS.md`](../WORKSPACE-OS.md) for the Wave 2.5 architectural
+shift (Dashboard, Streams, Widgets, Council v2, Canvas).
 
 ## Detailed briefs (write code from these directly)
 
@@ -20,6 +22,9 @@ and [`../ROADMAP-ELITE.md`](../ROADMAP-ELITE.md) for the wave order.
 | [59](./59-time-travel-wire.md) | A6 | 2 | Time-travel replay events wire |
 | [60](./60-spotlight-indexing.md) | A7 | 2 | Spotlight indexing of threads |
 | [62](./62-idb-message-cache.md) | A9 | 2 | IndexedDB message cache (offline reads) |
+| [79](./79-reply-thread-wire.md) | W2 | 2.5 | Reply-thread wire (Slack-style threads) |
+| [81](./81-streams-route.md) | W4 | 2.5 | Streams (activity feed) route |
+| [82](./82-generative-widgets.md) | W5 | 2.5 | Generative widget framework |
 
 ## Stub briefs (expand before dispatch)
 
