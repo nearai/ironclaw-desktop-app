@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.2.23 — Waves 1–5: native reach, workspace-OS, sub-agents (2026-05-28)
+
+Rolls up the post-v0.2.10 build push (internal bumps v0.2.11 → v0.2.23,
+roadmap items R49–R88). Themes:
+
+- **Native macOS reach** (R50/R51 TTS + voice answer, R60 Spotlight
+  indexing, R61 Apple Notes export, R63 vibrancy + title-bar inset,
+  R64 mini-mode, R70 workspace files → `~/Documents/IronClaw/<profile>`
+  via `src-tauri/src/fs_mount.rs`, path-traversal guarded).
+- **Workspace-OS surfaces** (R77/R78 dashboard + draggable tiles,
+  R79/R80 Slack-style reply-threads, R81 activity-feed `/streams`,
+  R82 generative widgets, R83 council v2 side-by-side streaming,
+  R84 spatial canvas `/canvas` — native Svelte, no tldraw/React,
+  defensive localStorage hydration).
+- **Sub-agents** (R56/R57): dispatch a one-shot background task at the
+  gateway's `/api/v1/tasks` family and stream progress into a per-thread
+  chip; degrades cleanly (`SubAgentUnsupportedError`) when the gateway
+  lacks the endpoint. R88 wires the canvas "Ask this node" composer to
+  dispatch a real sub-agent and stream its output into a connected node.
+- **Power-user search + render** (R53 Mermaid/KaTeX/Plotly renderers,
+  XSS-hardened; R55 omnibar Cmd+Space; R58/R59 time-travel replay;
+  R62 IndexedDB offline message cache; R65 inline tool authoring;
+  R66 sandboxed Python REPL blocks; R67 `/imagine`; R69 per-bubble
+  markdown edit).
+- **Wave 5 utils + integration** (R85 auto-summarization util,
+  R86 cached-message search wired into the omnibar as a `Message`
+  result kind, R87 self-contained XSS-safe HTML transcript export
+  wired into the chat export menu).
+- **Perf** (R49 lazy-loaded routes) and **E2E** (R72 Playwright specs
+  for chat tabs, dashboard, multimodal render, omnibar, replay,
+  streams, voice).
+
+CI note: GitHub Actions on this account is currently billing-blocked
+(jobs fail to start with a spending-limit message); the local
+`pre-push` hook runs the full `svelte-check` + `vitest` suite, so
+pushes remain gated regardless. Resolve by updating GitHub → Settings
+→ Billing & plans.
+
 ## v0.2.10 — Five new surfaces + release lockdown (2026-05-28)
 
 First public release since v0.2.0 (2026-05-27). Folds in everything
