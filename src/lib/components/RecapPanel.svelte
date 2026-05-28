@@ -4,6 +4,7 @@
   // — it never edits the transcript.
 
   import { recap } from '$lib/stores/recap.svelte';
+  import { formatDuration } from '$lib/util/format-time';
   import Icon from './Icon.svelte';
 
   function onBackdropKey(e: KeyboardEvent): void {
@@ -45,6 +46,20 @@
           <Icon name="close" class="w-4 h-4" />
         </button>
       </header>
+
+      {#if recap.stats && recap.stats.messageCount > 0}
+        <div
+          class="flex items-center gap-3 px-4 py-2 border-b border-border-subtle text-[11px] text-text-muted tabular-nums"
+        >
+          <span>{recap.stats.messageCount} messages</span>
+          <span aria-hidden="true">·</span>
+          <span>~{recap.stats.estimatedTokens.toLocaleString()} tokens</span>
+          {#if recap.stats.spanMs > 0}
+            <span aria-hidden="true">·</span>
+            <span>over {formatDuration(recap.stats.spanMs)}</span>
+          {/if}
+        </div>
+      {/if}
 
       <div class="flex-1 overflow-auto px-4 py-3 text-sm">
         {#if recap.loading}

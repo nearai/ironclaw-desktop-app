@@ -59,6 +59,7 @@
   // R89 — non-destructive thread recap
   import RecapPanel from '$lib/components/RecapPanel.svelte';
   import { recap } from '$lib/stores/recap.svelte';
+  import { computeThreadStats } from '$lib/util/thread-stats';
   // LANE W3 — reply-thread panel (R80, consumes R79 store)
   import ReplyThreadPanel from '$lib/components/ReplyThreadPanel.svelte';
   import { replyThreadUI } from '$lib/stores/reply-thread-ui.svelte';
@@ -2129,8 +2130,12 @@
     recap.loading = true;
     recap.error = null;
     recap.summary = '';
+    recap.stats = null;
     try {
       const all = await client.getHistory(thread.id, 10000);
+      // Compute at-a-glance stats from the same history (R92) before the
+      // summary streams, so the panel shows numbers immediately.
+      recap.stats = computeThreadStats(all);
       await recap.generate(thread.id, all, client);
     } catch (err) {
       recap.error = (err as Error).message;

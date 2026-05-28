@@ -10,6 +10,7 @@
 
 import type { ChatEvent } from '$lib/api/types';
 import { summarizeHistory, type SummarizableMessage } from '$lib/util/summarize';
+import type { ThreadStats } from '$lib/util/thread-stats';
 
 /** The slice of the IronClaw client this store needs. Structural so the
  *  tests can inject a fake (mirrors `IronClawClient.streamResponse`). */
@@ -30,6 +31,9 @@ class RecapStore {
   error = $state<string | null>(null);
   /** The generated recap text. */
   summary = $state<string>('');
+  /** At-a-glance stats for the thread (R92), set by the caller from the
+   *  same history it hands to generate(). Null until computed. */
+  stats = $state<ThreadStats | null>(null);
   /** Which thread the current recap is for (so a stale panel can tell). */
   threadId = $state<string | null>(null);
 
@@ -84,6 +88,7 @@ class RecapStore {
     this.abort?.abort();
     this.open = false;
     this.loading = false;
+    this.stats = null;
   }
 }
 
