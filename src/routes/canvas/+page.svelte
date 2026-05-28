@@ -18,16 +18,19 @@
   // wire lands as a follow-up). All node/edge/viewport state lives in the
   // canvas store; the components are thin views over it.
 
+  import { untrack } from 'svelte';
   import CanvasArrows from '$lib/components/canvas/CanvasArrows.svelte';
   import CanvasNode from '$lib/components/canvas/CanvasNode.svelte';
   import CanvasViewport from '$lib/components/canvas/CanvasViewport.svelte';
   import {
+    buildNodePrompt,
     canvas,
     DEFAULT_NODE_HEIGHT,
     DEFAULT_NODE_WIDTH,
     MAX_ZOOM,
     MIN_ZOOM
   } from '$lib/stores/canvas.svelte';
+  import { subAgents } from '$lib/stores/sub-agents.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
 
   // The viewport fills the route; we read its size to centre new notes and
@@ -80,10 +83,71 @@
     arrowFrom = null;
   }
 
-  function onAsk(_id: string, _prompt: string): void {
-    // v1 stub — the actual gateway send is a follow-up. Surface intent.
-    toasts.show('Ask-this-node is coming soon', 'info');
+  // ---- Ask-this-node → sub-agent dispatch (R88) -------------------------
+  // The node composer emits (sourceId, question). We spawn a child node to
+  // hold the answer, connect an arrow source→child, dispatch a background
+  // sub-agent seeded with the source node as context, and stream its
+  // progress/result into the child via the effect below. If the gateway
+  // doesn't support sub-agents (404 → dispatch returns null) the child
+  // shows a clean hint instead of spinning forever.
+  let taskNodes = $state<Record<string, string>>({}); // taskId → child node id
+
+  function onAsk(sourceId: string, prompt: string): void {
+    void runAsk(sourceId, prompt);
   }
+
+  async function runAsk(sourceId: string, prompt: string): Promise<void> {
+    const source = canvas.nodes.find((n) => n.id === sourceId);
+    const child = canvas.addNote(
+      (source?.x ?? 100) + (source?.width ?? DEFAULT_NODE_WIDTH) + 60,
+      source?.y ?? 100
+    );
+    canvas.updateNode(child.id, {
+      kind: 'thread',
+      title: `↳ ${prompt.length > 40 ? `${prompt.slice(0, 40)}…` : prompt}`,
+      body: 'Dispatching sub-agent…'
+    });
+    if (source) canvas.connect(source.id, child.id);
+
+    const full = buildNodePrompt(source?.title ?? '', source?.body ?? '', prompt);
+    let taskId: string | null;
+    try {
+      taskId = await subAgents.dispatch({ prompt: full, parentThreadId: `canvas:${sourceId}` });
+    } catch (err) {
+      canvas.updateNode(child.id, { body: `Failed to dispatch: ${(err as Error).message}` });
+      toasts.show('Sub-agent dispatch failed', 'error');
+      return;
+    }
+    if (taskId === null) {
+      canvas.updateNode(child.id, {
+        body: 'Sub-agents need a newer IronClaw gateway — this build’s /api/v1/tasks endpoint isn’t available yet.'
+      });
+      toasts.show('Sub-agents not supported by this gateway', 'error');
+      return;
+    }
+    taskNodes = { ...taskNodes, [taskId]: child.id };
+  }
+
+  // Mirror each tracked sub-agent's live state into its child node. The
+  // tracked reads (taskNodes + the sub-agent store) drive re-runs; the
+  // canvas writes are wrapped in untrack() so updateNode's internal read of
+  // canvas.nodes can't feed back into this effect and loop.
+  $effect(() => {
+    const updates = Object.entries(taskNodes).map(([taskId, nodeId]) => {
+      const task = subAgents.all().find((t) => t.id === taskId);
+      const progress = subAgents.progressFor(taskId);
+      let body: string;
+      if (!task) body = 'Working…';
+      else if (task.status === 'succeeded') body = task.result ?? '(no result returned)';
+      else if (task.status === 'failed') body = `Failed: ${task.error ?? 'unknown error'}`;
+      else if (task.status === 'cancelled') body = 'Cancelled';
+      else body = progress.trim() || 'Working…';
+      return { nodeId, body };
+    });
+    untrack(() => {
+      for (const { nodeId, body } of updates) canvas.updateNode(nodeId, { body });
+    });
+  });
 
   // ---- Zoom controls ----------------------------------------------------
   const zoomPct = $derived(Math.round(canvas.zoom * 100));

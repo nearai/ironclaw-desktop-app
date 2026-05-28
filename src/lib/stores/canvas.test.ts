@@ -17,7 +17,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { canvas, MAX_ZOOM, MIN_ZOOM } from './canvas.svelte';
+import { buildNodePrompt, canvas, MAX_ZOOM, MIN_ZOOM } from './canvas.svelte';
 
 const STORAGE_KEY = 'ironclaw-canvas';
 
@@ -197,5 +197,32 @@ describe('canvas store', () => {
     expect(parsed.panX).toBe(25);
     expect(parsed.panY).toBe(75);
     expect(parsed.zoom).toBe(1.75);
+  });
+});
+
+describe('buildNodePrompt (R88 — Ask this node)', () => {
+  it('returns the bare question when the node has no title or body', () => {
+    expect(buildNodePrompt('', '', 'what is X?')).toBe('what is X?');
+    expect(buildNodePrompt('   ', '  ', '  what is X?  ')).toBe('what is X?');
+  });
+
+  it('quotes the title as context above the question', () => {
+    const out = buildNodePrompt('Roadmap', '', 'next step?');
+    expect(out).toContain('Context from canvas note "Roadmap":');
+    expect(out).toContain('Question: next step?');
+  });
+
+  it('includes the body when present', () => {
+    const out = buildNodePrompt('Ideas', 'ship the canvas', 'how?');
+    expect(out).toContain('Context from canvas note "Ideas":');
+    expect(out).toContain('ship the canvas');
+    expect(out.indexOf('ship the canvas')).toBeLessThan(out.indexOf('Question: how?'));
+  });
+
+  it('uses a generic context header when only the body is set', () => {
+    const out = buildNodePrompt('', 'just some body text', 'summarize');
+    expect(out).toContain('Context from canvas note:');
+    expect(out).toContain('just some body text');
+    expect(out).toContain('Question: summarize');
   });
 });

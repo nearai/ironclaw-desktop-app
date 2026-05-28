@@ -81,6 +81,21 @@ function isBrowser(): boolean {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
+/** Compose a sub-agent prompt from a node's title/body plus the user's
+ *  question, so the "Ask this node" composer (R88) hands the background
+ *  agent the node as context. With no title and no body it's just the
+ *  question; otherwise the node text is quoted as context above it. */
+export function buildNodePrompt(title: string, body: string, question: string): string {
+  const t = title.trim();
+  const b = body.trim();
+  const q = question.trim();
+  if (!t && !b) return q;
+  const parts: string[] = [t ? `Context from canvas note "${t}":` : 'Context from canvas note:'];
+  if (b) parts.push(b);
+  parts.push('', `Question: ${q}`);
+  return parts.join('\n');
+}
+
 function isFiniteNumber(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v);
 }
