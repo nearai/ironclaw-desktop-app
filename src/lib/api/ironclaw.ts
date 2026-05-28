@@ -453,15 +453,57 @@ export class IronClawClient {
   /**
    * Stream chat events for a thread via Server-Sent Events.
    *
-   * EventSource is used because the browser handles reconnect-on-disconnect
-   * for free. Auth is supplied via query token (browsers cannot attach
-   * custom headers to EventSource), per /api/chat/events doc.
+   * Originally used `EventSource` for the browser's built-in
+   * reconnect-on-disconnect. That broke in production builds because
+   * `EventSource` doesn't route through the Tauri http plugin — it goes
+   * directly through WKWebView, hits CORS (gateway doesn't whitelist
+   * `tauri://localhost`), and surfaces a generic `error` event with no
+   * detail (the "SSE connection error" toast).
+   *
+   * Now uses fetch + a manual SSE parser via `loadTauriFetch()` so the
+   * stream goes through Rust. We lose EventSource's auto-reconnect but
+   * the upstream callers (chat surface) drive their own retry loops
+   * already, and the gateway doesn't drop connections in practice.
    */
   async *streamEvents(threadId: string, signal: AbortSignal): AsyncIterable<ChatEvent> {
     const url = new URL(`${this.baseUrl}/api/chat/events`);
     if (threadId) url.searchParams.set('thread_id', threadId);
     if (this.token) url.searchParams.set('token', this.token);
 
+    const maybeTauri = await loadTauriFetch();
+    const fetchImpl = maybeTauri ?? fetch;
+    try {
+      // @ts-expect-error — Tauri global at runtime
+      await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
+        msg: `streamEvents GET ${url.toString().replace(/token=[^&]*/, 'token=REDACTED')} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`
+      });
+    } catch (_) {}
+    const res = await fetchImpl(url.toString(), {
+      method: 'GET',
+      headers: { Accept: 'text/event-stream' },
+      signal
+    });
+    if (!res.ok) {
+      throw new HttpError(res.status, url.toString(), `${res.status} ${res.statusText}`);
+    }
+    if (!res.body) {
+      throw new Error('chat/events: empty body');
+    }
+    yield* parseSseStream<ChatEvent>(res.body, signal, (raw) => {
+      try {
+        const ev = normalizeEvent(JSON.parse(raw) as Record<string, unknown>);
+        return ev === null ? [] : [ev];
+      } catch (e) {
+        return [{ type: 'error', message: `parse error: ${(e as Error).message}` }];
+      }
+    });
+    return;
+
+    // Legacy EventSource path — retained but unreachable. The new
+    // tauri-fetch path above is what runs in production. Kept here
+    // briefly so reviewers see the diff context against the old
+    // code. To be deleted in v0.2.11 once we've shipped + smoked.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const es = new EventSource(url.toString());
     const queue: ChatEvent[] = [];
     let resolveNext: ((value: IteratorResult<ChatEvent>) => void) | null = null;
@@ -599,7 +641,22 @@ export class IronClawClient {
       ...(threadId ? { metadata: { thread_id: threadId } } : {})
     };
 
-    const res = await fetch(url, {
+    // SSE streaming MUST also go through the Tauri http plugin in
+    // production — the gateway doesn't whitelist `tauri://localhost` in its
+    // CORS allowlist, so a direct browser fetch returns a CORS-blocked
+    // response that surfaces as "SSE connection error" with no body. The
+    // Tauri http plugin routes through Rust → bypasses CORS → response body
+    // (incl. SSE chunks) flows back as a normal ReadableStream.
+    const maybeTauri = await loadTauriFetch();
+    const fetchImpl = maybeTauri ?? fetch;
+    // DIAG (R37): visibility into SSE transport for the connection bug.
+    try {
+      // @ts-expect-error — Tauri global at runtime
+      await window.__TAURI_INTERNALS__?.invoke?.('diag_log', {
+        msg: `streamResponse POST ${url} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`
+      });
+    } catch (_) {}
+    const res = await fetchImpl(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -3246,6 +3303,55 @@ function findFrameEnd(buf: string): number {
   if (lf === -1) return crlf;
   if (crlf === -1) return lf;
   return Math.min(lf, crlf);
+}
+
+/**
+ * Generic SSE chunk parser shared by `streamEvents`, `streamLogs`, and any
+ * future SSE endpoint. Takes a `ReadableStream<Uint8Array>` (what the Tauri
+ * http plugin's `fetch` returns) and a per-frame `decode` hook that turns
+ * a raw `data:` payload into zero, one, or more typed events.
+ *
+ * Honours the abort signal between frames so closing the chat surface
+ * (or navigating away) cancels the upstream generation.
+ */
+async function* parseSseStream<T>(
+  body: ReadableStream<Uint8Array>,
+  signal: AbortSignal,
+  decode: (raw: string) => T[]
+): AsyncIterable<T> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  try {
+    while (true) {
+      if (signal.aborted) {
+        try {
+          await reader.cancel();
+        } catch {
+          /* ignore */
+        }
+        break;
+      }
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let frameEnd: number;
+      // eslint-disable-next-line no-cond-assign
+      while ((frameEnd = findFrameEnd(buf)) !== -1) {
+        const rawFrame = buf.slice(0, frameEnd);
+        buf = buf.slice(frameEnd + (buf.startsWith('\r\n', frameEnd) ? 2 : 0) + 2);
+        const parsed = parseSseFrame(rawFrame);
+        if (!parsed) continue;
+        for (const out of decode(parsed.data)) yield out;
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /**
