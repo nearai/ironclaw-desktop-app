@@ -25,6 +25,22 @@ use tauri::{AppHandle, Manager};
 
 const SERVICE: &str = "com.openclaw.ironclaw-desktop";
 
+// =============================================================================
+// !!! DO NOT REMOVE the token-file fallback below !!!
+//
+// Shipped in v0.2.8 (commit 79b5543) after a 6-hour bug hunt traced the
+// "Disconnected forever" production bug to the macOS keychain ACL prompt
+// hanging invisibly behind the app's main window. The fallback is
+// load-bearing: without it, every cargo --release rebuild produces a
+// binary whose ad-hoc signature isn't trusted by the prior "Always Allow"
+// grant, and the new prompt may never surface (covered window, headless
+// dev loop, etc.). Removing the file fallback re-introduces that wedge.
+//
+// If you're reviewing this code as part of a cleanup pass: the file is
+// mode 0600 in app_data_dir, the keychain write path is kept too so a
+// signed/notarised production build still gets keychain-only persistence.
+// =============================================================================
+
 /// Path to the file fallback for an account. Used when the macOS keychain
 /// ACL prompt hangs invisibly (every cargo --release rebuild invalidates
 /// the signature-bound "Always Allow" grant, and the new prompt may be
@@ -210,6 +226,26 @@ pub fn get(app: &AppHandle, profile_id: &str) -> Result<Option<String>, String> 
         Ok(Some(s)) => Ok(Some(s)),
         Ok(None) => Ok(read_token_file(app, &account)),
         Err(_) => Ok(read_token_file(app, &account)),
+    }
+}
+
+/// Reports which backing store actually surfaced the token. Lets the UI
+/// show a "loaded from keychain | file fallback | absent" badge so the
+/// user / a CI run can tell whether the keychain ACL prompt is wedged.
+/// Returns one of: "keychain" | "file" | "absent".
+pub fn get_source(app: &AppHandle, profile_id: &str) -> Result<String, String> {
+    let account = account_for(ACCOUNT_GATEWAY_PREFIX, profile_id);
+    // Mirror the read order of `get` so the answer is consistent with what
+    // the connection store actually used.
+    match get_secret(&account) {
+        Ok(Some(_)) => Ok("keychain".into()),
+        Ok(None) | Err(_) => {
+            if read_token_file(app, &account).is_some() {
+                Ok("file".into())
+            } else {
+                Ok("absent".into())
+            }
+        }
     }
 }
 

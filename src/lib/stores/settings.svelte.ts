@@ -785,6 +785,24 @@ export async function deleteToken(profileId: string): Promise<void> {
   await invoke('delete_token', { profileId });
 }
 
+/** Which backing store the gateway-token was loaded from. The Settings
+ *  page surfaces this so the user can tell whether the macOS keychain
+ *  ACL prompt is wedged on their machine (a frequent source of confusing
+ *  "Disconnected" failures on fresh ad-hoc-signed dev builds — see v0.2.8). */
+export type TokenSource = 'keychain' | 'file' | 'absent';
+
+export async function getTokenSource(profileId: string): Promise<TokenSource> {
+  if (!inTauri()) return 'absent';
+  try {
+    const raw = await invoke<string>('get_token_source', { profileId });
+    if (raw === 'keychain' || raw === 'file' || raw === 'absent') return raw;
+    return 'absent';
+  } catch (err) {
+    console.warn('getTokenSource failed', err);
+    return 'absent';
+  }
+}
+
 // ---- OpenRouter key (Keychain, per-profile) ------------------------------
 
 export async function getOpenRouterKey(profileId: string): Promise<string | null> {

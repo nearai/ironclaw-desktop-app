@@ -75,6 +75,43 @@ The first launch drops you in the onboarding wizard. The fast paths:
   OpenRouter/OpenAI/Anthropic, paste the key into the LLM picker
   in Settings before clicking Connect.
 
+### Token storage and the file fallback (v0.2.8+)
+
+Gateway bearer tokens primarily live in the macOS Keychain (service
+`com.openclaw.ironclaw-desktop`, account `gateway-token:<profile-id>`).
+The Rust side also writes a redundant **file fallback** at:
+
+```
+~/Library/Application Support/com.openclaw.ironclaw-desktop/tokens/
+  gateway-token_<profile-id>.token   (mode 0600)
+```
+
+Why both? Every `cargo build --release` produces a binary with a fresh
+ad-hoc code signature. macOS Keychain ACL grants are signature-bound,
+so the new binary triggers a fresh `Always Allow` prompt on first
+read. That prompt may surface behind the app window or never appear in
+a headless dev loop, and the synchronous `keyring::Entry::get_password()`
+call hangs indefinitely waiting for the user response — wedging the
+entire Tauri IPC dispatcher (no fetches, no UI updates, just a
+spinning "Disconnected" status).
+
+`src-tauri/src/keychain.rs:get_secret` runs the keychain read on a
+worker thread with a **2-second timeout**. On timeout it falls through
+to the file fallback. Writes mirror to both stores so a future build
+can read from either.
+
+This fallback is **load-bearing for dev workflows** and not removable
+without re-introducing the wedge. A real Developer ID signed build
+gets a stable signature, so the ACL grant survives rebuilds and the
+fallback becomes a no-op — but we still keep the timeout because the
+hang failure mode also surfaces in CI sandboxes and headless tests.
+
+If you ever see "Disconnected" forever on a fresh build:
+1. `RUST_LOG=info` the binary directly and look for
+   `READ TIMEOUT [gateway-token:default]`.
+2. Stage your token with `bash scripts/stage-token.sh default <token>`.
+3. Relaunch; status flips to green within 2s.
+
 ---
 
 ## Workflow

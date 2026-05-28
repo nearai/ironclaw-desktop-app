@@ -46,10 +46,22 @@ enum BackendKind {
 
 // ---- Settings -------------------------------------------------------------
 
+// =============================================================================
+// !!! DO NOT REMOVE diag_log without an explicit ship-prep ticket !!!
+//
+// This is the side-channel that surfaces frontend state into RUST_LOG when
+// devtools are unavailable (release builds, signed bundles). Used by
+// connection.svelte.ts and api/ironclaw.ts to confirm token loads + every
+// HTTP request goes through the Tauri http plugin. Removing this — or the
+// JS-side calls — re-blinds the production debug story.
+//
+// Tagged log target so it's trivial to grep: RUST_LOG=ironclaw_diag=info.
+// =============================================================================
+
 /// Diagnostic side-channel: JS can pump strings to Rust stderr so the
 /// (devtools-less) production .app surfaces frontend state through the
-/// already-captured RUST_LOG pipeline. Temporary — drop before final
-/// release.
+/// already-captured RUST_LOG pipeline. Removed only as part of an
+/// explicit ship-prep round once a Sentry-style telemetry surface lands.
 #[tauri::command]
 fn diag_log(msg: String) {
     log::info!(target: "ironclaw_diag", "{msg}");
@@ -80,6 +92,16 @@ async fn set_token(app: AppHandle, profile_id: String, token: String) -> Result<
 #[tauri::command]
 async fn delete_token(app: AppHandle, profile_id: String) -> Result<(), String> {
     keychain::delete(&app, &profile_id)
+}
+
+/// Reports the backing store the gateway-token was actually loaded from.
+/// One of `"keychain"`, `"file"`, or `"absent"`. Lets the Settings page
+/// surface a visible badge so the user can tell whether the macOS keychain
+/// ACL prompt is wedged on their machine (a frequent source of confusing
+/// "Disconnected" failures on fresh ad-hoc-signed builds — see v0.2.8).
+#[tauri::command]
+async fn get_token_source(app: AppHandle, profile_id: String) -> Result<String, String> {
+    keychain::get_source(&app, &profile_id)
 }
 
 // ---- OpenRouter-key Keychain (per-profile, local mode) -------------------
@@ -607,6 +629,7 @@ pub fn run() {
             get_token,
             set_token,
             delete_token,
+            get_token_source,
             get_openrouter_key,
             set_openrouter_key,
             delete_openrouter_key,
