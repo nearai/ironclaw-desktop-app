@@ -22,23 +22,35 @@
     profileId?: string;
     /** Poll interval ms. 0 = one-shot. */
     pollMs?: number;
+    /** Forced source for stories / unit tests — when provided, bypasses
+     *  the IPC fetch entirely and renders that state. Useful for the
+     *  playground (which mocks Tauri) and for callers that already
+     *  resolved the source themselves. */
+    forcedSource?: TokenSource;
   }
 
-  let { profileId = 'default', pollMs = 10_000 }: Props = $props();
+  let { profileId = 'default', pollMs = 10_000, forcedSource = undefined }: Props = $props();
 
-  let source = $state<TokenSource | 'loading'>('loading');
+  let liveSource = $state<TokenSource | 'loading'>('loading');
   let timer: ReturnType<typeof setInterval> | null = null;
 
+  // When `forcedSource` is passed, the prop fully drives the displayed
+  // state (re-renders if the parent flips it — useful for the playground
+  // controls). Otherwise we surface the IPC-polled value.
+  const source = $derived<TokenSource | 'loading'>(forcedSource ?? liveSource);
+
   async function refresh() {
+    if (forcedSource) return;
     try {
-      source = await getTokenSource(profileId);
+      liveSource = await getTokenSource(profileId);
     } catch {
       // getTokenSource swallows its own errors; this is belt-and-braces
-      source = 'absent';
+      liveSource = 'absent';
     }
   }
 
   onMount(() => {
+    if (forcedSource) return;
     void refresh();
     if (pollMs > 0) {
       timer = setInterval(refresh, pollMs);

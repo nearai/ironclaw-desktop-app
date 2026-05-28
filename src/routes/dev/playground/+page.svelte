@@ -42,6 +42,9 @@
   } from './stories/LightboxModal.story.svelte';
   import AboutDialogStory, { meta as aboutDialogMeta } from './stories/AboutDialog.story.svelte';
   import PresetsModalStory, { meta as presetsModalMeta } from './stories/PresetsModal.story.svelte';
+  import TokenSourceBadgeStory, {
+    meta as tokenSourceBadgeMeta
+  } from './stories/TokenSourceBadge.story.svelte';
 
   // Registry. Order here is the order in the sidebar. Ids are stable
   // slugs used in the URL hash.
@@ -100,6 +103,12 @@
       title: presetsModalMeta.title,
       description: presetsModalMeta.description,
       Story: PresetsModalStory
+    },
+    {
+      id: 'token-source-badge',
+      title: tokenSourceBadgeMeta.title,
+      description: tokenSourceBadgeMeta.description,
+      Story: TokenSourceBadgeStory
     }
   ];
 
