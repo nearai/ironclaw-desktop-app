@@ -39,6 +39,9 @@
   import ToolFlowPanel from '$lib/components/ToolFlowPanel.svelte';
   import { toolFlow } from '$lib/stores/tool-flow.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  // LANE B2 — chat tabs (R52)
+  import ChatTabs from '$lib/components/ChatTabs.svelte';
+  import { chatTabs } from '$lib/stores/chat-tabs.svelte';
 
   // ---- Pane widths (drag-to-resize) ----------------------------------------
   //
@@ -655,6 +658,12 @@
     if (stored) applyDraft(stored);
     draftLoadedFor = id;
 
+    // LANE B2 — chat tabs: bind to the active profile so tabs are
+    // partitioned per-workspace, then seed the current thread as a
+    // tab if it isn't already in the strip.
+    chatTabs.bindProfile(connection.activeProfile?.id ?? null);
+    if (id) chatTabs.open(id);
+
     // Hydrate pane widths from localStorage. ResizeHandle pushes the
     // hydrated value back via `onresize` on its own mount, but reading
     // here lets us render the first frame at the persisted width rather
@@ -1113,6 +1122,22 @@
    * when the textarea reference changes (HMR / first mount) — only
    * the bus payload should drive it.
    */
+  // LANE B2 — chat tabs: when the user switches threads via any
+  // path (thread rail, quick switcher, deep-link), open the new
+  // thread as a tab so the strip mirrors the active conversation.
+  // The store dedupes; opening an already-open tab just focuses it.
+  $effect(() => {
+    const cid = threads.currentId;
+    if (cid) untrack(() => chatTabs.open(cid));
+  });
+
+  // LANE B2 — chat tabs: rebind the store when the user switches
+  // profiles, so each profile keeps its own tab set.
+  $effect(() => {
+    const pid = connection.activeProfile?.id ?? null;
+    untrack(() => chatTabs.bindProfile(pid));
+  });
+
   $effect(() => {
     // Touch the reactive field so this effect re-runs on every push.
     const pending = composerInsert.pending;
@@ -2602,7 +2627,20 @@
 
   <!-- =========================== Main: stream + composer ================== -->
   <div class="flex-1 flex flex-col min-w-0 h-full">
-    <!-- LANE B2 — chat tabs header (Chrome-style tab strip lands here) -->
+    <!-- LANE B2 — chat tabs (R52). Sits above the existing thread title row;
+         each tab tracks an "open" thread the user wants one click away.
+         The store handles persistence per profile + ordering; this
+         component is a renderer that wires clicks back to the
+         existing onSelectThread / onNewChat handlers. -->
+    <ChatTabs
+      onSelect={(tid) => onSelectThread(tid)}
+      onNew={() => void onNewChat()}
+      onClose={(_closedId, nextActive) => {
+        if (nextActive && nextActive !== threads.currentId) {
+          onSelectThread(nextActive);
+        }
+      }}
+    />
     <header
       class="h-12 shrink-0 px-5 flex items-center justify-between border-b border-border-subtle bg-bg-base/40"
     >
