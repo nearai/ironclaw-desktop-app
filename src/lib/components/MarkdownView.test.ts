@@ -186,7 +186,8 @@ describe('MarkdownView sanitization + renderer', () => {
     });
     expect(rendererMocks.mermaidInitialize).toHaveBeenCalledWith({
       startOnLoad: false,
-      theme: 'dark'
+      theme: 'dark',
+      securityLevel: 'strict'
     });
     expect(rendererMocks.mermaidRender).toHaveBeenCalledWith(
       expect.stringMatching(/^mmd-[a-z0-9]{8}$/u),

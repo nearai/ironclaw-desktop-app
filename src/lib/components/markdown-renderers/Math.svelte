@@ -1,4 +1,11 @@
 <script lang="ts">
+  // R45 codex P0: KaTeX renderToString output is rendered via {@html}.
+  // KaTeX has had several CVEs around macro expansion injecting raw
+  // HTML; pipe the output through DOMPurify before injection. The
+  // strict: 'ignore' flag is also set so KaTeX silently drops the
+  // macros that would otherwise blow up.
+  import DOMPurify from 'dompurify';
+
   interface Props {
     source: string;
     display?: boolean;
@@ -20,9 +27,20 @@
         const out = katex.renderToString(source, {
           displayMode: display,
           throwOnError: true,
-          output: 'html'
+          output: 'html',
+          // Reject inputs that use \href or other surface that could
+          // produce a javascript: link. The default already rejects
+          // many of these, but explicit is safer.
+          trust: false,
+          strict: 'ignore'
         });
-        if (!cancelled) html = out;
+        if (cancelled) return;
+        const clean = DOMPurify.sanitize(out, {
+          USE_PROFILES: { html: true, svg: true },
+          FORBID_TAGS: ['script'],
+          FORBID_ATTR: ['onload', 'onerror', 'onclick', 'onmouseover']
+        });
+        html = clean;
       } catch (err) {
         if (!cancelled) error = (err as Error).message;
       }

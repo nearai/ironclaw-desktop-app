@@ -19,6 +19,13 @@ pub struct TtsState {
     current: Mutex<Option<tokio::process::Child>>,
 }
 
+/// Hard cap on the text we pass to `/usr/bin/say`. A multi-MB string
+/// spawns a giant native process that blocks until killed; capping at
+/// 4 KB (~roughly 80 seconds of speech at the default 200wpm rate) is
+/// generous for any sane assistant turn and keeps the spawn argv
+/// length well under any system ARG_MAX. R45 codex P1.
+const SAY_TEXT_MAX_LEN: usize = 4 * 1024;
+
 #[tauri::command]
 pub async fn say_text(
     state: tauri::State<'_, TtsState>,
@@ -33,6 +40,18 @@ pub async fn say_text(
         }
     }
 
+    // Length cap (P1 fix). Truncate at the last char boundary <= cap
+    // to avoid splitting a multi-byte UTF-8 sequence.
+    let capped: String = if text.len() <= SAY_TEXT_MAX_LEN {
+        text
+    } else {
+        let mut end = SAY_TEXT_MAX_LEN;
+        while end > 0 && !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        text[..end].to_string()
+    };
+
     let selected_voice = voice
         .as_deref()
         .map(str::trim)
@@ -42,7 +61,7 @@ pub async fn say_text(
     let mut cmd = Command::new("/usr/bin/say");
     cmd.arg("-v").arg(selected_voice);
     cmd.arg("-r").arg((rate.unwrap_or(200)).to_string());
-    cmd.arg(text);
+    cmd.arg(capped);
     cmd.stdout(Stdio::null()).stderr(Stdio::null());
 
     let child = cmd.spawn().map_err(|e| e.to_string())?;

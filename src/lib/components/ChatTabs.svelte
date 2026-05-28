@@ -103,12 +103,24 @@
     {#each chatTabs.openTabs as tabId, idx (tabId)}
       {@const isActive = chatTabs.activeTabId === tabId}
       {@const isDragOver = dragOverIdx === idx && dragFromIdx !== idx}
-      <button
-        type="button"
+      <!--
+        R45 codex P1: outer was a <button> containing a <span role="button">.
+        Nested interactive elements are invalid HTML; click events bubble
+        unpredictably and keyboard nav breaks. Switched to a div + role="tab"
+        + tabindex; the close affordance is a real <button> sibling now.
+      -->
+      <div
         role="tab"
+        tabindex={isActive ? 0 : -1}
         aria-selected={isActive}
         draggable="true"
         onclick={() => onTabClick(tabId)}
+        onkeydown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onTabClick(tabId);
+          }
+        }}
         onmousedown={(e) => onTabMouseDown(e, tabId)}
         ondragstart={(e) => onDragStart(e, idx)}
         ondragover={(e) => onDragOver(e, idx)}
@@ -123,26 +135,18 @@
         title={titleFor(tabId)}
       >
         <span class="truncate flex-1 text-left">{titleFor(tabId)}</span>
-        <span
-          role="button"
-          tabindex="0"
+        <button
+          type="button"
           aria-label={`Close tab "${titleFor(tabId)}"`}
           onclick={(e) => onTabClose(e, tabId)}
-          onkeydown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              const next = chatTabs.close(tabId);
-              onClose(tabId, next);
-            }
-          }}
           class="shrink-0 w-4 h-4 rounded flex items-center justify-center
                  text-text-muted hover:text-red-300 hover:bg-red-500/10
                  transition-colors
                  {isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}"
         >
           <Icon name="close" class="w-2.5 h-2.5" />
-        </span>
-      </button>
+        </button>
+      </div>
     {/each}
     <button
       type="button"

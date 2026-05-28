@@ -187,10 +187,13 @@ class OmnibarStore {
           title,
           subtitle: turns > 0 ? `${turns} turn${turns === 1 ? '' : 's'}` : 'New thread',
           score,
-          action: () => {
-            // Defer the import — keeps the omnibar bundle independent
-            // of the chat-route specifics.
-            window.location.assign(`/?thread=${encodeURIComponent(t.id)}`);
+          action: async () => {
+            // R45 codex P1: use the SvelteKit `goto` so we don't blow
+            // away every store in memory (chat tabs, broadcast channel,
+            // etc.) on every omnibar pick. Lazy-imported to avoid a
+            // cycle through `$app/navigation` in vitest.
+            const { goto } = await import('$app/navigation');
+            await goto(`/?thread=${encodeURIComponent(t.id)}`);
           }
         });
       }
@@ -271,7 +274,10 @@ async function fetchMemoryHits(
       snippet: h.snippet,
       score: Math.max(0.5, 2 - i * 0.1),
       action: () => {
-        window.location.assign(`/memory?path=${encodeURIComponent(h.path)}`);
+        // R45 codex P1: SvelteKit-friendly nav (see thread action).
+        void import('$app/navigation').then(({ goto }) =>
+          goto(`/memory?path=${encodeURIComponent(h.path)}`)
+        );
       }
     }));
   } catch {
@@ -302,7 +308,10 @@ async function fetchSkillHits(
         subtitle: row.skill.description?.slice(0, 80),
         score: row.score,
         action: () => {
-          window.location.assign(`/skills?id=${encodeURIComponent(row.skill.name)}`);
+          // R45 codex P1: SvelteKit-friendly nav (see thread action).
+          void import('$app/navigation').then(({ goto }) =>
+            goto(`/skills?id=${encodeURIComponent(row.skill.name)}`)
+          );
         }
       }));
   } catch {
