@@ -17,8 +17,10 @@
   //      text and prepends a chain icon that copies `#slug` on click.
   //   4. Admonition-style callouts — `> [!NOTE|WARNING|CAUTION|TIP|IMPORTANT]`
   //      blockquotes are rendered as tinted callouts.
-  //   5. Inline math intentionally skipped — would require katex (~270 KB)
-  //      and we don't have a use case yet. Add behind a feature flag if asked.
+  //   5. Multimodal markdown renderers — Mermaid and Plotly fenced blocks
+  //      are emitted as sanitized placeholders, and $inline$ / $$display$$
+  //      math is inserted by a post-render text-node pass. Heavy libraries
+  //      lazy-load inside their small renderer components.
   //
   // The component API (`markdown` prop) is unchanged; all consumers
   // (chat, knowledge, admin) keep working without modification.
@@ -48,7 +50,11 @@
   import xml from 'highlight.js/lib/languages/xml';
   import css from 'highlight.js/lib/languages/css';
   import 'highlight.js/styles/github-dark.css';
+  import { mount, unmount } from 'svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import Mermaid from './markdown-renderers/Mermaid.svelte';
+  import MathRenderer from './markdown-renderers/Math.svelte';
+  import Plotly from './markdown-renderers/Plotly.svelte';
 
   // `registerLanguage` auto-registers each grammar's declared aliases too, so
   // explicit aliasing below is only needed where we want to add forms that
@@ -115,6 +121,25 @@
       .replace(/'/g, '&#39;');
   }
 
+  function encodeRendererSource(source: string): string {
+    return escapeHtml(encodeURIComponent(source));
+  }
+
+  function decodeRendererSource(source: string): string {
+    try {
+      return decodeURIComponent(source);
+    } catch {
+      return source;
+    }
+  }
+
+  function rendererPlaceholder(kind: 'mermaid' | 'plotly', source: string): string {
+    const label = kind === 'mermaid' ? 'Rendering diagram...' : 'Rendering chart...';
+    return `<div class="md-renderer-host md-renderer-host--${kind}" data-md-renderer="${kind}" data-source="${encodeRendererSource(
+      source
+    )}">${label}</div>`;
+  }
+
   const CALLOUT_RE = /^\s*\[!(NOTE|WARNING|CAUTION|TIP|IMPORTANT)\]\s*(.*)$/u;
   const CALLOUT_LABELS: Record<string, string> = {
     NOTE: 'Note',
@@ -137,6 +162,11 @@
       // `hljs` opts the inner <code> into the github-dark stylesheet's
       // `pre code.hljs` rules; `language-X` is the canonical hljs class.
       code(this: unknown, { text, lang }: Tokens.Code): string {
+        const info = lang?.trim().split(/\s+/u)[0]?.toLowerCase() ?? '';
+        if (info === 'mermaid' || info === 'plotly') {
+          return rendererPlaceholder(info, text);
+        }
+
         const id = resolveLang(lang);
         if (id) {
           try {
@@ -204,11 +234,107 @@
     if (!markdown) return '';
     const raw = marked.parse(markdown) as string;
     // DOMPurify default `html` profile keeps `class`/`id`/`href` attrs and
-    // common block elements, which is everything our renderer emits.
-    return DOMPurify.sanitize(raw, { USE_PROFILES: { html: true } });
+    // common block elements. ADD_ATTR preserves renderer placeholders.
+    return DOMPurify.sanitize(raw, {
+      USE_PROFILES: { html: true },
+      ADD_ATTR: ['data-md-renderer', 'data-source']
+    });
   });
 
   let wrapperEl = $state<HTMLDivElement | null>(null);
+  let mountedRenderers: ReturnType<typeof mount>[] = [];
+
+  const MATH_RE = /(?<!\\)\$\$([\s\S]+?)(?<!\\)\$\$|(?<!\\)\$([^$\n]+?)(?<!\\)\$/gu;
+
+  function clearMountedRenderers() {
+    const current = mountedRenderers;
+    mountedRenderers = [];
+    for (const instance of current) {
+      void unmount(instance);
+    }
+  }
+
+  function shouldScanMathNode(node: Node): boolean {
+    const text = node.textContent ?? '';
+    if (!text.includes('$')) return false;
+    const parent = node.parentElement;
+    if (!parent) return false;
+    return !parent.closest('pre, code, kbd, samp, .md-renderer-host, .md-math-placeholder, .katex');
+  }
+
+  function replaceMathTextNode(node: Text) {
+    const text = node.nodeValue ?? '';
+    MATH_RE.lastIndex = 0;
+    const matches = [...text.matchAll(MATH_RE)];
+    if (matches.length === 0) return;
+
+    const fragment = document.createDocumentFragment();
+    let cursor = 0;
+    for (const match of matches) {
+      const index = match.index ?? 0;
+      if (index > cursor) {
+        fragment.appendChild(document.createTextNode(text.slice(cursor, index)));
+      }
+
+      const display = typeof match[1] === 'string';
+      const source = (display ? match[1] : (match[2] ?? '')).trim();
+      const placeholder = document.createElement('span');
+      placeholder.className = display
+        ? 'md-renderer-host md-math-placeholder md-math-placeholder--display'
+        : 'md-renderer-host md-math-placeholder';
+      placeholder.dataset.mdRenderer = 'math';
+      placeholder.dataset.source = encodeURIComponent(source);
+      if (display) placeholder.dataset.display = 'true';
+      placeholder.textContent = source;
+      fragment.appendChild(placeholder);
+      cursor = index + match[0].length;
+    }
+
+    if (cursor < text.length) {
+      fragment.appendChild(document.createTextNode(text.slice(cursor)));
+    }
+    node.parentNode?.replaceChild(fragment, node);
+  }
+
+  function applyMathPlaceholders(root: HTMLElement) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        return shouldScanMathNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      }
+    });
+    const nodes: Text[] = [];
+    let node = walker.nextNode();
+    while (node) {
+      nodes.push(node as Text);
+      node = walker.nextNode();
+    }
+    nodes.forEach(replaceMathTextNode);
+  }
+
+  function mountRendererPlaceholders(root: HTMLElement) {
+    const placeholders = root.querySelectorAll<HTMLElement>('[data-md-renderer]');
+    placeholders.forEach((target) => {
+      if (target.dataset.mounted === '1') return;
+
+      const kind = target.dataset.mdRenderer;
+      const source = decodeRendererSource(target.dataset.source ?? '');
+      target.dataset.mounted = '1';
+      target.textContent = '';
+
+      if (kind === 'mermaid') {
+        mountedRenderers.push(mount(Mermaid, { target, props: { source } }));
+      } else if (kind === 'plotly') {
+        mountedRenderers.push(mount(Plotly, { target, props: { source } }));
+      } else if (kind === 'math') {
+        mountedRenderers.push(
+          mount(MathRenderer, {
+            target,
+            props: { source, display: target.dataset.display === 'true' }
+          })
+        );
+      }
+    });
+  }
 
   // Walk the rendered DOM after each html update and wrap any <pre> blocks
   // that don't yet have a copy button. We deliberately don't re-render — we
@@ -217,7 +343,15 @@
   $effect(() => {
     // Touch `html` to re-run when content changes (incl. streaming chunks).
     void html;
-    if (!wrapperEl) return;
+    if (!wrapperEl) {
+      clearMountedRenderers();
+      return;
+    }
+
+    clearMountedRenderers();
+    applyMathPlaceholders(wrapperEl);
+    mountRendererPlaceholders(wrapperEl);
+
     const pres = wrapperEl.querySelectorAll('pre');
     pres.forEach((pre) => {
       if ((pre as HTMLElement).dataset.copyAttached === '1') return;
@@ -232,6 +366,10 @@
         '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg><span data-copy-label>copy</span>';
       pre.appendChild(btn);
     });
+
+    return () => {
+      clearMountedRenderers();
+    };
   });
 
   async function copyAnchor(slug: string) {
@@ -471,6 +609,25 @@
     color: #fbbf24;
     border-color: rgba(251, 191, 36, 0.5);
     background: rgba(251, 191, 36, 0.1);
+  }
+
+  .markdown :global(.md-renderer-host--mermaid),
+  .markdown :global(.md-renderer-host--plotly) {
+    margin: 0.75em 0;
+    overflow-x: auto;
+    border-radius: 6px;
+    border: 1px solid #1f2937;
+    background: #0a0f1e;
+    padding: 0.75em;
+  }
+  .markdown :global(.md-renderer-host--mermaid svg) {
+    max-width: 100%;
+    height: auto;
+  }
+  .markdown :global(.md-math-placeholder--display) {
+    display: block;
+    margin: 0.6em 0;
+    overflow-x: auto;
   }
 
   .markdown :global(blockquote) {

@@ -62,6 +62,9 @@
     "@types/dompurify": "^3.0.5",
     "dompurify": "^3.4.7",
     "highlight.js": "^11.11.1",
-    "marked": "^15.0.6"
+    "katex": "^0.16.22",
+    "marked": "^15.0.6",
+    "mermaid": "^11.11.0",
+    "plotly.js-dist-min": "^3.1.0"
   }
 }

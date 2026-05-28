@@ -12,12 +12,61 @@
 // `javascript:` URLs must be stripped to prevent the classic
 // `[click](javascript:…)` smuggling vector.
 
-import { describe, expect, it } from 'vitest';
-import { render } from '@testing-library/svelte';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, waitFor } from '@testing-library/svelte';
 
 import MarkdownView from './MarkdownView.svelte';
 
+const rendererMocks = vi.hoisted(() => ({
+  mermaidInitialize: vi.fn(),
+  mermaidRender: vi.fn(),
+  katexRenderToString: vi.fn(),
+  plotlyNewPlot: vi.fn(),
+  plotlyPurge: vi.fn()
+}));
+
+vi.mock('mermaid', () => ({
+  default: {
+    initialize: rendererMocks.mermaidInitialize,
+    render: rendererMocks.mermaidRender
+  }
+}));
+
+vi.mock('katex', () => ({
+  default: {
+    renderToString: rendererMocks.katexRenderToString
+  }
+}));
+
+vi.mock('katex/dist/katex.min.css', () => ({}));
+
+vi.mock('plotly.js-dist-min', () => ({
+  default: {
+    newPlot: rendererMocks.plotlyNewPlot,
+    purge: rendererMocks.plotlyPurge
+  }
+}));
+
 describe('MarkdownView sanitization + renderer', () => {
+  beforeEach(() => {
+    rendererMocks.mermaidInitialize.mockReset();
+    rendererMocks.mermaidRender.mockReset();
+    rendererMocks.katexRenderToString.mockReset();
+    rendererMocks.plotlyNewPlot.mockReset();
+    rendererMocks.plotlyPurge.mockReset();
+
+    rendererMocks.mermaidRender.mockResolvedValue({
+      svg: '<svg data-testid="mermaid-svg" viewBox="0 0 10 10"></svg>'
+    });
+    rendererMocks.katexRenderToString.mockImplementation(
+      (source: string, options: { displayMode?: boolean }) =>
+        `<span class="katex" data-display="${String(options.displayMode)}">${source}</span>`
+    );
+    rendererMocks.plotlyNewPlot.mockImplementation(async (host: HTMLDivElement) => {
+      host.classList.add('js-plotly-plot');
+    });
+  });
+
   it('renders h1/h2/h3 with id attributes for anchors', () => {
     const md = '# Header One\n\n## Header Two\n\n### Header Three';
     const { container } = render(MarkdownView, { props: { markdown: md } });
@@ -126,5 +175,103 @@ describe('MarkdownView sanitization + renderer', () => {
     const p = container.querySelector('p');
     expect(p).not.toBeNull();
     expect(p?.textContent).toBe('just a sentence');
+  });
+
+  it('renders mermaid fences through the lazy Mermaid renderer', async () => {
+    const md = '```mermaid\ngraph TD; A-->B\n```';
+    const { container } = render(MarkdownView, { props: { markdown: md } });
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="mermaid-svg"]')).not.toBeNull();
+    });
+    expect(rendererMocks.mermaidInitialize).toHaveBeenCalledWith({
+      startOnLoad: false,
+      theme: 'dark'
+    });
+    expect(rendererMocks.mermaidRender).toHaveBeenCalledWith(
+      expect.stringMatching(/^mmd-[a-z0-9]{8}$/u),
+      'graph TD; A-->B'
+    );
+  });
+
+  it('renders inline math through the lazy KaTeX renderer', async () => {
+    const { container } = render(MarkdownView, {
+      props: { markdown: 'The mass is $x^2$.' }
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector('.katex')).not.toBeNull();
+    });
+    expect(container.querySelector('.katex')?.textContent).toBe('x^2');
+    expect(rendererMocks.katexRenderToString).toHaveBeenCalledWith(
+      'x^2',
+      expect.objectContaining({ displayMode: false, throwOnError: true })
+    );
+  });
+
+  it('renders display math through the lazy KaTeX renderer', async () => {
+    const { container } = render(MarkdownView, {
+      props: { markdown: '$$\\int_0^1 x dx$$' }
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector('.katex')).not.toBeNull();
+    });
+    expect(rendererMocks.katexRenderToString).toHaveBeenCalledWith(
+      '\\int_0^1 x dx',
+      expect.objectContaining({ displayMode: true })
+    );
+  });
+
+  it('renders plotly fences through the lazy Plotly renderer', async () => {
+    const md = [
+      '```plotly',
+      '{"data":[{"x":[1,2,3],"y":[2,4,6],"type":"scatter"}],"layout":{"title":"Demo"}}',
+      '```'
+    ].join('\n');
+    const { container } = render(MarkdownView, { props: { markdown: md } });
+
+    await waitFor(() => {
+      expect(container.querySelector('.plotly.js-plotly-plot')).not.toBeNull();
+    });
+    expect(rendererMocks.plotlyNewPlot).toHaveBeenCalledWith(
+      expect.any(HTMLDivElement),
+      [{ x: [1, 2, 3], y: [2, 4, 6], type: 'scatter' }],
+      { title: 'Demo' },
+      expect.objectContaining({ responsive: true, displayModeBar: false })
+    );
+  });
+
+  it('falls back to code-shaped output when renderer parsing fails', async () => {
+    rendererMocks.mermaidRender.mockRejectedValueOnce(new Error('bad diagram'));
+    const { container: mermaidContainer } = render(MarkdownView, {
+      props: { markdown: '```mermaid\nnot a diagram\n```' }
+    });
+    await waitFor(() => {
+      expect(
+        mermaidContainer.querySelector('pre[data-renderer-error="mermaid"] code')?.textContent
+      ).toBe('not a diagram');
+    });
+
+    rendererMocks.katexRenderToString.mockImplementationOnce(() => {
+      throw new Error('bad math');
+    });
+    const { container: mathContainer } = render(MarkdownView, {
+      props: { markdown: '$bad$' }
+    });
+    await waitFor(() => {
+      expect(mathContainer.querySelector('code[title^="Math render failed"]')?.textContent).toBe(
+        'bad'
+      );
+    });
+
+    const { container: plotlyContainer } = render(MarkdownView, {
+      props: { markdown: '```plotly\n{ nope\n```' }
+    });
+    await waitFor(() => {
+      expect(
+        plotlyContainer.querySelector('pre[data-renderer-error="plotly"] code')?.textContent
+      ).toBe('{ nope');
+    });
   });
 });
