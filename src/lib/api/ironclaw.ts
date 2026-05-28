@@ -622,7 +622,15 @@ export class IronClawClient {
     if (this._capabilitiesCache) return this._capabilitiesCache;
     const url = `${this.baseUrl}/api/v1/responses`;
     try {
-      const res = await fetch(url, {
+      // MUST route through the Tauri http plugin in production — the gateway
+      // doesn't whitelist `tauri://localhost` in its CORS allowlist, so a
+      // direct webview fetch fails CORS, the catch below kicks in, and
+      // `responses_api: false` is cached on the client. The chat surface
+      // would then never use the Responses branch (incl. the per-thread
+      // `instructions` override added in R43). R45 codex P1.
+      const maybeTauri = await loadTauriFetch();
+      const fetchImpl = maybeTauri ?? fetch;
+      const res = await fetchImpl(url, {
         method: 'GET',
         headers: this.token ? { Authorization: `Bearer ${this.token}` } : {}
       });

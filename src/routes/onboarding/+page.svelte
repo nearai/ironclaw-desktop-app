@@ -503,6 +503,26 @@
         // remote
         const t = tokenInput.trim();
         if (t) {
+          // Sanity check the token shape before storing. R48 P1: a user
+          // pasted the literal SSH command (`ssh -p ... agent@host`) into
+          // the token field and the app stored it without complaint, then
+          // 401'd every gateway request and showed "Disconnected" forever
+          // with no UX hint that the token was malformed. Tokens are
+          // opaque bearer strings — refuse anything that obviously isn't.
+          const looksLikeSshCmd = /^ssh(\s|$)/i.test(t);
+          const hasWhitespace = /\s/.test(t);
+          const hasAtSign = t.includes('@');
+          if (looksLikeSshCmd || hasWhitespace || hasAtSign) {
+            toasts.show(
+              'That looks like an SSH command, not a token. Paste the gateway bearer (no spaces, no @-host).',
+              'error'
+            );
+            return;
+          }
+          if (t.length < 16) {
+            toasts.show('Token is too short — gateway bearers are at least 16 chars.', 'error');
+            return;
+          }
           await setToken(activeProfile.id, t);
           tokenStored = true;
           tokenInput = '';

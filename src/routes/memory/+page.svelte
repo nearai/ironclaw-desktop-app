@@ -105,6 +105,11 @@
     if (!connection.client) {
       await connection.init();
     }
+    // Stamp the attempted-status BEFORE loadNodes so the post-mount
+    // reconnect-watcher effect doesn't fire a second time on first paint.
+    if (connection.status === 'connected') {
+      lastConnectedAttempt = 'connected';
+    }
     await loadNodes();
 
     // Wire Cmd+R surface refresh — re-fetches the node list. We do NOT
@@ -126,10 +131,23 @@
   });
 
   // If connection comes online after first mount (user fixed creds in
-  // settings, etc.), load nodes once they have a client.
+  // settings, etc.), load nodes ONCE per connect transition. The earlier
+  // `nodes.length === 0` gate was broken: an empty memory tree (common on
+  // a fresh install) leaves nodes.length at 0 after loadNodes() succeeds,
+  // the effect re-fires, and we get an infinite request/toast loop until
+  // the route is left. R45 codex P1.
+  //
+  // Track the last connection.status we acted on; only re-load when the
+  // status flips back to 'connected' from something else. That covers the
+  // legitimate "user fixed creds" case without re-loading on every empty
+  // tree.
+  let lastConnectedAttempt = $state<string>('');
   $effect(() => {
-    if (connection.status === 'connected' && nodes.length === 0 && !listLoading) {
+    if (connection.status === 'connected' && lastConnectedAttempt !== 'connected' && !listLoading) {
+      lastConnectedAttempt = 'connected';
       void loadNodes();
+    } else if (connection.status !== 'connected') {
+      lastConnectedAttempt = connection.status;
     }
   });
 
