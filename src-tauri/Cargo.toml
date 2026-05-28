@@ -1,6 +1,6 @@
 [package]
 name = "ironclaw-desktop"
-version = "0.2.13"
+version = "0.2.14"
 description = "IronClaw Desktop Client"
 authors = ["OpenClaw"]
 edition = "2021"
