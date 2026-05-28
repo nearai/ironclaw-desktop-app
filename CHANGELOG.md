@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.3.0 — Elite milestone (2026-05-28)
+
+The roadmap's v0.3.0 gate. Everything in Waves 1–5 (R49–R88) is merged,
+an Opus 4.8 full-codebase review ran against the v0.2.23 trail, and its
+findings are fixed (see v0.2.24). What this release asserts:
+
+- **The model does real work without leaving the app** — Python blocks
+  execute (sandboxed), files attach + parse, sub-agents dispatch
+  (graceful when the gateway lacks the endpoint), images generate,
+  Mermaid/KaTeX/Plotly render (XSS-hardened).
+- **Cmd+Space is the one thing to learn** — the omnibar federates
+  threads, memory, skills, commands, and now offline message content
+  (R86) with AI-ranked results.
+- **The replay button** — scrub backward through a conversation and
+  watch the tools the model chose (R58/R59).
+- **Native everywhere it matters** — Spotlight indexes threads, Notes
+  export works (now injection-safe), TTS speaks, vibrancy + traffic-light
+  inset, workspace files mount to Finder.
+- **Workspace-OS** — dashboard tiles, reply-threads, activity streams,
+  generative widgets, a side-by-side LLM council, and a spatial canvas
+  whose nodes can dispatch sub-agents and stream results back in place.
+
+Security: the Opus review confirmed every `{@html}` sink DOMPurify-gated,
+prototype-pollution + finite-number hydration guards on the canvas store,
+correct `untrack()` on the canvas effect loop, zero `.unwrap()/.expect()`
+in Rust production paths, and no token logging. The one P0 it found (an
+AppleScript injection in the Notes export) is fixed in v0.2.24.
+
+Quality bar at tag: **408/408 vitest green, 0 svelte-check errors, cargo
+check + Rust unit tests clean, production build OK, bundle budget within
+limits.**
+
+Release note: the signed DMG is produced by the `release` GitHub
+Actions workflow on this tag. That workflow is currently billing-blocked
+on the account (R76 — fix in GitHub → Settings → Billing & plans); once
+billing is restored the tag re-run yields the notarizable artifact.
+
 ## v0.2.23 — Waves 1–5: native reach, workspace-OS, sub-agents (2026-05-28)
 
 Rolls up the post-v0.2.10 build push (internal bumps v0.2.11 → v0.2.23,

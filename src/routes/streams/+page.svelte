@@ -81,6 +81,7 @@
     {#each filterChips as chip (chip.kind)}
       <button
         type="button"
+        aria-pressed={streams.filter === chip.kind}
         onclick={() => streams.setFilter(chip.kind)}
         class="px-3 py-1 rounded-full text-xs border transition-colors
                {streams.filter === chip.kind
