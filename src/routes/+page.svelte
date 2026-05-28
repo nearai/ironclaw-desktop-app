@@ -56,6 +56,9 @@
   // LANE B4 — sub-agent dispatch (R56/R57)
   import SubAgentChip from '$lib/components/SubAgentChip.svelte';
   import { subAgents } from '$lib/stores/sub-agents.svelte';
+  // R89 — non-destructive thread recap
+  import RecapPanel from '$lib/components/RecapPanel.svelte';
+  import { recap } from '$lib/stores/recap.svelte';
   // LANE W3 — reply-thread panel (R80, consumes R79 store)
   import ReplyThreadPanel from '$lib/components/ReplyThreadPanel.svelte';
   import { replyThreadUI } from '$lib/stores/reply-thread-ui.svelte';
@@ -2112,6 +2115,29 @@
     }
   }
 
+  /**
+   * R89: open the recap panel and summarize the active thread. Fetches the
+   * full history, then hands it to the recap store (which streams a one-off,
+   * non-thread completion). Read-only — never touches the transcript.
+   */
+  async function onRecap(): Promise<void> {
+    if (!connection.client || !currentThread) return;
+    const client = connection.client;
+    const thread = currentThread;
+    recap.open = true;
+    recap.threadId = thread.id;
+    recap.loading = true;
+    recap.error = null;
+    recap.summary = '';
+    try {
+      const all = await client.getHistory(thread.id, 10000);
+      await recap.generate(thread.id, all, client);
+    } catch (err) {
+      recap.error = (err as Error).message;
+      recap.loading = false;
+    }
+  }
+
   // Outside-click + Esc handling for the export popover. We bind on the
   // document because the popover is anchor-positioned and not inside the
   // button's DOM subtree — a relative-position click handler on the
@@ -3037,6 +3063,21 @@
             d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
           />
         </svg>
+      </button>
+
+      <!-- Thread recap (R89): a non-destructive summary of the conversation
+           shown in a dismissable panel. Never edits the transcript. -->
+      <button
+        type="button"
+        onclick={onRecap}
+        disabled={!canExport}
+        class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-label="Recap this conversation"
+        title={canExport
+          ? 'Summarize this conversation (read-only)'
+          : 'Connect and select a conversation to recap'}
+      >
+        <Icon name="spark" class="w-4 h-4" />
       </button>
 
       <!-- Per-thread export. Sits to the right of rename + tool-rail toggle so
@@ -3969,3 +4010,6 @@
     </div>
   </div>
 {/if}
+
+<!-- R89: thread recap overlay (self-gates on recap.open) -->
+<RecapPanel />
