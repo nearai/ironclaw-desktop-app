@@ -72,13 +72,14 @@
 
   // Icon names are validated against the Icon component's union, so
   // the map's value type stays in sync at compile time.
-  function kindIcon(kind: OmniResultKind): 'chat' | 'file' | 'bolt' | 'list' {
+  function kindIcon(kind: OmniResultKind): 'chat' | 'file' | 'bolt' | 'list' | 'search' {
     return (
       {
         thread: 'chat',
         memory: 'file',
         skill: 'bolt',
-        command: 'list'
+        command: 'list',
+        message: 'search'
       } as const
     )[kind];
   }
@@ -89,7 +90,8 @@
         thread: 'Thread',
         memory: 'Memory',
         skill: 'Skill',
-        command: 'Command'
+        command: 'Command',
+        message: 'Message'
       } as const
     )[kind];
   }

@@ -15,6 +15,7 @@
 // builds don't crash importing this module.
 
 import { invoke } from '@tauri-apps/api/core';
+import { exportThreadHtml } from '$lib/util/html-export';
 import type { Message, Thread } from './types';
 
 /** Tauri-runtime sentinel. Matches the check in `settings.svelte.ts`. */
@@ -253,6 +254,18 @@ export function buildThreadMarkdown(thread: Thread, messages: Message[]): string
   // Final newline so the file ends in a clean trailing \n.
   lines.push('');
   return lines.join('\n');
+}
+
+/**
+ * Build a self-contained, dark-themed HTML transcript (R87 util). Every
+ * message body is HTML-escaped by the util, so the output is safe to open
+ * in any browser even if a message contains markup.
+ */
+export function buildThreadHtml(thread: Thread, messages: Message[]): string {
+  return exportThreadHtml({
+    title: thread.title?.trim() || 'Untitled conversation',
+    messages
+  });
 }
 
 export async function exportToNotes(title: string, body: string): Promise<void> {

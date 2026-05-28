@@ -19,11 +19,13 @@
 //     navigable actions without taking a dep on the omnibar component.
 
 import type { IronClawClient } from '$lib/api/ironclaw';
+import { getMessages, listCachedThreadIds } from '$lib/util/idb-cache';
+import { searchCachedMessages, type SearchableMessage } from '$lib/util/message-search';
 import { connection } from './connection.svelte';
 import { threads as threadsStore } from './threads.svelte';
 import { threadRename } from './thread-rename.svelte';
 
-export type OmniResultKind = 'thread' | 'memory' | 'skill' | 'command';
+export type OmniResultKind = 'thread' | 'memory' | 'skill' | 'command' | 'message';
 
 export interface OmniResult {
   id: string;
@@ -204,11 +206,12 @@ class OmnibarStore {
     const client: IronClawClient | null = connection.client;
     if (client && q.length >= 2) {
       try {
-        const [memHits, skillHits] = await Promise.all([
+        const [memHits, skillHits, msgHits] = await Promise.all([
           fetchMemoryHits(client, q, abort.signal),
-          fetchSkillHits(client, q, abort.signal)
+          fetchSkillHits(client, q, abort.signal),
+          fetchMessageHits(rawQuery)
         ]);
-        merged.push(...memHits, ...skillHits);
+        merged.push(...memHits, ...skillHits, ...msgHits);
       } catch (err) {
         if (!abort.signal.aborted) {
           this.error = (err as Error).message;
@@ -314,6 +317,56 @@ async function fetchSkillHits(
           );
         }
       }));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Search the offline IndexedDB message cache (R62) for content matches
+ * using the pure R86 ranking util. Bounded to the threads already known
+ * to the threads store so a keystroke doesn't fan out across every cached
+ * thread. Best-effort — any cache/parse failure yields no message hits
+ * rather than breaking the rest of the search.
+ */
+async function fetchMessageHits(rawQuery: string): Promise<OmniResult[]> {
+  try {
+    const cachedIds = await listCachedThreadIds();
+    if (cachedIds.length === 0) return [];
+    // Restrict to threads the app currently knows about, capped, so the
+    // per-keystroke IDB read stays cheap.
+    const known = new Set(threadsStore.threads.map((t) => t.id));
+    const ids = (known.size > 0 ? cachedIds.filter((id) => known.has(id)) : cachedIds).slice(0, 40);
+    if (ids.length === 0) return [];
+
+    const byThread: Record<string, SearchableMessage[]> = {};
+    await Promise.all(
+      ids.map(async (id) => {
+        const msgs = await getMessages(id);
+        if (Array.isArray(msgs) && msgs.length > 0) {
+          byThread[id] = msgs as SearchableMessage[];
+        }
+      })
+    );
+
+    const hits = searchCachedMessages(rawQuery, byThread, { limit: MAX_RESULTS_PER_KIND });
+    const titleFor = (id: string): string => {
+      const t = threadsStore.threads.find((x) => x.id === id);
+      return t ? threadRename.displayTitle(t.id, t.title) : 'Conversation';
+    };
+    return hits.map((h, i) => ({
+      id: `message:${h.threadId}:${h.messageId}`,
+      kind: 'message' as const,
+      title: h.snippet,
+      subtitle: `${h.role} · ${titleFor(h.threadId)}`,
+      // Slot content matches at the "word-boundary" tier, preserving the
+      // util's relevance+recency order via a tiny per-rank decrement.
+      score: 1.6 - i * 0.001,
+      action: async () => {
+        const { goto } = await import('$app/navigation');
+        await goto(`/?thread=${encodeURIComponent(h.threadId)}`);
+      }
+    }));
   } catch {
     return [];
   }

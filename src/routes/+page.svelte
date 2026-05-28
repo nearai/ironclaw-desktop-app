@@ -28,6 +28,7 @@
   import { windowFocus } from '$lib/stores/window-focus.svelte';
   import { loadSettings } from '$lib/stores/settings.svelte';
   import {
+    buildThreadHtml,
     buildThreadJsonText,
     buildThreadMarkdown,
     sanitizeFilenameStem,
@@ -2083,19 +2084,21 @@
    * Pull the full history for the active thread and write it to disk in
    * the requested format. Toasts on success/cancel/error.
    */
-  async function onExportThread(format: 'markdown' | 'json'): Promise<void> {
+  async function onExportThread(format: 'markdown' | 'json' | 'html'): Promise<void> {
     if (!connection.client || !currentThread) return;
     exportOpen = false;
     exporting = true;
     try {
       const all = await connection.client.getHistory(currentThread.id, 10000);
-      const ext = format === 'markdown' ? 'md' : 'json';
+      const ext = format === 'markdown' ? 'md' : format;
       const stem = sanitizeFilenameStem(currentThread.title);
       const filename = `${stem}.${ext}`;
       const text =
         format === 'markdown'
           ? buildThreadMarkdown(currentThread, all)
-          : buildThreadJsonText(currentThread, all);
+          : format === 'html'
+            ? buildThreadHtml(currentThread, all)
+            : buildThreadJsonText(currentThread, all);
       const saved = await saveTextDialog(filename, text);
       if (saved === null) {
         toasts.show('Export cancelled', 'info');
@@ -3119,6 +3122,27 @@
                 <path d="M8 17v-4M12 17v-4M16 17v-4" />
               </svg>
               JSON
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onclick={() => void onExportThread('html')}
+              class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                class="w-3.5 h-3.5 text-text-muted"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="16 18 22 12 16 6" />
+                <polyline points="8 6 2 12 8 18" />
+              </svg>
+              HTML
             </button>
           </div>
         {/if}
