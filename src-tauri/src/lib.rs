@@ -26,6 +26,7 @@ mod keychain;
 mod settings;
 mod sidecar;
 mod tray;
+mod tts;
 mod windows;
 
 use crashes::CrashEntry;
@@ -767,6 +768,7 @@ pub fn run() {
         //   3. Confirm the GitHub release repo + latest.json artifact path.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SidecarState::default())
+        .manage(tts::TtsState::default())
         // Cached "Recent notifications" submenu entries. Lives in app
         // state so `update_tray_recent` can swap the menu on demand
         // and so we can re-seed the menu after future
@@ -818,6 +820,9 @@ pub fn run() {
             list_crashes,
             clear_crashes,
             crashes_file_path,
+            tts::say_text,
+            tts::stop_tts,
+            tts::list_voices,
             windows::open_profile_window,
             windows::list_open_profile_windows,
         ])
