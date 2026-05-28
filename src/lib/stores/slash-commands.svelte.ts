@@ -12,5 +12,13 @@ export const slashCommands: SlashCommand[] = [
     example: '/imagine a sunset over mountains',
     // The composer hook is a follow-up lane.
     handler: undefined
+  },
+  {
+    name: 'council',
+    description: 'Ask several models the same question, side by side',
+    example: '/council which database for a desktop app?',
+    // Intercepted directly in the composer's onSend (opens the council
+    // overlay); no handler indirection needed here.
+    handler: undefined
   }
 ];

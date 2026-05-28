@@ -6,7 +6,7 @@
 //
 // Five tests, one per surface:
 //   1. /skills/ironhub      — catalog grid renders tools + skills
-//   2. /council             — provider picker enforces 2-provider minimum
+//   2. (council removed)    — council is now an in-chat overlay, not a route
 //   3. /memory              — empty state when memory list is empty
 //   4. /?thread=<id>        — gold "Custom prompt" chip after localStorage seed
 //   5. /                    — tool-flow rail mounts at xl viewport (>= 1280px)
@@ -185,54 +185,14 @@ test('/skills/ironhub renders catalog grid with tools + skills sections', async 
   });
 });
 
-// -- 2. /council -------------------------------------------------------------
-
-test('/council renders provider picker and refuses convene with 0 selected', async ({ page }) => {
-  await mockTauri(page, { settings: SETTINGS, token: 'tok' });
-  await mockGateway(page);
-  await mockGatewaySurfaces(page);
-  await pinConnectionConnected(page);
-
-  // Wipe any persisted council selection so the page starts clean.
-  await page.addInitScript(() => {
-    try {
-      window.localStorage.removeItem('ironclaw-council-selected-providers');
-    } catch {
-      /* ignore */
-    }
-  });
-
-  await stubClientMethods(page, {
-    listLlmProviders: [
-      { id: 'nearai', name: 'NEAR AI', configured: true, builtin: true },
-      { id: 'openrouter', name: 'OpenRouter', configured: true, builtin: true },
-      { id: 'anthropic', name: 'Anthropic', configured: false, builtin: true }
-    ]
-  });
-
-  await page.goto('/council');
-
-  // Header proves the page mounted (not bounced to /onboarding).
-  await expect(page.getByRole('heading', { name: /^Council$/ })).toBeVisible({
-    timeout: 10_000
-  });
-
-  // All three providers render as checkbox labels.
-  const checkboxes = page.locator('input[type=checkbox]');
-  await expect(checkboxes).toHaveCount(3, { timeout: 5000 });
-
-  // Type a prompt so the only remaining gate is the provider count.
-  await page.getByLabel('Prompt').fill('What is the best LLM for coding?');
-
-  // Convene Council button — with 0 providers selected, must be disabled.
-  const convene = page.getByRole('button', { name: /Convene Council/i });
-  await expect(convene).toBeDisabled();
-
-  // Pick 2 providers — button enables.
-  await checkboxes.nth(0).check();
-  await checkboxes.nth(1).check();
-  await expect(convene).toBeEnabled({ timeout: 2000 });
-});
+// -- 2. council (removed as a route) -----------------------------------------
+//
+// Council is no longer a standalone surface — it's an overlay summoned from
+// the chat composer via the `/council <prompt>` slash command (CouncilPanel,
+// gated on the provider catalog). The old `/council` route navigation test
+// was deleted with the route. A panel-open E2E (type the slash command in
+// the composer → assert the Council dialog) is a follow-up for when CI can
+// run Playwright; the panel's store logic is covered by council.test.ts.
 
 // -- 3. /memory --------------------------------------------------------------
 

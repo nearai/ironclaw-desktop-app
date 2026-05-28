@@ -60,6 +60,9 @@
   import RecapPanel from '$lib/components/RecapPanel.svelte';
   import { recap } from '$lib/stores/recap.svelte';
   import { computeThreadStats } from '$lib/util/thread-stats';
+  // Council — multi-model fanout, summoned from chat via /council
+  import CouncilPanel from '$lib/components/CouncilPanel.svelte';
+  import { council } from '$lib/stores/council.svelte';
   // LANE W3 — reply-thread panel (R80, consumes R79 store)
   import ReplyThreadPanel from '$lib/components/ReplyThreadPanel.svelte';
   import { replyThreadUI } from '$lib/stores/reply-thread-ui.svelte';
@@ -1501,6 +1504,17 @@
     // to include the `<attachments>` block server-side.
     const pendingAttachments = attachments;
     if (!content && pendingAttachments.length === 0) return;
+
+    // `/council <prompt>` — open the multi-model council overlay instead of
+    // sending a normal turn. Council is an in-chat panel, not a route.
+    {
+      const councilMatch = /^\/council\b\s*([\s\S]*)$/i.exec(content);
+      if (councilMatch) {
+        council.openWith(councilMatch[1].trim());
+        input = '';
+        return;
+      }
+    }
 
     // Record slash-command usage so the autocomplete's ranking floats
     // frequently-run skills upward. We match a leading `/<token>` and
@@ -4018,3 +4032,6 @@
 
 <!-- R89: thread recap overlay (self-gates on recap.open) -->
 <RecapPanel />
+
+<!-- Council overlay — multi-model fanout, summoned via /council (self-gates) -->
+<CouncilPanel />

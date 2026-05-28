@@ -85,10 +85,38 @@ class CouncilStore {
    *  sequential and a re-entry would interleave streams. */
   convening = $state<boolean>(false);
 
+  /** Panel visibility. The council is no longer a route — it's an overlay
+   *  summoned from the chat composer (`/council <prompt>`). Self-gating
+   *  like the recap panel. */
+  open = $state<boolean>(false);
+
+  /** Prompt seeded from the composer when the panel opens, so the panel's
+   *  composer starts pre-filled with what the user typed after /council. */
+  initialPrompt = $state<string>('');
+
   /** AbortController for the in-flight stream. Null when idle. Wired
    *  so a future Cancel button (or route teardown) can interrupt the
    *  fanout mid-column. */
   private abortController: AbortController | null = null;
+
+  /** Open the council panel seeded with `prompt` (from the chat
+   *  composer's /council command). Clears any prior session's columns so
+   *  the grid starts fresh; the saved provider selection is preserved. */
+  openWith(prompt: string): void {
+    this.initialPrompt = prompt;
+    this.runs = [];
+    this.open = true;
+  }
+
+  /** Close the panel and interrupt any in-flight fanout. */
+  closePanel(): void {
+    this.open = false;
+    if (this.abortController) {
+      this.abortController.abort();
+      this.abortController = null;
+    }
+    this.convening = false;
+  }
 
   /** Hydrate `selectedProviderIds` from localStorage. Idempotent. Call
    *  once when the route mounts so the first render reflects the

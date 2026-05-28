@@ -307,6 +307,27 @@ describe('council store', () => {
     await council.convene('q', ['p1'], client);
     expect(council.runs[0].content).toBe('Hello world');
   });
+
+  // ---- panel (chat-summoned overlay) --------------------------------
+
+  it('openWith seeds the prompt, clears prior runs, and opens the panel', () => {
+    council.runs = [
+      { providerId: 'p1', prompt: 'old', content: 'x', latencyMs: 1, status: 'done' }
+    ];
+    council.open = false;
+    council.openWith('compare databases');
+    expect(council.open).toBe(true);
+    expect(council.initialPrompt).toBe('compare databases');
+    expect(council.runs).toEqual([]);
+  });
+
+  it('closePanel closes and clears convening state', () => {
+    council.open = true;
+    council.convening = true;
+    council.closePanel();
+    expect(council.open).toBe(false);
+    expect(council.convening).toBe(false);
+  });
 });
 
 // Quieten an unused-import warning when running this file in

@@ -39,7 +39,6 @@
     label: string;
     icon:
       | 'chat'
-      | 'council'
       | 'knowledge'
       | 'memory'
       | 'logs'
@@ -65,14 +64,11 @@
 
   const items: NavItem[] = [
     // Today (R77 / W1). New home tier per docs/WORKSPACE-OS.md — a tile
-    // grid of live + scheduled widgets. Takes Cmd+0 (Council's old slot;
-    // Council moves to ⌘9). Note: the keyboard-shortcut handler in
-    // +layout.svelte still maps '0' → /council; touching that file is
-    // outside this lane's owned-files list, so the ⌘0 label here is
-    // cosmetic until a follow-up renumbers the digit map.
+    // grid of live + scheduled widgets. Takes Cmd+0.
     { href: '/dashboard', label: 'Today', icon: 'spark', shortcut: '⌘0' },
     { href: '/', label: 'Chat', icon: 'chat', shortcut: '⌘1', badgeKey: 'chat' },
-    { href: '/council', label: 'Council', icon: 'council', shortcut: '⌘9' },
+    // Council is no longer a route — it's an in-chat overlay summoned from
+    // the composer via `/council <prompt>`. (Removed from the nav.)
     // Canvas (R84 / W7). Research-mode spatial surface — no digit slot to
     // avoid renumbering the existing 1..9 muscle memory.
     { href: '/canvas', label: 'Canvas', icon: 'canvas' },
@@ -715,27 +711,6 @@
             <Icon name="spark" class="w-4 h-4" />
           {:else if item.icon === 'chat'}
             <Icon name="chat" class="w-4 h-4" />
-          {:else if item.icon === 'council'}
-            <!-- Council = multi-provider fanout. Three-stacked-bars glyph
-                 visually distinct from chat (single bubble) and skills
-                 (single tool), reads as "panel of voices" at thumbnail
-                 size. Inline SVG because the shared Icon set doesn't yet
-                 ship a comparable glyph; the design language matches the
-                 other 1.7-stroke / currentColor icons in the set. -->
-            <svg
-              viewBox="0 0 24 24"
-              class="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.7"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <rect x="3" y="4" width="6" height="16" rx="1" />
-              <rect x="11" y="4" width="6" height="16" rx="1" />
-              <line x1="20" y1="6" x2="20" y2="18" />
-            </svg>
           {:else if item.icon === 'knowledge'}
             <Icon name="folder" class="w-4 h-4" />
           {:else if item.icon === 'memory'}

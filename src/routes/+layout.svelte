@@ -314,7 +314,7 @@
   }
 
   const ROUTES_BY_DIGIT: Record<string, string> = {
-    '0': '/council',
+    '0': '/dashboard',
     '1': '/',
     '2': '/knowledge',
     '3': '/skills',
@@ -455,7 +455,6 @@
         path: '/extensions'
       },
       { id: 'go:jobs', title: 'Open Jobs', keywords: ['queue', 'background'], path: '/jobs' },
-      { id: 'go:council', title: 'Open Council', keywords: ['models', 'fanout'], path: '/council' },
       {
         id: 'go:settings',
         title: 'Open Settings',
