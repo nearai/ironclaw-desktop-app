@@ -672,6 +672,37 @@ async fn update_tray_recent(app: AppHandle, items: Vec<tray::RecentItem>) -> Res
 /// surface a route immediately after firing their event (Settings,
 /// Restart). The JS event listeners do the navigation; this just makes
 /// sure the window isn't sitting hidden when they fire.
+// LANE B7 (R64) — Mini-mode child window.
+//
+// Opens (or re-focuses) a 320×400 always-on-top floating panel pointed
+// at the `/mini` SvelteKit route. Triggered from JS via the
+// `miniMode.toggle()` store, which fires the Cmd+Shift+M chord in the
+// layout-level keydown handler.
+//
+// Window label is the literal "mini" — calling this twice focuses the
+// existing window rather than creating a duplicate. The window has no
+// titlebar (decorations: false) so the floating panel reads as a card
+// rather than a system window; the drag region in MiniPanel.svelte's
+// header restores the move affordance.
+#[tauri::command]
+async fn open_mini_window(app: AppHandle) -> Result<(), String> {
+    use tauri::WebviewWindowBuilder;
+    if let Some(existing) = app.get_webview_window("mini") {
+        let _ = existing.show();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+    let _window = WebviewWindowBuilder::new(&app, "mini", tauri::WebviewUrl::App("mini".into()))
+        .title("IronClaw — Mini")
+        .inner_size(320.0, 400.0)
+        .resizable(false)
+        .always_on_top(true)
+        .decorations(false)
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 async fn show_main_window(app: AppHandle) -> Result<(), String> {
     let Some(window) = app.get_webview_window("main") else {
@@ -818,6 +849,7 @@ pub fn run() {
             update_status_and_count,
             update_tray_recent,
             show_main_window,
+            open_mini_window,
             record_crash,
             list_crashes,
             clear_crashes,

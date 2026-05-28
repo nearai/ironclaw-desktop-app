@@ -34,6 +34,10 @@
   import { presets, presetsModal } from '$lib/stores/presets.svelte';
   import { templates, templatesModal } from '$lib/stores/templates.svelte';
   import { skillEditor } from '$lib/stores/skill-editor.svelte';
+  // LANE B7 — Mini-mode (R64). Cmd+Shift+M opens a 320×400 floating
+  // panel via a Tauri child window. Store is intentionally thin — see
+  // `src/lib/stores/mini-mode.svelte.ts`.
+  import { miniMode } from '$lib/stores/mini-mode.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { telemetry } from '$lib/stores/telemetry.svelte';
   import { invoke } from '@tauri-apps/api/core';
@@ -189,6 +193,15 @@
     if (mod && e.shiftKey && e.key.toLowerCase() === 'e' && !isOnboarding) {
       e.preventDefault();
       skillEditor.show();
+      return;
+    }
+
+    // LANE B7 — Mini-mode (R64). Cmd+Shift+M opens a 320×400 floating
+    // child window with the last 5 messages + a one-line composer.
+    // Onboarding gate matches the other chord branches above.
+    if (mod && e.shiftKey && e.key.toLowerCase() === 'm' && !isOnboarding) {
+      e.preventDefault();
+      void miniMode.toggle();
       return;
     }
 
