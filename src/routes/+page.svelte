@@ -45,6 +45,9 @@
   // LANE B2 — chat tabs (R52)
   import ChatTabs from '$lib/components/ChatTabs.svelte';
   import { chatTabs } from '$lib/stores/chat-tabs.svelte';
+  // LANE B1 — voice answer (R51)
+  import VoiceAnswerBar from '$lib/components/VoiceAnswerBar.svelte';
+  import { voiceAnswer } from '$lib/stores/voice-answer.svelte';
 
   // ---- Pane widths (drag-to-resize) ----------------------------------------
   //
@@ -1651,6 +1654,14 @@
       await messages.loadHistory(threadId);
       await threads.refresh();
       if (!streamErrored) messages.clearFailed(localId);
+
+      // LANE B1 — voice answer (R51). If the user has voice-answer
+      // mode armed, pipe the completed assistant turn through the
+      // macOS `say` bridge. Best-effort: failures are logged inside
+      // the store; we don't surface a toast at every speak attempt.
+      if (!streamErrored && !signal.aborted && replyForNotify) {
+        void voiceAnswer.speakIfEnabled(replyForNotify);
+      }
 
       // Record the provider that produced this turn so the chat header
       // can show a "produced by X" chip. We read `activeProfile` at the
@@ -3285,7 +3296,10 @@
         ondrop={onComposerDrop}
         role="presentation"
       >
-        <!-- LANE B1 — voice-answer bar mount (TTS playback strip lands here) -->
+        <!-- LANE B1 — voice-answer bar mount (TTS playback strip — R51) -->
+        {#if voiceAnswer.enabled}
+          <div class="mb-2"><VoiceAnswerBar /></div>
+        {/if}
         <!-- LANE B8 — skill editor mount (R65) -->
         <SkillEditorModal />
         <!-- LANE B9 — editable bubble swap (per-bubble live edit toggle lands here) -->
@@ -3444,6 +3458,61 @@
               <line x1="12" y1="18" x2="12" y2="22" />
               <line x1="8" y1="22" x2="16" y2="22" />
             </svg>
+          </button>
+
+          <!-- LANE B1 — voice answer toggle (R51). Speaker icon; cyan
+               when armed, muted when off. Click flips voiceAnswer.enabled;
+               persists to localStorage so the toggle survives reload. -->
+          <button
+            type="button"
+            onclick={() => voiceAnswer.toggle()}
+            disabled={!connection.client}
+            class="shrink-0 w-9 h-9 rounded-md transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+            class:text-accent-cyan={voiceAnswer.enabled}
+            class:text-text-muted={!voiceAnswer.enabled}
+            class:hover:text-accent-cyan={!voiceAnswer.enabled}
+            class:hover:bg-accent-cyan={false}
+            aria-label={voiceAnswer.enabled
+              ? 'Voice answer on — click to turn off'
+              : 'Voice answer off — click to turn on'}
+            title={voiceAnswer.enabled
+              ? 'Voice answer ON — assistant responses are spoken'
+              : 'Voice answer OFF — click to have responses spoken'}
+            aria-pressed={voiceAnswer.enabled}
+          >
+            {#if voiceAnswer.enabled}
+              <!-- Speaker icon with sound waves -->
+              <svg
+                viewBox="0 0 24 24"
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+              </svg>
+            {:else}
+              <!-- Speaker icon, muted -->
+              <svg
+                viewBox="0 0 24 24"
+                class="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <line x1="23" y1="9" x2="17" y2="15" />
+                <line x1="17" y1="9" x2="23" y2="15" />
+              </svg>
+            {/if}
           </button>
 
           <textarea
