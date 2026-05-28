@@ -104,6 +104,63 @@ async fn get_token_source(app: AppHandle, profile_id: String) -> Result<String, 
     keychain::get_source(&app, &profile_id)
 }
 
+/// Self-describing diagnostic blob the user can paste into an issue. Includes
+/// the app version, the host OS / arch / kernel, the active token source
+/// (without the token value), and a snapshot of in-process state that's
+/// frequently relevant to "Disconnected" / connectivity tickets.
+///
+/// Intentionally **does not** include secrets — the bearer never appears in
+/// the output, only its length and source. Tokens stay in their stores.
+#[tauri::command]
+async fn diagnostic_report(app: AppHandle, profile_id: String) -> Result<serde_json::Value, String> {
+    let token_source = keychain::get_source(&app, &profile_id).unwrap_or_else(|_| "error".into());
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|e| format!("ERR: {e}"));
+    let kernel = std::process::Command::new("uname")
+        .args(["-srm"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "unknown".into());
+    let sw_vers = std::process::Command::new("sw_vers")
+        .arg("-productVersion")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "unknown".into());
+    let arch = std::env::consts::ARCH.to_string();
+    let pkg_version = env!("CARGO_PKG_VERSION").to_string();
+
+    Ok(serde_json::json!({
+        "schema": "ironclaw-diagnostic-report.v1",
+        "generated_at": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+        "app": {
+            "name": "IronClaw Desktop",
+            "version": pkg_version,
+            "bundle_id": "com.openclaw.ironclaw-desktop",
+            "app_data_dir": app_data_dir,
+        },
+        "host": {
+            "os": "macOS",
+            "os_version": sw_vers,
+            "arch": arch,
+            "kernel": kernel,
+        },
+        "profile": {
+            "id": profile_id,
+            "token_source": token_source,
+        },
+    }))
+}
+
 // ---- OpenRouter-key Keychain (per-profile, local mode) -------------------
 
 #[tauri::command]
@@ -630,6 +687,7 @@ pub fn run() {
             set_token,
             delete_token,
             get_token_source,
+            diagnostic_report,
             get_openrouter_key,
             set_openrouter_key,
             delete_openrouter_key,

@@ -803,6 +803,41 @@ export async function getTokenSource(profileId: string): Promise<TokenSource> {
   }
 }
 
+/** Self-describing diagnostic blob. Doesn't include secrets — token values
+ *  are reported only by their source ("keychain" | "file" | "absent"), never
+ *  in plaintext. Useful for support tickets: a user can call this, copy the
+ *  output, and paste it into an issue without leaking auth. */
+export interface DiagnosticReport {
+  schema: 'ironclaw-diagnostic-report.v1';
+  generated_at: number;
+  app: {
+    name: string;
+    version: string;
+    bundle_id: string;
+    app_data_dir: string;
+  };
+  host: {
+    os: string;
+    os_version: string;
+    arch: string;
+    kernel: string;
+  };
+  profile: {
+    id: string;
+    token_source: TokenSource | 'error';
+  };
+}
+
+export async function getDiagnosticReport(profileId: string): Promise<DiagnosticReport | null> {
+  if (!inTauri()) return null;
+  try {
+    return await invoke<DiagnosticReport>('diagnostic_report', { profileId });
+  } catch (err) {
+    console.warn('getDiagnosticReport failed', err);
+    return null;
+  }
+}
+
 // ---- OpenRouter key (Keychain, per-profile) ------------------------------
 
 export async function getOpenRouterKey(profileId: string): Promise<string | null> {
