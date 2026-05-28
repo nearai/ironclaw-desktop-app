@@ -1191,6 +1191,44 @@ export interface ReplayEvent {
   payload: Record<string, unknown>;
 }
 
+// ---- Sub-agents (R56 lane A5) ----------------------------------------------
+
+export interface SubAgentTask {
+  id: string;
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
+  prompt: string;
+  result?: string;
+  error?: string;
+  created_at: string;
+  started_at?: string;
+  finished_at?: string;
+  parent_thread_id?: string;
+  model?: string;
+}
+
+export interface SubAgentDispatchInput {
+  prompt: string;
+  priority?: 'low' | 'normal' | 'high';
+  parentThreadId?: string;
+  model?: string;
+}
+
+export type SubAgentEvent =
+  | { type: 'started'; taskId: string }
+  | { type: 'progress'; taskId: string; text: string }
+  | { type: 'completed'; taskId: string; result: string }
+  | { type: 'failed'; taskId: string; error: string };
+
+/** Thrown by the sub-agent client methods when the gateway doesn't
+ *  implement the `/api/v1/tasks` family (404). The UI checks for this
+ *  to show a "needs a newer IronClaw" hint rather than a generic error. */
+export class SubAgentUnsupportedError extends Error {
+  constructor() {
+    super('Sub-agent dispatch is not available on this IronClaw gateway version.');
+    this.name = 'SubAgentUnsupportedError';
+  }
+}
+
 // ---- Reply-threads (R79 codex W2) ------------------------------------------
 
 export interface ReplyThread {

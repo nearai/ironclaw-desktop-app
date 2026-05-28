@@ -39,6 +39,9 @@ import type {
   RoutineRun,
   RoutineSummary,
   ReplyThreadStreamEvent,
+  SubAgentDispatchInput,
+  SubAgentEvent,
+  SubAgentTask,
   Skill,
   Thread,
   ToolPermission,
@@ -50,6 +53,8 @@ import type {
   UserProfile,
   UserToken
 } from './types';
+// Value import (class) — kept separate from the type-only block above.
+import { SubAgentUnsupportedError } from './types';
 import { containsSecret, redactJsonObject, redactSecrets } from '$lib/utils/redact';
 import { diagEnabled, inTauri } from '$lib/utils/runtime';
 
@@ -3756,4 +3761,136 @@ function normalizeReplyMessage(raw: Record<string, unknown>, fallbackId: string)
     content: String(raw.content ?? raw.delta ?? ''),
     created_at: String(raw.created_at ?? raw.timestamp ?? new Date().toISOString())
   };
+}
+
+// ---- Sub-agents (R56 lane A5) ----------------------------------------------
+//
+// Dispatch a one-shot background agent task from inside a chat. The
+// gateway endpoint `/api/v1/tasks` may not exist on older IronClaw
+// builds (probed 2026-05-28 against baremetal3 v0.29: 404), so every
+// method maps a 404 to `SubAgentUnsupportedError` and the UI degrades
+// to a clear "needs a newer gateway" hint instead of a broken flow.
+
+export interface IronClawClient {
+  dispatchSubAgent(input: SubAgentDispatchInput): Promise<SubAgentTask>;
+  getSubAgentTask(id: string): Promise<SubAgentTask>;
+  streamSubAgentEvents(id: string, signal?: AbortSignal): AsyncIterable<SubAgentEvent>;
+  cancelSubAgentTask(id: string): Promise<void>;
+}
+
+IronClawClient.prototype.dispatchSubAgent = async function dispatchSubAgent(
+  this: IronClawClient,
+  input: SubAgentDispatchInput
+): Promise<SubAgentTask> {
+  const url = `${this.baseUrl}/api/v1/tasks`;
+  const maybeTauri = await loadTauriFetch();
+  const fetchImpl = maybeTauri ?? fetch;
+  const res = await fetchImpl(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
+    },
+    body: JSON.stringify({
+      prompt: input.prompt,
+      priority: input.priority ?? 'normal',
+      parent_thread_id: input.parentThreadId,
+      model: input.model
+    })
+  });
+  if (res.status === 404 || res.status === 405) throw new SubAgentUnsupportedError();
+  if (!res.ok) throw new Error(`dispatchSubAgent ${res.status}`);
+  return (await res.json()) as SubAgentTask;
+};
+
+IronClawClient.prototype.getSubAgentTask = async function getSubAgentTask(
+  this: IronClawClient,
+  id: string
+): Promise<SubAgentTask> {
+  const url = `${this.baseUrl}/api/v1/tasks/${encodeURIComponent(id)}`;
+  const maybeTauri = await loadTauriFetch();
+  const fetchImpl = maybeTauri ?? fetch;
+  const res = await fetchImpl(url, {
+    headers: this.token ? { Authorization: `Bearer ${this.token}` } : {}
+  });
+  if (res.status === 404 || res.status === 405) throw new SubAgentUnsupportedError();
+  if (!res.ok) throw new Error(`getSubAgentTask ${res.status}`);
+  return (await res.json()) as SubAgentTask;
+};
+
+IronClawClient.prototype.streamSubAgentEvents = async function* streamSubAgentEvents(
+  this: IronClawClient,
+  id: string,
+  signal?: AbortSignal
+): AsyncIterable<SubAgentEvent> {
+  const url = `${this.baseUrl}/api/v1/tasks/${encodeURIComponent(id)}/events`;
+  const maybeTauri = await loadTauriFetch();
+  const fetchImpl = maybeTauri ?? fetch;
+  const res = await fetchImpl(url, {
+    headers: {
+      Accept: 'text/event-stream',
+      ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
+    },
+    signal
+  });
+  if (res.status === 404 || res.status === 405) throw new SubAgentUnsupportedError();
+  if (!res.ok || !res.body) throw new Error(`streamSubAgentEvents ${res.status}`);
+  // parseSseStream requires a non-optional AbortSignal + a decode fn
+  // that maps each SSE record into an array of T. We decode the data
+  // payload as JSON and normalize the gateway's event taxonomy.
+  const sig = signal ?? new AbortController().signal;
+  yield* parseSseStream<SubAgentEvent>(res.body, sig, (raw, event) => {
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      parsed = {};
+    }
+    // The SSE `event:` name (when present) wins over an in-body `type`.
+    if (event && event !== 'message') parsed.type = event;
+    const norm = normalizeSubAgentEvent(parsed, id);
+    return norm ? [norm] : [];
+  });
+};
+
+IronClawClient.prototype.cancelSubAgentTask = async function cancelSubAgentTask(
+  this: IronClawClient,
+  id: string
+): Promise<void> {
+  const url = `${this.baseUrl}/api/v1/tasks/${encodeURIComponent(id)}/cancel`;
+  const maybeTauri = await loadTauriFetch();
+  const fetchImpl = maybeTauri ?? fetch;
+  const res = await fetchImpl(url, {
+    method: 'POST',
+    headers: this.token ? { Authorization: `Bearer ${this.token}` } : {}
+  });
+  // A 404 on cancel is fine — the task is gone or the gateway lacks
+  // the endpoint; either way there's nothing to cancel.
+  if (!res.ok && res.status !== 404 && res.status !== 405) {
+    throw new Error(`cancelSubAgentTask ${res.status}`);
+  }
+};
+
+function normalizeSubAgentEvent(
+  raw: Record<string, unknown>,
+  fallbackTaskId: string
+): SubAgentEvent | null {
+  const type = String(raw.type ?? '');
+  const taskId = String(raw.task_id ?? raw.id ?? fallbackTaskId);
+  switch (type) {
+    case 'task.started':
+    case 'started':
+      return { type: 'started', taskId };
+    case 'task.progress':
+    case 'progress':
+      return { type: 'progress', taskId, text: String(raw.text ?? raw.delta ?? '') };
+    case 'task.completed':
+    case 'completed':
+      return { type: 'completed', taskId, result: String(raw.result ?? raw.output ?? '') };
+    case 'task.failed':
+    case 'failed':
+      return { type: 'failed', taskId, error: String(raw.error ?? raw.message ?? 'task failed') };
+    default:
+      return null;
+  }
 }

@@ -52,6 +52,9 @@
   import ReplayBar from '$lib/components/ReplayBar.svelte';
   import { replay } from '$lib/stores/replay.svelte';
   import { replayUI } from '$lib/stores/replay-ui.svelte';
+  // LANE B4 — sub-agent dispatch (R56/R57)
+  import SubAgentChip from '$lib/components/SubAgentChip.svelte';
+  import { subAgents } from '$lib/stores/sub-agents.svelte';
   // LANE W3 — reply-thread panel (R80, consumes R79 store)
   import ReplyThreadPanel from '$lib/components/ReplyThreadPanel.svelte';
   import { replyThreadUI } from '$lib/stores/reply-thread-ui.svelte';
@@ -727,6 +730,35 @@
     };
     window.addEventListener('keydown', onTabShortcut);
     onDestroy(() => window.removeEventListener('keydown', onTabShortcut));
+
+    // LANE B4 — sub-agent delegate (R57): Cmd+Shift+D delegates the
+    // latest user turn in the current thread to a background sub-agent.
+    // Gracefully no-ops + toasts when the gateway lacks /api/v1/tasks.
+    const onDelegateShortcut = (ev: KeyboardEvent) => {
+      const mod = ev.metaKey || ev.ctrlKey;
+      if (!mod || !ev.shiftKey || ev.key.toLowerCase() !== 'd') return;
+      const tid = threads.currentId;
+      if (!tid) return;
+      ev.preventDefault();
+      const hist = messages.get(tid);
+      const lastUser = [...hist].reverse().find((m) => m.role === 'user');
+      if (!lastUser || !lastUser.content.trim()) {
+        toasts.show('Nothing to delegate — send a message first.', 'info');
+        return;
+      }
+      void subAgents
+        .dispatch({ prompt: lastUser.content, parentThreadId: tid })
+        .then((id) => {
+          if (id === null) {
+            toasts.show('Sub-agents need a newer IronClaw gateway.', 'info');
+          } else {
+            toasts.show('Delegated to a background sub-agent.', 'success');
+          }
+        })
+        .catch((err) => toasts.show(`Delegate failed: ${(err as Error).message}`, 'error'));
+    };
+    window.addEventListener('keydown', onDelegateShortcut);
+    onDestroy(() => window.removeEventListener('keydown', onDelegateShortcut));
 
     // Hydrate pane widths from localStorage. ResizeHandle pushes the
     // hydrated value back via `onresize` on its own mount, but reading
@@ -3379,6 +3411,24 @@
         <!-- LANE B1 — voice-answer bar mount (TTS playback strip — R51) -->
         {#if voiceAnswer.enabled}
           <div class="mb-2"><VoiceAnswerBar /></div>
+        {/if}
+        <!-- LANE B4 — sub-agent task chips (R57): active + recent
+             background tasks delegated from this thread. Cmd+Shift+D
+             delegates the latest user turn. -->
+        {#if currentId}
+          {@const tasks = subAgents.forThread(currentId)}
+          {#if tasks.length > 0}
+            <div class="mb-2 flex flex-col gap-1.5">
+              {#each tasks as task (task.id)}
+                <SubAgentChip {task} />
+              {/each}
+            </div>
+          {/if}
+          {#if subAgents.unsupported}
+            <div class="mb-2 text-[10px] text-text-muted">
+              Sub-agent delegation needs a newer IronClaw gateway.
+            </div>
+          {/if}
         {/if}
         <!-- LANE B8 — skill editor mount (R65) -->
         <SkillEditorModal />
