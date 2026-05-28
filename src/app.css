@@ -57,8 +57,62 @@ html,
 body {
   height: 100%;
   margin: 0;
+  /* Window-level NSVisualEffectMaterial::Sidebar (applied at Rust setup
+     in src-tauri/src/lib.rs, R63) bleeds through wherever the DOM
+     leaves no opaque surface. The dark navy gradient is preserved for
+     non-macOS targets + as a graceful fallback when vibrancy isn't
+     available; on macOS the chrome semi-transparency in `.app-shell`
+     below lets the native material show through.
+
+     We keep this rule unchanged so a tinted color always paints first
+     (vibrancy + zero CSS = a pure-white blur which fights the dark
+     palette). The translucent panels later in the stack let it bleed. */
   background: linear-gradient(180deg, #0a0f1e 0%, #050810 100%);
   background-attachment: fixed;
+}
+
+/* R63 (lane B6): give the chrome a subtle translucency so the native
+   sidebar vibrancy shows through. The sidebar + top-rail areas use
+   `bg-bg-deep/80` etc. already; this just guarantees the canvas isn't
+   100% opaque under them. Non-macOS targets see no difference because
+   the window itself is opaque. */
+.app-shell-translucent {
+  background: rgba(11, 16, 30, 0.55);
+}
+
+/* macOS title-bar clearance. With `titleBarStyle: Overlay +
+   hiddenTitle`, the traffic lights sit over the top-left of the
+   webview. Without padding, sidebar content collides with them. The
+   sidebar's top section opts in via the `.macos-titlebar-clearance`
+   class; the layout adds a `data-tauri-drag-region` div over the
+   same strip so the user can drag the window from the empty top
+   without losing the buttons underneath. 28px matches the macOS
+   traffic-light height. */
+.macos-titlebar-clearance {
+  padding-top: 28px;
+}
+.macos-titlebar-drag-strip {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  z-index: 30;
+  pointer-events: none;
+}
+.macos-titlebar-drag-strip[data-tauri-drag-region] {
+  pointer-events: auto;
+}
+
+/* `macos-only` lets us put a node in the DOM that's only visible /
+   interactive on macOS. Other platforms collapse it to display:none.
+   We probe via the `navigator.platform` startsWith Mac in a sibling
+   script — done at layout mount; this rule is the matching style.
+   Defaults to displayed to avoid a FOUC; the script toggles
+   `data-platform` on <html> for non-mac so the rule below kicks in.
+   */
+html[data-platform='non-mac'] .macos-only {
+  display: none !important;
 }
 
 *::-webkit-scrollbar {

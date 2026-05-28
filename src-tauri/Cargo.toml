@@ -42,6 +42,12 @@ env_logger = "0.11"
 # the default-features so the TLS backend stays in sync with the rest of
 # the tree.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+# Native macOS NSVisualEffectView material applied to the main window
+# on setup, so the sidebar shows the proper Mail/Finder-style vibrancy
+# instead of a flat panel. The crate is published by tauri-apps and
+# tracks Tauri 2.x; we pull only the macOS-specific surface.
+[target.'cfg(target_os = "macos")'.dependencies]
+window-vibrancy = "0.5"
 
 [dev-dependencies]
 tempfile = "3"

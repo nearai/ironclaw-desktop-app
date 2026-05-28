@@ -339,6 +339,16 @@
   });
 
   onMount(() => {
+    // R63 (lane B6): stamp `data-platform` on <html> so the `.macos-only`
+    // CSS rule can hide the title-bar drag strip on non-macOS targets.
+    // Cheap navigator probe; runs once at mount; no re-stamp needed because
+    // platform doesn't change at runtime.
+    if (typeof navigator !== 'undefined') {
+      const ua = (navigator.platform || navigator.userAgent || '').toLowerCase();
+      const isMac = ua.includes('mac');
+      document.documentElement.dataset.platform = isMac ? 'mac' : 'non-mac';
+    }
+
     // Boot the focus tracker + hydrate notification prefs early so any
     // surface that fires a notification on first render (e.g. routine
     // completion catching up on poll #1) sees the user's saved toggles.
@@ -609,6 +619,22 @@
        Placed outside the onboarding guard so it stays reachable even on
        the wizard takeover if a future entry point fires while it's up. -->
   <AboutDialog open={aboutStore.open} onclose={() => aboutStore.close()} />
+
+  <!-- LANE B6 — R63 title-bar drag region (macOS). With `titleBarStyle:
+       Overlay` + `hiddenTitle: true`, the traffic lights sit OVER the
+       webview at top-left. Without a `data-tauri-drag-region` strip,
+       the empty area to the right of the buttons is dead — the user
+       can't grab it to move the window. This thin strip restores the
+       expected drag affordance without covering the buttons. Hidden
+       outside macOS via the .macos-only utility (no-op on win/linux). -->
+  {#if !isOnboarding}
+    <div
+      class="macos-titlebar-drag-strip macos-only"
+      data-tauri-drag-region
+      aria-hidden="true"
+    ></div>
+  {/if}
+
   <div class="flex flex-1 overflow-hidden">
     {#if !isOnboarding}
       <Sidebar />

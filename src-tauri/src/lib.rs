@@ -833,6 +833,25 @@ pub fn run() {
         // tray visible (least-surprising default).
         .setup(|app| {
             let handle = app.handle();
+
+            // R63 (lane B6): apply NSVisualEffectMaterial::Sidebar to the
+            // main window so the chrome shows the proper Mail/Finder-style
+            // vibrancy instead of a flat panel. Best-effort — if the API
+            // call fails (older macOS, future Tauri API rename) we log
+            // and continue; the app still works, just without the blur.
+            #[cfg(target_os = "macos")]
+            if let Some(window) = app.get_webview_window("main") {
+                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
+                if let Err(e) = apply_vibrancy(
+                    &window,
+                    NSVisualEffectMaterial::Sidebar,
+                    Some(NSVisualEffectState::Active),
+                    None,
+                ) {
+                    log::warn!(target: "ironclaw_chrome", "vibrancy apply failed: {e}");
+                }
+            }
+
             if let Err(e) = tray::create(handle) {
                 log::warn!(target: "ironclaw_tray", "create failed: {e}");
             } else if let Ok(s) = settings::load(handle) {
