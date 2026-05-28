@@ -438,12 +438,38 @@ async fn local_data_dir(app: AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-async fn reveal_in_finder(path: String) -> Result<(), String> {
+async fn reveal_in_finder(app: AppHandle, path: String) -> Result<(), String> {
+    // R73 P1: restrict reveal targets to paths the app legitimately
+    // owns. Without this, JS could probe filesystem existence of any
+    // path by calling reveal_in_finder("/etc/passwd") and watching
+    // for a non-error result. We allow the app data dir + the user's
+    // Documents/Downloads (for the workspace-files surface).
+    let resolved = std::path::PathBuf::from(&path)
+        .canonicalize()
+        .map_err(|e| format!("path resolve: {e}"))?;
+
+    let app_data = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let app_data_canon = app_data.canonicalize().unwrap_or(app_data.clone());
+    let home_dir = app.path().home_dir().map_err(|e| e.to_string())?;
+    let documents = home_dir.join("Documents");
+    let downloads = home_dir.join("Downloads");
+
+    let allowed_roots = [&app_data_canon, &documents, &downloads];
+    let is_allowed = allowed_roots
+        .iter()
+        .any(|root| resolved.starts_with(root));
+    if !is_allowed {
+        return Err(format!(
+            "reveal_in_finder refused: path is outside app-owned roots ({})",
+            resolved.display()
+        ));
+    }
+
     // `open -R <path>` reveals the item in Finder. Falls back to opening
     // the directory if `-R` isn't applicable for the target.
     let status = std::process::Command::new("open")
         .arg("-R")
-        .arg(&path)
+        .arg(&resolved)
         .status();
     match status {
         Ok(s) if s.success() => Ok(()),
