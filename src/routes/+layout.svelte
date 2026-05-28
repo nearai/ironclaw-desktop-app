@@ -355,11 +355,46 @@
     telemetry.recordEvent('app:launched');
 
     void connection.init().then(() => {
-      if (
-        !redirected &&
-        !connection.settings.onboardingComplete &&
-        !page.url.pathname.startsWith('/onboarding')
-      ) {
+      // Last-resort escape hatch (R34d). If a previous wizard run failed
+      // catastrophically (Skip threw, save_settings IPC errored, etc.) the
+      // user can be stranded on /onboarding with `onboardingComplete: false`
+      // forever — every relaunch lands them right back. The bypass key,
+      // once set, short-circuits the redirect IN to the wizard so the user
+      // can use the app while the underlying save path heals.
+      //
+      // Set by `skip()` in the wizard on error, by the CommandPalette's
+      // "Reset onboarding bypass" action (TODO), or by the user via
+      // devtools: `localStorage.setItem('ironclaw-onboarding-bypass', '1')`.
+      // Cleared when the user finishes onboarding successfully.
+      let bypass = false;
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          bypass = window.localStorage.getItem('ironclaw-onboarding-bypass') === '1';
+        }
+      } catch {
+        // Quota / private-mode failures are non-fatal — proceed with the
+        // normal redirect path.
+      }
+
+      const onOnboarding = page.url.pathname.startsWith('/onboarding');
+
+      // Bug 1 (R34d): redirect OUT of /onboarding when settings.json says
+      // the user is already done. Previously the guard was one-way —
+      // it only sent users TO the wizard, never out — so a user who
+      // landed on /onboarding for any reason (webview URL restore after
+      // a Tauri crash, command-palette navigation, bypass armed earlier)
+      // would see the wizard despite `onboardingComplete: true` on disk.
+      // The escape-hatch bypass also takes effect here so a user with
+      // a permanent bypass can ALSO be kicked out of /onboarding if the
+      // route somehow loads.
+      if (onOnboarding && (connection.settings.onboardingComplete || bypass)) {
+        void goto('/');
+        return;
+      }
+
+      if (bypass) return;
+
+      if (!redirected && !connection.settings.onboardingComplete && !onOnboarding) {
         redirected = true;
         void goto('/onboarding');
       }

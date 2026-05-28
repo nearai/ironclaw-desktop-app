@@ -11,6 +11,14 @@
     "updater:default",
     "notification:default",
     {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "http://127.0.0.1:*" },
+        { "url": "http://localhost:*" },
+        { "url": "https://**" }
+      ]
+    },
+    {
       "identifier": "shell:allow-execute",
       "allow": [
         { "name": "binaries/ironclaw", "sidecar": true, "args": true }

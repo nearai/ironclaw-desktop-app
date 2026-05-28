@@ -555,6 +555,14 @@ pub fn run() {
         // (@tauri-apps/plugin-notification) wraps requestPermission /
         // sendNotification — no Rust commands needed here.
         .plugin(tauri_plugin_notification::init())
+        // HTTP plugin — frontend uses `@tauri-apps/plugin-http`'s `fetch`
+        // to call the IronClaw gateway. This bypasses WKWebView's CORS
+        // layer (the gateway's CORS allowlist doesn't whitelist
+        // `tauri://localhost`, which is the production webview's origin,
+        // so direct browser-fetch hangs forever waiting for CORS approval
+        // that never lands). Dev mode worked from `http://localhost:1420`
+        // because that IS in the allowlist. Required for production.
+        .plugin(tauri_plugin_http::init())
         // Auto-updater plugin. The JS side (@tauri-apps/plugin-updater) wraps
         // check / downloadAndInstall — no Rust commands needed here.
         // TODO: tauri.conf.json `plugins.updater.endpoints` currently points

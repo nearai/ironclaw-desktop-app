@@ -48,6 +48,15 @@ import type {
   UserToken
 } from './types';
 import { containsSecret, redactJsonObject, redactSecrets } from '$lib/utils/redact';
+import { inTauri } from '$lib/utils/runtime';
+// Tauri HTTP plugin — top-level import so the bundler doesn't tree-shake
+// the dynamic-import variant (vite's SSR pass eliminated the conditional
+// dynamic import in v0.2.4's first attempt, leaving the production .app
+// falling back to native fetch and getting blocked by WKWebView CORS).
+// The module just exports a fetch() function shaped like browser fetch;
+// loading it outside Tauri is harmless because we gate the actual call
+// site on `inTauri()`.
+import { fetch as tauriFetch } from '@tauri-apps/plugin-http';
 
 export interface IronClawClientOptions {
   baseUrl: string;
@@ -93,7 +102,16 @@ export class IronClawClient {
       headers['Content-Type'] = 'application/json';
     }
 
-    const res = await fetch(url, {
+    // Route through the Tauri http plugin when running inside the Tauri
+    // webview — it goes through Rust and bypasses CORS, which the
+    // production webview (tauri://localhost) otherwise fails on against
+    // any gateway that doesn't whitelist that origin. Falls back to
+    // native fetch in browser / vitest / dev contexts where the plugin
+    // isn't available (and where CORS isn't blocking anyway — vite dev
+    // origin is http://localhost:1420 which IS in the gateway's
+    // allowlist).
+    const fetchImpl = inTauri() ? tauriFetch : fetch;
+    const res = await fetchImpl(url, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -120,10 +138,7 @@ export class IronClawClient {
   // ---- Health & connection ---------------------------------------------------
 
   async health(): Promise<HealthStatus> {
-    const res = await this.request<{ status?: string; channel?: string }>(
-      'GET',
-      '/api/health'
-    );
+    const res = await this.request<{ status?: string; channel?: string }>('GET', '/api/health');
     const status = res?.status;
     return {
       ok: status === 'ok' || status === 'healthy',
@@ -225,10 +240,7 @@ export class IronClawClient {
           return raw.account_id;
         }
         const id = raw.id ?? raw.user_id;
-        if (
-          typeof id === 'string' &&
-          (id.endsWith('.near') || id.endsWith('.testnet'))
-        ) {
+        if (typeof id === 'string' && (id.endsWith('.near') || id.endsWith('.testnet'))) {
           return id;
         }
         return undefined;
@@ -262,11 +274,9 @@ export class IronClawClient {
 
   /** POST /api/logs/level → set the gateway's effective tracing level. */
   async setLogLevel(level: LogLevel): Promise<{ ok: boolean }> {
-    const res = await this.request<{ ok?: boolean; status?: string }>(
-      'POST',
-      '/api/logs/level',
-      { level }
-    );
+    const res = await this.request<{ ok?: boolean; status?: string }>('POST', '/api/logs/level', {
+      level
+    });
     return { ok: res?.ok === true || res?.status === 'ok' };
   }
 
@@ -582,7 +592,11 @@ export class IronClawClient {
       while (true) {
         if (signal.aborted) {
           // Cancel the underlying stream so the gateway can stop generating.
-          try { await reader.cancel(); } catch { /* ignore */ }
+          try {
+            await reader.cancel();
+          } catch {
+            /* ignore */
+          }
           break;
         }
         const { value, done } = await reader.read();
@@ -611,7 +625,11 @@ export class IronClawClient {
       // path renders it without a try/catch around the for-await.
       yield { type: 'error', message: (err as Error).message };
     } finally {
-      try { reader.releaseLock(); } catch { /* ignore */ }
+      try {
+        reader.releaseLock();
+      } catch {
+        /* ignore */
+      }
     }
   }
 
@@ -860,10 +878,7 @@ export class IronClawClient {
    * but the gateway itself also rejects traversal — this is defense in depth,
    * not a substitute.
    */
-  async writeMemory(
-    path: string,
-    content: string
-  ): Promise<{ ok: boolean; path?: string }> {
+  async writeMemory(path: string, content: string): Promise<{ ok: boolean; path?: string }> {
     const res = await this.request<{
       path?: string;
       status?: string;
@@ -902,10 +917,7 @@ export class IronClawClient {
       // Fall back to POST /api/memory/delete on Method Not Allowed (405) or
       // 404 — the latter covers the case where the route shape is different
       // than expected.
-      if (
-        err instanceof HttpError &&
-        (err.status === 405 || err.status === 404)
-      ) {
+      if (err instanceof HttpError && (err.status === 405 || err.status === 404)) {
         const res = await this.request<{ status?: string; path?: string }>(
           'POST',
           '/api/memory/delete',
@@ -1573,10 +1585,7 @@ export class IronClawClient {
       keywords?: string[];
       source?: string;
     };
-    const base = await this.request<{ extensions?: ExtensionWire[] }>(
-      'GET',
-      '/api/extensions'
-    );
+    const base = await this.request<{ extensions?: ExtensionWire[] }>('GET', '/api/extensions');
 
     // Best-effort enrichment — neither failure should block the list.
     type ReadinessWire = {
@@ -1593,15 +1602,12 @@ export class IronClawClient {
     };
     const [readiness, tools] = await Promise.all([
       this.request<ReadinessWire>('GET', '/api/extensions/readiness').catch(
-        () => ({} as ReadinessWire)
+        () => ({}) as ReadinessWire
       ),
       this.extensionTools().catch(() => [] as ExtensionTool[])
     ]);
 
-    const readinessByName = new Map<
-      string,
-      { ready: boolean; message?: string }
-    >();
+    const readinessByName = new Map<string, { ready: boolean; message?: string }>();
     if (Array.isArray(readiness?.extensions)) {
       for (const r of readiness.extensions ?? []) {
         const phase = String(r.phase ?? '');
@@ -1681,17 +1687,20 @@ export class IronClawClient {
       available?: RegistryWire[];
     }>('GET', '/api/extensions/registry');
     const list = res?.entries ?? res?.available ?? [];
-    return list.map((e) => ({
-      name: e.name ?? e.slug ?? '',
-      display_name: e.display_name,
-      description: e.description ?? '',
-      version: e.version,
-      installed: e.installed ?? false,
-      category: mapExtensionKind(e.kind),
-      source: e.source,
-      requires_setup: e.requires_setup ?? false,
-      keywords: e.keywords
-    } satisfies Extension));
+    return list.map(
+      (e) =>
+        ({
+          name: e.name ?? e.slug ?? '',
+          display_name: e.display_name,
+          description: e.description ?? '',
+          version: e.version,
+          installed: e.installed ?? false,
+          category: mapExtensionKind(e.kind),
+          source: e.source,
+          requires_setup: e.requires_setup ?? false,
+          keywords: e.keywords
+        }) satisfies Extension
+    );
   }
 
   /** Flat list of tools provided by installed extensions.
@@ -1735,11 +1744,10 @@ export class IronClawClient {
    * `{name}` or `{slug}` depending on version — we send both for safety.
    */
   async installExtension(name: string): Promise<{ ok: boolean }> {
-    const res = await this.request<{ status?: string }>(
-      'POST',
-      '/api/extensions/install',
-      { name, slug: name }
-    );
+    const res = await this.request<{ status?: string }>('POST', '/api/extensions/install', {
+      name,
+      slug: name
+    });
     const status = res?.status;
     return { ok: status === 'queued' || status === 'installed' || status === 'ok' || !status };
   }
@@ -2198,8 +2206,7 @@ export class IronClawClient {
       let usage30d: UsageSummary['usage_30d'];
       if (usage && typeof usage === 'object') {
         const input = typeof usage.input_tokens === 'number' ? usage.input_tokens : 0;
-        const output =
-          typeof usage.output_tokens === 'number' ? usage.output_tokens : 0;
+        const output = typeof usage.output_tokens === 'number' ? usage.output_tokens : 0;
         const totalCost =
           typeof usage.total_cost === 'string'
             ? usage.total_cost
@@ -2249,10 +2256,7 @@ export class IronClawClient {
    * Returns `[]` on any failure so the admin route can render an empty
    * state without throwing.
    */
-  async getUsageEvents(opts?: {
-    limit?: number;
-    since?: string;
-  }): Promise<UsageEvent[]> {
+  async getUsageEvents(opts?: { limit?: number; since?: string }): Promise<UsageEvent[]> {
     try {
       // Map `since` → period bucket.
       const period = sinceToPeriod(opts?.since);
@@ -2260,9 +2264,7 @@ export class IronClawClient {
       const params = new URLSearchParams();
       if (period) params.set('period', period);
 
-      const path = params.toString()
-        ? `/api/admin/usage?${params.toString()}`
-        : '/api/admin/usage';
+      const path = params.toString() ? `/api/admin/usage?${params.toString()}` : '/api/admin/usage';
 
       const raw = await this.request<{
         period?: string;
@@ -2365,17 +2367,14 @@ export class IronClawClient {
         out.push({
           id,
           name: typeof e.name === 'string' ? e.name : id,
-          description:
-            typeof e.description === 'string' ? e.description : undefined,
+          description: typeof e.description === 'string' ? e.description : undefined,
           configured: hasCreds || hasApiKey,
-          default_model:
-            typeof e.default_model === 'string' ? e.default_model : undefined,
+          default_model: typeof e.default_model === 'string' ? e.default_model : undefined,
           adapter: typeof e.adapter === 'string' ? e.adapter : undefined,
           base_url: typeof e.base_url === 'string' ? e.base_url : undefined,
           base_url_required: e.base_url_required === true,
           can_list_models: e.can_list_models === true,
-          credential_kind:
-            typeof e.credential_kind === 'string' ? e.credential_kind : undefined,
+          credential_kind: typeof e.credential_kind === 'string' ? e.credential_kind : undefined,
           has_api_key: hasApiKey,
           builtin: e.builtin === true
         });
@@ -2422,12 +2421,8 @@ export class IronClawClient {
         model: typeof config.model === 'string' ? config.model : '',
         // The catalog id maps onto wire `provider_id`; let the caller
         // override either name.
-        provider_id:
-          typeof config.provider_id === 'string' ? config.provider_id : provider,
-        provider_type:
-          typeof config.provider_type === 'string'
-            ? config.provider_type
-            : 'builtin'
+        provider_id: typeof config.provider_id === 'string' ? config.provider_id : provider,
+        provider_type: typeof config.provider_type === 'string' ? config.provider_type : 'builtin'
       };
       if (typeof config.api_key === 'string') {
         body.api_key = config.api_key;
@@ -2539,12 +2534,8 @@ export class IronClawClient {
           out.push({
             id,
             name: typeof obj.name === 'string' ? obj.name : id,
-            description:
-              typeof obj.description === 'string' ? obj.description : undefined,
-            context_window:
-              typeof obj.context_window === 'number'
-                ? obj.context_window
-                : undefined,
+            description: typeof obj.description === 'string' ? obj.description : undefined,
+            context_window: typeof obj.context_window === 'number' ? obj.context_window : undefined,
             pricing
           });
         }
@@ -2617,19 +2608,15 @@ export class IronClawClient {
         const permission: ToolPermission =
           typeof row.current_state === 'string' ? row.current_state : 'ask_each_time';
         const defaultState =
-          typeof row.default_state === 'string'
-            ? (row.default_state as ToolPermission)
-            : undefined;
+          typeof row.default_state === 'string' ? (row.default_state as ToolPermission) : undefined;
         out.push({
           name,
           permission,
-          description:
-            typeof row.description === 'string' ? row.description : undefined,
+          description: typeof row.description === 'string' ? row.description : undefined,
           destructive: row.destructive === true ? true : undefined,
           default_state: defaultState,
           locked: row.locked === true,
-          locked_reason:
-            typeof row.locked_reason === 'string' ? row.locked_reason : undefined
+          locked_reason: typeof row.locked_reason === 'string' ? row.locked_reason : undefined
         });
       }
       return out.sort((a, b) => a.name.localeCompare(b.name));
@@ -2653,18 +2640,13 @@ export class IronClawClient {
    * via `listToolPermissions()` afterwards to see the canonical state.
    * If you need the error string, catch via the underlying `request`.
    */
-  async setToolPermission(
-    name: string,
-    permission: ToolPermission
-  ): Promise<{ ok: boolean }> {
+  async setToolPermission(name: string, permission: ToolPermission): Promise<{ ok: boolean }> {
     try {
       // Map the prompt's `'locked'` alias onto the wire's `'disabled'`.
       const wireState = permission === 'locked' ? 'disabled' : permission;
-      await this.request<unknown>(
-        'PUT',
-        `/api/settings/tools/${encodeURIComponent(name)}`,
-        { state: wireState }
-      );
+      await this.request<unknown>('PUT', `/api/settings/tools/${encodeURIComponent(name)}`, {
+        state: wireState
+      });
       return { ok: true };
     } catch (err) {
       console.warn(`[ironclaw] setToolPermission(${name}) failed:`, err);
@@ -2700,10 +2682,7 @@ export class IronClawClient {
    * filtering. Empty arrays come back as `[]`, never `null`.
    */
   async listMissions(): Promise<EngineMission[]> {
-    const res = await this.request<{ missions?: EngineMission[] }>(
-      'GET',
-      '/api/engine/missions'
-    );
+    const res = await this.request<{ missions?: EngineMission[] }>('GET', '/api/engine/missions');
     return Array.isArray(res?.missions) ? res.missions : [];
   }
 
@@ -2739,10 +2718,7 @@ export class IronClawClient {
 
   /** List projects. Wire envelope: `{projects: [...]}`. */
   async listProjects(): Promise<EngineProject[]> {
-    const res = await this.request<{ projects?: EngineProject[] }>(
-      'GET',
-      '/api/engine/projects'
-    );
+    const res = await this.request<{ projects?: EngineProject[] }>('GET', '/api/engine/projects');
     return Array.isArray(res?.projects) ? res.projects : [];
   }
 
@@ -2777,10 +2753,7 @@ export class IronClawClient {
    * Wire envelope: `{threads: [...]}`.
    */
   async listEngineThreads(): Promise<EngineThread[]> {
-    const res = await this.request<{ threads?: EngineThread[] }>(
-      'GET',
-      '/api/engine/threads'
-    );
+    const res = await this.request<{ threads?: EngineThread[] }>('GET', '/api/engine/threads');
     return Array.isArray(res?.threads) ? res.threads : [];
   }
 
@@ -2953,11 +2926,9 @@ export class IronClawClient {
       user_code?: string;
       expires_in?: number;
       interval?: number;
-    }>(
-      'POST',
-      `/api/extensions/${encodeURIComponent(name)}/login/start`,
-      { session_id: sessionId }
-    );
+    }>('POST', `/api/extensions/${encodeURIComponent(name)}/login/start`, {
+      session_id: sessionId
+    });
 
     const returnedId = res?.session_id ?? sessionId;
     return {
@@ -2969,8 +2940,7 @@ export class IronClawClient {
       device_code: returnedId,
       // RFC 8628 fields — fall through to safe defaults if the gateway
       // didn't emit them (today's failure path doesn't).
-      verification_uri:
-        typeof res?.verification_uri === 'string' ? res.verification_uri : '',
+      verification_uri: typeof res?.verification_uri === 'string' ? res.verification_uri : '',
       user_code: typeof res?.user_code === 'string' ? res.user_code : '',
       expires_in: typeof res?.expires_in === 'number' ? res.expires_in : 0,
       interval: typeof res?.interval === 'number' ? res.interval : undefined
@@ -2989,21 +2959,16 @@ export class IronClawClient {
    * via simple aliasing from the wire's `success`/`status` pair. Failure
    * cases populate `error` from the wire's `message`.
    */
-  async pollExtensionLogin(
-    name: string,
-    deviceCode: string
-  ): Promise<DeviceLoginPoll> {
+  async pollExtensionLogin(name: string, deviceCode: string): Promise<DeviceLoginPoll> {
     const res = await this.request<{
       success?: boolean;
       status?: string;
       message?: string;
       activated?: boolean;
       session_id?: string;
-    }>(
-      'POST',
-      `/api/extensions/${encodeURIComponent(name)}/login/poll`,
-      { session_id: deviceCode }
-    );
+    }>('POST', `/api/extensions/${encodeURIComponent(name)}/login/poll`, {
+      session_id: deviceCode
+    });
 
     const wireStatus = String(res?.status ?? '').toLowerCase();
     // Map the wire's vocabulary onto RFC 8628 status names. The wire
@@ -3030,9 +2995,7 @@ export class IronClawClient {
     return {
       status,
       error:
-        status === 'authorized' || status === 'pending'
-          ? undefined
-          : (res?.message ?? undefined),
+        status === 'authorized' || status === 'pending' ? undefined : (res?.message ?? undefined),
       authorized: status === 'authorized'
     };
   }
@@ -3085,8 +3048,7 @@ export class IronClawClient {
       expires_at: row.expires_at ?? undefined,
       revoked_at: row.revoked_at ?? undefined,
       scopes: Array.isArray(row.scopes) ? row.scopes : undefined,
-      preview:
-        typeof row.token_prefix === 'string' ? row.token_prefix : undefined
+      preview: typeof row.token_prefix === 'string' ? row.token_prefix : undefined
     }));
 
     // Newest-first for the UI; equal timestamps tie-break by id for
@@ -3114,10 +3076,7 @@ export class IronClawClient {
    * through anyway so a future scope-aware gateway lights up without a
    * client change.
    */
-  async createUserToken(
-    name: string,
-    scopes?: string[]
-  ): Promise<{ id: string; token: string }> {
+  async createUserToken(name: string, scopes?: string[]): Promise<{ id: string; token: string }> {
     const body: Record<string, unknown> = { name };
     if (Array.isArray(scopes) && scopes.length > 0) {
       body.scopes = scopes;

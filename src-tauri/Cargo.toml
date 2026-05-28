@@ -19,6 +19,13 @@ tauri-plugin-shell = "2.2"
 tauri-plugin-updater = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
+# HTTP plugin — frontend uses `@tauri-apps/plugin-http`'s `fetch` to route
+# IronClaw gateway calls through the Rust process. This bypasses the
+# WKWebView's CORS layer (the gateway's CORS allowlist doesn't include
+# `tauri://localhost`, so production builds were stuck on "Disconnected"
+# while dev mode worked from http://localhost:1420). Required for the
+# bundled .app to talk to any gateway.
+tauri-plugin-http = "2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 keyring = { version = "3", features = ["apple-native"] }

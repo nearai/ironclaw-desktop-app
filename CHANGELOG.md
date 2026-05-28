@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.2.2 (unreleased) — P0 ATS fix (HTTP gateway connectivity in release builds)
+
+- **App Transport Security exception baked into the bundle** — release
+  builds of the desktop client silently failed every HTTP fetch to the
+  gateway because the generated `Info.plist` had no ATS exception, and
+  macOS ATS blocks plain-HTTP loads from WKWebView by default. The chat
+  surface showed "Disconnected" forever despite a healthy gateway on
+  `http://127.0.0.1:3100` (bundled sidecar) or `http://127.0.0.1:18789`
+  (SSH-tunneled remote). Dev mode masked the bug because
+  `npm run tauri dev` uses a different WKWebView path that bypasses ATS.
+  Fixed by adding a sidecar `src-tauri/Info.plist` that tauri-bundler
+  auto-merges into the bundled plist on every build. Uses the narrow
+  `NSAllowsLocalNetworking = true` scope (covers 127.0.0.1, localhost,
+  *.local only) rather than the blanket `NSAllowsArbitraryLoads`, so
+  production HTTPS gateways are unaffected and we don't broaden the
+  attack surface. Verified post-build via
+  `plutil -p IronClaw.app/Contents/Info.plist`.
+
 ## v0.2.1 (unreleased) — Rounds 26-31 (observability, templates, playground, hooks)
 
 Major adds since v0.2.0, all four CI gates green (svelte-check 0

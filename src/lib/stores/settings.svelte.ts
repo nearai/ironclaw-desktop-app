@@ -414,10 +414,18 @@ export async function loadSettings(): Promise<AppSettings> {
 }
 
 export async function saveSettings(s: AppSettings): Promise<void> {
+  // CRITICAL: Svelte 5 `$state` proxies are NOT cloneable via the structured
+  // clone algorithm — Tauri IPC's underlying postMessage chokes with
+  // `DOMException: DataCloneError "The object can not be cloned."`. This
+  // bit the onboarding wizard's Skip/Finish handlers hard (R34d). The fix:
+  // JSON-roundtrip to a pure plain-object before doing ANYTHING with it.
+  // Cheap (settings is ~1KB), safe (settings is JSON-on-disk anyway), and
+  // bulletproof against future code paths that hand us a `$state` view.
+  const plain = JSON.parse(JSON.stringify(s)) as AppSettings;
   // Always update the in-memory cache before persisting so subsequent
   // helper calls see the same view of the world even if the IPC write
   // is in-flight.
-  cached = structuredClone(s);
+  cached = structuredClone(plain);
   if (!inTauri()) {
     console.warn('saveSettings called outside Tauri; no-op');
     // Still notify siblings so the dev/browser harness can exercise
@@ -426,7 +434,7 @@ export async function saveSettings(s: AppSettings): Promise<void> {
     broadcast.send({ kind: 'settings-changed' });
     return;
   }
-  await invoke('save_settings', { settings: s });
+  await invoke('save_settings', { settings: plain });
   // Fan the change out to every sibling window so their
   // `connection.settings` rune refreshes from disk. Fires AFTER the
   // IPC resolves so peers never read stale on-disk state. Loop-safe:

@@ -74,6 +74,14 @@ class ConnectionStore {
 
   private timer: ReturnType<typeof setInterval> | null = null;
   private initialized = false;
+  /** In-flight `init()` promise. Cached so concurrent callers from the
+   *  layout root, the sidebar, the status bar, and the chat surface
+   *  dedupe to ONE initialization AND every caller awaits the same
+   *  resolution. Without this, the second caller's `await init()`
+   *  resolves before `loadSettings()` has fired — observing the
+   *  DEFAULT_SETTINGS placeholder (onboardingComplete: false) instead
+   *  of the persisted shape on disk. R29a per CHANGELOG. */
+  private initPromise: Promise<void> | null = null;
   /** Last status pushed to the menu-bar tray. Tracked so we only fire
    *  the `update_tray_status` IPC on a real transition, not on every
    *  effect re-run (Svelte may re-evaluate effects when unrelated deps
@@ -209,18 +217,32 @@ class ConnectionStore {
     this.token ? new IronClawClient({ baseUrl: this.baseUrl, token: this.token }) : null
   );
 
-  /** Load settings + token and start the health-poll loop. Safe to call repeatedly. */
-  async init() {
+  /** Load settings + token and start the health-poll loop. Safe to call
+   *  repeatedly — concurrent callers await the SAME in-flight promise so
+   *  they all observe the loaded settings on resolve (not the
+   *  DEFAULT_SETTINGS placeholder). */
+  async init(): Promise<void> {
     if (this.initialized) return;
-    this.initialized = true;
-    this.settings = await loadSettings();
-    // Pick up a `?profile=<id>` query param if this window was opened
-    // via the multi-window command. We only honour it when the id
-    // matches a real profile — a stale or hand-crafted override silently
-    // falls through to the persisted active profile so the UI never
-    // ends up rendering an empty active-profile slot.
-    this.windowProfileOverride = this.readProfileOverrideFromUrl();
-    await this.applyModeAndConnect({ allowAutoStart: true });
+    if (this.initPromise) return this.initPromise;
+    this.initPromise = (async () => {
+      try {
+        this.settings = await loadSettings();
+        // Pick up a `?profile=<id>` query param if this window was opened
+        // via the multi-window command. We only honour it when the id
+        // matches a real profile — a stale or hand-crafted override
+        // silently falls through to the persisted active profile so the
+        // UI never ends up rendering an empty active-profile slot.
+        this.windowProfileOverride = this.readProfileOverrideFromUrl();
+        await this.applyModeAndConnect({ allowAutoStart: true });
+        this.initialized = true;
+      } finally {
+        // Clear the cache regardless of success/failure. On failure a
+        // subsequent caller can retry from scratch; on success the
+        // `initialized` short-circuit above keeps re-entry cheap.
+        this.initPromise = null;
+      }
+    })();
+    return this.initPromise;
   }
 
   /**

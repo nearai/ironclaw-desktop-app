@@ -753,13 +753,23 @@ class NotificationStore {
     }
     this.trayRecentInFlight = true;
     try {
-      const items = this.history.slice(0, HISTORY_MENU_LIMIT).map((e) => ({
-        id: e.id,
-        title: e.title,
-        // Collapse newlines + trim so the macOS menu renderer doesn't
-        // see embedded `\n` (it would render as a literal escape).
-        body: e.body.replace(/\s+/g, ' ').trim()
-      }));
+      // CRITICAL: `this.history` is `$state`, and Svelte 5 proxies are NOT
+      // structured-cloneable — Tauri's IPC postMessage chokes with
+      // `DOMException: DataCloneError`. JSON-roundtrip the payload before
+      // invoke() so the wire sees a pure plain object. Cheap (a handful of
+      // entries), safe (already JSON-serialised to localStorage), and
+      // bulletproof against future code paths that derive items from state.
+      const items = JSON.parse(
+        JSON.stringify(
+          this.history.slice(0, HISTORY_MENU_LIMIT).map((e) => ({
+            id: e.id,
+            title: e.title,
+            // Collapse newlines + trim so the macOS menu renderer doesn't
+            // see embedded `\n` (it would render as a literal escape).
+            body: e.body.replace(/\s+/g, ' ').trim()
+          }))
+        )
+      );
       await invoke('update_tray_recent', { items });
     } catch (err) {
       // Tray IPC failure is non-fatal — the submenu is decorative.

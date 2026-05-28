@@ -53,6 +53,13 @@
     profiles: [],
     onboardingComplete: false
   });
+  /** True once the user has interacted with the draft (picked a mode,
+   *  typed a URL, etc). Gates the onMount settings hydrate so a slow
+   *  `loadSettings()` resolving AFTER the user already clicked Local
+   *  on step 1 does NOT silently revert their choice by overwriting
+   *  the entire `settings` rune with the on-disk shape. Real bug from
+   *  the v0.2.0 .app dogfood — see CHANGELOG. */
+  let settingsTouched = $state(false);
 
   /** Active profile inside the editable draft. Everything the wizard
    *  writes (mode, URL, LLM backend, Keychain entries) goes through this. */
@@ -62,6 +69,7 @@
 
   function patchActiveProfile(patch: Partial<ProfileConfig>) {
     if (!activeProfile) return;
+    settingsTouched = true;
     settings = {
       ...settings,
       profiles: settings.profiles.map((p) => (p.id === activeProfile.id ? { ...p, ...patch } : p))
@@ -150,8 +158,36 @@
   let detectedSaved = $state(false);
 
   onMount(async () => {
-    settings = await loadSettings();
-    const id = settings.activeProfileId;
+    const loaded = await loadSettings();
+    // Hydrate the draft from disk. If the user has already interacted with
+    // the wizard (picked Local on step 1 before this slow load resolved),
+    // we MERGE rather than replace: take the disk shape as a baseline but
+    // overlay the user's mode pick (and any other patched fields) so the
+    // late-arriving load can't silently revert their choice. Without the
+    // overlay, the v0.2.0 .app dogfood showed step 2 silently flipping
+    // back to REMOTE after the user clicked Local — Next/Skip would then
+    // appear to "do nothing visible" because the wrong body re-rendered.
+    if (!settingsTouched) {
+      settings = loaded;
+    } else if (pendingChosenMode !== null) {
+      // Slow-load path: user already picked a mode. Take the disk profiles
+      // and apply the pending mode to the active profile so step 2 renders
+      // the user's intended body.
+      const activeId = loaded.activeProfileId;
+      settings = {
+        ...loaded,
+        profiles: loaded.profiles.map((p) =>
+          p.id === activeId
+            ? {
+                ...p,
+                mode: pendingChosenMode!,
+                llmBackend: p.llmBackend ?? 'nearai'
+              }
+            : p
+        )
+      };
+    }
+    const id = loaded.activeProfileId;
     if (id) {
       const t = await getToken(id);
       tokenStored = !!t;
@@ -160,9 +196,11 @@
     }
     // Hydrate the tint picker from the active profile so a Re-run-onboarding
     // user sees their existing accent pre-selected. New installs land with
-    // `tint: undefined` which resolves to 'signal' (the default).
-    const active = settings.profiles.find((p) => p.id === settings.activeProfileId);
-    if (active?.tint) chosenTint = active.tint;
+    // `tint: undefined` which resolves to 'signal' (the default). We use the
+    // freshly-loaded snapshot rather than the live draft so a touched draft
+    // (Local picked early) still seeds the picker correctly.
+    const active = loaded.profiles.find((p) => p.id === loaded.activeProfileId);
+    if (active?.tint && !tintTouched) chosenTint = active.tint;
   });
 
   /** Live preview: paint the four `--v2-accent*` CSS variables on
@@ -361,7 +399,20 @@
 
   // ---- navigation helpers --------------------------------------------------
 
+  /** Mode the user clicked on step 1. Tracked separately from the active
+   *  profile so a click that lands BEFORE the slow `loadSettings()`
+   *  resolves (empty profiles array → `patchActiveProfile` no-op) still
+   *  records the intent. A follow-up $effect re-applies the pick once
+   *  the profile materializes, keeping step 2's body in sync with the
+   *  user's choice. Real bug from v0.2.0 .app dogfood. */
+  let pendingChosenMode = $state<ConnectionMode | null>(null);
+
   function chooseMode(mode: ConnectionMode) {
+    // Record the user's intent up-front so a later loadSettings resolve
+    // (or the $effect below) can re-apply it even if the draft was empty
+    // at click time.
+    pendingChosenMode = mode;
+    settingsTouched = true;
     // Default the local-mode backend to NEAR.AI Cloud unless the user
     // already picked OpenRouter in a previous session.
     patchActiveProfile({
@@ -370,6 +421,21 @@
     });
     step = 2;
   }
+
+  /** Re-apply the user's mode pick from step 1 if `loadSettings` finishes
+   *  after `chooseMode` ran. Pure no-op when:
+   *   - the user hasn't picked a mode yet (pendingChosenMode === null), or
+   *   - there's no active profile to patch yet, or
+   *   - the active profile already matches the pick. */
+  $effect(() => {
+    if (pendingChosenMode === null) return;
+    if (!activeProfile) return;
+    if (activeProfile.mode === pendingChosenMode) return;
+    patchActiveProfile({
+      mode: pendingChosenMode,
+      llmBackend: activeProfile.llmBackend ?? 'nearai'
+    });
+  });
 
   function backToStep(target: 1 | 2 | 3) {
     // Clear stale test state when backing up so step 3 starts fresh.
@@ -740,6 +806,16 @@
     try {
       const next = withChosenTint({ ...settings, onboardingComplete: true });
       await saveSettings(next);
+      // Clear any prior bypass flag — the user just completed onboarding
+      // successfully, so the layout's redirect-in is no longer something
+      // to suppress on next launch.
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem('ironclaw-onboarding-bypass');
+        }
+      } catch {
+        // non-fatal
+      }
       // Reflect the new mode/url + onboarded flag into the live store so the
       // chat surface picks it up without a full reload.
       await connection.refresh();
@@ -751,19 +827,81 @@
     }
   }
 
-  /** Skip from any step. Persists whatever the user has so far (with
-   *  onboardingComplete=true) so they aren't redirected here again. Also
-   *  commits a touched tint pick — see `withChosenTint` for why. */
+  /**
+   * Skip from any step. Bulletproof contract (R34d):
+   *   1. Read CURRENT settings off disk via `loadSettings()` — NOT this
+   *      component's draft, which may have been mutated by
+   *      `chooseMode('local')` mid-flow. The wizard never gets to write
+   *      `mode: local` to disk on Skip just because the user clicked
+   *      through step 1.
+   *   2. Flip ONLY `onboardingComplete: true`, leaving every other field
+   *      (mode, URLs, llmBackend, profiles, etc.) exactly as it was on
+   *      disk.
+   *   3. Apply a touched-tint pick to whichever profile is active on
+   *      disk — the user made an explicit cosmetic choice, so it's safe
+   *      to carry through Skip.
+   *   4. Persist via the JSON-roundtrip `saveSettings` path (the JUST
+   *      patched cloneable fix at settings.svelte.ts:saveSettings — do
+   *      NOT bypass it).
+   *   5. Refresh the live connection so the chat surface picks up the
+   *      mode that was already on disk (NOT the wizard's local draft).
+   *   6. Navigate to `/`.
+   *
+   * On error: surface a toast AND set the `ironclaw-onboarding-bypass`
+   * localStorage key so the user is not trapped on /onboarding on next
+   * launch even if `saveSettings` keeps failing. The escape hatch in
+   * +layout.svelte honours this flag and short-circuits the redirect-in.
+   */
   async function skip() {
     finishing = true;
     try {
-      const next = withChosenTint({ ...settings, onboardingComplete: true });
+      // Always read from disk — never trust the in-component draft.
+      const onDisk = await loadSettings();
+      let next: AppSettings = { ...onDisk, onboardingComplete: true };
+      // Apply the touched tint to whichever profile is currently active
+      // on disk (not the draft's active profile, in case those diverged).
+      if (tintTouched) {
+        next = {
+          ...next,
+          profiles: next.profiles.map((p) =>
+            p.id === next.activeProfileId ? { ...p, tint: chosenTint } : p
+          )
+        };
+      }
       await saveSettings(next);
+      // Clear any prior bypass flag so a successful Skip doesn't leave
+      // the escape hatch armed forever.
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.removeItem('ironclaw-onboarding-bypass');
+        }
+      } catch {
+        // non-fatal
+      }
       await connection.refresh();
       toasts.show('Skipped — you can finish setup in Settings', 'info');
       await goto('/');
     } catch (err) {
-      toasts.show(`Skip failed: ${(err as Error).message}`, 'error');
+      // Belt-and-suspenders escape: flip the localStorage bypass so the
+      // layout's redirect-in is suppressed on next launch even if
+      // settings.json save is still broken.
+      try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+          window.localStorage.setItem('ironclaw-onboarding-bypass', '1');
+        }
+      } catch {
+        // If we can't even write to localStorage, the user is going to
+        // have a bad time anyway — the toast is the only signal we can
+        // surface.
+      }
+      toasts.show(`Skip failed (escape armed): ${(err as Error).message}`, 'error');
+      // Best-effort: still try to navigate out so the user gets to /;
+      // the bypass flag will carry them past the layout redirect.
+      try {
+        await goto('/');
+      } catch {
+        // ignored — finishing flips back to false so the user can retry
+      }
       finishing = false;
     }
   }
@@ -1277,8 +1415,9 @@
             <div class="flex items-center gap-4">
               <button
                 type="button"
-                onclick={() => (step = 3)}
-                class="text-sm text-text-muted hover:text-text-primary transition-colors min-h-[44px]"
+                onclick={skip}
+                disabled={finishing}
+                class="text-sm text-text-muted hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px]"
               >
                 Skip for now
               </button>
