@@ -1127,7 +1127,7 @@ export interface UserProfile {
   avatar_url?: string;
 }
 
-// ---- Replay ----------------------------------------------------------------
+// ---- Replay (R59 codex A6) -------------------------------------------------
 
 export type ReplayEventKind =
   | 'user_message'
@@ -1145,4 +1145,23 @@ export interface ReplayEvent {
   kind: ReplayEventKind;
   actor: 'user' | 'assistant' | 'tool';
   payload: Record<string, unknown>;
+}
+
+// ---- Reply-threads (R79 codex W2) ------------------------------------------
+
+export interface ReplyThread {
+  parent_message_id: string;
+  parent_thread_id: string;
+  replies: Message[];
+  unread_count: number;
+  last_updated_at: string;
+}
+
+export interface ReplyThreadStreamEvent {
+  type: 'reply.started' | 'reply.delta' | 'reply.completed' | 'reply.failed';
+  reply_id: string;
+  parent_message_id: string;
+  delta?: string;
+  message?: Message;
+  error?: string;
 }

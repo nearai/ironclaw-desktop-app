@@ -36,6 +36,7 @@ import type {
   Routine,
   RoutineRun,
   RoutineSummary,
+  ReplyThreadStreamEvent,
   Skill,
   Thread,
   ToolPermission,
@@ -403,6 +404,88 @@ export class IronClawClient {
       thread_id: res.thread_id ?? threadId ?? '',
       message_id: res.message_id
     };
+  }
+
+  async postReplyThread(
+    parentMessageId: string,
+    parentThreadId: string,
+    content: string,
+    attachments?: AttachmentInput[]
+  ): Promise<{ message_id: string }> {
+    const url = `${this.baseUrl}/api/chat/send`;
+    const maybeTauri = await loadTauriFetch();
+    const fetchImpl = maybeTauri ?? fetch;
+    const res = await fetchImpl(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
+      },
+      body: JSON.stringify({
+        content,
+        thread_id: parentThreadId,
+        reply_to_message_id: parentMessageId,
+        ...(attachments && attachments.length > 0 ? { attachments } : {})
+      })
+    });
+    if (!res.ok) throw new Error(`postReplyThread ${res.status}`);
+    return await res.json();
+  }
+
+  async listReplyThread(parentMessageId: string): Promise<Message[]> {
+    const url = `${this.baseUrl}/api/chat/messages/${encodeURIComponent(parentMessageId)}/replies`;
+    const maybeTauri = await loadTauriFetch();
+    const fetchImpl = maybeTauri ?? fetch;
+    const res = await fetchImpl(url, {
+      headers: this.token ? { Authorization: `Bearer ${this.token}` } : {}
+    });
+    if (!res.ok) {
+      if (res.status === 404) return [];
+      throw new Error(`listReplyThread ${res.status}`);
+    }
+    const body = (await res.json()) as { replies?: Message[] };
+    return body.replies ?? [];
+  }
+
+  async *streamReplyThread(
+    parentMessageId: string,
+    parentThreadId: string,
+    signal: AbortSignal
+  ): AsyncIterable<ReplyThreadStreamEvent> {
+    const url = `${this.baseUrl}/api/chat/threads/${encodeURIComponent(parentThreadId)}/events`;
+    const maybeTauri = await loadTauriFetch();
+    const fetchImpl = maybeTauri ?? fetch;
+    const res = await fetchImpl(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'text/event-stream',
+        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
+      },
+      signal
+    });
+    if (!res.ok) {
+      throw new HttpError(res.status, url, `${res.status} ${res.statusText}`);
+    }
+    if (!res.body) {
+      throw new Error('reply thread events: empty body');
+    }
+    yield* parseSseStream<ReplyThreadStreamEvent>(res.body, signal, (raw, event) => {
+      try {
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        if (!parsed.type && event !== 'message') parsed.type = event;
+        const ev = normalizeReplyThreadEvent(parsed, parentMessageId);
+        return ev ? [ev] : [];
+      } catch (e) {
+        return [
+          {
+            type: 'reply.failed',
+            reply_id: '',
+            parent_message_id: parentMessageId,
+            error: `parse error: ${(e as Error).message}`
+          }
+        ];
+      }
+    });
   }
 
   /**
@@ -3279,7 +3362,7 @@ function findFrameEnd(buf: string): number {
 async function* parseSseStream<T>(
   body: ReadableStream<Uint8Array>,
   signal: AbortSignal,
-  decode: (raw: string) => T[]
+  decode: (raw: string, event: string) => T[]
 ): AsyncIterable<T> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -3304,7 +3387,7 @@ async function* parseSseStream<T>(
         buf = buf.slice(frameEnd + (buf.startsWith('\r\n', frameEnd) ? 2 : 0) + 2);
         const parsed = parseSseFrame(rawFrame);
         if (!parsed) continue;
-        for (const out of decode(parsed.data)) yield out;
+        for (const out of decode(parsed.data, parsed.event)) yield out;
       }
     }
   } finally {
@@ -3565,7 +3648,7 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
   }
 }
 
-// ---- Replay events ---------------------------------------------------------
+// ---- Replay events (R59 codex A6) -----------------------------------------
 
 export interface IronClawClient {
   getThreadEvents(
@@ -3603,3 +3686,63 @@ IronClawClient.prototype.getThreadEvents = async function getThreadEvents(
     nextSinceTs: body.next_since_ts ?? Date.now()
   };
 };
+
+// ---- Reply-thread events (R79 codex W2) ----------------------------------
+
+function normalizeReplyThreadEvent(
+  raw: Record<string, unknown>,
+  fallbackParentMessageId: string
+): ReplyThreadStreamEvent | null {
+  const type = String(raw.type ?? '');
+  const replyId = String(raw.reply_id ?? raw.message_id ?? raw.id ?? '');
+  const parentMessageId = String(
+    raw.parent_message_id ?? raw.reply_to_message_id ?? fallbackParentMessageId
+  );
+
+  switch (type) {
+    case 'reply.started':
+      return {
+        type: 'reply.started',
+        reply_id: replyId,
+        parent_message_id: parentMessageId
+      };
+    case 'reply.delta':
+    case 'reply.streamed':
+      return {
+        type: 'reply.delta',
+        reply_id: replyId,
+        parent_message_id: parentMessageId,
+        delta: String(raw.delta ?? raw.content_delta ?? raw.content ?? '')
+      };
+    case 'reply.completed':
+    case 'reply.posted': {
+      const wireMessage = (raw.message ?? raw.reply ?? raw) as Record<string, unknown>;
+      return {
+        type: 'reply.completed',
+        reply_id: replyId || String(wireMessage.id ?? ''),
+        parent_message_id: parentMessageId,
+        message: normalizeReplyMessage(wireMessage, replyId)
+      };
+    }
+    case 'reply.failed':
+      return {
+        type: 'reply.failed',
+        reply_id: replyId,
+        parent_message_id: parentMessageId,
+        error: String(raw.error ?? raw.message ?? 'Reply thread stream failed')
+      };
+    default:
+      return null;
+  }
+}
+
+function normalizeReplyMessage(raw: Record<string, unknown>, fallbackId: string): Message {
+  const role =
+    raw.role === 'user' || raw.role === 'assistant' || raw.role === 'tool' ? raw.role : 'assistant';
+  return {
+    id: String(raw.id ?? raw.message_id ?? fallbackId),
+    role,
+    content: String(raw.content ?? raw.delta ?? ''),
+    created_at: String(raw.created_at ?? raw.timestamp ?? new Date().toISOString())
+  };
+}
