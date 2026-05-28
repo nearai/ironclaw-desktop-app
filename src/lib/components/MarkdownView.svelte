@@ -51,6 +51,7 @@
   import css from 'highlight.js/lib/languages/css';
   import 'highlight.js/styles/github-dark.css';
   import { mount, unmount } from 'svelte';
+  import type { PromotableBlock, WidgetKind } from '$lib/api/types';
   import { toasts } from '$lib/stores/toasts.svelte';
   import Mermaid from './markdown-renderers/Mermaid.svelte';
   import MathRenderer from './markdown-renderers/Math.svelte';
@@ -78,7 +79,10 @@
   // yml; rust → rs; xml → html/xhtml/rss/atom; ini → toml — so those are free.)
   hljs.registerAliases(['shell', 'console'], { languageName: 'bash' });
 
-  let { markdown = '' }: { markdown?: string } = $props();
+  let {
+    markdown = '',
+    onPromote
+  }: { markdown?: string; onPromote?: (block: PromotableBlock) => void } = $props();
 
   // `marked.parse` is synchronous when `async: false` (the default in v15).
   // We cast through `string` because the typings allow `Promise<string>`.
@@ -243,6 +247,7 @@
 
   let wrapperEl = $state<HTMLDivElement | null>(null);
   let mountedRenderers: ReturnType<typeof mount>[] = [];
+  let promotableBlocks = new Map<string, PromotableBlock>();
 
   const MATH_RE = /(?<!\\)\$\$([\s\S]+?)(?<!\\)\$\$|(?<!\\)\$([^$\n]+?)(?<!\\)\$/gu;
 
@@ -336,6 +341,128 @@
     });
   }
 
+  function isHeading(el: Element | null): el is HTMLElement {
+    return !!el && /^H[1-6]$/u.test(el.tagName);
+  }
+
+  function headingText(el: HTMLElement | null): string | undefined {
+    if (!el) return undefined;
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('.md-anchor').forEach((anchor) => anchor.remove());
+    const text = clone.textContent?.trim();
+    return text || undefined;
+  }
+
+  function nearestPreviousHeading(el: Element): HTMLElement | null {
+    let cursor = el.previousElementSibling;
+    while (cursor) {
+      if (isHeading(cursor)) return cursor;
+      cursor = cursor.previousElementSibling;
+    }
+    return null;
+  }
+
+  function splitTableRow(row: HTMLTableRowElement): string[] {
+    return Array.from(row.cells).map((cell) => cell.textContent?.trim() ?? '');
+  }
+
+  function tablePayload(table: HTMLTableElement): {
+    headers: string[];
+    rows: string[][];
+    markdown: string;
+  } {
+    const headerRow = table.tHead?.rows[0] ?? table.rows[0];
+    const headers = headerRow ? splitTableRow(headerRow) : [];
+    const bodyRows = table.tBodies.length > 0 ? Array.from(table.tBodies[0].rows) : [];
+    const rows = bodyRows.map(splitTableRow);
+    const divider = headers.map(() => '---');
+    const markdownRows = [headers, divider, ...rows].map((row) => `| ${row.join(' | ')} |`);
+    return { headers, rows, markdown: markdownRows.join('\n') };
+  }
+
+  function wrapPromotable(elements: HTMLElement[], block: PromotableBlock) {
+    if (!onPromote || elements.length === 0) return;
+    if (elements.some((el) => el.closest('.md-promotable-block'))) return;
+
+    const id = `promote-${promotableBlocks.size + 1}`;
+    promotableBlocks.set(id, block);
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'md-promotable-block';
+    wrapper.dataset.promoteId = id;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'md-promote-btn';
+    button.title = 'Promote to widget';
+    button.setAttribute('aria-label', 'Promote to widget');
+    button.dataset.promoteBtn = '1';
+    button.textContent = '⋮';
+
+    const first = elements[0];
+    first.parentNode?.insertBefore(wrapper, first);
+    for (const el of elements) {
+      wrapper.appendChild(el);
+    }
+    wrapper.appendChild(button);
+  }
+
+  function enhancePromotableBlocks(root: HTMLElement) {
+    promotableBlocks = new Map();
+    if (!onPromote) return;
+
+    root
+      .querySelectorAll<HTMLElement>('.md-renderer-host--mermaid, .md-renderer-host--plotly')
+      .forEach((host) => {
+        const renderer = host.dataset.mdRenderer;
+        const kind: WidgetKind | null =
+          renderer === 'mermaid' ? 'mermaid' : renderer === 'plotly' ? 'chart' : null;
+        if (!kind) return;
+        const source = decodeRendererSource(host.dataset.source ?? '');
+        wrapPromotable([host], {
+          kind,
+          title: headingText(nearestPreviousHeading(host)),
+          payload: source,
+          source: {}
+        });
+      });
+
+    root.querySelectorAll<HTMLTableElement>('table').forEach((table) => {
+      const prev = table.previousElementSibling;
+      if (!isHeading(prev)) return;
+      const payload = tablePayload(table);
+      if (payload.rows.length < 2 || payload.headers.length < 3) return;
+      wrapPromotable([table], {
+        kind: payload.headers.length === 3 ? 'comparison' : 'table',
+        title: headingText(prev),
+        payload,
+        source: {}
+      });
+    });
+
+    root.querySelectorAll<HTMLElement>('h1, h2, h3, h4, h5, h6').forEach((heading) => {
+      const title = headingText(heading);
+      if (!title || !/brief|summary|news/iu.test(title)) return;
+      const elements: HTMLElement[] = [heading];
+      let cursor = heading.nextElementSibling;
+      while (cursor?.tagName === 'P') {
+        elements.push(cursor as HTMLElement);
+        cursor = cursor.nextElementSibling;
+      }
+      if (elements.length < 4) return;
+      const payload = elements
+        .slice(1)
+        .map((el) => el.textContent?.trim() ?? '')
+        .filter(Boolean)
+        .join('\n\n');
+      wrapPromotable(elements, {
+        kind: 'text',
+        title,
+        payload,
+        source: {}
+      });
+    });
+  }
+
   // Walk the rendered DOM after each html update and wrap any <pre> blocks
   // that don't yet have a copy button. We deliberately don't re-render — we
   // mutate the DOM directly because Svelte's {@html} owns the children but
@@ -351,6 +478,7 @@
     clearMountedRenderers();
     applyMathPlaceholders(wrapperEl);
     mountRendererPlaceholders(wrapperEl);
+    enhancePromotableBlocks(wrapperEl);
 
     const pres = wrapperEl.querySelectorAll('pre');
     pres.forEach((pre) => {
@@ -388,6 +516,15 @@
   async function onWrapperClick(e: MouseEvent) {
     const target = e.target as HTMLElement | null;
     if (!target) return;
+
+    const promoteBtn = target.closest<HTMLButtonElement>('[data-promote-btn="1"]');
+    if (promoteBtn) {
+      e.preventDefault();
+      const id = promoteBtn.closest<HTMLElement>('.md-promotable-block')?.dataset.promoteId;
+      const block = id ? promotableBlocks.get(id) : undefined;
+      if (block) onPromote?.(block);
+      return;
+    }
 
     // Anchor handle on a heading → copy `#slug` and prevent default so we
     // don't trigger a hash navigation that would scroll the surrounding
@@ -630,6 +767,46 @@
     overflow-x: auto;
   }
 
+  .markdown :global(.md-promotable-block) {
+    position: relative;
+  }
+
+  .markdown :global(.md-promote-btn) {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 4px;
+    border: 1px solid rgba(76, 167, 230, 0.25);
+    background: rgba(5, 8, 16, 0.8);
+    color: #9ca3af;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    font-size: 1.05rem;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0;
+    transition:
+      opacity 120ms ease,
+      color 120ms ease,
+      border-color 120ms ease;
+    z-index: 2;
+  }
+
+  .markdown :global(.md-promotable-block:hover .md-promote-btn),
+  .markdown :global(.md-promote-btn:focus-visible) {
+    opacity: 1;
+  }
+
+  .markdown :global(.md-promote-btn:hover) {
+    color: #4ca7e6;
+    border-color: rgba(76, 167, 230, 0.5);
+  }
+
   .markdown :global(blockquote) {
     margin: 0.75em 0;
     padding: 0.25em 0.75em;
@@ -741,5 +918,11 @@
   .markdown :global(img) {
     max-width: 100%;
     border-radius: 4px;
+  }
+
+  @media print {
+    .markdown :global(.md-promote-btn) {
+      display: none;
+    }
   }
 </style>

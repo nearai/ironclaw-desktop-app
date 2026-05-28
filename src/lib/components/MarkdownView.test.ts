@@ -13,7 +13,7 @@
 // `[click](javascript:…)` smuggling vector.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, waitFor } from '@testing-library/svelte';
 
 import MarkdownView from './MarkdownView.svelte';
 
@@ -97,6 +97,60 @@ describe('MarkdownView sanitization + renderer', () => {
     expect(table?.querySelector('thead')).not.toBeNull();
     expect(table?.querySelector('tbody')).not.toBeNull();
     expect(table?.querySelectorAll('tbody tr').length).toBe(2);
+  });
+
+  it('emits a promotable table block from a heading-followed table', async () => {
+    const onPromote = vi.fn();
+    const md = [
+      '## TEE hardware comparison',
+      '',
+      '| Feature | SGX | SEV |',
+      '| --- | --- | --- |',
+      '| Isolation | Enclave | VM |',
+      '| Attestation | DCAP | SNP report |'
+    ].join('\n');
+    const { container } = render(MarkdownView, { props: { markdown: md, onPromote } });
+
+    const button = await waitFor(() => {
+      const found = container.querySelector<HTMLButtonElement>('.md-promote-btn');
+      expect(found).not.toBeNull();
+      return found as HTMLButtonElement;
+    });
+    await fireEvent.click(button);
+
+    expect(onPromote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'comparison',
+        title: 'TEE hardware comparison',
+        payload: expect.objectContaining({
+          headers: ['Feature', 'SGX', 'SEV'],
+          rows: [
+            ['Isolation', 'Enclave', 'VM'],
+            ['Attestation', 'DCAP', 'SNP report']
+          ]
+        })
+      })
+    );
+  });
+
+  it('emits a promotable mermaid block from an explicit fence', async () => {
+    const onPromote = vi.fn();
+    const md = '```mermaid\ngraph TD; A-->B\n```';
+    const { container } = render(MarkdownView, { props: { markdown: md, onPromote } });
+
+    const button = await waitFor(() => {
+      const found = container.querySelector<HTMLButtonElement>('.md-promote-btn');
+      expect(found).not.toBeNull();
+      return found as HTMLButtonElement;
+    });
+    await fireEvent.click(button);
+
+    expect(onPromote).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'mermaid',
+        payload: 'graph TD; A-->B'
+      })
+    );
   });
 
   it('renders [!NOTE] / [!WARNING] callouts with the right class', () => {

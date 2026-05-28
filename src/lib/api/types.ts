@@ -70,6 +70,34 @@ export interface Message {
   created_at: string;
 }
 
+export type WidgetKind = 'chart' | 'table' | 'text' | 'mermaid' | 'comparison';
+
+export interface Widget {
+  id: string;
+  kind: WidgetKind;
+  title: string;
+  source: {
+    thread_id?: string;
+    message_id?: string;
+    query?: string;
+  };
+  payload: unknown;
+  pinned_to: ('dashboard' | 'canvas' | string)[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PromotableBlock {
+  kind: WidgetKind;
+  title?: string;
+  payload: unknown;
+  source: {
+    thread_id?: string;
+    message_id?: string;
+    query?: string;
+  };
+}
+
 /**
  * One attachment in a `POST /api/chat/send` payload.
  *
