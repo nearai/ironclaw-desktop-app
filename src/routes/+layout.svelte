@@ -264,6 +264,7 @@
   }
 
   const ROUTES_BY_DIGIT: Record<string, string> = {
+    '0': '/council',
     '1': '/',
     '2': '/knowledge',
     '3': '/skills',

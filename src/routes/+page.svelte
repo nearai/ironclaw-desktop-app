@@ -15,6 +15,7 @@
   import { notifications } from '$lib/stores/notifications.svelte';
   import { pins } from '$lib/stores/pins.svelte';
   import { threadRename } from '$lib/stores/thread-rename.svelte';
+  import { threadModel } from '$lib/stores/thread-model.svelte';
   import { slashUsage } from '$lib/stores/slash-usage.svelte';
   import { composerInsert } from '$lib/stores/templates.svelte';
   import { telemetry } from '$lib/stores/telemetry.svelte';
@@ -27,7 +28,8 @@
     sanitizeFilenameStem,
     saveTextDialog
   } from '$lib/api/files';
-  import type { AttachmentInput, ChatEvent, Message, Skill } from '$lib/api/types';
+  import type { AttachmentInput, ChatEvent, LlmProvider, Message, Skill } from '$lib/api/types';
+  import { estimateTokens } from '$lib/utils/tokens';
   import SlashAutocomplete from './SlashAutocomplete.svelte';
   import ChatSearch from './ChatSearch.svelte';
   import ResizeHandle from '$lib/components/ResizeHandle.svelte';
@@ -283,6 +285,62 @@
   const isLoadingMore = $derived(currentId ? messages.isLoadingMore(currentId) : false);
   const hasNoMoreHistory = $derived(currentId ? messages.hasNoMoreHistory(currentId) : false);
 
+  // ---- Provider chip cache --------------------------------------------------
+  //
+  // Cache the `/api/llm/providers` catalog once per connect so the header
+  // chip can resolve `connection.activeProfile.llmProviderId` to a human-
+  // readable name without re-hitting the gateway on every render. The
+  // catalog is small (one entry per builtin provider, ~10 today) and
+  // changes only when the user installs / configures a new provider —
+  // refreshing on connect is plenty.
+  //
+  // Failures (network drop, gateway 5xx) fall back to an empty array so
+  // the chip silently renders the bare provider id rather than crashing.
+  let llmProviders = $state<LlmProvider[]>([]);
+
+  /**
+   * Resolved active provider for the current connection. Reads the
+   * profile's `llmProviderId` (the new richer field) with a fall-back
+   * to the legacy `llmBackend` binary marker for older profiles, then
+   * looks the id up in the cached catalog to get a display name +
+   * default model.
+   *
+   * `undefined` when there's no active profile or no matching entry —
+   * the chip renders nothing in that case rather than a half-broken
+   * "Unknown" badge.
+   */
+  const activeProvider = $derived.by(() => {
+    const profile = connection.activeProfile;
+    if (!profile) return undefined;
+    const id = profile.llmProviderId ?? profile.llmBackend;
+    if (!id) return undefined;
+    const match = llmProviders.find((p) => p.id === id);
+    if (match) return match;
+    // Fallback: synthesize a minimal provider so the chip can still
+    // render the id (better than no chip at all). `default_model` stays
+    // undefined so the tooltip doesn't lie about a model we don't know.
+    return { id, name: id } as LlmProvider;
+  });
+
+  /**
+   * Estimated total token count for the currently-active thread, computed
+   * by summing `estimateTokens` over every message in the thread. Memoized
+   * via `$derived` so the recompute only fires when the messages array
+   * actually changes — typing in the composer doesn't re-run the sum.
+   *
+   * Returns null when there's no active thread or the message list is
+   * empty; the chip render checks for null and skips rather than
+   * surfacing "~0 tokens".
+   */
+  const currentThreadTokens = $derived.by(() => {
+    if (!currentId) return null;
+    const msgs = messages.get(currentId);
+    if (!msgs || msgs.length === 0) return null;
+    let sum = 0;
+    for (const m of msgs) sum += estimateTokens(m.content);
+    return sum;
+  });
+
   // ---- Thread-rail derived values ------------------------------------------
   /**
    * Sorted thread list — single source of truth for both render paths.
@@ -529,6 +587,11 @@
     // keep it scoped to this mount.
     slashUsage.init();
 
+    // Hydrate the per-thread provider tracker so the chat-header chip
+    // can render the recorded provider for previously-tagged threads
+    // without waiting for the next assistant turn.
+    threadModel.init();
+
     // Surface refresh (Cmd+R): refetch the thread list and, if a thread
     // is selected, its full message history. Mirrors what `boot()` does
     // post-init minus the deep-link consumption (we're not navigating).
@@ -605,6 +668,22 @@
     }
   }
 
+  /**
+   * Warm the LLM provider catalog used by the chat header chip. The chip
+   * resolves `connection.activeProfile.llmProviderId` → provider display
+   * name against this cache; falling through to a re-fetch on every render
+   * would hammer the gateway needlessly. Best-effort: on failure the chip
+   * just renders the bare provider id (still better than no chip at all).
+   */
+  async function loadLlmProviderCatalog(): Promise<void> {
+    if (!connection.client) return;
+    try {
+      llmProviders = await connection.client.listLlmProviders();
+    } catch {
+      // Non-fatal — the chip falls through to rendering the id verbatim.
+    }
+  }
+
   async function boot() {
     // Connection store is initialized by the sidebar's onMount; if the user
     // landed here first we still want a client, so init defensively.
@@ -633,6 +712,9 @@
       // Retry the catalog after init resolves — onMount fires before
       // `connection.client` is non-null on a cold load.
       void loadSkillCatalog();
+      // Warm the provider catalog for the chat-header chip. Independent
+      // of the skill catalog so a failure on one doesn't block the other.
+      void loadLlmProviderCatalog();
     }
   }
 
@@ -1391,6 +1473,18 @@
       await messages.loadHistory(threadId);
       await threads.refresh();
       if (!streamErrored) messages.clearFailed(localId);
+
+      // Record the provider that produced this turn so the chat header
+      // can show a "produced by X" chip. We read `activeProfile` at the
+      // moment the stream completes — a mid-stream profile switch is
+      // captured on the next turn rather than mis-tagging the current
+      // one. Skipped on error so a failed stream doesn't stamp a thread
+      // with a provider that didn't actually answer.
+      if (!streamErrored && !signal.aborted) {
+        const providerId =
+          connection.activeProfile?.llmProviderId ?? connection.activeProfile?.llmBackend;
+        if (providerId) threadModel.setProvider(threadId, providerId);
+      }
 
       // Lightweight observability — debug-only console signal so a power
       // user can confirm which transport ran without firing a toast at
@@ -2159,7 +2253,21 @@
                       title="Locally renamed">✏</span
                     >{/if}
                 </span>
-                <span class="text-[10px] text-text-muted">{relativeTime(t.updated_at)}</span>
+                <span class="text-[10px] text-text-muted flex items-center gap-1.5">
+                  <span>{relativeTime(t.updated_at)}</span>
+                  <!-- Per-thread token estimate. Only rendered for the
+                       active thread to keep the rail render cheap — the
+                       messages store only carries history for the
+                       focused conversation. -->
+                  {#if active && currentThreadTokens !== null && currentThreadTokens > 0}
+                    <span
+                      class="text-text-muted/70"
+                      title="Estimated total tokens in this conversation (~4 chars per token heuristic)"
+                      aria-label={`Estimated ${currentThreadTokens} tokens`}
+                      >· ~{currentThreadTokens.toLocaleString()} tokens</span
+                    >
+                  {/if}
+                </span>
               </button>
               <!-- Pin star — absolutely positioned over the row's right
                    edge so the click target sits clear of the underlying
@@ -2245,9 +2353,17 @@
                       title="Locally renamed">✏</span
                     >{/if}
                 </span>
-                <span class="text-[10px] text-text-muted"
-                  >{relativeTime(row.thread.updated_at)}</span
-                >
+                <span class="text-[10px] text-text-muted flex items-center gap-1.5">
+                  <span>{relativeTime(row.thread.updated_at)}</span>
+                  {#if active && currentThreadTokens !== null && currentThreadTokens > 0}
+                    <span
+                      class="text-text-muted/70"
+                      title="Estimated total tokens in this conversation (~4 chars per token heuristic)"
+                      aria-label={`Estimated ${currentThreadTokens} tokens`}
+                      >· ~{currentThreadTokens.toLocaleString()} tokens</span
+                    >
+                  {/if}
+                </span>
               </button>
               <button
                 type="button"
@@ -2399,6 +2515,42 @@
                 class="text-[10px] text-accent-gold flex-shrink-0 select-none"
               >
                 ✏
+              </span>
+            {/if}
+            <!--
+              Provider chip — small cyan-outlined pill showing the LLM
+              provider currently configured on the active profile (and
+              the one that produced the most recent assistant turn on
+              this thread, assuming the profile hasn't changed). The
+              tooltip surfaces the underlying default model id from the
+              cached `/api/llm/providers` catalog. Renders nothing when
+              there's no active provider — graceful degrade rather than
+              a half-broken "Unknown" badge.
+
+              We also surface the per-thread recorded provider if it
+              differs from the currently-active one, so a user who's
+              switched profiles can see which provider this thread was
+              previously on. The chip always reflects the most recent
+              recorded provider for the active thread.
+            -->
+            {#if activeProvider}
+              {@const recordedId = currentThread
+                ? threadModel.getProvider(currentThread.id)
+                : undefined}
+              {@const recorded =
+                recordedId && recordedId !== activeProvider.id
+                  ? llmProviders.find((p) => p.id === recordedId)
+                  : undefined}
+              {@const shown = recorded ?? activeProvider}
+              <span
+                class="inline-flex items-center justify-center px-2 py-0.5 rounded-full border border-accent-cyan/40 text-[10px] font-medium text-accent-cyan flex-shrink-0 select-none truncate max-w-[80px]"
+                style="min-width: 64px;"
+                title={shown.default_model
+                  ? `Model: ${shown.default_model}`
+                  : `Provider: ${shown.id}`}
+                aria-label={`Provider: ${shown.name}`}
+              >
+                {shown.name}
               </span>
             {/if}
             <!--

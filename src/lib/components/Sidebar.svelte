@@ -39,6 +39,7 @@
     label: string;
     icon:
       | 'chat'
+      | 'council'
       | 'knowledge'
       | 'logs'
       | 'routines'
@@ -61,6 +62,12 @@
 
   const items: NavItem[] = [
     { href: '/', label: 'Chat', icon: 'chat', shortcut: '⌘1', badgeKey: 'chat' },
+    // Council sits between Chat and Knowledge. Cmd+0 keeps the existing
+    // 1..9 numbering intact so muscle memory survives the addition —
+    // numerically it lives "after" 9 but visually it's the second row
+    // because LLM fanout is conceptually a chat-adjacent surface, not
+    // an admin one.
+    { href: '/council', label: 'Council', icon: 'council', shortcut: '⌘0' },
     { href: '/knowledge', label: 'Knowledge', icon: 'knowledge', shortcut: '⌘2' },
     { href: '/skills', label: 'Skills', icon: 'skills', shortcut: '⌘3', badgeKey: 'skills' },
     {
@@ -183,10 +190,7 @@
       try {
         await invoke('open_profile_window', { profileId: id });
         const profile = connection.settings.profiles.find((p) => p.id === id);
-        toasts.show(
-          `Opened "${profile?.name ?? id}" in a new window`,
-          'info'
-        );
+        toasts.show(`Opened "${profile?.name ?? id}" in a new window`, 'info');
       } catch (err) {
         toasts.show(`Open window failed: ${(err as Error).message}`, 'error');
       }
@@ -662,18 +666,13 @@
       <path d="M4 17l8 4 8-4" stroke-linejoin="round" />
     </svg>
     {#if !collapsed}
-      <span
-        class="text-lg font-semibold tracking-tight"
-        style="color: var(--v2-accent);"
-      >IronClaw</span>
+      <span class="text-lg font-semibold tracking-tight" style="color: var(--v2-accent);"
+        >IronClaw</span
+      >
     {/if}
   </div>
 
-  <nav
-    class="flex-1 space-y-1"
-    class:px-2={!collapsed}
-    class:px-1={collapsed}
-  >
+  <nav class="flex-1 space-y-1" class:px-2={!collapsed} class:px-1={collapsed}>
     {#each visibleItems as item (item.href)}
       {@const active = isActive(item.href)}
       {@const showCornerDot = collapsed && item.badgeKey !== undefined && hasBadge(item.badgeKey)}
@@ -699,6 +698,27 @@
         <span class="relative shrink-0 inline-flex items-center justify-center">
           {#if item.icon === 'chat'}
             <Icon name="chat" class="w-4 h-4" />
+          {:else if item.icon === 'council'}
+            <!-- Council = multi-provider fanout. Three-stacked-bars glyph
+                 visually distinct from chat (single bubble) and skills
+                 (single tool), reads as "panel of voices" at thumbnail
+                 size. Inline SVG because the shared Icon set doesn't yet
+                 ship a comparable glyph; the design language matches the
+                 other 1.7-stroke / currentColor icons in the set. -->
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="4" width="6" height="16" rx="1" />
+              <rect x="11" y="4" width="6" height="16" rx="1" />
+              <line x1="20" y1="6" x2="20" y2="18" />
+            </svg>
           {:else if item.icon === 'knowledge'}
             <Icon name="folder" class="w-4 h-4" />
           {:else if item.icon === 'skills'}
@@ -707,9 +727,19 @@
             <!-- TODO: add 'puzzle-piece' to Icon component. No matching glyph
                  in the shared set yet — keeping inline as a fallback so the
                  row keeps its distinctive shape. -->
-            <svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
               <!-- Puzzle piece glyph -->
-              <path d="M19.4 7H17V4.6c0-.88-.72-1.6-1.6-1.6h-2.8c-.88 0-1.6.72-1.6 1.6V7H8.6C7.72 7 7 7.72 7 8.6v2.8h2.4c.88 0 1.6.72 1.6 1.6s-.72 1.6-1.6 1.6H7v2.8c0 .88.72 1.6 1.6 1.6h2.8v-2.4c0-.88.72-1.6 1.6-1.6s1.6.72 1.6 1.6V19h2.8c.88 0 1.6-.72 1.6-1.6V15h2.4c.88 0 1.6-.72 1.6-1.6v-2.8c0-.88-.72-1.6-1.6-1.6H21V8.6c0-.88-.72-1.6-1.6-1.6z" />
+              <path
+                d="M19.4 7H17V4.6c0-.88-.72-1.6-1.6-1.6h-2.8c-.88 0-1.6.72-1.6 1.6V7H8.6C7.72 7 7 7.72 7 8.6v2.8h2.4c.88 0 1.6.72 1.6 1.6s-.72 1.6-1.6 1.6H7v2.8c0 .88.72 1.6 1.6 1.6h2.8v-2.4c0-.88.72-1.6 1.6-1.6s1.6.72 1.6 1.6V19h2.8c.88 0 1.6-.72 1.6-1.6V15h2.4c.88 0 1.6-.72 1.6-1.6v-2.8c0-.88-.72-1.6-1.6-1.6H21V8.6c0-.88-.72-1.6-1.6-1.6z"
+              />
             </svg>
           {:else if item.icon === 'routines'}
             <Icon name="clock" class="w-4 h-4" />
@@ -751,24 +781,34 @@
           {#if item.badgeKey === 'chat' && chatBadge !== null}
             <span class="sidebar-badge" aria-label="{chatBadge} threads">{chatBadge}</span>
           {:else if item.badgeKey === 'skills' && skillsBadge !== null}
-            <span class="sidebar-badge" aria-label="{skillsBadge} installed skills">{skillsBadge}</span>
+            <span class="sidebar-badge" aria-label="{skillsBadge} installed skills"
+              >{skillsBadge}</span
+            >
           {:else if item.badgeKey === 'routines' && routinesBadge !== null}
-            <span class="sidebar-badge" aria-label="{routinesEnabled} enabled routines">{routinesBadge}</span>
+            <span class="sidebar-badge" aria-label="{routinesEnabled} enabled routines"
+              >{routinesBadge}</span
+            >
           {:else if item.badgeKey === 'jobs' && jobsBadge !== null}
             <span class="sidebar-badge" aria-label="{jobsBadge} jobs running">{jobsBadge}</span>
           {:else if item.badgeKey === 'extensions' && extensionsBadge !== null}
-            <span class="sidebar-badge" aria-label="{extensionsBadge} installed extensions">{extensionsBadge}</span>
+            <span class="sidebar-badge" aria-label="{extensionsBadge} installed extensions"
+              >{extensionsBadge}</span
+            >
           {:else if item.badgeKey === 'missions' && missionsBadge !== null}
-            <span class="sidebar-badge" aria-label="{missionsBadge} active missions">{missionsBadge}</span>
+            <span class="sidebar-badge" aria-label="{missionsBadge} active missions"
+              >{missionsBadge}</span
+            >
           {:else if item.badgeKey === 'logs' && logsHasRecentError}
-            <span class="w-2 h-2 rounded-full bg-red-500" aria-label="recent errors" title="Recent errors in logs"></span>
+            <span
+              class="w-2 h-2 rounded-full bg-red-500"
+              aria-label="recent errors"
+              title="Recent errors in logs"
+            ></span>
           {:else if item.badgeKey === 'settings' && settingsNeedsAttention}
             <span
               class="w-2 h-2 rounded-full bg-accent-gold"
               aria-label="settings need attention"
-              title={updater.status === 'error'
-                ? 'Updater error'
-                : 'Sidecar needs attention'}
+              title={updater.status === 'error' ? 'Updater error' : 'Sidecar needs attention'}
             ></span>
           {/if}
 
@@ -864,7 +904,8 @@
               {@const isActiveProfile = profile.id === connection.activeProfile.id}
               {@const profilePalette = resolveTint(profile.tint)}
               {@const isDragging = draggedProfileId === profile.id}
-              {@const isDropTarget = dropTargetProfileId === profile.id && draggedProfileId !== profile.id}
+              {@const isDropTarget =
+                dropTargetProfileId === profile.id && draggedProfileId !== profile.id}
               {@const canReorder = connection.settings.profiles.length > 1}
               <!-- Row wrapper hosts the drag handlers + opacity feedback.
                    The clickable button still owns the row's primary action
@@ -1002,7 +1043,9 @@
                 aria-hidden="true"
               >
                 <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+                />
               </svg>
               <span class="flex-1">Manage profiles</span>
             </button>
@@ -1137,10 +1180,7 @@
   </div>
 </aside>
 
-<NewProfileModal
-  bind:open={newProfileModalOpen}
-  onClose={() => (newProfileModalOpen = false)}
-/>
+<NewProfileModal bind:open={newProfileModalOpen} onClose={() => (newProfileModalOpen = false)} />
 
 <style>
   /* Badge pill — small mono number on a dark surface, deliberately muted

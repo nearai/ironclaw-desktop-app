@@ -41,63 +41,71 @@ afterEach(() => {
 });
 
 describe('connection.init() concurrent-call dedupe', () => {
-  it('a second init() call awaits the first init()s settings load', async () => {
-    // Arrange: simulate Tauri runtime + a slow get_settings response
-    // shaped like the on-disk JSON the user reported (onboardingComplete: true).
-    const win = (globalThis as unknown as { window?: Record<string, unknown> }).window ?? {};
-    win.__TAURI_INTERNALS__ = {};
-    (globalThis as unknown as { window: Record<string, unknown> }).window = win;
+  // Bumped from the default 5s after R40/R41 added new boot-path work
+  // (LLM provider catalog warm, thread-model hydrate) that nudges this
+  // test past the cold-import budget on macOS-14 CI. The dedupe assertion
+  // itself completes in well under a second; the time is import overhead.
+  it(
+    'a second init() call awaits the first init()s settings load',
+    { timeout: 15000 },
+    async () => {
+      // Arrange: simulate Tauri runtime + a slow get_settings response
+      // shaped like the on-disk JSON the user reported (onboardingComplete: true).
+      const win = (globalThis as unknown as { window?: Record<string, unknown> }).window ?? {};
+      win.__TAURI_INTERNALS__ = {};
+      (globalThis as unknown as { window: Record<string, unknown> }).window = win;
 
-    const ONDISK = {
-      activeProfileId: 'default',
-      adminMode: false,
-      engineV2Enabled: false,
-      onboardingComplete: true,
-      profiles: [
-        {
-          id: 'default',
-          llmBackend: 'nearai',
-          llmProviderId: 'nearai',
-          localBaseUrl: 'http://127.0.0.1:3100',
-          mode: 'remote',
-          name: 'Default',
-          remoteBaseUrl: 'http://127.0.0.1:18789'
+      const ONDISK = {
+        activeProfileId: 'default',
+        adminMode: false,
+        engineV2Enabled: false,
+        onboardingComplete: true,
+        profiles: [
+          {
+            id: 'default',
+            llmBackend: 'nearai',
+            llmProviderId: 'nearai',
+            localBaseUrl: 'http://127.0.0.1:3100',
+            mode: 'remote',
+            name: 'Default',
+            remoteBaseUrl: 'http://127.0.0.1:18789'
+          }
+        ],
+        trayEnabled: true,
+        useResponsesApi: true
+      };
+
+      const { invoke } = await import('@tauri-apps/api/core');
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        // Slow get_settings so the race window is wide enough to observe.
+        if (cmd === 'get_settings') {
+          await new Promise((r) => setTimeout(r, 20));
+          return ONDISK;
         }
-      ],
-      trayEnabled: true,
-      useResponsesApi: true
-    };
+        if (cmd === 'get_token') return null;
+        if (cmd === 'sidecar_status') return { running: false, port: null };
+        // All other commands no-op.
+        return undefined;
+      });
 
-    const { invoke } = await import('@tauri-apps/api/core');
-    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      // Slow get_settings so the race window is wide enough to observe.
-      if (cmd === 'get_settings') {
-        await new Promise((r) => setTimeout(r, 20));
-        return ONDISK;
-      }
-      if (cmd === 'get_token') return null;
-      if (cmd === 'sidecar_status') return { running: false, port: null };
-      // All other commands no-op.
-      return undefined;
-    });
+      // Import the connection store AFTER the mocks are wired so the
+      // module-load $effect.root paths see the Tauri runtime probe.
+      const { connection } = await import('./connection.svelte');
 
-    // Import the connection store AFTER the mocks are wired so the
-    // module-load $effect.root paths see the Tauri runtime probe.
-    const { connection } = await import('./connection.svelte');
-
-    // Act: caller A starts init (mimics +layout.svelte.onMount).
-    // Caller B awaits init (mimics +page.svelte.boot()), which under the
-    // broken `if (initialized) return;` short-circuit resolves IMMEDIATELY
-    // even though loadSettings() hasn't fired yet.
-    //
-    // The reproduction is: after B's `await connection.init()` resolves,
-    // B reads `connection.settings.onboardingComplete`. With a correct
-    // promise cache, B should see `true` (from disk). With the broken
-    // contract, B sees `false` (DEFAULT_SETTINGS placeholder) because
-    // loadSettings's promise inside A's call is still pending.
-    void connection.init(); // caller A — fire-and-forget
-    await connection.init(); // caller B — must await the same load
-    expect(connection.settings.onboardingComplete).toBe(true);
-    expect(connection.settings.activeProfileId).toBe('default');
-  });
+      // Act: caller A starts init (mimics +layout.svelte.onMount).
+      // Caller B awaits init (mimics +page.svelte.boot()), which under the
+      // broken `if (initialized) return;` short-circuit resolves IMMEDIATELY
+      // even though loadSettings() hasn't fired yet.
+      //
+      // The reproduction is: after B's `await connection.init()` resolves,
+      // B reads `connection.settings.onboardingComplete`. With a correct
+      // promise cache, B should see `true` (from disk). With the broken
+      // contract, B sees `false` (DEFAULT_SETTINGS placeholder) because
+      // loadSettings's promise inside A's call is still pending.
+      void connection.init(); // caller A — fire-and-forget
+      await connection.init(); // caller B — must await the same load
+      expect(connection.settings.onboardingComplete).toBe(true);
+      expect(connection.settings.activeProfileId).toBe('default');
+    }
+  );
 });
