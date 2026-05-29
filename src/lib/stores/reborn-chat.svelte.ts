@@ -78,12 +78,18 @@ export class RebornChatController {
     this.threadId = threadId;
     try {
       const resp = await client.fetchTimelineV2(threadId, { limit: REBORN_TIMELINE_LIMIT });
+      // Generation guard: if the user switched threads while this fetch was in
+      // flight, `this.threadId` has moved on — drop the stale result rather than
+      // overwriting the newly-selected thread's messages.
+      if (this.threadId !== threadId) return;
       const records = recordsFromTimeline(resp);
       this.state = { ...this.state, messages: messagesFromTimeline(records, this.pending) };
     } catch (err) {
       // A timeline fetch can 404 (e.g. a thread id from another backend, or a
       // not-yet-created thread). That's not fatal — treat it as an empty
       // thread rather than letting the rejection bubble out of the UI effect.
+      // Same generation guard: ignore a stale failure for a thread we left.
+      if (this.threadId !== threadId) return;
       console.warn('[reborn-chat] loadTimeline failed; treating as empty', err);
       this.state = { ...this.state, messages: messagesFromTimeline([], this.pending) };
     }
@@ -172,7 +178,9 @@ export class RebornChatController {
       for await (const envelope of client.streamWebChatV2Events(threadId, {
         signal: ctrl.signal
       })) {
-        if (ctrl.signal.aborted) break;
+        // Stop folding events once this stream is superseded — either aborted
+        // on teardown, or the controller re-bound to a different thread.
+        if (ctrl.signal.aborted || this.threadId !== threadId) break;
         const next = reduceEvent(this.state, envelope, threadId);
         this.state = next;
         if (next.refetchTimeline) {

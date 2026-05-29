@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.82 — Fix: v2 chat thread-switch race (generation guard) (2026-05-29)
+
+- **Stale-timeline race fixed (Codex audit P1)**: `RebornChatController.loadTimeline`
+  awaited `fetchTimelineV2` then wrote `state` unconditionally, so a slow timeline
+  fetch for a thread the user had already navigated away from could overwrite the
+  newly-selected thread's messages. It now captures the requested `threadId` and
+  drops the write (success **and** failure paths) if `this.threadId` changed during
+  the await; `openStream`'s reduce loop gains the same guard (breaks when the
+  controller re-binds to another thread, on top of the existing AbortController).
+  Hardens the v2 chat surface the UX overhaul has been polishing. +1 controller
+  test driving the switch-mid-fetch race (944 total). _Step 6 (command palette)
+  was already polished — footer key hints, shortcuts panel, kbd cues all present —
+  so this pass took the highest-value safe item from the audit queue instead._
+
 ## v0.4.81 — Gorgeous UX: composer auto-grow (step 5a) (2026-05-29)
 
 - **Composer auto-grow (UX overhaul, step 5a)**: the v2 chat composer textarea

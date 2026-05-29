@@ -156,6 +156,30 @@ describe('RebornChatController.loadTimeline', () => {
     await c.loadTimeline('t1');
     expect(c.state.messages[0]).toMatchObject({ role: 'user', content: 'hey' });
   });
+
+  it('drops a stale timeline result when the thread switched mid-fetch', async () => {
+    let resolveOld: (v: unknown) => void = () => {};
+    const oldPromise = new Promise((r) => {
+      resolveOld = r;
+    });
+    const client = mockClient({
+      fetchTimelineV2: vi.fn((id: string) =>
+        id === 'old'
+          ? oldPromise
+          : Promise.resolve({ records: [{ kind: 'user', message_id: 'n1', content: 'new msg' }] })
+      )
+    });
+    const c = new RebornChatController(() => client);
+    const pOld = c.loadTimeline('old'); // awaits oldPromise; binds threadId='old'
+    await c.loadTimeline('new'); // re-binds threadId='new'; projects the new timeline
+    expect(c.state.messages.some((m) => m.content === 'new msg')).toBe(true);
+    // The old fetch now resolves — but the controller has moved on.
+    resolveOld({ records: [{ kind: 'user', message_id: 'o1', content: 'OLD msg' }] });
+    await pOld;
+    expect(c.threadId).toBe('new');
+    expect(c.state.messages.some((m) => m.content === 'OLD msg')).toBe(false);
+    expect(c.state.messages.some((m) => m.content === 'new msg')).toBe(true);
+  });
 });
 
 describe('RebornChatController thread binding', () => {
