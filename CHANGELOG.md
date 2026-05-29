@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.5 — Extensions: fix Registry + clearer setup (2026-05-28)
+
+Dogfooding the Extensions surface against a live gateway surfaced two real
+issues:
+
+- **Registry tab crash fixed** (R107): a blank or duplicate connector `name`
+  from the gateway made the registry grid's keyed `{#each … (ext.name)}`
+  throw uncaught — which showed as a generic "An error occurred" toast and
+  silently reverted the tab. `listRegistry` (and `listExtensions`) now drop
+  blank names and dedupe, so the grid always renders. +2 client tests.
+- **"Needs setup" is now actionable** (R108): an unconfigured connector shows
+  a prominent gold **"Set up"** button (not a cryptic gear) plus an inline
+  hint about what it needs — "Sign in to connect (OAuth)", "Add a token to
+  connect", or "Add credentials or config" — inferred from its category. So
+  connecting Slack (already installed, "Needs setup") is one obvious click to
+  the setup form, where you enter the token / complete OAuth yourself.
+
 ## v0.4.4 — CoS hardening (2026-05-28)
 
 Fixes from an independent Codex review of the v0.4.x Chief of Staff arc (no

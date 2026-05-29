@@ -109,6 +109,22 @@
   const toolCount = $derived(extension.tool_count ?? 0);
   const toolsClickable = $derived(variant === 'installed' && toolCount > 0);
 
+  // True when this installed extension is unconfigured (not ready, not in an
+  // error state). Drives the prominent "Set up" CTA so "Needs setup" isn't a
+  // dead-end label next to a cryptic gear.
+  const needsSetup = $derived(variant === 'installed' && readiness.label === 'Needs setup');
+
+  // A short, human hint about WHAT the setup needs, inferred from the
+  // connector category. The exact fields come from the setup drawer once
+  // opened; this just orients the user (token vs sign-in) before they click.
+  const setupHint = $derived.by<string>(() => {
+    const c = (extension.category ?? '').toLowerCase();
+    if (c === 'oauth') return 'Sign in to connect (OAuth)';
+    if (c === 'channel') return 'Add a token to connect';
+    if (c === 'mcp') return 'Add credentials or config';
+    return 'Complete setup to enable';
+  });
+
   // Pin star. Bound against extension.name (the stable id; display_name
   // is user-facing and may shift). Reactive against the pins store so
   // any other surface toggling this extension flips the card too.
@@ -210,6 +226,11 @@
           <span class={`w-2 h-2 rounded-full shrink-0 ${readiness.dot}`}></span>
           <span class="truncate">{readiness.label}</span>
         </span>
+        {#if needsSetup}
+          <span class="text-[10px] text-accent-gold/90 truncate" title={setupHint}>
+            · {setupHint}
+          </span>
+        {/if}
         {#if toolsClickable}
           <button
             type="button"
@@ -275,29 +296,58 @@
          widths the whole cluster drops to its own row instead of splitting. -->
     <div class="flex flex-nowrap items-center gap-1 shrink-0">
       {#if variant === 'installed'}
-        <button
-          type="button"
-          onclick={() => onSetup?.(extension)}
-          aria-label={`Configure ${title}`}
-          title="Configure"
-          disabled={busy}
-          class="inline-flex items-center justify-center w-8 h-8 rounded-md border border-border-subtle text-text-muted hover:text-accent-cyan hover:border-accent-cyan/60 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            class="w-3.5 h-3.5"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+        {#if needsSetup}
+          <!-- Unconfigured: a prominent labeled CTA (gold, matching the
+               "Needs setup" dot) so the next action is obvious. -->
+          <button
+            type="button"
+            onclick={() => onSetup?.(extension)}
+            aria-label={`Set up ${title} — ${setupHint}`}
+            title={setupHint}
+            disabled={busy}
+            class="inline-flex items-center gap-1.5 px-3 h-8 rounded-md border border-accent-gold/60 text-accent-gold bg-accent-gold/10 text-xs font-semibold hover:bg-accent-gold/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <circle cx="12" cy="12" r="3" />
-            <path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-            />
-          </svg>
-        </button>
+            <svg
+              viewBox="0 0 24 24"
+              class="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              />
+            </svg>
+            Set up
+          </button>
+        {:else}
+          <button
+            type="button"
+            onclick={() => onSetup?.(extension)}
+            aria-label={`Configure ${title}`}
+            title="Configure"
+            disabled={busy}
+            class="inline-flex items-center justify-center w-8 h-8 rounded-md border border-border-subtle text-text-muted hover:text-accent-cyan hover:border-accent-cyan/60 transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              />
+            </svg>
+          </button>
+        {/if}
         <button
           type="button"
           onclick={() => onToggleActivate?.(extension)}

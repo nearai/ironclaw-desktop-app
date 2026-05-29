@@ -1813,10 +1813,20 @@ export class IronClawClient {
       toolCounts.set(t.extension, (toolCounts.get(t.extension) ?? 0) + 1);
     }
 
-    return (base?.extensions ?? []).map((e) => {
+    // Drop blank names + dedupe by name (keep first) — the installed grid
+    // keys `{#each … (ext.name)}`, so a blank/duplicate would throw the same
+    // uncaught keyed-each error the registry tab hit. Defensive: the gateway
+    // has returned unique names so far, but a render crash from one bad row
+    // shouldn't be possible.
+    const seen = new Set<string>();
+    const out: Extension[] = [];
+    for (const e of base?.extensions ?? []) {
+      const name = (e.name ?? '').trim();
+      if (name.length === 0 || seen.has(name)) continue;
+      seen.add(name);
       const rd = readinessByName.get(e.name);
-      return {
-        name: e.name,
+      out.push({
+        name,
         display_name: e.display_name,
         description: e.description ?? '',
         version: e.version,
@@ -1832,8 +1842,9 @@ export class IronClawClient {
         tool_count: toolCounts.get(e.name) ?? (Array.isArray(e.tools) ? e.tools.length : 0),
         readiness_message: rd?.message,
         keywords: e.keywords
-      } satisfies Extension;
-    });
+      } satisfies Extension);
+    }
+    return out;
   }
 
   /** List installable extensions from the catalog. */
@@ -1857,20 +1868,31 @@ export class IronClawClient {
       available?: RegistryWire[];
     }>('GET', '/api/extensions/registry');
     const list = res?.entries ?? res?.available ?? [];
-    return list.map(
-      (e) =>
-        ({
-          name: e.name ?? e.slug ?? '',
-          display_name: e.display_name,
-          description: e.description ?? '',
-          version: e.version,
-          installed: e.installed ?? false,
-          category: mapExtensionKind(e.kind),
-          source: e.source,
-          requires_setup: e.requires_setup ?? false,
-          keywords: e.keywords
-        }) satisfies Extension
-    );
+    // Drop entries with no resolvable name and dedupe by name (keep first).
+    // The registry grid renders `{#each … (ext.name)}`; a blank or duplicate
+    // name makes Svelte's keyed-each throw uncaught, which surfaces as a
+    // generic global error and silently reverts the tab. Guaranteeing unique,
+    // non-empty names here keeps that render safe regardless of what the
+    // gateway returns.
+    const seen = new Set<string>();
+    const out: Extension[] = [];
+    for (const e of list) {
+      const name = (e.name ?? e.slug ?? '').trim();
+      if (name.length === 0 || seen.has(name)) continue;
+      seen.add(name);
+      out.push({
+        name,
+        display_name: e.display_name,
+        description: e.description ?? '',
+        version: e.version,
+        installed: e.installed ?? false,
+        category: mapExtensionKind(e.kind),
+        source: e.source,
+        requires_setup: e.requires_setup ?? false,
+        keywords: e.keywords
+      } satisfies Extension);
+    }
+    return out;
   }
 
   /** Flat list of tools provided by installed extensions.

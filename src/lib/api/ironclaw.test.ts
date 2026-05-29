@@ -294,3 +294,40 @@ describe('IronClawClient.installSkill', () => {
     expect((await c.installSkill('web')).ok).toBe(true);
   });
 });
+
+describe('IronClawClient.listRegistry', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Regression: a blank or duplicate `name` made the registry grid's keyed
+  // `{#each … (ext.name)}` throw uncaught, surfacing as a generic global
+  // error and silently reverting the tab. listRegistry must guarantee
+  // unique, non-empty names. (R107)
+  it('drops blank names and dedupes by name', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      fetchOk({
+        entries: [
+          { name: 'slack', display_name: 'Slack', kind: 'wasm_channel' },
+          { slug: 'slack', display_name: 'Slack (dup)', kind: 'wasm_channel' }, // dup name
+          { display_name: 'Nameless' }, // no name/slug → blank → dropped
+          { name: '   ', display_name: 'Whitespace' }, // blank after trim → dropped
+          { name: 'gmail', display_name: 'Gmail', kind: 'mcp_server' }
+        ]
+      })
+    );
+    const c = makeClient();
+    const list = await c.listRegistry();
+    expect(list.map((e) => e.name)).toEqual(['slack', 'gmail']);
+  });
+
+  it('accepts the legacy {available:[…]} wire shape', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      fetchOk({ available: [{ name: 'x', kind: 'mcp_server' }] })
+    );
+    const c = makeClient();
+    const list = await c.listRegistry();
+    expect(list).toHaveLength(1);
+    expect(list[0].name).toBe('x');
+  });
+});
