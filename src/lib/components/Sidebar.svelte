@@ -11,6 +11,7 @@
   import NewProfileModal from '$lib/components/NewProfileModal.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { reorderProfiles, resolveTint } from '$lib/stores/settings.svelte';
+  import { rebornDesk } from '$lib/stores/reborn-desk.svelte';
 
   // ---- Sidebar nav definition ------------------------------------------
   //
@@ -25,6 +26,7 @@
   // a `badgeKey` never show a badge.
 
   type BadgeKey =
+    | 'desk'
     | 'chat'
     | 'skills'
     | 'routines'
@@ -67,7 +69,7 @@
     // The Desk — the proactive chief-of-staff home. A priority-sorted feed of
     // cards you act on, led by the "Needs you" approval-gate inbox (Reborn v2).
     // No digit shortcut (0..9 are taken); reached via the sidebar + palette.
-    { href: '/desk', label: 'Desk', icon: 'desk' },
+    { href: '/desk', label: 'Desk', icon: 'desk', badgeKey: 'desk' },
     // Today (R77 / W1). New home tier per docs/WORKSPACE-OS.md — a tile
     // grid of live + scheduled widgets. Takes Cmd+0.
     { href: '/dashboard', label: 'Today', icon: 'spark', shortcut: '⌘0' },
@@ -458,6 +460,16 @@
   );
 
   /**
+   * Desk "Needs you" badge — the count of pending approval gates (the agent
+   * paused and is waiting on a human decision). Gold = attention. Open loops
+   * are deliberately NOT counted here so the badge stays a quiet "act now"
+   * signal rather than always-on. Null when nothing is pending.
+   */
+  const deskBadge = $derived<number | null>(
+    rebornDesk.gateCards.length > 0 ? rebornDesk.gateCards.length : null
+  );
+
+  /**
    * Routines badge — collapses to a string. If any routines are running
    * we render "running/enabled" (e.g. "2/5"); otherwise just the enabled
    * count. The gateway currently always returns `running: 0` (per a TODO
@@ -602,6 +614,9 @@
 
   function dotColorClass(key: BadgeKey): string {
     switch (key) {
+      // Desk gates are an "act now" attention signal → gold.
+      case 'desk':
+        return 'bg-accent-gold';
       case 'logs':
         return 'bg-red-500';
       case 'settings':
@@ -627,6 +642,8 @@
    */
   function hasBadge(key: BadgeKey): boolean {
     switch (key) {
+      case 'desk':
+        return deskBadge !== null;
       case 'chat':
         return chatBadge !== null;
       case 'skills':
@@ -802,7 +819,11 @@
                3. Attention dot — Settings (gold), Logs (red).
                All sit before the shortcut hint so the shortcut keeps its
                right-anchored column. -->
-          {#if item.badgeKey === 'chat' && chatBadge !== null}
+          {#if item.badgeKey === 'desk' && deskBadge !== null}
+            <span class="sidebar-badge" aria-label="{deskBadge} awaiting your approval"
+              >{deskBadge}</span
+            >
+          {:else if item.badgeKey === 'chat' && chatBadge !== null}
             <span class="sidebar-badge" aria-label="{chatBadge} threads">{chatBadge}</span>
           {:else if item.badgeKey === 'skills' && skillsBadge !== null}
             <span class="sidebar-badge" aria-label="{skillsBadge} installed skills"

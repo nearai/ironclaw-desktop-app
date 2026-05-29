@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.64 — The Desk: "Needs you" nav badge (increment 5) (2026-05-29)
+
+- **The Desk (increment 5 — ambient signal)**: the Desk sidebar nav row now
+  shows a gold "Needs you" count badge (and collapsed-state corner dot) when an
+  approval gate is pending, sourced from `rebornDesk.gateCards.length`. This
+  surfaces the agent's "I'm blocked, decide for me" moment app-wide without
+  opening the Desk — the proactive-CoS signal. Open loops are deliberately not
+  counted so the badge stays a quiet "act now" cue rather than always-on. Wired
+  through the existing Sidebar badge system (new `'desk'` BadgeKey + `deskBadge`
+  derived + gold `dotColorClass` + pill). Sidebar snapshot unaffected (no gate
+  pending in the no-op state). 915 tests green.
+
 ## v0.4.63 — The Desk: command-palette entry (increment 4) (2026-05-29)
 
 - **The Desk (increment 4 — discoverability)**: added "The Desk" → `/desk` to
