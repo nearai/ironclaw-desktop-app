@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.15 — Extracted + tested highlight util (2026-05-29)
+
+- **Simplification + coverage (audit R200 P2)**: extracted GlobalSearch's
+  inline substring-`highlight` segmenter to a tested pure util
+  (`src/lib/util/highlight.ts`) — behavior-preserving move that locks the
+  fiddly [pre, match, post] splice logic with +7 unit tests and makes it
+  reusable (CommandPalette / Omnibar can adopt it). Sets up the eventual
+  per-row precompute without touching the render path yet.
+
 ## v0.4.14 — Guard coverage across CoS stores (2026-05-28)
 
 - **Test coverage**: mirrored the v0.4.13 deterministic stale-stream guard

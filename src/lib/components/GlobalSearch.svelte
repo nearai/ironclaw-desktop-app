@@ -32,6 +32,7 @@
   import { globalSearch } from '$lib/stores/global-search.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import type { MemoryHit, Thread, Job, Skill, Routine, Extension } from '$lib/api/types';
+  import { highlight } from '$lib/util/highlight';
 
   // -- types ----------------------------------------------------------------
 
@@ -737,38 +738,9 @@
     }, {})
   );
 
-  // -- substring highlighting ----------------------------------------------
-  //
-  // We splice the haystack into [pre, match, post] segments around every
-  // occurrence of the needle and render `<mark>` for the match. Plain
-  // substring match (case-insensitive) — same semantics as the local
-  // filters above so what's highlighted lines up with what matched.
-
-  interface Segment {
-    text: string;
-    /** True if this segment is a match — the renderer tints it gold. */
-    hit: boolean;
-  }
-
-  function highlight(haystack: string | undefined | null, needle: string): Segment[] {
-    if (!haystack) return [];
-    if (!needle) return [{ text: haystack, hit: false }];
-    const lower = haystack.toLowerCase();
-    const target = needle.toLowerCase();
-    const segs: Segment[] = [];
-    let i = 0;
-    while (i < haystack.length) {
-      const found = lower.indexOf(target, i);
-      if (found < 0) {
-        segs.push({ text: haystack.slice(i), hit: false });
-        break;
-      }
-      if (found > i) segs.push({ text: haystack.slice(i, found), hit: false });
-      segs.push({ text: haystack.slice(found, found + target.length), hit: true });
-      i = found + target.length;
-    }
-    return segs;
-  }
+  // Substring highlighting (`highlight`) lives in $lib/util/highlight — a
+  // tested pure helper shared across search surfaces. Case-insensitive splice
+  // into [pre, match, post] segments; the renderer tints `hit` segments.
 
   // -- handlers -------------------------------------------------------------
 
