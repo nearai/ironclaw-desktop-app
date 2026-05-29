@@ -113,10 +113,7 @@ fn build_client() -> Result<reqwest::Client, String> {
 
 /// List the `path` directory of the upstream repo via the GitHub contents
 /// API. Returns the `dir` entries we want to enrich.
-async fn list_repo_dir(
-    client: &reqwest::Client,
-    path: &str,
-) -> Result<Vec<ContentsEntry>, String> {
+async fn list_repo_dir(client: &reqwest::Client, path: &str) -> Result<Vec<ContentsEntry>, String> {
     let url = format!("{GH_CONTENTS_BASE}/{path}");
     log::info!(target: "ironclaw_ironhub", "GET {url}");
     let resp = client
@@ -137,16 +134,16 @@ async fn list_repo_dir(
         .json()
         .await
         .map_err(|e| format!("parse contents {path}: {e}"))?;
-    Ok(entries.into_iter().filter(|e| e.entry_type == "dir").collect())
+    Ok(entries
+        .into_iter()
+        .filter(|e| e.entry_type == "dir")
+        .collect())
 }
 
 /// Best-effort fetch of `<repo>/<path>/<slug>/README.md`. Returns `None`
 /// on 404 / network errors so a single missing README doesn't kill the
 /// whole catalog response.
-async fn fetch_readme_excerpt(
-    client: &reqwest::Client,
-    repo_path: &str,
-) -> Option<String> {
+async fn fetch_readme_excerpt(client: &reqwest::Client, repo_path: &str) -> Option<String> {
     let url = format!("{GH_RAW_BASE}/{repo_path}/README.md");
     let resp = client.get(&url).send().await.ok()?;
     if !resp.status().is_success() {

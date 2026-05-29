@@ -25,11 +25,14 @@ pub async fn export_memory_tree(
         .chars()
         .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
         .collect();
-    let root = home.join("Documents").join("IronClaw").join(if safe_profile.is_empty() {
-        "default".into()
-    } else {
-        safe_profile
-    });
+    let root = home
+        .join("Documents")
+        .join("IronClaw")
+        .join(if safe_profile.is_empty() {
+            "default".into()
+        } else {
+            safe_profile
+        });
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
 
     for file in &files {

@@ -127,7 +127,11 @@ async fn get_token_source(app: AppHandle, profile_id: String) -> Result<String, 
 #[tauri::command]
 async fn build_provenance(app: AppHandle) -> Result<serde_json::Value, String> {
     let version = env!("CARGO_PKG_VERSION").to_string();
-    let profile = if cfg!(debug_assertions) { "debug" } else { "release" };
+    let profile = if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    };
     let devtools = cfg!(feature = "dev-devtools");
     // Probe the running .app's signature via `codesign -dvv`. Anything we
     // can't determine resolves to "unknown" — the field is informational,
@@ -191,7 +195,10 @@ async fn build_provenance(app: AppHandle) -> Result<serde_json::Value, String> {
 /// Intentionally **does not** include secrets — the bearer never appears in
 /// the output, only its length and source. Tokens stay in their stores.
 #[tauri::command]
-async fn diagnostic_report(app: AppHandle, profile_id: String) -> Result<serde_json::Value, String> {
+async fn diagnostic_report(
+    app: AppHandle,
+    profile_id: String,
+) -> Result<serde_json::Value, String> {
     let token_source = keychain::get_source(&app, &profile_id).unwrap_or_else(|_| "error".into());
     let app_data_dir = app
         .path()
@@ -270,10 +277,7 @@ async fn install_ironhub_skill_local(
 // ---- OpenRouter-key Keychain (per-profile, local mode) -------------------
 
 #[tauri::command]
-async fn get_openrouter_key(
-    _app: AppHandle,
-    profile_id: String,
-) -> Result<Option<String>, String> {
+async fn get_openrouter_key(_app: AppHandle, profile_id: String) -> Result<Option<String>, String> {
     keychain::get_openrouter_key(&profile_id)
 }
 
@@ -370,8 +374,7 @@ async fn start_sidecar(
             let api_key = keychain::get_openrouter_key(&profile_id)?
                 .filter(|s| !s.is_empty())
                 .ok_or_else(|| {
-                    "Set your OpenRouter API key in Settings before starting local mode"
-                        .to_string()
+                    "Set your OpenRouter API key in Settings before starting local mode".to_string()
                 })?;
             BackendConfig::Openrouter { api_key }
         }
@@ -379,8 +382,7 @@ async fn start_sidecar(
             let api_key = keychain::get_llm_provider_credential(&profile_id, "openai")?
                 .filter(|s| !s.is_empty())
                 .ok_or_else(|| {
-                    "Set your OpenAI API key in Settings before starting local mode"
-                        .to_string()
+                    "Set your OpenAI API key in Settings before starting local mode".to_string()
                 })?;
             BackendConfig::OpenAi { api_key }
         }
@@ -388,8 +390,7 @@ async fn start_sidecar(
             let api_key = keychain::get_llm_provider_credential(&profile_id, "anthropic")?
                 .filter(|s| !s.is_empty())
                 .ok_or_else(|| {
-                    "Set your Anthropic API key in Settings before starting local mode"
-                        .to_string()
+                    "Set your Anthropic API key in Settings before starting local mode".to_string()
                 })?;
             BackendConfig::Anthropic { api_key }
         }
@@ -457,9 +458,7 @@ async fn reveal_in_finder(app: AppHandle, path: String) -> Result<(), String> {
     let downloads = home_dir.join("Downloads");
 
     let allowed_roots = [&app_data_canon, &documents, &downloads];
-    let is_allowed = allowed_roots
-        .iter()
-        .any(|root| resolved.starts_with(root));
+    let is_allowed = allowed_roots.iter().any(|root| resolved.starts_with(root));
     if !is_allowed {
         return Err(format!(
             "reveal_in_finder refused: path is outside app-owned roots ({})",
@@ -518,9 +517,7 @@ async fn save_text_dialog(
     // FilePath may be a URI on mobile, but on macOS desktop it always
     // resolves to a real filesystem path. `into_path()` does the right
     // thing here.
-    let path_buf = path
-        .into_path()
-        .map_err(|e| format!("resolve path: {e}"))?;
+    let path_buf = path.into_path().map_err(|e| format!("resolve path: {e}"))?;
     std::fs::write(&path_buf, contents.as_bytes())
         .map_err(|e| format!("write {}: {e}", path_buf.display()))?;
     Ok(Some(path_buf.to_string_lossy().into_owned()))
@@ -582,11 +579,8 @@ async fn export_settings_dialog(
     let Some(path) = chosen else {
         return Ok(None);
     };
-    let path_buf = path
-        .into_path()
-        .map_err(|e| format!("resolve path: {e}"))?;
-    std::fs::write(&path_buf, &bytes)
-        .map_err(|e| format!("write {}: {e}", path_buf.display()))?;
+    let path_buf = path.into_path().map_err(|e| format!("resolve path: {e}"))?;
+    std::fs::write(&path_buf, &bytes).map_err(|e| format!("write {}: {e}", path_buf.display()))?;
     Ok(Some(path_buf.to_string_lossy().into_owned()))
 }
 
@@ -612,13 +606,10 @@ async fn open_text_dialog(app: AppHandle) -> Result<Option<String>, String> {
     let Some(path) = chosen else {
         return Ok(None);
     };
-    let path_buf = path
-        .into_path()
-        .map_err(|e| format!("resolve path: {e}"))?;
-    let bytes = std::fs::read(&path_buf)
-        .map_err(|e| format!("read {}: {e}", path_buf.display()))?;
-    let text = String::from_utf8(bytes)
-        .map_err(|e| format!("file is not valid UTF-8: {e}"))?;
+    let path_buf = path.into_path().map_err(|e| format!("resolve path: {e}"))?;
+    let bytes =
+        std::fs::read(&path_buf).map_err(|e| format!("read {}: {e}", path_buf.display()))?;
+    let text = String::from_utf8(bytes).map_err(|e| format!("file is not valid UTF-8: {e}"))?;
     Ok(Some(text))
 }
 
@@ -674,11 +665,7 @@ async fn update_tray_badge(app: AppHandle, count: i32) -> Result<(), String> {
 /// values degrade to `disconnected` (same fallback as the
 /// single-field setter).
 #[tauri::command]
-async fn update_status_and_count(
-    app: AppHandle,
-    status: String,
-    count: i32,
-) -> Result<(), String> {
+async fn update_status_and_count(app: AppHandle, status: String, count: i32) -> Result<(), String> {
     tray::update_status_and_count(&app, &status, count)
         .map_err(|e| format!("update_status_and_count: {e}"))
 }
@@ -788,16 +775,12 @@ pub fn run() {
     // `try_init` rather than `init` so a hot-reloaded dev session that
     // somehow re-enters `run()` doesn't panic on the second initialization.
     let _ = env_logger::Builder::from_env(
-        env_logger::Env::default()
-            .default_filter_or("ironclaw_desktop_lib=info,warn"),
+        env_logger::Env::default().default_filter_or("ironclaw_desktop_lib=info,warn"),
     )
     .format_timestamp_secs()
     .try_init();
 
-    log::info!(
-        "IronClaw Desktop v{} starting",
-        env!("CARGO_PKG_VERSION")
-    );
+    log::info!("IronClaw Desktop v{} starting", env!("CARGO_PKG_VERSION"));
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
@@ -914,7 +897,9 @@ pub fn run() {
             // and continue; the app still works, just without the blur.
             #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
-                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState};
+                use window_vibrancy::{
+                    apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState,
+                };
                 if let Err(e) = apply_vibrancy(
                     &window,
                     NSVisualEffectMaterial::Sidebar,

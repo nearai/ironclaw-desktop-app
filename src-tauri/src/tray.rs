@@ -125,8 +125,7 @@ const ICON_DISCONNECTED_6: &[u8] = include_bytes!("../icons/tray/tray-disconnect
 const ICON_DISCONNECTED_7: &[u8] = include_bytes!("../icons/tray/tray-disconnected-7.png");
 const ICON_DISCONNECTED_8: &[u8] = include_bytes!("../icons/tray/tray-disconnected-8.png");
 const ICON_DISCONNECTED_9: &[u8] = include_bytes!("../icons/tray/tray-disconnected-9.png");
-const ICON_DISCONNECTED_9PLUS: &[u8] =
-    include_bytes!("../icons/tray/tray-disconnected-9plus.png");
+const ICON_DISCONNECTED_9PLUS: &[u8] = include_bytes!("../icons/tray/tray-disconnected-9plus.png");
 
 /// One entry in the tray "Recent notifications" submenu. Mirrors the
 /// JS `NotificationHistoryEntry` minus fields the menu doesn't render
@@ -305,11 +304,7 @@ pub fn update_badge(app: &AppHandle, count: i32) -> tauri::Result<()> {
 /// behaviour is identical to calling `update_status` + `update_badge`
 /// in sequence: the cache lands on (status, count) and the composite
 /// icon is repainted once.
-pub fn update_status_and_count(
-    app: &AppHandle,
-    status: &str,
-    count: i32,
-) -> tauri::Result<()> {
+pub fn update_status_and_count(app: &AppHandle, status: &str, count: i32) -> tauri::Result<()> {
     let next = parse_status(status);
     apply_icon(app, next, count)
 }
@@ -336,13 +331,7 @@ fn build_menu(app: &AppHandle, recent: &[RecentItem]) -> tauri::Result<Menu<Wry>
         None::<&str>,
     )?;
     let recent_submenu = build_recent_submenu(app, recent)?;
-    let settings = MenuItem::with_id(
-        app,
-        MENU_ID_SETTINGS,
-        "Open Settings",
-        true,
-        None::<&str>,
-    )?;
+    let settings = MenuItem::with_id(app, MENU_ID_SETTINGS, "Open Settings", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     // Predefined `quit` fires the app's normal exit path (RunEvent::ExitRequested),
     // so our sidecar shutdown hook in `lib.rs` runs as expected.
@@ -373,10 +362,7 @@ fn build_menu(app: &AppHandle, recent: &[RecentItem]) -> tauri::Result<Menu<Wry>
 /// support on tray submenus is not exposed by the muda menu API at the
 /// version we ship, so the en-dash composition is the next-best
 /// information-density bump.
-fn build_recent_submenu(
-    app: &AppHandle,
-    recent: &[RecentItem],
-) -> tauri::Result<Submenu<Wry>> {
+fn build_recent_submenu(app: &AppHandle, recent: &[RecentItem]) -> tauri::Result<Submenu<Wry>> {
     let submenu = Submenu::with_id(app, "tray.recent", "Recent notifications", true)?;
 
     if recent.is_empty() {

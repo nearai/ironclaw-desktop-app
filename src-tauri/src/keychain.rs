@@ -155,7 +155,9 @@ fn get_secret(account: &str) -> Result<Option<String>, String> {
         }
         Err(_) => {
             log::warn!(target: "ironclaw_keychain", "READ TIMEOUT [{account}] after 2s — keychain ACL prompt likely hung; trying file fallback");
-            Err(format!("keychain read [{account}] timed out (likely ACL prompt hung)"))
+            Err(format!(
+                "keychain read [{account}] timed out (likely ACL prompt hung)"
+            ))
         }
     }
 }
@@ -303,7 +305,13 @@ fn llm_account_for(provider_id: &str, profile_id: &str) -> String {
     // and no embedded colons (which we use as the profile separator).
     let safe_provider: String = provider_id
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     format!("{ACCOUNT_LLM_PROVIDER_PREFIX}-{safe_provider}:{profile_id}")
 }
@@ -323,10 +331,7 @@ pub fn set_llm_provider_credential(
     set_secret(&llm_account_for(provider_id, profile_id), value)
 }
 
-pub fn delete_llm_provider_credential(
-    profile_id: &str,
-    provider_id: &str,
-) -> Result<(), String> {
+pub fn delete_llm_provider_credential(profile_id: &str, provider_id: &str) -> Result<(), String> {
     delete_secret(&llm_account_for(provider_id, profile_id))
 }
 
@@ -371,8 +376,14 @@ mod tests {
 
     #[test]
     fn account_sanitiser_replaces_unsafe_chars() {
-        assert_eq!(safe_file_name("gateway-token:default"), "gateway-token_default.token");
-        assert_eq!(safe_file_name("openrouter-key:my-prof"), "openrouter-key_my-prof.token");
+        assert_eq!(
+            safe_file_name("gateway-token:default"),
+            "gateway-token_default.token"
+        );
+        assert_eq!(
+            safe_file_name("openrouter-key:my-prof"),
+            "openrouter-key_my-prof.token"
+        );
         // Reserved characters that must NOT leak into the filesystem
         assert_eq!(safe_file_name("../etc"), "___etc.token");
         assert_eq!(safe_file_name("a/b\\c.d:e"), "a_b_c_d_e.token");
@@ -398,7 +409,10 @@ mod tests {
         // trimmed string with mode 0600. This is what
         // `scripts/stage-token.sh` writes.
         let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join("tokens").join("gateway-token_default.token");
+        let path = tmp
+            .path()
+            .join("tokens")
+            .join("gateway-token_default.token");
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         let token = "abcd1234efgh5678".to_string();
         fs::write(&path, &token).unwrap();
@@ -421,7 +435,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let path = tmp.path().join("gateway-token_default.token");
         fs::write(&path, "tok-with-newline\n").unwrap();
-        assert_eq!(fs::read_to_string(&path).unwrap().trim(), "tok-with-newline");
+        assert_eq!(
+            fs::read_to_string(&path).unwrap().trim(),
+            "tok-with-newline"
+        );
 
         fs::write(&path, "  spaces  \n").unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap().trim(), "spaces");

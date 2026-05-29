@@ -84,8 +84,7 @@ pub async fn spawn(
         BackendConfig::Openrouter { api_key } => {
             if api_key.trim().is_empty() {
                 return Err(
-                    "Set your OpenRouter API key in Settings before starting local mode"
-                        .into(),
+                    "Set your OpenRouter API key in Settings before starting local mode".into(),
                 );
             }
         }
@@ -99,8 +98,7 @@ pub async fn spawn(
         BackendConfig::Anthropic { api_key } => {
             if api_key.trim().is_empty() {
                 return Err(
-                    "Set your Anthropic API key in Settings before starting local mode"
-                        .into(),
+                    "Set your Anthropic API key in Settings before starting local mode".into(),
                 );
             }
         }
@@ -137,10 +135,7 @@ pub async fn spawn(
             envs.extend([
                 ("LLM_BACKEND".into(), "nearai".into()),
                 ("NEARAI_BASE_URL".into(), "https://private.near.ai".into()),
-                (
-                    "NEARAI_API_URL".into(),
-                    "https://private.near.ai/v1".into(),
-                ),
+                ("NEARAI_API_URL".into(), "https://private.near.ai/v1".into()),
                 ("NEARAI_MODEL".into(), "auto".into()),
                 (
                     "IRONCLAW_OAUTH_EXCHANGE_URL".into(),
@@ -156,10 +151,7 @@ pub async fn spawn(
             envs.extend([
                 ("LLM_BACKEND".into(), "openai_compatible".into()),
                 ("LLM_BASE_URL".into(), "https://openrouter.ai/api/v1".into()),
-                (
-                    "LLM_MODEL".into(),
-                    "deepseek/deepseek-chat-v3-0324".into(),
-                ),
+                ("LLM_MODEL".into(), "deepseek/deepseek-chat-v3-0324".into()),
                 ("OPENROUTER_API_KEY".into(), api_key.clone()),
             ]);
         }
@@ -189,9 +181,7 @@ pub async fn spawn(
         .current_dir(&cwd)
         .args(["--no-onboard", "run"]);
 
-    let (mut rx, child) = command
-        .spawn()
-        .map_err(|e| format!("spawn sidecar: {e}"))?;
+    let (mut rx, child) = command.spawn().map_err(|e| format!("spawn sidecar: {e}"))?;
 
     // Stash the child immediately so any error path can still clean it up
     // via stop().
@@ -310,8 +300,7 @@ fn ensure_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .app_data_dir()
         .map_err(|e| format!("resolve app_data_dir: {e}"))?;
     let cwd = base.join("ironclaw-data");
-    std::fs::create_dir_all(&cwd)
-        .map_err(|e| format!("create {}: {e}", cwd.display()))?;
+    std::fs::create_dir_all(&cwd).map_err(|e| format!("create {}: {e}", cwd.display()))?;
     Ok(cwd)
 }
 
@@ -387,9 +376,7 @@ async fn http_health_probe(url: &str) -> Result<(), String> {
         stream
             .set_read_timeout(Some(Duration::from_millis(800)))
             .map_err(|e| e.to_string())?;
-        let req = format!(
-            "GET {path} HTTP/1.0\r\nHost: {authority}\r\nConnection: close\r\n\r\n"
-        );
+        let req = format!("GET {path} HTTP/1.0\r\nHost: {authority}\r\nConnection: close\r\n\r\n");
         stream
             .write_all(req.as_bytes())
             .map_err(|e| e.to_string())?;

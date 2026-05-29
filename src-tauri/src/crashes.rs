@@ -58,7 +58,11 @@ pub struct CrashEntry {
     pub profile_id: Option<String>,
     #[serde(rename = "userAgent", default, skip_serializing_if = "Option::is_none")]
     pub user_agent: Option<String>,
-    #[serde(rename = "appVersion", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "appVersion",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub app_version: Option<String>,
     /// Anything else the frontend wants to attach. Flattened on the wire
     /// so a future field like `sessionId` lands as a top-level key in
@@ -102,8 +106,7 @@ fn rotate(app: &AppHandle) -> Result<(), String> {
     if rotated.exists() {
         let _ = fs::remove_file(&rotated);
     }
-    fs::rename(&current, &rotated)
-        .map_err(|e| format!("rotate {}: {e}", current.display()))?;
+    fs::rename(&current, &rotated).map_err(|e| format!("rotate {}: {e}", current.display()))?;
     Ok(())
 }
 

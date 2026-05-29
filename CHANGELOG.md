@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.86 — Atomic settings write on the Rust side (2026-05-29)
+
+- **Crash-safe `settings.json` persistence (Codex audit P0, Rust half)**:
+  `settings::save` previously did a plain `fs::write`, so a crash or power loss
+  mid-write could leave a truncated, unparseable settings file — and on next
+  boot the loader would fall back to an empty object, silently dropping every
+  saved profile. The write now goes through an `atomic_write` helper: serialize
+  into a sibling `settings.json.tmp`, `write_all` + `sync_all` (fsync) it, then
+  `fs::rename` over the target. A rename is atomic on the same filesystem, so an
+  interrupted save can only ever leave the previous complete file or the new
+  complete file in place, never a partial one; a failed rename cleans up the
+  temp. This is the cargo-validated Rust counterpart to v0.4.85's JS
+  cache-after-IPC fix — together the two layers never desync on a failed save.
+  New `#[cfg(test)]` unit test covers replace-and-no-temp-left-behind;
+  `cargo fmt` + `cargo check` + `cargo clippy` clean (953 tests: 952 JS + 1 Rust).
+
 ## v0.4.85 — Fix: settings cache adopts new state only after the write succeeds (2026-05-29)
 
 - **No cache/disk desync on a failed settings write (Codex audit P0, JS half)**:
