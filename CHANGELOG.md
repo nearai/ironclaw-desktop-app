@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.84 — Security: gate Python "Run" behind explicit confirmation (2026-05-29)
+
+- **No one-click code execution (Codex audit P0)**: assistant-authored Python in
+  a chat code block ran on the user's machine (not a real sandbox — inherits
+  HOME, file + network access) from a single "Run" click. The Run button now
+  only **arms** a confirmation — a gold "Runs code on your machine." caution with
+  **"Run anyway"** / **Cancel** — and execution (`run_python_snippet`) fires only
+  on the deliberate second click; it never auto-runs. Defence-in-depth UX gate
+  until a real OS sandbox lands on the Rust side (still recommended). New
+  `PythonBlock.test.ts`: first click arms (no run), "Run anyway" executes, Cancel
+  dismisses. +3 tests (950 total).
+
 ## v0.4.83 — Fix: v2 first-send opens the stream before posting (2026-05-29)
 
 - **No more missed first-run events (Codex audit P1)**: a brand-new v2
