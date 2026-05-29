@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.40 — ChatTabs render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested `ChatTabs.svelte`
+  (R52 — Chrome-style chat tabs). +5 render tests driving the `chatTabs` store:
+  self-gates with no open tabs; renders a `role="tab"` per open id with titles
+  and the active `aria-selected`; clicking a tab calls `chatTabs.setActive` +
+  emits `onSelect`; the per-tab close button calls `chatTabs.close` + emits
+  `onClose(id, nextActive)`; the + button emits `onNew`. Drives the store
+  `$state` directly and spies its methods. No production code changed.
+
 ## v0.4.39 — ReplayBar render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested `ReplayBar.svelte`
