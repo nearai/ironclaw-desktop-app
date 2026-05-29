@@ -267,6 +267,11 @@ export interface AppSettings {
  *  Rust constant `DEFAULT_PROFILE_ID` in `keychain.rs`. */
 export const DEFAULT_PROFILE_ID = 'default';
 
+/** Canonical hosted IronClaw gateway. The collapsed onboarding "Hosted"
+ *  card prefills this so a brand-new user only has to paste their access
+ *  token (no URL typing) to connect to a running NEAR.AI-backed gateway. */
+export const HOSTED_DEFAULT_URL = 'https://baremetal3.agents.near.ai';
+
 function newProfileId(): string {
   // crypto.randomUUID() is available in modern webviews (Tauri 2 ships
   // WebKit ≥ 16.4 on macOS) — no extra dep needed.

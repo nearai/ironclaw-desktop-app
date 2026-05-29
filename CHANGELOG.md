@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.71 — Onboarding foundation: no pre-onboard sidecar autostart (2026-05-29)
+
+- **Onboarding correctness (step 1 of the Local-vs-Hosted rebuild)**: the
+  connection store no longer auto-starts the local sidecar during `init()`
+  while `onboardingComplete === false`. A brand-new install (or a partial local
+  config) used to spend first-run boot inside sidecar/Keychain failures — and a
+  hidden macOS ACL prompt could wedge startup — before the user had even chosen
+  a mode. The onboarding wizard now owns the first sidecar launch. Surfaced by
+  the comprehensive Codex audit (P1). Added `HOSTED_DEFAULT_URL`
+  (`https://baremetal3.agents.near.ai`) so the forthcoming one-tap "Hosted" card
+  can prefill the gateway and ask only for an access token. +1 test (932 total).
+  _First increment of collapsing onboarding to "sign in → Local or Hosted → done."_
+
 ## v0.4.70 — Gorgeous UX: thread-rail polish (2026-05-29)
 
 - **v2 thread rail (UX overhaul, step 2)**: the Reborn v2 chat rail goes from a

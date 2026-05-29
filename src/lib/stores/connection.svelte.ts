@@ -455,7 +455,12 @@ class ConnectionStore {
         this.startPolling();
         return;
       }
-      if (opts.allowAutoStart) {
+      // Auto-start only once onboarding is complete. Before that, the
+      // onboarding wizard owns the first sidecar launch — auto-starting
+      // here can burn first-run boot time inside sidecar/Keychain
+      // failures (and a hidden macOS ACL prompt) before the user has even
+      // chosen Local vs Hosted. (Codex audit P1.)
+      if (opts.allowAutoStart && this.settings.onboardingComplete) {
         await this.startSidecar();
       } else {
         this.setSidecarStatus('idle');

@@ -108,4 +108,54 @@ describe('connection.init() concurrent-call dedupe', () => {
       expect(connection.settings.activeProfileId).toBe('default');
     }
   );
+
+  // Codex audit P1: a fresh, not-yet-onboarded install in local mode must
+  // NOT auto-spawn the sidecar during init() — the onboarding wizard owns
+  // the first launch so first-run boot never wedges inside a sidecar /
+  // Keychain failure before the user has chosen Local vs Hosted.
+  it(
+    'does not auto-start the local sidecar before onboarding completes',
+    { timeout: 15000 },
+    async () => {
+      const win = (globalThis as unknown as { window?: Record<string, unknown> }).window ?? {};
+      win.__TAURI_INTERNALS__ = {};
+      (globalThis as unknown as { window: Record<string, unknown> }).window = win;
+
+      const ONDISK = {
+        activeProfileId: 'default',
+        adminMode: false,
+        engineV2Enabled: false,
+        onboardingComplete: false, // <-- brand-new install, not onboarded
+        profiles: [
+          {
+            id: 'default',
+            llmBackend: 'nearai',
+            llmProviderId: 'nearai',
+            localBaseUrl: 'http://127.0.0.1:3100',
+            mode: 'local', // <-- local mode would normally auto-start
+            name: 'Default',
+            remoteBaseUrl: 'http://127.0.0.1:3100',
+            apiVersion: 'v2'
+          }
+        ],
+        trayEnabled: true,
+        useResponsesApi: true
+      };
+
+      const { invoke } = await import('@tauri-apps/api/core');
+      vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        if (cmd === 'get_settings') return ONDISK;
+        if (cmd === 'sidecar_status') return { running: false, port: null };
+        if (cmd === 'get_token') return null;
+        return undefined;
+      });
+
+      const { connection } = await import('./connection.svelte');
+      await connection.init();
+
+      const startedSidecar = vi.mocked(invoke).mock.calls.some(([cmd]) => cmd === 'start_sidecar');
+      expect(startedSidecar).toBe(false);
+      expect(connection.status).toBe('disconnected');
+    }
+  );
 });
