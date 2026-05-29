@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.4.72 — Onboarding collapsed to one Local-vs-Hosted screen (2026-05-29)
+
+- **First-run is now sign-in-simple**: the three-step wizard (mode → credentials
+  → test, plus a tint picker and localhost autodetect) is replaced by a single
+  screen with two cards. **Local** is one click ("Run on this Mac") — spawns the
+  bundled sidecar (NEAR.AI Cloud default, no key) and drops you into chat.
+  **Hosted** prefills the gateway URL (`HOSTED_DEFAULT_URL`) and asks only for
+  an access token, with a "sign in at <gateway>" link that opens the gateway in
+  your browser; the token is **health-checked before** onboarding is marked
+  complete, so "done" can't mean silently broken (Codex P1 — no more
+  complete-but-unusable finishes). Custom server URL, OpenRouter key, and the
+  v1/v2 toggle moved into an **Advanced** disclosure; accent/theme now lives only
+  in Settings. The hard-won invariants are preserved: finishing always writes
+  `onboardingComplete: true`, a save failure arms the
+  `ironclaw-onboarding-bypass` escape hatch, and a single "Set up later" exit
+  reads from disk (never the draft). Styled on the v2 token + motion system.
+  Onboarding test rewritten for the collapsed flow (932 total). _Follow-up: the
+  Playwright onboarding e2e still drives the old steps and needs updating._
+
 ## v0.4.71 — Onboarding foundation: no pre-onboard sidecar autostart (2026-05-29)
 
 - **Onboarding correctness (step 1 of the Local-vs-Hosted rebuild)**: the
