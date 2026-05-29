@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.16 — Extracted + tested command-palette scorer (2026-05-29)
+
+- **Simplification + coverage (audit R200 P2)**: extracted CommandPalette's
+  inline tiered match scorer (`scoreMatch`: prefix > substring > subsequence)
+  to a tested pure util (`src/lib/util/command-score.ts`). Behavior-preserving
+  move; +6 unit tests cover the tier ordering, gap penalties, and no-match
+  cases — locking previously-untested ranking logic.
+
 ## v0.4.15 — Extracted + tested highlight util (2026-05-29)
 
 - **Simplification + coverage (audit R200 P2)**: extracted GlobalSearch's

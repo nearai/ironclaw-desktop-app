@@ -34,6 +34,7 @@
   import { saveSettings } from '$lib/stores/settings.svelte';
   import { pins, type PinSurface } from '$lib/stores/pins.svelte';
   import { presetsModal } from '$lib/stores/presets.svelte';
+  import { scoreMatch } from '$lib/util/command-score';
   import {
     composerInsert,
     templates,
@@ -1401,26 +1402,9 @@
     return scored.slice(0, RESULT_CAP).map((s) => s.item);
   }
 
-  /** Exact-prefix > exact-substring > subsequence; 0 = no match. */
-  function scoreMatch(hay: string, needle: string): number {
-    if (!hay) return 0;
-    if (hay.startsWith(needle)) return 1000 - (hay.length - needle.length);
-    const sub = hay.indexOf(needle);
-    if (sub >= 0) return 500 - sub;
-    // Subsequence: characters of needle appear in hay in order.
-    let i = 0;
-    let lastIdx = -1;
-    let gaps = 0;
-    for (const ch of hay) {
-      if (ch === needle[i]) {
-        if (lastIdx >= 0) gaps += hay.indexOf(ch, lastIdx + 1) - lastIdx - 1;
-        lastIdx = hay.indexOf(ch, lastIdx + 1);
-        i++;
-        if (i === needle.length) return 100 - Math.min(gaps, 99);
-      }
-    }
-    return 0;
-  }
+  // Tiered match scoring (`scoreMatch`) lives in $lib/util/command-score — a
+  // tested pure helper (prefix > substring > subsequence). Callers pass
+  // pre-lowercased strings.
 
   // Row-index lookup for click handlers — items are addressed by id but
   // keyboard nav is indexed, so we maintain a parallel map.
