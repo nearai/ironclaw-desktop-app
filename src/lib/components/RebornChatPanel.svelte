@@ -15,6 +15,8 @@
   import MarkdownView from './MarkdownView.svelte';
   import { rebornChat, RebornChatController } from '$lib/stores/reborn-chat.svelte';
   import { rebornThreads, RebornThreadStore } from '$lib/stores/reborn-threads.svelte';
+  import type { ThreadSummary } from '$lib/api/reborn';
+  import { relativeTime } from '$lib/util/format-time';
 
   interface Props {
     /** Injectable for tests; default to the app-wide singletons. */
@@ -35,6 +37,14 @@
   // Thread rail state.
   const threadList = $derived(threads.threads);
   const activeThreadId = $derived(threads.currentId);
+  const isLoading = $derived(threads.isLoading);
+
+  /** Relative "last active" label for a thread row, or null when the
+   *  server omitted both timestamps (don't fabricate a "just now"). */
+  function rowTime(t: ThreadSummary): string | null {
+    const ts = t.updated_at || t.created_at;
+    return ts ? relativeTime(ts) : null;
+  }
 
   onMount(() => {
     // Populate the rail. Resilient (the store swallows transport failures).
@@ -60,6 +70,19 @@
   });
 
   onDestroy(() => controller.closeStream());
+
+  // Keep the selected thread visible: when the active id changes, scroll its
+  // row into view inside the rail (no-op in jsdom / when off-screen logic is
+  // unavailable). Runs after the DOM applies `.is-active`.
+  let listEl: HTMLUListElement | undefined = $state();
+  $effect(() => {
+    const id = activeThreadId;
+    if (!id || !listEl) return;
+    const row = listEl.querySelector('.is-active');
+    if (row && typeof row.scrollIntoView === 'function') {
+      row.scrollIntoView({ block: 'nearest' });
+    }
+  });
 
   /** Start a fresh conversation (the bind effect resets the controller). */
   function newChat() {
@@ -110,20 +133,31 @@
         New chat
       </button>
     </div>
-    {#if threadList.length === 0}
+    {#if isLoading && threadList.length === 0}
+      <div class="reborn-rail__skeleton" aria-hidden="true" data-testid="reborn-rail-skeleton">
+        <div class="reborn-skel-row"></div>
+        <div class="reborn-skel-row"></div>
+        <div class="reborn-skel-row"></div>
+        <div class="reborn-skel-row"></div>
+        <div class="reborn-skel-row"></div>
+      </div>
+    {:else if threadList.length === 0}
       <p class="reborn-rail__empty">No conversations yet.</p>
     {:else}
-      <ul class="reborn-rail__list">
+      <ul class="reborn-rail__list" bind:this={listEl}>
         {#each threadList as t (t.thread_id)}
+          {@const time = rowTime(t)}
           <li>
             <button
               type="button"
               class="reborn-rail__item"
               class:is-active={t.thread_id === activeThreadId}
+              aria-current={t.thread_id === activeThreadId ? 'true' : undefined}
               onclick={() => selectThread(t.thread_id)}
               title={t.title || 'Untitled conversation'}
             >
-              {t.title || 'Untitled conversation'}
+              <span class="reborn-rail__item-title">{t.title || 'Untitled conversation'}</span>
+              {#if time}<span class="reborn-rail__item-time">{time}</span>{/if}
             </button>
           </li>
         {/each}
@@ -271,9 +305,13 @@
     gap: 0.15rem;
   }
   .reborn-rail__item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.1rem;
     width: 100%;
     text-align: left;
-    padding: 0.5rem 0.6rem;
+    padding: 0.4rem 0.6rem;
     border: none;
     border-radius: 0.45rem;
     background: transparent;
@@ -281,9 +319,19 @@
     font: inherit;
     font-size: 0.85rem;
     cursor: pointer;
+    transition:
+      background var(--v2-dur-fast) var(--v2-ease-out),
+      color var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .reborn-rail__item-title {
+    max-width: 100%;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .reborn-rail__item-time {
+    font-size: 0.7rem;
+    color: var(--v2-text-faint);
   }
   .reborn-rail__item:hover {
     background: var(--v2-surface-2, rgba(255, 255, 255, 0.05));
@@ -291,6 +339,30 @@
   .reborn-rail__item.is-active {
     background: var(--v2-accent-soft, rgba(76, 167, 230, 0.14));
     color: var(--v2-accent-text, #8fc8f2);
+  }
+  .reborn-rail__skeleton {
+    padding: 0.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .reborn-skel-row {
+    height: 1.9rem;
+    border-radius: 0.45rem;
+    background: var(--v2-surface-2);
+    animation: v2-breathe 1.6s var(--v2-ease-in-out) infinite;
+  }
+  .reborn-skel-row:nth-child(2) {
+    width: 82%;
+  }
+  .reborn-skel-row:nth-child(3) {
+    width: 90%;
+  }
+  .reborn-skel-row:nth-child(4) {
+    width: 74%;
+  }
+  .reborn-skel-row:nth-child(5) {
+    width: 86%;
   }
   .reborn-rail__more {
     margin: 0.35rem;

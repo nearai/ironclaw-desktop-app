@@ -110,4 +110,25 @@ describe('RebornChatPanel', () => {
     await fireEvent.click(getByText('New chat'));
     expect(threads.currentId).toBeNull();
   });
+
+  it('shows skeleton rows while loading with no threads yet (no empty text)', () => {
+    const threads = freshThreads();
+    threads.isLoading = true; // null-client load() no-ops, so this survives mount
+    const { container, queryByText } = render(RebornChatPanel, {
+      props: { controller: controllerWith({}), threads }
+    });
+    expect(container.querySelector('[data-testid="reborn-rail-skeleton"]')).toBeTruthy();
+    expect(queryByText('No conversations yet.')).toBeNull();
+  });
+
+  it('renders a relative timestamp for a thread that carries one', () => {
+    const threads = freshThreads();
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    threads.threads = [{ thread_id: 't1', title: 'Budget review', updated_at: twoHoursAgo }];
+    const { getByText } = render(RebornChatPanel, {
+      props: { controller: controllerWith({}), threads }
+    });
+    expect(getByText('Budget review')).toBeTruthy();
+    expect(getByText('2h ago')).toBeTruthy();
+  });
 });

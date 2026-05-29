@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.70 — Gorgeous UX: thread-rail polish (2026-05-29)
+
+- **v2 thread rail (UX overhaul, step 2)**: the Reborn v2 chat rail goes from a
+  flat title list to a real, legible rail. Each row now shows a faint relative
+  "last active" timestamp (`updated_at`/`created_at` → `relativeTime`, suppressed
+  when the server omits both so it never fabricates a "just now"). A loading
+  **skeleton** (shimmer rows on `--v2-surface-2`, eased via the new motion
+  scale) fills the rail while threads load instead of a blank panel or premature
+  "No conversations yet." The active row scrolls itself into view on selection
+  and carries `aria-current` for screen readers, and row hover/active now
+  transitions through `--v2-dur-fast`/`--v2-ease-out` rather than snapping. +2
+  render tests (931 total).
+
 ## v0.4.69 — Gorgeous UX: design-token foundation (2026-05-29)
 
 - **Design foundation (UX overhaul, step 1)**: the gorgeous-UX work starts at
