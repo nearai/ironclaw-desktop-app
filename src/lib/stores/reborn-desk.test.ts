@@ -99,4 +99,12 @@ describe('RebornDesk open loops', () => {
     desk.dismissLoop(b!.id);
     expect(desk.loopCards).toEqual([]);
   });
+
+  it('addLoop captures a (trimmed) commitment and ignores empty input', () => {
+    const { desk } = deskWithLoops();
+    desk.addLoop('  Follow up with Sam  ');
+    expect(desk.loopCards.map((c) => c.text)).toEqual(['Follow up with Sam']);
+    desk.addLoop('   ');
+    expect(desk.loopCards).toHaveLength(1);
+  });
 });

@@ -69,4 +69,15 @@ describe('RebornDeskPanel', () => {
     await fireEvent.click(getByText('Dismiss'));
     expect(dismiss).toHaveBeenCalledWith(a!.id);
   });
+
+  it('captures a new open loop via the quick-add input', async () => {
+    const { desk } = deskWith(null);
+    const add = vi.spyOn(desk, 'addLoop').mockImplementation(() => {});
+    const { getByLabelText, getByText } = render(RebornDeskPanel, { props: { desk } });
+    await fireEvent.input(getByLabelText('Track a commitment'), {
+      target: { value: 'Ship the deck' }
+    });
+    await fireEvent.click(getByText('Add'));
+    expect(add).toHaveBeenCalledWith('Ship the deck');
+  });
 });

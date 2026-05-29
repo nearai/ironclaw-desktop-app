@@ -89,6 +89,12 @@ export class RebornDesk {
     return this.loops.active.map((l) => ({ id: l.id, text: l.text, createdAt: l.createdAt }));
   }
 
+  /** Capture a new commitment on the Desk. Trimming/empty-guarding is handled
+   *  by the store; returns nothing (the reactive `loopCards` updates). */
+  addLoop(text: string): void {
+    this.loops.add(text);
+  }
+
   /** Mark a commitment resolved (toggles its done flag in the store). */
   resolveLoop(id: string): void {
     this.loops.toggleDone(id);

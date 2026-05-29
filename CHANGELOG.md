@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.65 — The Desk: open-loops quick-add (increment 6) (2026-05-29)
+
+- **The Desk (increment 6 — capture)**: the "Open loops" section now always
+  renders with a quick-add input ("Track a commitment…", Enter or Add), so the
+  Desk is a capture surface, not just a viewer — jot a commitment the moment you
+  think of it and it lands in the R100 open-loops store. New `RebornDesk.addLoop`
+  (delegates to the store's trim/empty-guarded `add`); the panel gained a small
+  form with submit-to-add + a disabled-when-empty button. +2 tests (917 total).
+  Backend-agnostic (localStorage), so it works on a Reborn v2 backend.
+
 ## v0.4.64 — The Desk: "Needs you" nav badge (increment 5) (2026-05-29)
 
 - **The Desk (increment 5 — ambient signal)**: the Desk sidebar nav row now
