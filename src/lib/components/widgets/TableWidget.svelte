@@ -1,11 +1,7 @@
 <script lang="ts">
   import type { Widget as WidgetModel } from '$lib/api/types';
+  import { cellText, normalizeTablePayload } from '$lib/util/table-payload';
   import Widget from './Widget.svelte';
-
-  interface TablePayload {
-    headers?: unknown[];
-    rows?: unknown[][];
-  }
 
   interface Props {
     widget: WidgetModel;
@@ -14,20 +10,7 @@
 
   let { widget, surface }: Props = $props();
 
-  function cellText(value: unknown): string {
-    if (value == null) return '';
-    if (typeof value === 'string') return value;
-    return JSON.stringify(value);
-  }
-
-  const table = $derived.by(() => {
-    const payload = widget.payload as TablePayload;
-    const headers = Array.isArray(payload?.headers) ? payload.headers.map(cellText) : [];
-    const rows = Array.isArray(payload?.rows)
-      ? payload.rows.map((row) => (Array.isArray(row) ? row.map(cellText) : []))
-      : [];
-    return { headers, rows };
-  });
+  const table = $derived(normalizeTablePayload(widget.payload));
 </script>
 
 <Widget {widget} {surface}>

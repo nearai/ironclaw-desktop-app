@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.8 — Shared widget payload helper (2026-05-28)
+
+- **Simplification (audit R200 P1)**: TableWidget and ComparisonWidget had
+  identical `cellText` + payload-normalization copy-pasted. Extracted to a
+  tested `src/lib/util/table-payload.ts` (`cellText` + `normalizeTablePayload`,
+  defensive against any payload shape, never throws). +4 unit tests.
+
 ## v0.4.7 — Omnibar skills cache (2026-05-28)
 
 - **Perf (audit R200 P1)**: the omnibar (Cmd+Space) called `listSkills()` over
