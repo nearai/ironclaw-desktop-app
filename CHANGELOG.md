@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.36 — TokenSourceBadge render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `TokenSourceBadge.svelte` (v0.2.9 — token-source provenance chip). +4 render
+  tests drive the three present states via the `forcedSource` prop (which
+  bypasses the IPC + poll timer): keychain / file-fallback / absent each
+  render the right label, `data-source`, and `aria-label`, and `forcedSource`
+  suppresses the loading flash. (Crosses 700 tests in the suite.) No
+  production code changed.
+
 ## v0.4.35 — LightboxModal render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
