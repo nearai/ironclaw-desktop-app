@@ -3336,7 +3336,7 @@ export class IronClawClient {
  * Returns `undefined` for unparseable input so the request falls back to
  * the gateway's default ("day").
  */
-function sinceToPeriod(since: string | undefined): string | undefined {
+export function sinceToPeriod(since: string | undefined): string | undefined {
   if (!since) return undefined;
   const t = Date.parse(since);
   if (!Number.isFinite(t)) return undefined;
@@ -3351,7 +3351,7 @@ function sinceToPeriod(since: string | undefined): string | undefined {
   return 'year';
 }
 
-function normalizeLogLevel(raw: unknown): LogLevel {
+export function normalizeLogLevel(raw: unknown): LogLevel {
   const s = String(raw ?? '').toLowerCase();
   if (s === 'trace' || s === 'debug' || s === 'info' || s === 'warn' || s === 'error') {
     return s;
@@ -3362,7 +3362,7 @@ function normalizeLogLevel(raw: unknown): LogLevel {
   return 'info';
 }
 
-function mapRunStatus(s: string): 'running' | 'success' | 'failed' {
+export function mapRunStatus(s: string): 'running' | 'success' | 'failed' {
   if (s === 'completed') return 'success';
   if (s === 'running') return 'running';
   // 'failed', 'timeout', and any unknown values surface as failed so UI flags them.
@@ -3376,7 +3376,7 @@ function mapRunStatus(s: string): 'running' | 'success' | 'failed' {
  * MCP-like to "mcp"; everything else passes through verbatim so future
  * categories show up rather than getting silently dropped.
  */
-function mapExtensionKind(kind: unknown): string | undefined {
+export function mapExtensionKind(kind: unknown): string | undefined {
   const k = String(kind ?? '').toLowerCase();
   if (!k) return undefined;
   if (k.includes('channel')) return 'channel';
@@ -3394,7 +3394,7 @@ function mapExtensionKind(kind: unknown): string | undefined {
  * delimiter — caller skips two bytes past it (and an extra two for CRLF) to
  * advance.
  */
-function findFrameEnd(buf: string): number {
+export function findFrameEnd(buf: string): number {
   const lf = buf.indexOf('\n\n');
   const crlf = buf.indexOf('\r\n\r\n');
   if (lf === -1 && crlf === -1) return -1;
@@ -3460,7 +3460,7 @@ async function* parseSseStream<T>(
  *
  * Returns null for empty frames (just a comment / heartbeat).
  */
-function parseSseFrame(frame: string): { event: string; data: string } | null {
+export function parseSseFrame(frame: string): { event: string; data: string } | null {
   let event = 'message';
   const dataLines: string[] = [];
   for (const rawLine of frame.split(/\r?\n/)) {

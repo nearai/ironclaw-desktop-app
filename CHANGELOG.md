@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.51 — IronClaw SSE/normalizer parser coverage (2026-05-29)
+
+- **Test coverage**: first tests for the pure parsing/mapping helpers at the
+  heart of the chat stream in `src/lib/api/ironclaw.ts`. Six previously
+  module-private helpers are now exported (zero behavior change) and covered by
+  +22 unit tests in `ironclaw-parsers.test.ts`: `parseSseFrame` (event field,
+  multi-line `data:` join, single-leading-space strip, comment/`id`/`retry`
+  ignore, empty-vs-null frames); `findFrameEnd` (LF-LF, CRLF-CRLF, earliest of
+  both, no-delimiter); `sinceToPeriod` (hour/day/week/month/year buckets +
+  future-clamp + unparseable→undefined, via fake timers); `normalizeLogLevel`
+  ("warning"→warn, case-insensitive canonical levels, nullish/numeric→info);
+  `mapRunStatus` (completed→success, running, else→failed); and
+  `mapExtensionKind` (channel/mcp/oauth collapse + lowercased passthrough +
+  empty→undefined). The larger Responses/`normalizeEvent` switches are left for
+  a follow-up.
+
 ## v0.4.50 — window-focus tracker coverage (2026-05-29)
 
 - **Test coverage**: first tests for the window-focus tracker
