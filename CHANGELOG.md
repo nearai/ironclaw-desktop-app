@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.31 — CronPreview render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `CronPreview.svelte` (R20b — inline human-readable cron description). +4
+  render tests lock the three-way branch: empty/nullish/blank input renders a
+  non-alert empty span; a valid expression renders the gold preview with a
+  `title` and the calendar icon (spot-checking `0 9 * * *` → "Every day at
+  9:00 AM"); an invalid expression renders an accessible `role="alert"` with
+  `aria-label="Invalid cron expression"`; and the optional `classes` prop is
+  appended. (Human text itself is covered by `cron.test.ts`.) First pass of
+  the untested-component coverage vein now that the store vein is drained. No
+  production code changed.
+
 ## v0.4.30 — Gate find-in-thread version bump behind searchOpen (2026-05-29)
 
 - **Performance (audit R200 P1)**: the chat `contentVersion` effect bumped a
