@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.67 — First-class v2 chat: thread-list store (2026-05-29)
+
+- **New thrust — first-class v2 chat (foundation)**: new
+  `src/lib/stores/reborn-threads.svelte.ts` — a Reborn v2 thread-list store
+  (`listThreadsV2` → `threadsFromListResponse`) so past Reborn conversations
+  become browsable/resumable (v2 chat was new-conversation-only; the sidebar
+  rail still listed v1 threads). Offers `load`, paginated `loadMore` (append +
+  dedup + cursor), `select`, and optimistic `upsert`; resilient (a transport
+  failure leaves an empty list, not a throw). v2 exposes list + create only —
+  no rename/delete in the WebChat v2 contract — so the store is scoped to
+  browse/resume/select. Client injected for tests. +7 unit tests (924 total).
+  Additive — the thread-rail UI wiring lands next.
+
 ## v0.4.66 — The Desk: caught-up next-action link (increment 7) (2026-05-29)
 
 - **The Desk (increment 7 — no dead-ends)**: the "all caught up" empty state now
