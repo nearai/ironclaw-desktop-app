@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.38 — BuildProvenanceBadge render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `BuildProvenanceBadge.svelte` (R38 — build-kind provenance chip). +4 render
+  tests drive the three build kinds via the `forced` prop (which skips the
+  `build_provenance` IPC): public / support / dev each render the right label,
+  `data-build-kind`, `data-signing`, and `aria-label`, and the chip title
+  carries the signing + profile. No production code changed.
+
 ## v0.4.37 — ReplyThreadPanel render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
