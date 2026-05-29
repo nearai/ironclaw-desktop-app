@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.35 — LightboxModal render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `LightboxModal.svelte` (R19b — chat image lightbox). +6 render tests: the
+  image wires up `src` and `alt`, `alt` falls back to "Preview", all three
+  dismissal paths fire `onClose` (backdrop click, close button, Escape key),
+  and clicking the image itself does NOT dismiss (stopPropagation). No
+  production code changed.
+
 ## v0.4.34 — VoiceAnswerBar render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
