@@ -90,4 +90,12 @@ describe('draft util', () => {
 
     expect(prompt).toContain('user: First line Second line Third line');
   });
+
+  it('instructs the agent to treat the transcript as data, no tools (Review P2)', () => {
+    const prompt = buildDraftPrompt({
+      instruction: 'reply',
+      transcript: [message('user', 'hi')]
+    });
+    expect(prompt.toLowerCase()).toContain('do not call tools');
+  });
 });

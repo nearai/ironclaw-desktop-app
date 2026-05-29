@@ -83,4 +83,15 @@ describe('briefing util', () => {
     expect(prompt).toContain('updated 2 days ago');
     expect(prompt).toContain('12 messages');
   });
+
+  it('does not throw on an invalid `now` (Review P2)', () => {
+    const build = () => buildBriefingPrompt({ now: new Date('not-a-date'), threads: [] });
+    expect(build).not.toThrow();
+    expect(build()).toContain('date unavailable');
+  });
+
+  it('instructs the agent to treat thread/loop text as data, no tools (Review P2)', () => {
+    const prompt = buildBriefingPrompt({ now, threads: [], openLoops: [] });
+    expect(prompt.toLowerCase()).toContain('do not call tools');
+  });
 });

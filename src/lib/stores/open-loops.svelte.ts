@@ -122,8 +122,15 @@ class OpenLoopStore {
   add(text: string): OpenLoop | null {
     const normalized = normalizeText(text);
     if (normalized === null) return null;
+    // Guard against an id collision (the non-crypto fallback in `newId()`
+    // could theoretically repeat); a duplicate id breaks keyed rendering and
+    // makes toggle/remove hit multiple loops. Regenerate until unique.
+    // (Review P2.)
+    const existing = new Set(this.loops.map((l) => l.id));
+    let id = newId();
+    while (existing.has(id)) id = newId();
     const loop: OpenLoop = {
-      id: newId(),
+      id,
       text: normalized,
       done: false,
       createdAt: Date.now()

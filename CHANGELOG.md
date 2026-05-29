@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.4.4 — CoS hardening (2026-05-28)
+
+Fixes from an independent Codex review of the v0.4.x Chief of Staff arc (no
+P0s found):
+
+- **Stale-stream guard** (P1): Brief/Triage/Draft stores now stop writing the
+  instant a newer run (or close) aborts the current one, so a slow stale
+  stream can't clobber newer output.
+- **Draft pre-stream race** (P1): `onDraft` stamps a monotonic request token
+  and bails if a slower `getHistory()` resolves after a newer request.
+- **Injection boundary** (P2): the brief/triage/draft prompts now tell the
+  agent to treat thread titles, transcripts, and open-loop text strictly as
+  data — never as instructions — and not to call tools during these read-only
+  completions.
+- **Never-throw** (P2): `buildBriefingPrompt` guards an invalid `now` instead
+  of throwing on `toISOString()`.
+- **Unique ids** (P2): open-loops `add()` regenerates on the astronomically
+  rare id collision so keyed rendering + toggle/remove stay correct.
+
+539 tests green (+5), 0 type errors. Production bundle verified.
+
 ## v0.4.3 — Draft to send (2026-05-28)
 
 - **Draft a reply** (R105): a send-icon button in the chat header (also

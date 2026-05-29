@@ -83,6 +83,11 @@ class BriefingStore {
     try {
       let out = '';
       for await (const ev of client.streamResponse(prompt, null, abort.signal, instructions)) {
+        // A newer run (or close()) may have aborted this one mid-stream.
+        // Stop writing immediately so a stale run can't clobber the newer
+        // run's output. `finally` only owns `loading` via the abort guard;
+        // this protects the visible text too. (Review P1.)
+        if (abort.signal.aborted) return;
         if (ev.type === 'content_delta') {
           out += ev.delta;
           // Stream into the panel as it arrives.

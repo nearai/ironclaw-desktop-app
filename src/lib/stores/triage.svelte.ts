@@ -69,6 +69,9 @@ class TriageStore {
     try {
       let out = '';
       for await (const ev of client.streamResponse(prompt, null, abort.signal, instructions)) {
+        // A newer run (or close()) may have aborted this one mid-stream;
+        // stop writing so a stale run can't clobber newer output. (Review P1.)
+        if (abort.signal.aborted) return;
         if (ev.type === 'content_delta') {
           out += ev.delta;
           this.result = out;

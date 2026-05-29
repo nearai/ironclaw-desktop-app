@@ -2301,6 +2301,10 @@
     await triage.generate(triageThreads, client);
   }
 
+  // Monotonic token guarding onDraft()'s pre-stream getHistory await against
+  // out-of-order resolution (Review P1).
+  let draftRequestSeq = 0;
+
   /**
    * R105: open the draft panel and have the Chief of Staff write a reply in
    * the user's voice, grounded in the active thread. Fetches the full
@@ -2313,14 +2317,21 @@
     if (!connection.client || !currentThread) return;
     const client = connection.client;
     const thread = currentThread;
+    // Guard the pre-stream getHistory() await: a slow fetch for an older
+    // request could resolve after a newer one and clobber it (wrong thread,
+    // aborted newer run). Stamp a monotonic token and bail if superseded.
+    // (Review P1.)
+    const myReq = ++draftRequestSeq;
     draft.threadLabel = thread.title || 'this thread';
     draft.open = true;
     draft.loading = true;
     try {
       const all = await client.getHistory(thread.id, 10000);
+      if (myReq !== draftRequestSeq) return;
       const transcript = all.map((m) => ({ role: m.role, content: m.content }));
       await draft.generate(transcript, client);
     } catch (err) {
+      if (myReq !== draftRequestSeq) return;
       draft.error = (err as Error).message;
       draft.loading = false;
     }

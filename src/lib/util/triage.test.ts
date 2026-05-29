@@ -116,4 +116,9 @@ describe('triage util', () => {
     expect(prompt.indexOf('Valid timestamp')).toBeLessThan(prompt.indexOf('Broken timestamp'));
     expect(prompt).toContain('recency unknown; updatedAt unparseable');
   });
+
+  it('instructs the agent to treat thread text as data, no tools (Review P2)', () => {
+    const prompt = buildTriagePrompt({ now, threads: [] });
+    expect(prompt.toLowerCase()).toContain('do not call tools');
+  });
 });

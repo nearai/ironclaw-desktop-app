@@ -154,4 +154,10 @@ describe('open-loops store', () => {
     openLoops.clear();
     expect(openLoops.loops).toHaveLength(0);
   });
+
+  it('assigns a unique id to every loop (Review P2)', () => {
+    for (let i = 0; i < 50; i++) openLoops.add(`loop ${i}`);
+    const ids = openLoops.loops.map((l) => l.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
 });
