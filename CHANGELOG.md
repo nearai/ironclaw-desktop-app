@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.27 — Surface-refresh registry coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `surface-refresh.svelte.ts` (R24a — the Cmd+R per-surface refresh registry).
+  +6 tests lock the contract: `invoke()` returns false when nothing is
+  registered and true when a handler ran, `register` is last-registration-wins,
+  `unregister` clears the slot, async handlers are awaited, and a throwing
+  handler is swallowed (logged) while `invoke()` still resolves to true — so
+  Cmd+R can never crash the app. No production code changed.
+
 ## v0.4.26 — Cross-window broadcast bus coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
