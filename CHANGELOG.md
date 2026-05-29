@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.49 — reply-thread UI store coverage (2026-05-29)
+
+- **Test coverage**: first tests for the reply-thread UI-state singleton
+  (`src/lib/stores/reply-thread-ui.svelte.ts`, R80 — tracks which message's
+  reply panel the chat surface is showing). +4 unit tests: starts closed;
+  `open()` records the parent message + thread id and flips `isOpen()` true;
+  `open()` overwrites a previously open panel; `close()` clears both fields. No
+  production code changed.
+
 ## v0.4.48 — toast store coverage (2026-05-29)
 
 - **Test coverage**: first tests for the app-wide `toasts` singleton
