@@ -24,9 +24,8 @@
 #   '0 0 9 * * *'   = every day at 09:00:00
 #   '0 */30 * * * *'= every 30 minutes
 #
-# Standing automation created 2026-05-28 (delete with `delete kb-daily-digest`):
-#   kb-daily-digest — daily 09:00 — writes a <=150-word KB/memory digest to
-#   the memory note digests/daily-digest.md.
+# `delete` prompts for confirmation; pass `-y` to skip it
+# (e.g. `delete <name> -y`) since this wrapper has no interactive TTY.
 #
 # Env:
 #   IRONCLAW_SSH_ALIAS   SSH host alias (default: abby)
