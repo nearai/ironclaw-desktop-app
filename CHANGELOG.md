@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.4.56 — Reborn migration: codex review fixes (2026-05-29)
+
+- **Reborn migration (step 5 — codex review fixes)**: an independent codex
+  review of the cumulative migration diff (before wiring the chat surface)
+  surfaced five issues, all fixed:
+  - **(HIGH) SSE decode contract**: `streamWebChatV2Events` assumed `data:` was
+    a full `{type, frame}` envelope. The Reborn runtime (per its own SPA's
+    `useSSE`) names the frame type on the `event:` line and puts the frame
+    _body_ in `data:`. The decoder now reconstructs `{ type: body.type ?? <event
+    name>, frame: body }`, so named frames like `event: projection_update` are
+    no longer dropped. Fixed the transport test's wire shape + added a
+    named-event and a default-channel test.
+  - **(HIGH) token leak**: a failed SSE open put the full `?token=…` URL into
+    `HttpError`; now uses the token-free path in the error/log surface.
+  - **(MEDIUM) typed gates**: `reduceEvent` now handles the scaffolded
+    `gate` / `auth_required` event variants (ported from the SPA's
+    `gateFromEvent` — `auth_request_ref` maps to the gate-ref slot; correlates
+    to the latest run when the prompt omits `turn_run_id`).
+  - **(MEDIUM) thread binding**: `RebornChatController.send(content, threadId)`
+    now binds `this.threadId` for the explicit-id path (not just on
+    auto-create), and `loadTimeline` binds it too, so `resolveGate`/`cancel`
+    can't target a stale thread.
+  - **(MEDIUM) reset**: `reset()` clears `threadId` so a "new chat" send can't
+    post into the previous thread.
+  - +7 unit tests across `reborn.test.ts`, `reborn-transport.test.ts`,
+    `reborn-chat.test.ts` (899 total).
+
 ## v0.4.55 — Reborn v2 chat controller (2026-05-29)
 
 - **Reborn migration (step 4 — chat controller)**: new

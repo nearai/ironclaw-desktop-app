@@ -157,3 +157,37 @@ describe('RebornChatController.loadTimeline', () => {
     expect(c.state.messages[0]).toMatchObject({ role: 'user', content: 'hey' });
   });
 });
+
+describe('RebornChatController thread binding', () => {
+  it('binds threadId from an explicit send id so cancel/resolveGate target it', async () => {
+    const client = mockClient();
+    const c = new RebornChatController(() => client);
+    await c.send('hi', 'explicit-thread');
+    expect(c.threadId).toBe('explicit-thread');
+    expect(client.createThreadV2).not.toHaveBeenCalled();
+    c.state = {
+      ...c.state,
+      activeRun: { runId: 'r1', threadId: 'explicit-thread', status: 'running' }
+    };
+    await c.cancel();
+    expect(client.cancelRunV2).toHaveBeenCalledWith('explicit-thread', 'r1', undefined);
+  });
+
+  it('reset() clears the bound thread so a later send starts fresh', async () => {
+    const client = mockClient();
+    const c = new RebornChatController(() => client);
+    c.threadId = 'old';
+    c.reset();
+    expect(c.threadId).toBeNull();
+    await c.send('hi'); // no bound thread → must create a new one
+    expect(client.createThreadV2).toHaveBeenCalledTimes(1);
+    expect(c.threadId).toBe('t-new');
+  });
+
+  it('loadTimeline binds the thread it loaded', async () => {
+    const client = mockClient();
+    const c = new RebornChatController(() => client);
+    await c.loadTimeline('t-loaded');
+    expect(c.threadId).toBe('t-loaded');
+  });
+});

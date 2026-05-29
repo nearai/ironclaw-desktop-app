@@ -54,10 +54,14 @@ export class RebornChatController {
 
   constructor(private getClient: () => IronClawClient | null = () => connection.client) {}
 
-  /** Reset to a clean state (e.g. when switching threads). */
+  /** Reset to a clean state (e.g. when switching threads or starting a new
+   *  chat). Clears the bound thread so a subsequent `send()` doesn't post into
+   *  the thread we just left — callers bind the next thread via `openStream`
+   *  / `loadTimeline` / an explicit `send(content, threadId)`. */
   reset(messages: RebornMessage[] = []): void {
     this.closeStream();
     this.pending = [];
+    this.threadId = null;
     this.state = initialChatState(messages);
   }
 
@@ -69,6 +73,9 @@ export class RebornChatController {
   async loadTimeline(threadId: string): Promise<void> {
     const client = this.getClient();
     if (!client) return;
+    // Viewing a thread's timeline binds us to it, so a later resolveGate /
+    // cancel / send targets the right thread even without openStream.
+    this.threadId = threadId;
     const resp = await client.fetchTimelineV2(threadId, { limit: REBORN_TIMELINE_LIMIT });
     const records = recordsFromTimeline(resp);
     this.state = { ...this.state, messages: messagesFromTimeline(records, this.pending) };
@@ -90,8 +97,10 @@ export class RebornChatController {
       const created = await client.createThreadV2();
       threadId = created?.thread?.thread_id ?? null;
       if (!threadId) throw new Error('createThreadV2 returned no thread_id');
-      this.threadId = threadId;
     }
+    // Bind for both the explicit-id and freshly-created paths so a later
+    // resolveGate / cancel targets this thread, not a stale one.
+    this.threadId = threadId;
 
     const optimisticId = `pending-${this.pendingSeq++}`;
     const bubble: RebornMessage = {

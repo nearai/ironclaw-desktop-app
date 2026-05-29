@@ -144,6 +144,9 @@ export interface RebornGate {
   gateRef: string;
   headline?: string;
   body?: string;
+  /** Auth-gate only: credential provider + account label (from AuthPromptView). */
+  provider?: string;
+  accountLabel?: string;
 }
 
 export interface RebornActiveRun {
@@ -350,7 +353,15 @@ export interface WebChatV2EventFrame {
     progress?: { turn_run_id?: string };
     activity?: CapabilityActivity;
     preview?: CapabilityPreview;
-    prompt?: unknown;
+    prompt?: {
+      turn_run_id?: string;
+      gate_ref?: string;
+      auth_request_ref?: string;
+      provider?: string;
+      account_label?: string;
+      headline?: string;
+      body?: string;
+    };
     reply?: { turn_run_id?: string; text?: string; generated_at?: string };
     state?: { items?: ProjectionItem[] };
   };
@@ -601,6 +612,40 @@ export function reduceEvent(
           }
         ],
         pendingGate: null,
+        isProcessing: false
+      };
+    }
+    case 'gate':
+    case 'auth_required': {
+      // Typed gate variants (scaffolded in the schema; local-dev surfaces
+      // gates via projection items instead). Ported from the SPA's
+      // `gateFromEvent`: a `gate` carries `gate_ref`, an `auth_required`
+      // carries `auth_request_ref` (both round-trip through the same
+      // resolve path slot). Correlate to the run via `turn_run_id`, falling
+      // back to the last-seen run id; skip if neither a run nor a ref is
+      // known (the gate would be unresolvable).
+      const prompt = frame.prompt;
+      if (!prompt) return base;
+      const runId = prompt.turn_run_id || base.latestRunId;
+      const gateRef = type === 'gate' ? prompt.gate_ref : prompt.auth_request_ref;
+      if (!runId || !gateRef) return base;
+      const gate: RebornGate =
+        type === 'gate'
+          ? { kind: 'gate', runId, gateRef, headline: prompt.headline, body: prompt.body }
+          : {
+              kind: 'auth_required',
+              runId,
+              gateRef,
+              provider: prompt.provider || 'github',
+              accountLabel: prompt.account_label || 'Manual token',
+              headline: prompt.headline,
+              body: prompt.body
+            };
+      return {
+        ...base,
+        latestRunId: runId,
+        pendingGate: gate,
+        activeRun: { runId, threadId, status: 'awaiting_gate' },
         isProcessing: false
       };
     }

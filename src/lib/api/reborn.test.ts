@@ -327,4 +327,58 @@ describe('reduceEvent', () => {
     expect(next.activeRun).toBeNull();
     expect(next.pendingGate).toBeNull();
   });
+
+  it('typed gate event sets pendingGate + awaiting_gate run, stops processing', () => {
+    const next = reduceEvent(
+      { ...initialChatState(), isProcessing: true },
+      {
+        type: 'gate',
+        frame: { prompt: { turn_run_id: 'r1', gate_ref: 'g1', headline: 'Approve?', body: 'why' } }
+      },
+      't1'
+    );
+    expect(next.pendingGate).toEqual({
+      kind: 'gate',
+      runId: 'r1',
+      gateRef: 'g1',
+      headline: 'Approve?',
+      body: 'why'
+    });
+    expect(next.activeRun).toEqual({ runId: 'r1', threadId: 't1', status: 'awaiting_gate' });
+    expect(next.isProcessing).toBe(false);
+  });
+
+  it('auth_required maps auth_request_ref → gateRef and carries provider/account', () => {
+    const next = reduceEvent(
+      initialChatState(),
+      {
+        type: 'auth_required',
+        frame: { prompt: { turn_run_id: 'r1', auth_request_ref: 'a1', account_label: 'me@host' } }
+      },
+      't1'
+    );
+    expect(next.pendingGate).toMatchObject({
+      kind: 'auth_required',
+      runId: 'r1',
+      gateRef: 'a1',
+      provider: 'github', // default when prompt.provider absent
+      accountLabel: 'me@host'
+    });
+  });
+
+  it('correlates a typed gate without turn_run_id to the latest run, else skips', () => {
+    const correlated = reduceEvent(
+      { ...initialChatState(), latestRunId: 'r5' },
+      { type: 'gate', frame: { prompt: { gate_ref: 'g9' } } },
+      't1'
+    );
+    expect(correlated.pendingGate).toMatchObject({ runId: 'r5', gateRef: 'g9' });
+    // No run known anywhere → unusable gate is skipped.
+    const skipped = reduceEvent(
+      initialChatState(),
+      { type: 'gate', frame: { prompt: { gate_ref: 'g9' } } },
+      't1'
+    );
+    expect(skipped.pendingGate).toBeNull();
+  });
 });

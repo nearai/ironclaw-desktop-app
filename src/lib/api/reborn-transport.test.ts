@@ -181,11 +181,14 @@ describe('IronClawClient.resolveGateV2', () => {
 describe('IronClawClient.streamWebChatV2Events', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('opens the SSE stream with the token in the query and decodes frames', async () => {
+  it('reconstructs the envelope from named SSE frames (event: line + data body)', async () => {
+    // The Reborn runtime tags each SSE frame with `event: <name>` and puts the
+    // frame BODY (not a {type,frame} wrapper) in `data:`. The decoder must
+    // synthesize `{ type: <event name>, frame: <body> }`.
     const encoder = new TextEncoder();
     const frames =
-      'data: {"type":"projection_update","frame":{"state":{"items":[{"run_status":{"run_id":"r1","status":"running"}}]}}}\n\n' +
-      'data: {"type":"keep_alive","frame":{}}\n\n';
+      'event: projection_update\ndata: {"state":{"items":[{"run_status":{"run_id":"r1","status":"running"}}]}}\n\n' +
+      'event: keep_alive\ndata: {}\n\n';
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(encoder.encode(frames));
@@ -200,16 +203,45 @@ describe('IronClawClient.streamWebChatV2Events', () => {
 
     const c = makeClient();
     const ctrl = new AbortController();
-    const out: unknown[] = [];
+    const out: Array<{ type?: string; frame?: { state?: { items?: unknown[] } } }> = [];
     for await (const ev of c.streamWebChatV2Events('t1', { signal: ctrl.signal })) {
-      out.push(ev);
+      out.push(ev as (typeof out)[number]);
     }
 
     expect(capturedUrl).toContain('/api/webchat/v2/threads/t1/events');
     expect(capturedUrl).toContain('token=tok');
     expect(out).toHaveLength(2);
-    expect(out[0]).toMatchObject({ type: 'projection_update' });
-    expect(out[1]).toMatchObject({ type: 'keep_alive' });
+    expect(out[0].type).toBe('projection_update');
+    // The body landed under `frame`, so reduceEvent's `frame.state.items` works.
+    expect(out[0].frame?.state?.items).toHaveLength(1);
+    expect(out[1].type).toBe('keep_alive');
+  });
+
+  it('prefers a body-level type on the default (unnamed) message channel', async () => {
+    const encoder = new TextEncoder();
+    // No `event:` line → SSE event name defaults to "message"; the body's own
+    // `type` must win so a runtime that does not tag frames still routes.
+    const frames = 'data: {"type":"final_reply","reply":{"text":"done"}}\n\n';
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(frames));
+        controller.close();
+      }
+    });
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async () => {
+      return { ok: true, status: 200, body: stream } as unknown as Response;
+    }) as unknown as typeof fetch);
+
+    const c = makeClient();
+    const out: Array<{ type?: string; frame?: { reply?: { text?: string } } }> = [];
+    for await (const ev of c.streamWebChatV2Events('t1', {
+      signal: new AbortController().signal
+    })) {
+      out.push(ev as (typeof out)[number]);
+    }
+    expect(out).toHaveLength(1);
+    expect(out[0].type).toBe('final_reply');
+    expect(out[0].frame?.reply?.text).toBe('done');
   });
 
   it('passes after_cursor when resuming', async () => {

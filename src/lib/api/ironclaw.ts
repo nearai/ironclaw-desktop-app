@@ -3417,7 +3417,11 @@ export class IronClawClient {
     threadId: string,
     opts: { afterCursor?: string; signal: AbortSignal }
   ): AsyncIterable<WebChatV2EventFrame> {
-    const url = new URL(`${this.baseUrl}${V2_BASE}/threads/${encodeURIComponent(threadId)}/events`);
+    // Token-free path for any error / log surface. The live URL carries the
+    // bearer token as a `?token=` query param (EventSource can't set headers),
+    // so it must never land in an HttpError message or a console log.
+    const safeUrl = `${this.baseUrl}${V2_BASE}/threads/${encodeURIComponent(threadId)}/events`;
+    const url = new URL(safeUrl);
     if (this.token) url.searchParams.set('token', this.token);
     if (opts.afterCursor) url.searchParams.set('after_cursor', opts.afterCursor);
 
@@ -3432,12 +3436,18 @@ export class IronClawClient {
       signal: opts.signal
     });
     if (!res.ok || !res.body) {
-      throw new HttpError(res.status, url.toString(), `WebChat v2 SSE open failed: ${res.status}`);
+      throw new HttpError(res.status, safeUrl, `WebChat v2 SSE open failed: ${res.status}`);
     }
-    yield* parseSseStream<WebChatV2EventFrame>(res.body, opts.signal, (raw) => {
+    // SSE contract (mirrors the WebChat v2 SPA's `useSSE`): the `event:` line
+    // names the frame type and the `data:` payload is the frame body. The body
+    // may itself carry a `type` (the default `message` channel) — prefer that,
+    // else synthesize the envelope type from the event name. Malformed frames
+    // decode to [] (never throw) so one bad frame can't kill the stream.
+    yield* parseSseStream<WebChatV2EventFrame>(res.body, opts.signal, (raw, event) => {
       try {
-        const parsed = JSON.parse(raw) as WebChatV2EventFrame;
-        return parsed && typeof parsed === 'object' ? [parsed] : [];
+        const frame = JSON.parse(raw) as Record<string, unknown>;
+        if (!frame || typeof frame !== 'object') return [];
+        return [{ type: (frame.type as string) || event, frame } as WebChatV2EventFrame];
       } catch {
         return [];
       }
