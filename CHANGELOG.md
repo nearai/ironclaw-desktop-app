@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.9 — ExtensionCard coverage (2026-05-28)
+
+- **Test coverage**: added render tests for `ExtensionCard` covering the
+  v0.4.5 "Set up" affordance — the prominent CTA + category hint for an
+  unconfigured connector (channel → token, oauth → sign-in), the icon gear
+  when ready, and the registry Install button. +4 tests; locks in the
+  Slack-style "Needs setup → one click" UX.
+
 ## v0.4.8 — Shared widget payload helper (2026-05-28)
 
 - **Simplification (audit R200 P1)**: TableWidget and ComparisonWidget had
