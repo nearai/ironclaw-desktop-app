@@ -8,9 +8,11 @@
   //              health-check BEFORE marking setup complete, so "done"
   //              can never mean "silently broken".
   //
-  // Everything optional (custom server URL, OpenRouter key, API version)
-  // lives behind an "Advanced" disclosure so the critical path stays
-  // sign-in-simple. Accent/theme moved entirely to Settings.
+  // Everything optional (custom server URL, API version) lives behind an
+  // "Advanced" disclosure so the critical path stays sign-in-simple.
+  // Local always uses NEAR.AI Cloud inference — no competing-provider option
+  // in first-run (NEAR.AI's model is inference margin). Accent/theme + any
+  // backend switching live in Settings.
   //
   // Invariants carried over from the old three-step wizard:
   //   - finishing ALWAYS writes `onboardingComplete: true` so the user is
@@ -30,7 +32,6 @@
     HOSTED_DEFAULT_URL,
     loadSettings,
     saveSettings,
-    setOpenRouterKey,
     setToken,
     type ApiVersion,
     type AppSettings,
@@ -61,7 +62,6 @@
 
   // Advanced disclosure.
   let showAdvanced = $state(false);
-  let openRouterInput = $state('');
   let apiVersionChoice = $state<ApiVersion>('v2');
 
   /** Host shown on the "sign in" link so we don't render a full URL. */
@@ -124,14 +124,14 @@
     busyLocal = true;
     errorMsg = null;
     try {
-      const useOpenRouter = openRouterInput.trim().length > 0;
-      if (useOpenRouter) {
-        await setOpenRouterKey(activeProfile.id, openRouterInput.trim());
-      }
+      // Local always runs on NEAR.AI Cloud inference — that's the product's
+      // model (NEAR.AI monetizes inference margin), so onboarding never
+      // surfaces a competing provider. Power users can still switch backends
+      // later in Settings.
       patchActiveProfile({
         mode: 'local',
-        llmBackend: useOpenRouter ? 'openrouter' : 'nearai',
-        llmProviderId: useOpenRouter ? 'openrouter' : 'nearai',
+        llmBackend: 'nearai',
+        llmProviderId: 'nearai',
         apiVersion: apiVersionChoice
       });
       const next: AppSettings = { ...$state.snapshot(settings), onboardingComplete: true };
@@ -303,17 +303,6 @@
           spellcheck="false"
           placeholder="https://your-gateway.example"
           bind:value={hostedUrl}
-        />
-
-        <label class="ob__label" for="ob-or">OpenRouter API key (local only)</label>
-        <input
-          id="ob-or"
-          class="ob__input"
-          type="password"
-          autocomplete="off"
-          spellcheck="false"
-          placeholder="sk-or-… (optional)"
-          bind:value={openRouterInput}
         />
 
         <span class="ob__label">API version</span>

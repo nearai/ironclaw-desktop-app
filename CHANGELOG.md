@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.74 — Onboarding: Local is NEAR.AI Cloud only (drop OpenRouter) (2026-05-29)
+
+- **First-run never offers a competing inference provider**: removed the
+  OpenRouter API-key field from the onboarding Advanced disclosure and the
+  `openrouter` branch from the Local path. Choosing **Local** now always
+  provisions NEAR.AI Cloud inference — consistent with NEAR.AI's model (it
+  monetizes inference margin), so surfacing a bring-your-own-router option in
+  the critical path worked against that. Advanced now holds just custom server
+  URL + API version. Backend switching still exists in Settings for power users
+  (not removed there). check + 934 tests green.
+
 ## v0.4.73 — Security: SSE error URLs never leak the bearer token (2026-05-29)
 
 - **Token-leak fix (Codex audit P0)**: the legacy SSE stream methods
