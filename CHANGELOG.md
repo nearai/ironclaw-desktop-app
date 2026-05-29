@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.4.60 — The Desk: approval-gate inbox (chief-of-staff home, increment 1) (2026-05-29)
+
+- **New surface — "The Desk"**: the start of a channel-first, proactive
+  chief-of-staff home, chosen via deep research (3 agents) + the NEAR AI
+  All-Hands direction (channel-first/agentic, organizational intelligence,
+  design-as-moat, non-technical users). Rather than a reactive chat log, the
+  Desk is a priority-sorted feed of cards you act on. **Increment 1 is the
+  "Needs you" approval-gate inbox** — the differentiated, Reborn-unique moment
+  (the agent _paused and is waiting for your decision_), which had no dedicated
+  home before (gates only resolved inline mid-chat). New `reborn-desk.svelte.ts`
+  store (derives gate cards from the live `RebornChatController`'s projection
+  `pendingGate`; `approve`/`deny` delegate to `resolveGate`) + `RebornDeskPanel.svelte`
+  (gate cards with Approve/Deny + a calm "you're all caught up" empty state).
+  Controller/desk are injectable for tests. +8 unit/render tests (912 total).
+  Additive — not yet routed/landed; next increments add the route + nav, the
+  "while you were away" activity feed, open-loop commitments, and make it the
+  default landing surface.
+
 ## v0.4.59 — Settings: API-version selector + live-verified v2 round-trip (2026-05-29)
 
 - **Reborn migration (step 8 — Settings control)**: added an "API version" card
