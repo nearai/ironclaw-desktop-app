@@ -46,6 +46,7 @@
       <div class="desk__empty" data-testid="desk-caught-up">
         <p class="desk__empty-title">You're all caught up</p>
         <p class="desk__empty-sub">Nothing is waiting on your approval right now.</p>
+        <a class="desk__empty-action" href="/">Start a conversation →</a>
       </div>
     {:else}
       {#each gateCards as card (card.id)}
@@ -186,6 +187,17 @@
   .desk__empty-sub {
     font-size: 0.85rem;
     color: var(--v2-text-muted, #8a93a6);
+  }
+  .desk__empty-action {
+    display: inline-block;
+    margin-top: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 550;
+    color: var(--v2-accent-text, #8fc8f2);
+    text-decoration: none;
+  }
+  .desk__empty-action:hover {
+    text-decoration: underline;
   }
   .desk-card {
     display: flex;

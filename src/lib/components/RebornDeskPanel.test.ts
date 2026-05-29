@@ -29,6 +29,9 @@ describe('RebornDeskPanel', () => {
     const { getByTestId, getByText } = render(RebornDeskPanel, { props: { desk } });
     expect(getByTestId('desk-caught-up')).toBeTruthy();
     expect(getByText("You're all caught up")).toBeTruthy();
+    // The home surface offers the primary next action rather than dead-ending.
+    const startLink = getByText('Start a conversation →');
+    expect(startLink.getAttribute('href')).toBe('/');
   });
 
   it('renders a Needs-you card for a pending gate', () => {

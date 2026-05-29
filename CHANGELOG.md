@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.66 — The Desk: caught-up next-action link (increment 7) (2026-05-29)
+
+- **The Desk (increment 7 — no dead-ends)**: the "all caught up" empty state now
+  offers the primary next action — a quiet "Start a conversation →" link to the
+  chat — so a home surface never dead-ends when there's nothing pending. Tiny,
+  zero-risk UX completion. +1 assertion (917 total). _The Desk core is now
+  complete; the riskier opt-in default-landing redirect was deferred as too
+  invasive at the boot layer for a default-off preference._
+
 ## v0.4.65 — The Desk: open-loops quick-add (increment 6) (2026-05-29)
 
 - **The Desk (increment 6 — capture)**: the "Open loops" section now always
