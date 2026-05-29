@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.39 — ReplayBar render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested `ReplayBar.svelte`
+  (R58 — time-travel replay controls). +9 render tests driving the bar off the
+  `replay` store: self-gates to nothing with no events; renders the
+  controls + `cursor / total` + scrubber bounds; play/pause toggles via
+  `replay.play`/`replay.pause`; scrubbing calls `replay.scrubTo`; the speed
+  buttons call `replay.setSpeed`; the "Live" affordance shows only when not at
+  the end (and jumps to `total`); and the close button fires `onClose`. Spies
+  the `replay` singleton's methods. No production code changed.
+
 ## v0.4.38 — BuildProvenanceBadge render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
