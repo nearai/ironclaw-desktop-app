@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.50 — window-focus tracker coverage (2026-05-29)
+
+- **Test coverage**: first tests for the window-focus tracker
+  (`src/lib/stores/window-focus.svelte.ts`), which gates OS-notification firing
+  so alerts only surface when the user isn't already looking at the app. +6
+  unit tests for the event-driven logic: `init()` seeds `focused` from
+  `document.hasFocus()`; window `blur`/`focus` events flip it; a hidden document
+  (`visibilitychange`) counts as unfocused and a re-shown+focused document
+  restores it; `dispose()` detaches the listeners; and `init()` is idempotent (a
+  second call doesn't re-seed). Drives real DOM events and spies
+  `document.hasFocus` / `visibilityState`. No production code changed.
+
 ## v0.4.49 — reply-thread UI store coverage (2026-05-29)
 
 - **Test coverage**: first tests for the reply-thread UI-state singleton
