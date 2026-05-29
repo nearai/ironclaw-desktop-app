@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.62 — The Desk: "Open loops" commitments section (increment 3) (2026-05-29)
+
+- **The Desk (increment 3 — open loops)**: added an "Open loops" section to
+  `RebornDeskPanel` surfacing tracked commitments from the existing open-loops
+  store (R100) as cards with **Done** (resolve) and **Dismiss** actions. This
+  is the research's #1 differentiator (commitment tracking) and is
+  backend-agnostic — the open-loops store is localStorage-backed, so it works
+  on a Reborn v2 backend (unlike a v1-routines feed would). The section renders
+  only when there are active loops (stays calm/bounded otherwise). Exported
+  `OpenLoopStore` for dependency injection; the `RebornDesk` store gained
+  `loopCards` + `resolveLoop`/`dismissLoop`, with the loop store injectable for
+  tests. +5 unit/render tests (915 total). _Note: the v1-sourced "while you
+  were away" feed was deferred — routines/jobs are v1-only and don't exist on a
+  Reborn backend; open loops were the more v2-coherent next increment._
+
 ## v0.4.61 — The Desk: route + sidebar nav (increment 2) (2026-05-29)
 
 - **The Desk (increment 2 — reachable)**: added a `/desk` SvelteKit route

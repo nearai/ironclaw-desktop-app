@@ -15,6 +15,7 @@
 // the app-wide singleton) so this is unit-testable without the connection store.
 
 import { rebornChat, RebornChatController } from './reborn-chat.svelte';
+import { openLoops } from './open-loops.svelte';
 
 /** A pending approval rendered as a "Needs you" Desk card. */
 export interface DeskGateCard {
@@ -27,8 +28,18 @@ export interface DeskGateCard {
   body: string;
 }
 
+/** A tracked commitment rendered as an "Open loops" Desk card. */
+export interface DeskLoopCard {
+  id: string;
+  text: string;
+  createdAt: number;
+}
+
 export class RebornDesk {
-  constructor(private chat: RebornChatController = rebornChat) {}
+  constructor(
+    private chat: RebornChatController = rebornChat,
+    private loops: typeof openLoops = openLoops
+  ) {}
 
   /**
    * "Needs you" — pending approval gates as cards. Today this reflects the
@@ -66,6 +77,26 @@ export class RebornDesk {
   /** Deny the pending gate. */
   async deny(): Promise<void> {
     await this.chat.resolveGate('denied');
+  }
+
+  /**
+   * "Open loops" — tracked commitments the agent (or user) hasn't closed yet,
+   * surfaced from the existing open-loops store (localStorage-backed, so this
+   * works on any backend). A getter so it tracks the store's `active` $derived
+   * reactively wherever it's read.
+   */
+  get loopCards(): DeskLoopCard[] {
+    return this.loops.active.map((l) => ({ id: l.id, text: l.text, createdAt: l.createdAt }));
+  }
+
+  /** Mark a commitment resolved (toggles its done flag in the store). */
+  resolveLoop(id: string): void {
+    this.loops.toggleDone(id);
+  }
+
+  /** Drop a commitment entirely. */
+  dismissLoop(id: string): void {
+    this.loops.remove(id);
   }
 }
 

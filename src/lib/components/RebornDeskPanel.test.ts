@@ -9,12 +9,18 @@ import { fireEvent, render } from '@testing-library/svelte';
 import RebornDeskPanel from './RebornDeskPanel.svelte';
 import { RebornChatController } from '$lib/stores/reborn-chat.svelte';
 import { RebornDesk } from '$lib/stores/reborn-desk.svelte';
+import { OpenLoopStore } from '$lib/stores/open-loops.svelte';
 import { initialChatState, type RebornGate } from '$lib/api/reborn';
 
-function deskWith(gate: RebornGate | null): { desk: RebornDesk; chat: RebornChatController } {
+function deskWith(gate: RebornGate | null): {
+  desk: RebornDesk;
+  chat: RebornChatController;
+  loops: OpenLoopStore;
+} {
   const chat = new RebornChatController(() => null);
   chat.state = { ...initialChatState(), pendingGate: gate };
-  return { desk: new RebornDesk(chat), chat };
+  const loops = new OpenLoopStore();
+  return { desk: new RebornDesk(chat, loops), chat, loops };
 }
 
 describe('RebornDeskPanel', () => {
@@ -47,5 +53,20 @@ describe('RebornDeskPanel', () => {
     expect(resolve).toHaveBeenCalledWith('approved');
     await fireEvent.click(getByText('Deny'));
     expect(resolve).toHaveBeenCalledWith('denied');
+  });
+
+  it('renders open-loop cards and routes Done / Dismiss', async () => {
+    const { desk, loops } = deskWith(null);
+    const a = loops.add('Send the deck to Priya');
+    // mockImplementation so the spies don't call through and mutate the store
+    // (which would remove the card before we click the second button).
+    const done = vi.spyOn(desk, 'resolveLoop').mockImplementation(() => {});
+    const dismiss = vi.spyOn(desk, 'dismissLoop').mockImplementation(() => {});
+    const { getByText } = render(RebornDeskPanel, { props: { desk } });
+    expect(getByText('Send the deck to Priya')).toBeTruthy();
+    await fireEvent.click(getByText('Done'));
+    expect(done).toHaveBeenCalledWith(a!.id);
+    await fireEvent.click(getByText('Dismiss'));
+    expect(dismiss).toHaveBeenCalledWith(a!.id);
   });
 });

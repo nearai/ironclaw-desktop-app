@@ -85,7 +85,7 @@ function coerceLoaded(raw: unknown): OpenLoop[] {
   return out;
 }
 
-class OpenLoopStore {
+export class OpenLoopStore {
   /** The full list, insertion order (oldest first). Mutations always
    *  replace the array reference so Svelte reactivity fires. */
   loops = $state<OpenLoop[]>([]);

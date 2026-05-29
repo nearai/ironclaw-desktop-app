@@ -7,12 +7,15 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { RebornChatController } from './reborn-chat.svelte';
 import { RebornDesk } from './reborn-desk.svelte';
+import { OpenLoopStore } from './open-loops.svelte';
 import { initialChatState, type RebornGate } from '$lib/api/reborn';
 
 function deskWithGate(gate: RebornGate | null): { desk: RebornDesk; chat: RebornChatController } {
   const chat = new RebornChatController(() => null);
   chat.state = { ...initialChatState(), pendingGate: gate };
-  return { desk: new RebornDesk(chat), chat };
+  // Inject a fresh empty loop store so gate tests are isolated from any
+  // open-loops singleton state.
+  return { desk: new RebornDesk(chat, new OpenLoopStore()), chat };
 }
 
 describe('RebornDesk gate inbox', () => {
@@ -66,5 +69,34 @@ describe('RebornDesk gate inbox', () => {
     expect(resolve).toHaveBeenCalledWith('approved');
     await desk.deny();
     expect(resolve).toHaveBeenCalledWith('denied');
+  });
+});
+
+describe('RebornDesk open loops', () => {
+  function deskWithLoops(): { desk: RebornDesk; loops: OpenLoopStore } {
+    const chat = new RebornChatController(() => null);
+    chat.state = { ...initialChatState() };
+    const loops = new OpenLoopStore();
+    return { desk: new RebornDesk(chat, loops), loops };
+  }
+
+  it('projects active open loops into loop cards in order', () => {
+    const { desk, loops } = deskWithLoops();
+    loops.add('Send Priya the deck');
+    loops.add('Reply to the board email');
+    expect(desk.loopCards.map((c) => c.text)).toEqual([
+      'Send Priya the deck',
+      'Reply to the board email'
+    ]);
+  });
+
+  it('resolveLoop drops it from active; dismissLoop removes it', () => {
+    const { desk, loops } = deskWithLoops();
+    const a = loops.add('one');
+    const b = loops.add('two');
+    desk.resolveLoop(a!.id);
+    expect(desk.loopCards.map((c) => c.text)).toEqual(['two']);
+    desk.dismissLoop(b!.id);
+    expect(desk.loopCards).toEqual([]);
   });
 });

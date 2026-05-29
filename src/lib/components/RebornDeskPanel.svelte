@@ -18,6 +18,7 @@
 
   const gateCards = $derived(desk.gateCards);
   const caughtUp = $derived(desk.caughtUp);
+  const loopCards = $derived(desk.loopCards);
 </script>
 
 <div class="desk" data-testid="reborn-desk">
@@ -57,6 +58,34 @@
       {/each}
     {/if}
   </section>
+
+  {#if loopCards.length > 0}
+    <section class="desk__section" aria-label="Open loops">
+      <h2 class="desk__section-title">
+        Open loops
+        <span class="desk__count desk__count--muted">{loopCards.length}</span>
+      </h2>
+      {#each loopCards as loop (loop.id)}
+        <article class="desk-card desk-card--loop">
+          <div class="desk-card__body">
+            <p class="desk-card__headline">{loop.text}</p>
+          </div>
+          <div class="desk-card__actions">
+            <button
+              type="button"
+              class="desk-btn desk-btn--primary"
+              onclick={() => desk.resolveLoop(loop.id)}
+            >
+              Done
+            </button>
+            <button type="button" class="desk-btn" onclick={() => desk.dismissLoop(loop.id)}>
+              Dismiss
+            </button>
+          </div>
+        </article>
+      {/each}
+    </section>
+  {/if}
 </div>
 
 <style>
@@ -110,6 +139,10 @@
     font-size: 0.7rem;
     font-weight: 700;
   }
+  .desk__count--muted {
+    background: var(--v2-surface-2, rgba(255, 255, 255, 0.12));
+    color: var(--v2-text-muted, #8a93a6);
+  }
   .desk__empty {
     padding: 1.5rem;
     border: 1px dashed var(--v2-border, rgba(255, 255, 255, 0.12));
@@ -137,6 +170,10 @@
   .desk-card--auth {
     border-color: var(--v2-warning, #e6b04c);
     background: var(--v2-warning-soft, rgba(230, 176, 76, 0.14));
+  }
+  .desk-card--loop {
+    border-color: var(--v2-border, rgba(255, 255, 255, 0.12));
+    background: var(--v2-surface, rgba(255, 255, 255, 0.04));
   }
   .desk-card__body {
     min-width: 0;
