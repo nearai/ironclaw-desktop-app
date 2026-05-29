@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.4.69 — Gorgeous UX: design-token foundation (2026-05-29)
+
+- **Design foundation (UX overhaul, step 1)**: the gorgeous-UX work starts at
+  the token layer. The Reborn v2 surfaces authored against four token names
+  that `app.css :root` never defined — `--v2-surface-2` (raised fill,
+  6 sites), `--v2-border` (hairline, 10 sites), `--v2-warning` (gate stroke),
+  `--v2-mono` (streaming code). Every reference silently fell through to its
+  inline fallback, so those surfaces were un-themeable. All four are now
+  canonical tokens (raised fill = translucent-white overlay so it composites
+  by luminance over rail/surface/cards alike). Added a shared **motion scale**
+  (`--v2-ease-out`/`-in-out`/`-spring`, `--v2-dur-fast`/`-dur`/`-dur-slow`) so
+  every surface animates with one voice, wired the scrollbar thumb to it as the
+  first consumer, and added a `prefers-reduced-motion` reset that collapses
+  animation/transition/scroll travel for users who opt out. New
+  `tests/design-tokens.test.ts` reads the real `:root` block + every
+  `var(--v2-*)` reference in `src` and fails if any referenced token is
+  undefined — so this class of silent-fallback bug can't return. +4 tests
+  (929 total).
+
 ## v0.4.68 — First-class v2 chat: two-pane thread rail (2026-05-29)
 
 - **First-class v2 chat (the rail)**: `RebornChatPanel` is now a two-pane layout
