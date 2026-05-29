@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.41 — ToolFlowPanel render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested `ToolFlowPanel.svelte`
+  (R42 — tool-call visualizer). +7 render tests over `toolFlow.forThread(threadId)`:
+  empty state when no tools ran; a count badge plus one row per call; a pending
+  call shows the in-progress label and "…" latency; latency formats sub-second
+  ("23ms") vs multi-second ("1.5s") for done calls; expanding a done call reveals
+  Args + Result; expanding a pending call shows "Running…"; expanding an error
+  call shows the error message. Spies `toolFlow.forThread` to feed `ToolCall`
+  fixtures. No production code changed.
+
 ## v0.4.40 — ChatTabs render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested `ChatTabs.svelte`
