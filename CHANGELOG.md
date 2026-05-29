@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.4.2 — Triage + Today (2026-05-28)
+
+The Chief of Staff gets two more proactive moves and a home on the Today
+surface.
+
+- **Triage my threads** (R102/R104): a list button in the chat header (also
+  the palette's "Triage my threads" or `?triage=1`) has the CoS sort your
+  recent threads into three buckets — Decision needed, FYI, and Can handle —
+  each with a one-line reason and a suggested next action, grouped most
+  urgent first. The executive-filter principle made concrete. Runs as a
+  one-off completion under the CoS persona; read-only like Brief and Recap.
+  The prompt assembler (`src/lib/util/triage.ts`) is a tested pure util
+  (deterministic recency, optional preview, empty → "nothing to triage",
+  never throws).
+- **Open Loops tile** (R103): the Today dashboard now leads with your tracked
+  commitments — complete / remove inline, add a new one, and a one-click
+  "Brief me". Added to the default layout; existing layouts get a dashed
+  "Add Open Loops" cell to opt in.
+
 ## v0.4.0 – v0.4.1 — Chief of Staff (2026-05-28)
 
 The "enterprise chief of staff in your pocket" direction takes shape. This

@@ -68,6 +68,9 @@
   import BriefingPanel from '$lib/components/BriefingPanel.svelte';
   import { briefing } from '$lib/stores/briefing.svelte';
   import { openLoops } from '$lib/stores/open-loops.svelte';
+  // R104 — Chief of Staff thread triage ("Triage my threads").
+  import TriagePanel from '$lib/components/TriagePanel.svelte';
+  import { triage } from '$lib/stores/triage.svelte';
   // LANE W3 — reply-thread panel (R80, consumes R79 store)
   import ReplyThreadPanel from '$lib/components/ReplyThreadPanel.svelte';
   import { replyThreadUI } from '$lib/stores/reply-thread-ui.svelte';
@@ -985,6 +988,30 @@
     briefParamFired = true;
     void onBrief();
     clearBriefParam();
+  });
+
+  /** Strip `?triage=1` (palette's "Triage my threads"). Same no-reload pattern. */
+  function clearTriageParam() {
+    if (typeof window === 'undefined') return;
+    if (!page.url.searchParams.has('triage')) return;
+    const url = new URL(page.url);
+    url.searchParams.delete('triage');
+    const target = url.pathname + (url.search ? url.search : '') + url.hash;
+    void goto(target, { replaceState: true, noScroll: true, keepFocus: true });
+  }
+
+  // R104: honor `?triage=1`, mirroring the brief deep-link.
+  let triageParamFired = false;
+  $effect(() => {
+    const wants = page.url.searchParams.get('triage') === '1';
+    if (!wants) {
+      triageParamFired = false;
+      return;
+    }
+    if (triageParamFired || !connection.client) return;
+    triageParamFired = true;
+    void onTriage();
+    clearTriageParam();
   });
 
   // -- effects ----------------------------------------------------------------
@@ -2235,6 +2262,25 @@
     );
   }
 
+  /**
+   * R104: open the triage panel and have the Chief of Staff sort the recent
+   * threads into Decision needed / FYI / Can handle. Sources the recent
+   * threads from the already-loaded list and runs a one-off completion under
+   * the CoS persona. Read-only — creates no thread, sends nothing into any
+   * conversation. Also the panel's "Regenerate" handler.
+   */
+  async function onTriage(): Promise<void> {
+    if (!connection.client) return;
+    const client = connection.client;
+    const triageThreads = threads.sorted.map((t) => ({
+      id: t.id,
+      title: t.title,
+      updatedAt: t.updated_at,
+      messageCount: t.message_count
+    }));
+    await triage.generate(triageThreads, client);
+  }
+
   // Outside-click + Esc handling for the export popover. We bind on the
   // document because the popover is anchor-positioned and not inside the
   // button's DOM subtree — a relative-position click handler on the
@@ -3176,6 +3222,22 @@
           : 'Connect to generate a daily brief'}
       >
         <Icon name="shield" class="w-4 h-4" />
+      </button>
+
+      <!-- Triage (R104): the Chief of Staff sorts recent threads into
+           Decision needed / FYI / Can handle. Read-only; available whenever
+           connected (no active thread needed). -->
+      <button
+        type="button"
+        onclick={onTriage}
+        disabled={!connection.client}
+        class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-label="Triage my threads"
+        title={connection.client
+          ? 'Triage: sort your recent threads into decisions, FYI, and what I can handle'
+          : 'Connect to triage your threads'}
+      >
+        <Icon name="list" class="w-4 h-4" />
       </button>
 
       <!-- Thread recap (R89): a non-destructive summary of the conversation
@@ -4130,6 +4192,9 @@
 <!-- R101: Chief of Staff daily brief. Regenerate re-runs onBrief with the
      current threads + (possibly edited) open loops. -->
 <BriefingPanel onRegenerate={onBrief} />
+
+<!-- R104: Chief of Staff thread triage. Regenerate re-runs onTriage. -->
+<TriagePanel onRegenerate={onTriage} />
 
 <!-- Council overlay — multi-model fanout, summoned via /council (self-gates) -->
 <CouncilPanel />

@@ -525,6 +525,23 @@
       }
     });
 
+    // "Triage my threads" (R104) — the Chief of Staff sorts recent threads
+    // into Decision needed / FYI / Can handle. Same chat-route navigation +
+    // deep-link pattern as the brief.
+    omnibar.registerCommand({
+      id: 'triage:threads',
+      title: 'Triage my threads',
+      keywords: ['triage', 'sort', 'decision', 'fyi', 'filter', 'chief', 'staff', 'inbox'],
+      subtitle: 'Sort recent threads into decisions, FYI, and what I can handle',
+      action: async () => {
+        if (!connection.client) {
+          toasts.show('Connect to IronClaw first.', 'error');
+          return;
+        }
+        await goto('/?triage=1');
+      }
+    });
+
     void connection.init().then(() => {
       // Last-resort escape hatch (R34d). If a previous wizard run failed
       // catastrophically (Skip threw, save_settings IPC errored, etc.) the
