@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.53 — Reborn WebChat v2 transport methods (2026-05-29)
+
+- **Reborn migration (step 2 — transport)**: grafted the WebChat v2 transport
+  onto `IronClawClient` in `src/lib/api/ironclaw.ts`, reusing the existing
+  `request()`/`parseSseStream()` plumbing (Tauri-http-plugin fetch + bearer
+  auth + the manual SSE parser) so the connection store needs zero new wiring —
+  the same derived `client` now speaks both v1 and v2. New methods:
+  `createThreadV2`, `listThreadsV2`, `sendMessageV2`, `fetchTimelineV2`,
+  `cancelRunV2`, `resolveGateV2`, and the `streamWebChatV2Events` SSE generator
+  (yields `WebChatV2EventFrame` envelopes for `reduceEvent`). Every mutating
+  call injects a fresh `client_action_id` idempotency key; the stream carries
+  the token both as a `?token=` query param and a bearer header. +16
+  wire-contract unit tests in `reborn-transport.test.ts` (path, method, query
+  string, idempotency-key injection, body shape, SSE decode, open-failure) plus
+  an exported `buildV2Query` helper. Purely additive — no caller yet, so
+  existing behavior is unchanged.
+
 ## v0.4.52 — IronClaw Reborn WebChat v2 client core (2026-05-29)
 
 - **Reborn migration (foundation)**: new pure module `src/lib/api/reborn.ts` —

@@ -57,6 +57,20 @@ import type {
 import { SubAgentUnsupportedError } from './types';
 import { containsSecret, redactJsonObject, redactSecrets } from '$lib/utils/redact';
 import { diagEnabled, inTauri } from '$lib/utils/runtime';
+import {
+  V2_BASE,
+  clientActionId,
+  type CancelRunRequest,
+  type CreateThreadRequest,
+  type CreateThreadResponse,
+  type GateResolution,
+  type ListThreadsResponse,
+  type RebornTimelineResponse,
+  type ResolveGateRequest,
+  type SendMessageRequest,
+  type SendMessageResponse,
+  type WebChatV2EventFrame
+} from './reborn';
 
 // Single-call wrapper around the `diag_log` IPC. Gated on `diagEnabled()`
 // so release builds stay quiet unless the user opts in via Settings
@@ -3314,9 +3328,136 @@ export class IronClawClient {
       return { ok: false };
     }
   }
+
+  // ---- IronClaw Reborn WebChat v2 -------------------------------------------
+  //
+  // These hit `/api/webchat/v2/*` on a Reborn backend (the `webui-v2-beta`
+  // feature). They reuse the same request()/parseSseStream() plumbing as the
+  // v1 methods but speak the projection-driven v2 contract: every mutating
+  // call carries a `client_action_id` idempotency key, and the live event
+  // stream is driven off `projection_snapshot`/`projection_update` frames.
+  // The pure reducers/mappers that interpret those frames live in `./reborn`;
+  // these methods are thin transport wrappers. Request shapes mirror the
+  // WebChat v2 SPA's own client (`ironclaw_webui_v2_static/.../lib/api.js`).
+
+  /** Create a thread. `requestedThreadId` lets the caller pin an id. */
+  async createThreadV2(requestedThreadId?: string): Promise<CreateThreadResponse> {
+    const body: CreateThreadRequest = { client_action_id: clientActionId() };
+    if (requestedThreadId) body.requested_thread_id = requestedThreadId;
+    return this.request<CreateThreadResponse>('POST', `${V2_BASE}/threads`, body);
+  }
+
+  /** List threads (most-recent first). `cursor` paginates. */
+  async listThreadsV2(
+    opts: { limit?: number; cursor?: string } = {}
+  ): Promise<ListThreadsResponse> {
+    return this.request<ListThreadsResponse>('GET', `${V2_BASE}/threads${buildV2Query(opts)}`);
+  }
+
+  /** Post a user message; returns `{ run_id, thread_id?, status? }`. */
+  async sendMessageV2(threadId: string, content: string): Promise<SendMessageResponse> {
+    const body: SendMessageRequest = { client_action_id: clientActionId(), content };
+    return this.request<SendMessageResponse>(
+      'POST',
+      `${V2_BASE}/threads/${encodeURIComponent(threadId)}/messages`,
+      body
+    );
+  }
+
+  /** Fetch the projection timeline for a thread. */
+  async fetchTimelineV2(
+    threadId: string,
+    opts: { limit?: number; cursor?: string } = {}
+  ): Promise<RebornTimelineResponse> {
+    return this.request<RebornTimelineResponse>(
+      'GET',
+      `${V2_BASE}/threads/${encodeURIComponent(threadId)}/timeline${buildV2Query(opts)}`
+    );
+  }
+
+  /** Cancel an in-flight run. */
+  async cancelRunV2(threadId: string, runId: string, reason?: string): Promise<void> {
+    const body: CancelRunRequest = { client_action_id: clientActionId() };
+    if (reason) body.reason = reason;
+    await this.request<void>(
+      'POST',
+      `${V2_BASE}/threads/${encodeURIComponent(threadId)}/runs/${encodeURIComponent(runId)}/cancel`,
+      body
+    );
+  }
+
+  /** Resolve a gate (approval / denial / credential / cancellation). */
+  async resolveGateV2(
+    threadId: string,
+    runId: string,
+    gateRef: string,
+    resolution: GateResolution,
+    opts: { always?: boolean; credentialRef?: string } = {}
+  ): Promise<void> {
+    const body: ResolveGateRequest = { client_action_id: clientActionId(), resolution };
+    if (opts.always !== undefined) body.always = opts.always;
+    if (opts.credentialRef) body.credential_ref = opts.credentialRef;
+    await this.request<void>(
+      'POST',
+      `${V2_BASE}/threads/${encodeURIComponent(threadId)}/runs/${encodeURIComponent(
+        runId
+      )}/gates/${encodeURIComponent(gateRef)}/resolve`,
+      body
+    );
+  }
+
+  /**
+   * Open the WebChat v2 live event stream (SSE). Yields decoded
+   * `WebChatV2EventFrame` envelopes — feed each into `reduceEvent` (./reborn)
+   * to fold it into chat state. The token rides as a `?token=` query param
+   * (the SPA uses EventSource, which can't set headers) AND as a bearer
+   * header for the Tauri-fetch path. `afterCursor` resumes after reconnect.
+   */
+  async *streamWebChatV2Events(
+    threadId: string,
+    opts: { afterCursor?: string; signal: AbortSignal }
+  ): AsyncIterable<WebChatV2EventFrame> {
+    const url = new URL(`${this.baseUrl}${V2_BASE}/threads/${encodeURIComponent(threadId)}/events`);
+    if (this.token) url.searchParams.set('token', this.token);
+    if (opts.afterCursor) url.searchParams.set('after_cursor', opts.afterCursor);
+
+    const maybeTauri = await loadTauriFetch();
+    const fetchImpl = maybeTauri ?? fetch;
+    const res = await fetchImpl(url.toString(), {
+      method: 'GET',
+      headers: {
+        Accept: 'text/event-stream',
+        ...(this.token ? { Authorization: `Bearer ${this.token}` } : {})
+      },
+      signal: opts.signal
+    });
+    if (!res.ok || !res.body) {
+      throw new HttpError(res.status, url.toString(), `WebChat v2 SSE open failed: ${res.status}`);
+    }
+    yield* parseSseStream<WebChatV2EventFrame>(res.body, opts.signal, (raw) => {
+      try {
+        const parsed = JSON.parse(raw) as WebChatV2EventFrame;
+        return parsed && typeof parsed === 'object' ? [parsed] : [];
+      } catch {
+        return [];
+      }
+    });
+  }
 }
 
 // ---- Helpers ----------------------------------------------------------------
+
+/**
+ * Build a `?limit=&cursor=` query string for the v2 list/timeline endpoints.
+ * Returns '' (not '?') when no params are set so the path stays clean.
+ */
+export function buildV2Query(opts: { limit?: number; cursor?: string }): string {
+  const params = new URLSearchParams();
+  if (opts.limit !== undefined) params.set('limit', String(opts.limit));
+  if (opts.cursor) params.set('cursor', opts.cursor);
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
 
 /**
  * Map an ISO-8601 `since` timestamp onto the wire's coarse `period` bucket.
