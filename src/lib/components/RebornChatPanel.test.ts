@@ -213,4 +213,19 @@ describe('RebornChatPanel', () => {
     expect(getByText('Budget review')).toBeTruthy();
     expect(getByText('2h ago')).toBeTruthy();
   });
+
+  it('auto-grows the composer textarea with content, capped at the max', async () => {
+    const { getByLabelText } = render(RebornChatPanel, {
+      props: { controller: controllerWith({}), threads: freshThreads() }
+    });
+    const ta = getByLabelText('Message input') as HTMLTextAreaElement;
+    // jsdom has no layout — fake scrollHeight to drive the grow logic.
+    Object.defineProperty(ta, 'scrollHeight', { value: 60, configurable: true });
+    await fireEvent.input(ta, { target: { value: 'a\nb\nc' } });
+    expect(ta.style.height).toBe('60px');
+    // Beyond the cap → clamped to 144px (the ~9rem max).
+    Object.defineProperty(ta, 'scrollHeight', { value: 999, configurable: true });
+    await fireEvent.input(ta, { target: { value: 'a\nb\nc\nd\ne\nf\ng' } });
+    expect(ta.style.height).toBe('144px');
+  });
 });

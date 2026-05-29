@@ -51,6 +51,20 @@
     atBottom = true;
   }
 
+  // Composer auto-grow: the textarea grows with content up to a cap, then
+  // scrolls. Bound so we can measure scrollHeight on input; reset to one row
+  // after a send clears the draft.
+  let composerEl = $state<HTMLTextAreaElement>();
+  const COMPOSER_MAX_PX = 144; // ~9rem cap (matches the CSS max-height)
+  function autoGrowComposer() {
+    if (!composerEl) return;
+    composerEl.style.height = 'auto';
+    composerEl.style.height = `${Math.min(composerEl.scrollHeight, COMPOSER_MAX_PX)}px`;
+  }
+  function resetComposerHeight() {
+    if (composerEl) composerEl.style.height = 'auto';
+  }
+
   // Conversation state, derived off the controller's reactive state. (Avoid a
   // local `state` alias — that name collides with the `$state` rune.)
   const messages = $derived(controller.state.messages);
@@ -130,6 +144,7 @@
     const content = draft.trim();
     if (!content || isProcessing) return;
     draft = '';
+    resetComposerHeight();
     try {
       await controller.send(content, activeThreadId ?? undefined);
       // A first send creates a thread; surface + select it in the rail and
@@ -346,8 +361,10 @@
     <div class="reborn-composer">
       <textarea
         class="reborn-composer__input"
+        bind:this={composerEl}
         bind:value={draft}
         onkeydown={onComposerKeydown}
+        oninput={autoGrowComposer}
         placeholder="Message IronClaw…"
         rows="1"
         aria-label="Message input"
@@ -754,6 +771,8 @@
     flex: 1 1 auto;
     resize: none;
     max-height: 9rem;
+    overflow-y: auto;
+    transition: height var(--v2-dur-fast) var(--v2-ease-out);
     padding: 0.6rem 0.75rem;
     border-radius: 0.6rem;
     border: 1px solid var(--v2-border, rgba(255, 255, 255, 0.12));

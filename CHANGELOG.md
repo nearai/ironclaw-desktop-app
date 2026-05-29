@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.81 — Gorgeous UX: composer auto-grow (step 5a) (2026-05-29)
+
+- **Composer auto-grow (UX overhaul, step 5a)**: the v2 chat composer textarea
+  now grows with content (height tracks `scrollHeight` on input) up to a ~9rem
+  cap, then scrolls — no more fixed single-row box that hides multi-line drafts.
+  Height resets to one row after a send clears the draft, and the grow eases
+  through `--v2-dur-fast`/`--v2-ease-out` (steady under reduced-motion). +1 render
+  test (faked `scrollHeight` drives the grow + cap; 943 total). _Send↔Stop already
+  present; the "/" slash-command hint is deferred until v2 slash handling exists
+  (a hint would imply absent functionality). Next: step 6 — command palette polish._
+
 ## v0.4.80 — Gorgeous UX: thread-rail keyboard nav (step 4 complete) (2026-05-29)
 
 - **Thread rail keyboard nav (UX overhaul, step 4b — finishes step 4)**: ↑/↓ now
