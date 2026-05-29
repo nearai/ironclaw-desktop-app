@@ -215,3 +215,23 @@ describe('RebornChatController thread binding', () => {
     expect(c.threadId).toBe('t-loaded');
   });
 });
+
+describe('RebornChatController.ensureThread', () => {
+  it('creates and binds a thread when none is bound', async () => {
+    const client = mockClient();
+    const c = new RebornChatController(() => client);
+    const id = await c.ensureThread();
+    expect(client.createThreadV2).toHaveBeenCalledTimes(1);
+    expect(id).toBe('t-new');
+    expect(c.threadId).toBe('t-new');
+  });
+
+  it('returns the explicit/bound thread without creating one', async () => {
+    const client = mockClient();
+    const c = new RebornChatController(() => client);
+    const id = await c.ensureThread('explicit');
+    expect(client.createThreadV2).not.toHaveBeenCalled();
+    expect(id).toBe('explicit');
+    expect(c.threadId).toBe('explicit');
+  });
+});

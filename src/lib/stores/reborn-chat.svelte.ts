@@ -66,6 +66,26 @@ export class RebornChatController {
   }
 
   /**
+   * Ensure a thread is bound, creating one when none exists yet, and return
+   * its id. Lets the caller open the SSE stream BEFORE the first `send()` so
+   * early run events (accepted / gate / terminal success) aren't missed in the
+   * window between posting and subscribing. Returns null only when no client
+   * is configured.
+   */
+  async ensureThread(threadIdOpt?: string): Promise<string | null> {
+    const client = this.getClient();
+    if (!client) return null;
+    let threadId = threadIdOpt || this.threadId;
+    if (!threadId) {
+      const created = await client.createThreadV2();
+      threadId = created?.thread?.thread_id ?? null;
+      if (!threadId) throw new Error('createThreadV2 returned no thread_id');
+    }
+    this.threadId = threadId;
+    return threadId;
+  }
+
+  /**
    * Load (or reload) the thread timeline and project it into messages. Keeps
    * any still-pending optimistic bubbles appended so an in-flight user message
    * doesn't vanish between send and the server-side row appearing.

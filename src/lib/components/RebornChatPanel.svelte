@@ -146,16 +146,23 @@
     draft = '';
     resetComposerHeight();
     try {
-      await controller.send(content, activeThreadId ?? undefined);
-      // A first send creates a thread; surface + select it in the rail and
-      // open its stream. Set boundThread BEFORE select so the bind effect
-      // doesn't reset the just-sent conversation.
-      const tid = controller.threadId;
-      if (tid && tid !== boundThread) {
-        boundThread = tid;
-        threads.upsert({ thread_id: tid });
-        threads.select(tid);
-        void controller.openStream(tid);
+      if (activeThreadId) {
+        // Existing thread — its stream is already open (bound on selection).
+        await controller.send(content, activeThreadId);
+      } else {
+        // New conversation: create the thread and OPEN ITS STREAM BEFORE
+        // sending, so early run events (accepted / gate / terminal) emitted
+        // before we subscribe aren't missed (which used to leave the UI stuck
+        // "processing"). Set boundThread before select so the bind effect
+        // doesn't reset the just-prepared conversation or double-subscribe.
+        const tid = await controller.ensureThread();
+        if (tid) {
+          boundThread = tid;
+          threads.upsert({ thread_id: tid });
+          threads.select(tid);
+          void controller.openStream(tid);
+        }
+        await controller.send(content, tid ?? undefined);
       }
     } catch {
       // The controller already surfaced the failure as an error bubble.

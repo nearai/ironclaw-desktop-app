@@ -228,4 +228,29 @@ describe('RebornChatPanel', () => {
     await fireEvent.input(ta, { target: { value: 'a\nb\nc\nd\ne\nf\ng' } });
     expect(ta.style.height).toBe('144px');
   });
+
+  it('opens the stream before sending on a new conversation (no missed events)', async () => {
+    const controller = controllerWith({});
+    const order: string[] = [];
+    vi.spyOn(controller, 'ensureThread').mockImplementation(async () => {
+      order.push('ensure');
+      return 't-new';
+    });
+    vi.spyOn(controller, 'openStream').mockImplementation(async () => {
+      order.push('open');
+    });
+    vi.spyOn(controller, 'send').mockImplementation(async () => {
+      order.push('send');
+    });
+    const threads = freshThreads();
+    const { getByText, getByLabelText } = render(RebornChatPanel, {
+      props: { controller, threads }
+    });
+    await fireEvent.input(getByLabelText('Message input'), { target: { value: 'hello' } });
+    await fireEvent.click(getByText('Send'));
+    await new Promise((r) => setTimeout(r, 0)); // flush handleSend's awaits
+    // The stream is subscribed before the message is posted.
+    expect(order).toEqual(['ensure', 'open', 'send']);
+    expect(threads.currentId).toBe('t-new');
+  });
 });

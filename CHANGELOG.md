@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.83 — Fix: v2 first-send opens the stream before posting (2026-05-29)
+
+- **No more missed first-run events (Codex audit P1)**: a brand-new v2
+  conversation used to `send()` (which created the thread + started the run)
+  and only **then** open the SSE stream — so accepted/gate/terminal events
+  emitted in that window were missed and the composer could stay stuck
+  "processing". `RebornChatController` gains `ensureThread()` (create-or-bind
+  without sending), and `RebornChatPanel.handleSend` now, for a new thread,
+  creates it, surfaces+selects it in the rail, **opens the stream, then sends**
+  — so the subscription is live before the first token. Existing threads are
+  unchanged (their stream is already open from selection). +3 tests
+  (`ensureThread` ×2, a panel ordering test asserting open-before-send; 947
+  total).
+
 ## v0.4.82 — Fix: v2 chat thread-switch race (generation guard) (2026-05-29)
 
 - **Stale-timeline race fixed (Codex audit P1)**: `RebornChatController.loadTimeline`
