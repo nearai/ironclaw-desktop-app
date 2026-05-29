@@ -48,7 +48,7 @@
           </tr>
         </thead>
         <tbody class="text-text-muted">
-          {#each comparison.rows as row}
+          {#each comparison.rows as row, i (i)}
             <tr class="hover:bg-white/[0.025]">
               <th class="border-b border-border-subtle px-2 py-1.5 text-text-primary font-medium">
                 {row[0] ?? ''}

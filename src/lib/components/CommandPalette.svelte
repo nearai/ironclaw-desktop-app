@@ -20,7 +20,7 @@
   // launch (Tauri webview creates a fresh session per process), so the
   // pill state behaviour matches the spec.
 
-  import { onMount, tick } from 'svelte';
+  import { tick } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { goto } from '$app/navigation';
   import { connection } from '$lib/stores/connection.svelte';
@@ -1430,11 +1430,6 @@
       return acc;
     }, {})
   );
-
-  onMount(() => {
-    // Nothing to do — opening triggers data fetches via $effect. We could
-    // pre-warm here, but the user may never hit Cmd+K in a given session.
-  });
 </script>
 
 {#if palette.open}

@@ -36,15 +36,15 @@
       <table class="w-full border-collapse text-left text-xs">
         <thead class="bg-accent-cyan/5 text-text-primary">
           <tr>
-            {#each table.headers as header}
+            {#each table.headers as header, i (i)}
               <th class="border-b border-border-subtle px-2 py-1.5 font-semibold">{header}</th>
             {/each}
           </tr>
         </thead>
         <tbody class="text-text-muted">
-          {#each table.rows as row}
+          {#each table.rows as row, rowIndex (rowIndex)}
             <tr class="hover:bg-white/[0.025]">
-              {#each table.headers as _, i}
+              {#each table.headers as _, i (i)}
                 <td class="border-b border-border-subtle px-2 py-1.5 align-top">
                   {row[i] ?? ''}
                 </td>

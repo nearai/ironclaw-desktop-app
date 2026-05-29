@@ -3074,7 +3074,7 @@
             onchange={(e) => notifications.setChatReplySound(e.currentTarget.value as SoundChoice)}
             class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1.5 text-sm text-text-primary min-h-[40px] min-w-[160px] focus:outline-none focus:border-accent-cyan"
           >
-            {#each SOUND_CHOICES as choice}
+            {#each SOUND_CHOICES as choice (choice.value)}
               <option value={choice.value}>{choice.label}</option>
             {/each}
           </select>
@@ -3102,7 +3102,7 @@
             onchange={(e) => notifications.setRoutineSound(e.currentTarget.value as SoundChoice)}
             class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1.5 text-sm text-text-primary min-h-[40px] min-w-[160px] focus:outline-none focus:border-accent-cyan"
           >
-            {#each SOUND_CHOICES as choice}
+            {#each SOUND_CHOICES as choice (choice.value)}
               <option value={choice.value}>{choice.label}</option>
             {/each}
           </select>
@@ -3130,7 +3130,7 @@
             onchange={(e) => notifications.setSidecarSound(e.currentTarget.value as SoundChoice)}
             class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1.5 text-sm text-text-primary min-h-[40px] min-w-[160px] focus:outline-none focus:border-accent-cyan"
           >
-            {#each SOUND_CHOICES as choice}
+            {#each SOUND_CHOICES as choice (choice.value)}
               <option value={choice.value}>{choice.label}</option>
             {/each}
           </select>
