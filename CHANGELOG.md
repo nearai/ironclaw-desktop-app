@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.21 — Prompt Templates store coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `templates.svelte.ts` (R29c — saved composer prompts recalled by chord /
+  palette / slash autocomplete). +16 tests lock the pure, load-bearing
+  logic: `parseVariables` (ordered, de-duped, ignores non-`\w` braces),
+  `add` (name trim to 80 / "Untitled" fallback, variable parse, newest-first
+  ordering, MAX_TEMPLATES rollover dropping the oldest), `update` (re-derives
+  variables on body change, no-op for unknown id and unchanged patch),
+  `delete`, `recordUse`, and `render` (single-pass substitution leaving
+  unknown vars intact). Also covers the `templatesModal` and `composerInsert`
+  one-shot bus singletons. No production code changed.
+
 ## v0.4.20 — CouncilPanel render coverage (2026-05-29)
 
 - **Test coverage**: render smoke tests for the previously-untested
