@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.32 — SubAgentChip render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `SubAgentChip.svelte` (R57 — dispatched background-task chip). +6 render
+  tests lock the status-driven branches: running/queued show the "working"/
+  "queued" label and a cancel affordance (clicking it calls
+  `subAgents.cancel(task.id)`); running renders streamed progress; succeeded
+  hides cancel and toggles the result body via "View result"/"Hide result";
+  failed shows the error and hides cancel. Spies the real `subAgents`
+  singleton's `progressFor`/`cancel` (importing a sibling store is fine). No
+  production code changed.
+
 ## v0.4.31 — CronPreview render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
