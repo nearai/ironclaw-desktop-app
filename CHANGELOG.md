@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.77 — Gorgeous UX: keyboard-driven gold gate cards (2026-05-29)
+
+- **Chat conversation polish (UX overhaul, step 3c)**: approval gates now read as
+  "needs you" and resolve from the keyboard. The gate card is recolored from the
+  blue accent to **gold** (`--v2-warning` border + `--v2-warning-soft` fill) —
+  honoring one-accent discipline (blue is reserved for interactive affordances;
+  gold signals attention/gate). Approve/Deny carry visible **key hints**
+  (`⌘⏎` / `Esc`), and a window key handler — active only while a gate is pending —
+  resolves **⌘⏎ (or Ctrl+Enter) → approved, Esc → denied**, the elite
+  inline-approval pattern. +1 render test for the keyboard path; the existing gate
+  test now matches the button by role (it carries a key-hint child). 936 tests.
+  _Step 3 remaining: scroll-pin + "Jump to latest" pill._
+
 ## v0.4.76 — Gorgeous UX: collapsible tool cards with status dots (2026-05-29)
 
 - **Chat conversation polish (UX overhaul, step 3b)**: tool/capability activity

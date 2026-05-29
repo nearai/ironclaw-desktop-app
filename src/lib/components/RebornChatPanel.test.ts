@@ -102,12 +102,31 @@ describe('RebornChatPanel', () => {
       }
     });
     const resolve = vi.spyOn(controller, 'resolveGate').mockResolvedValue(undefined);
-    const { getByText } = render(RebornChatPanel, {
+    const { getByText, getByRole } = render(RebornChatPanel, {
       props: { controller, threads: freshThreads() }
     });
     expect(getByText('Approve shell?')).toBeTruthy();
-    await fireEvent.click(getByText('Approve'));
+    // Button now carries a ⌘⏎ key hint, so match by role/name, not exact text.
+    await fireEvent.click(getByRole('button', { name: /Approve/ }));
     expect(resolve).toHaveBeenCalledWith('approved');
+  });
+
+  it('approves the gate on ⌘⏎ and denies on Esc from the keyboard', async () => {
+    const controller = controllerWith({
+      pendingGate: {
+        kind: 'gate',
+        runId: 'r1',
+        gateRef: 'g1',
+        headline: 'Approve shell?',
+        body: ''
+      }
+    });
+    const resolve = vi.spyOn(controller, 'resolveGate').mockResolvedValue(undefined);
+    render(RebornChatPanel, { props: { controller, threads: freshThreads() } });
+    await fireEvent.keyDown(window, { key: 'Enter', metaKey: true });
+    expect(resolve).toHaveBeenCalledWith('approved');
+    await fireEvent.keyDown(window, { key: 'Escape' });
+    expect(resolve).toHaveBeenCalledWith('denied');
   });
 
   it('swaps Send for Stop while processing and routes Stop to cancel', async () => {

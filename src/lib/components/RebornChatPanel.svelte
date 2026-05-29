@@ -127,7 +127,23 @@
       void handleSend();
     }
   }
+
+  /** Keyboard-accelerated approval while a gate is pending: ⌘⏎ (or Ctrl+Enter)
+   *  approves, Esc denies — the elite inline-approval pattern. No-op when no
+   *  gate is open so it never steals keys from the composer. */
+  function onGateKeydown(e: KeyboardEvent) {
+    if (!pendingGate) return;
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault();
+      void controller.resolveGate('approved');
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      void controller.resolveGate('denied');
+    }
+  }
 </script>
+
+<svelte:window onkeydown={onGateKeydown} />
 
 <div class="reborn-shell" data-testid="reborn-chat-panel">
   <aside class="reborn-rail" aria-label="Conversations">
@@ -257,10 +273,10 @@
             class="reborn-btn reborn-btn--primary"
             onclick={() => controller.resolveGate('approved')}
           >
-            Approve
+            Approve <kbd class="reborn-gate__hint">⌘⏎</kbd>
           </button>
           <button type="button" class="reborn-btn" onclick={() => controller.resolveGate('denied')}>
-            Deny
+            Deny <kbd class="reborn-gate__hint">Esc</kbd>
           </button>
         </div>
       </div>
@@ -590,15 +606,17 @@
     }
   }
   .reborn-gate {
+    /* Gold = "needs you" (one-accent discipline reserves the blue accent for
+       interactive affordances; approval gates wear the warning hue). */
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
     margin: 0 1rem;
     padding: 0.7rem 0.9rem;
-    border: 1px solid var(--v2-accent, #4ca7e6);
+    border: 1px solid var(--v2-warning);
     border-radius: 0.6rem;
-    background: var(--v2-accent-soft, rgba(76, 167, 230, 0.14));
+    background: var(--v2-warning-soft);
   }
   .reborn-gate__text strong {
     color: var(--v2-text, #e6ebf2);
@@ -612,6 +630,14 @@
     display: flex;
     gap: 0.5rem;
     flex: 0 0 auto;
+  }
+  .reborn-gate__hint {
+    margin-left: 0.4rem;
+    padding: 0.05rem 0.3rem;
+    border-radius: 0.25rem;
+    background: rgba(255, 255, 255, 0.16);
+    font-family: var(--v2-mono);
+    font-size: 0.7rem;
   }
   .reborn-composer {
     display: flex;
