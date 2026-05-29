@@ -38,6 +38,7 @@
     href: string;
     label: string;
     icon:
+      | 'desk'
       | 'chat'
       | 'knowledge'
       | 'memory'
@@ -63,6 +64,10 @@
   };
 
   const items: NavItem[] = [
+    // The Desk — the proactive chief-of-staff home. A priority-sorted feed of
+    // cards you act on, led by the "Needs you" approval-gate inbox (Reborn v2).
+    // No digit shortcut (0..9 are taken); reached via the sidebar + palette.
+    { href: '/desk', label: 'Desk', icon: 'desk' },
     // Today (R77 / W1). New home tier per docs/WORKSPACE-OS.md — a tile
     // grid of live + scheduled widgets. Takes Cmd+0.
     { href: '/dashboard', label: 'Today', icon: 'spark', shortcut: '⌘0' },
@@ -709,6 +714,9 @@
         <span class="relative shrink-0 inline-flex items-center justify-center">
           {#if item.icon === 'spark'}
             <Icon name="spark" class="w-4 h-4" />
+          {:else if item.icon === 'desk'}
+            <!-- The Desk: shield glyph — "what needs you / what I'm guarding". -->
+            <Icon name="shield" class="w-4 h-4" />
           {:else if item.icon === 'chat'}
             <Icon name="chat" class="w-4 h-4" />
           {:else if item.icon === 'knowledge'}

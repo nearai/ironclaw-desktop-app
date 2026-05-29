@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.61 — The Desk: route + sidebar nav (increment 2) (2026-05-29)
+
+- **The Desk (increment 2 — reachable)**: added a `/desk` SvelteKit route
+  (`src/routes/desk/+page.svelte`) mounting `RebornDeskPanel`, plus a **"Desk"**
+  sidebar nav entry (shield glyph) placed at the top of the rail as the
+  chief-of-staff home. No digit shortcut (0–9 are taken); reached via the
+  sidebar (and, in a later increment, the command palette). Regenerated the
+  Sidebar snapshot for the new row. 912 tests green.
+
 ## v0.4.60 — The Desk: approval-gate inbox (chief-of-staff home, increment 1) (2026-05-29)
 
 - **New surface — "The Desk"**: the start of a channel-first, proactive
