@@ -28,7 +28,12 @@
  *  promoted from chat (R57b) use the `'custom'` kind and supply their
  *  own title; the route falls through to a generic placeholder until
  *  the widget framework lands the matching renderer. */
-export type TileKind = 'recent-threads' | 'active-routines' | 'recent-skills' | 'custom';
+export type TileKind =
+  | 'recent-threads'
+  | 'active-routines'
+  | 'recent-skills'
+  | 'open-loops'
+  | 'custom';
 
 /** Grid-relative column span (out of 4). 1 = narrow, 2 = half, 4 = wide. */
 export type TileSpan = 1 | 2 | 4;
@@ -57,10 +62,12 @@ const VALID_KINDS: readonly TileKind[] = [
   'recent-threads',
   'active-routines',
   'recent-skills',
+  'open-loops',
   'custom'
 ] as const;
 
 const DEFAULT_LAYOUT: TileConfig[] = [
+  { id: 'open-loops', kind: 'open-loops', span: 2 },
   { id: 'recent-threads', kind: 'recent-threads', span: 2 },
   { id: 'active-routines', kind: 'active-routines', span: 2 },
   { id: 'recent-skills', kind: 'recent-skills', span: 4 }
@@ -218,6 +225,8 @@ export function defaultTitleForKind(kind: TileKind): string {
       return 'Active routines';
     case 'recent-skills':
       return 'Recent skills';
+    case 'open-loops':
+      return 'Open loops';
     case 'custom':
     default:
       return 'Widget';

@@ -28,6 +28,7 @@
   import RecentThreadsTile from './tiles/RecentThreadsTile.svelte';
   import ActiveRoutinesTile from './tiles/ActiveRoutinesTile.svelte';
   import RecentSkillsTile from './tiles/RecentSkillsTile.svelte';
+  import OpenLoopsTile from './tiles/OpenLoopsTile.svelte';
 
   /** Source id of the in-flight drag (null when not dragging). */
   let draggedTileId = $state<string | null>(null);
@@ -174,6 +175,8 @@
             <ActiveRoutinesTile />
           {:else if tile.kind === 'recent-skills'}
             <RecentSkillsTile />
+          {:else if tile.kind === 'open-loops'}
+            <OpenLoopsTile />
           {:else}
             <!-- Custom widget placeholder. The W5 generative-widget
                  framework owns the actual renderer; until it lands we
@@ -184,5 +187,20 @@
         </Tile>
       </div>
     {/each}
+
+    <!-- Opt-in for the Open Loops tile when a persisted layout predates it
+         (new layouts include it by default). A single dashed cell rather
+         than a full add-tile gallery — that lands with W5. -->
+    {#if !dashboard.tiles.some((t) => t.kind === 'open-loops')}
+      <button
+        type="button"
+        onclick={() => dashboard.add({ id: 'open-loops', kind: 'open-loops', span: 2 })}
+        class="col-span-2 flex items-center justify-center gap-2 min-h-[80px] rounded-lg border border-dashed border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan/50 transition-colors text-sm"
+        data-testid="add-open-loops-tile"
+      >
+        <span aria-hidden="true">+</span>
+        Add Open Loops
+      </button>
+    {/if}
   </div>
 {/if}

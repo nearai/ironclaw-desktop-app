@@ -9,7 +9,7 @@
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { dashboard, type TileConfig } from './dashboard.svelte';
+import { dashboard, defaultTitleForKind, type TileConfig } from './dashboard.svelte';
 
 const LS_KEY = 'ironclaw-dashboard-layout';
 
@@ -114,5 +114,25 @@ describe('dashboard store', () => {
     expect(ids).toContain('recent-skills');
     const raw = localStorage.getItem(LS_KEY);
     expect(raw).not.toBeNull();
+  });
+
+  it('default layout includes the open-loops tile (R103)', () => {
+    dashboard.tiles = [];
+    dashboard.reset();
+    expect(dashboard.tiles.map((t) => t.kind)).toContain('open-loops');
+  });
+
+  it('add() accepts an open-loops tile and persists it', () => {
+    dashboard.tiles = [];
+    dashboard.add({ id: 'open-loops', kind: 'open-loops', span: 2 });
+    expect(dashboard.tiles.map((t) => t.kind)).toEqual(['open-loops']);
+    const raw = localStorage.getItem(LS_KEY);
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw as string) as TileConfig[];
+    expect(parsed[0].kind).toBe('open-loops');
+  });
+
+  it('defaultTitleForKind labels the open-loops tile', () => {
+    expect(defaultTitleForKind('open-loops')).toBe('Open loops');
   });
 });
