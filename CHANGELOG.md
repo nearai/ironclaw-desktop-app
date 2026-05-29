@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.48 — toast store coverage (2026-05-29)
+
+- **Test coverage**: first tests for the app-wide `toasts` singleton
+  (`src/lib/stores/toasts.svelte.ts`). +8 unit tests driving the public API
+  with fake timers: `show()` appends a toast with the returned id and the
+  default "info" kind (or an explicit kind) and accumulates multiple toasts in
+  order with distinct ids; `dismiss()` removes the matching toast (and is a
+  no-op for an unknown id); the auto-dismiss timeout fires after
+  `AUTO_DISMISS_MS` but not before; and `clear()` empties the queue and cancels
+  pending timers so a stale timeout can't resurrect a toast. No production code
+  changed.
+
 ## v0.4.47 — conversation-export helper coverage (2026-05-29)
 
 - **Test coverage**: first tests for the pure export-formatting helpers in
