@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.44 — ResizeHandle behavior coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `ResizeHandle.svelte` (R14c — drag-to-resize pane splitter). +9 tests for the
+  store-free, props-driven handle: renders a `role="separator"` with the
+  WAI-ARIA splitter attrs (`aria-orientation`/`label`/`valuemin`/`valuemax`/
+  `valuenow`); on mount reports the default width upstream, or the persisted
+  width (clamped) when localStorage carries one, and stays silent when the
+  parent passes `initialWidth`; double-click resets to the default and persists
+  it; a primary-button drag reports the clamped live width via `onresize` and
+  persists the final width on mouseup (toggling the `dragging` class); the
+  width clamps to `max`; and a non-primary mousedown is ignored. Uses a
+  Map-backed localStorage shim. No production code changed.
+
 ## v0.4.43 — SkillEditorModal render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
