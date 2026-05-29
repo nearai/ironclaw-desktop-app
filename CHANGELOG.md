@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.23 — Activity-stream store coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `streams.svelte.ts` (R81 — the client-side activity-feed aggregator that
+  federates threads + routines + skills). +6 tests lock `setFilter`,
+  `filtered()` (all vs per-kind), and `load()`: the no-client early return,
+  the already-in-flight guard, the merge + newest-first sort (with the
+  epoch-0 skill sentinel sorting last, routines without a `last_run` filtered
+  out, empty thread titles falling back), and the `allSettled` resilience
+  (one failing source is dropped without surfacing an error). The test
+  overrides the real `connection.client` getter rather than mocking the
+  sibling `.svelte.ts` module (which interferes with the rune transform). No
+  production code changed.
+
 ## v0.4.22 — Workspace Presets store coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
