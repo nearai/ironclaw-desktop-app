@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.33 — ModelPresenceStrip render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `ModelPresenceStrip.svelte` (R83 — Council model-presence pills). +6 render
+  tests for this zero-import, purely-presentational component: the empty-runs
+  guard (renders nothing), the status→label mapping (pending→queued /
+  streaming→thinking / done→ready / error→failed), the `label`→`providerId`
+  fallback, done-only latency display, `aria-live="polite"` while streaming
+  (else off), and the error message surfacing in the pill title. No production
+  code changed.
+
 ## v0.4.32 — SubAgentChip render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
