@@ -34,6 +34,22 @@
     expandedTools = { ...expandedTools, [id]: !expandedTools[id] };
   }
 
+  // Scroll-pin: keep the conversation pinned to the newest turn unless the
+  // user scrolls up, in which case a "Jump to latest" pill appears.
+  let scrollEl = $state<HTMLDivElement>();
+  let atBottom = $state(true);
+  const BOTTOM_THRESHOLD_PX = 80;
+  function onScroll() {
+    if (!scrollEl) return;
+    atBottom =
+      scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight < BOTTOM_THRESHOLD_PX;
+  }
+  function jumpToLatest() {
+    if (!scrollEl) return;
+    scrollEl.scrollTop = scrollEl.scrollHeight;
+    atBottom = true;
+  }
+
   // Conversation state, derived off the controller's reactive state. (Avoid a
   // local `state` alias — that name collides with the `$state` rune.)
   const messages = $derived(controller.state.messages);
@@ -89,6 +105,14 @@
     if (row && typeof row.scrollIntoView === 'function') {
       row.scrollIntoView({ block: 'nearest' });
     }
+  });
+
+  // Auto-pin to the newest content — but only while the user is already at the
+  // bottom, so reading scrollback isn't yanked away by an incoming token.
+  $effect(() => {
+    messages.length; // track new turns
+    isProcessing; // and the streaming indicator appearing/leaving
+    if (atBottom && scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
   });
 
   /** Start a fresh conversation (the bind effect resets the controller). */
@@ -194,7 +218,7 @@
   </aside>
 
   <div class="reborn-chat">
-    <div class="reborn-chat__scroll">
+    <div class="reborn-chat__scroll" bind:this={scrollEl} onscroll={onScroll}>
       {#if messages.length === 0}
         <div class="reborn-chat__empty">
           <p class="reborn-chat__empty-title">IronClaw Reborn</p>
@@ -258,6 +282,10 @@
         >
           <span class="reborn-caret"></span>
         </div>
+      {/if}
+
+      {#if !atBottom}
+        <button type="button" class="reborn-jump" onclick={jumpToLatest}>↓ Jump to latest</button>
       {/if}
     </div>
 
@@ -448,6 +476,30 @@
   }
   .reborn-chat__empty-sub {
     font-size: 0.875rem;
+  }
+  /* "Jump to latest" pill — sticks to the bottom of the scrollport while the
+     user is reading scrollback; clicking pins back to the newest turn. */
+  .reborn-jump {
+    position: sticky;
+    bottom: 0.5rem;
+    align-self: center;
+    margin-top: -0.5rem;
+    padding: 0.35rem 0.85rem;
+    border: 1px solid var(--v2-border);
+    border-radius: 999px;
+    background: var(--v2-surface-2);
+    color: var(--v2-accent-text);
+    font: inherit;
+    font-size: 0.78rem;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    transition:
+      background var(--v2-dur-fast) var(--v2-ease-out),
+      transform var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .reborn-jump:hover {
+    background: var(--v2-surface-muted);
+    transform: translateY(-1px);
   }
   .reborn-msg {
     max-width: 80%;

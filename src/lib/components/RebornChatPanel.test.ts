@@ -91,6 +91,24 @@ describe('RebornChatPanel', () => {
     expect(getByText('GET https://example.com -> 200')).toBeTruthy();
   });
 
+  it('shows a "Jump to latest" pill when scrolled up and hides it after jumping', async () => {
+    const { container, getByText, queryByText } = render(RebornChatPanel, {
+      props: {
+        threads: freshThreads(),
+        controller: controllerWith({ messages: [{ id: 'u1', role: 'user', content: 'hi' }] })
+      }
+    });
+    const scroll = container.querySelector('.reborn-chat__scroll') as HTMLElement;
+    // jsdom has no layout — fake a scrolled-up viewport so atBottom turns false.
+    Object.defineProperty(scroll, 'scrollHeight', { value: 1000, configurable: true });
+    Object.defineProperty(scroll, 'clientHeight', { value: 300, configurable: true });
+    Object.defineProperty(scroll, 'scrollTop', { value: 0, writable: true, configurable: true });
+    await fireEvent.scroll(scroll);
+    expect(getByText(/Jump to latest/)).toBeTruthy();
+    await fireEvent.click(getByText(/Jump to latest/));
+    expect(queryByText(/Jump to latest/)).toBeNull();
+  });
+
   it('shows the gate banner and routes Approve to the controller', async () => {
     const controller = controllerWith({
       pendingGate: {

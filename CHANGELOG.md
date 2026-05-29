@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.78 — Gorgeous UX: scroll-pin + "Jump to latest" (step 3 complete) (2026-05-29)
+
+- **Chat conversation polish (UX overhaul, step 3d — finishes step 3)**: the v2
+  chat now pins to the newest turn while you're at the bottom, but never yanks
+  scrollback away from you. An `onscroll` handler tracks `atBottom` (80px
+  threshold); an effect auto-scrolls to the end on new turns / streaming **only
+  when already at bottom**; and when you've scrolled up, a sticky token-styled
+  **"↓ Jump to latest"** pill appears (bottom-center of the scrollport) that pins
+  back on click. +1 render test (drives the pill via faked scroll metrics, since
+  jsdom has no layout). 937 tests. **Step 3 (chat conversation) is now complete**
+  — rows + caret, collapsible tool cards, keyboard gold gate cards, scroll-pin.
+  _Next: step 4 — thread-rail date grouping + keyboard nav._
+
 ## v0.4.77 — Gorgeous UX: keyboard-driven gold gate cards (2026-05-29)
 
 - **Chat conversation polish (UX overhaul, step 3c)**: approval gates now read as
