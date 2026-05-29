@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.25 — Sidecar log ring-buffer coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `sidecar-logs.svelte.ts` (R26 — the sidecar stdout/stderr bridge). +7 tests
+  cover both regimes: outside the Tauri webview every method is a safe no-op
+  (init does no IPC, clear empties only the local mirror), and inside a faked
+  Tauri webview `init()` backfills via the `get_sidecar_logs` IPC, attaches
+  the `sidecar:log` listener, the live listener appends, the MIRROR_CAP ring
+  prune drops the oldest line, `clear()` issues `clear_sidecar_logs`, and
+  `teardown()` detaches the listener. Mocks `@tauri-apps/api/core` + `/event`
+  (third-party modules — safe to mock, unlike sibling `.svelte.ts`). No
+  production code changed.
+
 ## v0.4.24 — Per-thread model tracker coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
