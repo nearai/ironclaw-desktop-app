@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.12 — Polling unified (2026-05-28)
+
+- **Simplification (audit R200 P1, complete)**: migrated the last poll
+  surface — EngineThreadDetail — onto `createPollingRefresh`. Its
+  restart-on-liveness `$effect` now toggles the shared handle's idempotent
+  `start()`/`stop()` instead of hand-managing a `setInterval`. All five poll
+  loops (jobs, routines, missions, admin, engine-detail) are now unified with
+  consistent in-flight suppression.
+
 ## v0.4.11 — Polling migration cont'd (2026-05-28)
 
 - **Simplification (audit R200 P1)**: migrated the Missions and Admin

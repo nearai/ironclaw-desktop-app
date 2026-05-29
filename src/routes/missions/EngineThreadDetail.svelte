@@ -38,6 +38,7 @@
   import { toasts } from '$lib/stores/toasts.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
   import Sparkline from '$lib/components/Sparkline.svelte';
+  import { createPollingRefresh } from '$lib/util/polling';
   import { relativeTime, shortTimestamp } from '../routines/time';
 
   type Props = {
@@ -66,7 +67,7 @@
    *  also collapsed by default to keep the timeline scannable. */
   let openBlocks = $state<Record<string, boolean>>({});
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let enginePoll: ReturnType<typeof createPollingRefresh> | null = null;
 
   // Poll interval while the thread is live. 2s matches the brief's intent
   // for a "live update" surface without flooding the gateway.
@@ -318,15 +319,12 @@
   $effect(() => {
     // Read isLive so the effect re-runs on transition.
     const live = isLive;
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
-    if (live) {
-      pollTimer = setInterval(() => {
-        void refresh({ silent: true });
-      }, POLL_INTERVAL_MS);
-    }
+    // Lazily create the handle on first run — POLL_INTERVAL_MS + refresh are
+    // both in scope by the time effects flush. start()/stop() are idempotent,
+    // so toggling on every liveness transition is safe.
+    enginePoll ??= createPollingRefresh(() => refresh({ silent: true }), POLL_INTERVAL_MS);
+    if (live) enginePoll.start();
+    else enginePoll.stop();
   });
 
   onMount(() => {
@@ -334,7 +332,7 @@
   });
 
   onDestroy(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    enginePoll?.stop();
   });
 
   /** Escape key closes the panel — matches the convention used elsewhere
