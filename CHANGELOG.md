@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.47 — conversation-export helper coverage (2026-05-29)
+
+- **Test coverage**: first tests for the pure export-formatting helpers in
+  `src/lib/api/files.ts` (R4b / R61 / R87 — conversation export). +15 unit tests
+  covering the deterministic builders that previously had none:
+  `sanitizeFilenameStem` (clean pass-through, OS-hostile run collapse,
+  whitespace collapse, empty/whitespace fallback, 80-char truncation);
+  `todayStamp` zero-padded `YYYY-MM-DD`; `buildThreadJsonShape` /
+  `buildThreadJsonText` (canonical field projection that drops `message_count`,
+  message mapping, `exported_at` stamp, round-trippable 2-space JSON);
+  `buildThreadMarkdown` (title heading + fallback, user/assistant/tool turn
+  headings, trailing-divider trim + single trailing newline); and
+  `buildThreadHtml` (non-trivial output containing the title, blank-title
+  fallback). The IPC-coupled functions are left to integration. No production
+  code changed; suite crosses 800 tests.
+
 ## v0.4.46 — runtime probe coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
