@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.42 — PerThreadPromptModal render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `PerThreadPromptModal.svelte` (R43 — per-thread system-prompt override editor).
+  +13 render tests driving the modal off the `perThreadPrompts` + `toasts`
+  stores: self-gates closed; renders the dialog + thread title (falling back to
+  "Untitled thread"); pre-fills the textarea from the existing override; shows
+  the live character count against `MAX_PROMPT_CHARS` and the over-limit warning;
+  enables/disables "Reset to default" by `hasOverride`; Save persists a non-empty
+  draft (`set` + success toast + `onChanged` + close); an empty draft routes
+  through `clear` instead; Reset clears + info-toasts + closes; Cancel, backdrop
+  click, and Escape all close. Spies the two sibling stores. No production code
+  changed.
+
 ## v0.4.41 — ToolFlowPanel render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested `ToolFlowPanel.svelte`
