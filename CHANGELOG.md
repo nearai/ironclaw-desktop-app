@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.19 — CouncilColumn render coverage (2026-05-29)
+
+- **Test coverage**: render smoke tests for the previously-untested
+  `CouncilColumn.svelte` (R40 — one column in the Council fanout grid). +8
+  tests lock all four run lifecycle states (pending spinner / streaming
+  first-tokens / error fallback / done), the latency footer formatting
+  (sub-second "ms" vs multi-second "Xs"), and the promote-button gate
+  (disabled until the run is done with non-empty content; click fires the
+  callback). No production code changed.
+
 ## v0.4.18 — GlobalSearch highlight precompute (2026-05-29)
 
 - **Performance (audit R200 P2)**: GlobalSearch now precomputes its
