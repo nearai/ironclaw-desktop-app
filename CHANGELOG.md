@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.30 — Gate find-in-thread version bump behind searchOpen (2026-05-29)
+
+- **Performance (audit R200 P1)**: the chat `contentVersion` effect bumped a
+  counter on every streaming token (every `history`/`streamingBuffer`/
+  `isStreaming` change) even when the find-in-thread bar was closed.
+  `ChatSearch` is the only reader of `contentVersion` and only mounts while
+  `searchOpen`, so the bump was wasted reactivity on the streaming hot path.
+  Gated the effect on `searchOpen` (early-return when closed): while closed it
+  only tracks `searchOpen`, so streaming tokens no longer churn it; when the
+  bar opens the effect re-runs, re-subscribes to the deps, and resumes
+  bumping, and ChatSearch runs its own initial scan on mount — so no find
+  result is missed. Behavior-preserving while the bar is open (full suite
+  green, no test changes).
+
 ## v0.4.29 — Replay-UI store coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested

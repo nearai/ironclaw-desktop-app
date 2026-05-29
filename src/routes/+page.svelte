@@ -1071,10 +1071,17 @@
   });
 
   // Bump the find-in-thread version counter whenever the rendered tree
-  // could have changed. ChatSearch debounces its rebuild internally so
-  // we don't pay a tree-walk per streaming token. We `untrack` the read
-  // side of the counter so this effect only retriggers on its real deps.
+  // could have changed. Gated on `searchOpen` (audit R200 P1): ChatSearch
+  // is the only reader of `contentVersion` and it only mounts while the
+  // find bar is open (`{#if searchOpen}`), so bumping the counter for every
+  // streaming token while the bar is closed is wasted reactivity on the hot
+  // path. When the bar opens this effect re-runs, re-subscribes to the
+  // deps, and resumes bumping; ChatSearch also runs its own initial scan on
+  // mount, so nothing is missed by skipping the bumps while it was closed.
+  // We `untrack` the read side of the counter so this effect only
+  // retriggers on its real deps.
   $effect(() => {
+    if (!searchOpen) return;
     void history.length;
     void streamingBuffer.length;
     void isStreaming;
