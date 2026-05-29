@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.37 — ReplyThreadPanel render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `ReplyThreadPanel.svelte` (R80 — Slack-style reply-thread side panel). +6
+  render tests: the empty state + parent preview, rendering existing replies,
+  lazy `load()` + `markRead()` on mount, the close button firing `onClose`,
+  the Send button gated on draft content and posting via
+  `replyThreads.post(parentId, threadId, content)`, and the long-parent
+  preview truncation. Spies the `replyThreads` store and stubs `MarkdownView`.
+  No production code changed.
+
 ## v0.4.36 — TokenSourceBadge render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
