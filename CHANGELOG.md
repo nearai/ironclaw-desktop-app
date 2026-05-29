@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.20 — CouncilPanel render coverage (2026-05-29)
+
+- **Test coverage**: render smoke tests for the previously-untested
+  `CouncilPanel.svelte` (R40/R91 — the Council fanout overlay summoned from
+  the chat composer). +5 tests cover the self-gating render (closed →
+  nothing), the open layout (header, 2–4 model hint, prompt textarea), the
+  on-open `$effect` seeding the textarea from `council.initialPrompt`, the
+  Convene button being disabled with no prompt/selection, and close-to-
+  dismiss. Completes render coverage of the Council surface (column +
+  panel). No production code changed.
+
 ## v0.4.19 — CouncilColumn render coverage (2026-05-29)
 
 - **Test coverage**: render smoke tests for the previously-untested
