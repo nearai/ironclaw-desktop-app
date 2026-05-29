@@ -8,7 +8,7 @@
 //   3. Profile-aware shape with a bogus activeProfileId → re-anchored
 //      to the first profile.
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   DEFAULT_PROFILE_ID,
@@ -294,5 +294,73 @@ describe('reorderProfiles', () => {
     await reorderProfiles([p1, p2, p3]);
     const profiles = listProfiles();
     expect(profiles.map((p) => p.id)).toEqual([p1, p2, p3]);
+  });
+});
+
+// saveSettings must only adopt the new settings into the in-memory cache
+// AFTER the on-disk write succeeds (Codex audit P0). These tests force the
+// Tauri path (so saveSettings calls invoke) and drive the IPC outcome.
+describe('saveSettings cache-after-IPC (audit P0)', () => {
+  const OLD = {
+    activeProfileId: 'default',
+    onboardingComplete: false,
+    adminMode: false,
+    trayEnabled: true,
+    useResponsesApi: true,
+    engineV2Enabled: false,
+    profiles: [
+      {
+        id: 'default',
+        name: 'OldName',
+        mode: 'remote' as const,
+        remoteBaseUrl: 'http://127.0.0.1:3100',
+        localBaseUrl: 'http://127.0.0.1:3100',
+        llmBackend: 'nearai' as const,
+        llmProviderId: 'nearai',
+        apiVersion: 'v2' as const
+      }
+    ]
+  };
+
+  beforeEach(async () => {
+    const win = (globalThis as unknown as { window?: Record<string, unknown> }).window ?? {};
+    win.__TAURI_INTERNALS__ = {};
+    (globalThis as unknown as { window: Record<string, unknown> }).window = win;
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockReset();
+  });
+  afterEach(() => {
+    const win = (globalThis as unknown as { window?: Record<string, unknown> }).window;
+    if (win && '__TAURI_INTERNALS__' in win) delete win.__TAURI_INTERNALS__;
+  });
+
+  it('keeps the last-known-good cache when the on-disk write fails', async () => {
+    const { saveSettings } = await import('./settings.svelte');
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'get_settings') return OLD;
+      if (cmd === 'save_settings') throw new Error('disk full');
+      return undefined;
+    });
+    await loadSettings(); // cached = OLD
+    const next = structuredClone(OLD);
+    next.profiles[0].name = 'NewName';
+    await expect(saveSettings(next)).rejects.toThrow('disk full');
+    // The failed write must NOT have been adopted into the cache.
+    expect(listProfiles()[0].name).toBe('OldName');
+  });
+
+  it('adopts the new settings into the cache after a successful write', async () => {
+    const { saveSettings } = await import('./settings.svelte');
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'get_settings') return OLD;
+      return undefined; // save_settings resolves
+    });
+    await loadSettings();
+    const next = structuredClone(OLD);
+    next.profiles[0].name = 'NewName';
+    await saveSettings(next);
+    expect(listProfiles()[0].name).toBe('NewName');
   });
 });

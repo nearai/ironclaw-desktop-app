@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.85 — Fix: settings cache adopts new state only after the write succeeds (2026-05-29)
+
+- **No cache/disk desync on a failed settings write (Codex audit P0, JS half)**:
+  `saveSettings` updated the in-memory `cached` settings *before* awaiting the
+  Rust `save_settings` IPC, so a rejected write (disk error, serialization
+  failure) left memory believing unsaved config had persisted — later reads,
+  and the cross-window broadcast, would propagate the phantom state. The cache
+  is now adopted **only after** the IPC resolves; on failure it keeps its
+  last-known-good view and the rejection propagates to the caller (the
+  non-Tauri no-op path is unchanged). +2 unit tests (failed write keeps old
+  cache; successful write adopts new; 952 total). _The atomic temp+fsync+rename
+  on the Rust side (settings.rs) remains for a dedicated cargo-validated pass._
+
 ## v0.4.84 — Security: gate Python "Run" behind explicit confirmation (2026-05-29)
 
 - **No one-click code execution (Codex audit P0)**: assistant-authored Python in

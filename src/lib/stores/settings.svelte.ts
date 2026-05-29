@@ -447,19 +447,21 @@ export async function saveSettings(s: AppSettings): Promise<void> {
   // Cheap (settings is ~1KB), safe (settings is JSON-on-disk anyway), and
   // bulletproof against future code paths that hand us a `$state` view.
   const plain = JSON.parse(JSON.stringify(s)) as AppSettings;
-  // Always update the in-memory cache before persisting so subsequent
-  // helper calls see the same view of the world even if the IPC write
-  // is in-flight.
-  cached = structuredClone(plain);
   if (!inTauri()) {
     console.warn('saveSettings called outside Tauri; no-op');
-    // Still notify siblings so the dev/browser harness can exercise
-    // the fanout — `broadcast.send` no-ops without an open channel,
-    // so this is free in non-test runs.
+    // No on-disk write to fail against here, so adopt the new view and
+    // notify siblings (`broadcast.send` no-ops without an open channel).
+    cached = structuredClone(plain);
     broadcast.send({ kind: 'settings-changed' });
     return;
   }
+  // Persist FIRST; adopt the new settings into the in-memory cache only once
+  // the on-disk write actually succeeded. If the IPC rejects (disk error,
+  // serialization failure), the cache keeps its last-known-good view and the
+  // rejection propagates to the caller — rather than leaving memory believing
+  // unsaved config was persisted (Codex audit P0).
   await invoke('save_settings', { settings: plain });
+  cached = structuredClone(plain);
   // Fan the change out to every sibling window so their
   // `connection.settings` rune refreshes from disk. Fires AFTER the
   // IPC resolves so peers never read stale on-disk state. Loop-safe:
