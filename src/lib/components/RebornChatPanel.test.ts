@@ -68,6 +68,29 @@ describe('RebornChatPanel', () => {
     expect(getByText('builtin.http')).toBeTruthy();
   });
 
+  it('collapses a tool card by default and expands its detail on click', async () => {
+    const { getByText, queryByText } = render(RebornChatPanel, {
+      props: {
+        threads: freshThreads(),
+        controller: controllerWith({
+          messages: [
+            {
+              id: 'tool-2',
+              role: 'tool_activity',
+              toolName: 'builtin.fetch',
+              toolStatus: 'success',
+              toolDetail: 'GET https://example.com -> 200'
+            }
+          ]
+        })
+      }
+    });
+    // Progressive disclosure: detail hidden until the card is expanded.
+    expect(queryByText('GET https://example.com -> 200')).toBeNull();
+    await fireEvent.click(getByText('builtin.fetch'));
+    expect(getByText('GET https://example.com -> 200')).toBeTruthy();
+  });
+
   it('shows the gate banner and routes Approve to the controller', async () => {
     const controller = controllerWith({
       pendingGate: {

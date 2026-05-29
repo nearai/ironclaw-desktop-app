@@ -27,6 +27,13 @@
 
   let draft = $state('');
 
+  // Which tool/capability cards are expanded (progressive disclosure —
+  // collapsed by default; keyed by message id).
+  let expandedTools = $state<Record<string, boolean>>({});
+  function toggleTool(id: string) {
+    expandedTools = { ...expandedTools, [id]: !expandedTools[id] };
+  }
+
   // Conversation state, derived off the controller's reactive state. (Avoid a
   // local `state` alias — that name collides with the `$state` rune.)
   const messages = $derived(controller.state.messages);
@@ -181,11 +188,33 @@
 
       {#each messages as msg (msg.id)}
         {#if msg.role === 'tool_activity'}
-          <div class="reborn-msg reborn-msg--tool" class:is-error={msg.toolStatus === 'error'}>
-            <span class="reborn-tool__name">{msg.toolName || 'tool'}</span>
-            <span class="reborn-tool__status">{msg.toolStatus}</span>
-            {#if msg.toolError}
-              <span class="reborn-tool__error">{msg.toolError}</span>
+          {@const toolHasDetail = !!(msg.toolDetail || msg.toolError)}
+          {@const toolOpen = !!expandedTools[msg.id]}
+          <div class="reborn-tool" class:is-error={msg.toolStatus === 'error'}>
+            <button
+              type="button"
+              class="reborn-tool__head"
+              class:is-static={!toolHasDetail}
+              disabled={!toolHasDetail}
+              aria-expanded={toolHasDetail ? toolOpen : undefined}
+              onclick={() => toolHasDetail && toggleTool(msg.id)}
+            >
+              <span class="reborn-tool__dot" data-status={msg.toolStatus}></span>
+              <span class="reborn-tool__name">{msg.toolName || 'tool'}</span>
+              <span class="reborn-tool__status">{msg.toolStatus}</span>
+              {#if toolHasDetail}
+                <span class="reborn-tool__chevron" class:is-open={toolOpen} aria-hidden="true"
+                  >▸</span
+                >
+              {/if}
+            </button>
+            {#if toolHasDetail && toolOpen}
+              <div class="reborn-tool__detail">
+                {#if msg.toolDetail}<p class="reborn-tool__detail-line">{msg.toolDetail}</p>{/if}
+                {#if msg.toolError}
+                  <p class="reborn-tool__detail-line is-error">{msg.toolError}</p>
+                {/if}
+              </div>
             {/if}
           </div>
         {:else if msg.role === 'error'}
@@ -451,20 +480,86 @@
     color: #ff9d9d;
     font-size: 0.85rem;
   }
-  .reborn-msg--tool {
+  .reborn-tool {
     align-self: flex-start;
-    display: inline-flex;
-    gap: 0.5rem;
-    align-items: center;
-    background: var(--v2-surface-2, rgba(255, 255, 255, 0.05));
+    width: 100%;
+    max-width: 68ch;
+    border: 1px solid var(--v2-border);
+    border-radius: 0.5rem;
+    background: var(--v2-surface-2);
+    overflow: hidden;
     font-size: 0.8rem;
-    font-family: var(--v2-mono, ui-monospace, monospace);
   }
-  .reborn-msg--tool.is-error {
-    color: #ff9d9d;
+  .reborn-tool__head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.45rem 0.6rem;
+    border: none;
+    background: transparent;
+    color: var(--v2-text);
+    font: inherit;
+    font-size: 0.8rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .reborn-tool__head:not(.is-static):hover {
+    background: var(--v2-surface-muted);
+  }
+  .reborn-tool__head.is-static {
+    cursor: default;
+  }
+  .reborn-tool__dot {
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--v2-text-faint);
+  }
+  .reborn-tool__dot[data-status='running'] {
+    background: var(--v2-accent);
+    animation: v2-breathe 1.4s var(--v2-ease-in-out) infinite;
+  }
+  .reborn-tool__dot[data-status='success'] {
+    background: var(--v2-positive-text);
+  }
+  .reborn-tool__dot[data-status='error'] {
+    background: var(--v2-danger-text);
+  }
+  .reborn-tool__name {
+    font-family: var(--v2-mono);
+    color: var(--v2-text-strong);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .reborn-tool__status {
-    color: var(--v2-text-muted, #8a93a6);
+    color: var(--v2-text-faint);
+    text-transform: capitalize;
+  }
+  .reborn-tool__chevron {
+    margin-left: auto;
+    color: var(--v2-text-faint);
+    transition: transform var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .reborn-tool__chevron.is-open {
+    transform: rotate(90deg);
+  }
+  .reborn-tool__detail {
+    padding: 0 0.6rem 0.5rem 1.35rem;
+    border-top: 1px solid var(--v2-border);
+  }
+  .reborn-tool__detail-line {
+    margin: 0.4rem 0 0;
+    color: var(--v2-text-muted);
+    font-family: var(--v2-mono);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .reborn-tool__detail-line.is-error {
+    color: var(--v2-danger-text);
   }
   .reborn-streaming {
     align-self: stretch;

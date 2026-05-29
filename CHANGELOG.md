@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.76 — Gorgeous UX: collapsible tool cards with status dots (2026-05-29)
+
+- **Chat conversation polish (UX overhaul, step 3b)**: tool/capability activity
+  in the v2 chat goes from a flat inline `name status error` line to a proper
+  **card** — a status **dot** (▶ running pulses on the accent, ✓ success on the
+  positive token, ✗ error on the danger token), the tool name in `--v2-mono`, a
+  capitalized status, and **progressive disclosure**: when there's detail or an
+  error, the card header is a keyboard-focusable toggle (chevron rotates) that
+  expands a mono detail region — collapsed by default so a long run of tool calls
+  stays calm and scannable. Cards with nothing to expand render as static (no
+  button affordance). All token-driven (border/surface/dots/motion); animates
+  through the shared scale and the `v2-breathe` keyframe (steady under
+  prefers-reduced-motion). +1 render test for the expand interaction (935 total).
+  _Remaining step-3 slices: scroll-pin + "Jump to latest", keyboard-driven gate cards._
+
 ## v0.4.75 — Gorgeous UX: chat rows + streaming caret (2026-05-29)
 
 - **Chat conversation polish (UX overhaul, step 3a)**: the v2 chat surface moves
