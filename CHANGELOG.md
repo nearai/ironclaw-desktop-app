@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.28 — Sign-in state-machine coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `sign-in.svelte.ts` (R5d/R44 — NEAR.AI sign-in detection). +9 tests lock
+  `refresh()`'s mapping of `getProfile()` outcomes onto the coarse status:
+  no client → `unknown`; null → `signed-out` (with the "Signed out" toast
+  only on a signed-in→signed-out transition); a profile → `signed-in` with the
+  account-label fallback chain (`near_account` → `display_name` → `user_id` →
+  "NEAR.AI") and no re-toast when already signed in; a thrown error →
+  `error` + `lastError`; the inflight guard collapsing concurrent refreshes;
+  and `reset()` clearing back to a clean slate. Overrides the real
+  `connection.client` getter and spies `toasts.show`. No production code
+  changed.
+
 ## v0.4.27 — Surface-refresh registry coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
