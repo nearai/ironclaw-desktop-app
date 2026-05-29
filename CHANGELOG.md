@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.24 — Per-thread model tracker coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `thread-model.svelte.ts` (R41 — the localStorage-backed threadId→providerId
+  map behind the chat header's provider chip). +8 tests lock `setProvider`
+  (records + persists as a flat object, trims whitespace, ignores
+  empty/whitespace/non-string providers and empty threadIds, write-last-wins,
+  no-op preserving the Map reference when unchanged), `getProvider`/`has`, and
+  `init()` (hydrates from localStorage, `coerceLoaded` drops invalid rows,
+  idempotent). No production code changed.
+
 ## v0.4.23 — Activity-stream store coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
