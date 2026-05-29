@@ -10,6 +10,7 @@ import { fireEvent, render } from '@testing-library/svelte';
 
 import RebornChatPanel from './RebornChatPanel.svelte';
 import { RebornChatController } from '$lib/stores/reborn-chat.svelte';
+import { RebornThreadStore } from '$lib/stores/reborn-threads.svelte';
 import { initialChatState, type RebornChatState } from '$lib/api/reborn';
 
 vi.mock('./MarkdownView.svelte', () => ({ default: () => null }));
@@ -20,10 +21,15 @@ function controllerWith(state: Partial<RebornChatState>): RebornChatController {
   return c;
 }
 
+/** A fresh, isolated thread store with a null client (load no-ops). */
+function freshThreads(): RebornThreadStore {
+  return new RebornThreadStore(() => null);
+}
+
 describe('RebornChatPanel', () => {
   it('renders the empty state and composer when there are no messages', () => {
     const { getByPlaceholderText, getByText } = render(RebornChatPanel, {
-      props: { threadId: null, controller: controllerWith({}) }
+      props: { controller: controllerWith({}), threads: freshThreads() }
     });
     expect(getByPlaceholderText('Message IronClaw…')).toBeTruthy();
     expect(getByText('Send a message to start a conversation.')).toBeTruthy();
@@ -31,7 +37,7 @@ describe('RebornChatPanel', () => {
 
   it('disables Send for an empty draft and enables it once text is entered', async () => {
     const { getByText, getByLabelText } = render(RebornChatPanel, {
-      props: { threadId: null, controller: controllerWith({}) }
+      props: { controller: controllerWith({}), threads: freshThreads() }
     });
     const send = getByText('Send') as HTMLButtonElement;
     expect(send.disabled).toBe(true);
@@ -42,7 +48,7 @@ describe('RebornChatPanel', () => {
   it('renders user, error, and tool bubbles from controller state', () => {
     const { getByText } = render(RebornChatPanel, {
       props: {
-        threadId: null,
+        threads: freshThreads(),
         controller: controllerWith({
           messages: [
             { id: 'u1', role: 'user', content: 'hi there' },
@@ -73,7 +79,9 @@ describe('RebornChatPanel', () => {
       }
     });
     const resolve = vi.spyOn(controller, 'resolveGate').mockResolvedValue(undefined);
-    const { getByText } = render(RebornChatPanel, { props: { threadId: 't1', controller } });
+    const { getByText } = render(RebornChatPanel, {
+      props: { controller, threads: freshThreads() }
+    });
     expect(getByText('Approve shell?')).toBeTruthy();
     await fireEvent.click(getByText('Approve'));
     expect(resolve).toHaveBeenCalledWith('approved');
@@ -83,10 +91,23 @@ describe('RebornChatPanel', () => {
     const controller = controllerWith({ isProcessing: true });
     const cancel = vi.spyOn(controller, 'cancel').mockResolvedValue(undefined);
     const { getByText, queryByText } = render(RebornChatPanel, {
-      props: { threadId: 't1', controller }
+      props: { controller, threads: freshThreads() }
     });
     expect(queryByText('Send')).toBeNull();
     await fireEvent.click(getByText('Stop'));
     expect(cancel).toHaveBeenCalled();
+  });
+
+  it('lists threads in the rail, selects on click, and New chat clears selection', async () => {
+    const threads = freshThreads();
+    threads.threads = [{ thread_id: 't1', title: 'Quarterly review' }];
+    const { getByText } = render(RebornChatPanel, {
+      props: { controller: controllerWith({}), threads }
+    });
+    expect(getByText('Quarterly review')).toBeTruthy();
+    await fireEvent.click(getByText('Quarterly review'));
+    expect(threads.currentId).toBe('t1');
+    await fireEvent.click(getByText('New chat'));
+    expect(threads.currentId).toBeNull();
   });
 });

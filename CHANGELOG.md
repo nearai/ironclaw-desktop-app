@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.68 — First-class v2 chat: two-pane thread rail (2026-05-29)
+
+- **First-class v2 chat (the rail)**: `RebornChatPanel` is now a two-pane layout
+  — a v2 thread rail (browse / resume / **New chat**) beside the conversation —
+  driven by the new `reborn-threads` store as the single source of truth
+  (`threads.currentId`). Selecting a thread loads its timeline + opens its
+  stream; a first send surfaces the new thread in the rail and selects it. The
+  `threadId` prop is gone (selection lives in the store). In v2 mode the legacy
+  v1 thread rail + its resize handle in `+page.svelte` are hidden (the panel
+  owns its own rail), so v2 chat is no longer new-conversation-only and there's
+  no duplicate rail. +1 rail render test (925 total).
+
 ## v0.4.67 — First-class v2 chat: thread-list store (2026-05-29)
 
 - **New thrust — first-class v2 chat (foundation)**: new

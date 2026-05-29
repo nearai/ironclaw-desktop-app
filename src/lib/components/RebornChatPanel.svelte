@@ -1,43 +1,54 @@
 <script lang="ts">
-  // Self-contained IronClaw Reborn (WebChat v2) chat surface. Mounted by the
-  // chat route when the active profile speaks v2 (`connection.apiVersion`).
-  // Deliberately isolated from the large v1 chat body in `+page.svelte`: it
-  // drives the projection-based `RebornChatController` (send / timeline / SSE
-  // stream / gate / cancel) and renders its reactive `RebornChatState`.
+  // Self-contained IronClaw Reborn (WebChat v2) chat surface — a two-pane
+  // layout: a thread rail (browse/resume/new) + the conversation. Mounted by
+  // the chat route when the active profile speaks v2. Deliberately isolated
+  // from the large v1 chat body in `+page.svelte`.
   //
-  // The controller is injected (defaulting to the app-wide singleton) so the
-  // render tests can drive it with a mock-client controller and pre-seeded
-  // state without standing up the connection store.
+  // The active thread is owned by the injected `RebornThreadStore`
+  // (`threads.currentId`) — the single source of truth — and the conversation
+  // is driven by the `RebornChatController` (send / timeline / SSE stream /
+  // gate / cancel). Both stores are injected (defaulting to the app-wide
+  // singletons) so the render tests can drive them with mock-client instances
+  // and pre-seeded state without standing up the connection store.
 
-  import { onDestroy } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import MarkdownView from './MarkdownView.svelte';
   import { rebornChat, RebornChatController } from '$lib/stores/reborn-chat.svelte';
+  import { rebornThreads, RebornThreadStore } from '$lib/stores/reborn-threads.svelte';
 
   interface Props {
-    /** Active v2 thread id, or null for a fresh (unsent) conversation. */
-    threadId?: string | null;
-    /** Injectable for tests; defaults to the app-wide singleton. */
+    /** Injectable for tests; default to the app-wide singletons. */
     controller?: RebornChatController;
+    threads?: RebornThreadStore;
   }
-  let { threadId = null, controller = rebornChat }: Props = $props();
+  let { controller = rebornChat, threads = rebornThreads }: Props = $props();
 
   let draft = $state('');
 
-  // Derive each field directly off the controller's reactive state. (Avoid a
+  // Conversation state, derived off the controller's reactive state. (Avoid a
   // local `state` alias — that name collides with the `$state` rune.)
   const messages = $derived(controller.state.messages);
   const isProcessing = $derived(controller.state.isProcessing);
   const pendingGate = $derived(controller.state.pendingGate);
   const canSend = $derived(draft.trim().length > 0 && !isProcessing);
 
-  // Bind to the active thread. `boundThread` is a plain (non-reactive)
-  // instance field so the effect only re-runs on a real `threadId` change —
-  // not on its own writes. The initial mount loads+streams the current thread
-  // without a reset (so injected test state survives); a later switch resets
-  // first. `undefined` = "never bound yet".
+  // Thread rail state.
+  const threadList = $derived(threads.threads);
+  const activeThreadId = $derived(threads.currentId);
+
+  onMount(() => {
+    // Populate the rail. Resilient (the store swallows transport failures).
+    void threads.load();
+  });
+
+  // Bind the controller to the selected thread. `boundThread` is a plain
+  // (non-reactive) instance field so the effect only re-runs on a real
+  // selection change — not on its own writes. Initial mount loads+streams the
+  // current selection without a reset (so injected test state survives); a
+  // later switch resets first. `undefined` = "never bound yet".
   let boundThread: string | null | undefined = undefined;
   $effect(() => {
-    const tid = threadId ?? null;
+    const tid = activeThreadId ?? null;
     if (tid === boundThread) return;
     const isInitial = boundThread === undefined;
     boundThread = tid;
@@ -50,16 +61,29 @@
 
   onDestroy(() => controller.closeStream());
 
+  /** Start a fresh conversation (the bind effect resets the controller). */
+  function newChat() {
+    threads.select(null);
+  }
+
+  function selectThread(id: string) {
+    if (id !== activeThreadId) threads.select(id);
+  }
+
   async function handleSend() {
     const content = draft.trim();
     if (!content || isProcessing) return;
     draft = '';
     try {
-      await controller.send(content, threadId ?? undefined);
-      // A first send may have created a thread; make sure its stream is open.
+      await controller.send(content, activeThreadId ?? undefined);
+      // A first send creates a thread; surface + select it in the rail and
+      // open its stream. Set boundThread BEFORE select so the bind effect
+      // doesn't reset the just-sent conversation.
       const tid = controller.threadId;
       if (tid && tid !== boundThread) {
         boundThread = tid;
+        threads.upsert({ thread_id: tid });
+        threads.select(tid);
         void controller.openStream(tid);
       }
     } catch {
@@ -75,105 +99,213 @@
   }
 </script>
 
-<div class="reborn-chat" data-testid="reborn-chat-panel">
-  <div class="reborn-chat__scroll">
-    {#if messages.length === 0}
-      <div class="reborn-chat__empty">
-        <p class="reborn-chat__empty-title">IronClaw Reborn</p>
-        <p class="reborn-chat__empty-sub">Send a message to start a conversation.</p>
-      </div>
+<div class="reborn-shell" data-testid="reborn-chat-panel">
+  <aside class="reborn-rail" aria-label="Conversations">
+    <div class="reborn-rail__head">
+      <button
+        type="button"
+        class="reborn-btn reborn-btn--primary reborn-rail__new"
+        onclick={newChat}
+      >
+        New chat
+      </button>
+    </div>
+    {#if threadList.length === 0}
+      <p class="reborn-rail__empty">No conversations yet.</p>
+    {:else}
+      <ul class="reborn-rail__list">
+        {#each threadList as t (t.thread_id)}
+          <li>
+            <button
+              type="button"
+              class="reborn-rail__item"
+              class:is-active={t.thread_id === activeThreadId}
+              onclick={() => selectThread(t.thread_id)}
+              title={t.title || 'Untitled conversation'}
+            >
+              {t.title || 'Untitled conversation'}
+            </button>
+          </li>
+        {/each}
+      </ul>
     {/if}
+    {#if threads.hasMore}
+      <button type="button" class="reborn-rail__more" onclick={() => threads.loadMore()}>
+        Load more
+      </button>
+    {/if}
+  </aside>
 
-    {#each messages as msg (msg.id)}
-      {#if msg.role === 'tool_activity'}
-        <div class="reborn-msg reborn-msg--tool" class:is-error={msg.toolStatus === 'error'}>
-          <span class="reborn-tool__name">{msg.toolName || 'tool'}</span>
-          <span class="reborn-tool__status">{msg.toolStatus}</span>
-          {#if msg.toolError}
-            <span class="reborn-tool__error">{msg.toolError}</span>
-          {/if}
-        </div>
-      {:else if msg.role === 'error'}
-        <div class="reborn-msg reborn-msg--error">{msg.content}</div>
-      {:else if msg.role === 'system'}
-        <div class="reborn-msg reborn-msg--system">{msg.content}</div>
-      {:else if msg.role === 'user'}
-        <div class="reborn-msg reborn-msg--user" class:is-optimistic={msg.isOptimistic}>
-          {msg.content}
-          {#if msg.status === 'error'}
-            <span class="reborn-msg__send-error" title={msg.error}>failed to send</span>
-          {/if}
-        </div>
-      {:else}
-        <div class="reborn-msg reborn-msg--assistant">
-          <MarkdownView markdown={msg.content ?? ''} />
+  <div class="reborn-chat">
+    <div class="reborn-chat__scroll">
+      {#if messages.length === 0}
+        <div class="reborn-chat__empty">
+          <p class="reborn-chat__empty-title">IronClaw Reborn</p>
+          <p class="reborn-chat__empty-sub">Send a message to start a conversation.</p>
         </div>
       {/if}
-    {/each}
 
-    {#if isProcessing}
-      <div
-        class="reborn-msg reborn-msg--assistant reborn-typing"
-        aria-label="Assistant is responding"
-      >
-        <span></span><span></span><span></span>
+      {#each messages as msg (msg.id)}
+        {#if msg.role === 'tool_activity'}
+          <div class="reborn-msg reborn-msg--tool" class:is-error={msg.toolStatus === 'error'}>
+            <span class="reborn-tool__name">{msg.toolName || 'tool'}</span>
+            <span class="reborn-tool__status">{msg.toolStatus}</span>
+            {#if msg.toolError}
+              <span class="reborn-tool__error">{msg.toolError}</span>
+            {/if}
+          </div>
+        {:else if msg.role === 'error'}
+          <div class="reborn-msg reborn-msg--error">{msg.content}</div>
+        {:else if msg.role === 'system'}
+          <div class="reborn-msg reborn-msg--system">{msg.content}</div>
+        {:else if msg.role === 'user'}
+          <div class="reborn-msg reborn-msg--user" class:is-optimistic={msg.isOptimistic}>
+            {msg.content}
+            {#if msg.status === 'error'}
+              <span class="reborn-msg__send-error" title={msg.error}>failed to send</span>
+            {/if}
+          </div>
+        {:else}
+          <div class="reborn-msg reborn-msg--assistant">
+            <MarkdownView markdown={msg.content ?? ''} />
+          </div>
+        {/if}
+      {/each}
+
+      {#if isProcessing}
+        <div
+          class="reborn-msg reborn-msg--assistant reborn-typing"
+          aria-label="Assistant is responding"
+        >
+          <span></span><span></span><span></span>
+        </div>
+      {/if}
+    </div>
+
+    {#if pendingGate}
+      <div class="reborn-gate" role="alertdialog" aria-label="Approval required">
+        <div class="reborn-gate__text">
+          <strong>{pendingGate.headline || 'Approval required'}</strong>
+          {#if pendingGate.body}<p>{pendingGate.body}</p>{/if}
+        </div>
+        <div class="reborn-gate__actions">
+          <button
+            type="button"
+            class="reborn-btn reborn-btn--primary"
+            onclick={() => controller.resolveGate('approved')}
+          >
+            Approve
+          </button>
+          <button type="button" class="reborn-btn" onclick={() => controller.resolveGate('denied')}>
+            Deny
+          </button>
+        </div>
       </div>
     {/if}
-  </div>
 
-  {#if pendingGate}
-    <div class="reborn-gate" role="alertdialog" aria-label="Approval required">
-      <div class="reborn-gate__text">
-        <strong>{pendingGate.headline || 'Approval required'}</strong>
-        {#if pendingGate.body}<p>{pendingGate.body}</p>{/if}
-      </div>
-      <div class="reborn-gate__actions">
+    <div class="reborn-composer">
+      <textarea
+        class="reborn-composer__input"
+        bind:value={draft}
+        onkeydown={onComposerKeydown}
+        placeholder="Message IronClaw…"
+        rows="1"
+        aria-label="Message input"
+      ></textarea>
+      {#if isProcessing}
+        <button
+          type="button"
+          class="reborn-btn reborn-btn--danger"
+          onclick={() => controller.cancel()}
+        >
+          Stop
+        </button>
+      {:else}
         <button
           type="button"
           class="reborn-btn reborn-btn--primary"
-          onclick={() => controller.resolveGate('approved')}
+          disabled={!canSend}
+          onclick={handleSend}
         >
-          Approve
+          Send
         </button>
-        <button type="button" class="reborn-btn" onclick={() => controller.resolveGate('denied')}>
-          Deny
-        </button>
-      </div>
+      {/if}
     </div>
-  {/if}
-
-  <div class="reborn-composer">
-    <textarea
-      class="reborn-composer__input"
-      bind:value={draft}
-      onkeydown={onComposerKeydown}
-      placeholder="Message IronClaw…"
-      rows="1"
-      aria-label="Message input"
-    ></textarea>
-    {#if isProcessing}
-      <button
-        type="button"
-        class="reborn-btn reborn-btn--danger"
-        onclick={() => controller.cancel()}
-      >
-        Stop
-      </button>
-    {:else}
-      <button
-        type="button"
-        class="reborn-btn reborn-btn--primary"
-        disabled={!canSend}
-        onclick={handleSend}
-      >
-        Send
-      </button>
-    {/if}
   </div>
 </div>
 
 <style>
+  .reborn-shell {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+  }
+  .reborn-rail {
+    flex: 0 0 13rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    border-right: 1px solid var(--v2-border, rgba(255, 255, 255, 0.08));
+    background: var(--v2-surface, rgba(255, 255, 255, 0.02));
+  }
+  .reborn-rail__head {
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--v2-border, rgba(255, 255, 255, 0.06));
+  }
+  .reborn-rail__new {
+    width: 100%;
+  }
+  .reborn-rail__empty {
+    padding: 1rem 0.75rem;
+    font-size: 0.8rem;
+    color: var(--v2-text-muted, #8a93a6);
+  }
+  .reborn-rail__list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    list-style: none;
+    margin: 0;
+    padding: 0.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .reborn-rail__item {
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 0.6rem;
+    border: none;
+    border-radius: 0.45rem;
+    background: transparent;
+    color: var(--v2-text, #e6ebf2);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .reborn-rail__item:hover {
+    background: var(--v2-surface-2, rgba(255, 255, 255, 0.05));
+  }
+  .reborn-rail__item.is-active {
+    background: var(--v2-accent-soft, rgba(76, 167, 230, 0.14));
+    color: var(--v2-accent-text, #8fc8f2);
+  }
+  .reborn-rail__more {
+    margin: 0.35rem;
+    padding: 0.45rem;
+    border: 1px solid var(--v2-border, rgba(255, 255, 255, 0.12));
+    border-radius: 0.45rem;
+    background: transparent;
+    color: var(--v2-text-muted, #8a93a6);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
   .reborn-chat {
+    flex: 1 1 auto;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     height: 100%;

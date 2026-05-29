@@ -2747,61 +2747,63 @@
   <!-- ============================ Left: thread rail ======================
        Width comes from `effectiveThreadRailWidth`, driven by the
        `ResizeHandle` below. Border lives on the handle's left edge so the
-       hover glow doesn't sit on top of an unrelated border. -->
-  <aside
-    class="shrink-0 h-full border-r border-border-subtle flex flex-col bg-bg-base/40"
-    style="width: {effectiveThreadRailWidth}px;"
-  >
-    <div class="p-3 border-b border-border-subtle">
-      <button
-        type="button"
-        onclick={onNewChat}
-        disabled={!connection.client}
-        title={connection.client
-          ? 'Start a new chat'
-          : 'Configure the IronClaw connection in Settings first.'}
-        class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed min-h-[40px]"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          class="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-        New Chat
-      </button>
-    </div>
-
-    <div
-      bind:this={threadRailEl}
-      onscroll={onThreadRailScroll}
-      class="flex-1 overflow-y-auto py-2 relative"
+       hover glow doesn't sit on top of an unrelated border.
+       Hidden in v2 mode — RebornChatPanel ships its own thread rail. -->
+  {#if connection.apiVersion !== 'v2'}
+    <aside
+      class="shrink-0 h-full border-r border-border-subtle flex flex-col bg-bg-base/40"
+      style="width: {effectiveThreadRailWidth}px;"
     >
-      {#if threads.loading && threads.threads.length === 0}
-        <div class="px-4 py-6 text-xs text-text-muted">Loading threads…</div>
-      {:else if threads.error}
-        <div class="px-4 py-6 text-xs text-red-400">{threads.error}</div>
-      {:else if sortedThreads.length === 0}
-        <div class="px-4 py-6 text-xs text-text-muted">
-          {#if connection.client}
-            No conversations yet. Start a new chat to begin.
-          {:else}
-            <span class="text-text-muted">Not connected.</span>
-            <a
-              href="/settings"
-              class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
-              >Configure in Settings →</a
-            >
-          {/if}
-        </div>
-      {:else if !threadsVirtualized}
-        <!--
+      <div class="p-3 border-b border-border-subtle">
+        <button
+          type="button"
+          onclick={onNewChat}
+          disabled={!connection.client}
+          title={connection.client
+            ? 'Start a new chat'
+            : 'Configure the IronClaw connection in Settings first.'}
+          class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed min-h-[40px]"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New Chat
+        </button>
+      </div>
+
+      <div
+        bind:this={threadRailEl}
+        onscroll={onThreadRailScroll}
+        class="flex-1 overflow-y-auto py-2 relative"
+      >
+        {#if threads.loading && threads.threads.length === 0}
+          <div class="px-4 py-6 text-xs text-text-muted">Loading threads…</div>
+        {:else if threads.error}
+          <div class="px-4 py-6 text-xs text-red-400">{threads.error}</div>
+        {:else if sortedThreads.length === 0}
+          <div class="px-4 py-6 text-xs text-text-muted">
+            {#if connection.client}
+              No conversations yet. Start a new chat to begin.
+            {:else}
+              <span class="text-text-muted">Not connected.</span>
+              <a
+                href="/settings"
+                class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
+                >Configure in Settings →</a
+              >
+            {/if}
+          </div>
+        {:else if !threadsVirtualized}
+          <!--
           Un-virtualized path. Used when sortedThreads.length <= 30: cheaper
           DOM cost than spacer + window bookkeeping, and the row count is
           small enough that the browser hands scrolling natively. The
@@ -2809,98 +2811,98 @@
           paths share `data-thread-row` so a future selector-based hook
           (test, scroll-into-view fallback, etc.) can target both.
         -->
-        <ul class="space-y-0.5 px-2">
-          {#each sortedThreads as t (t.id)}
-            {@const active = t.id === currentId}
-            {@const isPinned = pins.isPinned('thread', t.id)}
-            {@const isRenamed = threadRename.has(t.id)}
-            {@const displayTitle = threadRename.displayTitle(t.id, t.title)}
-            <!-- Group wrapper exposes the pin star on hover (and always
+          <ul class="space-y-0.5 px-2">
+            {#each sortedThreads as t (t.id)}
+              {@const active = t.id === currentId}
+              {@const isPinned = pins.isPinned('thread', t.id)}
+              {@const isRenamed = threadRename.has(t.id)}
+              {@const displayTitle = threadRename.displayTitle(t.id, t.title)}
+              <!-- Group wrapper exposes the pin star on hover (and always
                  when pinned). Active thread gets the surface bg via
                  group-aware classes so the pin button visually inherits
                  the row's selected state. -->
-            <li class="group relative">
-              <button
-                type="button"
-                onclick={() => onSelectThread(t.id)}
-                data-thread-row
-                data-thread-id={t.id}
-                class="w-full text-left pl-3 pr-9 py-2 rounded-md text-sm transition-colors border-l-2 flex flex-col gap-0.5"
-                class:border-accent-cyan={active}
-                class:bg-bg-surface={active}
-                class:text-text-primary={active}
-                class:border-transparent={!active}
-                class:text-text-muted={!active}
-                class:hover:bg-bg-surface={!active}
-                class:hover:text-text-primary={!active}
-              >
-                <span class="truncate block">
-                  {displayTitle}
-                  {#if isRenamed}<span
-                      class="text-accent-gold text-[10px] ml-1"
-                      title="Locally renamed">✏</span
-                    >{/if}
-                </span>
-                <span class="text-[10px] text-text-muted flex items-center gap-1.5">
-                  <span>{relativeTime(t.updated_at)}</span>
-                  <!-- Per-thread token estimate. Only rendered for the
+              <li class="group relative">
+                <button
+                  type="button"
+                  onclick={() => onSelectThread(t.id)}
+                  data-thread-row
+                  data-thread-id={t.id}
+                  class="w-full text-left pl-3 pr-9 py-2 rounded-md text-sm transition-colors border-l-2 flex flex-col gap-0.5"
+                  class:border-accent-cyan={active}
+                  class:bg-bg-surface={active}
+                  class:text-text-primary={active}
+                  class:border-transparent={!active}
+                  class:text-text-muted={!active}
+                  class:hover:bg-bg-surface={!active}
+                  class:hover:text-text-primary={!active}
+                >
+                  <span class="truncate block">
+                    {displayTitle}
+                    {#if isRenamed}<span
+                        class="text-accent-gold text-[10px] ml-1"
+                        title="Locally renamed">✏</span
+                      >{/if}
+                  </span>
+                  <span class="text-[10px] text-text-muted flex items-center gap-1.5">
+                    <span>{relativeTime(t.updated_at)}</span>
+                    <!-- Per-thread token estimate. Only rendered for the
                        active thread to keep the rail render cheap — the
                        messages store only carries history for the
                        focused conversation. -->
-                  {#if active && currentThreadTokens !== null && currentThreadTokens > 0}
-                    <span
-                      class="text-text-muted/70"
-                      title="Estimated total tokens in this conversation (~4 chars per token heuristic)"
-                      aria-label={`Estimated ${currentThreadTokens} tokens`}
-                      >· ~{currentThreadTokens.toLocaleString()} tokens</span
-                    >
-                  {/if}
-                </span>
-              </button>
-              <!-- Pin star — absolutely positioned over the row's right
+                    {#if active && currentThreadTokens !== null && currentThreadTokens > 0}
+                      <span
+                        class="text-text-muted/70"
+                        title="Estimated total tokens in this conversation (~4 chars per token heuristic)"
+                        aria-label={`Estimated ${currentThreadTokens} tokens`}
+                        >· ~{currentThreadTokens.toLocaleString()} tokens</span
+                      >
+                    {/if}
+                  </span>
+                </button>
+                <!-- Pin star — absolutely positioned over the row's right
                    edge so the click target sits clear of the underlying
                    button. Hidden until hover (matches the planned trash
                    icon affordance from the gateway-side TODO), but kept
                    visible when already pinned so users can always see
                    the state without hovering. -->
-              <button
-                type="button"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  pins.toggle('thread', t.id, displayTitle);
-                }}
-                title={isPinned ? 'Unpin this thread' : 'Pin this thread'}
-                aria-label={isPinned ? `Unpin ${displayTitle}` : `Pin ${displayTitle}`}
-                aria-pressed={isPinned}
-                class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-6 h-6 rounded transition-opacity hover:bg-bg-deep"
-                class:opacity-100={isPinned}
-                class:opacity-0={!isPinned}
-                class:group-hover:opacity-100={!isPinned}
-                class:focus:opacity-100={!isPinned}
-                class:text-accent-gold={isPinned}
-                class:text-text-muted={!isPinned}
-                class:hover:text-accent-gold={!isPinned}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  class="w-3.5 h-3.5"
-                  fill={isPinned ? 'currentColor' : 'none'}
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
+                <button
+                  type="button"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    pins.toggle('thread', t.id, displayTitle);
+                  }}
+                  title={isPinned ? 'Unpin this thread' : 'Pin this thread'}
+                  aria-label={isPinned ? `Unpin ${displayTitle}` : `Pin ${displayTitle}`}
+                  aria-pressed={isPinned}
+                  class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-6 h-6 rounded transition-opacity hover:bg-bg-deep"
+                  class:opacity-100={isPinned}
+                  class:opacity-0={!isPinned}
+                  class:group-hover:opacity-100={!isPinned}
+                  class:focus:opacity-100={!isPinned}
+                  class:text-accent-gold={isPinned}
+                  class:text-text-muted={!isPinned}
+                  class:hover:text-accent-gold={!isPinned}
                 >
-                  <polygon
-                    points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-                  />
-                </svg>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {:else}
-        <!--
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="w-3.5 h-3.5"
+                    fill={isPinned ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polygon
+                      points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                    />
+                  </svg>
+                </button>
+              </li>
+            {/each}
+          </ul>
+        {:else}
+          <!--
           Virtualized path. Mirrors src/routes/logs/+page.svelte: top spacer
           height = rows skipped above the window, bottom spacer = rows
           skipped below. The scroll viewport above (.overflow-y-auto) owns
@@ -2912,101 +2914,102 @@
           required. For now titles are forced single-line via `truncate` so
           the height is stable.
         -->
-        <div style="height: {threadTopSpacer}px;" aria-hidden="true"></div>
-        <ul class="px-2">
-          {#each threadWindow.items as row (row.thread.id)}
-            {@const active = row.thread.id === currentId}
-            {@const isPinned = pins.isPinned('thread', row.thread.id)}
-            {@const isRenamed = threadRename.has(row.thread.id)}
-            {@const displayTitle = threadRename.displayTitle(row.thread.id, row.thread.title)}
-            <li class="group relative" style="height: {THREAD_ITEM_HEIGHT}px;">
-              <button
-                type="button"
-                onclick={() => onSelectThread(row.thread.id)}
-                data-thread-row
-                data-thread-id={row.thread.id}
-                class="w-full text-left pl-3 pr-9 py-2 rounded-md text-sm transition-colors border-l-2 flex flex-col gap-0.5 h-full"
-                class:border-accent-cyan={active}
-                class:bg-bg-surface={active}
-                class:text-text-primary={active}
-                class:border-transparent={!active}
-                class:text-text-muted={!active}
-                class:hover:bg-bg-surface={!active}
-                class:hover:text-text-primary={!active}
-              >
-                <span class="truncate block">
-                  {displayTitle}
-                  {#if isRenamed}<span
-                      class="text-accent-gold text-[10px] ml-1"
-                      title="Locally renamed">✏</span
-                    >{/if}
-                </span>
-                <span class="text-[10px] text-text-muted flex items-center gap-1.5">
-                  <span>{relativeTime(row.thread.updated_at)}</span>
-                  {#if active && currentThreadTokens !== null && currentThreadTokens > 0}
-                    <span
-                      class="text-text-muted/70"
-                      title="Estimated total tokens in this conversation (~4 chars per token heuristic)"
-                      aria-label={`Estimated ${currentThreadTokens} tokens`}
-                      >· ~{currentThreadTokens.toLocaleString()} tokens</span
-                    >
-                  {/if}
-                </span>
-              </button>
-              <button
-                type="button"
-                onclick={(e) => {
-                  e.stopPropagation();
-                  pins.toggle('thread', row.thread.id, displayTitle);
-                }}
-                title={isPinned ? 'Unpin this thread' : 'Pin this thread'}
-                aria-label={isPinned ? `Unpin ${displayTitle}` : `Pin ${displayTitle}`}
-                aria-pressed={isPinned}
-                class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-6 h-6 rounded transition-opacity hover:bg-bg-deep"
-                class:opacity-100={isPinned}
-                class:opacity-0={!isPinned}
-                class:group-hover:opacity-100={!isPinned}
-                class:focus:opacity-100={!isPinned}
-                class:text-accent-gold={isPinned}
-                class:text-text-muted={!isPinned}
-                class:hover:text-accent-gold={!isPinned}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  class="w-3.5 h-3.5"
-                  fill={isPinned ? 'currentColor' : 'none'}
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
+          <div style="height: {threadTopSpacer}px;" aria-hidden="true"></div>
+          <ul class="px-2">
+            {#each threadWindow.items as row (row.thread.id)}
+              {@const active = row.thread.id === currentId}
+              {@const isPinned = pins.isPinned('thread', row.thread.id)}
+              {@const isRenamed = threadRename.has(row.thread.id)}
+              {@const displayTitle = threadRename.displayTitle(row.thread.id, row.thread.title)}
+              <li class="group relative" style="height: {THREAD_ITEM_HEIGHT}px;">
+                <button
+                  type="button"
+                  onclick={() => onSelectThread(row.thread.id)}
+                  data-thread-row
+                  data-thread-id={row.thread.id}
+                  class="w-full text-left pl-3 pr-9 py-2 rounded-md text-sm transition-colors border-l-2 flex flex-col gap-0.5 h-full"
+                  class:border-accent-cyan={active}
+                  class:bg-bg-surface={active}
+                  class:text-text-primary={active}
+                  class:border-transparent={!active}
+                  class:text-text-muted={!active}
+                  class:hover:bg-bg-surface={!active}
+                  class:hover:text-text-primary={!active}
                 >
-                  <polygon
-                    points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-                  />
-                </svg>
-              </button>
-            </li>
-          {/each}
-        </ul>
-        <div style="height: {threadBottomSpacer}px;" aria-hidden="true"></div>
-      {/if}
-    </div>
-  </aside>
+                  <span class="truncate block">
+                    {displayTitle}
+                    {#if isRenamed}<span
+                        class="text-accent-gold text-[10px] ml-1"
+                        title="Locally renamed">✏</span
+                      >{/if}
+                  </span>
+                  <span class="text-[10px] text-text-muted flex items-center gap-1.5">
+                    <span>{relativeTime(row.thread.updated_at)}</span>
+                    {#if active && currentThreadTokens !== null && currentThreadTokens > 0}
+                      <span
+                        class="text-text-muted/70"
+                        title="Estimated total tokens in this conversation (~4 chars per token heuristic)"
+                        aria-label={`Estimated ${currentThreadTokens} tokens`}
+                        >· ~{currentThreadTokens.toLocaleString()} tokens</span
+                      >
+                    {/if}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    pins.toggle('thread', row.thread.id, displayTitle);
+                  }}
+                  title={isPinned ? 'Unpin this thread' : 'Pin this thread'}
+                  aria-label={isPinned ? `Unpin ${displayTitle}` : `Pin ${displayTitle}`}
+                  aria-pressed={isPinned}
+                  class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-6 h-6 rounded transition-opacity hover:bg-bg-deep"
+                  class:opacity-100={isPinned}
+                  class:opacity-0={!isPinned}
+                  class:group-hover:opacity-100={!isPinned}
+                  class:focus:opacity-100={!isPinned}
+                  class:text-accent-gold={isPinned}
+                  class:text-text-muted={!isPinned}
+                  class:hover:text-accent-gold={!isPinned}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="w-3.5 h-3.5"
+                    fill={isPinned ? 'currentColor' : 'none'}
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <polygon
+                      points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                    />
+                  </svg>
+                </button>
+              </li>
+            {/each}
+          </ul>
+          <div style="height: {threadBottomSpacer}px;" aria-hidden="true"></div>
+        {/if}
+      </div>
+    </aside>
 
-  <!-- Resize handle between thread rail and message stream. Hidden when
+    <!-- Resize handle between thread rail and message stream. Hidden when
        the viewport is narrow so we don't waste a 4px column on small
        screens (the layout already falls back to defaults via the
        `effective*` derived widths above). -->
-  {#if resizeEnabled}
-    <ResizeHandle
-      min={THREAD_RAIL_MIN}
-      max={THREAD_RAIL_MAX}
-      defaultWidth={THREAD_RAIL_DEFAULT}
-      storageKey={THREAD_RAIL_STORAGE_KEY}
-      initialWidth={threadRailWidth}
-      onresize={(w) => (threadRailWidth = w)}
-    />
+    {#if resizeEnabled}
+      <ResizeHandle
+        min={THREAD_RAIL_MIN}
+        max={THREAD_RAIL_MAX}
+        defaultWidth={THREAD_RAIL_DEFAULT}
+        storageKey={THREAD_RAIL_STORAGE_KEY}
+        initialWidth={threadRailWidth}
+        onresize={(w) => (threadRailWidth = w)}
+      />
+    {/if}
   {/if}
 
   <!-- =========================== Main: stream + composer ================== -->
@@ -3015,7 +3018,7 @@
          composer when the active profile speaks v2 (now the default). The
          v1 body below is preserved for any profile explicitly set to v1. -->
     <div class="flex-1 flex flex-col min-w-0 h-full">
-      <RebornChatPanel threadId={currentId} />
+      <RebornChatPanel />
     </div>
   {:else}
     <div class="flex-1 flex flex-col min-w-0 h-full">
