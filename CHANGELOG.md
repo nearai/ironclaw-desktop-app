@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.22 — Workspace Presets store coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `presets.svelte.ts` (R20a/R115 — capture/restore layout snapshots). +10
+  tests lock `save` (captures pane widths + sidebar/statusbar toggles +
+  current thread from localStorage/live stores, name trim/"Untitled"
+  fallback, newest-first), `rename` (no-op on unknown id and unchanged
+  name), `delete`, and `apply` (writes the widths back to localStorage,
+  applies the tray-badge + thread-selection setters, navigates via `goto`,
+  and errors without navigating on an unknown id), plus the `presetsModal`
+  singleton. Mocks `$app/navigation` and spies the cross-store setters. No
+  production code changed.
+
 ## v0.4.21 — Prompt Templates store coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
