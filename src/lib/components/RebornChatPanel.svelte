@@ -167,6 +167,28 @@
       void controller.resolveGate('denied');
     }
   }
+
+  /** Roving keyboard nav in the thread rail: ↑/↓ moves DOM focus between
+   *  thread rows (in flat visible order, across date groups). Enter selects
+   *  natively (focused row is a <button>). Scoped to the rail — the handler
+   *  only fires while focus is inside the list, so it never hijacks arrows
+   *  from the composer or conversation. */
+  function onRailKeydown(e: KeyboardEvent) {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+    if (!listEl) return;
+    const items = Array.from(listEl.querySelectorAll<HTMLButtonElement>('.reborn-rail__item'));
+    if (items.length === 0) return;
+    e.preventDefault();
+    const cur = items.findIndex((b) => b === document.activeElement);
+    const delta = e.key === 'ArrowDown' ? 1 : -1;
+    const next =
+      cur < 0
+        ? delta === 1
+          ? 0
+          : items.length - 1
+        : Math.min(items.length - 1, Math.max(0, cur + delta));
+    items[next]?.focus();
+  }
 </script>
 
 <svelte:window onkeydown={onGateKeydown} />
@@ -207,6 +229,7 @@
                     class:is-active={t.thread_id === activeThreadId}
                     aria-current={t.thread_id === activeThreadId ? 'true' : undefined}
                     onclick={() => selectThread(t.thread_id)}
+                    onkeydown={onRailKeydown}
                     title={t.title || 'Untitled conversation'}
                   >
                     <span class="reborn-rail__item-title">{t.title || 'Untitled conversation'}</span

@@ -175,6 +175,24 @@ describe('RebornChatPanel', () => {
     expect(threads.currentId).toBeNull();
   });
 
+  it('moves focus between rail rows with ArrowDown / ArrowUp', async () => {
+    const threads = freshThreads();
+    threads.threads = [
+      { thread_id: 't1', title: 'Alpha' },
+      { thread_id: 't2', title: 'Beta' }
+    ];
+    const { container } = render(RebornChatPanel, {
+      props: { controller: controllerWith({}), threads }
+    });
+    const items = container.querySelectorAll<HTMLButtonElement>('.reborn-rail__item');
+    expect(items.length).toBe(2);
+    items[0].focus();
+    await fireEvent.keyDown(items[0], { key: 'ArrowDown' });
+    expect(document.activeElement).toBe(items[1]);
+    await fireEvent.keyDown(items[1], { key: 'ArrowUp' });
+    expect(document.activeElement).toBe(items[0]);
+  });
+
   it('shows skeleton rows while loading with no threads yet (no empty text)', () => {
     const threads = freshThreads();
     threads.isLoading = true; // null-client load() no-ops, so this survives mount

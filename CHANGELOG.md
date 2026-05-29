@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.80 — Gorgeous UX: thread-rail keyboard nav (step 4 complete) (2026-05-29)
+
+- **Thread rail keyboard nav (UX overhaul, step 4b — finishes step 4)**: ↑/↓ now
+  moves focus between thread rows in flat visible order (across date groups),
+  and Enter selects (the row is a native `<button>`, so activation is free). The
+  handler lives on the row button (keeps it keyboard-accessible without an
+  a11y-flagged non-interactive listener) and is scoped to the rail, so it never
+  hijacks arrows from the composer or conversation. +1 render test driving real
+  focus movement (942 total). **Step 4 (thread rail) complete** — date grouping +
+  keyboard nav, on top of the v0.4.70 timestamps/skeleton/scroll-into-view.
+  _Next: step 5 — composer auto-grow + slash hints._
+
 ## v0.4.79 — Gorgeous UX: thread-rail date grouping (step 4a) (2026-05-29)
 
 - **Thread rail recency grouping (UX overhaul, step 4a)**: the v2 chat rail now
