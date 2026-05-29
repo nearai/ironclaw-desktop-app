@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.52 — IronClaw Reborn WebChat v2 client core (2026-05-29)
+
+- **Reborn migration (foundation)**: new pure module `src/lib/api/reborn.ts` —
+  the WebChat v2 client contract, reverse-engineered from the
+  `reborn-integration` SPA (`crates/ironclaw_webui_v2_static`) and validated
+  live against a local `ironclaw_reborn_cli --features webui-v2-beta` server.
+  Covers the full `/api/webchat/v2/*` surface: DTO types (create/list threads,
+  send message, timeline, cancel, gate-resolve, extension setup), the
+  `client_action_id` idempotency-key helper, the timeline→message + tool-card
+  mappers, and the projection/event reducer (`applyProjectionItems`,
+  `reduceEvent`) that drives the local-dev `projection_snapshot`/`_update`
+  stream — including the "refetch the timeline on terminal run success" rule
+  (Reborn doesn't stream assistant replies). +23 unit tests in `reborn.test.ts`;
+  no production wiring yet, so existing behavior is unchanged. Foundation for
+  migrating the desktop client off the v1 `/api/chat/*` gateway.
+
 ## v0.4.51 — IronClaw SSE/normalizer parser coverage (2026-05-29)
 
 - **Test coverage**: first tests for the pure parsing/mapping helpers at the
