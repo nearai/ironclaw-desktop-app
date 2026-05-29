@@ -211,12 +211,12 @@ class ConnectionStore {
   );
 
   /**
-   * API contract the active profile speaks. `'v2'` routes the chat surface
-   * through the IronClaw Reborn WebChat v2 client; `'v1'` (the default for
-   * every existing profile) keeps the historical `/api/chat/*` path. Read
-   * reactively so a profile switch re-evaluates the chat path.
+   * API contract the active profile speaks. `'v2'` (now the default) routes
+   * the chat surface through the IronClaw Reborn WebChat v2 client; an explicit
+   * `'v1'` keeps the historical `/api/chat/*` path. Read reactively so a profile
+   * switch re-evaluates the chat path.
    */
-  apiVersion = $derived<ApiVersion>(this.activeProfile.apiVersion ?? 'v1');
+  apiVersion = $derived<ApiVersion>(this.activeProfile.apiVersion ?? 'v2');
 
   /**
    * Configured client, or null if we don't have a token yet.

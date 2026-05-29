@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.4.58 — Reborn v2 is now the default chat path (2026-05-29)
+
+- **Reborn migration (step 7 — the switch)**: the chat surface now defaults to
+  IronClaw Reborn WebChat v2. `+page.svelte` mounts `RebornChatPanel` when
+  `connection.apiVersion === 'v2'`, falling back to the legacy v1 stream +
+  composer only for a profile explicitly set to `'v1'`. The `apiVersion`
+  default flipped from `'v1'` to `'v2'` across `defaultProfile`, both
+  `migrateLoaded` branches, `validateImportedSettings`, and the connection
+  store's derived — so existing profiles (no field on disk) and new ones both
+  speak v2; an explicit `'v1'` is the only opt-out. `RebornChatController.loadTimeline`
+  is now resilient (a 404 on an unknown/cross-backend thread id degrades to an
+  empty thread instead of throwing out of the mount effect). Other surfaces
+  (Skills/Logs/Knowledge/Routines/etc.) are unchanged. Settings tests updated
+  for the new default (904 tests green).
+- **Note**: v2 only implements chat — point a profile at a running
+  `ironclaw_reborn_cli` server (e.g. `http://127.0.0.1:3000`, token
+  `local-dev-token`) for the chat to function; against a v1-only gateway the
+  panel shows an empty thread.
+
 ## v0.4.57 — Reborn v2 chat panel component (2026-05-29)
 
 - **Reborn migration (step 6 — chat UI)**: new `RebornChatPanel.svelte` — a

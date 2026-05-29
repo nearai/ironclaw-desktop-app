@@ -76,9 +76,17 @@ export class RebornChatController {
     // Viewing a thread's timeline binds us to it, so a later resolveGate /
     // cancel / send targets the right thread even without openStream.
     this.threadId = threadId;
-    const resp = await client.fetchTimelineV2(threadId, { limit: REBORN_TIMELINE_LIMIT });
-    const records = recordsFromTimeline(resp);
-    this.state = { ...this.state, messages: messagesFromTimeline(records, this.pending) };
+    try {
+      const resp = await client.fetchTimelineV2(threadId, { limit: REBORN_TIMELINE_LIMIT });
+      const records = recordsFromTimeline(resp);
+      this.state = { ...this.state, messages: messagesFromTimeline(records, this.pending) };
+    } catch (err) {
+      // A timeline fetch can 404 (e.g. a thread id from another backend, or a
+      // not-yet-created thread). That's not fatal — treat it as an empty
+      // thread rather than letting the rejection bubble out of the UI effect.
+      console.warn('[reborn-chat] loadTimeline failed; treating as empty', err);
+      this.state = { ...this.state, messages: messagesFromTimeline([], this.pending) };
+    }
   }
 
   /**

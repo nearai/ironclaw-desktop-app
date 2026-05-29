@@ -128,18 +128,18 @@ describe('migrateLoaded', () => {
     expect(s.profiles[0].llmBackend).toBe('nearai');
   });
 
-  it('defaults apiVersion to v1 and narrows stored values', () => {
+  it('defaults apiVersion to v2; only an explicit v1 opts back out', () => {
     const s = migrateLoaded({
       activeProfileId: 'p1',
       profiles: [
         {
           id: 'p1',
-          name: 'reborn',
-          mode: 'local',
+          name: 'explicit-v1',
+          mode: 'remote',
           remoteBaseUrl: 'http://127.0.0.1:3100',
-          localBaseUrl: 'http://127.0.0.1:3000',
+          localBaseUrl: 'http://127.0.0.1:3100',
           llmBackend: 'nearai',
-          apiVersion: 'v2'
+          apiVersion: 'v1'
         },
         {
           id: 'p2',
@@ -161,11 +161,12 @@ describe('migrateLoaded', () => {
         }
       ]
     });
-    expect(s.profiles[0].apiVersion).toBe('v2');
-    // Absent field → v1 (existing profiles are unchanged).
-    expect(s.profiles[1].apiVersion).toBe('v1');
-    // Unknown value → v1 (lenient, no rejection).
-    expect(s.profiles[2].apiVersion).toBe('v1');
+    // Explicit v1 is preserved.
+    expect(s.profiles[0].apiVersion).toBe('v1');
+    // Absent field → v2 (the migration default).
+    expect(s.profiles[1].apiVersion).toBe('v2');
+    // Unknown value → v2 (lenient, no rejection).
+    expect(s.profiles[2].apiVersion).toBe('v2');
   });
 });
 
@@ -188,22 +189,22 @@ describe('validateImportedSettings apiVersion', () => {
     });
   }
 
-  it('imports an explicit v2 apiVersion', () => {
-    const res = validateImportedSettings(withProfile({ apiVersion: 'v2' }));
+  it('preserves an explicit v1 apiVersion', () => {
+    const res = validateImportedSettings(withProfile({ apiVersion: 'v1' }));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.settings.profiles[0].apiVersion).toBe('v1');
+  });
+
+  it('defaults a missing apiVersion to v2 without rejecting', () => {
+    const res = validateImportedSettings(withProfile({}));
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.settings.profiles[0].apiVersion).toBe('v2');
   });
 
-  it('defaults a missing apiVersion to v1 without rejecting', () => {
-    const res = validateImportedSettings(withProfile({}));
-    expect(res.ok).toBe(true);
-    if (res.ok) expect(res.settings.profiles[0].apiVersion).toBe('v1');
-  });
-
-  it('narrows an unknown apiVersion to v1 (forward-compat, no reject)', () => {
+  it('narrows an unknown apiVersion to v2 (forward-compat, no reject)', () => {
     const res = validateImportedSettings(withProfile({ apiVersion: 'v3' }));
     expect(res.ok).toBe(true);
-    if (res.ok) expect(res.settings.profiles[0].apiVersion).toBe('v1');
+    if (res.ok) expect(res.settings.profiles[0].apiVersion).toBe('v2');
   });
 });
 

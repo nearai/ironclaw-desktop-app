@@ -29,8 +29,9 @@ export type ConnectionMode = 'remote' | 'local';
  * Gateway API contract a profile speaks. `v1` is the historical IronClaw
  * gateway (`/api/chat/*`, `/api/engine/*`, …); `v2` is the projection-driven
  * IronClaw Reborn WebChat surface (`/api/webchat/v2/*`). Orthogonal to `mode`
- * — a remote OR local server can be either version. Defaults to `v1` so every
- * existing profile (and every on-disk file without the field) is unchanged.
+ * — a remote OR local server can be either version. Defaults to `v2` (the
+ * migration target); a profile must opt back to `v1` explicitly to use the
+ * legacy `/api/chat/*` gateway.
  */
 export type ApiVersion = 'v1' | 'v2';
 
@@ -93,9 +94,10 @@ export interface ProfileConfig {
    *  `--v2-accent` on document.documentElement. */
   tint?: ProfileTint;
   /** Gateway API contract this profile speaks. Optional on disk; absent or
-   *  unknown values consume as `'v1'` so existing profiles are untouched.
-   *  `'v2'` routes the chat surface through the IronClaw Reborn WebChat v2
-   *  client (`src/lib/api/reborn.ts` + the `*V2` transport methods). */
+   *  unknown values consume as `'v2'` (the migration default), which routes
+   *  the chat surface through the IronClaw Reborn WebChat v2 client
+   *  (`src/lib/api/reborn.ts` + the `*V2` transport methods). Set `'v1'`
+   *  explicitly to keep the legacy `/api/chat/*` path. */
   apiVersion?: ApiVersion;
 }
 
@@ -282,7 +284,7 @@ function defaultProfile(overrides?: Partial<ProfileConfig>): ProfileConfig {
     localBaseUrl: overrides?.localBaseUrl ?? 'http://127.0.0.1:3100',
     llmBackend: overrides?.llmBackend ?? 'nearai',
     llmProviderId: overrides?.llmProviderId ?? overrides?.llmBackend ?? 'nearai',
-    apiVersion: overrides?.apiVersion ?? 'v1'
+    apiVersion: overrides?.apiVersion ?? 'v2'
   };
 }
 
@@ -348,9 +350,9 @@ export function migrateLoaded(raw: Partial<AppSettings> & LegacyAppSettings): Ap
             ? p.llmProviderId
             : llmBackend,
         tint,
-        // Opt-in; anything that isn't exactly 'v2' rounds to 'v1' so existing
-        // files (no field) and forward-compat values both resolve safely.
-        apiVersion: (p.apiVersion === 'v2' ? 'v2' : 'v1') as ApiVersion
+        // v2 is the default; only an explicit 'v1' opts back to the legacy
+        // gateway. Absent (existing files) and unknown values resolve to 'v2'.
+        apiVersion: (p.apiVersion === 'v1' ? 'v1' : 'v2') as ApiVersion
       };
     });
     const activeId =
@@ -549,10 +551,10 @@ export function validateImportedSettings(raw: string): ImportValidationResult {
       typeof pp.tint === 'string' && (pp.tint as ProfileTint) in PROFILE_TINTS
         ? (pp.tint as ProfileTint)
         : undefined;
-    // `apiVersion` is opt-in; anything that isn't exactly 'v2' imports as
-    // 'v1'. We do not reject an unknown value for the same forward-compat
-    // reason as `tint` — a newer backup shouldn't fail to import here.
-    const apiVersion: ApiVersion = pp.apiVersion === 'v2' ? 'v2' : 'v1';
+    // v2 is the default; only an explicit 'v1' opts back to the legacy
+    // gateway. Missing/unknown values import as 'v2'. We do not reject an
+    // unknown value (forward-compat, same as `tint`).
+    const apiVersion: ApiVersion = pp.apiVersion === 'v1' ? 'v1' : 'v2';
     profiles.push({
       id: pp.id,
       name: pp.name,

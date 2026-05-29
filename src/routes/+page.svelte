@@ -11,6 +11,7 @@
   import { threads } from '$lib/stores/threads.svelte';
   import { messages, type ToolInvocation } from '$lib/stores/messages.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
+  import RebornChatPanel from '$lib/components/RebornChatPanel.svelte';
   // LANE B9 — editable bubble swap (R69)
   import EditableBubble from '$lib/components/EditableBubble.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
@@ -3009,116 +3010,124 @@
   {/if}
 
   <!-- =========================== Main: stream + composer ================== -->
-  <div class="flex-1 flex flex-col min-w-0 h-full">
-    <!-- LANE B2 — chat tabs (R52). Sits above the existing thread title row;
+  {#if connection.apiVersion === 'v2'}
+    <!-- IronClaw Reborn WebChat v2 chat surface. Replaces the v1 stream +
+         composer when the active profile speaks v2 (now the default). The
+         v1 body below is preserved for any profile explicitly set to v1. -->
+    <div class="flex-1 flex flex-col min-w-0 h-full">
+      <RebornChatPanel threadId={currentId} />
+    </div>
+  {:else}
+    <div class="flex-1 flex flex-col min-w-0 h-full">
+      <!-- LANE B2 — chat tabs (R52). Sits above the existing thread title row;
          each tab tracks an "open" thread the user wants one click away.
          The store handles persistence per profile + ordering; this
          component is a renderer that wires clicks back to the
          existing onSelectThread / onNewChat handlers. -->
-    <ChatTabs
-      onSelect={(tid) => onSelectThread(tid)}
-      onNew={() => void onNewChat()}
-      onClose={(_closedId, nextActive) => {
-        if (nextActive && nextActive !== threads.currentId) {
-          onSelectThread(nextActive);
-        }
-      }}
-    />
-    <header
-      class="h-12 shrink-0 px-5 flex items-center justify-between border-b border-border-subtle bg-bg-base/40"
-    >
-      <div class="flex items-center gap-2 min-w-0 flex-1">
-        {#if currentThread}
-          {#if renaming}
-            <!--
+      <ChatTabs
+        onSelect={(tid) => onSelectThread(tid)}
+        onNew={() => void onNewChat()}
+        onClose={(_closedId, nextActive) => {
+          if (nextActive && nextActive !== threads.currentId) {
+            onSelectThread(nextActive);
+          }
+        }}
+      />
+      <header
+        class="h-12 shrink-0 px-5 flex items-center justify-between border-b border-border-subtle bg-bg-base/40"
+      >
+        <div class="flex items-center gap-2 min-w-0 flex-1">
+          {#if currentThread}
+            {#if renaming}
+              <!--
               Inline rename input. Double-click on the title opens this;
               Enter commits, Esc cancels, blur commits (same UX as the
               prior single-click flow). Tooltip surface to the right
               explains the local-only constraint on first use.
             -->
-            <div class="flex items-center gap-2 min-w-0 flex-1">
-              <input
-                type="text"
-                bind:value={titleDraft}
-                onblur={commitRename}
-                onkeydown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    commitRename();
-                  } else if (e.key === 'Escape') {
-                    cancelRename();
-                  }
-                }}
-                class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1 text-sm text-text-primary focus:outline-none focus:border-accent-cyan w-full max-w-md"
-                aria-label="Rename thread"
-              />
-              {#if showRenameTooltip}
-                <div class="relative flex-shrink-0">
-                  <button
-                    type="button"
-                    onclick={dismissRenameTooltip}
-                    aria-label="Dismiss rename tooltip"
-                    class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono text-text-muted border border-border-subtle hover:text-accent-cyan hover:border-accent-cyan transition-colors"
-                  >
-                    ?
-                  </button>
-                  <!--
+              <div class="flex items-center gap-2 min-w-0 flex-1">
+                <input
+                  type="text"
+                  bind:value={titleDraft}
+                  onblur={commitRename}
+                  onkeydown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      commitRename();
+                    } else if (e.key === 'Escape') {
+                      cancelRename();
+                    }
+                  }}
+                  class="bg-bg-deep border border-border-subtle rounded-md px-2 py-1 text-sm text-text-primary focus:outline-none focus:border-accent-cyan w-full max-w-md"
+                  aria-label="Rename thread"
+                />
+                {#if showRenameTooltip}
+                  <div class="relative flex-shrink-0">
+                    <button
+                      type="button"
+                      onclick={dismissRenameTooltip}
+                      aria-label="Dismiss rename tooltip"
+                      class="inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-mono text-text-muted border border-border-subtle hover:text-accent-cyan hover:border-accent-cyan transition-colors"
+                    >
+                      ?
+                    </button>
+                    <!--
                     Anchored tooltip. We render it inline (rather than via
                     `title=`) so the copy is visible without a hover delay
                     on first use — discoverability is the whole point of
                     the affordance. Click to dismiss.
                   -->
-                  <div
-                    role="tooltip"
-                    class="absolute right-0 top-full mt-1 z-30 w-64 rounded-md border border-border-subtle bg-bg-deep text-xs text-text-muted shadow-lg p-2"
-                  >
-                    Renames are local to this device. The server doesn't support thread renaming
-                    yet.
+                    <div
+                      role="tooltip"
+                      class="absolute right-0 top-full mt-1 z-30 w-64 rounded-md border border-border-subtle bg-bg-deep text-xs text-text-muted shadow-lg p-2"
+                    >
+                      Renames are local to this device. The server doesn't support thread renaming
+                      yet.
+                    </div>
                   </div>
-                </div>
-              {/if}
-            </div>
-          {:else}
-            <!--
+                {/if}
+              </div>
+            {:else}
+              <!--
               Title row: double-click opens the inline rename, right-click
               opens the kebab menu. We render a `<button>` for the title
               so keyboard users can still focus + activate it; Enter on
               the focused title also opens the rename input.
             -->
-            <button
-              type="button"
-              ondblclick={startRename}
-              onkeydown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
+              <button
+                type="button"
+                ondblclick={startRename}
+                onkeydown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    startRename();
+                  }
+                }}
+                oncontextmenu={(e) => {
                   e.preventDefault();
-                  startRename();
-                }
-              }}
-              oncontextmenu={(e) => {
-                e.preventDefault();
-                renameMenuOpen = !renameMenuOpen;
-              }}
-              class="text-sm font-medium text-text-primary truncate hover:text-accent-cyan transition-colors text-left min-w-0"
-              title="Double-click to rename · right-click for options"
-            >
-              {threadRename.displayTitle(currentThread.id, currentThread.title)}
-            </button>
-            {#if threadRename.has(currentThread.id)}
-              <!--
+                  renameMenuOpen = !renameMenuOpen;
+                }}
+                class="text-sm font-medium text-text-primary truncate hover:text-accent-cyan transition-colors text-left min-w-0"
+                title="Double-click to rename · right-click for options"
+              >
+                {threadRename.displayTitle(currentThread.id, currentThread.title)}
+              </button>
+              {#if threadRename.has(currentThread.id)}
+                <!--
                 "Renamed" indicator. Sits to the right of the title so the
                 user can see at a glance which threads carry a local
                 override. The pencil glyph matches the affordance copy
                 in `title=` on the title button.
               -->
-              <span
-                aria-label="Locally renamed"
-                title="Locally renamed (this device only)"
-                class="text-[10px] text-accent-gold flex-shrink-0 select-none"
-              >
-                ✏
-              </span>
-            {/if}
-            <!--
+                <span
+                  aria-label="Locally renamed"
+                  title="Locally renamed (this device only)"
+                  class="text-[10px] text-accent-gold flex-shrink-0 select-none"
+                >
+                  ✏
+                </span>
+              {/if}
+              <!--
               Provider chip — small cyan-outlined pill showing the LLM
               provider currently configured on the active profile (and
               the one that produced the most recent assistant turn on
@@ -3134,27 +3143,27 @@
               previously on. The chip always reflects the most recent
               recorded provider for the active thread.
             -->
-            {#if activeProvider}
-              {@const recordedId = currentThread
-                ? threadModel.getProvider(currentThread.id)
-                : undefined}
-              {@const recorded =
-                recordedId && recordedId !== activeProvider.id
-                  ? llmProviders.find((p) => p.id === recordedId)
+              {#if activeProvider}
+                {@const recordedId = currentThread
+                  ? threadModel.getProvider(currentThread.id)
                   : undefined}
-              {@const shown = recorded ?? activeProvider}
-              <span
-                class="inline-flex items-center justify-center px-2 py-0.5 rounded-full border border-accent-cyan/40 text-[10px] font-medium text-accent-cyan flex-shrink-0 select-none truncate max-w-[80px]"
-                style="min-width: 64px;"
-                title={shown.default_model
-                  ? `Model: ${shown.default_model}`
-                  : `Provider: ${shown.id}`}
-                aria-label={`Provider: ${shown.name}`}
-              >
-                {shown.name}
-              </span>
-            {/if}
-            <!--
+                {@const recorded =
+                  recordedId && recordedId !== activeProvider.id
+                    ? llmProviders.find((p) => p.id === recordedId)
+                    : undefined}
+                {@const shown = recorded ?? activeProvider}
+                <span
+                  class="inline-flex items-center justify-center px-2 py-0.5 rounded-full border border-accent-cyan/40 text-[10px] font-medium text-accent-cyan flex-shrink-0 select-none truncate max-w-[80px]"
+                  style="min-width: 64px;"
+                  title={shown.default_model
+                    ? `Model: ${shown.default_model}`
+                    : `Provider: ${shown.id}`}
+                  aria-label={`Provider: ${shown.name}`}
+                >
+                  {shown.name}
+                </span>
+              {/if}
+              <!--
               Per-thread system-prompt indicator chip (R43). Shows ONLY
               when the user has attached a custom prompt via the kebab
               menu → "Custom system prompt…". Reading `promptVersion`
@@ -3164,194 +3173,97 @@
               version reference here documents the dependency for
               future readers.
             -->
-            {#if currentThread && promptVersion >= 0 && perThreadPrompts.hasOverride(currentThread.id)}
-              <button
-                type="button"
-                onclick={openPerThreadPromptModal}
-                class="inline-flex items-center justify-center px-2 py-0.5 rounded-full border border-accent-gold/50 text-[10px] font-medium text-accent-gold flex-shrink-0 select-none hover:bg-accent-gold/10 transition-colors"
-                title="This thread uses a custom system prompt. Click the kebab menu → Custom system prompt to view or edit."
-                aria-label="Custom system prompt active for this thread"
-              >
-                Custom prompt
-              </button>
-            {/if}
-            <!--
+              {#if currentThread && promptVersion >= 0 && perThreadPrompts.hasOverride(currentThread.id)}
+                <button
+                  type="button"
+                  onclick={openPerThreadPromptModal}
+                  class="inline-flex items-center justify-center px-2 py-0.5 rounded-full border border-accent-gold/50 text-[10px] font-medium text-accent-gold flex-shrink-0 select-none hover:bg-accent-gold/10 transition-colors"
+                  title="This thread uses a custom system prompt. Click the kebab menu → Custom system prompt to view or edit."
+                  aria-label="Custom system prompt active for this thread"
+                >
+                  Custom prompt
+                </button>
+              {/if}
+              <!--
               Kebab menu — single action ("Revert to server title") for
               now. Triggers via the chevron OR the right-click handler
               on the title button above. The dropdown auto-closes on
               outside click and Esc (effect wired in the script).
             -->
-            <div class="relative flex-shrink-0">
-              <button
-                type="button"
-                bind:this={renameMenuButtonEl}
-                onclick={() => (renameMenuOpen = !renameMenuOpen)}
-                class="p-1 rounded text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors"
-                aria-haspopup="menu"
-                aria-expanded={renameMenuOpen}
-                aria-label="Thread title options"
-                title="Thread title options"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  class="w-3.5 h-3.5"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  aria-hidden="true"
-                >
-                  <circle cx="12" cy="5" r="1" />
-                  <circle cx="12" cy="12" r="1" />
-                  <circle cx="12" cy="19" r="1" />
-                </svg>
-              </button>
-              {#if renameMenuOpen}
-                <div
-                  bind:this={renameMenuEl}
-                  class="absolute left-0 top-full mt-1 z-20 min-w-[200px] rounded-md border border-border-subtle bg-bg-deep shadow-lg overflow-hidden"
-                  role="menu"
+              <div class="relative flex-shrink-0">
+                <button
+                  type="button"
+                  bind:this={renameMenuButtonEl}
+                  onclick={() => (renameMenuOpen = !renameMenuOpen)}
+                  class="p-1 rounded text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors"
+                  aria-haspopup="menu"
+                  aria-expanded={renameMenuOpen}
                   aria-label="Thread title options"
+                  title="Thread title options"
                 >
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onclick={startRename}
-                    class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors"
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="w-3.5 h-3.5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
                   >
-                    Rename
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onclick={revertRename}
-                    disabled={!threadRename.has(currentThread.id)}
-                    class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle disabled:opacity-40 disabled:cursor-not-allowed"
+                    <circle cx="12" cy="5" r="1" />
+                    <circle cx="12" cy="12" r="1" />
+                    <circle cx="12" cy="19" r="1" />
+                  </svg>
+                </button>
+                {#if renameMenuOpen}
+                  <div
+                    bind:this={renameMenuEl}
+                    class="absolute left-0 top-full mt-1 z-20 min-w-[200px] rounded-md border border-border-subtle bg-bg-deep shadow-lg overflow-hidden"
+                    role="menu"
+                    aria-label="Thread title options"
                   >
-                    Revert to server title
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onclick={openPerThreadPromptModal}
-                    class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle"
-                  >
-                    Custom system prompt…
-                  </button>
-                </div>
-              {/if}
-            </div>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onclick={startRename}
+                      class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onclick={revertRename}
+                      disabled={!threadRename.has(currentThread.id)}
+                      class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Revert to server title
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onclick={openPerThreadPromptModal}
+                      class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle"
+                    >
+                      Custom system prompt…
+                    </button>
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          {:else}
+            <span class="text-sm text-text-muted">No conversation selected</span>
           {/if}
-        {:else}
-          <span class="text-sm text-text-muted">No conversation selected</span>
-        {/if}
-      </div>
+        </div>
 
-      <button
-        type="button"
-        onclick={() => (rightRailOpen = !rightRailOpen)}
-        class="p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors"
-        class:text-accent-cyan={rightRailOpen}
-        aria-label="Toggle tool inspector"
-        title="Tool inspector"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          class="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path
-            d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
-          />
-        </svg>
-      </button>
-
-      <!-- Daily brief (R101): the Chief of Staff assembles a prioritized
-           agenda from recent threads + tracked open loops. Read-only;
-           available whenever connected (no active thread needed). -->
-      <button
-        type="button"
-        onclick={onBrief}
-        disabled={!connection.client}
-        class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        aria-label="Brief me"
-        title={connection.client
-          ? 'Brief me: a Chief of Staff agenda from your recent threads + open loops'
-          : 'Connect to generate a daily brief'}
-      >
-        <Icon name="shield" class="w-4 h-4" />
-      </button>
-
-      <!-- Triage (R104): the Chief of Staff sorts recent threads into
-           Decision needed / FYI / Can handle. Read-only; available whenever
-           connected (no active thread needed). -->
-      <button
-        type="button"
-        onclick={onTriage}
-        disabled={!connection.client}
-        class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        aria-label="Triage my threads"
-        title={connection.client
-          ? 'Triage: sort your recent threads into decisions, FYI, and what I can handle'
-          : 'Connect to triage your threads'}
-      >
-        <Icon name="list" class="w-4 h-4" />
-      </button>
-
-      <!-- Draft a reply (R105): the Chief of Staff writes a ready-to-send
-           draft in the user's voice, grounded in this thread. Read-only —
-           the draft is shown for copy; nothing is posted. Needs an active
-           thread (like recap). -->
-      <button
-        type="button"
-        onclick={onDraft}
-        disabled={!canExport}
-        class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        aria-label="Draft a reply"
-        title={canExport
-          ? 'Draft a reply in your voice from this conversation'
-          : 'Connect and select a conversation to draft a reply'}
-      >
-        <Icon name="send" class="w-4 h-4" />
-      </button>
-
-      <!-- Thread recap (R89): a non-destructive summary of the conversation
-           shown in a dismissable panel. Never edits the transcript. -->
-      <button
-        type="button"
-        onclick={onRecap}
-        disabled={!canExport}
-        class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-        aria-label="Recap this conversation"
-        title={canExport
-          ? 'Summarize this conversation (read-only)'
-          : 'Connect and select a conversation to recap'}
-      >
-        <Icon name="spark" class="w-4 h-4" />
-      </button>
-
-      <!-- Per-thread export. Sits to the right of rename + tool-rail toggle so
-           those existing controls don't shift position. Disabled until we
-           have an active thread and a healthy connection. -->
-      <div class="relative ml-1">
         <button
           type="button"
-          bind:this={exportButtonEl}
-          onclick={toggleExportMenu}
-          disabled={!canExport}
-          class="p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          class:text-accent-cyan={exportOpen}
-          aria-haspopup="menu"
-          aria-expanded={exportOpen}
-          aria-label="Export conversation"
-          title={canExport
-            ? 'Export this conversation'
-            : 'Connect and select a conversation to export'}
+          onclick={() => (rightRailOpen = !rightRailOpen)}
+          class="p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors"
+          class:text-accent-cyan={rightRailOpen}
+          aria-label="Toggle tool inspector"
+          title="Tool inspector"
         >
           <svg
             viewBox="0 0 24 24"
@@ -3361,148 +3273,249 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            aria-hidden="true"
           >
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-            <polyline points="7 10 12 15 17 10" />
-            <line x1="12" y1="15" x2="12" y2="3" />
+            <path
+              d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+            />
           </svg>
         </button>
 
-        {#if exportOpen}
-          <div
-            bind:this={exportPopoverEl}
-            class="absolute right-0 top-full mt-1 z-20 min-w-[160px] rounded-md border border-border-subtle bg-bg-deep shadow-lg overflow-hidden"
-            role="menu"
-            aria-label="Export format"
-          >
-            <button
-              type="button"
-              role="menuitem"
-              onclick={() => void onExportThread('markdown')}
-              class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                class="w-3.5 h-3.5 text-text-muted"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
-              Markdown
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onclick={() => void onExportThread('json')}
-              class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                class="w-3.5 h-3.5 text-text-muted"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <path d="M8 17v-4M12 17v-4M16 17v-4" />
-              </svg>
-              JSON
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onclick={() => void onExportThread('html')}
-              class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle"
-            >
-              <svg
-                viewBox="0 0 24 24"
-                class="w-3.5 h-3.5 text-text-muted"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <polyline points="16 18 22 12 16 6" />
-                <polyline points="8 6 2 12 8 18" />
-              </svg>
-              HTML
-            </button>
-          </div>
-        {/if}
-      </div>
-    </header>
+        <!-- Daily brief (R101): the Chief of Staff assembles a prioritized
+           agenda from recent threads + tracked open loops. Read-only;
+           available whenever connected (no active thread needed). -->
+        <button
+          type="button"
+          onclick={onBrief}
+          disabled={!connection.client}
+          class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Brief me"
+          title={connection.client
+            ? 'Brief me: a Chief of Staff agenda from your recent threads + open loops'
+            : 'Connect to generate a daily brief'}
+        >
+          <Icon name="shield" class="w-4 h-4" />
+        </button>
 
-    <!-- message stream (wrapper hosts the floating "new messages" FAB
+        <!-- Triage (R104): the Chief of Staff sorts recent threads into
+           Decision needed / FYI / Can handle. Read-only; available whenever
+           connected (no active thread needed). -->
+        <button
+          type="button"
+          onclick={onTriage}
+          disabled={!connection.client}
+          class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Triage my threads"
+          title={connection.client
+            ? 'Triage: sort your recent threads into decisions, FYI, and what I can handle'
+            : 'Connect to triage your threads'}
+        >
+          <Icon name="list" class="w-4 h-4" />
+        </button>
+
+        <!-- Draft a reply (R105): the Chief of Staff writes a ready-to-send
+           draft in the user's voice, grounded in this thread. Read-only —
+           the draft is shown for copy; nothing is posted. Needs an active
+           thread (like recap). -->
+        <button
+          type="button"
+          onclick={onDraft}
+          disabled={!canExport}
+          class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Draft a reply"
+          title={canExport
+            ? 'Draft a reply in your voice from this conversation'
+            : 'Connect and select a conversation to draft a reply'}
+        >
+          <Icon name="send" class="w-4 h-4" />
+        </button>
+
+        <!-- Thread recap (R89): a non-destructive summary of the conversation
+           shown in a dismissable panel. Never edits the transcript. -->
+        <button
+          type="button"
+          onclick={onRecap}
+          disabled={!canExport}
+          class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          aria-label="Recap this conversation"
+          title={canExport
+            ? 'Summarize this conversation (read-only)'
+            : 'Connect and select a conversation to recap'}
+        >
+          <Icon name="spark" class="w-4 h-4" />
+        </button>
+
+        <!-- Per-thread export. Sits to the right of rename + tool-rail toggle so
+           those existing controls don't shift position. Disabled until we
+           have an active thread and a healthy connection. -->
+        <div class="relative ml-1">
+          <button
+            type="button"
+            bind:this={exportButtonEl}
+            onclick={toggleExportMenu}
+            disabled={!canExport}
+            class="p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            class:text-accent-cyan={exportOpen}
+            aria-haspopup="menu"
+            aria-expanded={exportOpen}
+            aria-label="Export conversation"
+            title={canExport
+              ? 'Export this conversation'
+              : 'Connect and select a conversation to export'}
+          >
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </button>
+
+          {#if exportOpen}
+            <div
+              bind:this={exportPopoverEl}
+              class="absolute right-0 top-full mt-1 z-20 min-w-[160px] rounded-md border border-border-subtle bg-bg-deep shadow-lg overflow-hidden"
+              role="menu"
+              aria-label="Export format"
+            >
+              <button
+                type="button"
+                role="menuitem"
+                onclick={() => void onExportThread('markdown')}
+                class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-3.5 h-3.5 text-text-muted"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                Markdown
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onclick={() => void onExportThread('json')}
+                class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-3.5 h-3.5 text-text-muted"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <path d="M8 17v-4M12 17v-4M16 17v-4" />
+                </svg>
+                JSON
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onclick={() => void onExportThread('html')}
+                class="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-text-primary hover:bg-bg-surface transition-colors border-t border-border-subtle"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-3.5 h-3.5 text-text-muted"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polyline points="16 18 22 12 16 6" />
+                  <polyline points="8 6 2 12 8 18" />
+                </svg>
+                HTML
+              </button>
+            </div>
+          {/if}
+        </div>
+      </header>
+
+      <!-- message stream (wrapper hosts the floating "new messages" FAB
          and the optional find-in-thread bar) -->
-    <div class="flex-1 min-h-0 relative">
-      <!-- find-in-thread bar — opens with Cmd/Ctrl+F. Positioned absolute
+      <div class="flex-1 min-h-0 relative">
+        <!-- find-in-thread bar — opens with Cmd/Ctrl+F. Positioned absolute
            at the top of the stream so it floats over the first messages
            without pushing the layout. -->
-      {#if searchOpen}
-        <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 w-full max-w-md px-3">
-          <ChatSearch scrollRoot={scrollEl} {contentVersion} onClose={() => (searchOpen = false)} />
-        </div>
-      {/if}
-      <!-- Event-delegated <img> click handler — opens the lightbox for any
+        {#if searchOpen}
+          <div class="absolute top-3 left-1/2 -translate-x-1/2 z-20 w-full max-w-md px-3">
+            <ChatSearch
+              scrollRoot={scrollEl}
+              {contentVersion}
+              onClose={() => (searchOpen = false)}
+            />
+          </div>
+        {/if}
+        <!-- Event-delegated <img> click handler — opens the lightbox for any
          image inside the stream (sent attachments, optimistic blob previews,
          or markdown-rendered assistant content). svelte's a11y rule is
          relaxed because the actual interactive targets (images) are tagged
          with role + tabindex when they're rendered through MarkdownView /
          the user bubble. -->
-      <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <!-- svelte-ignore a11y_click_events_have_key_events -->
-      <div
-        bind:this={scrollEl}
-        onscroll={onScroll}
-        onclick={onStreamClick}
-        class="absolute inset-0 overflow-y-auto px-6 py-5"
-      >
-        {#if !currentThread && history.length === 0 && !streamingBuffer}
-          <div class="h-full flex flex-col items-center justify-center text-center">
-            <svg
-              viewBox="0 0 24 24"
-              class="w-12 h-12 text-accent-cyan/30 mb-4"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              aria-hidden="true"
-            >
-              <path d="M4 7l8-4 8 4-8 4-8-4z" stroke-linejoin="round" />
-              <path d="M4 12l8 4 8-4" stroke-linejoin="round" />
-              <path d="M4 17l8 4 8-4" stroke-linejoin="round" />
-            </svg>
-            {#if !connection.client}
-              <p class="text-sm text-text-primary">IronClaw is offline</p>
-              <p class="text-xs text-text-muted mt-1">
-                <a
-                  href="/settings"
-                  class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
-                  >Configure the gateway in Settings</a
-                > to start chatting.
-              </p>
-            {:else}
-              <p class="text-sm text-text-muted">Start a conversation</p>
-              <p class="text-xs text-text-muted mt-1">
-                Press Enter to send, Shift+Enter for newline
-              </p>
-            {/if}
-          </div>
-        {:else}
-          <div class="max-w-4xl mx-auto space-y-4">
-            <!--
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
+        <div
+          bind:this={scrollEl}
+          onscroll={onScroll}
+          onclick={onStreamClick}
+          class="absolute inset-0 overflow-y-auto px-6 py-5"
+        >
+          {#if !currentThread && history.length === 0 && !streamingBuffer}
+            <div class="h-full flex flex-col items-center justify-center text-center">
+              <svg
+                viewBox="0 0 24 24"
+                class="w-12 h-12 text-accent-cyan/30 mb-4"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                aria-hidden="true"
+              >
+                <path d="M4 7l8-4 8 4-8 4-8-4z" stroke-linejoin="round" />
+                <path d="M4 12l8 4 8-4" stroke-linejoin="round" />
+                <path d="M4 17l8 4 8-4" stroke-linejoin="round" />
+              </svg>
+              {#if !connection.client}
+                <p class="text-sm text-text-primary">IronClaw is offline</p>
+                <p class="text-xs text-text-muted mt-1">
+                  <a
+                    href="/settings"
+                    class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
+                    >Configure the gateway in Settings</a
+                  > to start chatting.
+                </p>
+              {:else}
+                <p class="text-sm text-text-muted">Start a conversation</p>
+                <p class="text-xs text-text-muted mt-1">
+                  Press Enter to send, Shift+Enter for newline
+                </p>
+              {/if}
+            </div>
+          {:else}
+            <div class="max-w-4xl mx-auto space-y-4">
+              <!--
             Lazy-history indicator. Renders only while a paginated fetch is
             in flight. The container scroll position is anchored around the
             prepend in maybeLoadMore(), so this row appears briefly, the new
@@ -3510,32 +3523,32 @@
             pushed down by the inserted height — the user's view stays
             fixed on the message they were reading.
           -->
-            {#if isLoadingMore}
-              <div class="flex justify-center py-2">
-                <span class="inline-flex items-center gap-2 text-xs text-text-muted">
-                  <span
-                    class="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"
-                    aria-hidden="true"
-                  ></span>
-                  Loading older messages…
-                </span>
-              </div>
-            {/if}
-            {#each history as msg (msg.id)}
-              {#if msg.role === 'user'}
-                {@const meta = messages.getMeta(msg.id)}
-                {@const failed = !!meta.failed}
-                {@const userDisplay = cleanUserDisplay(msg.content)}
-                {@const userHasImage = userHasInlineImage(userDisplay)}
-                <div class="flex flex-col items-end gap-1">
-                  <div
-                    class="search-target max-w-[75%] rounded-lg border px-4 py-2.5 text-sm text-text-primary"
-                    class:whitespace-pre-wrap={!userHasImage}
-                    style={failed
-                      ? 'background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.45);'
-                      : 'background:rgba(76,167,230,0.10);border-color:rgba(251,191,36,0.4);'}
-                  >
-                    <!-- LANE B9 (R69) — editable user bubble. We synthesize a
+              {#if isLoadingMore}
+                <div class="flex justify-center py-2">
+                  <span class="inline-flex items-center gap-2 text-xs text-text-muted">
+                    <span
+                      class="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"
+                      aria-hidden="true"
+                    ></span>
+                    Loading older messages…
+                  </span>
+                </div>
+              {/if}
+              {#each history as msg (msg.id)}
+                {#if msg.role === 'user'}
+                  {@const meta = messages.getMeta(msg.id)}
+                  {@const failed = !!meta.failed}
+                  {@const userDisplay = cleanUserDisplay(msg.content)}
+                  {@const userHasImage = userHasInlineImage(userDisplay)}
+                  <div class="flex flex-col items-end gap-1">
+                    <div
+                      class="search-target max-w-[75%] rounded-lg border px-4 py-2.5 text-sm text-text-primary"
+                      class:whitespace-pre-wrap={!userHasImage}
+                      style={failed
+                        ? 'background:rgba(239,68,68,0.08);border-color:rgba(239,68,68,0.45);'
+                        : 'background:rgba(76,167,230,0.10);border-color:rgba(251,191,36,0.4);'}
+                    >
+                      <!-- LANE B9 (R69) — editable user bubble. We synthesize a
                          msg-like object with the cleaned content so the
                          textarea pre-fill (and the rendered MarkdownView in
                          view mode) both show the same text the user sees
@@ -3545,466 +3558,313 @@
                          messages store. `userHasImage` continues to drive the
                          `whitespace-pre-wrap` class above so non-markdown
                          bubbles keep their original wrapping. -->
-                    <EditableBubble
-                      msg={{ ...msg, content: userDisplay }}
-                      onEditSubmit={handleBubbleEdit}
-                      disabled={isStreaming}
-                    />
-                  </div>
-                  {#if failed && currentId}
-                    {@const isRetrying = !!retryingIds[msg.id]}
-                    <div class="flex items-center gap-2 text-[11px] text-red-300 max-w-[75%]">
-                      <svg
-                        viewBox="0 0 24 24"
-                        class="w-3 h-3 shrink-0"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2.5"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
-                      >
-                        <circle cx="12" cy="12" r="10" />
-                        <line x1="12" y1="8" x2="12" y2="12" />
-                        <line x1="12" y1="16" x2="12.01" y2="16" />
-                      </svg>
-                      <span>Failed to send</span>
-                      <button
-                        type="button"
-                        onclick={() => void onRetry(currentId!, msg.id)}
-                        disabled={isRetrying || sending || isStreaming}
-                        class="px-2 py-0.5 rounded border border-red-500/50 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Retry sending this message"
-                      >
-                        {isRetrying ? 'Retrying…' : 'Retry'}
-                      </button>
+                      <EditableBubble
+                        msg={{ ...msg, content: userDisplay }}
+                        onEditSubmit={handleBubbleEdit}
+                        disabled={isStreaming}
+                      />
                     </div>
-                  {/if}
-                </div>
-              {:else if msg.role === 'assistant'}
-                <!-- Group wrapper exposes the Branch button on hover (focus-
+                    {#if failed && currentId}
+                      {@const isRetrying = !!retryingIds[msg.id]}
+                      <div class="flex items-center gap-2 text-[11px] text-red-300 max-w-[75%]">
+                        <svg
+                          viewBox="0 0 24 24"
+                          class="w-3 h-3 shrink-0"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2.5"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <circle cx="12" cy="12" r="10" />
+                          <line x1="12" y1="8" x2="12" y2="12" />
+                          <line x1="12" y1="16" x2="12.01" y2="16" />
+                        </svg>
+                        <span>Failed to send</span>
+                        <button
+                          type="button"
+                          onclick={() => void onRetry(currentId!, msg.id)}
+                          disabled={isRetrying || sending || isStreaming}
+                          class="px-2 py-0.5 rounded border border-red-500/50 bg-red-500/10 text-red-200 hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Retry sending this message"
+                        >
+                          {isRetrying ? 'Retrying…' : 'Retry'}
+                        </button>
+                      </div>
+                    {/if}
+                  </div>
+                {:else if msg.role === 'assistant'}
+                  <!-- Group wrapper exposes the Branch button on hover (focus-
                    visible too, for keyboard users). The fork-aware button
                    pops the confirm dialog rather than acting directly so
                    the user can back out without losing intent. -->
-                <div class="flex justify-start">
-                  <div class="group relative max-w-[85%]">
-                    <div
-                      class="search-target rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
-                    >
-                      <MarkdownView markdown={msg.content} />
-                    </div>
-                    <button
-                      type="button"
-                      onclick={() => openBranchConfirm(msg.id)}
-                      disabled={branching || sending || isStreaming}
-                      class="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded text-text-muted bg-bg-deep/80 border border-border-subtle hover:text-accent-cyan hover:border-accent-cyan/50 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed"
-                      aria-label="Fork from this message"
-                      title="Fork from this message"
-                    >
-                      <!-- Inline branch glyph (not in Icon.svelte's set; v2
+                  <div class="flex justify-start">
+                    <div class="group relative max-w-[85%]">
+                      <div
+                        class="search-target rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
+                      >
+                        <MarkdownView markdown={msg.content} />
+                      </div>
+                      <button
+                        type="button"
+                        onclick={() => openBranchConfirm(msg.id)}
+                        disabled={branching || sending || isStreaming}
+                        class="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded text-text-muted bg-bg-deep/80 border border-border-subtle hover:text-accent-cyan hover:border-accent-cyan/50 transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 disabled:opacity-30 disabled:cursor-not-allowed"
+                        aria-label="Fork from this message"
+                        title="Fork from this message"
+                      >
+                        <!-- Inline branch glyph (not in Icon.svelte's set; v2
                          design vocabulary). Two parallel lines diverging
                          to suggest a split. -->
-                      <svg
-                        viewBox="0 0 24 24"
-                        class="w-3.5 h-3.5"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                        aria-hidden="true"
-                      >
-                        <circle cx="6" cy="6" r="2" />
-                        <circle cx="18" cy="6" r="2" />
-                        <circle cx="12" cy="18" r="2" />
-                        <path d="M6 8v3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V8" />
-                        <line x1="12" y1="14" x2="12" y2="16" />
-                      </svg>
-                    </button>
+                        <svg
+                          viewBox="0 0 24 24"
+                          class="w-3.5 h-3.5"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <circle cx="6" cy="6" r="2" />
+                          <circle cx="18" cy="6" r="2" />
+                          <circle cx="12" cy="18" r="2" />
+                          <path d="M6 8v3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V8" />
+                          <line x1="12" y1="14" x2="12" y2="16" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                </div>
-              {:else}
-                <!-- tool message (rare today; gateway doesn't emit these in history) -->
+                {:else}
+                  <!-- tool message (rare today; gateway doesn't emit these in history) -->
+                  <div class="flex justify-start">
+                    <div
+                      class="search-target max-w-[85%] rounded-md border border-border-subtle bg-bg-deep px-3 py-2 text-xs text-text-muted font-mono"
+                    >
+                      tool · {msg.content}
+                    </div>
+                  </div>
+                {/if}
+              {/each}
+
+              <!-- in-flight assistant turn -->
+              {#if isStreaming || streamingBuffer}
                 <div class="flex justify-start">
                   <div
-                    class="search-target max-w-[85%] rounded-md border border-border-subtle bg-bg-deep px-3 py-2 text-xs text-text-muted font-mono"
+                    class="search-target max-w-[85%] rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
                   >
-                    tool · {msg.content}
+                    {#if streamingBuffer}
+                      <MarkdownView markdown={streamingBuffer} />
+                    {:else}
+                      <span class="inline-flex items-center gap-1.5 text-text-muted">
+                        <span class="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"></span>
+                        <span class="text-xs">Thinking…</span>
+                      </span>
+                    {/if}
                   </div>
                 </div>
               {/if}
-            {/each}
 
-            <!-- in-flight assistant turn -->
-            {#if isStreaming || streamingBuffer}
-              <div class="flex justify-start">
-                <div
-                  class="search-target max-w-[85%] rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
-                >
-                  {#if streamingBuffer}
-                    <MarkdownView markdown={streamingBuffer} />
-                  {:else}
-                    <span class="inline-flex items-center gap-1.5 text-text-muted">
-                      <span class="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"></span>
-                      <span class="text-xs">Thinking…</span>
-                    </span>
-                  {/if}
+              {#if streamError}
+                <div class="flex justify-start">
+                  <div
+                    class="max-w-[85%] rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+                  >
+                    {streamError}
+                  </div>
                 </div>
-              </div>
-            {/if}
+              {/if}
+            </div>
+          {/if}
+        </div>
 
-            {#if streamError}
-              <div class="flex justify-start">
-                <div
-                  class="max-w-[85%] rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300"
-                >
-                  {streamError}
-                </div>
-              </div>
-            {/if}
-          </div>
-        {/if}
-      </div>
-
-      <!-- LANE B5 — replay bar (R58): mounted only when the user has
+        <!-- LANE B5 — replay bar (R58): mounted only when the user has
            explicitly opened replay for this thread. The bar reads from
            the replay store; opening fetches the event timeline via the
            replay.loadFor() call wired below. -->
-      {#if currentId && replayUI.isOpenFor(currentId)}
-        <ReplayBar
-          threadId={currentId}
-          onClose={() => {
-            if (currentId) replayUI.close(currentId);
-          }}
-        />
-      {/if}
-      <!-- LANE W3 — reply-thread panel (R80): anchored to the right
+        {#if currentId && replayUI.isOpenFor(currentId)}
+          <ReplayBar
+            threadId={currentId}
+            onClose={() => {
+              if (currentId) replayUI.close(currentId);
+            }}
+          />
+        {/if}
+        <!-- LANE W3 — reply-thread panel (R80): anchored to the right
            edge of the chat stream as a sliding panel when the user
            opens a reply thread. Hidden when no parent is selected. -->
-      {#if replyThreadUI.openParent && replyThreadUI.openThreadId}
-        <div class="absolute right-0 top-0 bottom-0 z-10">
-          <ReplyThreadPanel
-            parentMessage={replyThreadUI.openParent}
-            parentThreadId={replyThreadUI.openThreadId}
-            onClose={() => replyThreadUI.close()}
-          />
-        </div>
-      {/if}
-
-      <!-- scroll-to-bottom FAB — shown when new content arrives off-screen -->
-      {#if showScrollFab}
-        <button
-          type="button"
-          onclick={() => scrollToBottom(true)}
-          class="absolute left-1/2 -translate-x-1/2 bottom-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent-cyan text-bg-deep text-xs font-semibold shadow-lg hover:brightness-110 transition-all"
-          aria-label="Scroll to newest message"
-          title="Jump to bottom"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            class="w-3.5 h-3.5"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <polyline points="19 12 12 19 5 12" />
-          </svg>
-          <span>New messages</span>
-        </button>
-      {/if}
-    </div>
-
-    <!-- composer -->
-    <div class="shrink-0 border-t border-border-subtle bg-bg-base/40 px-6 py-4">
-      <div
-        class="max-w-4xl mx-auto relative"
-        ondragenter={onComposerDragEnter}
-        ondragover={onComposerDragOver}
-        ondragleave={onComposerDragLeave}
-        ondrop={onComposerDrop}
-        role="presentation"
-      >
-        <!-- LANE B1 — voice-answer bar mount (TTS playback strip — R51) -->
-        {#if voiceAnswer.enabled}
-          <div class="mb-2"><VoiceAnswerBar /></div>
-        {/if}
-        <!-- LANE B4 — sub-agent task chips (R57): active + recent
-             background tasks delegated from this thread. Cmd+Shift+D
-             delegates the latest user turn. -->
-        {#if currentId}
-          {@const tasks = subAgents.forThread(currentId)}
-          {#if tasks.length > 0}
-            <div class="mb-2 flex flex-col gap-1.5">
-              {#each tasks as task (task.id)}
-                <SubAgentChip {task} />
-              {/each}
-            </div>
-          {/if}
-          {#if subAgents.unsupported}
-            <div class="mb-2 text-[10px] text-text-muted">
-              Sub-agent delegation needs a newer IronClaw gateway.
-            </div>
-          {/if}
-        {/if}
-        <!-- LANE B8 — skill editor mount (R65) -->
-        <SkillEditorModal />
-        <!-- LANE B9 — editable bubble swap (per-bubble live edit toggle lands here) -->
-
-        <!-- Hidden file input — triggered by the "+" button. `accept` is
-             advisory in the OS picker; we re-validate in intakeFiles(). -->
-        <input
-          bind:this={attachmentInputEl}
-          onchange={onFileInputChange}
-          type="file"
-          accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/markdown,application/json,application/x-yaml,application/xml,text/html,.pdf,.doc,.docx,.rtf,.xls,.xlsx,.csv,.tsv,.ppt,.pptx,.txt,.md,.markdown,.json,.yaml,.yml,.xml,.html,.htm"
-          multiple
-          class="hidden"
-          aria-label="Attach files"
-        />
-
-        <!-- slash-command autocomplete — anchored to this wrapper so the
-             dropdown grows upward from the composer's top edge. -->
-        <SlashAutocomplete
-          bind:this={slashAutoEl}
-          anchor={composerEl}
-          value={input}
-          {caret}
-          skills={skillCatalog}
-          onPick={applySlashPick}
-        />
-
-        <!-- Attachment thumbnail strip — sits above the textarea border,
-             tucks the previews flush against the composer chrome. The strip
-             takes its own row so longer file names don't squeeze the
-             textarea. Visible only when at least one attachment is staged. -->
-        {#if attachments.length > 0}
-          <div class="flex flex-wrap gap-2 mb-2" aria-label="Pending attachments">
-            {#each attachments as a (a.id)}
-              <div
-                class="group flex items-center gap-2 bg-bg-deep border border-border-subtle rounded-md pl-1 pr-2 py-1 hover:border-accent-cyan/50 transition-colors"
-                title={`${a.name} · ${fmtBytes(a.size)}`}
-              >
-                {#if isImageMime(a.mime) && a.previewUrl}
-                  <img
-                    src={a.previewUrl}
-                    alt={a.name}
-                    class="w-12 h-12 object-cover rounded shrink-0"
-                  />
-                {:else}
-                  <!-- Non-image attachments: icon + extension tag. No
-                       thumbnail so the chip stays compact and the type is
-                       immediately readable. -->
-                  <div
-                    class="w-12 h-12 rounded shrink-0 bg-bg-base border border-border-subtle flex flex-col items-center justify-center gap-0.5"
-                    aria-hidden="true"
-                  >
-                    <Icon name="file" class="w-4 h-4 text-accent-cyan" />
-                    <span class="text-[8px] font-mono font-semibold text-text-muted leading-none">
-                      {shortType(a.mime, a.name)}
-                    </span>
-                  </div>
-                {/if}
-                <div class="flex flex-col min-w-0 max-w-[160px]">
-                  <span class="text-xs text-text-primary truncate">{a.name}</span>
-                  <span class="text-[10px] text-text-muted">{fmtBytes(a.size)}</span>
-                </div>
-                <button
-                  type="button"
-                  onclick={() => removeAttachment(a.id)}
-                  class="shrink-0 w-5 h-5 rounded text-text-muted hover:text-red-300 hover:bg-red-500/10 transition-colors flex items-center justify-center"
-                  aria-label={`Remove ${a.name}`}
-                  title="Remove"
-                >
-                  <svg
-                    viewBox="0 0 24 24"
-                    class="w-3 h-3"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2.5"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                </button>
-              </div>
-            {/each}
+        {#if replyThreadUI.openParent && replyThreadUI.openThreadId}
+          <div class="absolute right-0 top-0 bottom-0 z-10">
+            <ReplyThreadPanel
+              parentMessage={replyThreadUI.openParent}
+              parentThreadId={replyThreadUI.openThreadId}
+              onClose={() => replyThreadUI.close()}
+            />
           </div>
         {/if}
 
-        <div
-          class="flex items-end gap-2 bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 focus-within:border-accent-cyan transition-colors"
-        >
-          <!-- Attach button — file picker fallback for users who don't
-               drag or paste. Sits left of the textarea so the send button
-               keeps its anchor on the right edge. -->
+        <!-- scroll-to-bottom FAB — shown when new content arrives off-screen -->
+        {#if showScrollFab}
           <button
             type="button"
-            onclick={openFilePicker}
-            disabled={!connection.client || attachments.length >= MAX_ATTACHMENTS}
-            class="shrink-0 w-9 h-9 rounded-md text-text-muted hover:text-accent-cyan hover:bg-accent-cyan/10 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-            aria-label="Attach file"
-            title={attachments.length >= MAX_ATTACHMENTS
-              ? `Max ${MAX_ATTACHMENTS} attachments per message`
-              : 'Attach file (images / PDF / DOCX / XLSX / PPTX / CSV / TXT / MD / JSON, max 25 MB each)'}
+            onclick={() => scrollToBottom(true)}
+            class="absolute left-1/2 -translate-x-1/2 bottom-4 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-accent-cyan text-bg-deep text-xs font-semibold shadow-lg hover:brightness-110 transition-all"
+            aria-label="Scroll to newest message"
+            title="Jump to bottom"
           >
             <svg
               viewBox="0 0 24 24"
-              class="w-4 h-4"
+              class="w-3.5 h-3.5"
               fill="none"
               stroke="currentColor"
               stroke-width="2.5"
               stroke-linecap="round"
               stroke-linejoin="round"
-            >
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </button>
-
-          <!-- Mic button — Web Speech API dictation. Pulses red while
-               listening; disabled with a tooltip when the API isn't
-               present (Firefox today). Toggle: first click starts, second
-               click commits the final transcript and stops. Auto-stops
-               after 3s of silence. The listening state uses inline rgba
-               styles instead of Tailwind tokens so the colour stays in
-               sync with the v2 design vocabulary without forcing a new
-               theme entry. -->
-          <button
-            type="button"
-            onclick={toggleVoice}
-            disabled={!connection.client || !voiceSupported}
-            class="shrink-0 w-9 h-9 rounded-md transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-            class:text-text-muted={!voiceListening}
-            class:hover:text-accent-cyan={!voiceListening && voiceSupported}
-            class:text-red-400={voiceListening}
-            class:animate-pulse={voiceListening}
-            style={voiceListening ? 'background:rgba(239,68,68,0.10);' : voiceSupported ? '' : ''}
-            aria-label={voiceListening ? 'Stop dictation' : 'Start dictation'}
-            aria-pressed={voiceListening}
-            title={!voiceSupported
-              ? 'Voice input not supported in this browser'
-              : voiceListening
-                ? 'Stop dictation (click or pause for 3s)'
-                : 'Dictate (Web Speech API)'}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              class="w-4 h-4"
-              fill={voiceListening ? 'currentColor' : 'none'}
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
               aria-hidden="true"
             >
-              <rect x="9" y="3" width="6" height="11" rx="3" />
-              <path d="M5 11a7 7 0 0 0 14 0" />
-              <line x1="12" y1="18" x2="12" y2="22" />
-              <line x1="8" y1="22" x2="16" y2="22" />
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <polyline points="19 12 12 19 5 12" />
             </svg>
+            <span>New messages</span>
           </button>
+        {/if}
+      </div>
 
-          <!-- LANE B1 — voice answer toggle (R51). Speaker icon; cyan
-               when armed, muted when off. Click flips voiceAnswer.enabled;
-               persists to localStorage so the toggle survives reload. -->
-          <button
-            type="button"
-            onclick={() => voiceAnswer.toggle()}
-            disabled={!connection.client}
-            class="shrink-0 w-9 h-9 rounded-md transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-            class:text-accent-cyan={voiceAnswer.enabled}
-            class:text-text-muted={!voiceAnswer.enabled}
-            class:hover:text-accent-cyan={!voiceAnswer.enabled}
-            class:hover:bg-accent-cyan={false}
-            aria-label={voiceAnswer.enabled
-              ? 'Voice answer on — click to turn off'
-              : 'Voice answer off — click to turn on'}
-            title={voiceAnswer.enabled
-              ? 'Voice answer ON — assistant responses are spoken'
-              : 'Voice answer OFF — click to have responses spoken'}
-            aria-pressed={voiceAnswer.enabled}
-          >
-            {#if voiceAnswer.enabled}
-              <!-- Speaker icon with sound waves -->
-              <svg
-                viewBox="0 0 24 24"
-                class="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-              </svg>
-            {:else}
-              <!-- Speaker icon, muted -->
-              <svg
-                viewBox="0 0 24 24"
-                class="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                aria-hidden="true"
-              >
-                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                <line x1="23" y1="9" x2="17" y2="15" />
-                <line x1="17" y1="9" x2="23" y2="15" />
-              </svg>
+      <!-- composer -->
+      <div class="shrink-0 border-t border-border-subtle bg-bg-base/40 px-6 py-4">
+        <div
+          class="max-w-4xl mx-auto relative"
+          ondragenter={onComposerDragEnter}
+          ondragover={onComposerDragOver}
+          ondragleave={onComposerDragLeave}
+          ondrop={onComposerDrop}
+          role="presentation"
+        >
+          <!-- LANE B1 — voice-answer bar mount (TTS playback strip — R51) -->
+          {#if voiceAnswer.enabled}
+            <div class="mb-2"><VoiceAnswerBar /></div>
+          {/if}
+          <!-- LANE B4 — sub-agent task chips (R57): active + recent
+             background tasks delegated from this thread. Cmd+Shift+D
+             delegates the latest user turn. -->
+          {#if currentId}
+            {@const tasks = subAgents.forThread(currentId)}
+            {#if tasks.length > 0}
+              <div class="mb-2 flex flex-col gap-1.5">
+                {#each tasks as task (task.id)}
+                  <SubAgentChip {task} />
+                {/each}
+              </div>
             {/if}
-          </button>
+            {#if subAgents.unsupported}
+              <div class="mb-2 text-[10px] text-text-muted">
+                Sub-agent delegation needs a newer IronClaw gateway.
+              </div>
+            {/if}
+          {/if}
+          <!-- LANE B8 — skill editor mount (R65) -->
+          <SkillEditorModal />
+          <!-- LANE B9 — editable bubble swap (per-bubble live edit toggle lands here) -->
 
-          <textarea
-            bind:this={composerEl}
-            bind:value={input}
-            oninput={() => {
-              autoGrow();
-              scheduleDraftSave();
-              syncCaret();
-            }}
-            onkeyup={syncCaret}
-            onclick={syncCaret}
-            onkeydown={onKeyDown}
-            onpaste={onComposerPaste}
-            placeholder={connection.client
-              ? 'Message IronClaw…'
-              : 'Configure connection in Settings to start chatting'}
-            disabled={!connection.client}
-            rows="1"
-            class="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none resize-none leading-6 max-h-48 min-h-[24px] py-1 disabled:cursor-not-allowed"
-          ></textarea>
+          <!-- Hidden file input — triggered by the "+" button. `accept` is
+             advisory in the OS picker; we re-validate in intakeFiles(). -->
+          <input
+            bind:this={attachmentInputEl}
+            onchange={onFileInputChange}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/rtf,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/markdown,application/json,application/x-yaml,application/xml,text/html,.pdf,.doc,.docx,.rtf,.xls,.xlsx,.csv,.tsv,.ppt,.pptx,.txt,.md,.markdown,.json,.yaml,.yml,.xml,.html,.htm"
+            multiple
+            class="hidden"
+            aria-label="Attach files"
+          />
 
-          {#if isStreaming}
+          <!-- slash-command autocomplete — anchored to this wrapper so the
+             dropdown grows upward from the composer's top edge. -->
+          <SlashAutocomplete
+            bind:this={slashAutoEl}
+            anchor={composerEl}
+            value={input}
+            {caret}
+            skills={skillCatalog}
+            onPick={applySlashPick}
+          />
+
+          <!-- Attachment thumbnail strip — sits above the textarea border,
+             tucks the previews flush against the composer chrome. The strip
+             takes its own row so longer file names don't squeeze the
+             textarea. Visible only when at least one attachment is staged. -->
+          {#if attachments.length > 0}
+            <div class="flex flex-wrap gap-2 mb-2" aria-label="Pending attachments">
+              {#each attachments as a (a.id)}
+                <div
+                  class="group flex items-center gap-2 bg-bg-deep border border-border-subtle rounded-md pl-1 pr-2 py-1 hover:border-accent-cyan/50 transition-colors"
+                  title={`${a.name} · ${fmtBytes(a.size)}`}
+                >
+                  {#if isImageMime(a.mime) && a.previewUrl}
+                    <img
+                      src={a.previewUrl}
+                      alt={a.name}
+                      class="w-12 h-12 object-cover rounded shrink-0"
+                    />
+                  {:else}
+                    <!-- Non-image attachments: icon + extension tag. No
+                       thumbnail so the chip stays compact and the type is
+                       immediately readable. -->
+                    <div
+                      class="w-12 h-12 rounded shrink-0 bg-bg-base border border-border-subtle flex flex-col items-center justify-center gap-0.5"
+                      aria-hidden="true"
+                    >
+                      <Icon name="file" class="w-4 h-4 text-accent-cyan" />
+                      <span class="text-[8px] font-mono font-semibold text-text-muted leading-none">
+                        {shortType(a.mime, a.name)}
+                      </span>
+                    </div>
+                  {/if}
+                  <div class="flex flex-col min-w-0 max-w-[160px]">
+                    <span class="text-xs text-text-primary truncate">{a.name}</span>
+                    <span class="text-[10px] text-text-muted">{fmtBytes(a.size)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onclick={() => removeAttachment(a.id)}
+                    class="shrink-0 w-5 h-5 rounded text-text-muted hover:text-red-300 hover:bg-red-500/10 transition-colors flex items-center justify-center"
+                    aria-label={`Remove ${a.name}`}
+                    title="Remove"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      class="w-3 h-3"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              {/each}
+            </div>
+          {/if}
+
+          <div
+            class="flex items-end gap-2 bg-bg-deep border border-border-subtle rounded-lg px-3 py-2 focus-within:border-accent-cyan transition-colors"
+          >
+            <!-- Attach button — file picker fallback for users who don't
+               drag or paste. Sits left of the textarea so the send button
+               keeps its anchor on the right edge. -->
             <button
               type="button"
-              onclick={onStop}
-              class="shrink-0 w-9 h-9 rounded-md bg-bg-surface border border-accent-gold/50 text-accent-gold hover:bg-accent-gold/10 transition-colors flex items-center justify-center"
-              aria-label="Stop"
-              title="Stop"
-            >
-              <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor">
-                <rect x="6" y="6" width="12" height="12" rx="1.5" />
-              </svg>
-            </button>
-          {:else}
-            <button
-              type="button"
-              onclick={onSend}
-              disabled={!canSend}
-              class="shrink-0 w-9 h-9 rounded-md bg-accent-cyan text-bg-deep hover:brightness-110 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-              aria-label="Send"
-              title="Send (Enter)"
+              onclick={openFilePicker}
+              disabled={!connection.client || attachments.length >= MAX_ATTACHMENTS}
+              class="shrink-0 w-9 h-9 rounded-md text-text-muted hover:text-accent-cyan hover:bg-accent-cyan/10 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+              aria-label="Attach file"
+              title={attachments.length >= MAX_ATTACHMENTS
+                ? `Max ${MAX_ATTACHMENTS} attachments per message`
+                : 'Attach file (images / PDF / DOCX / XLSX / PPTX / CSV / TXT / MD / JSON, max 25 MB each)'}
             >
               <svg
                 viewBox="0 0 24 24"
@@ -4015,45 +3875,199 @@
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
             </button>
-          {/if}
-        </div>
 
-        <!-- Drag-over overlay. Fades in atop the composer when the user is
-             dragging files; non-interactive (pointer-events:none) so the
-             drop event still hits the wrapper underneath. -->
-        {#if dragDepth > 0}
-          <div
-            class="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-accent-cyan bg-bg-deep/80 backdrop-blur-sm transition-opacity duration-150 pointer-events-none"
-            aria-hidden="true"
-          >
-            <div class="flex flex-col items-center gap-1.5 text-accent-cyan">
+            <!-- Mic button — Web Speech API dictation. Pulses red while
+               listening; disabled with a tooltip when the API isn't
+               present (Firefox today). Toggle: first click starts, second
+               click commits the final transcript and stops. Auto-stops
+               after 3s of silence. The listening state uses inline rgba
+               styles instead of Tailwind tokens so the colour stays in
+               sync with the v2 design vocabulary without forcing a new
+               theme entry. -->
+            <button
+              type="button"
+              onclick={toggleVoice}
+              disabled={!connection.client || !voiceSupported}
+              class="shrink-0 w-9 h-9 rounded-md transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+              class:text-text-muted={!voiceListening}
+              class:hover:text-accent-cyan={!voiceListening && voiceSupported}
+              class:text-red-400={voiceListening}
+              class:animate-pulse={voiceListening}
+              style={voiceListening ? 'background:rgba(239,68,68,0.10);' : voiceSupported ? '' : ''}
+              aria-label={voiceListening ? 'Stop dictation' : 'Start dictation'}
+              aria-pressed={voiceListening}
+              title={!voiceSupported
+                ? 'Voice input not supported in this browser'
+                : voiceListening
+                  ? 'Stop dictation (click or pause for 3s)'
+                  : 'Dictate (Web Speech API)'}
+            >
               <svg
                 viewBox="0 0 24 24"
-                class="w-6 h-6"
-                fill="none"
+                class="w-4 h-4"
+                fill={voiceListening ? 'currentColor' : 'none'}
                 stroke="currentColor"
                 stroke-width="2"
                 stroke-linecap="round"
                 stroke-linejoin="round"
+                aria-hidden="true"
               >
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="17 8 12 3 7 8" />
-                <line x1="12" y1="3" x2="12" y2="15" />
+                <rect x="9" y="3" width="6" height="11" rx="3" />
+                <path d="M5 11a7 7 0 0 0 14 0" />
+                <line x1="12" y1="18" x2="12" y2="22" />
+                <line x1="8" y1="22" x2="16" y2="22" />
               </svg>
-              <span class="text-sm font-semibold">Drop files here</span>
-              <span class="text-[11px] text-text-muted"
-                >Images only · up to {MAX_ATTACHMENTS} · 5 MB each</span
+            </button>
+
+            <!-- LANE B1 — voice answer toggle (R51). Speaker icon; cyan
+               when armed, muted when off. Click flips voiceAnswer.enabled;
+               persists to localStorage so the toggle survives reload. -->
+            <button
+              type="button"
+              onclick={() => voiceAnswer.toggle()}
+              disabled={!connection.client}
+              class="shrink-0 w-9 h-9 rounded-md transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+              class:text-accent-cyan={voiceAnswer.enabled}
+              class:text-text-muted={!voiceAnswer.enabled}
+              class:hover:text-accent-cyan={!voiceAnswer.enabled}
+              class:hover:bg-accent-cyan={false}
+              aria-label={voiceAnswer.enabled
+                ? 'Voice answer on — click to turn off'
+                : 'Voice answer off — click to turn on'}
+              title={voiceAnswer.enabled
+                ? 'Voice answer ON — assistant responses are spoken'
+                : 'Voice answer OFF — click to have responses spoken'}
+              aria-pressed={voiceAnswer.enabled}
+            >
+              {#if voiceAnswer.enabled}
+                <!-- Speaker icon with sound waves -->
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+                </svg>
+              {:else}
+                <!-- Speaker icon, muted -->
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                  <line x1="23" y1="9" x2="17" y2="15" />
+                  <line x1="17" y1="9" x2="23" y2="15" />
+                </svg>
+              {/if}
+            </button>
+
+            <textarea
+              bind:this={composerEl}
+              bind:value={input}
+              oninput={() => {
+                autoGrow();
+                scheduleDraftSave();
+                syncCaret();
+              }}
+              onkeyup={syncCaret}
+              onclick={syncCaret}
+              onkeydown={onKeyDown}
+              onpaste={onComposerPaste}
+              placeholder={connection.client
+                ? 'Message IronClaw…'
+                : 'Configure connection in Settings to start chatting'}
+              disabled={!connection.client}
+              rows="1"
+              class="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none resize-none leading-6 max-h-48 min-h-[24px] py-1 disabled:cursor-not-allowed"
+            ></textarea>
+
+            {#if isStreaming}
+              <button
+                type="button"
+                onclick={onStop}
+                class="shrink-0 w-9 h-9 rounded-md bg-bg-surface border border-accent-gold/50 text-accent-gold hover:bg-accent-gold/10 transition-colors flex items-center justify-center"
+                aria-label="Stop"
+                title="Stop"
               >
-            </div>
+                <svg viewBox="0 0 24 24" class="w-4 h-4" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12" rx="1.5" />
+                </svg>
+              </button>
+            {:else}
+              <button
+                type="button"
+                onclick={onSend}
+                disabled={!canSend}
+                class="shrink-0 w-9 h-9 rounded-md bg-accent-cyan text-bg-deep hover:brightness-110 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                aria-label="Send"
+                title="Send (Enter)"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            {/if}
           </div>
-        {/if}
+
+          <!-- Drag-over overlay. Fades in atop the composer when the user is
+             dragging files; non-interactive (pointer-events:none) so the
+             drop event still hits the wrapper underneath. -->
+          {#if dragDepth > 0}
+            <div
+              class="absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-accent-cyan bg-bg-deep/80 backdrop-blur-sm transition-opacity duration-150 pointer-events-none"
+              aria-hidden="true"
+            >
+              <div class="flex flex-col items-center gap-1.5 text-accent-cyan">
+                <svg
+                  viewBox="0 0 24 24"
+                  class="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                <span class="text-sm font-semibold">Drop files here</span>
+                <span class="text-[11px] text-text-muted"
+                  >Images only · up to {MAX_ATTACHMENTS} · 5 MB each</span
+                >
+              </div>
+            </div>
+          {/if}
+        </div>
       </div>
     </div>
-  </div>
+  {/if}
 
   <!-- ====================== Right: tool-flow visualizer ==================
        Always-on rail (hidden below Tailwind's xl breakpoint, 1280px) that
