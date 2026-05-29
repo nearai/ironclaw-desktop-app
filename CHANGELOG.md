@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.13 — Stale-stream regression test (2026-05-28)
+
+- **Test coverage**: a deterministic regression test for the R106 P1 fix —
+  once a Chief-of-Staff brief run is aborted (panel closed, or a newer run
+  starts), a stale stream must stop writing rather than clobber the panel.
+  Uses a gated async generator so the abort lands mid-stream deterministically.
+  +1 test; locks in the in-flight abort guard shared by Brief/Triage/Draft.
+
 ## v0.4.12 — Polling unified (2026-05-28)
 
 - **Simplification (audit R200 P1, complete)**: migrated the last poll

@@ -105,4 +105,41 @@ describe('briefing store', () => {
     expect(briefing.open).toBe(false);
     expect(briefing.loading).toBe(false);
   });
+
+  // Locks in the R106 P1 fix: once a run is aborted (close, or a newer run),
+  // a stale stream must stop writing instead of clobbering the panel.
+  it('a stale stream stops writing after close() aborts it', async () => {
+    let firstYielded!: () => void;
+    const firstSeen = new Promise<void>((r) => {
+      firstYielded = r;
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const client: BriefingClient = {
+      async *streamResponse() {
+        yield { type: 'content_delta', delta: 'first' };
+        // By the time the consumer pulls the next value, it has already
+        // processed 'first' — signal the test so it can abort deterministically.
+        firstYielded();
+        await gate;
+        yield { type: 'content_delta', delta: 'SECOND-should-not-land' };
+        yield { type: 'message_end', finish_reason: 'stop' };
+      }
+    };
+
+    const run = briefing.generate({ threads: [], openLoops: [] }, client);
+    await firstSeen;
+    expect(briefing.brief).toBe('first');
+    // Abort mid-stream, then let the generator emit its second delta.
+    briefing.close();
+    release();
+    await run;
+
+    // The post-abort delta must not have overwritten the panel.
+    expect(briefing.brief).toBe('first');
+    expect(briefing.open).toBe(false);
+    expect(briefing.loading).toBe(false);
+  });
 });
