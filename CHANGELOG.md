@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.3 — Draft to send (2026-05-28)
+
+- **Draft a reply** (R105): a send-icon button in the chat header (also
+  `/draft [instruction]`) has the Chief of Staff write a finished reply in
+  your voice, grounded in the active thread. Type what it should say or
+  leave it blank to infer; the draft streams into a panel with an editable
+  instruction, Regenerate, and Copy. Read-only — nothing is posted into the
+  thread; you copy what you want. The natural follow-through for triage's
+  "Can handle" bucket. Prompt assembler (`src/lib/util/draft.ts`) is a tested
+  pure util: caps the transcript to the most recent N, returns only the draft
+  body, notes assumptions, asks when there's nothing to go on; never throws.
+
 ## v0.4.2 — Triage + Today (2026-05-28)
 
 The Chief of Staff gets two more proactive moves and a home on the Today

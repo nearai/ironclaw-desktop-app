@@ -28,5 +28,13 @@ export const slashCommands: SlashCommand[] = [
     // Intercepted in the composer's onSend (opens the daily-brief panel);
     // no handler indirection needed here.
     handler: undefined
+  },
+  {
+    name: 'draft',
+    description: 'Draft a reply in your voice from this thread',
+    example: '/draft reply proposing Friday',
+    // Intercepted in the composer's onSend (opens the draft panel for the
+    // active thread); no handler indirection needed here.
+    handler: undefined
   }
 ];

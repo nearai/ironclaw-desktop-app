@@ -71,6 +71,9 @@
   // R104 — Chief of Staff thread triage ("Triage my threads").
   import TriagePanel from '$lib/components/TriagePanel.svelte';
   import { triage } from '$lib/stores/triage.svelte';
+  // R105 — Chief of Staff "draft a reply" (draft to send).
+  import DraftPanel from '$lib/components/DraftPanel.svelte';
+  import { draft } from '$lib/stores/draft.svelte';
   // LANE W3 — reply-thread panel (R80, consumes R79 store)
   import ReplyThreadPanel from '$lib/components/ReplyThreadPanel.svelte';
   import { replyThreadUI } from '$lib/stores/reply-thread-ui.svelte';
@@ -1591,6 +1594,23 @@
       }
     }
 
+    // `/draft [instruction]` — open the Chief of Staff draft panel for the
+    // active thread. The optional trailing text seeds the instruction; empty
+    // lets the CoS infer the likely reply. Needs a selected thread.
+    {
+      const draftMatch = /^\/draft\b\s*([\s\S]*)$/i.exec(content);
+      if (draftMatch) {
+        if (!currentThread) {
+          toasts.show('Open a conversation first to draft a reply.', 'info');
+          return;
+        }
+        draft.instruction = draftMatch[1].trim();
+        input = '';
+        void onDraft();
+        return;
+      }
+    }
+
     // Record slash-command usage so the autocomplete's ranking floats
     // frequently-run skills upward. We match a leading `/<token>` and
     // only record when the captured name resolves against the cached
@@ -2279,6 +2299,31 @@
       messageCount: t.message_count
     }));
     await triage.generate(triageThreads, client);
+  }
+
+  /**
+   * R105: open the draft panel and have the Chief of Staff write a reply in
+   * the user's voice, grounded in the active thread. Fetches the full
+   * history, maps it to the draft transcript, and runs a one-off completion
+   * under the CoS persona using the (possibly edited) `draft.instruction`.
+   * Read-only — the draft is shown for copy; nothing is posted. Also the
+   * panel's "Regenerate" handler (re-fetches + re-runs with the same thread).
+   */
+  async function onDraft(): Promise<void> {
+    if (!connection.client || !currentThread) return;
+    const client = connection.client;
+    const thread = currentThread;
+    draft.threadLabel = thread.title || 'this thread';
+    draft.open = true;
+    draft.loading = true;
+    try {
+      const all = await client.getHistory(thread.id, 10000);
+      const transcript = all.map((m) => ({ role: m.role, content: m.content }));
+      await draft.generate(transcript, client);
+    } catch (err) {
+      draft.error = (err as Error).message;
+      draft.loading = false;
+    }
   }
 
   // Outside-click + Esc handling for the export popover. We bind on the
@@ -3240,6 +3285,23 @@
         <Icon name="list" class="w-4 h-4" />
       </button>
 
+      <!-- Draft a reply (R105): the Chief of Staff writes a ready-to-send
+           draft in the user's voice, grounded in this thread. Read-only —
+           the draft is shown for copy; nothing is posted. Needs an active
+           thread (like recap). -->
+      <button
+        type="button"
+        onclick={onDraft}
+        disabled={!canExport}
+        class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-label="Draft a reply"
+        title={canExport
+          ? 'Draft a reply in your voice from this conversation'
+          : 'Connect and select a conversation to draft a reply'}
+      >
+        <Icon name="send" class="w-4 h-4" />
+      </button>
+
       <!-- Thread recap (R89): a non-destructive summary of the conversation
            shown in a dismissable panel. Never edits the transcript. -->
       <button
@@ -4195,6 +4257,10 @@
 
 <!-- R104: Chief of Staff thread triage. Regenerate re-runs onTriage. -->
 <TriagePanel onRegenerate={onTriage} />
+
+<!-- R105: Chief of Staff draft-to-send. Regenerate re-runs onDraft with the
+     same thread + the (edited) instruction. -->
+<DraftPanel onRegenerate={onDraft} />
 
 <!-- Council overlay — multi-model fanout, summoned via /council (self-gates) -->
 <CouncilPanel />
