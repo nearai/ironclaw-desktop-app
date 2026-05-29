@@ -8,6 +8,7 @@
   import { notifications } from '$lib/stores/notifications.svelte';
   import { pins } from '$lib/stores/pins.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
+  import { createPollingRefresh } from '$lib/util/polling';
   import { relativeTime } from './time';
 
   const POLL_INTERVAL_MS = 30_000;
@@ -44,7 +45,7 @@
   /** IDs currently being triggered, so we can disable the play button. */
   let triggeringIds = $state<Set<string>>(new Set());
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let routinesPoll: ReturnType<typeof createPollingRefresh> | null = null;
 
   // Search input + debounce. The input updates immediately; `debouncedQuery`
   // is what the derived filter actually consumes, lagging by 250ms.
@@ -299,9 +300,8 @@
         clearOpenParam();
       }
     })();
-    pollTimer = setInterval(() => {
-      void refresh({ silent: true });
-    }, POLL_INTERVAL_MS);
+    routinesPoll = createPollingRefresh(() => refresh({ silent: true }), POLL_INTERVAL_MS);
+    routinesPoll.start();
 
     // Surface refresh (Cmd+R): non-silent refresh so the "Refreshing…"
     // affordance on the existing button label state flips for the same
@@ -346,7 +346,7 @@
   }
 
   onDestroy(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    routinesPoll?.stop();
     if (debounceTimer) clearTimeout(debounceTimer);
     // Don't toasts.clear() here — the store is now shared across the
     // whole app via the root layout, and unmounting this page must not

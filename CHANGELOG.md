@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.10 — Shared polling helper (2026-05-28)
+
+- **Simplification + robustness (audit R200 P1)**: extracted the repeated
+  `setInterval`/`clearInterval` poll lifecycle into a tested
+  `src/lib/util/polling.ts` (`createPollingRefresh`) and migrated the Jobs +
+  Routines surfaces onto it. The helper adds **in-flight suppression** — if a
+  refresh is still pending when the next tick fires, the tick is skipped
+  instead of stacking overlapping requests on a slow gateway. +5 unit tests.
+  (Missions / engine-detail / admin-usage migrate in later passes.)
+
 ## v0.4.9 — ExtensionCard coverage (2026-05-28)
 
 - **Test coverage**: added render tests for `ExtensionCard` covering the

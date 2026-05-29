@@ -6,6 +6,7 @@
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
+  import { createPollingRefresh } from '$lib/util/polling';
   // Routines ship the same relative-time helper we want; we IMPORT (per the
   // file-scope constraint we don't modify other routes).
   import { relativeTime } from '../routines/time';
@@ -45,7 +46,7 @@
   let cancellingIds = $state<Set<string>>(new Set());
   let restartingIds = $state<Set<string>>(new Set());
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let jobsPoll: ReturnType<typeof createPollingRefresh> | null = null;
 
   // Search input + debounce.
   let searchInput = $state(DEFAULT_PREFS.search);
@@ -193,14 +194,15 @@
         clearOpenParam();
       }
     })();
-    pollTimer = setInterval(() => {
+    jobsPoll = createPollingRefresh(() => {
       // Don't refresh the list while the detail panel is open — the panel
       // drives its own SSE-poll for events, and reordering rows under an
       // open panel is jarring. Polling resumes when the panel closes.
       // (Per the brief.)
       if (selectedId !== null) return;
-      void refresh({ silent: true });
+      return refresh({ silent: true });
     }, POLL_INTERVAL_MS);
+    jobsPoll.start();
 
     // Surface refresh (Cmd+R): visible refresh of the job list. Unlike
     // the poll, this fires even with a detail panel open — the user
@@ -239,7 +241,7 @@
   }
 
   onDestroy(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    jobsPoll?.stop();
     if (debounceTimer) clearTimeout(debounceTimer);
     surfaceRefresh.unregister();
   });
