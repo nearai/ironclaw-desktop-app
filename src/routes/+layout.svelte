@@ -27,6 +27,9 @@
   import { windowFocus } from '$lib/stores/window-focus.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import { threads } from '$lib/stores/threads.svelte';
+  import { perThreadPrompts } from '$lib/stores/per-thread-prompts.svelte';
+  import { PERSONAS } from '$lib/data/personas';
   import { aboutStore } from '$lib/stores/about.svelte';
   import { broadcast } from '$lib/stores/broadcast.svelte';
   import { pins } from '$lib/stores/pins.svelte';
@@ -469,6 +472,33 @@
         keywords: cmd.keywords,
         subtitle: cmd.path,
         action: () => goto(cmd.path)
+      });
+    }
+
+    // Persona quick-starts — "Start thread as Chief of Staff" (+ other
+    // built-in personas). Creates a fresh thread, applies the persona's
+    // system prompt as a per-thread override (R43), then opens it. The
+    // personas are in-repo + fully readable (src/lib/data/personas.ts).
+    for (const persona of PERSONAS) {
+      omnibar.registerCommand({
+        id: `persona:${persona.id}`,
+        title: `Start thread as ${persona.name}`,
+        keywords: ['persona', 'mode', persona.id, 'chief', 'staff', 'assistant'],
+        subtitle: persona.blurb,
+        action: async () => {
+          if (!connection.client) {
+            toasts.show('Connect to IronClaw first.', 'error');
+            return;
+          }
+          const threadId = await threads.createThread(`${persona.name} session`);
+          if (!threadId) {
+            toasts.show('Could not create a thread.', 'error');
+            return;
+          }
+          perThreadPrompts.set(threadId, persona.systemPrompt);
+          await goto(`/?thread=${encodeURIComponent(threadId)}`);
+          toasts.show(`New thread running as ${persona.name}.`, 'success');
+        }
       });
     }
 
