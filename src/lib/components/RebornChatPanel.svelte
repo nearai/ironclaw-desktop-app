@@ -17,6 +17,7 @@
   import { rebornThreads, RebornThreadStore } from '$lib/stores/reborn-threads.svelte';
   import type { ThreadSummary } from '$lib/api/reborn';
   import { relativeTime } from '$lib/util/format-time';
+  import { groupThreadsByRecency } from '$lib/util/thread-groups';
 
   interface Props {
     /** Injectable for tests; default to the app-wide singletons. */
@@ -59,6 +60,7 @@
 
   // Thread rail state.
   const threadList = $derived(threads.threads);
+  const threadGroups = $derived(groupThreadsByRecency(threadList));
   const activeThreadId = $derived(threads.currentId);
   const isLoading = $derived(threads.isLoading);
 
@@ -97,7 +99,7 @@
   // Keep the selected thread visible: when the active id changes, scroll its
   // row into view inside the rail (no-op in jsdom / when off-screen logic is
   // unavailable). Runs after the DOM applies `.is-active`.
-  let listEl: HTMLUListElement | undefined = $state();
+  let listEl: HTMLElement | undefined = $state();
   $effect(() => {
     const id = activeThreadId;
     if (!id || !listEl) return;
@@ -191,24 +193,32 @@
     {:else if threadList.length === 0}
       <p class="reborn-rail__empty">No conversations yet.</p>
     {:else}
-      <ul class="reborn-rail__list" bind:this={listEl}>
-        {#each threadList as t (t.thread_id)}
-          {@const time = rowTime(t)}
-          <li>
-            <button
-              type="button"
-              class="reborn-rail__item"
-              class:is-active={t.thread_id === activeThreadId}
-              aria-current={t.thread_id === activeThreadId ? 'true' : undefined}
-              onclick={() => selectThread(t.thread_id)}
-              title={t.title || 'Untitled conversation'}
-            >
-              <span class="reborn-rail__item-title">{t.title || 'Untitled conversation'}</span>
-              {#if time}<span class="reborn-rail__item-time">{time}</span>{/if}
-            </button>
-          </li>
+      <div class="reborn-rail__list" bind:this={listEl}>
+        {#each threadGroups as group (group.label)}
+          <div class="reborn-rail__group">
+            <div class="reborn-rail__group-head">{group.label}</div>
+            <ul class="reborn-rail__group-items">
+              {#each group.threads as t (t.thread_id)}
+                {@const time = rowTime(t)}
+                <li>
+                  <button
+                    type="button"
+                    class="reborn-rail__item"
+                    class:is-active={t.thread_id === activeThreadId}
+                    aria-current={t.thread_id === activeThreadId ? 'true' : undefined}
+                    onclick={() => selectThread(t.thread_id)}
+                    title={t.title || 'Untitled conversation'}
+                  >
+                    <span class="reborn-rail__item-title">{t.title || 'Untitled conversation'}</span
+                    >
+                    {#if time}<span class="reborn-rail__item-time">{time}</span>{/if}
+                  </button>
+                </li>
+              {/each}
+            </ul>
+          </div>
         {/each}
-      </ul>
+      </div>
     {/if}
     {#if threads.hasMore}
       <button type="button" class="reborn-rail__more" onclick={() => threads.loadMore()}>
@@ -370,12 +380,31 @@
   .reborn-rail__list {
     flex: 1 1 auto;
     overflow-y: auto;
-    list-style: none;
     margin: 0;
     padding: 0.35rem;
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
+    gap: 0.25rem;
+  }
+  .reborn-rail__group-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0.45rem 0.6rem 0.25rem;
+    background: var(--v2-rail);
+    font-size: 0.66rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--v2-text-faint);
+  }
+  .reborn-rail__group-items {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
   }
   .reborn-rail__item {
     display: flex;

@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.79 — Gorgeous UX: thread-rail date grouping (step 4a) (2026-05-29)
+
+- **Thread rail recency grouping (UX overhaul, step 4a)**: the v2 chat rail now
+  buckets conversations under **Today / Yesterday / Previous 7 days / Older**
+  headers (off `updated_at`, falling back to `created_at`; no-timestamp →
+  Older), the conventional conversation-list grouping that makes a long history
+  scannable. Headers are sticky within the scrolling rail (small, faint,
+  uppercase on `--v2-rail`) so the active bucket label stays visible. The
+  bucketing is a pure, `now`-injectable helper (`$lib/util/thread-groups`) — +4
+  unit tests for it, plus a rail render assertion for the group header (941
+  total). _Next (step 4b): rail keyboard nav (↑/↓ + Enter)._
+
 ## v0.4.78 — Gorgeous UX: scroll-pin + "Jump to latest" (step 3 complete) (2026-05-29)
 
 - **Chat conversation polish (UX overhaul, step 3d — finishes step 3)**: the v2

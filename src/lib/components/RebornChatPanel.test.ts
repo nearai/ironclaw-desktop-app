@@ -167,6 +167,8 @@ describe('RebornChatPanel', () => {
       props: { controller: controllerWith({}), threads }
     });
     expect(getByText('Quarterly review')).toBeTruthy();
+    // No timestamp → bucketed under the "Older" recency group header.
+    expect(getByText('Older')).toBeTruthy();
     await fireEvent.click(getByText('Quarterly review'));
     expect(threads.currentId).toBe('t1');
     await fireEvent.click(getByText('New chat'));
