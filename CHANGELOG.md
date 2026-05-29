@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.29 — Replay-UI store coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `replay-ui.svelte.ts` (R58 — time-travel replay bar visibility). +7 tests
+  lock the per-thread open flags (`isOpenFor` null-safe, `open`/`close`/`toggle`
+  tracked independently across threads) and the persisted speed preference
+  (`readSpeed` defaults to 1 on missing input and round-trips a positive value,
+  falling back to 1 for invalid / zero / negative stored values). No production
+  code changed.
+
 ## v0.4.28 — Sign-in state-machine coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
