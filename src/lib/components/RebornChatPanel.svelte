@@ -208,10 +208,10 @@
 
       {#if isProcessing}
         <div
-          class="reborn-msg reborn-msg--assistant reborn-typing"
+          class="reborn-msg reborn-msg--assistant reborn-streaming"
           aria-label="Assistant is responding"
         >
-          <span></span><span></span><span></span>
+          <span class="reborn-caret"></span>
         </div>
       {/if}
     </div>
@@ -386,10 +386,11 @@
   .reborn-chat__scroll {
     flex: 1 1 auto;
     overflow-y: auto;
-    padding: 1rem 1.25rem;
+    padding: 1.25rem 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    /* ~24px between turns — elite agentic-chat rhythm (rows breathe). */
+    gap: 1.5rem;
   }
   .reborn-chat__empty {
     margin: auto;
@@ -412,9 +413,13 @@
     word-break: break-word;
   }
   .reborn-msg--user {
+    /* Subtle right-aligned bubble — the accent is reserved for interactive
+       affordances, not chat fills (one-accent discipline). */
     align-self: flex-end;
-    background: var(--v2-accent, #4ca7e6);
-    color: #fff;
+    max-width: min(80%, 32rem);
+    background: var(--v2-surface-2);
+    color: var(--v2-text-strong);
+    border: 1px solid var(--v2-border);
   }
   .reborn-msg--user.is-optimistic {
     opacity: 0.6;
@@ -423,12 +428,16 @@
     display: block;
     margin-top: 0.25rem;
     font-size: 0.75rem;
-    color: #ffd0d0;
+    color: var(--v2-danger-text);
   }
   .reborn-msg--assistant {
-    align-self: flex-start;
-    background: var(--v2-surface-2, rgba(255, 255, 255, 0.05));
-    color: var(--v2-text, #e6ebf2);
+    /* Full-width plain row (no bubble), capped to a readable ~68ch measure
+       and left-aligned — the elite agentic-chat reading rhythm. */
+    align-self: stretch;
+    max-width: 68ch;
+    padding: 0;
+    background: transparent;
+    color: var(--v2-text);
   }
   .reborn-msg--system {
     align-self: center;
@@ -457,31 +466,32 @@
   .reborn-tool__status {
     color: var(--v2-text-muted, #8a93a6);
   }
-  .reborn-typing {
-    display: inline-flex;
-    gap: 0.25rem;
+  .reborn-streaming {
+    align-self: stretch;
+    max-width: 68ch;
+    padding: 0;
+    background: transparent;
   }
-  .reborn-typing span {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--v2-text-muted, #8a93a6);
-    animation: reborn-blink 1.2s infinite ease-in-out both;
+  /* Streaming block caret — sits where the assistant's next token lands.
+     Blinks via steps() so it reads as a cursor, not a fade. The global
+     prefers-reduced-motion reset holds it steady for users who opt out. */
+  .reborn-caret {
+    display: inline-block;
+    width: 0.5rem;
+    height: 1.05em;
+    vertical-align: text-bottom;
+    background: var(--v2-accent);
+    border-radius: 1px;
+    animation: reborn-caret-blink 1s steps(1, end) infinite;
   }
-  .reborn-typing span:nth-child(2) {
-    animation-delay: 0.2s;
-  }
-  .reborn-typing span:nth-child(3) {
-    animation-delay: 0.4s;
-  }
-  @keyframes reborn-blink {
+  @keyframes reborn-caret-blink {
     0%,
-    80%,
-    100% {
-      opacity: 0.2;
-    }
-    40% {
+    50% {
       opacity: 1;
+    }
+    50.01%,
+    100% {
+      opacity: 0;
     }
   }
   .reborn-gate {

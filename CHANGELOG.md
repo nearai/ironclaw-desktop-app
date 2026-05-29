@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.75 — Gorgeous UX: chat rows + streaming caret (2026-05-29)
+
+- **Chat conversation polish (UX overhaul, step 3a)**: the v2 chat surface moves
+  from chat-bubbles to the elite agentic-chat reading rhythm. Assistant turns are
+  now **full-width plain rows** capped at a readable ~68ch measure (no bubble
+  chrome), user turns are **subtle right-aligned bubbles** on `--v2-surface-2`
+  (the accent is reserved for interactive affordances — one-accent discipline, so
+  messages no longer paint solid blue), and the turn gap opens up to ~24px so
+  turns breathe. The "assistant is responding" indicator is now a single
+  **streaming block caret** (a `steps()`-blinked cursor where the next token
+  lands) instead of three bouncing dots; it holds steady under
+  `prefers-reduced-motion`. Send-error text uses the danger token. CSS + a tiny
+  markup swap (caret), guarded by an added "streaming indicator renders" assertion
+  (934 tests). _Remaining step-3 slices: scroll-pin + "Jump to latest", collapsible
+  tool cards with status dots, keyboard-driven gate cards._
+
 ## v0.4.74 — Onboarding: Local is NEAR.AI Cloud only (drop OpenRouter) (2026-05-29)
 
 - **First-run never offers a competing inference provider**: removed the

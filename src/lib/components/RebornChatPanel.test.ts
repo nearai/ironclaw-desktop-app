@@ -90,10 +90,12 @@ describe('RebornChatPanel', () => {
   it('swaps Send for Stop while processing and routes Stop to cancel', async () => {
     const controller = controllerWith({ isProcessing: true });
     const cancel = vi.spyOn(controller, 'cancel').mockResolvedValue(undefined);
-    const { getByText, queryByText } = render(RebornChatPanel, {
+    const { getByText, queryByText, getByLabelText } = render(RebornChatPanel, {
       props: { controller, threads: freshThreads() }
     });
     expect(queryByText('Send')).toBeNull();
+    // The streaming caret row renders while a turn is in flight.
+    expect(getByLabelText('Assistant is responding')).toBeTruthy();
     await fireEvent.click(getByText('Stop'));
     expect(cancel).toHaveBeenCalled();
   });
