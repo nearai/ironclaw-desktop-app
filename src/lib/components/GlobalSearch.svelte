@@ -32,7 +32,7 @@
   import { globalSearch } from '$lib/stores/global-search.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import type { MemoryHit, Thread, Job, Skill, Routine, Extension } from '$lib/api/types';
-  import { highlight } from '$lib/util/highlight';
+  import { highlight, type Segment } from '$lib/util/highlight';
 
   // -- types ----------------------------------------------------------------
 
@@ -78,6 +78,21 @@
     /** Where to send the user on "Show all" — the surface's list page with
      *  a best-effort filter param (each surface accepts a different one). */
     showAllHref: string;
+  }
+
+  /** A row with its highlight segments precomputed against the active query
+   *  (R200 P2). The template renders these instead of calling `highlight()`
+   *  inline, so the segments are computed once per query — when the row set
+   *  is rebuilt — rather than on every render (each arrow-key move used to
+   *  re-highlight all three lines of every visible row). */
+  interface RowView extends ResultRow {
+    labelSegs: Segment[];
+    subtitleSegs: Segment[];
+    snippetSegs: Segment[];
+  }
+
+  interface GroupView extends Omit<Group, 'rows'> {
+    rows: RowView[];
   }
 
   // -- caches ---------------------------------------------------------------
@@ -623,6 +638,24 @@
     activeFilter === 'All' ? allGroups : allGroups.filter((g) => g.surface === activeFilter)
   );
 
+  /** `groups` with highlight segments precomputed against the current query
+   *  (R200 P2). Recomputes only when the rows or the query change — not on
+   *  every render — so the hot list path (arrow-key nav, hover) no longer
+   *  re-runs `highlight()` three times per visible row. IDs and ordering are
+   *  preserved, so `flatIndexById` (built off `groups`) still lines up. */
+  const decoratedGroups = $derived.by<GroupView[]>(() => {
+    const q = debounced.trim();
+    return groups.map((g) => ({
+      ...g,
+      rows: g.rows.map((r) => ({
+        ...r,
+        labelSegs: highlight(r.label, q),
+        subtitleSegs: highlight(r.subtitle, q),
+        snippetSegs: highlight(r.snippet, q)
+      }))
+    }));
+  });
+
   /** Per-surface counts used to badge the filter pills. Derived from the
    *  same `Group.total` the section headers use, so the badge and the
    *  "Show all" affordance always agree. */
@@ -1023,7 +1056,7 @@
             No matches for <span class="text-text-primary">{query}</span>
           </div>
         {:else}
-          {#each groups as group (group.surface)}
+          {#each decoratedGroups as group (group.surface)}
             {#if shouldRenderGroup(group)}
               <div class="mb-2">
                 <!-- Section header. Suppressed when a single-surface filter
@@ -1172,7 +1205,7 @@
                           class:text-text-primary={active}
                           class:text-text-muted={!active}
                         >
-                          {#each highlight(row.label, debounced.trim()) as seg, i (i)}
+                          {#each row.labelSegs as seg, i (i)}
                             {#if seg.hit}
                               <mark class="bg-accent-gold/20 text-accent-gold rounded-sm px-0.5">
                                 {seg.text}
@@ -1184,7 +1217,7 @@
                         </span>
                         {#if row.subtitle}
                           <span class="text-xs text-text-muted/70 truncate block">
-                            {#each highlight(row.subtitle, debounced.trim()) as seg, i (i)}
+                            {#each row.subtitleSegs as seg, i (i)}
                               {#if seg.hit}
                                 <mark class="bg-accent-gold/20 text-accent-gold rounded-sm px-0.5">
                                   {seg.text}
@@ -1199,7 +1232,7 @@
                           <!-- Knowledge hits render a short snippet preview;
                                other surfaces don't set this field. -->
                           <span class="text-xs text-text-muted/60 block mt-0.5 line-clamp-2">
-                            {#each highlight(row.snippet, debounced.trim()) as seg, i (i)}
+                            {#each row.snippetSegs as seg, i (i)}
                               {#if seg.hit}
                                 <mark class="bg-accent-gold/20 text-accent-gold rounded-sm px-0.5">
                                   {seg.text}

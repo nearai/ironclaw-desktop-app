@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.18 — GlobalSearch highlight precompute (2026-05-29)
+
+- **Performance (audit R200 P2)**: GlobalSearch now precomputes its
+  substring-highlight segments once per query in a derived `decoratedGroups`
+  view, instead of calling `highlight()` three times (label + subtitle +
+  snippet) per visible row on every render. The hot list path — arrow-key
+  navigation and hover, which only change the active index — no longer
+  re-segments every row's three lines. Row IDs and ordering are preserved, so
+  keyboard-nav indices still line up; behavior-preserving (search tests pass
+  unchanged). Unblocked by the v0.4.15 `highlight` util extraction.
+
 ## v0.4.17 — RecapPanel render coverage (2026-05-29)
 
 - **Test coverage**: render smoke tests for the previously-untested
