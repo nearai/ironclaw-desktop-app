@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.43 — SkillEditorModal render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `SkillEditorModal.svelte` (R65 — inline skill editor). +14 render tests
+  driving the `skillEditor` singleton's public `$state` (open/skill/draft/
+  saving/error) and asserting its methods: self-gates closed; renders the
+  dialog with a generic "Edit skill" title or "Edit skill — &lt;name&gt;" plus
+  description when a skill is loaded; the dirty "\*" marker tracks draft-vs-
+  script; the textarea binds to `draft`; the error banner shows only when
+  `error` is set; Save disables + shows the "Saving…" spinner while `saving`;
+  Save calls `skillEditor.save()`; and Cancel / header-close / backdrop /
+  Escape all call `skillEditor.hide()`. Mocks the `Icon` child; spies the two
+  store methods. No production code changed.
+
 ## v0.4.42 — PerThreadPromptModal render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
