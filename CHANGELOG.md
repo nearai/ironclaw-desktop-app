@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.26 — Cross-window broadcast bus coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `broadcast.svelte.ts` (R17a — the `BroadcastChannel` cross-window state-sync
+  bus). +8 tests stub the global `BroadcastChannel` with a controllable fake
+  and lock the lifecycle (`init` opens one channel + is idempotent; `teardown`
+  closes it), `send` (no-op before init, stamps `senderId`, posts the wire
+  message), the unavailable-`BroadcastChannel` no-op path, and the
+  loop-prevention guards in `handle()` (self-sent and malformed messages are
+  ignored, a foreign message is handled without throwing or echoing back). No
+  production code changed.
+
 ## v0.4.25 — Sidecar log ring-buffer coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
