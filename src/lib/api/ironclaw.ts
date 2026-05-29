@@ -358,7 +358,10 @@ export class IronClawClient {
    * its buffered window of recent entries, then streams live.
    */
   async *streamLogs(signal: AbortSignal): AsyncIterable<LogEntry> {
-    const url = new URL(`${this.baseUrl}/api/logs/events`);
+    // Token-free path for any error / log surface; the live URL carries the
+    // bearer as a `?token=` param so it must never reach an HttpError or log.
+    const safeUrl = `${this.baseUrl}/api/logs/events`;
+    const url = new URL(safeUrl);
     if (this.token) url.searchParams.set('token', this.token);
 
     const maybeTauri = await loadTauriFetch();
@@ -369,7 +372,7 @@ export class IronClawClient {
       signal
     });
     if (!res.ok) {
-      throw new HttpError(res.status, url.toString(), `${res.status} ${res.statusText}`);
+      throw new HttpError(res.status, safeUrl, `${res.status} ${res.statusText}`);
     }
     if (!res.body) {
       throw new Error('logs/events: empty body');
@@ -540,22 +543,25 @@ export class IronClawClient {
    * already, and the gateway doesn't drop connections in practice.
    */
   async *streamEvents(threadId: string, signal: AbortSignal): AsyncIterable<ChatEvent> {
+    // Token-free path for any error / log surface; the live URL carries the
+    // bearer as a `?token=` param so it must never reach an HttpError or log.
+    const safeUrl = `${this.baseUrl}/api/chat/events${
+      threadId ? `?thread_id=${encodeURIComponent(threadId)}` : ''
+    }`;
     const url = new URL(`${this.baseUrl}/api/chat/events`);
     if (threadId) url.searchParams.set('thread_id', threadId);
     if (this.token) url.searchParams.set('token', this.token);
 
     const maybeTauri = await loadTauriFetch();
     const fetchImpl = maybeTauri ?? fetch;
-    await diag(
-      `streamEvents GET ${url.toString().replace(/token=[^&]*/, 'token=REDACTED')} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`
-    );
+    await diag(`streamEvents GET ${safeUrl} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`);
     const res = await fetchImpl(url.toString(), {
       method: 'GET',
       headers: { Accept: 'text/event-stream' },
       signal
     });
     if (!res.ok) {
-      throw new HttpError(res.status, url.toString(), `${res.status} ${res.statusText}`);
+      throw new HttpError(res.status, safeUrl, `${res.status} ${res.statusText}`);
     }
     if (!res.body) {
       throw new Error('chat/events: empty body');

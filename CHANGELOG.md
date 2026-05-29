@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.73 — Security: SSE error URLs never leak the bearer token (2026-05-29)
+
+- **Token-leak fix (Codex audit P0)**: the legacy SSE stream methods
+  (`streamEvents`, `streamLogs`) carry the bearer as a `?token=` query param on
+  the live request (EventSource-style auth), but on a non-OK open they threw an
+  `HttpError` whose `.url` was the raw `url.toString()` — so the token could land
+  in error toasts, logs, and crash reports. Both now throw with a token-free
+  `safeUrl` (path + non-secret context only), mirroring the WebChat v2 stream
+  path that already did this; the `streamEvents` diag log uses the same safe URL
+  instead of a regex scrub. No wire-behavior change — the live request still
+  carries the token. New `ironclaw-stream-redaction.test.ts` opens each stream
+  against a stubbed 401/403 and asserts the thrown URL keeps the path but drops
+  the token. +2 tests (934 total). _First of the autonomous P0 security pass._
+
 ## v0.4.72 — Onboarding collapsed to one Local-vs-Hosted screen (2026-05-29)
 
 - **First-run is now sign-in-simple**: the three-step wizard (mode → credentials
