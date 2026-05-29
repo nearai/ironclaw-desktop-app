@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.57 — Reborn v2 chat panel component (2026-05-29)
+
+- **Reborn migration (step 6 — chat UI)**: new `RebornChatPanel.svelte` — a
+  self-contained WebChat v2 chat surface, deliberately isolated from the large
+  v1 chat body in `+page.svelte`. It mounts the `RebornChatController` (binding
+  to a `threadId` prop: reset + `loadTimeline` + `openStream` on switch, teardown
+  on destroy), renders the projection message stream (user / assistant via
+  `MarkdownView` / system / tool-activity / error bubbles + a typing indicator),
+  shows an approval gate banner (Approve/Deny → `resolveGate`), and provides a
+  composer with Enter-to-send and a Stop button that cancels the active run.
+  The controller is injectable (defaults to the singleton) for testability.
+  +5 render tests in `RebornChatPanel.test.ts` (904 total). Additive — the chat
+  route doesn't mount it yet (next step flips the chat to v2).
+
 ## v0.4.56 — Reborn migration: codex review fixes (2026-05-29)
 
 - **Reborn migration (step 5 — codex review fixes)**: an independent codex
