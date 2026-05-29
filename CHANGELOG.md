@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.17 — RecapPanel render coverage (2026-05-29)
+
+- **Test coverage**: render smoke tests for the previously-untested
+  `RecapPanel.svelte` (R89 thread recap). +8 tests lock the three body states
+  (summarizing / error / summary), the R92 stats strip (message count, token
+  estimate, and the time-span that's hidden when `spanMs` is 0), the
+  no-stats path, and that the close button dismisses the panel. Mirrors the
+  BriefingPanel/Triage/Draft/ExtensionCard render-test pattern; no production
+  code changed.
+
 ## v0.4.16 — Extracted + tested command-palette scorer (2026-05-29)
 
 - **Simplification + coverage (audit R200 P2)**: extracted CommandPalette's
