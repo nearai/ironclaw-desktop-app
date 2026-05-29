@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.34 — VoiceAnswerBar render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `VoiceAnswerBar.svelte` (R51 — voice-answer status bar). +6 render tests:
+  self-gates to nothing when disabled; when enabled shows the idle "Voice
+  answer on" label with Stop + turn-off controls and `aria-live="polite"`;
+  shows "Speaking…" while speaking; surfaces an error chip with the message as
+  its title; Stop calls `voiceAnswer.stop()` and turn-off calls
+  `voiceAnswer.setEnabled(false)`. Drives the real `voiceAnswer` singleton's
+  fields and spies its methods. No production code changed.
+
 ## v0.4.33 — ModelPresenceStrip render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
