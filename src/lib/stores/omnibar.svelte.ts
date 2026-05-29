@@ -19,6 +19,7 @@
 //     navigable actions without taking a dep on the omnibar component.
 
 import type { IronClawClient } from '$lib/api/ironclaw';
+import type { Skill } from '$lib/api/types';
 import { fuzzyMatch } from '$lib/util/fuzzy';
 import { getMessages, listCachedThreadIds } from '$lib/util/idb-cache';
 import { searchCachedMessages, type SearchableMessage } from '$lib/util/message-search';
@@ -344,6 +345,24 @@ async function fetchMemoryHits(
   }
 }
 
+// Session-scoped skills cache. The omnibar called `client.listSkills()` on
+// every debounced query (≥2 chars) — a full network round-trip per
+// keystroke-batch even though the catalog rarely changes mid-session (audit
+// R200 P1). Cache it with a short TTL and search the cached list locally;
+// a freshly installed skill still appears within the TTL window.
+const SKILLS_CACHE_TTL_MS = 60_000;
+let skillsCache: { at: number; skills: Skill[] } | null = null;
+
+async function loadSkillsCached(client: IronClawClient): Promise<Skill[]> {
+  const now = Date.now();
+  if (skillsCache && now - skillsCache.at < SKILLS_CACHE_TTL_MS) {
+    return skillsCache.skills;
+  }
+  const skills = await client.listSkills();
+  skillsCache = { at: now, skills };
+  return skills;
+}
+
 async function fetchSkillHits(
   client: IronClawClient,
   q: string,
@@ -351,7 +370,7 @@ async function fetchSkillHits(
 ): Promise<OmniResult[]> {
   if (signal.aborted) return [];
   try {
-    const skills = await client.listSkills();
+    const skills = await loadSkillsCached(client);
     if (signal.aborted) return [];
     return skills
       .map((s) => ({

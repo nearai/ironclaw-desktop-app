@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.7 — Omnibar skills cache (2026-05-28)
+
+- **Perf (audit R200 P1)**: the omnibar (Cmd+Space) called `listSkills()` over
+  the network on every debounced query ≥2 chars — a full round-trip per
+  keystroke-batch. Now cached session-scoped with a 60s TTL and searched
+  locally; a freshly installed skill still appears within the window. Identical
+  results, far fewer requests on the hot search path.
+
 ## v0.4.6 — Audit pass (2026-05-28)
 
 Independent Codex audit of the whole app (`docs/AUDIT-perf.md`) — a
