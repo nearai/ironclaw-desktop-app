@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.59 — Settings: API-version selector + live-verified v2 round-trip (2026-05-29)
+
+- **Reborn migration (step 8 — Settings control)**: added an "API version" card
+  to `/settings` (per active profile) with Reborn WebChat v2 (default) vs legacy
+  v1 radios, wired through the existing `patchActiveProfile`. This is how a
+  profile is pointed at a Reborn server (set v2 + a base URL like
+  `http://127.0.0.1:3000` + token) or opted back to v1 — no more hand-editing
+  `settings.json`. The card clarifies that the other surfaces (Skills/Logs/
+  Knowledge/Routines) always use v1.
+- **Live-verified** the full v2 round-trip against a local `ironclaw_reborn_cli`
+  server: createThread → sendMessage → projection lifecycle
+  (`queued`→`running`→`completed`, lowercase as the reducer expects) → terminal
+  success → timeline refetch → assistant reply rendered. Confirmed the SSE wire
+  shape (named `event:` line + frame-body `data:`) matches the v0.4.56 decode
+  fix.
+
 ## v0.4.58 — Reborn v2 is now the default chat path (2026-05-29)
 
 - **Reborn migration (step 7 — the switch)**: the chat surface now defaults to

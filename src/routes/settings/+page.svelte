@@ -2042,6 +2042,55 @@
         </div>
       </div>
 
+      <!-- API version (Reborn WebChat v2 vs legacy v1 gateway) -->
+      <div
+        data-section-id="api-version"
+        data-section-title="API version"
+        class="surface p-5 transition-opacity"
+        class:opacity-30={isSectionDimmed('api-version')}
+        class:ring-1={isSectionMatched('api-version')}
+        class:ring-accent-cyan={isSectionMatched('api-version')}
+      >
+        <h2 class="text-sm font-semibold text-text-primary mb-3">API version</h2>
+        <div class="space-y-2">
+          <label class="flex items-start gap-3 cursor-pointer min-h-[44px]">
+            <input
+              type="radio"
+              name="apiVersion"
+              value="v2"
+              checked={(activeProfile.apiVersion ?? 'v2') === 'v2'}
+              onchange={() => patchActiveProfile({ apiVersion: 'v2' })}
+              class="mt-1 accent-accent-cyan"
+            />
+            <div>
+              <div class="text-sm text-text-primary">IronClaw Reborn — WebChat v2 (default)</div>
+              <div class="text-xs text-text-muted">
+                Projection-driven chat against <code>/api/webchat/v2/*</code>. Point this profile's
+                base URL at a running <code>ironclaw_reborn_cli</code> server.
+              </div>
+            </div>
+          </label>
+
+          <label class="flex items-start gap-3 cursor-pointer min-h-[44px]">
+            <input
+              type="radio"
+              name="apiVersion"
+              value="v1"
+              checked={(activeProfile.apiVersion ?? 'v2') === 'v1'}
+              onchange={() => patchActiveProfile({ apiVersion: 'v1' })}
+              class="mt-1 accent-accent-cyan"
+            />
+            <div>
+              <div class="text-sm text-text-primary">Legacy v1 gateway</div>
+              <div class="text-xs text-text-muted">
+                The historical <code>/api/chat/*</code> gateway. Other surfaces (Skills, Logs, Knowledge,
+                Routines) always use v1 regardless of this setting.
+              </div>
+            </div>
+          </label>
+        </div>
+      </div>
+
       {#if activeProfile.mode === 'remote'}
         <!-- Remote: base URL + bearer -->
         <div
