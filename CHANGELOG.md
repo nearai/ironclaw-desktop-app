@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.6 — Audit pass (2026-05-28)
+
+Independent Codex audit of the whole app (`docs/AUDIT-perf.md`) — a
+prioritized P0/P1/P2 map of latency, bundle, dead-code, and simplification
+findings. The safe, behavior-preserving wins are applied now; the larger
+P0/P1 items (streaming reparses the full buffer per delta, eager layout
+overlay + MarkdownView imports, +page.svelte decomposition) are documented
+for reviewed follow-up.
+
+Applied this pass:
+
+- **Keyed `{#each}` hardening**: TableWidget (headers/rows/cells),
+  ComparisonWidget (rows), and the settings notification-sound selectors now
+  carry keys — same robustness class as the R107 registry fix.
+- **Dead code**: dropped a no-op `onMount` + unused import from
+  CommandPalette.
+
 ## v0.4.5 — Extensions: fix Registry + clearer setup (2026-05-28)
 
 Dogfooding the Extensions surface against a live gateway surfaced two real
