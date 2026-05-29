@@ -92,4 +92,36 @@ describe('triage store', () => {
     expect(triage.open).toBe(false);
     expect(triage.loading).toBe(false);
   });
+
+  // R106 P1 guard: an aborted (closed / superseded) run must stop writing.
+  it('a stale stream stops writing after close() aborts it', async () => {
+    let firstYielded!: () => void;
+    const firstSeen = new Promise<void>((r) => {
+      firstYielded = r;
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const client: TriageClient = {
+      async *streamResponse() {
+        yield { type: 'content_delta', delta: 'first' };
+        firstYielded();
+        await gate;
+        yield { type: 'content_delta', delta: 'SECOND-should-not-land' };
+        yield { type: 'message_end', finish_reason: 'stop' };
+      }
+    };
+
+    const run = triage.generate([], client);
+    await firstSeen;
+    expect(triage.result).toBe('first');
+    triage.close();
+    release();
+    await run;
+
+    expect(triage.result).toBe('first');
+    expect(triage.open).toBe(false);
+    expect(triage.loading).toBe(false);
+  });
 });

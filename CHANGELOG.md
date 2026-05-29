@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.14 — Guard coverage across CoS stores (2026-05-28)
+
+- **Test coverage**: mirrored the v0.4.13 deterministic stale-stream guard
+  test onto the Triage and Draft stores, so the R106 P1 abort guard is now
+  regression-locked across all three Chief-of-Staff streaming surfaces
+  (Brief, Triage, Draft). +2 tests.
+
 ## v0.4.13 — Stale-stream regression test (2026-05-28)
 
 - **Test coverage**: a deterministic regression test for the R106 P1 fix —

@@ -90,4 +90,39 @@ describe('draft store', () => {
     expect(draft.threadLabel).toBeNull();
     expect(draft.draft).toBe('');
   });
+
+  // R106 P1 guard: once close() aborts the run, a stale delta must not
+  // repopulate the (now-cleared) draft.
+  it('a stale stream stops writing after close() aborts it', async () => {
+    let firstYielded!: () => void;
+    const firstSeen = new Promise<void>((r) => {
+      firstYielded = r;
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => {
+      release = r;
+    });
+    const client: DraftClient = {
+      async *streamResponse() {
+        yield { type: 'content_delta', delta: 'first' };
+        firstYielded();
+        await gate;
+        yield { type: 'content_delta', delta: 'SECOND-should-not-land' };
+        yield { type: 'message_end', finish_reason: 'stop' };
+      }
+    };
+
+    const run = draft.generate(transcript, client);
+    await firstSeen;
+    expect(draft.draft).toBe('first');
+    draft.close(); // aborts + clears the field
+    release();
+    await run;
+
+    // The stale post-abort delta must not have repopulated the cleared draft.
+    expect(draft.draft).toBe('');
+    expect(draft.draft).not.toContain('SECOND');
+    expect(draft.open).toBe(false);
+    expect(draft.loading).toBe(false);
+  });
 });
