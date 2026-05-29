@@ -909,7 +909,11 @@
           </svg>
           <div class="text-sm text-text-primary">No routines configured yet.</div>
           <div class="text-xs text-text-muted max-w-sm">
-            Create routines via IronClaw's TUI or admin API. They'll show up here automatically.
+            Create routines with the IronClaw CLI on your server (<code class="font-mono"
+              >ironclaw routines create</code
+            >). Note: routines are scoped per user, so only those owned by this connection's account
+            appear here. Verified live 2026-05-28 against v0.29 — there is no gateway create
+            endpoint yet, so CLI-created routines under a different account won't list here.
           </div>
           <button
             type="button"
