@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.63 — The Desk: command-palette entry (increment 4) (2026-05-29)
+
+- **The Desk (increment 4 — discoverability)**: added "The Desk" → `/desk` to
+  the Cmd+K command palette's Navigate list (top entry), so the home surface is
+  reachable from the universal launcher, not just the sidebar. Small, safe,
+  backend-agnostic. 915 tests green.
+
 ## v0.4.62 — The Desk: "Open loops" commitments section (increment 3) (2026-05-29)
 
 - **The Desk (increment 3 — open loops)**: added an "Open loops" section to

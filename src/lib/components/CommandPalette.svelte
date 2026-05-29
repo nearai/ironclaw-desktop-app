@@ -296,6 +296,14 @@
   // no shortcut — it's a first-run takeover.
   const navItems: Item[] = [
     {
+      id: 'nav:/desk',
+      category: 'Navigate',
+      label: 'The Desk',
+      subtitle: '/desk',
+      icon: 'nav',
+      run: () => void goto('/desk')
+    },
+    {
       id: 'nav:/',
       category: 'Navigate',
       label: 'Chat',
