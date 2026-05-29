@@ -23,6 +23,7 @@
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
+  import { createPollingRefresh } from '$lib/util/polling';
   let MissionDetail = $state<typeof import('./MissionDetail.svelte').default | null>(null);
   let ResizeHandle = $state<typeof import('$lib/components/ResizeHandle.svelte').default | null>(
     null
@@ -70,7 +71,7 @@
   let refreshing = $state(false);
   let loadError = $state<string | null>(null);
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let missionsPoll: ReturnType<typeof createPollingRefresh> | null = null;
 
   /** The currently selected mission row (or null when the drawer is
    *  closed). We resolve from the in-memory list rather than calling
@@ -171,9 +172,8 @@
     ResizeHandle = resizeHandleModule.default;
 
     void refresh();
-    pollTimer = setInterval(() => {
-      void refresh({ silent: true });
-    }, POLL_INTERVAL_MS);
+    missionsPoll = createPollingRefresh(() => refresh({ silent: true }), POLL_INTERVAL_MS);
+    missionsPoll.start();
 
     // Hydrate the projects-rail width from localStorage. ResizeHandle
     // also pushes the value back from its own mount, but we read here
@@ -212,7 +212,7 @@
   let viewportResizeCleanup: (() => void) | null = null;
 
   onDestroy(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    missionsPoll?.stop();
     if (viewportResizeCleanup) viewportResizeCleanup();
     surfaceRefresh.unregister();
   });

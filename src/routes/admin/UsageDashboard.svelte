@@ -29,6 +29,7 @@
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import Sparkline from '$lib/components/Sparkline.svelte';
+  import { createPollingRefresh } from '$lib/util/polling';
   import type { UsageSummary, UsageEvent } from '$lib/api/types';
 
   type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
@@ -89,7 +90,7 @@
   let period = $state<Period>('month');
   let searchInput = $state('');
   let refreshing = $state(false);
-  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let usagePoll: ReturnType<typeof createPollingRefresh> | null = null;
 
   const isDisconnected = $derived(
     connection.status === 'disconnected' || connection.status === 'idle' || !connection.client
@@ -99,20 +100,18 @@
 
   onMount(() => {
     void load();
-    pollTimer = setInterval(() => {
+    usagePoll = createPollingRefresh(() => {
       // Skip silent polls while the previous one is still in flight or
       // while we're disconnected — avoids stacking failed requests.
       if (refreshing) return;
       if (isDisconnected) return;
-      void load({ silent: true });
+      return load({ silent: true });
     }, AUTO_REFRESH_MS);
+    usagePoll.start();
   });
 
   onDestroy(() => {
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
-    }
+    usagePoll?.stop();
   });
 
   // Refetch when the user picks a different period pill. We don't refetch

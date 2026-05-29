@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.11 — Polling migration cont'd (2026-05-28)
+
+- **Simplification (audit R200 P1)**: migrated the Missions and Admin
+  Usage-dashboard poll loops onto the shared `createPollingRefresh` helper
+  (v0.4.10), inheriting its in-flight suppression. Four of five poll surfaces
+  are now unified (jobs, routines, missions, admin); EngineThreadDetail has
+  restart-on-thread-change semantics and gets its own careful pass.
+
 ## v0.4.10 — Shared polling helper (2026-05-28)
 
 - **Simplification + robustness (audit R200 P1)**: extracted the repeated
