@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.45 — NewProfileModal render coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `NewProfileModal.svelte` (R4a — "+ New profile" modal). +8 render tests
+  covering the parts that don't drag connection internals: self-gates closed;
+  renders the dialog with title + description when open; "Create profile" is
+  disabled for an empty or whitespace-only name and enables once a valid name
+  is typed; and Cancel / backdrop / Escape each fire `onClose`. The
+  create-and-switch submit path (addProfile → switchProfile → goto) is left to
+  the integration layer; `$app/navigation` is mocked. No production code
+  changed. This drains the last clean small/medium untested component — the
+  remaining untested components are the large composite surfaces and the
+  telemetry-coupled `UpdaterBanner`.
+
 ## v0.4.44 — ResizeHandle behavior coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
