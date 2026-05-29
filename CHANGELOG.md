@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.4.55 — Reborn v2 chat controller (2026-05-29)
+
+- **Reborn migration (step 4 — chat controller)**: new
+  `src/lib/stores/reborn-chat.svelte.ts` — the v2 counterpart to the v1
+  `messages.svelte.ts` store, kept separate so the live v1 chat path is
+  untouched. `RebornChatController` owns the reactive `RebornChatState` and
+  drives the projection-driven flow over the `*V2` transport: `send`
+  (auto-creates a thread on first message, pushes an optimistic user bubble,
+  records the active run), `openStream` (folds SSE envelopes through
+  `reduceEvent` and refetches the timeline on terminal run success — Reborn
+  doesn't stream assistant replies), `loadTimeline`, `resolveGate`, and
+  `cancel`. The IronClaw client is injected via a constructor getter
+  (defaulting to `connection.client`) so the orchestration is unit-testable
+  without the connection store. +9 unit tests in `reborn-chat.test.ts`
+  (thread auto-create, optimistic bubble, send-failure path, terminal→refetch
+  wiring, running≠refetch, gate resolve, cancel, timeline projection).
+  Additive — no surface mounts the controller yet.
+
 ## v0.4.54 — Per-profile API-version flag (2026-05-29)
 
 - **Reborn migration (step 3 — connection gate)**: added an optional
