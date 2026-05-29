@@ -20,5 +20,13 @@ export const slashCommands: SlashCommand[] = [
     // Intercepted directly in the composer's onSend (opens the council
     // overlay); no handler indirection needed here.
     handler: undefined
+  },
+  {
+    name: 'brief',
+    description: 'Chief of Staff daily brief from recent threads + open loops',
+    example: '/brief',
+    // Intercepted in the composer's onSend (opens the daily-brief panel);
+    // no handler indirection needed here.
+    handler: undefined
   }
 ];

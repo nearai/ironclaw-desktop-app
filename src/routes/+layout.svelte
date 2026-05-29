@@ -30,6 +30,7 @@
   import { threads } from '$lib/stores/threads.svelte';
   import { perThreadPrompts } from '$lib/stores/per-thread-prompts.svelte';
   import { PERSONAS } from '$lib/data/personas';
+  import { openLoops } from '$lib/stores/open-loops.svelte';
   import { aboutStore } from '$lib/stores/about.svelte';
   import { broadcast } from '$lib/stores/broadcast.svelte';
   import { pins } from '$lib/stores/pins.svelte';
@@ -388,6 +389,10 @@
     // before the chat surface mounts so renamed thread titles render
     // immediately instead of flashing the server's title on first paint.
     threadRename.init();
+    // Open loops (tracked commitments, R100) — hydrate once so the daily
+    // brief and its inline editor see the user's saved commitments without
+    // a flash of empty state on first open.
+    openLoops.init();
     // Same shape for the workspace-presets store — hydrate once so the
     // first open of the modal (Cmd+Shift+P or palette action) sees the
     // user's saved list without a flash of empty state.
@@ -501,6 +506,24 @@
         }
       });
     }
+
+    // "Brief me" (R101) — the Chief of Staff assembles a prioritized agenda
+    // from recent threads + tracked open loops. The brief panel lives on the
+    // chat route, so navigate there with `?brief=1`; the chat page fires the
+    // generation once connected and strips the param.
+    omnibar.registerCommand({
+      id: 'brief:me',
+      title: 'Brief me',
+      keywords: ['brief', 'daily', 'agenda', 'morning', 'chief', 'staff', 'priorities', 'today'],
+      subtitle: 'Chief of Staff agenda from recent threads + open loops',
+      action: async () => {
+        if (!connection.client) {
+          toasts.show('Connect to IronClaw first.', 'error');
+          return;
+        }
+        await goto('/?brief=1');
+      }
+    });
 
     void connection.init().then(() => {
       // Last-resort escape hatch (R34d). If a previous wizard run failed

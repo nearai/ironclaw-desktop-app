@@ -1,5 +1,36 @@
 # Changelog
 
+## v0.4.0 – v0.4.1 — Chief of Staff (2026-05-28)
+
+The "enterprise chief of staff in your pocket" direction takes shape. This
+line turns the assistant into an executive operator, not just a chat box.
+
+- **Chief of Staff persona** (v0.4.0, R97): a curated, in-repo, fully
+  readable system prompt that retasks the agent into an executive operator
+  — lead with the recommendation, triage decision vs. FYI vs. self-handle,
+  draft to send, track open loops, confirm risky actions. Shipped alongside
+  a Research Analyst and an Editor persona. Start any thread under a persona
+  from the command palette ("Start thread as Chief of Staff"); the prompt is
+  applied as a per-thread override (R43). Canonical spec also lives at
+  `skills/chief-of-staff/SKILL.md` for installing the behaviour server-side.
+  All personas are authored in-repo (`src/lib/data/personas.ts`) — never
+  fetched from a third-party catalog.
+- **Open loops** (v0.4.1, R100): a local, persisted primitive for the
+  commitments you're carrying. The store is a thin, defensively-loaded list
+  in `localStorage` — no network, no thread coupling. Makes the CoS "track
+  open loops" principle real.
+- **Brief me** (v0.4.1, R99/R101): the chat header's shield button (also
+  `/brief`, the palette's "Brief me", or `?brief=1`) has the Chief of Staff
+  assemble a prioritized morning agenda from your recent threads + tracked
+  open loops. It greets by date, summarizes what's active, restates your
+  commitments, and proposes the top-3 priorities with a one-line rationale
+  each. Runs as a one-off completion under the CoS persona — read-only, like
+  Recap: it creates no thread and posts nothing into a conversation. The
+  panel hosts an inline open-loops editor and a Regenerate button. The
+  prompt assembler (`src/lib/util/briefing.ts`) is a tested pure util:
+  deterministic recency hints, unparseable timestamps sort last, and an
+  empty context still yields a valid "plan my day from scratch" brief.
+
 ## v0.3.1 – v0.3.3 — Recap + util library (2026-05-28)
 
 Post-milestone increments on the v0.3.x line:

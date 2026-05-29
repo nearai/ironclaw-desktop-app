@@ -63,6 +63,11 @@
   // Council — multi-model fanout, summoned from chat via /council
   import CouncilPanel from '$lib/components/CouncilPanel.svelte';
   import { council } from '$lib/stores/council.svelte';
+  // R101 — Chief of Staff daily brief ("Brief me"). Reads recent threads +
+  // tracked open loops, runs a one-off completion under the CoS persona.
+  import BriefingPanel from '$lib/components/BriefingPanel.svelte';
+  import { briefing } from '$lib/stores/briefing.svelte';
+  import { openLoops } from '$lib/stores/open-loops.svelte';
   // LANE W3 — reply-thread panel (R80, consumes R79 store)
   import ReplyThreadPanel from '$lib/components/ReplyThreadPanel.svelte';
   import { replyThreadUI } from '$lib/stores/reply-thread-ui.svelte';
@@ -953,6 +958,35 @@
     void goto(target, { replaceState: true, noScroll: true, keepFocus: true });
   }
 
+  /**
+   * Strip the `?brief=1` deep-link param (set by the "Brief me" palette
+   * command when triggered from another route). Same no-reload pattern.
+   */
+  function clearBriefParam() {
+    if (typeof window === 'undefined') return;
+    if (!page.url.searchParams.has('brief')) return;
+    const url = new URL(page.url);
+    url.searchParams.delete('brief');
+    const target = url.pathname + (url.search ? url.search : '') + url.hash;
+    void goto(target, { replaceState: true, noScroll: true, keepFocus: true });
+  }
+
+  // R101: honor `?brief=1`. The palette's "Brief me" action navigates here
+  // (the BriefingPanel only mounts on the chat route), then this fires once
+  // the client is ready and strips the param so a refresh won't re-trigger.
+  let briefParamFired = false;
+  $effect(() => {
+    const wants = page.url.searchParams.get('brief') === '1';
+    if (!wants) {
+      briefParamFired = false;
+      return;
+    }
+    if (briefParamFired || !connection.client) return;
+    briefParamFired = true;
+    void onBrief();
+    clearBriefParam();
+  });
+
   // -- effects ----------------------------------------------------------------
   // Whenever the selected thread changes, fetch its history if we don't have
   // it cached. (Avoid a clobber if we already have local optimistic content.)
@@ -1512,6 +1546,20 @@
       if (councilMatch) {
         council.openWith(councilMatch[1].trim());
         input = '';
+        return;
+      }
+    }
+
+    // `/brief [note]` — open the Chief of Staff daily-brief panel instead of
+    // sending a normal turn. An optional trailing note is captured as a new
+    // open loop first, so "remind me and brief me" is one gesture.
+    {
+      const briefMatch = /^\/brief\b\s*([\s\S]*)$/i.exec(content);
+      if (briefMatch) {
+        const note = briefMatch[1].trim();
+        if (note) openLoops.add(note);
+        input = '';
+        void onBrief();
         return;
       }
     }
@@ -2155,6 +2203,36 @@
       recap.error = (err as Error).message;
       recap.loading = false;
     }
+  }
+
+  /**
+   * R101: open the daily-brief panel and have the Chief of Staff persona
+   * assemble a prioritized morning agenda. Sources the recent threads from
+   * the already-loaded thread list (most-recently-updated first) and the
+   * tracked commitments from the open-loops store, then runs a one-off
+   * completion under the CoS persona. Read-only — creates no thread and
+   * sends nothing into any conversation. Available whenever connected,
+   * independent of whether a thread is currently selected.
+   *
+   * Also serves as the panel's "Regenerate" handler: re-gathers the current
+   * threads + (possibly edited) open loops and re-runs the brief.
+   */
+  async function onBrief(): Promise<void> {
+    if (!connection.client) return;
+    const client = connection.client;
+    // Hydrate commitments defensively — the layout inits this on mount, but
+    // a direct deep-link into chat could reach here first.
+    openLoops.init();
+    const briefingThreads = threads.sorted.map((t) => ({
+      id: t.id,
+      title: t.title,
+      updatedAt: t.updated_at,
+      messageCount: t.message_count
+    }));
+    await briefing.generate(
+      { threads: briefingThreads, openLoops: openLoops.activeTexts() },
+      client
+    );
   }
 
   // Outside-click + Esc handling for the export popover. We bind on the
@@ -3082,6 +3160,22 @@
             d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
           />
         </svg>
+      </button>
+
+      <!-- Daily brief (R101): the Chief of Staff assembles a prioritized
+           agenda from recent threads + tracked open loops. Read-only;
+           available whenever connected (no active thread needed). -->
+      <button
+        type="button"
+        onclick={onBrief}
+        disabled={!connection.client}
+        class="p-1.5 ml-1 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-label="Brief me"
+        title={connection.client
+          ? 'Brief me: a Chief of Staff agenda from your recent threads + open loops'
+          : 'Connect to generate a daily brief'}
+      >
+        <Icon name="shield" class="w-4 h-4" />
       </button>
 
       <!-- Thread recap (R89): a non-destructive summary of the conversation
@@ -4032,6 +4126,10 @@
 
 <!-- R89: thread recap overlay (self-gates on recap.open) -->
 <RecapPanel />
+
+<!-- R101: Chief of Staff daily brief. Regenerate re-runs onBrief with the
+     current threads + (possibly edited) open loops. -->
+<BriefingPanel onRegenerate={onBrief} />
 
 <!-- Council overlay — multi-model fanout, summoned via /council (self-gates) -->
 <CouncilPanel />
