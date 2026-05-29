@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.46 — runtime probe coverage (2026-05-29)
+
+- **Test coverage**: first tests for the previously-untested
+  `src/lib/utils/runtime.ts` (R25-1 — Tauri IPC-gating probes). +10 unit tests:
+  `inTauri()` tracks presence of `window.__TAURI_INTERNALS__`; `inTauriFully()`
+  is true only when the internals expose a `transformCallback` **function**
+  (false for absent internals, a partial dev shim, or a non-function value);
+  `diagEnabled()` returns true in Vite dev mode and otherwise honours the
+  `localStorage['ironclaw-diag'] === '1'` opt-in (false when unset or not
+  exactly "1"). Drives the branches with a window-internals stub,
+  `vi.stubEnv('DEV', …)`, and a Map-backed localStorage. No production code
+  changed.
+
 ## v0.4.45 — NewProfileModal render coverage (2026-05-29)
 
 - **Test coverage**: first tests for the previously-untested
