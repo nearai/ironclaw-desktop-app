@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.54 — Per-profile API-version flag (2026-05-29)
+
+- **Reborn migration (step 3 — connection gate)**: added an optional
+  `apiVersion: 'v1' | 'v2'` to `ProfileConfig` (`settings.svelte.ts`) so the
+  Reborn WebChat v2 path can be selected per-profile without disturbing
+  existing v1 profiles. The field is opt-in and defaults to `'v1'` everywhere:
+  `defaultProfile`, both `migrateLoaded` branches, and `validateImportedSettings`
+  narrow leniently (anything that isn't exactly `'v2'` → `'v1'`, no rejection —
+  mirrors the `tint` forward-compat precedent), so every on-disk file without
+  the field round-trips unchanged. The connection store exposes a reactive
+  `apiVersion = $derived(activeProfile.apiVersion ?? 'v1')` for the chat surface
+  to branch on. +6 unit tests (3 migrate defaults/narrowing, 3 import-validator)
+  in `settings.test.ts`. The user's live v1 backend (baremetal3) is untouched;
+  v2 only activates on a profile explicitly marked `'v2'`.
+
 ## v0.4.53 — Reborn WebChat v2 transport methods (2026-05-29)
 
 - **Reborn migration (step 2 — transport)**: grafted the WebChat v2 transport

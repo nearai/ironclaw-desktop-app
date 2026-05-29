@@ -36,6 +36,7 @@ import {
   sidecarStatus as readSidecarStatus,
   startSidecar,
   stopSidecar,
+  type ApiVersion,
   type AppSettings,
   type ProfileConfig
 } from './settings.svelte';
@@ -208,6 +209,14 @@ class ConnectionStore {
         : this.activeProfile.localBaseUrl
       : this.activeProfile.remoteBaseUrl
   );
+
+  /**
+   * API contract the active profile speaks. `'v2'` routes the chat surface
+   * through the IronClaw Reborn WebChat v2 client; `'v1'` (the default for
+   * every existing profile) keeps the historical `/api/chat/*` path. Read
+   * reactively so a profile switch re-evaluates the chat path.
+   */
+  apiVersion = $derived<ApiVersion>(this.activeProfile.apiVersion ?? 'v1');
 
   /**
    * Configured client, or null if we don't have a token yet.

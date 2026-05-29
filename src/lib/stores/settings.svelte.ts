@@ -26,6 +26,15 @@ import { broadcast } from './broadcast.svelte';
 export type ConnectionMode = 'remote' | 'local';
 
 /**
+ * Gateway API contract a profile speaks. `v1` is the historical IronClaw
+ * gateway (`/api/chat/*`, `/api/engine/*`, …); `v2` is the projection-driven
+ * IronClaw Reborn WebChat surface (`/api/webchat/v2/*`). Orthogonal to `mode`
+ * — a remote OR local server can be either version. Defaults to `v1` so every
+ * existing profile (and every on-disk file without the field) is unchanged.
+ */
+export type ApiVersion = 'v1' | 'v2';
+
+/**
  * Local-mode LLM backend. `nearai` is the default — IronClaw's built-in
  * NEAR.AI Cloud inference; OAuth handled by IronClaw itself on first
  * connect, no key required upfront. `openrouter` is the advanced path:
@@ -83,6 +92,11 @@ export interface ProfileConfig {
    *  consumer (connection store $effect) writes the resolved color into
    *  `--v2-accent` on document.documentElement. */
   tint?: ProfileTint;
+  /** Gateway API contract this profile speaks. Optional on disk; absent or
+   *  unknown values consume as `'v1'` so existing profiles are untouched.
+   *  `'v2'` routes the chat surface through the IronClaw Reborn WebChat v2
+   *  client (`src/lib/api/reborn.ts` + the `*V2` transport methods). */
+  apiVersion?: ApiVersion;
 }
 
 /**
@@ -267,7 +281,8 @@ function defaultProfile(overrides?: Partial<ProfileConfig>): ProfileConfig {
     remoteBaseUrl: overrides?.remoteBaseUrl ?? 'http://127.0.0.1:3100',
     localBaseUrl: overrides?.localBaseUrl ?? 'http://127.0.0.1:3100',
     llmBackend: overrides?.llmBackend ?? 'nearai',
-    llmProviderId: overrides?.llmProviderId ?? overrides?.llmBackend ?? 'nearai'
+    llmProviderId: overrides?.llmProviderId ?? overrides?.llmBackend ?? 'nearai',
+    apiVersion: overrides?.apiVersion ?? 'v1'
   };
 }
 
@@ -332,7 +347,10 @@ export function migrateLoaded(raw: Partial<AppSettings> & LegacyAppSettings): Ap
           typeof p.llmProviderId === 'string' && p.llmProviderId.length > 0
             ? p.llmProviderId
             : llmBackend,
-        tint
+        tint,
+        // Opt-in; anything that isn't exactly 'v2' rounds to 'v1' so existing
+        // files (no field) and forward-compat values both resolve safely.
+        apiVersion: (p.apiVersion === 'v2' ? 'v2' : 'v1') as ApiVersion
       };
     });
     const activeId =
@@ -531,6 +549,10 @@ export function validateImportedSettings(raw: string): ImportValidationResult {
       typeof pp.tint === 'string' && (pp.tint as ProfileTint) in PROFILE_TINTS
         ? (pp.tint as ProfileTint)
         : undefined;
+    // `apiVersion` is opt-in; anything that isn't exactly 'v2' imports as
+    // 'v1'. We do not reject an unknown value for the same forward-compat
+    // reason as `tint` — a newer backup shouldn't fail to import here.
+    const apiVersion: ApiVersion = pp.apiVersion === 'v2' ? 'v2' : 'v1';
     profiles.push({
       id: pp.id,
       name: pp.name,
@@ -539,7 +561,8 @@ export function validateImportedSettings(raw: string): ImportValidationResult {
       localBaseUrl: pp.localBaseUrl,
       llmBackend: pp.llmBackend,
       llmProviderId,
-      tint
+      tint,
+      apiVersion
     });
   }
 

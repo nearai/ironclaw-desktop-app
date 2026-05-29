@@ -15,7 +15,8 @@ import {
   listProfiles,
   loadSettings,
   migrateLoaded,
-  reorderProfiles
+  reorderProfiles,
+  validateImportedSettings
 } from './settings.svelte';
 
 describe('migrateLoaded', () => {
@@ -125,6 +126,84 @@ describe('migrateLoaded', () => {
     });
     expect(s.profiles[0].mode).toBe('remote');
     expect(s.profiles[0].llmBackend).toBe('nearai');
+  });
+
+  it('defaults apiVersion to v1 and narrows stored values', () => {
+    const s = migrateLoaded({
+      activeProfileId: 'p1',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'reborn',
+          mode: 'local',
+          remoteBaseUrl: 'http://127.0.0.1:3100',
+          localBaseUrl: 'http://127.0.0.1:3000',
+          llmBackend: 'nearai',
+          apiVersion: 'v2'
+        },
+        {
+          id: 'p2',
+          name: 'no-version-field',
+          mode: 'remote',
+          remoteBaseUrl: 'http://127.0.0.1:3100',
+          localBaseUrl: 'http://127.0.0.1:3100',
+          llmBackend: 'nearai'
+        },
+        {
+          id: 'p3',
+          name: 'garbage-version',
+          mode: 'remote',
+          remoteBaseUrl: 'http://127.0.0.1:3100',
+          localBaseUrl: 'http://127.0.0.1:3100',
+          llmBackend: 'nearai',
+          // @ts-expect-error — exercising the defensive narrower
+          apiVersion: 'v9'
+        }
+      ]
+    });
+    expect(s.profiles[0].apiVersion).toBe('v2');
+    // Absent field → v1 (existing profiles are unchanged).
+    expect(s.profiles[1].apiVersion).toBe('v1');
+    // Unknown value → v1 (lenient, no rejection).
+    expect(s.profiles[2].apiVersion).toBe('v1');
+  });
+});
+
+describe('validateImportedSettings apiVersion', () => {
+  function withProfile(extra: Record<string, unknown>): string {
+    return JSON.stringify({
+      activeProfileId: 'p1',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'imported',
+          mode: 'remote',
+          remoteBaseUrl: 'http://127.0.0.1:3100',
+          localBaseUrl: 'http://127.0.0.1:3100',
+          llmBackend: 'nearai',
+          ...extra
+        }
+      ],
+      onboardingComplete: true
+    });
+  }
+
+  it('imports an explicit v2 apiVersion', () => {
+    const res = validateImportedSettings(withProfile({ apiVersion: 'v2' }));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.settings.profiles[0].apiVersion).toBe('v2');
+  });
+
+  it('defaults a missing apiVersion to v1 without rejecting', () => {
+    const res = validateImportedSettings(withProfile({}));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.settings.profiles[0].apiVersion).toBe('v1');
+  });
+
+  it('narrows an unknown apiVersion to v1 (forward-compat, no reject)', () => {
+    const res = validateImportedSettings(withProfile({ apiVersion: 'v3' }));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.settings.profiles[0].apiVersion).toBe('v1');
   });
 });
 
