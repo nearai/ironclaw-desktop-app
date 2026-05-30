@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.100 — Fix: clientActionId returned a constant all-zero token without Web Crypto (2026-05-30)
+
+- **Idempotency-key uniqueness fix (Codex review P2)**: `clientActionId()` filled
+  a 16-byte buffer via `crypto.getRandomValues` but, when `crypto` was entirely
+  absent, the optional-chained call was a no-op and the buffer stayed all zeros —
+  so every mutating request (create thread, send) got the identical
+  `00000000…` idempotency key and the server could collapse distinct actions.
+  The `randomUUID` and `getRandomValues` paths are unchanged; only the
+  no-crypto case now returns a unique non-constant token. +1 test (stubbed
+  absent crypto → unique, non-zero; 1011 total).
+
 ## v0.4.99 — Fix: timeline messages without a message_id were silently dropped (2026-05-30)
 
 - **Chat data-loss fix (Codex review P1)**: `messagesFromTimeline` keyed every

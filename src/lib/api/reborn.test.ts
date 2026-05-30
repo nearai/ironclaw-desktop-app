@@ -3,7 +3,7 @@
 // reducer, the event-envelope reducer, and the response normalizers. All pure
 // — no I/O — so these lock in the migration's hardest logic deterministically.
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   clientActionId,
   toolStatusFromActivityStatus,
@@ -27,6 +27,19 @@ describe('clientActionId', () => {
     expect(typeof a).toBe('string');
     expect(a.length).toBeGreaterThan(0);
     expect(a).not.toBe(b);
+  });
+
+  it('falls back to a unique, non-zero token when Web Crypto is unavailable', () => {
+    vi.stubGlobal('crypto', undefined);
+    try {
+      const a = clientActionId();
+      const b = clientActionId();
+      expect(a.length).toBeGreaterThan(0);
+      expect(a).not.toMatch(/^0+$/); // not the old all-zero constant
+      expect(a).not.toBe(b); // still unique per call
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 

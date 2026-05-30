@@ -25,9 +25,15 @@ export const V2_BASE = '/api/webchat/v2';
 export function clientActionId(): string {
   const c = (globalThis as { crypto?: Crypto }).crypto;
   if (c && typeof c.randomUUID === 'function') return c.randomUUID();
-  const bytes = new Uint8Array(16);
-  c?.getRandomValues?.(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  if (c && typeof c.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    c.getRandomValues(bytes);
+    return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // No Web Crypto at all: fall back to a non-constant token so idempotency
+  // keys stay unique. The previous code left `bytes` all-zero on this path, so
+  // every request shared the same "0000…" id. (Codex review P2.)
+  return `act-${Date.now().toString(16)}-${Math.floor(Math.random() * 0xffff_ffff).toString(16)}`;
 }
 
 // ---- Request / response DTOs ---------------------------------------------
