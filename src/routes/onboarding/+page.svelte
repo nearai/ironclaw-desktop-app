@@ -27,6 +27,7 @@
   import { goto } from '$app/navigation';
   import { IronClawClient } from '$lib/api/ironclaw';
   import { connection } from '$lib/stores/connection.svelte';
+  import NearMark from '$lib/components/NearMark.svelte';
   import {
     DEFAULT_PROFILE_ID,
     HOSTED_DEFAULT_URL,
@@ -237,20 +238,10 @@
 <div class="ob">
   <div class="ob__panel">
     <header class="ob__head">
-      <!-- Brand glyph (same stacked-layers mark as the sidebar wordmark).
-           Decorative: the h1 already names the product. -->
-      <svg
-        class="ob__logo"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        aria-hidden="true"
-      >
-        <path d="M4 7l8-4 8 4-8 4-8-4z" stroke-linejoin="round" />
-        <path d="M4 12l8 4 8-4" stroke-linejoin="round" />
-        <path d="M4 17l8 4 8-4" stroke-linejoin="round" />
-      </svg>
+      <!-- Official NEAR "N" mark (same glyph as the sidebar wordmark).
+           Decorative: the h1 already names the product. Styled via props
+           because Svelte's scoped CSS does not cross into the component. -->
+      <NearMark size={48} style="display: block; margin: 0 auto 1rem; color: var(--v2-accent);" />
       <h1 class="ob__title">Welcome to IronClaw</h1>
       <p class="ob__sub">Choose where your agent runs. You can change this anytime in Settings.</p>
     </header>
@@ -412,20 +403,20 @@
     max-width: 37rem;
     margin: 0 auto 0.15rem;
   }
-  .ob__logo {
-    display: block;
-    width: 3rem;
-    height: 3rem;
-    margin: 0 auto 1rem;
-    color: var(--v2-warning-text);
-  }
   .ob__title {
     margin: 0;
     font-size: clamp(2rem, 5vw, 3.15rem);
     line-height: 0.98;
     font-weight: 650;
     letter-spacing: 0;
+    /* NEAR brand gradient (blue → sky), reserved for emphasis — used once
+       here on the first-run hero. Falls back to the strong text color where
+       background-clip:text is unsupported. */
     color: var(--v2-text-strong);
+    background: var(--v2-gradient-brand);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
   .ob__sub {
     margin: 0.8rem auto 0;

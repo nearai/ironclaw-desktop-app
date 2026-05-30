@@ -30,17 +30,19 @@ export default {
           muted: '#9ca3af'
         },
         accent: {
-          // Repointed from #00d4ff → signal blue for visual continuity
-          // with the IronClaw web UI. Existing `accent-cyan` consumers
-          // pick up the new value automatically.
-          cyan: '#4ca7e6',
+          // Repointed to NEAR Blue (PMS 2925C) per the NEAR AI Brand
+          // Guidelines v01. Every existing `accent-cyan` consumer picks up
+          // the brand accent automatically — no sweep needed.
+          cyan: '#0091fd',
           gold: '#fbbf24'
         },
+        // NEAR Sky (PMS 2905C) — the lighter brand blue, for on-dark accents.
+        sky: '#83dcff',
         // ── v2 design-system aliases (preferred for new code) ──────────
-        signal: '#4ca7e6',
-        'signal-strong': '#2882c8',
-        'signal-soft': 'rgba(76, 167, 230, 0.14)',
-        'signal-text': '#8fc8f2',
+        signal: '#0091fd',
+        'signal-strong': '#0077e0',
+        'signal-soft': 'rgba(0, 145, 253, 0.14)',
+        'signal-text': '#83dcff',
         // Semantic status tokens — use these for state, not primary accent.
         positive: '#20d29a',
         'positive-soft': 'rgba(32, 210, 154, 0.13)',

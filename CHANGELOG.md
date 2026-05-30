@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.4.114 — NEAR AI brand: official N mark + brand palette (2026-05-30)
+
+- **Logo**: replaced the stacked-layers glyph (sidebar wordmark + onboarding
+  hero) with the official NEAR "N" mark from the NEAR AI Brand Guidelines v01.
+  New `NearMark.svelte` renders the verbatim glyph path as a flat `currentColor`
+  fill (no recolour/outline/effect per the brand rules), so it inherits the
+  per-profile accent tint that already signals which profile owns a window.
+- **App / download icon**: rebuilt `src-tauri/icons/iconsrc.svg` as the brand's
+  app-icon lockup — white N on a NEAR-Blue (#0091FD) rounded square sized to the
+  macOS squircle — and regenerated the full `.icns` + PNG set via `build_icons.py`.
+- **Palette**: repointed the accent to NEAR Blue (`--v2-accent`/`accent.cyan`/
+  `signal` → `#0091FD`, PMS 2925C) and the accent-text tint to NEAR Sky
+  (`--v2-accent-text`/`signal-text` → `#83DCFF`, PMS 2905C); added a `sky` color
+  token and a `--v2-gradient-brand` (Blue→Sky) "emphasis" gradient, applied once
+  to the first-run hero title. Existing `accent-cyan`/`signal*` consumers pick up
+  the brand accent app-wide with no sweep.
+- Onboarding mark styled via `NearMark` props rather than a scoped `.ob__logo`
+  class (Svelte scopes styles per-component, so the class never crossed the
+  boundary). Sidebar snapshot refreshed. Full suite green (1028), svelte-check
+  0 errors / 0 warnings.
+
 ## v0.4.113 — Extensions: actionable "registry is empty" state (2026-05-30)
 
 - **Empty-state action (Codex review #3)**: the Extensions registry tab's "The

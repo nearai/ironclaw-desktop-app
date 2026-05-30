@@ -10,6 +10,7 @@
   import { updater } from '$lib/stores/updater.svelte';
   import NewProfileModal from '$lib/components/NewProfileModal.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import NearMark from '$lib/components/NearMark.svelte';
   import { reorderProfiles, resolveTint } from '$lib/stores/settings.svelte';
   import { rebornDesk } from '$lib/stores/reborn-desk.svelte';
 
@@ -686,18 +687,7 @@
          in connection.svelte.ts repaints them when the active profile
          changes — the most visible signal of which profile owns this
          window. -->
-    <svg
-      viewBox="0 0 24 24"
-      class="w-6 h-6 shrink-0"
-      style="color: var(--v2-accent);"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-    >
-      <path d="M4 7l8-4 8 4-8 4-8-4z" stroke-linejoin="round" />
-      <path d="M4 12l8 4 8-4" stroke-linejoin="round" />
-      <path d="M4 17l8 4 8-4" stroke-linejoin="round" />
-    </svg>
+    <NearMark size={24} class="shrink-0" style="color: var(--v2-accent);" />
     {#if !collapsed}
       <span class="text-lg font-semibold tracking-tight" style="color: var(--v2-accent);"
         >IronClaw</span
