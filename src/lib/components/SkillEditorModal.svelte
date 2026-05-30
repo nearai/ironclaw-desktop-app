@@ -127,7 +127,7 @@
          backdrop. Wider than the per-thread prompt modal because skill
          source can run long — the textarea wants horizontal real estate. -->
     <div
-      class="w-[min(800px,calc(100vw-2rem))] max-h-[calc(100vh-4rem)] flex flex-col rounded-xl border border-border-subtle bg-bg-deep p-6 space-y-4 shadow-xl"
+      class="v2-modal-shell w-[min(800px,calc(100vw-2rem))] max-h-[calc(100vh-4rem)] flex flex-col p-6 space-y-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="skill-editor-title"

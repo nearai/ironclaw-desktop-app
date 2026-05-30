@@ -140,7 +140,7 @@
   onclick={() => onOpen(skill)}
   onkeydown={handleKey}
   onfocus={handleFocus}
-  class="group relative flex flex-col rounded-lg border border-border-subtle bg-bg-surface p-4 cursor-pointer transition-colors hover:bg-[#1a2233] hover:border-[#2a3548] focus:outline-none focus-visible:outline-none focus-visible:border-accent-cyan focus-visible:ring-2 focus-visible:ring-accent-cyan/60 focus-visible:ring-offset-0 min-h-[160px]"
+  class="v2-interactive-card group relative flex flex-col p-4 cursor-pointer focus:outline-none min-h-[160px]"
 >
   <!-- Pin star. Sits top-right; when a trust badge is present, the badge
        renders inline next to the star so neither overlaps the other.

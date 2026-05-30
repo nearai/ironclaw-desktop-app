@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.4.112 — Beautify: cross-app token consistency (2026-05-30)
+
+- **Whole-app consistency pass** (final of the 4-surface beautify sprint). Tightens
+  the shared visual language so every surface feels like one product:
+  - `app.css`: added shared surface/elevation/geometry tokens (`--v2-surface-hover`,
+    `--v2-card-bg`, `--v2-border-hover`, `--v2-shell`, `--v2-radius-card/shell/control`,
+    `--v2-shadow-elevated/drawer`, `--v2-focus-shadow`) and a reusable
+    `.v2-interactive-card` hover/border treatment.
+  - Motion made uniformly restrained: the bouncy `--v2-ease-spring`
+    (`cubic-bezier(0.34,1.56,0.64,1)`, an overshoot) is now an alias of
+    `--v2-ease-out`, and `--v2-dur`/`--v2-dur-slow` are clamped to the 150ms
+    interaction cap — no token renamed or removed, so existing references keep
+    working.
+  - Replaced hard-coded hex (`#1a2233` / `#2a3548` hovers, `#0d121f` shells, raw
+    shadow rgba) in SkillCard, ExtensionCard, SkillDrawer, SetupDrawer,
+    NewDocModal, ImportModal, NewProfileModal, LightboxModal, SkillEditorModal
+    with the tokens above — purely visual, every component's `<script>` is
+    byte-identical. Full suite green (1028), svelte-check 0 errors / 0 warnings.
+
 ## v0.4.111 — Beautify: app shell — sidebar, dashboard tiles, status bar (2026-05-30)
 
 - **Shell visual pass** (3rd of the 4-surface beautify sprint). The persistent

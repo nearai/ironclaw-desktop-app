@@ -246,7 +246,7 @@
      horizontal real estate for path + preview side-by-side. Caps at
      720px so it doesn't dominate huge monitors. -->
 <div
-  class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(94vw,720px)] max-h-[min(90vh,720px)] bg-[#0d121f] border border-border-subtle rounded-lg shadow-[0_24px_48px_rgba(0,0,0,0.6)] flex flex-col overflow-hidden"
+  class="v2-modal-shell fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[min(94vw,720px)] max-h-[min(90vh,720px)] flex flex-col overflow-hidden"
   role="dialog"
   aria-modal="true"
   aria-labelledby="import-doc-title"

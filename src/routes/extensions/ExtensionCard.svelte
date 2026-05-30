@@ -138,9 +138,7 @@
   }
 </script>
 
-<div
-  class="group relative flex flex-col rounded-lg border border-border-subtle bg-bg-surface p-4 min-h-[180px] transition-colors hover:bg-[#1a2233] hover:border-[#2a3548]"
->
+<div class="v2-interactive-card group relative flex flex-col p-4 min-h-[180px]">
   <!-- Top-right cluster: pin star + (optional) category badge. The
        star is always present so the affordance is consistent across
        cards; the badge only renders when the extension has a known

@@ -98,7 +98,7 @@
   >
     <!-- Card. stopPropagation so backdrop clicks inside the card don't dismiss. -->
     <div
-      class="surface w-[min(420px,calc(100vw-2rem))] p-6 space-y-5 border border-border-subtle"
+      class="v2-modal-shell w-[min(420px,calc(100vw-2rem))] p-6 space-y-5"
       role="dialog"
       aria-modal="true"
       aria-labelledby="new-profile-title"

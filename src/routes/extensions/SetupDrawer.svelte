@@ -515,7 +515,7 @@
 
 <!-- Drawer -->
 <div
-  class="fixed top-0 right-0 z-50 h-full w-full md:w-[40%] min-w-[360px] max-w-[640px] bg-[#0d121f] border-l border-border-subtle shadow-[-12px_0_32px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden"
+  class="v2-drawer-shell fixed top-0 right-0 z-50 h-full w-full md:w-[40%] min-w-[360px] max-w-[640px] border-l border-border-subtle flex flex-col overflow-hidden"
   role="dialog"
   aria-modal="true"
   aria-labelledby="extension-setup-title"

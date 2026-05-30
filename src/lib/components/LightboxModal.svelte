@@ -104,7 +104,7 @@
     {alt}
     onclick={onImageClick}
     onkeydown={(e) => e.stopPropagation()}
-    class="max-w-[90vw] max-h-[90vh] object-contain rounded shadow-2xl"
+    class="max-w-[90vw] max-h-[90vh] object-contain rounded-lg [box-shadow:var(--v2-shadow-elevated)]"
     draggable="false"
   />
 </div>
