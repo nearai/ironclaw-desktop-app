@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.88 — Onboarding brand mark + ignore the dev dep cache (2026-05-29)
+
+- **Brand glyph on the welcome screen**: the first-run "Welcome to IronClaw"
+  header was text-only while the app shell carries the stacked-layers wordmark.
+  The same mark (bound to `--v2-accent`, so a per-profile tint repaints it) now
+  sits above the title — a small brand anchor at the first moment a user sees
+  the app. Decorative (`aria-hidden`); the heading still names the product.
+- **`/.vite` is gitignored**: the root Vite dev-server dependency cache wasn't
+  ignored, so running the dev server then `git add -A` swept ~270 minified
+  files into the index and the prettier pre-commit hook (correctly) blocked the
+  release. Now ignored alongside `/.svelte-kit`.
+
 ## v0.4.87 — Chat empty state: chief-of-staff starter chips (2026-05-29)
 
 - **A warm, on-thesis empty conversation**: the new-chat surface used to drop

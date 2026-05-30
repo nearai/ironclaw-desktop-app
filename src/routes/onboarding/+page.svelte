@@ -221,6 +221,20 @@
 <div class="ob">
   <div class="ob__panel">
     <header class="ob__head">
+      <!-- Brand glyph (same stacked-layers mark as the sidebar wordmark), bound
+           to --v2-accent. Decorative: the h1 already names the product. -->
+      <svg
+        class="ob__logo"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        aria-hidden="true"
+      >
+        <path d="M4 7l8-4 8 4-8 4-8-4z" stroke-linejoin="round" />
+        <path d="M4 12l8 4 8-4" stroke-linejoin="round" />
+        <path d="M4 17l8 4 8-4" stroke-linejoin="round" />
+      </svg>
       <h1 class="ob__title">Welcome to IronClaw</h1>
       <p class="ob__sub">Choose where your agent runs. You can change this anytime in Settings.</p>
     </header>
@@ -349,6 +363,13 @@
   }
   .ob__head {
     text-align: center;
+  }
+  .ob__logo {
+    display: block;
+    width: 2.5rem;
+    height: 2.5rem;
+    margin: 0 auto 0.75rem;
+    color: var(--v2-accent);
   }
   .ob__title {
     margin: 0;
