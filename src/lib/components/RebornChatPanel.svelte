@@ -28,6 +28,17 @@
 
   let draft = $state('');
 
+  // Chief-of-staff starter prompts for the empty conversation. Clicking one
+  // sends it through the normal path (creates the thread, opens its stream,
+  // posts) — a warm, on-thesis entry point that mirrors the Desk's "what needs
+  // you" framing instead of dropping the user onto a blank canvas.
+  const SUGGESTED_PROMPTS: ReadonlyArray<{ label: string; prompt: string }> = [
+    { label: 'Brief me on today', prompt: 'Brief me on what matters today.' },
+    { label: 'Triage my threads', prompt: 'Triage my open threads and tell me what needs action.' },
+    { label: 'What needs my decision?', prompt: 'What is waiting on my decision right now?' },
+    { label: 'Draft a reply', prompt: 'Draft a reply to my most recent message.' }
+  ];
+
   // Which tool/capability cards are expanded (progressive disclosure —
   // collapsed by default; keyed by message id).
   let expandedTools = $state<Record<string, boolean>>({});
@@ -169,6 +180,15 @@
     }
   }
 
+  /** Send a starter prompt from the empty-state suggestions through the normal
+   *  send path, so it creates + streams the thread exactly like a typed
+   *  message (no special-casing). No-op while a run is already in flight. */
+  function sendPrompt(prompt: string) {
+    if (isProcessing) return;
+    draft = prompt;
+    void handleSend();
+  }
+
   function onComposerKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -276,8 +296,20 @@
     <div class="reborn-chat__scroll" bind:this={scrollEl} onscroll={onScroll}>
       {#if messages.length === 0}
         <div class="reborn-chat__empty">
-          <p class="reborn-chat__empty-title">IronClaw Reborn</p>
-          <p class="reborn-chat__empty-sub">Send a message to start a conversation.</p>
+          <p class="reborn-chat__empty-title">IronClaw</p>
+          <p class="reborn-chat__empty-sub">Your chief of staff. Ask anything, or start here.</p>
+          <div class="reborn-chat__suggestions">
+            {#each SUGGESTED_PROMPTS as s (s.label)}
+              <button
+                type="button"
+                class="reborn-suggestion"
+                onclick={() => sendPrompt(s.prompt)}
+                disabled={isProcessing}
+              >
+                {s.label}
+              </button>
+            {/each}
+          </div>
         </div>
       {/if}
 
@@ -552,6 +584,46 @@
   }
   .reborn-chat__empty-sub {
     font-size: 0.875rem;
+  }
+  .reborn-chat__suggestions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    max-width: 28rem;
+    margin: 1.25rem auto 0;
+  }
+  .reborn-suggestion {
+    padding: 0.5rem 0.875rem;
+    border-radius: 999px;
+    border: 1px solid var(--v2-border, rgba(255, 255, 255, 0.1));
+    background: var(--v2-surface, #1b1b1f);
+    color: var(--v2-text-muted, #8a93a6);
+    font-size: 0.8125rem;
+    line-height: 1;
+    cursor: pointer;
+    transition:
+      border-color var(--v2-dur-fast, 120ms) var(--v2-ease-out, ease),
+      color var(--v2-dur-fast, 120ms) var(--v2-ease-out, ease),
+      background var(--v2-dur-fast, 120ms) var(--v2-ease-out, ease);
+  }
+  .reborn-suggestion:hover {
+    border-color: var(--v2-accent, #4ca7e6);
+    color: var(--v2-text, #e9edf5);
+    background: var(--v2-surface-2, #232328);
+  }
+  .reborn-suggestion:focus-visible {
+    outline: 2px solid var(--v2-accent, #4ca7e6);
+    outline-offset: 2px;
+  }
+  .reborn-suggestion:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .reborn-suggestion {
+      transition: none;
+    }
   }
   /* "Jump to latest" pill — sticks to the bottom of the scrollport while the
      user is reading scrollback; clicking pins back to the newest turn. */

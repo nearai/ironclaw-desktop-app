@@ -1,6 +1,19 @@
 # Changelog
 
-## v0.4.86 — Atomic settings write on the Rust side (2026-05-29)
+## v0.4.87 — Chat empty state: chief-of-staff starter chips (2026-05-29)
+
+- **A warm, on-thesis empty conversation**: the new-chat surface used to drop
+  you onto "IronClaw Reborn / Send a message to start a conversation." — a blank
+  canvas with an internal codename leaking into the hero text. It now reads
+  "IronClaw / Your chief of staff. Ask anything, or start here." with four
+  one-tap starter chips: **Brief me on today**, **Triage my threads**, **What
+  needs my decision?**, **Draft a reply**. Each chip routes its full prompt
+  through the normal send path (creates the thread, opens its stream, posts) —
+  no special-casing — so it behaves exactly like a typed message. Pills use the
+  v2 tokens (surface + border, accent on hover, focus-visible ring, reduced-
+  motion respected). Brings the chat empty state up to the Desk's quality and
+  mirrors its "what needs you" framing. +1 test (chip click sends the prompt
+  via the controller; 953 total).
 
 - **Crash-safe `settings.json` persistence (Codex audit P0, Rust half)**:
   `settings::save` previously did a plain `fs::write`, so a crash or power loss

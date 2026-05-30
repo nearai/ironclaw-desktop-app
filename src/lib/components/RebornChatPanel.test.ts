@@ -32,7 +32,22 @@ describe('RebornChatPanel', () => {
       props: { controller: controllerWith({}), threads: freshThreads() }
     });
     expect(getByPlaceholderText('Message IronClaw…')).toBeTruthy();
-    expect(getByText('Send a message to start a conversation.')).toBeTruthy();
+    expect(getByText('Your chief of staff. Ask anything, or start here.')).toBeTruthy();
+  });
+
+  it('sends a chief-of-staff starter prompt when an empty-state suggestion chip is clicked', async () => {
+    const controller = controllerWith({});
+    // No active thread → handleSend creates one first; stub the I/O so we can
+    // assert the chip routes its full prompt through the normal send path.
+    const ensureSpy = vi.spyOn(controller, 'ensureThread').mockResolvedValue(null);
+    const sendSpy = vi.spyOn(controller, 'send').mockResolvedValue();
+    const { getByText } = render(RebornChatPanel, {
+      props: { controller, threads: freshThreads() }
+    });
+    await fireEvent.click(getByText('Brief me on today'));
+    expect(sendSpy).toHaveBeenCalledWith('Brief me on what matters today.', undefined);
+    ensureSpy.mockRestore();
+    sendSpy.mockRestore();
   });
 
   it('disables Send for an empty draft and enables it once text is entered', async () => {
