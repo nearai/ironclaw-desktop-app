@@ -282,7 +282,7 @@ export function messagesFromTimeline(
   const seen = new Set<string>();
   const messages: RebornMessage[] = [];
 
-  for (const record of records || []) {
+  for (const [index, record] of (records || []).entries()) {
     if (record.kind === 'tool_result_reference') continue;
 
     if (record.kind === 'capability_display_preview') {
@@ -302,7 +302,11 @@ export function messagesFromTimeline(
       continue;
     }
 
-    const id = `msg-${record.message_id}`;
+    // Records without a server message_id must NOT collapse to a shared
+    // `msg-undefined` id — that made dedupe drop every such message after the
+    // first (silent data loss). Fall back to the loop index for a unique,
+    // stable-within-the-timeline id. (Codex review P1.)
+    const id = record.message_id ? `msg-${record.message_id}` : `msg-idx-${index}`;
     if (seen.has(id)) continue;
     seen.add(id);
     messages.push({

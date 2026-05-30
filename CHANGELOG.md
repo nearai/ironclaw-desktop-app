@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.99 — Fix: timeline messages without a message_id were silently dropped (2026-05-30)
+
+- **Chat data-loss fix (Codex review P1)**: `messagesFromTimeline` keyed every
+  message record as `msg-${record.message_id}`, but `message_id` is optional —
+  so two or more records lacking one all collapsed to the same `msg-undefined`
+  id and the dedupe set dropped every one after the first. Server rows without a
+  message_id (and the projection paths that emit them) silently vanished from
+  the conversation. Now an id-less record falls back to a unique
+  `msg-idx-<index>` id (stable within the timeline); records with a real
+  `message_id` are unchanged and still dedupe genuine duplicates. Blast radius is
+  limited to previously-dropped records. +4 tests for `messagesFromTimeline`
+  (1010 total). First fix from the Codex review backlog; the riskier
+  chat-controller race findings (`send`/`cancel`/`resolveGate` stale-generation
+  guards) are deferred for review rather than fixed blind.
+
 ## v0.4.98 — Agent-UI design doc + IronClaw server-extension spec (2026-05-30)
 
 - **`docs/agent-ui.md`**: the capstone for the agent-controlled-UI feature.
