@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.92 — Tests for the telemetry store (privacy gate + flush) (2026-05-30)
+
+- **Coverage on the opt-in telemetry store**: the privacy-sensitive buffering
+  and flush logic was untested. Added unit tests asserting `recordEvent` is a
+  no-op unless both `enabled` and `endpoint` are set (a regression here would
+  leak events), the `MAX_QUEUE = 500` oldest-drop cap, `setEnabled(false)`
+  purging the pending queue on opt-out, and `flush` posting + clearing +
+  stamping `lastFlushAt` on success vs. restoring the queue and leaving
+  `lastFlushAt` null on a non-ok POST, plus the empty-queue no-op. Seeds
+  `enabled`/`endpoint` state directly and `stopTimer()`s around each test so no
+  real 5-minute flush interval is armed; `fetch` is stubbed. Purely additive —
+  no production changes. +6 tests (978 total). Overnight autonomous pass.
+
 ## v0.4.91 — Tests for the messages store (streaming/tool/commit logic) (2026-05-30)
 
 - **Coverage on the chat MessageStore**: the 403-line per-thread history +
