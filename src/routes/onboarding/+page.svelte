@@ -59,6 +59,10 @@
   let tokenInput = $state('');
   let connecting = $state(false);
   let busyLocal = $state(false);
+  // False until onMount's loadSettings() resolves. Until then `activeProfile`
+  // is null (settings.profiles starts empty), so the Local action would
+  // silently no-op on an early click — gate it on this instead.
+  let hydrated = $state(false);
   let errorMsg = $state<string | null>(null);
 
   // Advanced disclosure.
@@ -77,14 +81,18 @@
   }
 
   onMount(async () => {
-    const loaded = await loadSettings();
-    if (!settingsTouched) settings = loaded;
-    const active = loaded.profiles.find((p) => p.id === loaded.activeProfileId);
-    if (active) {
-      if (active.remoteBaseUrl && active.remoteBaseUrl !== LOCAL_DEFAULT_URL) {
-        hostedUrl = active.remoteBaseUrl;
+    try {
+      const loaded = await loadSettings();
+      if (!settingsTouched) settings = loaded;
+      const active = loaded.profiles.find((p) => p.id === loaded.activeProfileId);
+      if (active) {
+        if (active.remoteBaseUrl && active.remoteBaseUrl !== LOCAL_DEFAULT_URL) {
+          hostedUrl = active.remoteBaseUrl;
+        }
+        apiVersionChoice = active.apiVersion ?? 'v2';
       }
-      apiVersionChoice = active.apiVersion ?? 'v2';
+    } finally {
+      hydrated = true;
     }
   });
 
@@ -253,7 +261,7 @@
           type="button"
           class="ob__choice"
           aria-label="Run locally on this Mac"
-          disabled={busyLocal}
+          disabled={busyLocal || !hydrated}
           onclick={chooseLocal}
         >
           <span class="ob__choice-title">Run on this Mac</span>
@@ -261,7 +269,9 @@
             Starts a private IronClaw on your machine — no setup, no token. Defaults to NEAR.AI
             Cloud for the model.
           </span>
-          <span class="ob__choice-cta">{busyLocal ? 'Starting…' : 'Local →'}</span>
+          <span class="ob__choice-cta"
+            >{!hydrated ? 'Loading…' : busyLocal ? 'Starting…' : 'Local →'}</span
+          >
         </button>
 
         <button

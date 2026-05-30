@@ -110,4 +110,30 @@ describe('onboarding — collapsed Local-vs-Hosted screen', () => {
     // The v2 segment is the active default.
     expect((getByText('v2 (recommended)') as HTMLButtonElement).className).toMatch(/on/);
   });
+
+  it('disables the Local action until settings hydrate, then enables it', async () => {
+    // Gate get_settings on a deferred promise to observe the pre-hydration
+    // window: before loadSettings() resolves, activeProfile is null and an
+    // early Local click would silently no-op — so the button must stay
+    // disabled until hydration completes.
+    const { invoke } = await import('@tauri-apps/api/core');
+    let releaseSettings!: (v: unknown) => void;
+    const settingsGate = new Promise((res) => {
+      releaseSettings = res;
+    });
+    vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+      if (cmd === 'get_settings') return settingsGate;
+      if (cmd === 'get_token') return null;
+      if (cmd === 'get_openrouter_key') return null;
+      if (cmd === 'sidecar_status') return { running: false, port: null };
+      return undefined;
+    });
+
+    const { getByLabelText } = render(OnboardingPage);
+    const local = getByLabelText('Run locally on this Mac') as HTMLButtonElement;
+    expect(local.disabled).toBe(true); // pre-hydration → disabled, no silent no-op
+
+    releaseSettings(defaultOnDisk());
+    await waitFor(() => expect(local.disabled).toBe(false)); // hydrated → enabled
+  });
 });

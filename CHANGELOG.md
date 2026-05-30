@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.105 — Fix: onboarding "Run on this Mac" silently no-opped before settings loaded (2026-05-30)
+
+- **Onboarding hydration fix (Codex review #2 P2)**: the Local choice button was
+  only disabled while a start was in progress (`busyLocal`), but `chooseLocal()`
+  early-returns when `activeProfile` is null — which it is until `onMount`'s
+  `loadSettings()` resolves (the draft starts with an empty `profiles` array).
+  A click in that window did nothing, with no feedback. The button now also
+  gates on a new `hydrated` flag (set once settings load, in a `finally`) and
+  shows "Loading…" until then. The Hosted flow is unaffected: reaching its
+  Connect button already requires switching views and typing a token, by which
+  point hydration has completed. +1 component test (Local disabled pre-hydration
+  via a deferred `get_settings`, enabled after; 1026 total).
+
 ## v0.4.104 — Fix: settings import dropped useResponsesApi, silently re-enabling it (2026-05-30)
 
 - **Settings round-trip fix (Codex review #2 P2)**: `validateImportedSettings()`
