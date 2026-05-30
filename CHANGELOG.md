@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.93 — Agent-UI action registry (foundation for agent-driven UI) (2026-05-30)
+
+- **First brick of agent-controlled UI**: a new `$lib/agent-ui/actions.ts`
+  registry — the semantic, typed, JSON-Schema'd catalog of UI actions the agent
+  will invoke as client-executed tools (so it can see and drive the app, not
+  just answer). Deliberately **app-native and bounded** (no raw DOM/pixel
+  control): each action is dispatched through an injected `AgentUiHost`, so the
+  registry is pure and unit-tested and the real host (goto + stores) is a thin
+  adapter. Seed action `navigate` is restricted to real user-facing surfaces
+  (`dev`/`mini`/`onboarding` excluded so the agent can't strand the user), and
+  `dispatchAction` returns an error result rather than throwing on an unknown
+  action/surface so a hallucinated tool call degrades gracefully. `actionSchemas()`
+  emits the tool catalog for registration. Not yet wired to a caller — the
+  client half lands first; client-delegated tool calls need an IronClaw
+  Responses-API extension (its tools currently execute server-side). +5 tests
+  (983 total).
+
 ## v0.4.92 — Tests for the telemetry store (privacy gate + flush) (2026-05-30)
 
 - **Coverage on the opt-in telemetry store**: the privacy-sensitive buffering
