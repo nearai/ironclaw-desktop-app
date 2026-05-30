@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.89 — Tests for the admin prompt-diff logic (2026-05-30)
+
+- **Coverage on the system-prompt diff viewer**: `PromptDiff` computes a
+  line-level LCS diff (`computeDiff`) and pairs it into aligned side-by-side
+  rows (`pairForSideBySide`) — load-bearing for the admin prompt editor's
+  restore/compare flow, and previously untested. Added unit tests for both
+  exported functions (identical → all "same"; inserted/removed lines; a change
+  as del+add; del/add run pairing; lone-delete overflow) plus a render smoke
+  test (identical-versions notice; changed content drops the notice). Purely
+  additive — no production changes. +8 tests (961 total). Overnight autonomous
+  pass, from the parallel multi-dimension audit backlog.
+
 ## v0.4.88 — Onboarding brand mark + ignore the dev dep cache (2026-05-29)
 
 - **Brand glyph on the welcome screen**: the first-run "Welcome to IronClaw"
