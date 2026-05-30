@@ -618,7 +618,7 @@
       case 'desk':
         return 'bg-accent-gold';
       case 'logs':
-        return 'bg-red-500';
+        return 'bg-danger';
       case 'settings':
         return 'bg-accent-gold';
       // Jobs uses gold to match the "Running" tile on the /jobs page and
@@ -667,7 +667,7 @@
 </script>
 
 <aside
-  class="shrink-0 h-full bg-bg-base/80 border-r border-border-subtle flex flex-col pt-10 transition-[width] duration-200 ease-out"
+  class="shrink-0 h-full bg-bg-deep/80 border-r border-border-subtle flex flex-col pt-10 transition-[width] duration-150 ease-out"
   class:w-56={!collapsed}
   class:w-14={collapsed}
 >
@@ -676,7 +676,7 @@
        opacity tricks so the row height stays stable across the width
        transition. -->
   <div
-    class="pb-6 flex items-center gap-2"
+    class="pb-5 flex items-center gap-2"
     class:px-5={!collapsed}
     class:px-0={collapsed}
     class:justify-center={collapsed}
@@ -705,30 +705,38 @@
     {/if}
   </div>
 
-  <nav class="flex-1 space-y-1" class:px-2={!collapsed} class:px-1={collapsed}>
+  <nav class="flex-1 space-y-1 overflow-y-auto" class:px-2={!collapsed} class:px-1={collapsed}>
     {#each visibleItems as item (item.href)}
       {@const active = isActive(item.href)}
       {@const showCornerDot = collapsed && item.badgeKey !== undefined && hasBadge(item.badgeKey)}
       {@const cornerDotClass = item.badgeKey ? dotColorClass(item.badgeKey) : 'bg-accent-cyan'}
+      {#if item.href === '/knowledge' || item.href === '/jobs' || item.href === '/settings'}
+        <div
+          class="border-t border-border-subtle/70"
+          class:mx-2={!collapsed}
+          class:mx-3={collapsed}
+          class:my-2={item.href !== '/settings'}
+          class:mt-2={item.href === '/settings'}
+          class:mb-1={item.href === '/settings'}
+          aria-hidden="true"
+        ></div>
+      {/if}
       <a
         href={item.href}
-        class="sidebar-nav-row group relative flex items-center rounded-md text-sm transition-colors min-h-[44px] border-l-2"
+        class="sidebar-nav-row group relative flex items-center rounded-md text-sm transition-[background-color,border-color,color,transform] duration-150 min-h-[44px] py-2 border {active
+          ? 'border-accent-cyan bg-accent-cyan/10 text-accent-cyan font-medium'
+          : 'border-transparent text-text-muted hover:bg-bg-surface/80 hover:text-text-primary'}"
         class:px-3={!collapsed}
-        class:py-2.5={!collapsed}
-        class:gap-3={!collapsed}
+        class:gap-2.5={!collapsed}
         class:px-0={collapsed}
-        class:py-2={collapsed}
         class:justify-center={collapsed}
-        class:border-accent-cyan={active}
-        class:border-transparent={!active}
-        class:bg-bg-surface={active}
-        class:text-text-primary={active}
-        class:text-text-muted={!active}
-        class:hover:bg-bg-surface={!active}
-        class:hover:text-text-primary={!active}
+        aria-current={active ? 'page' : undefined}
         aria-label={collapsed ? item.label : undefined}
       >
-        <span class="relative shrink-0 inline-flex items-center justify-center">
+        <span
+          class="relative shrink-0 inline-flex h-5 w-5 items-center justify-center"
+          class:text-accent-cyan={active}
+        >
           {#if item.icon === 'spark'}
             <Icon name="spark" class="w-4 h-4" />
           {:else if item.icon === 'desk'}
@@ -845,7 +853,7 @@
             >
           {:else if item.badgeKey === 'logs' && logsHasRecentError}
             <span
-              class="w-2 h-2 rounded-full bg-red-500"
+              class="w-2 h-2 rounded-full bg-danger"
               aria-label="recent errors"
               title="Recent errors in logs"
             ></span>
@@ -859,7 +867,7 @@
 
           {#if item.shortcut}
             <span
-              class="text-[10px] font-mono opacity-50 tracking-wider shrink-0"
+              class="text-[10px] font-mono opacity-60 tracking-wider shrink-0 rounded border border-border-subtle bg-bg-deep/60 px-1.5 py-px"
               aria-hidden="true"
             >
               {item.shortcut}
@@ -895,7 +903,9 @@
           bind:this={chipRef}
           type="button"
           onclick={togglePopover}
-          class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs hover:bg-bg-surface transition-colors min-h-[36px] border border-transparent"
+          class="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs hover:bg-bg-surface/80 transition-colors min-h-[44px] border border-transparent {popoverOpen
+            ? 'bg-accent-cyan/10'
+            : ''}"
           class:border-accent-cyan={popoverOpen}
           aria-haspopup="listbox"
           aria-expanded={popoverOpen}
@@ -941,7 +951,7 @@
                so it stays inside the 224px sidebar. -->
           <div
             bind:this={popoverRef}
-            class="absolute left-0 right-0 bottom-full mb-1 z-40 surface border border-border-subtle p-1 shadow-xl"
+            class="absolute left-0 right-0 bottom-full mb-1 z-40 surface border border-border-subtle p-1 shadow-xl bg-bg-deep"
             role="listbox"
             aria-label="Profiles"
           >
@@ -983,7 +993,7 @@
                      the column doesn't carry dead chrome. -->
                 {#if canReorder}
                   <div
-                    class="shrink-0 flex items-center justify-center w-3.5 h-6 text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing transition-colors"
+                    class="shrink-0 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-text-muted hover:text-accent-cyan hover:bg-bg-surface cursor-grab active:cursor-grabbing transition-colors"
                     draggable="true"
                     ondragstart={(e) => onPopoverDragStart(e, profile.id)}
                     ondragend={onPopoverDragEnd}
@@ -1014,7 +1024,9 @@
                   title={isActiveProfile
                     ? 'Already active — Cmd+click to open in a new window'
                     : 'Click to switch, Cmd+click to open in a new window'}
-                  class="flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface transition-colors min-h-[32px]"
+                  class="flex-1 min-w-0 flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-left hover:bg-bg-surface transition-colors min-h-[44px] {isActiveProfile
+                    ? 'bg-accent-cyan/10'
+                    : ''}"
                   role="option"
                   aria-selected={isActiveProfile}
                 >
@@ -1054,7 +1066,7 @@
             <button
               type="button"
               onclick={openNewProfile}
-              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface text-accent-cyan transition-colors min-h-[32px]"
+              class="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-left hover:bg-bg-surface text-accent-cyan transition-colors min-h-[44px]"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -1075,7 +1087,7 @@
             <button
               type="button"
               onclick={() => void gotoManageProfiles()}
-              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-surface text-text-muted hover:text-text-primary transition-colors min-h-[32px]"
+              class="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-xs text-left hover:bg-bg-surface text-text-muted hover:text-text-primary transition-colors min-h-[44px]"
             >
               <svg
                 viewBox="0 0 24 24"
@@ -1118,9 +1130,9 @@
       >
         <span
           class="w-2.5 h-2.5 rounded-full"
-          class:bg-green-500={connection.status === 'connected'}
+          class:bg-positive={connection.status === 'connected'}
           class:bg-accent-gold={connection.status === 'connecting'}
-          class:bg-red-500={connection.status === 'error' ||
+          class:bg-danger={connection.status === 'error' ||
             connection.status === 'disconnected' ||
             connection.status === 'idle'}
           aria-label={pillLabel(connection.status)}
@@ -1131,21 +1143,21 @@
       </div>
     {:else}
       <div
-        class="flex items-center gap-2 px-2 py-1.5 rounded-md text-xs"
+        class="flex min-h-[44px] items-center gap-2 px-2.5 py-2 rounded-md text-xs bg-bg-surface/40"
         title={connection.lastError ?? undefined}
       >
         <span
           class="w-2 h-2 rounded-full"
-          class:bg-green-500={connection.status === 'connected'}
+          class:bg-positive={connection.status === 'connected'}
           class:bg-accent-gold={connection.status === 'connecting'}
-          class:bg-red-500={connection.status === 'error' ||
+          class:bg-danger={connection.status === 'error' ||
             connection.status === 'disconnected' ||
             connection.status === 'idle'}
         ></span>
         <span
           class:text-text-primary={connection.status === 'connected'}
           class:text-accent-gold={connection.status === 'connecting'}
-          class:text-red-400={connection.status === 'error'}
+          class:text-danger={connection.status === 'error'}
           class:text-text-muted={connection.status === 'disconnected' ||
             connection.status === 'idle'}
         >
@@ -1193,7 +1205,7 @@
     <button
       type="button"
       onclick={toggleCollapsed}
-      class="sidebar-nav-row group relative flex items-center w-full rounded-md text-xs text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors min-h-[32px]"
+      class="sidebar-nav-row group relative flex items-center w-full rounded-md text-xs text-text-muted hover:text-text-primary hover:bg-bg-surface transition-colors min-h-[44px]"
       class:justify-center={collapsed}
       class:gap-2={!collapsed}
       class:px-2={!collapsed}
@@ -1239,8 +1251,9 @@
     padding: 0 0.375rem;
     height: 1.1rem;
     border-radius: 9999px;
-    background-color: #1f2937; /* border-subtle */
-    color: #9ca3af; /* text-muted */
+    border: 1px solid var(--v2-border);
+    background-color: var(--v2-accent-soft);
+    color: var(--v2-accent-text);
     font-family: 'SF Mono', Menlo, monospace;
     font-size: 10px;
     line-height: 1;
@@ -1265,16 +1278,15 @@
     align-items: center;
     padding: 0.25rem 0.5rem;
     border-radius: 4px;
-    background-color: #050810; /* bg-deep */
-    border: 1px solid #4ca7e6; /* accent-cyan (signal blue v2) */
-    color: #e5e7eb; /* text-primary */
+    background-color: var(--v2-canvas-strong);
+    border: 1px solid var(--v2-accent);
+    color: var(--v2-text-strong);
     font-size: 11px;
     line-height: 1.2;
     white-space: nowrap;
     opacity: 0;
     pointer-events: none;
-    transition: opacity 100ms ease-out;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    transition: opacity var(--v2-dur-fast) var(--v2-ease-out);
   }
 
   :global(.sidebar-nav-row:hover) .sidebar-tooltip,

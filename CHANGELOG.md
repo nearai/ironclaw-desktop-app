@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.111 — Beautify: app shell — sidebar, dashboard tiles, status bar (2026-05-30)
+
+- **Shell visual pass** (3rd of the 4-surface beautify sprint). The persistent
+  chrome around every surface is refined within the `--v2-*` token system:
+  - Sidebar: tighter spacing/alignment, a crisper active/selected treatment
+    (accent-cyan), cleaner hover + focus-visible, consistent icon+label rhythm;
+    the status-dot color now uses the semantic `bg-danger` token instead of a
+    raw `bg-red-500`.
+  - Dashboard tiles (Tile / TileGrid + the routines/open-loops/skills/threads
+    tiles): consistent sizing, radius, border, padding, and clearer header/value
+    hierarchy.
+  - Status bar: quieter, better-spaced, legible connection/sidecar status.
+  - Logic preserved (nav active-state, badges, tile data, status computation
+    unchanged — only a hard-coded color → token swap in script); Sidebar +
+    StatusBar snapshots refreshed for the new markup. Full suite green (1028),
+    svelte-check 0 errors / 0 warnings.
+
 ## v0.4.110 — Beautify: chat surface polish (2026-05-30)
 
 - **Chat visual pass** (2nd of the 4-surface beautify sprint). `RebornChatPanel`

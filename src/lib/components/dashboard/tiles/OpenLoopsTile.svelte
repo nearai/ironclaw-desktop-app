@@ -37,18 +37,21 @@
 
 <div class="flex flex-col gap-2 h-full" data-testid="open-loops-tile">
   {#if openLoops.active.length > 0}
-    <ul class="space-y-1 overflow-auto max-h-40" data-testid="open-loops-list">
+    <ul class="space-y-1.5 overflow-auto max-h-44" data-testid="open-loops-list">
       {#each openLoops.active as loop (loop.id)}
-        <li class="flex items-center gap-2 group px-1">
+        <li class="flex items-center gap-2 group px-1 rounded-md hover:bg-bg-base/40">
           <button
             type="button"
             onclick={() => openLoops.toggleDone(loop.id)}
-            class="shrink-0 w-4 h-4 rounded border border-border-subtle text-text-muted
-                   hover:border-accent-cyan hover:text-accent-cyan transition-colors
-                   flex items-center justify-center"
+            class="shrink-0 min-h-[44px] min-w-[44px] rounded-md text-text-muted
+                   hover:text-accent-cyan transition-colors flex items-center justify-center"
             aria-label="Complete: {loop.text}"
             title="Mark done"
           >
+            <span
+              class="h-4 w-4 rounded border border-border-subtle group-hover:border-accent-cyan"
+              aria-hidden="true"
+            ></span>
           </button>
           <span class="flex-1 truncate text-sm text-text-primary" title={loop.text}>
             {loop.text}
@@ -56,8 +59,8 @@
           <button
             type="button"
             onclick={() => openLoops.remove(loop.id)}
-            class="shrink-0 text-text-muted opacity-0 group-hover:opacity-100
-                   hover:text-red-300 transition-all"
+            class="shrink-0 min-h-[44px] min-w-[44px] rounded-md text-text-muted opacity-0 group-hover:opacity-100
+                   hover:bg-bg-base/60 hover:text-danger transition-[opacity,background-color,color] duration-150 flex items-center justify-center"
             aria-label="Remove: {loop.text}"
             title="Remove"
           >
@@ -78,7 +81,7 @@
       bind:value={draft}
       onkeydown={onDraftKey}
       placeholder="Add a commitment…"
-      class="flex-1 rounded-md border border-border-subtle bg-bg-base px-2.5 py-1.5 text-sm
+      class="min-h-[44px] flex-1 rounded-md border border-border-subtle bg-bg-base px-3 py-2 text-sm
              text-text-primary placeholder:text-text-muted
              focus:outline-none focus:border-accent-cyan transition-colors"
       aria-label="Add a commitment"
@@ -87,7 +90,7 @@
       type="button"
       onclick={addLoop}
       disabled={draft.trim().length === 0}
-      class="shrink-0 flex items-center gap-1 rounded-md border border-border-subtle px-2.5 py-1.5
+      class="min-h-[44px] min-w-[44px] shrink-0 flex items-center justify-center rounded-md border border-border-subtle px-3 py-2
              text-sm text-text-primary hover:bg-bg-base/60 transition-colors
              disabled:opacity-40 disabled:cursor-not-allowed"
       aria-label="Add commitment"
@@ -99,8 +102,8 @@
   <button
     type="button"
     onclick={briefMe}
-    class="flex items-center justify-center gap-1.5 rounded-md bg-accent-cyan/10 border border-accent-cyan/30
-           px-3 py-1.5 text-sm text-accent-cyan hover:bg-accent-cyan/20 transition-colors"
+    class="min-h-[44px] flex items-center justify-center gap-1.5 rounded-md bg-accent-cyan/10 border border-accent-cyan/30
+           px-3 py-2 text-sm text-accent-cyan hover:bg-accent-cyan/20 transition-colors"
     data-testid="open-loops-brief"
   >
     <Icon name="shield" class="w-3.5 h-3.5" />

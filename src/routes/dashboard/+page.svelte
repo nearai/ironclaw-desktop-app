@@ -37,11 +37,11 @@
   <title>Today · IronClaw</title>
 </svelte:head>
 
-<div class="p-6 h-full overflow-auto">
-  <header class="mb-6 flex items-baseline justify-between gap-4">
+<div class="h-full overflow-auto bg-bg-base/40 p-6">
+  <header class="mb-6 flex items-end justify-between gap-4 border-b border-border-subtle pb-5">
     <div>
-      <h1 class="text-2xl font-medium text-text-primary">Today</h1>
-      <p class="text-sm text-text-muted">Live + scheduled across your workspace.</p>
+      <h1 class="text-2xl font-semibold text-text-primary">Today</h1>
+      <p class="mt-1 text-sm text-text-muted">Live + scheduled across your workspace.</p>
     </div>
   </header>
 

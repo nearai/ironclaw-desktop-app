@@ -72,13 +72,13 @@
 </script>
 
 {#if loadError && recentSkills.length === 0}
-  <p class="text-xs text-red-400" data-testid="recent-skills-error">
+  <p class="text-xs text-danger" data-testid="recent-skills-error">
     Couldn't load skills. {loadError}
   </p>
 {:else if loading}
   <div class="grid grid-cols-3 gap-2" aria-busy="true" data-testid="recent-skills-skeleton">
     {#each Array(6) as _, i (i)}
-      <div class="h-14 rounded-md bg-bg-base/60 animate-pulse"></div>
+      <div class="h-14 rounded-md bg-bg-base/60"></div>
     {/each}
   </div>
 {:else if recentSkills.length === 0}
@@ -89,7 +89,7 @@
       <button
         type="button"
         onclick={() => openSkill(skill.name)}
-        class="text-left p-2 rounded-md hover:bg-bg-base/60 transition-colors border border-border-subtle/40 min-h-[3.5rem] flex flex-col gap-0.5"
+        class="text-left p-2.5 rounded-md hover:bg-bg-base/60 transition-colors border border-border-subtle/60 min-h-[4.25rem] flex flex-col gap-1"
         title={skill.description}
       >
         <span class="truncate text-xs font-medium text-text-primary">{skill.name}</span>

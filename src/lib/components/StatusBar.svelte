@@ -1,5 +1,5 @@
 <!--
-  StatusBar.svelte — slim (28px) bottom bar that surfaces at-a-glance
+  StatusBar.svelte — slim bottom bar that surfaces at-a-glance
   state without forcing the user to navigate to a specific page.
 
   Three sections:
@@ -9,7 +9,7 @@
     - Center:  LLM provider id + model name (e.g. "NEAR.AI · auto" or
                "OpenRouter · deepseek-chat-v3"). Clicks /settings#provider.
     - Right:   Live indicators — job queue depth (running + pending,
-               pulses gold when >0), tokens-today (admin-only, hidden
+               gold when >0), tokens-today (admin-only, hidden
                otherwise), and the last health-ping latency in ms. Clicks
                /jobs.
 
@@ -104,7 +104,7 @@
   );
   const sidecarStarting = $derived(connection.sidecarStatus === 'starting');
 
-  /** Mode badge label — short for the cramped 28px bar. */
+  /** Mode badge label — short for the compact bar. */
   const modeBadge = $derived(connection.activeProfile.mode === 'local' ? 'Local' : 'Remote');
 
   /** Accent hex for the active profile's tint — drives the profile dot
@@ -256,9 +256,9 @@
 
 {#if visible}
   <!--
-    The bar is full-width, 28px tall, anchored at the bottom of the
-    viewport via the layout's flex column. We use `h-7` (28px) and a
-    subtle top border so it reads as chrome, not content.
+    The bar is full-width and anchored at the bottom of the viewport via
+    the layout's flex column. `h-11` keeps every clickable section at the
+    44px minimum target size while staying visually quiet.
 
     Each clickable section is a <button> so keyboard navigation +
     accessibility tree both work. We avoid <a> because we want
@@ -266,7 +266,7 @@
     is the semantic match.
   -->
   <div
-    class="w-full h-7 flex items-stretch border-t border-border-subtle bg-bg-surface text-text-muted select-none"
+    class="w-full h-11 flex items-stretch border-t border-border-subtle bg-bg-deep/90 text-text-muted select-none"
     role="status"
     aria-label="IronClaw status bar"
   >
@@ -275,7 +275,7 @@
     <button
       type="button"
       onclick={goSettings}
-      class="flex items-center gap-2 px-3 min-w-0 hover:bg-bg-deep hover:text-text-primary transition-colors"
+      class="flex min-h-[44px] items-center gap-2.5 px-4 min-w-0 border-r border-border-subtle/70 hover:bg-bg-surface/80 hover:text-text-primary transition-colors"
       title="Open profile settings"
     >
       <!-- Connection / tint dot. When connected we paint the profile's
@@ -293,12 +293,12 @@
         style={connection.status === 'connected' ? `background-color: ${tintHex};` : ''}
         aria-hidden="true"
       ></span>
-      <span class="text-xs font-medium truncate max-w-[160px] text-text-primary">
+      <span class="text-xs font-semibold truncate max-w-[180px] text-text-primary">
         {connection.activeProfile.name}
       </span>
       {#if !compact}
         <span
-          class="text-[10px] uppercase tracking-wide font-mono px-1.5 py-px rounded border border-border-subtle"
+          class="text-[10px] uppercase tracking-wide font-mono px-1.5 py-px rounded border border-border-subtle bg-bg-surface/60 text-text-muted"
         >
           {modeBadge}
         </span>
@@ -317,7 +317,7 @@
       <button
         type="button"
         onclick={goProvider}
-        class="flex-1 flex items-center justify-center gap-2 px-3 min-w-0 hover:bg-bg-deep hover:text-text-primary transition-colors"
+        class="flex-1 min-h-[44px] flex items-center justify-center gap-2 px-4 min-w-0 border-r border-border-subtle/70 hover:bg-bg-surface/80 hover:text-text-primary transition-colors"
         title="Open LLM provider settings"
       >
         <span class="text-xs truncate">
@@ -345,11 +345,14 @@
              store directly. Takes precedence over the generic
              "Disconnected" view so the user can recover in one click
              rather than detouring through /settings. -->
-        <div class="flex items-center gap-2 px-3 text-xs" title="Local sidecar is idle">
+        <div
+          class="min-h-[44px] flex items-center gap-2 px-4 text-xs border-l border-border-subtle/70"
+          title="Local sidecar is idle"
+        >
           <button
             type="button"
             onclick={goJobs}
-            class="text-warning-v2 hover:text-text-primary transition-colors"
+            class="min-h-[44px] text-warning-v2 hover:text-text-primary transition-colors"
           >
             Sidecar: idle
           </button>
@@ -358,7 +361,7 @@
             aria-label="Start sidecar"
             onclick={startSidecar}
             disabled={sidecarStarting}
-            class="text-[11px] font-medium px-2 py-px rounded border border-accent-cyan/60 text-accent-cyan hover:bg-accent-cyan hover:text-bg-deep transition-colors disabled:opacity-50 disabled:cursor-progress"
+            class="min-h-[44px] text-[11px] font-medium px-3 rounded border border-accent-cyan/60 text-accent-cyan hover:bg-accent-cyan hover:text-bg-deep transition-colors disabled:opacity-50 disabled:cursor-progress"
           >
             {sidecarStarting ? 'Starting…' : 'Start'}
           </button>
@@ -369,7 +372,7 @@
         <button
           type="button"
           onclick={goSettings}
-          class="px-3 flex items-center text-xs text-danger hover:text-text-primary hover:bg-bg-deep transition-colors"
+          class="min-h-[44px] px-4 flex items-center text-xs text-danger hover:text-text-primary hover:bg-bg-surface/80 transition-colors"
           title={connection.lastError ?? 'Gateway is offline'}
         >
           Disconnected
@@ -378,18 +381,17 @@
         <button
           type="button"
           onclick={goJobs}
-          class="flex items-center gap-3 px-3 hover:bg-bg-deep hover:text-text-primary transition-colors"
+          class="min-h-[44px] flex items-center gap-4 px-4 hover:bg-bg-surface/80 hover:text-text-primary transition-colors"
           title="Open jobs queue"
         >
-          <!-- Jobs depth — running + pending. Pulses gold when there's
-               anything in flight so the user notices new work landing. -->
+          <!-- Jobs depth — running + pending. Gold when there's anything
+               in flight so the user notices new work landing. -->
           <span class="flex items-center gap-1.5 text-xs">
             <span class="text-text-muted">Jobs</span>
             <span
               class="font-mono font-medium"
               class:text-text-primary={jobDepth === 0}
               class:text-accent-gold={jobDepth > 0}
-              class:animate-pulse={jobDepth > 0}
             >
               {jobDepth}
             </span>

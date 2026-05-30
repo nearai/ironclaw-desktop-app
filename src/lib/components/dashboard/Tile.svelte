@@ -80,18 +80,20 @@
 </script>
 
 <article
-  class="dashboard-tile relative flex flex-col h-full min-h-[180px] rounded-lg border border-border-subtle bg-bg-surface/60 overflow-hidden"
+  class="dashboard-tile relative flex flex-col h-full min-h-[220px] rounded-lg border border-border-subtle bg-bg-surface/70 overflow-hidden"
   data-tile-id={tile.id}
   data-tile-kind={tile.kind}
 >
-  <header class="flex items-center gap-2 px-3 py-2 border-b border-border-subtle">
+  <header
+    class="flex min-h-[56px] items-center gap-2 px-3 border-b border-border-subtle bg-bg-deep/40"
+  >
     <!-- Drag handle. The grip glyph mirrors the per-profile drag handles
          in Sidebar.svelte (six-dot grid) for visual consistency. Only
          the strip itself is draggable, so dragging from the title text
          is a no-op (matches the brief — "drag-to-rearrange tiles" means
          the handle, not a row-wide drag target). -->
     <div
-      class="shrink-0 flex items-center justify-center w-4 h-5 text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing transition-colors"
+      class="shrink-0 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-text-muted hover:text-accent-cyan hover:bg-bg-surface/80 cursor-grab active:cursor-grabbing transition-colors"
       role="button"
       tabindex="0"
       draggable="true"
@@ -111,7 +113,7 @@
       </svg>
     </div>
 
-    <h2 class="flex-1 truncate text-sm font-medium text-text-primary" data-testid="tile-title">
+    <h2 class="flex-1 truncate text-sm font-semibold text-text-primary" data-testid="tile-title">
       {title}
     </h2>
 
@@ -123,7 +125,7 @@
       <button
         type="button"
         onclick={toggleMenu}
-        class="w-6 h-6 inline-flex items-center justify-center rounded-md text-text-muted hover:text-text-primary hover:bg-bg-base/60 transition-colors"
+        class="min-h-[44px] min-w-[44px] inline-flex items-center justify-center rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface/80 transition-colors"
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-label="Tile actions"
@@ -139,13 +141,13 @@
 
       {#if menuOpen}
         <div
-          class="absolute right-0 top-full mt-1 z-30 min-w-[140px] surface border border-border-subtle p-1 shadow-xl"
+          class="absolute right-0 top-full mt-1 z-30 min-w-[160px] rounded-md border border-border-subtle bg-bg-deep p-1 shadow-xl"
           role="menu"
         >
           <button
             type="button"
             onclick={handleRemove}
-            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-left hover:bg-bg-base/60 text-text-primary transition-colors"
+            class="w-full min-h-[44px] flex items-center gap-2 px-3 py-2 rounded-md text-xs text-left hover:bg-bg-surface/80 text-text-primary transition-colors"
             role="menuitem"
             data-testid="tile-remove"
           >
@@ -156,24 +158,15 @@
     </div>
   </header>
 
-  <div class="flex-1 px-3 py-2 overflow-auto text-sm text-text-primary">
+  <div class="flex-1 px-4 py-3 overflow-auto text-sm text-text-primary">
     {#if children}
       {@render children()}
     {/if}
   </div>
 
   {#if footer}
-    <footer class="px-3 py-2 border-t border-border-subtle text-xs text-text-muted">
+    <footer class="px-4 py-3 border-t border-border-subtle bg-bg-deep/30 text-xs text-text-muted">
       {@render footer()}
     </footer>
   {/if}
 </article>
-
-<style>
-  /* `surface` is the shared dark-card token used in the sidebar
-     popover; we lean on it so the ⋮ menu reads like an extension of
-     the existing chrome rather than a one-off. */
-  :global(.dashboard-tile .surface) {
-    background-color: #0b1220;
-  }
-</style>

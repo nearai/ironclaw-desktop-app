@@ -60,27 +60,27 @@
 </script>
 
 {#if loadError && recent.length === 0}
-  <p class="text-xs text-red-400" data-testid="recent-threads-error">
+  <p class="text-xs text-danger" data-testid="recent-threads-error">
     Couldn't load threads. {loadError}
   </p>
 {:else if loading && recent.length === 0}
-  <!-- Skeleton placeholders. Three rows of pulsing grey so the layout
+  <!-- Skeleton placeholders. Three quiet rows so the layout
        footprint is stable while the request resolves. -->
   <ul class="space-y-2" aria-busy="true" data-testid="recent-threads-skeleton">
     {#each Array(3) as _, i (i)}
-      <li class="h-8 rounded-md bg-bg-base/60 animate-pulse"></li>
+      <li class="h-10 rounded-md bg-bg-base/60"></li>
     {/each}
   </ul>
 {:else if recent.length === 0}
   <p class="text-xs text-text-muted">No threads yet. Start a chat from the sidebar.</p>
 {:else}
-  <ul class="space-y-1" data-testid="recent-threads-list">
+  <ul class="space-y-1.5" data-testid="recent-threads-list">
     {#each recent as thread (thread.id)}
       <li>
         <button
           type="button"
           onclick={() => openThread(thread.id)}
-          class="w-full text-left px-2 py-1.5 rounded-md hover:bg-bg-base/60 transition-colors flex items-center gap-2"
+          class="w-full min-h-[44px] text-left px-2.5 py-2 rounded-md hover:bg-bg-base/60 transition-colors flex items-center gap-2"
         >
           <span class="flex-1 truncate text-sm text-text-primary">
             {thread.title || 'Untitled'}

@@ -126,19 +126,19 @@
        "add tile" gallery — the gallery lands with W5 (generative
        widgets) when there are user-promotable widgets to pick from. -->
   <div
-    class="flex flex-col items-center justify-center min-h-[280px] rounded-lg border border-dashed border-border-subtle text-text-muted gap-3"
+    class="flex flex-col items-center justify-center min-h-[280px] rounded-lg border border-dashed border-border-subtle bg-bg-surface/40 text-text-muted gap-3"
   >
     <p class="text-sm">No tiles. Reset to restore the defaults.</p>
     <button
       type="button"
       onclick={() => dashboard.reset()}
-      class="px-3 py-1.5 rounded-md text-xs bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/40 hover:bg-accent-cyan/20 transition-colors"
+      class="min-h-[44px] px-4 rounded-md text-xs bg-accent-cyan/10 text-accent-cyan border border-accent-cyan/40 hover:bg-accent-cyan/20 transition-colors"
     >
       Reset layout
     </button>
   </div>
 {:else}
-  <div class="grid grid-cols-4 gap-4 auto-rows-min" data-testid="tile-grid">
+  <div class="grid grid-cols-4 gap-5 auto-rows-min items-stretch" data-testid="tile-grid">
     {#each dashboard.tiles as tile (tile.id)}
       {@const isDragging = draggedTileId === tile.id}
       {@const isDropTarget = dropTargetTileId === tile.id && draggedTileId !== tile.id}
@@ -195,7 +195,7 @@
       <button
         type="button"
         onclick={() => dashboard.add({ id: 'open-loops', kind: 'open-loops', span: 2 })}
-        class="col-span-2 flex items-center justify-center gap-2 min-h-[80px] rounded-lg border border-dashed border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan/50 transition-colors text-sm"
+        class="col-span-2 flex items-center justify-center gap-2 min-h-[120px] rounded-lg border border-dashed border-border-subtle bg-bg-surface/40 text-text-muted hover:text-text-primary hover:border-accent-cyan/50 hover:bg-bg-surface/70 transition-colors text-sm"
         data-testid="add-open-loops-tile"
       >
         <span aria-hidden="true">+</span>

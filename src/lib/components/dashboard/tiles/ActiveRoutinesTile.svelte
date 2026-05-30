@@ -83,13 +83,13 @@
 </script>
 
 {#if loadError && upcoming.length === 0}
-  <p class="text-xs text-red-400" data-testid="active-routines-error">
+  <p class="text-xs text-danger" data-testid="active-routines-error">
     Couldn't load routines. {loadError}
   </p>
 {:else if loading}
   <ul class="space-y-2" aria-busy="true" data-testid="active-routines-skeleton">
     {#each Array(3) as _, i (i)}
-      <li class="h-8 rounded-md bg-bg-base/60 animate-pulse"></li>
+      <li class="h-10 rounded-md bg-bg-base/60"></li>
     {/each}
   </ul>
 {:else if routines.length === 0}
@@ -97,13 +97,13 @@
 {:else if upcoming.length === 0}
   <p class="text-xs text-text-muted">All routines are disabled.</p>
 {:else}
-  <ul class="space-y-1" data-testid="active-routines-list">
+  <ul class="space-y-1.5" data-testid="active-routines-list">
     {#each upcoming as routine (routine.id)}
       <li>
         <button
           type="button"
           onclick={() => openRoutine(routine.id)}
-          class="w-full text-left px-2 py-1.5 rounded-md hover:bg-bg-base/60 transition-colors flex items-center gap-2"
+          class="w-full min-h-[44px] text-left px-2.5 py-2 rounded-md hover:bg-bg-base/60 transition-colors flex items-center gap-2"
         >
           <span class="flex-1 truncate text-sm text-text-primary">{routine.name}</span>
           <span class="shrink-0 text-[10px] font-mono text-text-muted">
