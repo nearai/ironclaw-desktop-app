@@ -67,6 +67,52 @@ describe('RebornThreadStore.loadMore', () => {
     await s.loadMore();
     expect((client.listThreadsV2 as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
   });
+
+  it('is resilient: a failed page leaves loaded threads + cursor intact (retryable, no throw)', async () => {
+    let call = 0;
+    const client = clientWith(async () => {
+      call += 1;
+      if (call === 1) return { threads: [{ thread_id: 't1' }], next_cursor: 'c1' };
+      throw new Error('503'); // second page (loadMore) fails
+    });
+    const s = new RebornThreadStore(() => client);
+    await s.load();
+    await expect(s.loadMore()).resolves.toBeUndefined(); // swallowed, not thrown
+    expect(s.threads.map((t) => t.thread_id)).toEqual(['t1']); // existing page kept
+    expect(s.nextCursor).toBe('c1'); // cursor preserved → next call retries
+    expect(s.hasMore).toBe(true);
+    expect(s.isLoading).toBe(false);
+  });
+
+  it('guards against overlapping in-flight requests (rapid double-click → single page fetch)', async () => {
+    // First page resolves immediately; the loadMore page is held open via a
+    // deferred promise so two concurrent calls race the `isLoading` guard.
+    let release!: (v: unknown) => void;
+    const gate = new Promise((res) => {
+      release = res;
+    });
+    let call = 0;
+    const client = clientWith(async () => {
+      call += 1;
+      if (call === 1) return { threads: [{ thread_id: 't1' }], next_cursor: 'c1' };
+      await gate;
+      return { threads: [{ thread_id: 't2' }], next_cursor: null };
+    });
+    const s = new RebornThreadStore(() => client);
+    await s.load();
+    expect(call).toBe(1);
+
+    const a = s.loadMore();
+    const b = s.loadMore(); // second click while the first is still in flight
+    expect(s.isLoading).toBe(true);
+    release(null);
+    await Promise.all([a, b]);
+
+    // Only one network page was fetched despite two calls.
+    expect(call).toBe(2);
+    expect(s.threads.map((t) => t.thread_id)).toEqual(['t1', 't2']);
+    expect(s.isLoading).toBe(false);
+  });
 });
 
 describe('RebornThreadStore select / upsert', () => {

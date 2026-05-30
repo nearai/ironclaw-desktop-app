@@ -63,18 +63,35 @@ export class RebornThreadStore {
     }
   }
 
-  /** Append the next page (deduped by thread_id). No-op when drained. */
+  /**
+   * Append the next page (deduped by thread_id). No-op when drained or when a
+   * load is already in flight (the `isLoading` guard collapses rapid clicks
+   * into a single request). Resilient — a transport failure is swallowed and
+   * leaves the already-loaded threads and cursor intact, so the next call can
+   * retry the same page rather than dropping out of the UI as an unhandled
+   * rejection.
+   */
   async loadMore(): Promise<void> {
     const client = this.getClient();
-    if (!client || !this.hasMore) return;
-    const resp = await client.listThreadsV2({
-      limit: REBORN_THREADS_PAGE_SIZE,
-      cursor: this.nextCursor as string
-    });
-    const more = threadsFromListResponse(resp);
-    const seen = new Set(this.threads.map((t) => t.thread_id));
-    this.threads = [...this.threads, ...more.filter((t) => t.thread_id && !seen.has(t.thread_id))];
-    this.nextCursor = cursorOf(resp);
+    if (!client || !this.hasMore || this.isLoading) return;
+    this.isLoading = true;
+    try {
+      const resp = await client.listThreadsV2({
+        limit: REBORN_THREADS_PAGE_SIZE,
+        cursor: this.nextCursor as string
+      });
+      const more = threadsFromListResponse(resp);
+      const seen = new Set(this.threads.map((t) => t.thread_id));
+      this.threads = [
+        ...this.threads,
+        ...more.filter((t) => t.thread_id && !seen.has(t.thread_id))
+      ];
+      this.nextCursor = cursorOf(resp);
+    } catch (err) {
+      console.warn('[reborn-threads] loadMore failed', err);
+    } finally {
+      this.isLoading = false;
+    }
   }
 
   /** Set the active thread (null = the new-conversation slot). */

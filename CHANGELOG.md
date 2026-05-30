@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.101 — Fix: Reborn thread pagination had no in-flight guard or error handling (2026-05-30)
+
+- **Pagination robustness fix (Codex review)**: `RebornThreadStore.loadMore()`
+  awaited `listThreadsV2` with neither a try/catch nor an in-flight guard, so a
+  failed page surfaced as an unhandled promise rejection and rapid scroll/clicks
+  issued overlapping requests that could double-append or clobber the cursor.
+  It now mirrors `load()`'s idiom — short-circuits when `isLoading` is already
+  true (collapsing rapid calls into one request) and wraps the fetch in
+  try/catch/finally. Unlike `load()`, a `loadMore` failure is swallowed without
+  resetting state: the already-loaded threads and cursor are preserved so the
+  next call retries the same page rather than dropping the list. +2 tests
+  (failed page is retryable + no throw; concurrent calls fetch a single page;
+  1013 total).
+
 ## v0.4.100 — Fix: clientActionId returned a constant all-zero token without Web Crypto (2026-05-30)
 
 - **Idempotency-key uniqueness fix (Codex review P2)**: `clientActionId()` filled
