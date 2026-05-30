@@ -14,7 +14,7 @@
   // it lands on the first preset row's Apply button when the list has
   // rows, or the save input when the list is empty.
 
-  import { onMount, tick } from 'svelte';
+  import { tick } from 'svelte';
   import { presets, presetsModal, type WorkspacePreset } from '$lib/stores/presets.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
 
@@ -198,11 +198,6 @@
     if (preset.trayBadgeEnabled === false) parts.push('badge off');
     return parts.join(' · ');
   }
-
-  onMount(() => {
-    // Nothing to do — `presets.init()` runs from the layout so this
-    // component just renders against the already-hydrated state.
-  });
 </script>
 
 <svelte:window onkeydown={onKeyDown} />

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.107 — Chore: remove dead no-op onMount in PresetsModal (2026-05-30)
+
+- **Dead-code removal (Codex review #3)**: `PresetsModal` imported `onMount`
+  solely to register an empty lifecycle block (`presets.init()` runs from the
+  layout, so the modal just renders against already-hydrated state). Removed the
+  no-op block and dropped `onMount` from the import (`tick` is still used). No
+  behavior change; verified by svelte-check + the full suite (1028 tests).
+
 ## v0.4.106 — Fix: non-streaming API requests had no timeout, so a hung gateway wedged the UI (2026-05-30)
 
 - **Request timeout (Codex review #2 P2)**: `IronClawClient.request()` (the
