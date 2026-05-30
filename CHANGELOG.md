@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.4.109 — Beautify: onboarding / first-run polish (2026-05-30)
+
+- **Onboarding visual pass** (first of a 4-surface beautify sprint run via
+  parallel codex streams). The first-run screen is reworked for a calmer,
+  more premium first impression — all within the existing dark/navy + cyan/gold
+  token system, no new colors:
+  - Local-vs-Hosted choice cards as a balanced, responsive two-up layout with
+    consistent height, clearer icon/title/description hierarchy, aligned CTA
+    chips, and crisp hover + focus-visible states (44px targets preserved).
+  - Welcome header with stronger typographic hierarchy, rhythm, and a readable
+    centered measure.
+  - Hosted setup: grouped labels, tidier token/URL inputs with focus-visible
+    outlines, a dominant Connect button, and a cleaner Advanced disclosure.
+  - Loading / error affordances (incl. the pre-hydration "Loading…" state)
+    styled consistently via `--v2-*` tokens; a restrained token-eased entrance
+    fade.
+  - All behavior, labels, roles, aria-labels, and the `validateHostedUrl` +
+    `hydrated`-gate logic preserved; onboarding tests + full suite green
+    (1028), svelte-check 0 errors / 0 warnings.
+
 ## v0.4.108 — Skills: make the "no skills installed" empty state actionable (2026-05-30)
 
 - **Empty-state action (Codex review #3)**: the Skills surface's "No skills

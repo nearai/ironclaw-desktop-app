@@ -237,8 +237,8 @@
 <div class="ob">
   <div class="ob__panel">
     <header class="ob__head">
-      <!-- Brand glyph (same stacked-layers mark as the sidebar wordmark), bound
-           to --v2-accent. Decorative: the h1 already names the product. -->
+      <!-- Brand glyph (same stacked-layers mark as the sidebar wordmark).
+           Decorative: the h1 already names the product. -->
       <svg
         class="ob__logo"
         viewBox="0 0 24 24"
@@ -264,10 +264,19 @@
           disabled={busyLocal || !hydrated}
           onclick={chooseLocal}
         >
-          <span class="ob__choice-title">Run on this Mac</span>
-          <span class="ob__choice-desc">
-            Starts a private IronClaw on your machine — no setup, no token. Defaults to NEAR.AI
-            Cloud for the model.
+          <span class="ob__choice-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <rect x="4" y="5" width="16" height="11" rx="2.2" />
+              <path d="M9 20h6" stroke-linecap="round" />
+              <path d="M12 16v4" stroke-linecap="round" />
+            </svg>
+          </span>
+          <span class="ob__choice-copy">
+            <span class="ob__choice-title">Run on this Mac</span>
+            <span class="ob__choice-desc">
+              Starts a private IronClaw on your machine — no setup, no token. Defaults to NEAR.AI
+              Cloud for the model.
+            </span>
           </span>
           <span class="ob__choice-cta"
             >{!hydrated ? 'Loading…' : busyLocal ? 'Starting…' : 'Local →'}</span
@@ -283,9 +292,18 @@
             view = 'hosted';
           }}
         >
-          <span class="ob__choice-title">Connect to hosted</span>
-          <span class="ob__choice-desc">
-            Use a NEAR.AI-hosted IronClaw gateway. Sign in and paste your access token.
+          <span class="ob__choice-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M7 17.5h9.5a4 4 0 0 0 .4-8 5.5 5.5 0 0 0-10.7-1.3A4.7 4.7 0 0 0 7 17.5Z" />
+              <path d="M9 13h6" stroke-linecap="round" />
+              <path d="M12 10v6" stroke-linecap="round" />
+            </svg>
+          </span>
+          <span class="ob__choice-copy">
+            <span class="ob__choice-title">Connect to hosted</span>
+            <span class="ob__choice-desc">
+              Use a NEAR.AI-hosted IronClaw gateway. Sign in and paste your access token.
+            </span>
           </span>
           <span class="ob__choice-cta">Hosted →</span>
         </button>
@@ -293,21 +311,23 @@
     {:else}
       <div class="ob__hosted">
         <button type="button" class="ob__back" onclick={() => (view = 'choose')}>← Back</button>
-        <label class="ob__label" for="ob-token">Access token</label>
-        <p class="ob__hint">
-          Sign in at
-          <button type="button" class="ob__link" onclick={openSignIn}>{signInHost}</button>
-          and paste your access token below.
-        </p>
-        <input
-          id="ob-token"
-          class="ob__input"
-          type="password"
-          autocomplete="off"
-          spellcheck="false"
-          placeholder="Paste your IronClaw access token"
-          bind:value={tokenInput}
-        />
+        <div class="ob__field">
+          <label class="ob__label" for="ob-token">Access token</label>
+          <p class="ob__hint">
+            <span>Sign in at</span>
+            <button type="button" class="ob__link" onclick={openSignIn}>{signInHost}</button>
+            <span>and paste your access token below.</span>
+          </p>
+          <input
+            id="ob-token"
+            class="ob__input"
+            type="password"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Paste your IronClaw access token"
+            bind:value={tokenInput}
+          />
+        </div>
         <button
           type="button"
           class="ob__connect"
@@ -320,41 +340,48 @@
     {/if}
 
     {#if errorMsg}
-      <p class="ob__error" role="alert">{errorMsg}</p>
+      <p class="ob__error" role="alert">
+        <span class="ob__error-icon" aria-hidden="true">!</span>
+        <span>{errorMsg}</span>
+      </p>
     {/if}
 
     <details class="ob__adv" bind:open={showAdvanced}>
       <summary class="ob__adv-summary">Advanced</summary>
       <div class="ob__adv-body">
-        <label class="ob__label" for="ob-url">Custom server URL</label>
-        <input
-          id="ob-url"
-          class="ob__input"
-          type="url"
-          autocomplete="off"
-          spellcheck="false"
-          placeholder="https://your-gateway.example"
-          bind:value={hostedUrl}
-        />
+        <div class="ob__field">
+          <label class="ob__label" for="ob-url">Custom server URL</label>
+          <input
+            id="ob-url"
+            class="ob__input"
+            type="url"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="https://your-gateway.example"
+            bind:value={hostedUrl}
+          />
+        </div>
 
-        <span class="ob__label">API version</span>
-        <div class="ob__seg" role="group" aria-label="API version">
-          <button
-            type="button"
-            class="ob__seg-btn"
-            class:on={apiVersionChoice === 'v2'}
-            onclick={() => (apiVersionChoice = 'v2')}
-          >
-            v2 (recommended)
-          </button>
-          <button
-            type="button"
-            class="ob__seg-btn"
-            class:on={apiVersionChoice === 'v1'}
-            onclick={() => (apiVersionChoice = 'v1')}
-          >
-            v1 (legacy)
-          </button>
+        <div class="ob__field">
+          <span class="ob__label">API version</span>
+          <div class="ob__seg" role="group" aria-label="API version">
+            <button
+              type="button"
+              class="ob__seg-btn"
+              class:on={apiVersionChoice === 'v2'}
+              onclick={() => (apiVersionChoice = 'v2')}
+            >
+              v2 (recommended)
+            </button>
+            <button
+              type="button"
+              class="ob__seg-btn"
+              class:on={apiVersionChoice === 'v1'}
+              onclick={() => (apiVersionChoice = 'v1')}
+            >
+              v1 (legacy)
+            </button>
+          </div>
         </div>
       </div>
     </details>
@@ -368,146 +395,239 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: 100vh;
-    padding: 2rem;
-    background: var(--v2-canvas);
+    min-height: 100svh;
+    padding: clamp(1.25rem, 4vw, 3rem);
+    background: var(--v2-canvas-strong);
   }
   .ob__panel {
     width: 100%;
-    max-width: 30rem;
+    max-width: 48rem;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1.35rem;
+    animation: ob-enter var(--v2-dur-fast) var(--v2-ease-out);
   }
   .ob__head {
     text-align: center;
+    max-width: 37rem;
+    margin: 0 auto 0.15rem;
   }
   .ob__logo {
     display: block;
-    width: 2.5rem;
-    height: 2.5rem;
-    margin: 0 auto 0.75rem;
-    color: var(--v2-accent);
+    width: 3rem;
+    height: 3rem;
+    margin: 0 auto 1rem;
+    color: var(--v2-warning-text);
   }
   .ob__title {
     margin: 0;
-    font-size: 1.6rem;
-    font-weight: 600;
+    font-size: clamp(2rem, 5vw, 3.15rem);
+    line-height: 0.98;
+    font-weight: 650;
+    letter-spacing: 0;
     color: var(--v2-text-strong);
   }
   .ob__sub {
-    margin: 0.4rem 0 0;
-    font-size: 0.9rem;
+    margin: 0.8rem auto 0;
+    max-width: 28rem;
+    font-size: 0.98rem;
+    line-height: 1.55;
     color: var(--v2-text-muted);
   }
   .ob__choices {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
   }
   .ob__choice {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    align-items: stretch;
+    gap: 1.1rem;
+    min-height: 15rem;
     text-align: left;
-    padding: 1rem 1.1rem;
-    border: 1px solid var(--v2-border);
-    border-radius: 0.75rem;
+    padding: 1.2rem;
+    border: 1px solid var(--v2-panel-border);
+    border-radius: 0.9rem;
     background: var(--v2-surface);
     color: var(--v2-text);
     cursor: pointer;
     transition:
       border-color var(--v2-dur-fast) var(--v2-ease-out),
       background var(--v2-dur-fast) var(--v2-ease-out),
+      opacity var(--v2-dur-fast) var(--v2-ease-out),
       transform var(--v2-dur-fast) var(--v2-ease-out);
   }
   .ob__choice:hover:not(:disabled) {
     border-color: var(--v2-accent);
     background: var(--v2-surface-2);
+    transform: translateY(-1px);
+  }
+  .ob__choice:focus-visible {
+    outline: 2px solid var(--v2-accent);
+    outline-offset: 3px;
+    border-color: var(--v2-accent);
   }
   .ob__choice:active:not(:disabled) {
-    transform: translateY(1px);
+    transform: translateY(0);
   }
   .ob__choice:disabled {
-    opacity: 0.6;
+    opacity: 0.68;
     cursor: progress;
   }
+  .ob__choice-icon {
+    display: inline-flex;
+    width: 3rem;
+    height: 3rem;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--v2-border);
+    border-radius: 0.75rem;
+    background: var(--v2-accent-soft);
+    color: var(--v2-accent-text);
+  }
+  .ob__choice-icon svg {
+    width: 1.45rem;
+    height: 1.45rem;
+  }
+  .ob__choice-copy {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
   .ob__choice-title {
-    font-size: 1rem;
-    font-weight: 600;
+    font-size: 1.15rem;
+    line-height: 1.2;
+    font-weight: 650;
     color: var(--v2-text-strong);
   }
   .ob__choice-desc {
-    font-size: 0.83rem;
-    line-height: 1.45;
+    max-width: 17rem;
+    font-size: 0.9rem;
+    line-height: 1.55;
     color: var(--v2-text-muted);
   }
   .ob__choice-cta {
-    margin-top: 0.15rem;
-    font-size: 0.85rem;
+    display: inline-flex;
+    min-height: 2.75rem;
+    width: fit-content;
+    align-items: center;
+    justify-content: center;
+    margin-top: auto;
+    padding: 0 0.85rem;
+    border: 1px solid var(--v2-border);
+    border-radius: 999px;
+    background: var(--v2-input-bg);
+    font-size: 0.86rem;
     font-weight: 600;
     color: var(--v2-accent-text);
   }
   .ob__hosted {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    padding: 1rem 1.1rem;
-    border: 1px solid var(--v2-border);
-    border-radius: 0.75rem;
+    gap: 1rem;
+    width: 100%;
+    max-width: 34rem;
+    margin: 0 auto;
+    padding: 1.1rem;
+    border: 1px solid var(--v2-panel-border);
+    border-radius: 0.9rem;
     background: var(--v2-surface);
+    animation: ob-enter var(--v2-dur-fast) var(--v2-ease-out);
   }
   .ob__back {
     align-self: flex-start;
-    margin-bottom: 0.25rem;
-    padding: 0.2rem 0;
+    min-height: 2.75rem;
+    margin-bottom: -0.15rem;
+    padding: 0 0.4rem;
     border: none;
     background: transparent;
     color: var(--v2-text-muted);
     font: inherit;
-    font-size: 0.82rem;
+    font-size: 0.86rem;
     cursor: pointer;
+    transition: color var(--v2-dur-fast) var(--v2-ease-out);
   }
-  .ob__label {
-    font-size: 0.8rem;
-    font-weight: 600;
+  .ob__back:hover {
     color: var(--v2-text);
   }
+  .ob__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+  .ob__label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--v2-text-strong);
+  }
   .ob__hint {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
     margin: 0;
-    font-size: 0.8rem;
+    font-size: 0.84rem;
+    line-height: 1.5;
     color: var(--v2-text-muted);
   }
   .ob__link {
-    padding: 0;
-    border: none;
-    background: transparent;
+    display: inline-flex;
+    min-height: 2.75rem;
+    align-items: center;
+    padding: 0 0.55rem;
+    border: 1px solid var(--v2-border);
+    border-radius: 999px;
+    background: var(--v2-surface-soft);
     color: var(--v2-accent-text);
     font: inherit;
-    font-size: 0.8rem;
-    text-decoration: underline;
+    font-size: 0.84rem;
+    text-decoration: none;
     cursor: pointer;
+    transition:
+      border-color var(--v2-dur-fast) var(--v2-ease-out),
+      background var(--v2-dur-fast) var(--v2-ease-out),
+      color var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .ob__link:hover {
+    border-color: var(--v2-accent);
+    background: var(--v2-accent-soft);
+    color: var(--v2-text-strong);
   }
   .ob__input {
-    padding: 0.6rem 0.7rem;
+    min-height: 3rem;
+    padding: 0 0.85rem;
     border: 1px solid var(--v2-border);
-    border-radius: 0.5rem;
+    border-radius: 0.65rem;
     background: var(--v2-input-bg);
-    color: var(--v2-text);
+    color: var(--v2-text-strong);
     font: inherit;
     font-size: 0.9rem;
+    transition:
+      border-color var(--v2-dur-fast) var(--v2-ease-out),
+      background var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .ob__input::placeholder {
+    color: var(--v2-text-faint);
   }
   .ob__input:focus {
     outline: none;
     border-color: var(--v2-accent);
+    background: var(--v2-surface);
+  }
+  .ob__input:focus-visible {
+    outline: 2px solid var(--v2-accent);
+    outline-offset: 2px;
   }
   .ob__connect {
-    margin-top: 0.35rem;
-    padding: 0.6rem 0.9rem;
+    min-height: 3rem;
+    margin-top: 0.15rem;
+    padding: 0 1rem;
     border: 1px solid var(--v2-accent);
-    border-radius: 0.5rem;
+    border-radius: 0.65rem;
     background: var(--v2-accent);
-    color: #fff;
+    color: var(--v2-inverse);
     font: inherit;
     font-weight: 600;
     cursor: pointer;
@@ -519,41 +639,83 @@
     opacity: 0.45;
     cursor: not-allowed;
   }
+  .ob__connect:hover:not(:disabled) {
+    opacity: 0.92;
+  }
   .ob__connect:active:not(:disabled) {
     transform: translateY(1px);
   }
   .ob__error {
-    margin: 0;
-    padding: 0.55rem 0.7rem;
-    border-radius: 0.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.6rem;
+    width: 100%;
+    max-width: 34rem;
+    min-height: 2.75rem;
+    margin: 0 auto;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--v2-danger-text);
+    border-radius: 0.65rem;
     background: var(--v2-danger-soft);
     color: var(--v2-danger-text);
-    font-size: 0.82rem;
+    font-size: 0.86rem;
+    line-height: 1.45;
+    animation: ob-enter var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .ob__error-icon {
+    display: inline-flex;
+    width: 1.25rem;
+    height: 1.25rem;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid currentColor;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
   }
   .ob__adv {
+    width: 100%;
+    max-width: 34rem;
+    margin: 0 auto;
     border-top: 1px solid var(--v2-border);
-    padding-top: 0.75rem;
+    padding-top: 0.65rem;
   }
   .ob__adv-summary {
-    font-size: 0.82rem;
+    min-height: 2.75rem;
+    padding: 0.65rem 0;
+    font-size: 0.84rem;
     color: var(--v2-text-muted);
     cursor: pointer;
+    transition: color var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .ob__adv-summary:hover {
+    color: var(--v2-text);
+  }
+  .ob__adv-summary:focus-visible {
+    outline: 2px solid var(--v2-accent);
+    outline-offset: 2px;
+    border-radius: 0.35rem;
   }
   .ob__adv-body {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
+    gap: 1rem;
+    margin-top: 0.35rem;
+    padding-bottom: 0.2rem;
+    animation: ob-enter var(--v2-dur-fast) var(--v2-ease-out);
   }
   .ob__seg {
     display: flex;
-    gap: 0.4rem;
+    gap: 0.45rem;
   }
   .ob__seg-btn {
     flex: 1 1 auto;
-    padding: 0.45rem 0.5rem;
+    min-height: 2.75rem;
+    padding: 0 0.7rem;
     border: 1px solid var(--v2-border);
-    border-radius: 0.5rem;
+    border-radius: 0.65rem;
     background: var(--v2-surface);
     color: var(--v2-text-muted);
     font: inherit;
@@ -561,7 +723,12 @@
     cursor: pointer;
     transition:
       border-color var(--v2-dur-fast) var(--v2-ease-out),
+      background var(--v2-dur-fast) var(--v2-ease-out),
       color var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .ob__seg-btn:hover {
+    border-color: var(--v2-accent);
+    color: var(--v2-text);
   }
   .ob__seg-btn.on {
     border-color: var(--v2-accent);
@@ -570,16 +737,44 @@
   }
   .ob__later {
     align-self: center;
-    margin-top: 0.25rem;
-    padding: 0.35rem 0.5rem;
+    min-height: 2.75rem;
+    margin-top: -0.2rem;
+    padding: 0 0.75rem;
     border: none;
     background: transparent;
     color: var(--v2-text-faint);
     font: inherit;
-    font-size: 0.8rem;
+    font-size: 0.84rem;
     cursor: pointer;
+    transition: color var(--v2-dur-fast) var(--v2-ease-out);
   }
   .ob__later:hover {
     color: var(--v2-text-muted);
+  }
+
+  @keyframes ob-enter {
+    from {
+      opacity: 0;
+      transform: translateY(0.35rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (max-width: 44rem) {
+    .ob {
+      align-items: flex-start;
+    }
+    .ob__choices {
+      grid-template-columns: 1fr;
+    }
+    .ob__choice {
+      min-height: 12.5rem;
+    }
+    .ob__choice-desc {
+      max-width: none;
+    }
   }
 </style>
