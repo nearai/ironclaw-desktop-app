@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.96 — Agent-UI host adapter (2026-05-30)
+
+- **The real host that runs agent actions**: `$lib/agent-ui/host.ts` adds
+  `createAgentUiHost({ goto, selectThread })` — a factory that turns the two
+  injected capabilities into an `AgentUiHost` (`navigate`→`goto`,
+  `openThread(id)`→`selectThread(id)`, `newChat()`→`selectThread(null)`). Kept
+  deliberately PURE (no `$app/navigation` or store imports) so it unit-tests
+  without the SvelteKit runtime and carries no transitive-import weight; the
+  integration point supplies `goto` + `rebornThreads.select`. Tests cover the
+  wiring and drive `dispatchAction` end-to-end through a built host (navigate →
+  goto path; new_chat → select null). +5 tests (1000 total). The agent-UI
+  client trio (registry + state + host) is now in place; the delegate seam is
+  next.
+
 ## v0.4.95 — Agent-UI actions: open_thread + new_chat (2026-05-30)
 
 - **Two more bounded agent actions**: extends the `$lib/agent-ui` action
