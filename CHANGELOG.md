@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.104 — Fix: settings import dropped useResponsesApi, silently re-enabling it (2026-05-30)
+
+- **Settings round-trip fix (Codex review #2 P2)**: `validateImportedSettings()`
+  rebuilt the imported `AppSettings` field by field but omitted
+  `useResponsesApi`, so importing a backup that had explicitly disabled the
+  Responses API (`useResponsesApi: false`) silently dropped the field — and the
+  opt-out default (`true`) then re-enabled it on the next load. The validator
+  now carries the field through as `useResponsesApi: obj.useResponsesApi !== false`,
+  matching `loadSettings`' opt-out semantics. +3 import tests (explicit false
+  preserved, missing defaults to true, explicit true preserved; 1025 total).
+
 ## v0.4.103 — Fix: hosted onboarding could send your access token over cleartext http:// (2026-05-30)
 
 - **Onboarding token-leak fix (Codex review #2 P1)**: the hosted "Connect" flow

@@ -208,6 +208,44 @@ describe('validateImportedSettings apiVersion', () => {
   });
 });
 
+describe('validateImportedSettings useResponsesApi', () => {
+  function withTopLevel(extra: Record<string, unknown>): string {
+    return JSON.stringify({
+      activeProfileId: 'p1',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'imported',
+          mode: 'remote',
+          remoteBaseUrl: 'http://127.0.0.1:3100',
+          localBaseUrl: 'http://127.0.0.1:3100',
+          llmBackend: 'nearai'
+        }
+      ],
+      onboardingComplete: true,
+      ...extra
+    });
+  }
+
+  it('preserves an explicit useResponsesApi:false through a backup round-trip', () => {
+    const res = validateImportedSettings(withTopLevel({ useResponsesApi: false }));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.settings.useResponsesApi).toBe(false);
+  });
+
+  it('defaults a missing useResponsesApi to true (opt-out)', () => {
+    const res = validateImportedSettings(withTopLevel({}));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.settings.useResponsesApi).toBe(true);
+  });
+
+  it('preserves an explicit useResponsesApi:true', () => {
+    const res = validateImportedSettings(withTopLevel({ useResponsesApi: true }));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.settings.useResponsesApi).toBe(true);
+  });
+});
+
 // `reorderProfiles` runs against the live in-memory cache, so each test
 // primes it via `loadSettings()` first. The test harness has no Tauri
 // runtime, so `loadSettings()` falls back to `DEFAULT_SETTINGS` — we add

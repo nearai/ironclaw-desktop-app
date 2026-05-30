@@ -591,7 +591,11 @@ export function validateImportedSettings(raw: string): ImportValidationResult {
     onboardingComplete: obj.onboardingComplete === true,
     adminMode: obj.adminMode === true,
     trayEnabled: obj.trayEnabled !== false,
-    engineV2Enabled: obj.engineV2Enabled === true
+    engineV2Enabled: obj.engineV2Enabled === true,
+    // Opt-OUT, default true (mirrors loadSettings) — preserve an explicit
+    // `false` so a backup round-trip doesn't silently re-enable the
+    // Responses API.
+    useResponsesApi: obj.useResponsesApi !== false
   };
   return { ok: true, settings };
 }
