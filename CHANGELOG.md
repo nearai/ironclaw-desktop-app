@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.102 — Fix: a replayed final_reply SSE frame duplicated the assistant bubble (2026-05-30)
+
+- **Chat dedup fix (Codex review)**: the `final_reply` branch of `reduceEvent`
+  appended the assistant reply with `[...base.messages, {…}]` while minting a
+  stable `reply-${turn_run_id}` id — so when a `final_reply` frame was replayed
+  (SSE reconnect / event replay carrying the same `turn_run_id`) the chat showed
+  two identical answer bubbles. It now folds the reply through `upsertById`
+  (the same helper the sibling `capability_display_preview` case already uses),
+  which replaces the existing bubble in place. The no-`turn_run_id` `Date.now()`
+  fallback still appends, which is correct: an uncorrelated reply can't be
+  deduped against a prior one. +2 reducer tests (replayed same-id dedups to one
+  bubble with the replayed content; distinct ids stay separate; 1015 total).
+
 ## v0.4.101 — Fix: Reborn thread pagination had no in-flight guard or error handling (2026-05-30)
 
 - **Pagination robustness fix (Codex review)**: `RebornThreadStore.loadMore()`

@@ -609,18 +609,21 @@ export function reduceEvent(
     }
     case 'final_reply': {
       const reply = frame.reply || {};
+      // Upsert (not append) keyed on the stable `reply-${turn_run_id}` id so a
+      // replayed final_reply frame (reconnect / SSE replay carrying the same
+      // turn_run_id) replaces the existing bubble instead of duplicating it.
+      // When the reply carries no turn_run_id the `Date.now()` fallback yields a
+      // fresh id each time — correctly still appending, since an uncorrelated
+      // reply can't be deduped against a prior one.
       return {
         ...base,
-        messages: [
-          ...base.messages,
-          {
-            id: `reply-${reply.turn_run_id || Date.now()}`,
-            role: 'assistant',
-            content: reply.text || '',
-            timestamp: reply.generated_at || new Date().toISOString(),
-            turnRunId: reply.turn_run_id
-          }
-        ],
+        messages: upsertById(base.messages, {
+          id: `reply-${reply.turn_run_id || Date.now()}`,
+          role: 'assistant',
+          content: reply.text || '',
+          timestamp: reply.generated_at || new Date().toISOString(),
+          turnRunId: reply.turn_run_id
+        }),
         pendingGate: null,
         isProcessing: false
       };

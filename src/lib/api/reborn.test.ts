@@ -311,6 +311,38 @@ describe('reduceEvent', () => {
     expect(next.isProcessing).toBe(false);
   });
 
+  it('final_reply dedups a replayed frame with the same turn_run_id (upsert, not append)', () => {
+    let state = reduceEvent(
+      initialChatState(),
+      { type: 'final_reply', frame: { reply: { turn_run_id: 'r1', text: 'answer' } } },
+      't1'
+    );
+    // Reconnect / SSE replay re-delivers the same turn_run_id.
+    state = reduceEvent(
+      state,
+      { type: 'final_reply', frame: { reply: { turn_run_id: 'r1', text: 'answer (replayed)' } } },
+      't1'
+    );
+    const replies = state.messages.filter((m) => m.role === 'assistant' && m.turnRunId === 'r1');
+    expect(replies).toHaveLength(1); // not duplicated
+    expect(replies[0].content).toBe('answer (replayed)'); // upsert replaced in place
+  });
+
+  it('final_reply keeps distinct turn_run_ids as separate messages', () => {
+    let state = reduceEvent(
+      initialChatState(),
+      { type: 'final_reply', frame: { reply: { turn_run_id: 'r1', text: 'first' } } },
+      't1'
+    );
+    state = reduceEvent(
+      state,
+      { type: 'final_reply', frame: { reply: { turn_run_id: 'r2', text: 'second' } } },
+      't1'
+    );
+    const replies = state.messages.filter((m) => m.role === 'assistant');
+    expect(replies.map((m) => m.content)).toEqual(['first', 'second']);
+  });
+
   it('delegates projection_update to applyProjectionItems', () => {
     const next = reduceEvent(
       initialChatState(),
