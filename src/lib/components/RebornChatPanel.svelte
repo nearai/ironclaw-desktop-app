@@ -238,11 +238,7 @@
 <div class="reborn-shell" data-testid="reborn-chat-panel">
   <aside class="reborn-rail" aria-label="Conversations">
     <div class="reborn-rail__head">
-      <button
-        type="button"
-        class="reborn-btn reborn-btn--primary reborn-rail__new"
-        onclick={newChat}
-      >
+      <button type="button" class="reborn-btn reborn-rail__new" onclick={newChat}>
         New chat
       </button>
     </div>
@@ -367,7 +363,11 @@
           class="reborn-msg reborn-msg--assistant reborn-streaming"
           aria-label="Assistant is responding"
         >
-          <span class="reborn-caret"></span>
+          <span class="reborn-caret" aria-hidden="true">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
         </div>
       {/if}
 
@@ -435,46 +435,48 @@
     display: flex;
     height: 100%;
     min-height: 0;
+    background: var(--v2-canvas-strong);
+    color: var(--v2-text);
   }
   .reborn-rail {
-    flex: 0 0 13rem;
+    flex: 0 0 15rem;
     display: flex;
     flex-direction: column;
     min-height: 0;
-    border-right: 1px solid var(--v2-border, rgba(255, 255, 255, 0.08));
-    background: var(--v2-surface, rgba(255, 255, 255, 0.02));
+    border-right: 1px solid var(--v2-border);
+    background: var(--v2-rail);
   }
   .reborn-rail__head {
-    padding: 0.75rem;
-    border-bottom: 1px solid var(--v2-border, rgba(255, 255, 255, 0.06));
+    padding: 0.875rem;
+    border-bottom: 1px solid var(--v2-border);
   }
   .reborn-rail__new {
     width: 100%;
   }
   .reborn-rail__empty {
-    padding: 1rem 0.75rem;
+    padding: 1rem 0.875rem;
     font-size: 0.8rem;
-    color: var(--v2-text-muted, #8a93a6);
+    color: var(--v2-text-muted);
   }
   .reborn-rail__list {
     flex: 1 1 auto;
     overflow-y: auto;
     margin: 0;
-    padding: 0.35rem;
+    padding: 0.5rem;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.375rem;
   }
   .reborn-rail__group-head {
     position: sticky;
     top: 0;
     z-index: 1;
-    padding: 0.45rem 0.6rem 0.25rem;
+    padding: 0.55rem 0.625rem 0.3rem;
     background: var(--v2-rail);
     font-size: 0.66rem;
     font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
     color: var(--v2-text-faint);
   }
   .reborn-rail__group-items {
@@ -489,20 +491,23 @@
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.1rem;
+    gap: 0.15rem;
     width: 100%;
+    min-height: 2.75rem;
     text-align: left;
-    padding: 0.4rem 0.6rem;
-    border: none;
-    border-radius: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid transparent;
+    border-radius: 0.55rem;
     background: transparent;
-    color: var(--v2-text, #e6ebf2);
+    color: var(--v2-text-muted);
     font: inherit;
     font-size: 0.85rem;
     cursor: pointer;
     transition:
       background var(--v2-dur-fast) var(--v2-ease-out),
-      color var(--v2-dur-fast) var(--v2-ease-out);
+      border-color var(--v2-dur-fast) var(--v2-ease-out),
+      color var(--v2-dur-fast) var(--v2-ease-out),
+      transform var(--v2-dur-fast) var(--v2-ease-out);
   }
   .reborn-rail__item-title {
     max-width: 100%;
@@ -515,14 +520,17 @@
     color: var(--v2-text-faint);
   }
   .reborn-rail__item:hover {
-    background: var(--v2-surface-2, rgba(255, 255, 255, 0.05));
+    background: var(--v2-surface-soft);
+    color: var(--v2-text);
+    transform: translateX(1px);
   }
   .reborn-rail__item.is-active {
-    background: var(--v2-accent-soft, rgba(76, 167, 230, 0.14));
-    color: var(--v2-accent-text, #8fc8f2);
+    background: var(--v2-accent-soft);
+    border-color: var(--v2-accent);
+    color: var(--v2-accent-text);
   }
   .reborn-rail__skeleton {
-    padding: 0.35rem;
+    padding: 0.5rem;
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
@@ -531,7 +539,6 @@
     height: 1.9rem;
     border-radius: 0.45rem;
     background: var(--v2-surface-2);
-    animation: v2-breathe 1.6s var(--v2-ease-in-out) infinite;
   }
   .reborn-skel-row:nth-child(2) {
     width: 82%;
@@ -546,15 +553,23 @@
     width: 86%;
   }
   .reborn-rail__more {
-    margin: 0.35rem;
-    padding: 0.45rem;
-    border: 1px solid var(--v2-border, rgba(255, 255, 255, 0.12));
-    border-radius: 0.45rem;
+    min-height: 2.75rem;
+    margin: 0.5rem;
+    padding: 0.55rem;
+    border: 1px solid var(--v2-border);
+    border-radius: 0.55rem;
     background: transparent;
-    color: var(--v2-text-muted, #8a93a6);
+    color: var(--v2-text-muted);
     font: inherit;
     font-size: 0.8rem;
     cursor: pointer;
+    transition:
+      background var(--v2-dur-fast) var(--v2-ease-out),
+      color var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .reborn-rail__more:hover {
+    background: var(--v2-surface-soft);
+    color: var(--v2-text);
   }
   .reborn-chat {
     flex: 1 1 auto;
@@ -563,57 +578,74 @@
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    background: var(--v2-canvas);
   }
   .reborn-chat__scroll {
     flex: 1 1 auto;
     overflow-y: auto;
-    padding: 1.25rem 1.5rem;
+    padding: 2rem clamp(1.25rem, 4vw, 3.5rem);
     display: flex;
     flex-direction: column;
-    /* ~24px between turns — elite agentic-chat rhythm (rows breathe). */
-    gap: 1.5rem;
+    gap: 1.125rem;
   }
   .reborn-chat__empty {
     margin: auto;
+    width: min(100%, 42rem);
+    padding: 3rem 1rem;
+    display: grid;
+    justify-items: center;
+    gap: 0.85rem;
     text-align: center;
-    color: var(--v2-text-muted, #8a93a6);
+    color: var(--v2-text-muted);
+    animation: reborn-fade-up var(--v2-dur-fast) var(--v2-ease-out);
   }
   .reborn-chat__empty-title {
-    font-weight: 600;
-    color: var(--v2-accent-text, #8fc8f2);
+    margin: 0;
+    font-size: clamp(1.85rem, 4vw, 3rem);
+    line-height: 1;
+    font-weight: 650;
+    letter-spacing: 0;
+    color: var(--v2-text-strong);
   }
   .reborn-chat__empty-sub {
-    font-size: 0.875rem;
+    margin: 0;
+    max-width: 28rem;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--v2-text-muted);
   }
   .reborn-chat__suggestions {
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 0.5rem;
-    max-width: 28rem;
-    margin: 1.25rem auto 0;
+    gap: 0.625rem;
+    max-width: 34rem;
+    margin: 0.5rem auto 0;
   }
   .reborn-suggestion {
-    padding: 0.5rem 0.875rem;
+    min-height: 2.75rem;
+    padding: 0.65rem 1rem;
     border-radius: 999px;
-    border: 1px solid var(--v2-border, rgba(255, 255, 255, 0.1));
-    background: var(--v2-surface, #1b1b1f);
-    color: var(--v2-text-muted, #8a93a6);
+    border: 1px solid var(--v2-border);
+    background: var(--v2-surface);
+    color: var(--v2-text);
     font-size: 0.8125rem;
-    line-height: 1;
+    line-height: 1.1;
     cursor: pointer;
     transition:
-      border-color var(--v2-dur-fast, 120ms) var(--v2-ease-out, ease),
-      color var(--v2-dur-fast, 120ms) var(--v2-ease-out, ease),
-      background var(--v2-dur-fast, 120ms) var(--v2-ease-out, ease);
+      border-color var(--v2-dur-fast) var(--v2-ease-out),
+      color var(--v2-dur-fast) var(--v2-ease-out),
+      background var(--v2-dur-fast) var(--v2-ease-out),
+      transform var(--v2-dur-fast) var(--v2-ease-out);
   }
   .reborn-suggestion:hover {
-    border-color: var(--v2-accent, #4ca7e6);
-    color: var(--v2-text, #e9edf5);
-    background: var(--v2-surface-2, #232328);
+    border-color: var(--v2-accent);
+    color: var(--v2-text-strong);
+    background: var(--v2-surface-2);
+    transform: translateY(-1px);
   }
   .reborn-suggestion:focus-visible {
-    outline: 2px solid var(--v2-accent, #4ca7e6);
+    outline: 2px solid var(--v2-accent);
     outline-offset: 2px;
   }
   .reborn-suggestion:disabled {
@@ -629,18 +661,19 @@
      user is reading scrollback; clicking pins back to the newest turn. */
   .reborn-jump {
     position: sticky;
-    bottom: 0.5rem;
+    bottom: 0.75rem;
     align-self: center;
     margin-top: -0.5rem;
-    padding: 0.35rem 0.85rem;
+    min-height: 2.75rem;
+    padding: 0.55rem 1rem;
     border: 1px solid var(--v2-border);
     border-radius: 999px;
-    background: var(--v2-surface-2);
+    background: var(--v2-surface);
     color: var(--v2-accent-text);
     font: inherit;
-    font-size: 0.78rem;
+    font-size: 0.8rem;
+    font-weight: 600;
     cursor: pointer;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
     transition:
       background var(--v2-dur-fast) var(--v2-ease-out),
       transform var(--v2-dur-fast) var(--v2-ease-out);
@@ -650,68 +683,82 @@
     transform: translateY(-1px);
   }
   .reborn-msg {
-    max-width: 80%;
-    padding: 0.55rem 0.8rem;
-    border-radius: 0.7rem;
-    line-height: 1.45;
-    white-space: pre-wrap;
+    max-width: min(100%, 70ch);
+    padding: 0.75rem 0.95rem;
+    border-radius: 0.85rem;
+    border: 1px solid var(--v2-border);
+    font-size: 0.94rem;
+    line-height: 1.58;
+    animation: reborn-fade-up var(--v2-dur-fast) var(--v2-ease-out);
+    white-space: normal;
     word-break: break-word;
   }
   .reborn-msg--user {
-    /* Subtle right-aligned bubble — the accent is reserved for interactive
-       affordances, not chat fills (one-accent discipline). */
     align-self: flex-end;
-    max-width: min(80%, 32rem);
-    background: var(--v2-surface-2);
+    max-width: min(78%, 38rem);
+    background: var(--v2-accent-soft);
     color: var(--v2-text-strong);
-    border: 1px solid var(--v2-border);
+    border-color: var(--v2-panel-border);
+    border-bottom-right-radius: 0.35rem;
+    white-space: pre-wrap;
   }
   .reborn-msg--user.is-optimistic {
-    opacity: 0.6;
+    opacity: 0.68;
   }
   .reborn-msg__send-error {
     display: block;
-    margin-top: 0.25rem;
+    margin-top: 0.35rem;
     font-size: 0.75rem;
     color: var(--v2-danger-text);
   }
   .reborn-msg--assistant {
-    /* Full-width plain row (no bubble), capped to a readable ~68ch measure
-       and left-aligned — the elite agentic-chat reading rhythm. */
-    align-self: stretch;
-    max-width: 68ch;
-    padding: 0;
-    background: transparent;
+    align-self: flex-start;
+    max-width: min(100%, 72ch);
+    background: var(--v2-surface-soft);
     color: var(--v2-text);
+    border-color: var(--v2-panel-border);
+    border-bottom-left-radius: 0.35rem;
   }
   .reborn-msg--system {
     align-self: center;
+    max-width: min(100%, 42rem);
+    padding: 0.5rem 0.75rem;
+    border-color: transparent;
     background: transparent;
-    color: var(--v2-text-muted, #8a93a6);
+    color: var(--v2-text-muted);
     font-size: 0.8rem;
+    text-align: center;
   }
   .reborn-msg--error {
     align-self: center;
-    background: rgba(220, 80, 80, 0.14);
-    color: #ff9d9d;
+    max-width: min(100%, 48rem);
+    background: var(--v2-danger-soft);
+    color: var(--v2-danger-text);
+    border-color: var(--v2-danger-text);
     font-size: 0.85rem;
   }
   .reborn-tool {
     align-self: flex-start;
     width: 100%;
-    max-width: 68ch;
+    max-width: min(100%, 72ch);
     border: 1px solid var(--v2-border);
-    border-radius: 0.5rem;
-    background: var(--v2-surface-2);
+    border-radius: 0.75rem;
+    background: var(--v2-surface);
     overflow: hidden;
     font-size: 0.8rem;
+    animation: reborn-fade-up var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .reborn-tool.is-error {
+    border-color: var(--v2-danger-text);
+    background: var(--v2-danger-soft);
   }
   .reborn-tool__head {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     width: 100%;
-    padding: 0.45rem 0.6rem;
+    min-height: 2.75rem;
+    padding: 0.55rem 0.7rem;
     border: none;
     background: transparent;
     color: var(--v2-text);
@@ -729,14 +776,13 @@
   }
   .reborn-tool__dot {
     flex: 0 0 auto;
-    width: 7px;
-    height: 7px;
+    width: 0.45rem;
+    height: 0.45rem;
     border-radius: 50%;
     background: var(--v2-text-faint);
   }
   .reborn-tool__dot[data-status='running'] {
     background: var(--v2-accent);
-    animation: v2-breathe 1.4s var(--v2-ease-in-out) infinite;
   }
   .reborn-tool__dot[data-status='success'] {
     background: var(--v2-positive-text);
@@ -764,7 +810,7 @@
     transform: rotate(90deg);
   }
   .reborn-tool__detail {
-    padding: 0 0.6rem 0.5rem 1.35rem;
+    padding: 0.1rem 0.7rem 0.65rem 1.6rem;
     border-top: 1px solid var(--v2-border);
   }
   .reborn-tool__detail-line {
@@ -778,53 +824,49 @@
     color: var(--v2-danger-text);
   }
   .reborn-streaming {
-    align-self: stretch;
-    max-width: 68ch;
-    padding: 0;
-    background: transparent;
+    width: auto;
+    min-width: 4rem;
+    max-width: 8rem;
+    padding: 0.7rem 0.9rem;
+    background: var(--v2-surface-soft);
   }
-  /* Streaming block caret — sits where the assistant's next token lands.
-     Blinks via steps() so it reads as a cursor, not a fade. The global
-     prefers-reduced-motion reset holds it steady for users who opt out. */
   .reborn-caret {
-    display: inline-block;
-    width: 0.5rem;
-    height: 1.05em;
-    vertical-align: text-bottom;
-    background: var(--v2-accent);
-    border-radius: 1px;
-    animation: reborn-caret-blink 1s steps(1, end) infinite;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    color: var(--v2-accent-text);
   }
-  @keyframes reborn-caret-blink {
-    0%,
-    50% {
-      opacity: 1;
-    }
-    50.01%,
-    100% {
-      opacity: 0;
-    }
+  .reborn-caret span {
+    width: 0.38rem;
+    height: 0.38rem;
+    background: var(--v2-accent);
+    border-radius: 50%;
+    opacity: 0.55;
+  }
+  .reborn-caret span:nth-child(2) {
+    opacity: 0.75;
+  }
+  .reborn-caret span:nth-child(3) {
+    opacity: 1;
   }
   .reborn-gate {
-    /* Gold = "needs you" (one-accent discipline reserves the blue accent for
-       interactive affordances; approval gates wear the warning hue). */
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    margin: 0 1rem;
-    padding: 0.7rem 0.9rem;
+    margin: 0 1.25rem 0.75rem;
+    padding: 0.8rem 0.95rem;
     border: 1px solid var(--v2-warning);
-    border-radius: 0.6rem;
+    border-radius: 0.75rem;
     background: var(--v2-warning-soft);
   }
   .reborn-gate__text strong {
-    color: var(--v2-text, #e6ebf2);
+    color: var(--v2-text-strong);
   }
   .reborn-gate__text p {
     margin: 0.25rem 0 0;
     font-size: 0.85rem;
-    color: var(--v2-text-muted, #8a93a6);
+    color: var(--v2-text-muted);
   }
   .reborn-gate__actions {
     display: flex;
@@ -835,51 +877,100 @@
     margin-left: 0.4rem;
     padding: 0.05rem 0.3rem;
     border-radius: 0.25rem;
-    background: rgba(255, 255, 255, 0.16);
+    background: var(--v2-surface-muted);
     font-family: var(--v2-mono);
     font-size: 0.7rem;
   }
   .reborn-composer {
     display: flex;
-    gap: 0.5rem;
+    gap: 0.625rem;
     align-items: flex-end;
-    padding: 0.75rem 1rem 1rem;
-    border-top: 1px solid var(--v2-border, rgba(255, 255, 255, 0.08));
+    padding: 0.875rem clamp(1.25rem, 4vw, 3.5rem) 1rem;
+    border-top: 1px solid var(--v2-border);
+    background: var(--v2-rail);
   }
   .reborn-composer__input {
     flex: 1 1 auto;
     resize: none;
     max-height: 9rem;
+    min-height: 2.75rem;
     overflow-y: auto;
-    transition: height var(--v2-dur-fast) var(--v2-ease-out);
-    padding: 0.6rem 0.75rem;
-    border-radius: 0.6rem;
-    border: 1px solid var(--v2-border, rgba(255, 255, 255, 0.12));
-    background: var(--v2-surface, rgba(255, 255, 255, 0.04));
-    color: var(--v2-text, #e6ebf2);
+    transition:
+      border-color var(--v2-dur-fast) var(--v2-ease-out),
+      background var(--v2-dur-fast) var(--v2-ease-out),
+      height var(--v2-dur-fast) var(--v2-ease-out);
+    padding: 0.72rem 0.85rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--v2-border);
+    background: var(--v2-input-bg);
+    color: var(--v2-text);
     font: inherit;
+    line-height: 1.35;
+  }
+  .reborn-composer__input::placeholder {
+    color: var(--v2-text-faint);
+  }
+  .reborn-composer__input:focus {
+    border-color: var(--v2-accent);
+    background: var(--v2-surface);
+    outline: none;
+  }
+  .reborn-composer__input:focus-visible {
+    outline: 2px solid var(--v2-accent);
+    outline-offset: 2px;
   }
   .reborn-btn {
     flex: 0 0 auto;
-    padding: 0.55rem 0.9rem;
-    border-radius: 0.6rem;
-    border: 1px solid var(--v2-border, rgba(255, 255, 255, 0.12));
-    background: var(--v2-surface-2, rgba(255, 255, 255, 0.06));
-    color: var(--v2-text, #e6ebf2);
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.65rem 1rem;
+    border-radius: 0.75rem;
+    border: 1px solid var(--v2-border);
+    background: var(--v2-surface-2);
+    color: var(--v2-text);
+    font: inherit;
+    font-size: 0.875rem;
+    font-weight: 650;
     cursor: pointer;
+    transition:
+      background var(--v2-dur-fast) var(--v2-ease-out),
+      border-color var(--v2-dur-fast) var(--v2-ease-out),
+      color var(--v2-dur-fast) var(--v2-ease-out),
+      transform var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .reborn-btn:hover:not(:disabled) {
+    background: var(--v2-surface-muted);
+    transform: translateY(-1px);
   }
   .reborn-btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
   }
   .reborn-btn--primary {
-    background: var(--v2-accent, #4ca7e6);
-    border-color: var(--v2-accent, #4ca7e6);
-    color: #fff;
+    background: var(--v2-accent);
+    border-color: var(--v2-accent);
+    color: var(--v2-inverse);
+  }
+  .reborn-btn--primary:hover:not(:disabled) {
+    background: var(--v2-accent-strong);
+    border-color: var(--v2-accent-strong);
   }
   .reborn-btn--danger {
-    background: rgba(220, 80, 80, 0.18);
-    border-color: rgba(220, 80, 80, 0.5);
-    color: #ff9d9d;
+    background: var(--v2-danger-soft);
+    border-color: var(--v2-danger-text);
+    color: var(--v2-danger-text);
+  }
+  @keyframes reborn-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(0.25rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 </style>

@@ -126,7 +126,7 @@
         ondragover={(e) => onDragOver(e, idx)}
         ondrop={(e) => onDrop(e, idx)}
         ondragend={onDragEnd}
-        class="group relative flex items-center gap-2 shrink-0 max-w-[220px] min-w-[120px] h-9 px-3 pr-2
+        class="group relative flex items-center gap-2 shrink-0 max-w-[220px] min-w-[140px] h-11 px-3 pr-1
                text-xs cursor-pointer transition-colors
                {isActive
           ? 'text-text-primary border-b-2 border-accent-cyan bg-bg-deep/40'
@@ -139,10 +139,10 @@
           type="button"
           aria-label={`Close tab "${titleFor(tabId)}"`}
           onclick={(e) => onTabClose(e, tabId)}
-          class="shrink-0 w-4 h-4 rounded flex items-center justify-center
-                 text-text-muted hover:text-red-300 hover:bg-red-500/10
+          class="shrink-0 w-11 h-11 -mr-2 rounded flex items-center justify-center
+                 text-text-muted hover:text-danger hover:bg-danger-soft
                  transition-colors
-                 {isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}"
+                 {isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus:opacity-100'}"
         >
           <Icon name="close" class="w-2.5 h-2.5" />
         </button>
@@ -151,7 +151,7 @@
     <button
       type="button"
       onclick={onNew}
-      class="shrink-0 w-9 h-9 flex items-center justify-center text-text-muted
+      class="shrink-0 w-11 h-11 flex items-center justify-center text-text-muted
              hover:text-accent-cyan hover:bg-bg-deep/30 transition-colors
              border-b-2 border-transparent"
       aria-label="New chat tab"

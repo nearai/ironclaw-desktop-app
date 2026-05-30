@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.110 — Beautify: chat surface polish (2026-05-30)
+
+- **Chat visual pass** (2nd of the 4-surface beautify sprint). `RebornChatPanel`
+  and `ChatTabs` get a calmer, more premium treatment — purely visual: the
+  `<script>` logic of both components is byte-identical to before (send/cancel/
+  streaming/gate wiring untouched), so this is style/markup only. Cleaner user
+  vs assistant message distinction, composer + empty-state polish, and a quieter
+  streaming feel, all within the `--v2-*` token system (no new colors, no
+  gradient/shimmer/bounce). Full suite green (1028), svelte-check 0/0.
+
 ## v0.4.109 — Beautify: onboarding / first-run polish (2026-05-30)
 
 - **Onboarding visual pass** (first of a 4-surface beautify sprint run via
