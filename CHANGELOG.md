@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.98 — Agent-UI design doc + IronClaw server-extension spec (2026-05-30)
+
+- **`docs/agent-ui.md`**: the capstone for the agent-controlled-UI feature.
+  Documents the shipped client half (registry / state reader / host adapter /
+  delegate seam with their exports), the semantic-actions-not-DOM principle, the
+  end-to-end data flow, the security model (bounded catalog, redacted reads,
+  graceful failure, future gated mutations), and a client wiring sketch. Most
+  importantly it specifies the **remaining server-side piece for review**: the
+  exact IronClaw Responses-API extension needed to delegate a tool call to the
+  client — register client tools on the run, emit a `client_tool_call` SSE event
+  that pauses the run like a gate, accept a submit-tool-output endpoint carrying
+  delegate's `{tool_call_id, output, is_error}`, and time out to an error result
+  — reusing the existing gate pause/resume machinery. Pure docs; check + full
+  vitest green (1006).
+
 ## v0.4.97 — Agent-UI delegation seam (client half complete) (2026-05-30)
 
 - **The seam IronClaw will call**: `$lib/agent-ui/delegate.ts` adds the pure
