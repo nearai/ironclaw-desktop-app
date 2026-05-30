@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.113 — Extensions: actionable "registry is empty" state (2026-05-30)
+
+- **Empty-state action (Codex review #3)**: the Extensions registry tab's "The
+  registry is empty." state was a dead end, unlike the adjacent error state
+  which already offers Retry. It now shows a one-line hint plus a "Retry" button
+  wired to the existing `loadRegistry()` (mirroring the error-state control), so
+  a transient/empty catalog has an obvious recovery. Markup + reused handler;
+  a real `<button>` keeps it a11y-clean. Full suite green (1028), svelte-check
+  0 errors / 0 warnings.
+
 ## v0.4.112 — Beautify: cross-app token consistency (2026-05-30)
 
 - **Whole-app consistency pass** (final of the 4-surface beautify sprint). Tightens

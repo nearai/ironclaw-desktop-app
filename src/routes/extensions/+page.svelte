@@ -861,7 +861,17 @@
         <div
           class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]"
         >
-          <div class="text-sm text-text-muted">The registry is empty.</div>
+          <div class="text-sm text-text-primary mb-1">The registry is empty.</div>
+          <div class="text-xs text-text-muted mb-4">
+            No extensions are available right now. Try reloading the catalog.
+          </div>
+          <button
+            type="button"
+            onclick={loadRegistry}
+            class="px-4 py-2 rounded-md border border-accent-cyan text-accent-cyan text-sm font-semibold hover:bg-accent-cyan hover:text-bg-deep transition min-h-[40px]"
+          >
+            Retry
+          </button>
         </div>
       {:else if filteredRegistry.length === 0}
         <div
