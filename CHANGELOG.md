@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.94 — Agent-UI state reader (the agent's "see" half) (2026-05-30)
+
+- **Redacted UI-state snapshot for the agent**: `$lib/agent-ui/state.ts` adds
+  `readUiState(source)` — the read half that pairs with the action registry's
+  drive half. The app passes a curated, secret-free `UiStateSource` (current
+  path, active thread, open modal, composer draft, connection status, profile
+  name) and gets back a semantic `UiState` snapshot — never raw DOM. Surface
+  names are resolved from the shared `NAV_SURFACES` map (so "see" and "drive"
+  speak the same vocabulary; unknown paths resolve to `"unknown"`, never a
+  fabricated surface). `redactSecrets` masks bearer/`sk-`/GitHub/long-hex token
+  shapes as defence-in-depth (e.g. a token pasted into the composer) while
+  leaving ordinary prose intact. Pure + injected source, so fully unit-tested.
+  +8 tests (991 total).
+
 ## v0.4.93 — Agent-UI action registry (foundation for agent-driven UI) (2026-05-30)
 
 - **First brick of agent-controlled UI**: a new `$lib/agent-ui/actions.ts`
