@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.106 — Fix: non-streaming API requests had no timeout, so a hung gateway wedged the UI (2026-05-30)
+
+- **Request timeout (Codex review #2 P2)**: `IronClawClient.request()` (the
+  non-streaming JSON path behind `health()`, settings, threads, etc.) awaited
+  `fetch` with no deadline, so an unresponsive gateway could leave onboarding
+  stuck at "Connecting…" or connection-health polling with permanently in-flight
+  requests. It now applies a default 15s timeout **only when the caller supplies
+  no `AbortSignal`** — it attaches either the caller's signal or an internal
+  timeout signal, never both, so there's no double-abort, and the timer is
+  cleared in a `finally`. A timeout surfaces as a clear "Request timed out after
+  15s" error. Streaming methods are unaffected (they own their own signal and
+  don't route through `request()`). +2 tests (fake-timer abort + a fast request
+  that doesn't time out; 1028 total).
+
 ## v0.4.105 — Fix: onboarding "Run on this Mac" silently no-opped before settings loaded (2026-05-30)
 
 - **Onboarding hydration fix (Codex review #2 P2)**: the Local choice button was

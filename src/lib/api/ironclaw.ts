@@ -86,6 +86,12 @@ async function diag(msg: string): Promise<void> {
   }
 }
 
+// Default timeout for non-streaming JSON requests. Applied only when the
+// caller supplies no AbortSignal of their own, so a hung gateway can't wedge
+// the UI indefinitely (e.g. onboarding stuck at "Connecting…"). Streaming
+// methods own their own signal and don't route through `request()`.
+const REQUEST_TIMEOUT_MS = 15_000;
+
 // Lazy load of Tauri http plugin. Top-level static import crashed the
 // entire JS bundle on production webview load (Webview JS never
 // executed, app stuck on "Disconnected" with no keychain reads or
@@ -160,14 +166,29 @@ export class IronClawClient {
     const maybeTauri = await loadTauriFetch();
     const fetchImpl = maybeTauri ?? fetch;
     await diag(`request ${method} ${url} via ${maybeTauri ? 'tauriFetch' : 'nativeFetch'}`);
+    // Spread `init` LAST for signal/etc., but strip its `headers` first —
+    // they're already merged into `headers` above, and re-spreading the
+    // raw `init.headers` here would clobber the merged set (dropping the
+    // Authorization/Accept headers). Keeping headers merge-only lets
+    // callers add request-specific headers (e.g. X-Confirm-Action) safely.
+    const { headers: _mergedAlready, ...restInit } = init ?? {};
+
+    // Apply a default timeout ONLY when the caller passed no signal — we
+    // attach either the caller's signal or our internal timeout signal, never
+    // both, so there's no double-abort.
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let timedOut = false;
+    if (restInit.signal == null) {
+      const ctrl = new AbortController();
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        ctrl.abort();
+      }, REQUEST_TIMEOUT_MS);
+      restInit.signal = ctrl.signal;
+    }
+
     let res: Response;
     try {
-      // Spread `init` LAST for signal/etc., but strip its `headers` first —
-      // they're already merged into `headers` above, and re-spreading the
-      // raw `init.headers` here would clobber the merged set (dropping the
-      // Authorization/Accept headers). Keeping headers merge-only lets
-      // callers add request-specific headers (e.g. X-Confirm-Action) safely.
-      const { headers: _mergedAlready, ...restInit } = init ?? {};
       res = await fetchImpl(url, {
         method,
         headers,
@@ -175,10 +196,16 @@ export class IronClawClient {
         ...restInit
       });
     } catch (err) {
+      if (timedOut) {
+        await diag(`request TIMEOUT ${method} ${url} after ${REQUEST_TIMEOUT_MS}ms`);
+        throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s: ${method} ${path}`);
+      }
       await diag(
         `request FAILED ${method} ${url}: ${err instanceof Error ? err.message : String(err)}`
       );
       throw err;
+    } finally {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
     }
     await diag(`request OK ${method} ${url} status=${res.status}`);
 

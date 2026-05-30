@@ -331,3 +331,39 @@ describe('IronClawClient.listRegistry', () => {
     expect(list[0].name).toBe('x');
   });
 });
+
+describe('IronClawClient.request timeout', () => {
+  // Mirrors REQUEST_TIMEOUT_MS in ironclaw.ts (not exported).
+  const TIMEOUT_MS = 15_000;
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('aborts a no-signal request after the default timeout', async () => {
+    vi.useFakeTimers();
+    // fetch never resolves on its own; it rejects only when its signal aborts.
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new Error('aborted')));
+        })
+    );
+    const c = makeClient();
+    const p = c.health();
+    // Attach the rejection assertion before advancing so there's no unhandled
+    // rejection warning, then drive the fake clock past the deadline.
+    const assertion = expect(p).rejects.toThrow(/timed out/i);
+    await vi.advanceTimersByTimeAsync(TIMEOUT_MS);
+    await assertion;
+  });
+
+  it('does not time out a request that resolves before the deadline', async () => {
+    // Real timers: the request resolves immediately and clears its own timer.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(fetchOk({ status: 'ok' }));
+    const c = makeClient();
+    const h = await c.health();
+    expect(h.ok).toBe(true);
+  });
+});
