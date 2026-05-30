@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.91 — Tests for the messages store (streaming/tool/commit logic) (2026-05-30)
+
+- **Coverage on the chat MessageStore**: the 403-line per-thread history +
+  streaming-buffer store backs every chat interaction and was untested. Added
+  unit tests for its pure state logic: the `appendStreamingChunk`
+  cumulative-vs-append heuristic (prefix-extension replaces, otherwise concat),
+  `recordToolResult` attaching to the most-recent open matching call vs.
+  pushing a standalone entry, `commitAssistantMessage` bailing on an
+  empty/whitespace buffer vs. committing + clearing, optimistic
+  `appendUserMessage` (`local-` id), and the `markFailed`/`clearFailed`/
+  `removeMessage` meta lifecycle. The I/O methods (`loadHistory`/
+  `loadMoreHistory`) are left for a follow-up. Purely additive — no production
+  changes. +10 tests (974 total). Overnight autonomous pass.
+
 ## v0.4.90 — Tests for the Open Loops dashboard tile (2026-05-30)
 
 - **Coverage on the Open Loops tile**: `OpenLoopsTile` (the chief-of-staff
