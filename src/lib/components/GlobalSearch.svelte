@@ -1013,7 +1013,20 @@
 
       <!-- Results panel — vertical scroll, grouped by surface. -->
       <div bind:this={listEl} class="flex-1 overflow-y-auto py-2">
-        {#if !query.trim() && recent.length > 0}
+        {#if !connection.client}
+          <!-- Offline: without a live client every surface returns nothing, so
+               the generic "type to search" hint below is misleading. The
+               open-time toast (see effect above) is transient; this persistent
+               inline status explains the state and the fix, and announces
+               itself to assistive tech via role="status". (#3-12) -->
+          <div role="status" class="px-5 py-10 text-center">
+            <div class="text-sm text-text-primary mb-1">Not connected</div>
+            <div class="text-sm text-text-muted">
+              Connect to an IronClaw profile to search across knowledge, threads, jobs, skills,
+              routines, and extensions.
+            </div>
+          </div>
+        {:else if !query.trim() && recent.length > 0}
           <!-- Empty-input state: surface recent queries. -->
           <div class="mb-1">
             <div

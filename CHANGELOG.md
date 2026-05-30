@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.115 — Global search: offline empty state (2026-05-30)
+
+- **Offline empty state (Codex review #3-12)**: when Global Search (Cmd+Shift+F)
+  is opened without a live client (`!connection.client`), it showed only a
+  transient "Not connected" toast while the panel kept the generic "Type to
+  search…" hint — which implies search works. It now renders a persistent inline
+  `role="status"` block ("Not connected" + how to fix) as the top-priority
+  empty state, so the panel honestly reflects that every surface will return
+  nothing until a profile is connected. Contained additive `{#if}` branch;
+  comprehensive GlobalSearch tests tracked separately (#3-15). Full suite green
+  (1028), svelte-check 0 errors / 0 warnings.
+
 ## v0.4.114 — NEAR AI brand: official N mark + brand palette (2026-05-30)
 
 - **Logo**: replaced the stacked-layers glyph (sidebar wordmark + onboarding
