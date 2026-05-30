@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.108 — Skills: make the "no skills installed" empty state actionable (2026-05-30)
+
+- **Empty-state action (Codex review #3)**: the Skills surface's "No skills
+  installed." state was a dead end — just text, no way forward — unlike the
+  filtered/error states which offer a next step. It now shows a one-line prompt
+  plus a "Browse IronHub" link to `/skills/ironhub` (matching the header's
+  existing IronHub entrypoint styling), so a first-run user with an empty
+  catalog has an obvious path to install their first skill. Markup-only, no
+  behavior change elsewhere; a real `<a>` keeps it keyboard/screen-reader clean.
+
 ## v0.4.107 — Chore: remove dead no-op onMount in PresetsModal (2026-05-30)
 
 - **Dead-code removal (Codex review #3)**: `PresetsModal` imported `onMount`

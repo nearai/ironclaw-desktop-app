@@ -678,7 +678,17 @@
       </div>
     {:else if filteredSkills.length === 0}
       <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
-        <div class="text-sm text-text-muted">No skills installed.</div>
+        <div class="text-sm text-text-primary mb-1">No skills installed.</div>
+        <div class="text-xs text-text-muted mb-4">
+          Browse the IronHub catalog to install your first skill.
+        </div>
+        <a
+          href="/skills/ironhub"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent-cyan/40 text-xs font-semibold text-accent-cyan hover:bg-accent-cyan/10 transition min-h-[34px]"
+          title="Browse the IronHub catalog and install new skills"
+        >
+          Browse IronHub
+        </a>
       </div>
     {:else if viewMode === 'grouped'}
       <!-- Grouped view: trust-level sections, alpha-sorted within. -->
