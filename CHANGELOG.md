@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.90 — Tests for the Open Loops dashboard tile (2026-05-30)
+
+- **Coverage on the Open Loops tile**: `OpenLoopsTile` (the chief-of-staff
+  commitment tracker) had untested render branches. Added tests for the empty
+  state (the "No open loops…" copy + the add-a-commitment input, with no list
+  rendered), the active-loops list (active commitments shown, `done` ones
+  excluded), and the per-loop complete/remove controls (by aria-label). Drives
+  the `openLoops` store's `loops` state directly; `$app/navigation` mocked.
+  Purely additive — no production changes. +3 tests (964 total). Overnight
+  autonomous pass.
+
 ## v0.4.89 — Tests for the admin prompt-diff logic (2026-05-30)
 
 - **Coverage on the system-prompt diff viewer**: `PromptDiff` computes a
