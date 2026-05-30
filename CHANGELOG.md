@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.97 — Agent-UI delegation seam (client half complete) (2026-05-30)
+
+- **The seam IronClaw will call**: `$lib/agent-ui/delegate.ts` adds the pure
+  `handleClientToolCall(call, host)` — it normalizes an inbound call
+  (`{ tool_call_id?, name, arguments? }`, where `arguments` may be an object or
+  a JSON string as function-call args arrive), routes it through the registry's
+  `dispatchAction`, and returns the OpenAI `function_call_output` shape
+  `{ tool_call_id, output, is_error }`. It never throws: bad JSON, non-object
+  args, an unknown action, or an action-level failure (e.g. a bad surface) all
+  resolve to `is_error: true` with a readable `output` the model can recover
+  from. +6 tests. **This completes the agent-UI client half** — registry +
+  state reader + host adapter + delegation seam (1006 tests total). What remains
+  for end-to-end is the IronClaw Responses-API extension to emit these calls
+  (server-side, gated on the live backend).
+
 ## v0.4.96 — Agent-UI host adapter (2026-05-30)
 
 - **The real host that runs agent actions**: `$lib/agent-ui/host.ts` adds
