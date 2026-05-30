@@ -46,6 +46,10 @@ export type NavSurface = keyof typeof NAV_SURFACES;
  */
 export interface AgentUiHost {
   navigate(path: string): void;
+  /** Open an existing chat thread by id (real host: rebornThreads.select(id)). */
+  openThread(threadId: string): void;
+  /** Start a fresh chat (real host: rebornThreads.select(null)). */
+  newChat(): void;
 }
 
 export type AgentActionResult = { ok: true; detail: string } | { ok: false; error: string };
@@ -87,11 +91,42 @@ const navigate: AgentAction = {
   }
 };
 
+const openThread: AgentAction = {
+  name: 'open_thread',
+  description: 'Open an existing chat thread by its id and show it to the user.',
+  parameters: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      thread_id: { type: 'string', description: 'The id of the thread to open.' }
+    },
+    required: ['thread_id']
+  },
+  run(args, host) {
+    const threadId = args.thread_id;
+    if (typeof threadId !== 'string' || threadId.trim().length === 0) {
+      return { ok: false, error: 'open_thread requires a non-empty thread_id' };
+    }
+    host.openThread(threadId);
+    return { ok: true, detail: `Opened thread ${threadId}` };
+  }
+};
+
+const newChat: AgentAction = {
+  name: 'new_chat',
+  description: 'Start a fresh, empty chat conversation.',
+  parameters: { type: 'object', additionalProperties: false, properties: {} },
+  run(_args, host) {
+    host.newChat();
+    return { ok: true, detail: 'Started a new chat' };
+  }
+};
+
 /**
  * The registry. Keep entries SAFE-by-default (reversible, non-destructive);
  * gated/destructive actions must be added behind the approval path.
  */
-export const AGENT_ACTIONS: readonly AgentAction[] = [navigate];
+export const AGENT_ACTIONS: readonly AgentAction[] = [navigate, openThread, newChat];
 
 /** Tool catalog the agent sees — name/description/parameters per action. */
 export function actionSchemas(): Array<Pick<AgentAction, 'name' | 'description' | 'parameters'>> {

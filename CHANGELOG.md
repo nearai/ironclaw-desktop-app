@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.4.95 — Agent-UI actions: open_thread + new_chat (2026-05-30)
+
+- **Two more bounded agent actions**: extends the `$lib/agent-ui` action
+  registry with `open_thread` (opens an existing chat thread by id) and
+  `new_chat` (starts a fresh conversation), widening `AgentUiHost` with
+  `openThread(id)` / `newChat()`. Both map cleanly to the verified real store
+  op (`rebornThreads.select(id)` / `select(null)`) — wired by the forthcoming
+  host adapter, not here, so the registry stays pure. `open_thread` rejects an
+  empty/missing `thread_id` with an error result (no host call); `new_chat`
+  takes no args. Still SAFE-by-default (reversible). +4 tests (995 total).
+
 ## v0.4.94 — Agent-UI state reader (the agent's "see" half) (2026-05-30)
 
 - **Redacted UI-state snapshot for the agent**: `$lib/agent-ui/state.ts` adds

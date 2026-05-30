@@ -4,9 +4,23 @@
 import { describe, expect, it } from 'vitest';
 import { actionSchemas, dispatchAction, NAV_SURFACES, type AgentUiHost } from './actions';
 
-function fakeHost(): { host: AgentUiHost; calls: string[] } {
-  const calls: string[] = [];
-  return { host: { navigate: (p) => calls.push(p) }, calls };
+function fakeHost(): {
+  host: AgentUiHost;
+  calls: string[];
+  opened: string[];
+  rec: { newChats: number };
+} {
+  const calls: string[] = []; // navigate paths
+  const opened: string[] = [];
+  const rec = { newChats: 0 };
+  const host: AgentUiHost = {
+    navigate: (p) => calls.push(p),
+    openThread: (id) => opened.push(id),
+    newChat: () => {
+      rec.newChats += 1;
+    }
+  };
+  return { host, calls, opened, rec };
 }
 
 describe('agent-ui action registry', () => {
@@ -47,5 +61,32 @@ describe('agent-ui action registry', () => {
     const res = await dispatchAction('frobnicate', {}, host);
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/Unknown action/);
+  });
+
+  it('exposes open_thread and new_chat in the catalog', () => {
+    const names = actionSchemas().map((s) => s.name);
+    expect(names).toContain('open_thread');
+    expect(names).toContain('new_chat');
+  });
+
+  it('open_thread opens the given thread via the host', async () => {
+    const { host, opened } = fakeHost();
+    const res = await dispatchAction('open_thread', { thread_id: 't-42' }, host);
+    expect(res.ok).toBe(true);
+    expect(opened).toEqual(['t-42']);
+  });
+
+  it('open_thread rejects an empty/missing thread_id without opening', async () => {
+    const { host, opened } = fakeHost();
+    const res = await dispatchAction('open_thread', { thread_id: '  ' }, host);
+    expect(res.ok).toBe(false);
+    expect(opened).toEqual([]);
+  });
+
+  it('new_chat starts a fresh chat via the host', async () => {
+    const { host, rec } = fakeHost();
+    const res = await dispatchAction('new_chat', {}, host);
+    expect(res.ok).toBe(true);
+    expect(rec.newChats).toBe(1);
   });
 });
