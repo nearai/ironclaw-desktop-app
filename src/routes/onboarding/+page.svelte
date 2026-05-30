@@ -38,6 +38,7 @@
     type ProfileConfig
   } from '$lib/stores/settings.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import { validateHostedUrl } from '$lib/util/validate-url';
 
   const LOCAL_DEFAULT_URL = 'http://127.0.0.1:3100';
 
@@ -152,11 +153,18 @@
   async function connectHosted() {
     if (connecting || !activeProfile) return;
     const token = tokenInput.trim();
-    const url = (hostedUrl.trim() || HOSTED_DEFAULT_URL).replace(/\/+$/, '');
     if (!token) {
       errorMsg = 'Paste your access token to connect.';
       return;
     }
+    // Validate the gateway URL BEFORE constructing a client — a pasted
+    // `http://` remote would otherwise send the bearer token in cleartext.
+    const validated = validateHostedUrl(hostedUrl.trim() || HOSTED_DEFAULT_URL);
+    if (!validated.ok) {
+      errorMsg = validated.error;
+      return;
+    }
+    const url = validated.url;
     connecting = true;
     errorMsg = null;
     try {

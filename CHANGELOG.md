@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.103 — Fix: hosted onboarding could send your access token over cleartext http:// (2026-05-30)
+
+- **Onboarding token-leak fix (Codex review #2 P1)**: the hosted "Connect" flow
+  validated only that a token was present, then built an `IronClawClient` and
+  called `health()` against whatever URL was pasted — so a custom `http://`
+  remote would transmit the bearer token unencrypted (capturable in transit or
+  in proxy/access logs). A new pure helper `validateHostedUrl()` now runs before
+  any client is constructed: it parses with `new URL()`, requires an
+  `http:`/`https:` scheme, and requires `https:` for non-loopback hosts —
+  plain `http://` is allowed only for `localhost` / `127.0.0.1` / `::1`, where
+  traffic never leaves the machine. A bad URL surfaces a specific inline error
+  instead of silently shipping the token. +7 unit tests for the validator
+  (1022 total).
+
 ## v0.4.102 — Fix: a replayed final_reply SSE frame duplicated the assistant bubble (2026-05-30)
 
 - **Chat dedup fix (Codex review)**: the `final_reply` branch of `reduceEvent`
