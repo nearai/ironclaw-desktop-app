@@ -81,12 +81,31 @@
     useResponsesApi: true,
     engineV2Enabled: false
   });
+  let lastSavedSettings = $state<AppSettings | null>(null);
+
+  function cloneSettingsSnapshot(next: AppSettings): AppSettings {
+    return { ...next, profiles: next.profiles.map((profile) => ({ ...profile })) };
+  }
+
+  function applySettingsSnapshot(next: AppSettings) {
+    settings = next;
+    lastSavedSettings = cloneSettingsSnapshot(next);
+  }
 
   /** Derived shorthand for the currently-selected profile inside the local
    *  draft. All "active profile" form inputs read/write through this. */
   const activeProfile = $derived<ProfileConfig | null>(
     settings.profiles.find((p) => p.id === settings.activeProfileId) ?? null
   );
+  const connectionDraftDirty = $derived.by<boolean>(() => {
+    if (!activeProfile || !lastSavedSettings) return false;
+    const savedProfile = lastSavedSettings.profiles.find((p) => p.id === activeProfile.id);
+    if (!savedProfile) return false;
+    return (
+      activeProfile.mode !== savedProfile.mode ||
+      activeProfile.remoteBaseUrl !== savedProfile.remoteBaseUrl
+    );
+  });
 
   /**
    * True when the active profile needs a gateway token but doesn't have
@@ -239,7 +258,7 @@
     try {
       await reorderProfiles(newOrder);
       // Reload local snapshot so the UI reflects the new order.
-      settings = await loadSettings();
+      applySettingsSnapshot(await loadSettings());
       // Refresh the connection store's settings rune (cheap — no gateway
       // reconnect) so any chrome bound to `connection.settings.profiles`
       // picks up the new order in this window. Sibling windows pick it
@@ -280,7 +299,7 @@
     MaskedValue = maskedValueModule.default;
     LlmProviderPicker = llmProviderPickerModule.default;
 
-    settings = await loadSettings();
+    applySettingsSnapshot(await loadSettings());
     await refreshProfileCredentials();
     // Eager Keychain scan for every profile so the per-row "Token: set /
     // missing" badge renders synchronously on first paint. Cheap IPC,
@@ -439,8 +458,10 @@
     saveStatus = 'saving';
     saveMessage = null;
     try {
-      await saveSettings($state.snapshot(settings));
+      const saved = $state.snapshot(settings);
+      await saveSettings(saved);
       await connection.refresh();
+      lastSavedSettings = cloneSettingsSnapshot(saved);
       saveStatus = 'saved';
       saveMessage = 'Saved.';
       toasts.show('Settings saved', 'success');
@@ -567,20 +588,18 @@
   }
 
   /**
-   * Sign out of NEAR.AI. TODO: the gateway does not yet expose a
-   * `DELETE /api/profile` / `POST /api/auth/signout` endpoint (verified
-   * against IronClaw 0.28.2). For now we just nudge the user to the web UI
-   * to complete the sign-out flow there; once the server lands the endpoint
-   * this handler should call `connection.client.signOut()` directly.
+   * Open the sidecar web UI for NEAR.AI account management. The gateway
+   * does not expose a real sign-out endpoint, so this cannot be an in-app
+   * sign-out action.
    */
   async function onSignOutFromNearAi() {
     if (connection.sidecarStatus !== 'running' || !connection.sidecarPort) {
-      toasts.show('Sidecar not running — nothing to sign out of', 'info');
+      toasts.show('Sidecar not running — web UI unavailable', 'info');
       return;
     }
     try {
       await shellOpen(`http://127.0.0.1:${connection.sidecarPort}/`);
-      toasts.show('Opened IronClaw — sign out from the web UI, then click Refresh', 'info');
+      toasts.show('Opened IronClaw web UI — manage sign-in there, then click Refresh', 'info');
     } catch (err) {
       toasts.show(`Could not open browser: ${(err as Error).message}`, 'error');
     }
@@ -617,7 +636,7 @@
     try {
       const draft = { ...$state.snapshot(settings), adminMode: next };
       await saveSettings(draft);
-      settings = draft;
+      applySettingsSnapshot(draft);
       // connection.settings is the source-of-truth for cross-route reads
       // (sidebar item, +layout shortcut + redirect). Refresh so the field
       // there matches what we just wrote.
@@ -639,7 +658,7 @@
     try {
       const draft = { ...$state.snapshot(settings), trayEnabled: next };
       await saveSettings(draft);
-      settings = draft;
+      applySettingsSnapshot(draft);
       // Live visibility flip. Errors here are not fatal — the persisted
       // value still wins on the next launch.
       try {
@@ -666,7 +685,7 @@
     try {
       const draft = { ...$state.snapshot(settings), useResponsesApi: next };
       await saveSettings(draft);
-      settings = draft;
+      applySettingsSnapshot(draft);
       toasts.show(
         next ? 'Responses API streaming enabled' : 'Pinned to legacy /api/chat streaming',
         'info'
@@ -689,7 +708,7 @@
     try {
       const draft = { ...$state.snapshot(settings), engineV2Enabled: next };
       await saveSettings(draft);
-      settings = draft;
+      applySettingsSnapshot(draft);
       await connection.refresh();
       toasts.show(next ? 'Engine v2 surface enabled' : 'Engine v2 surface hidden', 'info');
     } catch (err) {
@@ -701,7 +720,7 @@
     try {
       const next = { ...$state.snapshot(settings), onboardingComplete: false };
       await saveSettings(next);
-      settings = next;
+      applySettingsSnapshot(next);
       await goto('/onboarding');
     } catch (err) {
       toasts.show(`Could not start onboarding: ${(err as Error).message}`, 'error');
@@ -823,7 +842,7 @@
       // machine won't match the imported profile ids — connection layer
       // already treats missing tokens as "needs setup", so the UI will
       // surface that on its own.
-      settings = imported;
+      applySettingsSnapshot(imported);
       await refreshProfileCredentials();
       await refreshAllProfileTokenStatus();
       await connection.refresh();
@@ -1267,7 +1286,7 @@
       await connection.switchProfile(id);
       // Reload local snapshot so the page reflects the new active profile
       // + fresh Keychain reads.
-      settings = await loadSettings();
+      applySettingsSnapshot(await loadSettings());
       await refreshProfileCredentials();
       // Reset the welcome-back dismissal so the banner can re-appear if
       // the new active profile is also missing a token. Each profile
@@ -1283,7 +1302,7 @@
   async function onAddProfileInline() {
     try {
       const profile = await addProfile(`Profile ${settings.profiles.length + 1}`);
-      settings = await loadSettings();
+      applySettingsSnapshot(await loadSettings());
       // New profile starts without a stored token — record that
       // explicitly so the badge renders "missing" right away rather than
       // falling through to the "unknown" (hidden) state.
@@ -1320,7 +1339,7 @@
     }
     try {
       await updateProfile(id, { name: trimmed });
-      settings = await loadSettings();
+      applySettingsSnapshot(await loadSettings());
       toasts.show('Profile renamed', 'success');
     } catch (err) {
       toasts.show(`Rename failed: ${(err as Error).message}`, 'error');
@@ -1345,7 +1364,7 @@
   async function onChangeTint(profile: ProfileConfig, tint: ProfileTint) {
     try {
       await updateProfile(profile.id, { tint });
-      settings = await loadSettings();
+      applySettingsSnapshot(await loadSettings());
       // `reloadSettings` (vs the heavier `refresh`) updates the
       // connection store's `settings` without re-pinging the gateway or
       // cycling the sidecar — tint changes are purely cosmetic and a
@@ -1373,19 +1392,30 @@
     }
   }
 
-  async function onDeleteProfile(profile: ProfileConfig) {
+  let deleteProfileTarget = $state<ProfileConfig | null>(null);
+  let deletingProfile = $state(false);
+
+  function onDeleteProfile(profile: ProfileConfig) {
     if (settings.profiles.length <= 1) {
       toasts.show('Cannot delete the last profile', 'error');
       return;
     }
-    const ok = confirm(
-      `Delete profile "${profile.name}"? This also removes its stored token and OpenRouter key.`
-    );
-    if (!ok) return;
+    deleteProfileTarget = profile;
+  }
+
+  function closeDeleteProfileConfirm() {
+    if (deletingProfile) return;
+    deleteProfileTarget = null;
+  }
+
+  async function onConfirmDeleteProfile() {
+    const profile = deleteProfileTarget;
+    if (!profile) return;
     try {
+      deletingProfile = true;
       const wasActive = profile.id === settings.activeProfileId;
       await deleteProfile(profile.id);
-      settings = await loadSettings();
+      applySettingsSnapshot(await loadSettings());
       // Strip the deleted profile from the token-status map so its row
       // doesn't linger in any future re-render that touches the badge.
       const { [profile.id]: _removed, ...rest } = profileTokenStatus;
@@ -1394,9 +1424,12 @@
         await connection.refresh();
         await refreshProfileCredentials();
       }
+      deleteProfileTarget = null;
       toasts.show('Profile deleted', 'success');
     } catch (err) {
       toasts.show(`Delete failed: ${(err as Error).message}`, 'error');
+    } finally {
+      deletingProfile = false;
     }
   }
 
@@ -1611,14 +1644,17 @@
     return relativeTime(ms);
   }
 
-  // Esc closes the active modal (create, revoke confirm, or post-import
-  // success). Mirrors the pattern in NewProfileModal.svelte so behaviour
-  // is consistent across dialogs on this surface. Order matters: the
-  // most-recently-opened modal handles Esc first.
+  // Esc closes the active modal (create, destructive confirms, or
+  // post-import success). Mirrors the pattern in NewProfileModal.svelte
+  // so behaviour is consistent across dialogs on this surface. Order
+  // matters: the most-recently-opened modal handles Esc first.
   $effect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key !== 'Escape') return;
-      if (revokeTarget) {
+      if (deleteProfileTarget) {
+        e.preventDefault();
+        closeDeleteProfileConfirm();
+      } else if (revokeTarget) {
         e.preventDefault();
         closeRevokeConfirm();
       } else if (createOpen) {
@@ -1818,6 +1854,7 @@
       if (
         e.key === 'Escape' &&
         document.activeElement === searchInputRef &&
+        !deleteProfileTarget &&
         !revokeTarget &&
         !createOpen
       ) {
@@ -2040,6 +2077,9 @@
             </div>
           </label>
         </div>
+        {#if connectionDraftDirty}
+          <p class="mt-3 text-xs font-medium text-accent-gold">Unsaved changes — Save to apply.</p>
+        {/if}
       </div>
 
       <!-- API version (Reborn WebChat v2 vs legacy v1 gateway) -->
@@ -2115,6 +2155,11 @@
               placeholder="http://127.0.0.1:3100"
               class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan transition-colors min-h-[44px]"
             />
+            {#if connectionDraftDirty}
+              <p class="mt-2 text-xs font-medium text-accent-gold">
+                Unsaved changes — Save to apply.
+              </p>
+            {/if}
           </div>
 
           <div class="flex items-center gap-3">
@@ -2123,7 +2168,7 @@
               disabled={saveStatus === 'saving'}
               class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-50 min-h-[44px]"
             >
-              {saveStatus === 'saving' ? 'Saving…' : 'Save'}
+              {saveStatus === 'saving' ? 'Saving…' : 'Save server URL'}
             </button>
             {#if saveStatus === 'saved'}
               <span class="text-xs text-accent-cyan flex items-center gap-1">
@@ -2289,12 +2334,12 @@
              landed on NEAR.AI). The signIn store probes /api/profile
              against the running sidecar — kept as a dedicated card here
              because it covers the bilateral status (signed-in/-out) +
-             the explicit Sign out affordance that the picker's compact
-             "Sign in" button doesn't try to replicate. -->
+             the explicit web-UI account-management affordance that the
+             picker's compact "Sign in" button doesn't try to replicate. -->
         {#if activeProfile.llmProviderId === 'nearai' || (!activeProfile.llmProviderId && activeProfile.llmBackend === 'nearai')}
           <div
             data-section-id="nearai-auth"
-            data-section-title="NEAR.AI authentication (sign in / sign out)"
+            data-section-title="NEAR.AI authentication (sign in / web UI account management)"
             class="surface p-5 space-y-4 transition-opacity"
             class:opacity-30={isSectionDimmed('nearai-auth')}
             class:ring-1={isSectionMatched('nearai-auth')}
@@ -2345,7 +2390,7 @@
                   onclick={onSignOutFromNearAi}
                   class="px-4 py-2 rounded-md border border-border-subtle text-sm text-text-primary hover:border-accent-gold hover:text-accent-gold transition min-h-[44px]"
                 >
-                  Sign out
+                  Manage sign-in in web UI
                 </button>
                 <button
                   type="button"
@@ -2499,7 +2544,7 @@
               disabled={saveStatus === 'saving'}
               class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-50 min-h-[44px]"
             >
-              {saveStatus === 'saving' ? 'Saving…' : 'Save mode + apply'}
+              {saveStatus === 'saving' ? 'Saving…' : 'Save connection mode'}
             </button>
             {#if saveStatus === 'saved'}
               <span class="text-xs text-accent-cyan flex items-center gap-1">
@@ -3915,6 +3960,62 @@
           </button>
         </div>
       {/if}
+    </div>
+  </div>
+{/if}
+
+{#if deleteProfileTarget}
+  <div
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    onclick={closeDeleteProfileConfirm}
+    onkeydown={(e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        closeDeleteProfileConfirm();
+      }
+    }}
+    role="button"
+    tabindex="-1"
+    aria-label="Close delete profile dialog"
+  >
+    <div
+      class="surface w-[min(420px,calc(100vw-2rem))] p-6 space-y-5 border border-red-500/40"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-profile-title"
+      onclick={(e) => e.stopPropagation()}
+      onkeydown={(e) => e.stopPropagation()}
+      tabindex="-1"
+    >
+      <header class="space-y-1">
+        <h2 id="delete-profile-title" class="text-lg font-semibold text-text-primary">
+          Delete
+          <span class="font-mono text-accent-gold break-all">{deleteProfileTarget.name}</span>?
+        </h2>
+        <p class="text-xs text-text-muted">
+          This cannot be undone. The stored gateway token and OpenRouter key for this profile will
+          also be removed.
+        </p>
+      </header>
+
+      <div class="flex items-center justify-end gap-3">
+        <button
+          type="button"
+          onclick={closeDeleteProfileConfirm}
+          disabled={deletingProfile}
+          class="text-sm text-text-muted hover:text-text-primary transition-colors disabled:opacity-50 min-h-[44px] px-3"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onclick={() => void onConfirmDeleteProfile()}
+          disabled={deletingProfile}
+          class="px-4 py-2 rounded-md bg-red-600 text-white text-sm font-semibold hover:bg-red-500 transition disabled:opacity-50 min-h-[44px]"
+        >
+          {deletingProfile ? 'Deleting…' : 'Delete profile'}
+        </button>
+      </div>
     </div>
   </div>
 {/if}

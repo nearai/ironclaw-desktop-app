@@ -14,6 +14,7 @@
   import { relativeTime } from './time';
 
   const POLL_INTERVAL_MS = 30_000;
+  const CREATE_UNAVAILABLE_MESSAGE = "Routine creation isn't available on this gateway yet";
 
   // Persisted UI prefs (search + sort + filter pill). Stored under a single
   // namespaced key so a future settings panel can wipe them in one call.
@@ -22,11 +23,20 @@
   type EnabledFilter = 'all' | 'enabled' | 'disabled';
   type SortKey = 'name' | 'next_run' | 'last_run' | 'schedule';
   type Prefs = { search: string; filter: EnabledFilter; sort: SortKey };
+  type DetailPanelComponent = Component<{ routine: Routine; onclose: () => void }>;
+  type SparklineComponent = Component<{
+    data: number[];
+    width?: number;
+    height?: number;
+    variant?: 'line' | 'bars' | 'area';
+    color?: string;
+  }>;
+  type CronPreviewComponent = Component<{ expr: string | undefined | null; classes?: string }>;
   const DEFAULT_PREFS: Prefs = { search: '', filter: 'all', sort: 'name' };
 
-  let DetailPanel = $state<Component<any> | null>(null);
-  let Sparkline = $state<Component<any> | null>(null);
-  let CronPreview = $state<Component<any> | null>(null);
+  let DetailPanel = $state<DetailPanelComponent | null>(null);
+  let Sparkline = $state<SparklineComponent | null>(null);
+  let CronPreview = $state<CronPreviewComponent | null>(null);
 
   // Loaded data
   let routines = $state<Routine[]>([]);
@@ -47,6 +57,7 @@
   /** IDs currently being triggered, so we can disable the play button. */
   let triggeringIds = $state<Set<string>>(new Set());
   let createModalOpen = $state(false);
+  let createUnavailableSeen = $state(false);
 
   let routinesPoll: ReturnType<typeof createPollingRefresh> | null = null;
 
@@ -227,23 +238,20 @@
   const filterActive = $derived(debouncedQuery.trim().length > 0 || filterKey !== 'all');
 
   // ────────────────────────────────────────────────────────────────────────
-  // Sparkline data. We bucket each enabled routine's `last_run` timestamp
+  // Sparkline data. We bucket each routine's `last_run` timestamp
   // into one of 24 hourly slots covering the past 24h. This is a coarse v1
   // approximation — the server does not yet expose a "recent runs" endpoint,
   // and we cap at one observation per routine to keep request volume zero.
   // When `/api/routines/recent-runs` lands, swap this for the real data.
   // TODO(routines:+page.svelte:sparkline): replace per-routine last_run
   // bucketing with a /api/routines/recent-runs aggregate once the gateway
-  // exposes it. Until then we cannot distinguish success vs failure at the
-  // hourly granularity, so every bar renders as cyan (success).
+  // exposes it. Until then this page has no per-run status signal, so the
+  // bars render in a neutral color instead of implying successful runs.
   // ────────────────────────────────────────────────────────────────────────
-  type SparkBucket = { success: number; failed: number };
+  type SparkBucket = { count: number };
 
   const sparkBuckets = $derived.by<SparkBucket[]>(() => {
-    const buckets: SparkBucket[] = Array.from({ length: 24 }, () => ({
-      success: 0,
-      failed: 0
-    }));
+    const buckets: SparkBucket[] = Array.from({ length: 24 }, () => ({ count: 0 }));
     const now = Date.now();
     const cutoff = now - 24 * 60 * 60 * 1000;
     for (const r of routines) {
@@ -256,22 +264,17 @@
       // is past-to-present, matching natural reading order).
       const idx = 23 - hoursAgo;
       if (idx < 0 || idx > 23) continue;
-      // We can't tell success vs failure from the `last_run` timestamp
-      // alone, so v1 attributes every bar to the cyan success channel.
-      buckets[idx].success += 1;
+      buckets[idx].count += 1;
     }
     return buckets;
   });
 
-  const sparkTotal = $derived(sparkBuckets.reduce((acc, b) => acc + b.success + b.failed, 0));
-
-  const sparkMax = $derived(sparkBuckets.reduce((m, b) => Math.max(m, b.success + b.failed), 0));
+  const sparkTotal = $derived(sparkBuckets.reduce((acc, b) => acc + b.count, 0));
 
   /** Flattened per-bucket count series feeding `<Sparkline variant="bars">`.
-   *  v1 sums success + failed into a single channel; once the gateway
-   *  exposes success/failure attribution we can render two stacked
-   *  Sparklines or switch back to a hand-rolled stacked-bar block. */
-  const sparkSeries = $derived<number[]>(sparkBuckets.map((b) => b.success + b.failed));
+   *  Once the gateway exposes success/failure attribution we can render two
+   *  stacked Sparklines or switch back to a hand-rolled stacked-bar block. */
+  const sparkSeries = $derived<number[]>(sparkBuckets.map((b) => b.count));
 
   // Deep-link target id from `?open=<id>` (set by CommandPalette). Captured
   // once on mount; if the routine list hasn't loaded the target yet on the
@@ -396,6 +399,17 @@
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   });
+
+  $effect(() => {
+    if (createUnavailableSeen) return;
+    if (toasts.toasts.some((toast) => toast.message === CREATE_UNAVAILABLE_MESSAGE)) {
+      createUnavailableSeen = true;
+    }
+  });
+
+  function openCreateModal() {
+    createModalOpen = true;
+  }
 
   async function refresh(opts: { silent?: boolean } = {}) {
     const client = connection.client;
@@ -685,26 +699,33 @@
     </div>
     {#if connection.status === 'connected'}
       <div class="flex items-center gap-2">
-        <button
-          type="button"
-          onclick={() => (createModalOpen = true)}
-          disabled={!connection.token}
-          class="flex items-center gap-2 px-3 py-2 rounded-md bg-accent-cyan text-bg-deep text-xs font-semibold hover:brightness-95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px]"
-        >
-          <svg
-            viewBox="0 0 24 24"
-            class="w-3.5 h-3.5"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
+        <div class="flex flex-col items-end gap-1">
+          <button
+            type="button"
+            onclick={openCreateModal}
+            disabled={!connection.token}
+            class="flex items-center gap-2 px-3 py-2 rounded-md bg-accent-cyan text-bg-deep text-xs font-semibold hover:brightness-95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px]"
           >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
-          New routine
-        </button>
+            <svg
+              viewBox="0 0 24 24"
+              class="w-3.5 h-3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            New routine
+          </button>
+          {#if createUnavailableSeen}
+            <div class="max-w-[14rem] text-right text-[11px] leading-snug text-text-muted">
+              Creation needs a newer gateway.
+            </div>
+          {/if}
+        </div>
         <button
           type="button"
           onclick={() => void refresh()}
@@ -758,13 +779,13 @@
       </div>
     </div>
   {:else}
-    <!-- Stat strip — grows to a 5th "Recent runs" sparkline card whenever we
+    <!-- Stat strip — grows to a 4th "Recent runs" sparkline card whenever we
          have any last_run data in the past 24h. Hidden otherwise so the card
          doesn't render as an empty box. -->
     <div
       class="grid gap-3 mb-6"
-      class:grid-cols-4={sparkTotal === 0}
-      class:grid-cols-5={sparkTotal > 0}
+      class:grid-cols-3={sparkTotal === 0}
+      class:grid-cols-4={sparkTotal > 0}
     >
       <div class="surface p-4">
         <div class="text-3xl font-bold text-accent-cyan leading-none">{summary.total}</div>
@@ -784,10 +805,6 @@
         </div>
         <div class="text-xs text-text-muted mt-2 uppercase tracking-wide">Failed (24h)</div>
       </div>
-      <div class="surface p-4">
-        <div class="text-3xl font-bold text-accent-gold leading-none">{summary.running}</div>
-        <div class="text-xs text-text-muted mt-2 uppercase tracking-wide">Running</div>
-      </div>
       {#if sparkTotal > 0}
         <div class="surface p-4 flex flex-col justify-between">
           <!-- 24-bucket sparkline. The hand-rolled stacked-bar layout was
@@ -795,13 +812,19 @@
                share a single rendering path with the other dashboards.
                TODO(routines:+page.svelte:sparkline-split): when the gateway
                exposes per-bucket success vs failure, layer two Sparklines
-               (one cyan for success, one danger for failed) or extend the
+               (one success, one danger) or extend the
                component to accept a `secondary` series. -->
           <div
             title="Recent routine runs over the past 24 hours"
             aria-label="Recent routine runs over the past 24 hours"
           >
-            <Sparkline data={sparkSeries} variant="bars" width={160} height={40} />
+            <Sparkline
+              data={sparkSeries}
+              variant="bars"
+              width={160}
+              height={40}
+              color="var(--v2-text-faint)"
+            />
           </div>
           <div class="text-xs text-text-muted mt-2 uppercase tracking-wide">Recent runs</div>
         </div>
@@ -936,7 +959,7 @@
           </div>
           <button
             type="button"
-            onclick={() => (createModalOpen = true)}
+            onclick={openCreateModal}
             disabled={!connection.token}
             class="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-md bg-accent-cyan text-bg-deep text-xs font-semibold hover:brightness-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
@@ -954,6 +977,11 @@
             </svg>
             New routine
           </button>
+          {#if createUnavailableSeen}
+            <div class="text-[11px] text-text-muted">
+              Creation needs a newer gateway; use the CLI for now.
+            </div>
+          {/if}
         </div>
       {:else if filteredRoutines.length === 0}
         <!-- Filtered-empty state. Distinct from the no-data state above so the

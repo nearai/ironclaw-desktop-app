@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.4.122 — Functional fixes wave 2: settings honesty, extensions truth, routines stats (2026-05-30)
+
+From the per-surface functional audit. Three route surfaces, all honest-state fixes:
+
+- **Settings**: connection-mode + server-URL edits are draft-only, so a navigate-away
+  silently lost them — now an "Unsaved changes — Save to apply" hint tracks the draft
+  vs last-saved state. Delete-profile moved off native `confirm()` to the app's styled
+  confirm modal (with Esc handling). The NEAR.AI "Sign out" stub (no real endpoint) is
+  relabeled "Manage sign-in in web UI", and the URL save button now says "Save server URL".
+- **Extensions**: install/activate now confirm against refetched state before claiming
+  success ("Installed" vs "requested; waiting for IronClaw to report it"), the silent 30s
+  refresh no longer clobbers in-flight mutations, and the non-functional Deactivate (no
+  gateway endpoint) now says so instead of silently re-activating.
+- **Routines**: the always-zero "Running" stat tile is hidden until the gateway exposes a
+  real count; the recent-runs sparkline renders neutral (it had no success/failure signal
+  yet falsely implied all-success); create-unavailable (405) is surfaced cleanly.
+
+Full suite green (1030), svelte-check 0/0.
+
 ## v0.4.121 — Functional fixes wave 1: chat gate keys, provider inputs, stream dates (2026-05-30)
 
 From the per-surface functional audit. Three independent, green-gated fixes:

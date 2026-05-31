@@ -385,6 +385,9 @@
     refreshTimer = setInterval(() => {
       // Quietly refresh the installed list + its readiness. Don't toast on
       // failure during the silent poll — keep the last good state visible.
+      // Also avoid replacing optimistic/user-visible state while a mutation or
+      // setup flow is active; the mutation path does its own explicit refetch.
+      if (busyNames.size > 0 || setupTarget) return;
       void loadInstalled({ quiet: true });
     }, REFRESH_INTERVAL_MS);
   }
@@ -398,7 +401,8 @@
 
   async function loadInstalled(opts: { quiet?: boolean } = {}) {
     const client = connection.client;
-    if (!client) return;
+    if (!client) return null;
+    if (opts.quiet && (busyNames.size > 0 || setupTarget)) return installed;
     if (!opts.quiet) {
       installedState = installed.length === 0 ? 'loading' : installedState;
       installedError = null;
@@ -411,6 +415,7 @@
         client.listExtensions(),
         client.extensionTools().catch(() => [] as ExtensionTool[])
       ]);
+      if (opts.quiet && (busyNames.size > 0 || setupTarget)) return installed;
       installed = list.slice().sort((a, b) => a.name.localeCompare(b.name));
       const next = new Map<string, string[]>();
       for (const t of tools) {
@@ -427,12 +432,14 @@
       // Consume any pending `?focus=<name>` deep-link now that this
       // list is live. Safe to call repeatedly — `focusConsumed` guards.
       tryConsumeFocus();
+      return installed;
     } catch (err) {
       installedError = (err as Error).message;
       if (!opts.quiet) {
         installedState = 'error';
         toasts.show(`Failed to load extensions: ${installedError}`, 'error');
       }
+      return null;
     }
   }
 
@@ -467,17 +474,24 @@
   async function handleInstall(ext: Extension) {
     const client = connection.client;
     if (!client) return;
+    const label = ext.display_name ?? ext.name;
     setBusy(ext.name, true);
     try {
       const res = await client.installExtension(ext.name);
-      if (res.ok) {
-        toasts.show(`Installed ${ext.display_name ?? ext.name}`, 'success');
-      } else {
-        toasts.show(`Install request sent for ${ext.name}`, 'info');
-      }
       // Refresh both panes — registry's `installed` flag and the installed
       // list both move when this succeeds.
-      await Promise.all([loadInstalled(), loadRegistry()]);
+      const [latest] = await Promise.all([loadInstalled(), loadRegistry()]);
+      const confirmed = latest?.some((item) => item.name === ext.name) === true;
+      if (confirmed) {
+        toasts.show(`Installed ${label}`, 'success');
+      } else if (res.ok) {
+        toasts.show(
+          `Install requested for ${label}; waiting for IronClaw to report it installed.`,
+          'info'
+        );
+      } else {
+        toasts.show(`Install request sent for ${label}`, 'info');
+      }
     } catch (err) {
       toasts.show(`Install failed: ${(err as Error).message}`, 'error');
     } finally {
@@ -488,19 +502,26 @@
   async function handleToggleActivate(ext: Extension) {
     const client = connection.client;
     if (!client) return;
+    const label = ext.display_name ?? ext.name;
+    if (ext.active) {
+      toasts.show(`Deactivate is not supported for ${label} by this gateway.`, 'info');
+      return;
+    }
     setBusy(ext.name, true);
     try {
-      // The gateway exposes activate; deactivate is not in the documented
-      // surface so we call activate as a toggle. If the server adds a
-      // dedicated /deactivate endpoint later, swap on `ext.active` here.
       const res = await client.activateExtension(ext.name);
-      if (res.ok) {
+      const latest = await loadInstalled();
+      const updated = latest?.find((item) => item.name === ext.name);
+      if (updated?.active === true) {
+        toasts.show(`Activated ${label}`, 'success');
+      } else if (res.ok) {
         toasts.show(
-          `${ext.active ? 'Toggled' : 'Activated'} ${ext.display_name ?? ext.name}`,
-          'success'
+          `Activation requested for ${label}; waiting for IronClaw to report it active.`,
+          'info'
         );
+      } else {
+        toasts.show(`Activation request sent for ${label}`, 'info');
       }
-      await loadInstalled();
     } catch (err) {
       toasts.show(`Action failed: ${(err as Error).message}`, 'error');
     } finally {
@@ -520,12 +541,20 @@
     setBusy(ext.name, true);
     try {
       const res = await client.removeExtension(ext.name);
-      if (res.ok) {
+      const [latest] = await Promise.all([loadInstalled(), loadRegistry()]);
+      const confirmed = latest?.some((item) => item.name === ext.name) === false;
+      if (confirmed) {
         toasts.show(`Removed ${label}`, 'success');
+      } else if (res.ok) {
+        toasts.show(
+          `Remove requested for ${label}; waiting for IronClaw to report it removed.`,
+          'info'
+        );
+      } else {
+        toasts.show(`Remove request sent for ${label}`, 'info');
       }
       // If the removed card was expanded, collapse it.
-      if (expandedName === ext.name) expandedName = null;
-      await Promise.all([loadInstalled(), loadRegistry()]);
+      if (confirmed && expandedName === ext.name) expandedName = null;
     } catch (err) {
       toasts.show(`Remove failed: ${(err as Error).message}`, 'error');
     } finally {
@@ -542,8 +571,17 @@
   }
 
   async function handleSetupSaved() {
+    const target = setupTarget;
     // Setup flow may have switched readiness from "needs setup" → "ready".
-    await loadInstalled();
+    const latest = await loadInstalled();
+    if (!target) return;
+    const updated = latest?.find((item) => item.name === target.name);
+    if (updated && updated.ready !== true && updated.readiness_message !== 'ready') {
+      toasts.show(
+        `Setup saved for ${target.display_name ?? target.name}; waiting for IronClaw to report it ready.`,
+        'info'
+      );
+    }
   }
 
   function setTab(t: Tab) {
@@ -812,7 +850,11 @@
               scroll target without altering the CSS Grid layout — the
               `<ExtensionCard>` root stays the grid item.
             -->
-            <div class="contents" data-extension-card={ext.name}>
+            <div
+              class="contents"
+              data-extension-card={ext.name}
+              data-extension-active={ext.active === true ? 'true' : 'false'}
+            >
               <ExtensionCard
                 extension={ext}
                 variant="installed"
@@ -914,3 +956,9 @@
 {#if setupTarget}
   <SetupDrawer extension={setupTarget} onClose={closeSetup} onSaved={handleSetupSaved} />
 {/if}
+
+<style>
+  :global([data-extension-active='true'] button[title='Deactivate']) {
+    display: none;
+  }
+</style>
