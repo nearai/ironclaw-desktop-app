@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.140 — Lazy-mount global overlays (review ICD-004) (2026-05-30)
+
+The root layout no longer imports and instantiates every overlay at boot.
+
+- The eight keyboard/programmatically-summoned overlays — CommandPalette,
+  GlobalSearch, Omnibar, ThreadSwitcher, QuickCapture, PresetsModal,
+  TemplatesModal, AboutDialog — are now mounted via a per-overlay first-open
+  latch (`$effect` that flips when `<store>.open` first goes true outside
+  onboarding) plus a dynamic `import()`. Each splits into its own chunk and is
+  loaded + instantiated only on first use; it stays mounted afterward, so
+  re-opens are instant and exit transitions are preserved.
+- `ConfirmDialog`, `Toasts`, `UpdaterBanner`, `StatusBar`, and `Sidebar` stay
+  statically mounted — ConfirmDialog in particular is summoned synchronously via
+  `confirmDialog.ask()` and must already be in the DOM.
+
 ## v0.4.139 — Lightweight streaming renderer (review ICD-003) (2026-05-30)
 
 The in-flight assistant turn no longer re-parses the entire response as Markdown

@@ -5,22 +5,14 @@
   import { page } from '$app/state';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Toasts from '$lib/components/Toasts.svelte';
-  import CommandPalette from '$lib/components/CommandPalette.svelte';
-  import GlobalSearch from '$lib/components/GlobalSearch.svelte';
-  import ThreadSwitcher from '$lib/components/ThreadSwitcher.svelte';
-  import QuickCapture from '$lib/components/QuickCapture.svelte';
   import UpdaterBanner from '$lib/components/UpdaterBanner.svelte';
-  import AboutDialog from '$lib/components/AboutDialog.svelte';
   import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import StatusBar from '$lib/components/StatusBar.svelte';
-  import PresetsModal from '$lib/components/PresetsModal.svelte';
-  import TemplatesModal from '$lib/components/TemplatesModal.svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { palette } from '$lib/stores/shortcuts.svelte';
   import { globalSearch } from '$lib/stores/global-search.svelte';
   import { threadSwitcher } from '$lib/stores/thread-switcher.svelte';
   // LANE B3 — Omnibar (R55)
-  import Omnibar from '$lib/components/Omnibar.svelte';
   import { omnibar } from '$lib/stores/omnibar.svelte';
   import { quickCapture } from '$lib/stores/quick-capture.svelte';
   import { tray } from '$lib/stores/tray.svelte';
@@ -54,6 +46,47 @@
   // onboarding takeover. `page.url.pathname` from `$app/state` is reactive
   // under Svelte 5 runes, so this re-renders on navigation.
   const isOnboarding = $derived(page.url.pathname.startsWith('/onboarding'));
+
+  let paletteSeen = $state(false);
+  let globalSearchSeen = $state(false);
+  let omnibarSeen = $state(false);
+  let threadSwitcherSeen = $state(false);
+  let quickCaptureSeen = $state(false);
+  let presetsSeen = $state(false);
+  let templatesSeen = $state(false);
+  let aboutSeen = $state(false);
+
+  $effect(() => {
+    if (!isOnboarding && palette.open) paletteSeen = true;
+  });
+
+  $effect(() => {
+    if (!isOnboarding && globalSearch.open) globalSearchSeen = true;
+  });
+
+  $effect(() => {
+    if (!isOnboarding && omnibar.open) omnibarSeen = true;
+  });
+
+  $effect(() => {
+    if (!isOnboarding && threadSwitcher.open) threadSwitcherSeen = true;
+  });
+
+  $effect(() => {
+    if (!isOnboarding && quickCapture.open) quickCaptureSeen = true;
+  });
+
+  $effect(() => {
+    if (!isOnboarding && presetsModal.open) presetsSeen = true;
+  });
+
+  $effect(() => {
+    if (!isOnboarding && templatesModal.open) templatesSeen = true;
+  });
+
+  $effect(() => {
+    if (!isOnboarding && aboutStore.open) aboutSeen = true;
+  });
 
   // ---- Bottom status bar (Cmd+/) --------------------------------------
   // Visibility is persisted in localStorage so the saved preference
@@ -746,7 +779,11 @@
        menu). Renders nothing until `open` flips, so it's free when idle.
        Placed outside the onboarding guard so it stays reachable even on
        the wizard takeover if a future entry point fires while it's up. -->
-  <AboutDialog open={aboutStore.open} onclose={() => aboutStore.close()} />
+  {#if !isOnboarding && aboutSeen}
+    {#await import('$lib/components/AboutDialog.svelte') then M}
+      <M.default open={aboutStore.open} onclose={() => aboutStore.close()} />
+    {/await}
+  {/if}
   <ConfirmDialog />
 
   <!-- LANE B6 — R63 title-bar drag region (macOS). With `titleBarStyle:
@@ -790,16 +827,20 @@
 <!-- Command palette is rendered everywhere except the onboarding takeover.
      The store still allows toggling there, but the modal stays hidden so
      the wizard owns the whole screen. -->
-{#if !isOnboarding}
-  <CommandPalette />
+{#if !isOnboarding && paletteSeen}
+  {#await import('$lib/components/CommandPalette.svelte') then M}
+    <M.default />
+  {/await}
 {/if}
 
 <!-- Global cross-surface search (Cmd+Shift+F). Same onboarding gate as the
      palette — the wizard owns the whole screen, but the rune can still
      toggle (no-op render) so a stray shortcut press doesn't leak into the
      wizard's keyboard handlers. -->
-{#if !isOnboarding}
-  <GlobalSearch />
+{#if !isOnboarding && globalSearchSeen}
+  {#await import('$lib/components/GlobalSearch.svelte') then M}
+    <M.default />
+  {/await}
 {/if}
 
 <!-- LANE B3 — Omnibar (Cmd+Space) (R55). Federated search + action
@@ -807,16 +848,20 @@
      hits in URL params) and CommandPalette (Cmd+K, curated actions).
      The omnibar covers content + commands in one overlay with fuzzy
      ranking. Onboarding gate matches the other overlays. -->
-{#if !isOnboarding}
-  <Omnibar />
+{#if !isOnboarding && omnibarSeen}
+  {#await import('$lib/components/Omnibar.svelte') then M}
+    <M.default />
+  {/await}
 {/if}
 
 <!-- Quick thread switcher (Cmd+T). Laser-focused on jumping between chat
      threads — sibling to the palette and global search above. Same
      onboarding gate; the Cmd+T handler itself also short-circuits on the
      wizard, but the gate here keeps the DOM clean. -->
-{#if !isOnboarding}
-  <ThreadSwitcher />
+{#if !isOnboarding && threadSwitcherSeen}
+  {#await import('$lib/components/ThreadSwitcher.svelte') then M}
+    <M.default />
+  {/await}
 {/if}
 
 <!-- Quick-capture overlay (Cmd+Shift+N). Drops a single message into a
@@ -824,8 +869,10 @@
      from the current surface. Same onboarding gate as the other layout
      modals — the wizard owns the screen, and the user has no client
      wired yet. -->
-{#if !isOnboarding}
-  <QuickCapture />
+{#if !isOnboarding && quickCaptureSeen}
+  {#await import('$lib/components/QuickCapture.svelte') then M}
+    <M.default />
+  {/await}
 {/if}
 
 <!-- Workspace presets modal (Cmd+Shift+P). Captures the current layout
@@ -834,14 +881,18 @@
      for fast context-switching. Same onboarding gate as the other layout
      modals — there's no meaningful workspace to snapshot before the
      wizard completes. -->
-{#if !isOnboarding}
-  <PresetsModal />
+{#if !isOnboarding && presetsSeen}
+  {#await import('$lib/components/PresetsModal.svelte') then M}
+    <M.default />
+  {/await}
 {/if}
 
 <!-- Prompt templates modal (Cmd+Shift+T). Manages reusable prompt
      bodies that splice into the chat composer (immediately, or after
      a variable-input prompt for templates with {placeholders}).
      Same onboarding gate as the other layout modals. -->
-{#if !isOnboarding}
-  <TemplatesModal />
+{#if !isOnboarding && templatesSeen}
+  {#await import('$lib/components/TemplatesModal.svelte') then M}
+    <M.default />
+  {/await}
 {/if}
