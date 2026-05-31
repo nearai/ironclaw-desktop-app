@@ -11,6 +11,7 @@
   import { threads } from '$lib/stores/threads.svelte';
   import { messages, type ToolInvocation } from '$lib/stores/messages.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
+  import StreamingText from '$lib/components/StreamingText.svelte';
   import RebornChatPanel from '$lib/components/RebornChatPanel.svelte';
   // LANE B9 — editable bubble swap (R69)
   import EditableBubble from '$lib/components/EditableBubble.svelte';
@@ -3674,7 +3675,8 @@
                     class="search-target max-w-[85%] rounded-lg border surface px-4 py-2.5 text-sm text-text-primary"
                   >
                     {#if streamingBuffer}
-                      <MarkdownView markdown={streamingBuffer} />
+                      <!-- Lightweight renderer while streaming; MarkdownView takes over once the turn commits to history (message_end). -->
+                      <StreamingText text={streamingBuffer} />
                     {:else}
                       <span class="inline-flex items-center gap-1.5 text-text-muted">
                         <span class="w-1.5 h-1.5 rounded-full bg-accent-cyan animate-pulse"></span>

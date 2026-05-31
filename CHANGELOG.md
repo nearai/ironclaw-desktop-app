@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.139 — Lightweight streaming renderer (review ICD-003) (2026-05-30)
+
+The in-flight assistant turn no longer re-parses the entire response as Markdown
+on every token.
+
+- New `StreamingText.svelte` renders the live streaming buffer as plain text
+  (whitespace preserved, words wrapped) with a quiet CSS-only caret — no
+  `marked` / highlight.js / KaTeX / Mermaid on the hot path. Previously the
+  streaming buffer was piped through the full `MarkdownView` on every
+  `content_delta`, re-parsing and re-highlighting the whole message per token.
+- The completed turn is unchanged: once `message_end` commits it to history it
+  renders through `MarkdownView` with full fidelity. Only the during-stream
+  renderer changed.
+
 ## v0.4.138 — Home/IA reconciliation (review ICD-001) (2026-05-30)
 
 The chief-of-staff surfaces now lead the app and every entry point agrees on
