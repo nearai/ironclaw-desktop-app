@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.136 — Honest local-sidecar provider support (review ICD-006) (2026-05-30)
+
+The LLM provider picker no longer lets you select-and-save a local-sidecar provider that can't
+actually spawn. The bundled Rust sidecar wires four providers (`nearai`, `openrouter`, `openai`,
+`anthropic` — source of truth: `start_sidecar` in `src-tauri/src/lib.rs`); everything else from the
+gateway registry errored only at spawn time.
+
+- In local mode each provider is marked **Supported locally** or **Remote gateway only**; the
+  selected provider shows a support badge.
+- Selecting an unsupported provider in local mode shows an inline warning (use NEAR.AI / OpenRouter
+  / OpenAI / Anthropic, or switch to a hosted gateway) and disables Save (with an `onSave` guard).
+- Remote mode is unchanged — hosted gateways keep their full provider flexibility.
+
 ## v0.4.135 — Truthful token-storage copy (review ICD-002) (2026-05-30)
 
 Trust-copy correction. The gateway token has a deliberate, load-bearing 0600 file fallback (used

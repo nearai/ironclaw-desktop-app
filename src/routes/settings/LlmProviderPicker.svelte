@@ -43,6 +43,11 @@
     type LlmBackend
   } from '$lib/stores/settings.svelte';
 
+  // Source of truth: src-tauri/src/lib.rs `start_sidecar` provider match
+  // arms. Any provider outside this set returns the native unsupported
+  // sidecar error before the bundled gateway can spawn.
+  const LOCAL_SIDECAR_PROVIDERS = new Set(['nearai', 'openrouter', 'openai', 'anthropic']);
+
   // ---- Registry --------------------------------------------------------
 
   let providers = $state<LlmProvider[]>([]);
@@ -112,6 +117,14 @@
 
   /** Display-only base URL when the user can't override it. */
   const fallbackBaseUrl = $derived(selectedProvider?.base_url ?? '');
+
+  const isLocalMode = $derived(connection.activeProfile?.mode === 'local');
+
+  const selectedProviderSupportedLocally = $derived(
+    selectedProvider ? LOCAL_SIDECAR_PROVIDERS.has(selectedProvider.id) : true
+  );
+
+  const blocksLocalSave = $derived(isLocalMode && !selectedProviderSupportedLocally);
 
   // ---- Load + reset on profile / catalog change ------------------------
 
@@ -269,6 +282,13 @@
     const profile = connection.activeProfile;
     const provider = selectedProvider;
     if (!profile || !provider) return;
+    if (isLocalMode && !LOCAL_SIDECAR_PROVIDERS.has(provider.id)) {
+      toasts.show(
+        `${provider.name} is remote gateway only. Choose a supported local provider or switch this profile to a hosted gateway.`,
+        'error'
+      );
+      return;
+    }
     saving = true;
     try {
       // Persist the provider id on the active profile; derive the
@@ -360,15 +380,24 @@
     }
     return out;
   }
+
+  function localSupportLabel(p: LlmProvider): string {
+    return LOCAL_SIDECAR_PROVIDERS.has(p.id) ? 'Supported locally' : 'Remote gateway only';
+  }
 </script>
 
 <div class="surface p-5 space-y-4">
   <div>
     <h2 class="text-sm font-semibold text-text-primary">LLM provider</h2>
     <p class="text-xs text-text-muted mt-1">
-      The bundled sidecar uses this provider for inference. The list comes from the gateway's <code
-        class="font-mono">/api/llm/providers</code
-      >
+      {#if isLocalMode}
+        The bundled sidecar uses this provider for inference. Only providers marked supported
+        locally can spawn in local mode.
+      {:else}
+        Hosted gateways manage which providers can run.
+      {/if}
+      The list comes from the gateway's
+      <code class="font-mono">/api/llm/providers</code>
       registry.
     </p>
   </div>
@@ -390,8 +419,11 @@
       >
         {#each providers as p (p.id)}
           {@const labels = badgeLabel(p)}
+          {@const localLabel = isLocalMode ? localSupportLabel(p) : null}
           <option value={p.id}>
-            {p.name}{labels.length > 0 ? ` — ${labels.join(' · ')}` : ''}
+            {p.name}{labels.length > 0 || localLabel
+              ? ` — ${[...labels, localLabel].filter(Boolean).join(' · ')}`
+              : ''}
           </option>
         {/each}
       </select>
@@ -431,8 +463,33 @@
               builtin
             </span>
           {/if}
+          {#if isLocalMode}
+            {#if selectedProviderSupportedLocally}
+              <span
+                class="px-1.5 py-0.5 rounded bg-green-500/10 text-green-300 border border-green-500/30"
+              >
+                Supported locally
+              </span>
+            {:else}
+              <span
+                class="px-1.5 py-0.5 rounded bg-red-500/10 text-red-300 border border-red-500/30"
+              >
+                Remote gateway only
+              </span>
+            {/if}
+          {/if}
         </div>
       </div>
+
+      {#if blocksLocalSave}
+        <div class="px-3 py-2 rounded-md bg-red-950/40 border border-red-800/60">
+          <p class="text-xs text-red-200">
+            {selectedProvider.name} is remote gateway only. The bundled local sidecar cannot spawn it
+            yet. Choose NEAR.AI, OpenRouter, OpenAI, or Anthropic for local mode, or switch this profile
+            to a hosted gateway.
+          </p>
+        </div>
+      {/if}
 
       <!-- Base URL -->
       {#if selectedProvider.base_url_required}
@@ -612,7 +669,7 @@
         <button
           type="button"
           onclick={() => void onSave()}
-          disabled={saving}
+          disabled={saving || blocksLocalSave}
           class="px-3 py-1.5 rounded-md bg-accent-cyan text-bg-deep text-xs font-semibold hover:brightness-110 transition disabled:opacity-50 min-h-[36px]"
         >
           {saving ? 'Saving…' : 'Save provider'}
