@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.127 — Workspace Packs + mission launcher (chief-of-staff UI) (2026-05-30)
+
+The UI layer on the CoS foundation — turns the connector/mission data into one-click surfaces:
+
+- **ConnectorPacks.svelte**: "Workspace Packs" — one card per pack (Google Workspace / Notion / Slack)
+  with a live readiness state (checking / connected / partial / needs-auth / not-installed) read from
+  `/api/extensions/readiness`, a one-click connect that installs the pack's extensions through the
+  existing extensions flow, the shared-auth note, and the example tasks. Honest per-pack `unavailable`
+  state when the gateway doesn't expose a pack — no faked auth.
+- **MissionLauncher.svelte**: first-run mission grid (Morning Brief, Inbox Triage, Meeting Prep, …)
+  rendered from the mission data; clicking a card pushes the mission's prompt into the chat composer
+  (via the `composerInsert` bus) in approval mode and navigates to chat.
+
+Both are standalone, tested components; the outcome-first onboarding rework wires them in next. Full
+suite green (1042), svelte-check 0/0.
+
 ## v0.4.126 — Type + first-impression: self-hosted Inter, no gradient headline (2026-05-30)
 
 Directly addresses the "reads generic SaaS, not premium desktop tool" review note:
