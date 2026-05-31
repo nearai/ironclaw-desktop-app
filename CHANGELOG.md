@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.126 — Type + first-impression: self-hosted Inter, no gradient headline (2026-05-30)
+
+Directly addresses the "reads generic SaaS, not premium desktop tool" review note:
+
+- **Self-hosted Inter Variable**: added `static/fonts/inter-variable.woff2` (latin, weight 100–900)
+  with an `@font-face` in `app.css` and `Inter Variable` at the front of the Tailwind `sans` stack
+  (falls back to the system stack). Replaces the bare `-apple-system` system font. CSP already
+  allows `font-src 'self'`; no network dependency at runtime.
+- **Onboarding hero**: killed the blue→sky gradient headline (now solid strong-text) and reduced
+  the title scale (`clamp(2rem,5vw,3.15rem)` → `clamp(1.5rem,3.2vw,2.05rem)`, tighter tracking) so
+  first-run reads as a focused setup console, not a centered welcome poster.
+
+Full suite green (1038), svelte-check 0/0, build clean.
+
 ## v0.4.125 — Template-first routines + plotly lazy-load (2026-05-30)
 
 - **Routines (template-first)**: `CreateRoutineModal` now opens on a template chooser —

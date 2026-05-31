@@ -52,7 +52,14 @@ export default {
         'danger-soft': 'rgba(255, 100, 128, 0.13)'
       },
       fontFamily: {
-        sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'sans-serif'],
+        sans: [
+          '"Inter Variable"',
+          'Inter',
+          '-apple-system',
+          'BlinkMacSystemFont',
+          '"Segoe UI"',
+          'sans-serif'
+        ],
         mono: ['"SF Mono"', 'Menlo', 'monospace']
       },
       keyframes: {

@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Self-hosted Inter Variable (latin) — premium desktop type, no network
+   dependency at runtime. Served from static/fonts/ at /fonts/. */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-variable.woff2') format('woff2');
+}
+
 /* ────────────────────────────────────────────────────────────────────
    v2 design tokens (dark-only).
    Mirrors the IronClaw web UI v2 palette (reborn-integration) so the

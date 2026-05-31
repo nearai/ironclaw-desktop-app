@@ -449,18 +449,13 @@
   }
   .ob__title {
     margin: 0;
-    font-size: clamp(2rem, 5vw, 3.15rem);
-    line-height: 0.98;
-    font-weight: 650;
-    letter-spacing: 0;
-    /* NEAR brand gradient (blue → sky), reserved for emphasis — used once
-       here on the first-run hero. Falls back to the strong text color where
-       background-clip:text is unsupported. */
+    /* Focused setup-console scale, not a welcome poster. Solid strong text —
+       no gradient headline (reads more premium-tool, less generic SaaS). */
+    font-size: clamp(1.5rem, 3.2vw, 2.05rem);
+    line-height: 1.05;
+    font-weight: 600;
+    letter-spacing: -0.01em;
     color: var(--v2-text-strong);
-    background: var(--v2-gradient-brand);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
   }
   .ob__value {
     margin: 0.85rem auto 0;
