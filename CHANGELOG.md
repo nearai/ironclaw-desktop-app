@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.118 — Chat: surface stream failures with retry (2026-05-30)
+
+- **Visible SSE stream errors (codex stream, time-to-wow plan)**: the v2 (Reborn)
+  chat path previously caught non-abort SSE open/read failures and only
+  `console.warn`'d them — the UI could sit on a spinner forever with no signal.
+  The controller now exposes a `streamError` state (reset on reset/send/openStream,
+  set only for genuine non-abort failures — an explicit `AbortError` guard keeps
+  teardown/cancel silent) and a `retryStream()` that re-opens the active thread.
+  `RebornChatPanel` renders an inline `role="alert"` row with an accessible Retry
+  button. Closes one of the three P0 silent-failure paths. Full suite green
+  (1030), svelte-check 0/0.
+
 ## v0.4.117 — Sharper empty-state + header copy (2026-05-30)
 
 - **Copy sweep (codex stream, time-to-wow plan)**: rewrote weak, generic

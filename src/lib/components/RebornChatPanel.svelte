@@ -81,6 +81,7 @@
   const messages = $derived(controller.state.messages);
   const isProcessing = $derived(controller.state.isProcessing);
   const pendingGate = $derived(controller.state.pendingGate);
+  const streamError = $derived(controller.streamError);
   const canSend = $derived(draft.trim().length > 0 && !isProcessing);
 
   // Thread rail state.
@@ -357,6 +358,19 @@
           </div>
         {/if}
       {/each}
+
+      {#if streamError}
+        <div class="reborn-msg reborn-msg--error reborn-stream-error" role="alert">
+          <span>{streamError}</span>
+          <button
+            type="button"
+            class="reborn-stream-error__retry"
+            onclick={() => controller.retryStream()}
+          >
+            Retry
+          </button>
+        </div>
+      {/if}
 
       {#if isProcessing}
         <div
@@ -736,6 +750,33 @@
     color: var(--v2-danger-text);
     border-color: var(--v2-danger-text);
     font-size: 0.85rem;
+  }
+  .reborn-stream-error {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  .reborn-stream-error__retry {
+    flex: 0 0 auto;
+    min-height: 2rem;
+    padding: 0.3rem 0.65rem;
+    border: 1px solid currentColor;
+    border-radius: 0.5rem;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 650;
+    cursor: pointer;
+  }
+  .reborn-stream-error__retry:hover {
+    background: var(--v2-danger-soft);
+  }
+  .reborn-stream-error__retry:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
   }
   .reborn-tool {
     align-self: flex-start;

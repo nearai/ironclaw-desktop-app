@@ -35,6 +35,11 @@ import {
 /** How many timeline records to pull per page. */
 export const REBORN_TIMELINE_LIMIT = 50;
 
+function isAbortError(err: unknown): boolean {
+  if (!err || typeof err !== 'object' || !('name' in err)) return false;
+  return (err as { name?: unknown }).name === 'AbortError';
+}
+
 export class RebornChatController {
   /** The full reducer state. Reassigned (immutably) on every event so Svelte
    *  reactivity fires; components read `rebornChat.state.messages` etc. */
@@ -42,6 +47,9 @@ export class RebornChatController {
 
   /** Thread this controller is currently bound to. */
   threadId = $state<string | null>(null);
+
+  /** User-visible stream failure state; aborts are expected and never surface. */
+  streamError = $state<string | null>(null);
 
   /** Optimistic user bubbles not yet confirmed by a timeline refetch. Kept
    *  separate from `state.messages` so a timeline reload can re-append the
@@ -62,6 +70,7 @@ export class RebornChatController {
     this.closeStream();
     this.pending = [];
     this.threadId = null;
+    this.streamError = null;
     this.state = initialChatState(messages);
   }
 
@@ -123,6 +132,7 @@ export class RebornChatController {
    * errored and removed from the pending set.
    */
   async send(content: string, threadIdOpt?: string): Promise<void> {
+    this.streamError = null;
     const client = this.getClient();
     if (!client) throw new Error('no IronClaw client configured');
 
@@ -189,6 +199,7 @@ export class RebornChatController {
    */
   async openStream(threadId: string): Promise<void> {
     this.closeStream();
+    this.streamError = null;
     const client = this.getClient();
     if (!client) return;
     this.threadId = threadId;
@@ -210,10 +221,19 @@ export class RebornChatController {
       }
     } catch (err) {
       // AbortError on teardown is expected; surface anything else.
-      if (!ctrl.signal.aborted) {
+      if (!ctrl.signal.aborted && !isAbortError(err)) {
+        this.streamError = 'Lost connection to the chat stream. Retry to reconnect.';
         console.warn('[reborn-chat] event stream error', err);
       }
     }
+  }
+
+  /** Reopen the current thread stream after a surfaced transport failure. */
+  async retryStream(): Promise<void> {
+    const threadId = this.threadId;
+    if (!threadId) return;
+    this.streamError = null;
+    await this.openStream(threadId);
   }
 
   /** Tear down the live stream (thread switch / unmount). */
