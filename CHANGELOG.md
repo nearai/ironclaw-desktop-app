@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.119 — Connection clarity: actionable errors + offline composer CTA (2026-05-30)
+
+- **Actionable connection errors (codex stream, time-to-wow plan)**: `connection.svelte.ts`
+  now classifies health/ping failures into specific, fixable messages instead of a
+  generic "Health check returned…" or a raw exception — missing token, local sidecar
+  not running, bad URL / TLS, 401/403 (auth required), 404 (wrong URL/API version),
+  timeout/network — with a recursive error/cause extractor and a cleaned fallback.
+- **Offline composer CTA (codex stream)**: when the chat composer has no live client,
+  it no longer dead-ends on a disabled send button — it shows an inline "Not connected"
+  block with an accessible "Open Settings" button that **preserves the typed draft**
+  (flushes the draft save before navigating). Full suite green (1030), svelte-check 0/0.
+
 ## v0.4.118 — Chat: surface stream failures with retry (2026-05-30)
 
 - **Visible SSE stream errors (codex stream, time-to-wow plan)**: the v2 (Reborn)

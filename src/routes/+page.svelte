@@ -596,6 +596,19 @@
     }, DRAFT_DEBOUNCE_MS);
   }
 
+  function flushDraftSave(): void {
+    if (draftSaveTimer) {
+      clearTimeout(draftSaveTimer);
+      draftSaveTimer = null;
+    }
+    writeDraft(draftLoadedFor, input);
+  }
+
+  function openConnectionSettings(): void {
+    flushDraftSave();
+    void goto('/settings');
+  }
+
   /**
    * Apply a stored draft to the textarea without scheduling another save —
    * setting `input` would otherwise re-trigger the `$effect` watching it.
@@ -3792,6 +3805,27 @@
             skills={skillCatalog}
             onPick={applySlashPick}
           />
+
+          {#if !connection.client}
+            <div
+              class="mb-2 flex flex-col gap-2 rounded-lg border border-border-subtle bg-bg-deep px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div class="min-w-0" id="composer-connection-status">
+                <p class="text-sm font-medium text-text-primary">Not connected</p>
+                <p class="text-xs text-text-muted">
+                  IronClaw is offline. Connect in Settings to start chatting.
+                </p>
+              </div>
+              <button
+                type="button"
+                onclick={openConnectionSettings}
+                class="shrink-0 rounded-md border border-accent-cyan/40 px-3 py-1.5 text-xs font-medium text-accent-cyan hover:bg-accent-cyan/10 focus:outline-none focus:ring-2 focus:ring-accent-cyan focus:ring-offset-2 focus:ring-offset-bg-base transition-colors"
+                aria-describedby="composer-connection-status"
+              >
+                Open Settings
+              </button>
+            </div>
+          {/if}
 
           <!-- Attachment thumbnail strip — sits above the textarea border,
              tucks the previews flush against the composer chrome. The strip

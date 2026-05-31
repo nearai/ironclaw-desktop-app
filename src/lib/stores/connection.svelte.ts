@@ -48,6 +48,111 @@ export type SidecarStatus = 'idle' | 'starting' | 'running' | 'exited' | 'error'
 
 const HEALTH_INTERVAL_MS = 30_000;
 
+type ConnectionFailureContext =
+  | { kind: 'missing-token' }
+  | { kind: 'health'; status: string | null | undefined }
+  | { kind: 'error'; error: unknown; baseUrl: string; mode: ProfileConfig['mode'] };
+
+function classifyConnectionFailure(ctx: ConnectionFailureContext): string {
+  if (ctx.kind === 'missing-token') {
+    return 'No access token — paste your token in Settings.';
+  }
+
+  const detail = ctx.kind === 'health' ? (ctx.status ?? '') : describeFailure(ctx.error);
+  const original =
+    ctx.kind === 'health'
+      ? `Health check returned status="${ctx.status ?? 'unknown'}"`
+      : cleanFailureMessage(detail || 'Unknown connection error');
+  const normalized = `${detail} ${ctx.kind === 'error' ? ctx.baseUrl : ''}`.toLowerCase();
+  const httpStatus = ctx.kind === 'error' ? numericFailureStatus(ctx.error) : null;
+  const localContext =
+    ctx.kind === 'error' && (ctx.mode === 'local' || isLocalGatewayUrl(ctx.baseUrl));
+
+  if (
+    httpStatus === 401 ||
+    httpStatus === 403 ||
+    /\b(401|403)\b/.test(normalized) ||
+    /\b(unauthori[sz]ed|forbidden|authentication required|invalid token|bad token)\b/.test(
+      normalized
+    )
+  ) {
+    return 'Authentication required — sign in to NEAR.AI or check your token.';
+  }
+
+  if (httpStatus === 404 || /\b404\b/.test(normalized) || /\bnot found\b/.test(normalized)) {
+    return 'Endpoint not found — check the gateway URL and API version (v2 vs v1).';
+  }
+
+  if (
+    /\b(invalid url|failed to parse url|url parse|certificate|cert_|cert\b|tls|ssl|self-signed|self signed)\b/.test(
+      normalized
+    )
+  ) {
+    return "Couldn't reach that URL. Check the address (must be https for remote).";
+  }
+
+  if (
+    /\b(econnrefused|connection refused)\b/.test(normalized) ||
+    (localContext && /\b(fetch failed|failed to fetch)\b/.test(normalized))
+  ) {
+    return "Local IronClaw isn't running. Start it in Settings, or re-run onboarding.";
+  }
+
+  if (
+    /\b(timeout|timed out|aborterror|aborted|networkerror|network error|network|enotfound|eai_again|econnreset|econnaborted|etimedout|fetch failed|failed to fetch)\b/.test(
+      normalized
+    )
+  ) {
+    return 'Connection timed out. Check your network and the gateway.';
+  }
+
+  return cleanFailureMessage(original);
+}
+
+function describeFailure(value: unknown, depth = 0): string {
+  if (depth > 2 || value == null) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+  if (value instanceof Error || typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const parts = value instanceof Error ? [value.name, value.message] : [];
+    const keys =
+      value instanceof Error
+        ? ['code', 'status', 'statusText', 'url']
+        : ['name', 'message', 'code', 'status', 'statusText', 'url'];
+    for (const key of keys) {
+      const field = record[key];
+      if (typeof field === 'string' || typeof field === 'number') {
+        parts.push(String(field));
+      }
+    }
+    parts.push(describeFailure(record.cause, depth + 1));
+    return parts.filter(Boolean).join(' ');
+  }
+  return '';
+}
+
+function numericFailureStatus(value: unknown): number | null {
+  if (value == null || typeof value !== 'object') return null;
+  const status = (value as Record<string, unknown>).status;
+  return typeof status === 'number' ? status : null;
+}
+
+function cleanFailureMessage(message: string): string {
+  const firstLine = message.split(/\r?\n/, 1)[0]?.trim() ?? '';
+  return firstLine.replace(/^[A-Za-z]*Error:\s*/, '').replace(/\s+/g, ' ') || 'Connection failed';
+}
+
+function isLocalGatewayUrl(rawUrl: string): boolean {
+  try {
+    const { hostname } = new URL(rawUrl);
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  } catch {
+    return /\b(localhost|127\.0\.0\.1|\[::1\]|::1)\b/i.test(rawUrl);
+  }
+}
+
 class ConnectionStore {
   status = $state<ConnectionStatus>('idle');
   settings = $state<AppSettings>({ ...DEFAULT_SETTINGS });
@@ -398,6 +503,9 @@ class ConnectionStore {
   async ping(): Promise<boolean> {
     if (!this.client) {
       this.status = 'disconnected';
+      if (this.activeProfile.mode === 'remote' && !this.token) {
+        this.lastError = classifyConnectionFailure({ kind: 'missing-token' });
+      }
       return false;
     }
     this.status = this.status === 'connected' ? 'connected' : 'connecting';
@@ -409,11 +517,16 @@ class ConnectionStore {
         return true;
       }
       this.status = 'error';
-      this.lastError = `Health check returned status="${h.status ?? 'unknown'}"`;
+      this.lastError = classifyConnectionFailure({ kind: 'health', status: h.status });
       return false;
     } catch (err) {
       this.status = 'error';
-      this.lastError = (err as Error).message;
+      this.lastError = classifyConnectionFailure({
+        kind: 'error',
+        error: err,
+        baseUrl: this.baseUrl,
+        mode: this.activeProfile.mode
+      });
       return false;
     }
   }
@@ -489,7 +602,7 @@ class ConnectionStore {
       this.startPolling();
     } else {
       this.status = 'disconnected';
-      this.lastError = null;
+      this.lastError = classifyConnectionFailure({ kind: 'missing-token' });
     }
   }
 
