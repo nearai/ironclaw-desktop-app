@@ -3,12 +3,14 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import type { Routine, RoutineSummary } from '$lib/api/types';
+  import type { Routine as CreatedRoutine } from '$lib/api/routines';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { notifications } from '$lib/stores/notifications.svelte';
   import { pins } from '$lib/stores/pins.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { createPollingRefresh } from '$lib/util/polling';
+  import CreateRoutineModal from './CreateRoutineModal.svelte';
   import { relativeTime } from './time';
 
   const POLL_INTERVAL_MS = 30_000;
@@ -44,6 +46,7 @@
   let togglingIds = $state<Set<string>>(new Set());
   /** IDs currently being triggered, so we can disable the play button. */
   let triggeringIds = $state<Set<string>>(new Set());
+  let createModalOpen = $state(false);
 
   let routinesPoll: ReturnType<typeof createPollingRefresh> | null = null;
 
@@ -551,16 +554,12 @@
     filterKey = 'all';
   }
 
-  // TODO(2026-05-27): wire up "+ New routine" button + CreateRoutineModal once
-  // the gateway implements `POST /api/routines`. Live-server probe today shows
-  // 405 Method Not Allowed against IronClaw v0.29.x (no POST handler
-  // registered in `src/channels/web/platform/router.rs`). The client method
-  // `client.createRoutine(req)` is pre-wired in `src/lib/api/ironclaw.ts`;
-  // open the modal from a button in the header next to Refresh, then call
-  // `void refresh()` on success. Mirror NewDocModal.svelte for layout and
-  // validation patterns. When the modal lands, attach the cron-syntax help
-  // popover here below the schedule field too (currently exposed only via
-  // the `?` icon next to the Schedule column header on the table).
+  async function handleRoutineCreated(routine: CreatedRoutine) {
+    if (!routines.some((r) => r.id === routine.id)) {
+      routines = [routine, ...routines];
+    }
+    await refresh({ silent: true });
+  }
 </script>
 
 <!--
@@ -685,28 +684,50 @@
       <p class="text-text-muted text-sm mt-1">Scheduled jobs and cron tasks.</p>
     </div>
     {#if connection.status === 'connected'}
-      <button
-        type="button"
-        onclick={() => void refresh()}
-        disabled={refreshing}
-        class="flex items-center gap-2 px-3 py-2 rounded-md border border-border-subtle text-xs text-text-muted hover:border-accent-cyan hover:text-accent-cyan transition-colors disabled:opacity-50 min-h-[36px]"
-      >
-        <svg
-          viewBox="0 0 24 24"
-          class="w-3.5 h-3.5"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          class:animate-spin={refreshing}
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          onclick={() => (createModalOpen = true)}
+          disabled={!connection.token}
+          class="flex items-center gap-2 px-3 py-2 rounded-md bg-accent-cyan text-bg-deep text-xs font-semibold hover:brightness-95 transition-colors disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px]"
         >
-          <polyline points="23 4 23 10 17 10" />
-          <polyline points="1 20 1 14 7 14" />
-          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-        </svg>
-        {refreshing ? 'Refreshing…' : 'Refresh'}
-      </button>
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New routine
+        </button>
+        <button
+          type="button"
+          onclick={() => void refresh()}
+          disabled={refreshing}
+          class="flex items-center gap-2 px-3 py-2 rounded-md border border-border-subtle text-xs text-text-muted hover:border-accent-cyan hover:text-accent-cyan transition-colors disabled:opacity-50 min-h-[36px]"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            class="w-3.5 h-3.5"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class:animate-spin={refreshing}
+          >
+            <polyline points="23 4 23 10 17 10" />
+            <polyline points="1 20 1 14 7 14" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+          {refreshing ? 'Refreshing…' : 'Refresh'}
+        </button>
+      </div>
     {/if}
   </header>
 
@@ -909,17 +930,15 @@
           </svg>
           <div class="text-sm text-text-primary">No routines configured yet.</div>
           <div class="text-xs text-text-muted max-w-sm">
-            Create routines with the IronClaw CLI on your server (<code class="font-mono"
-              >ironclaw routines create</code
-            >). Note: routines are scoped per user, so only those owned by this connection's account
-            appear here. Verified live 2026-05-28 against v0.29 — there is no gateway create
-            endpoint yet, so CLI-created routines under a different account won't list here.
+            Create a routine from this page. Older gateways may still require the IronClaw CLI (<code
+              class="font-mono">ironclaw routines create</code
+            >) until POST /api/routines is available.
           </div>
           <button
             type="button"
-            onclick={() => void refresh()}
-            disabled={refreshing}
-            class="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-md border border-border-subtle text-xs text-text-muted hover:border-accent-cyan hover:text-accent-cyan transition-colors disabled:opacity-50"
+            onclick={() => (createModalOpen = true)}
+            disabled={!connection.token}
+            class="mt-2 flex items-center gap-2 px-3 py-1.5 rounded-md bg-accent-cyan text-bg-deep text-xs font-semibold hover:brightness-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <svg
               viewBox="0 0 24 24"
@@ -929,13 +948,11 @@
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              class:animate-spin={refreshing}
             >
-              <polyline points="23 4 23 10 17 10" />
-              <polyline points="1 20 1 14 7 14" />
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-            {refreshing ? 'Refreshing…' : 'Refresh'}
+            New routine
           </button>
         </div>
       {:else if filteredRoutines.length === 0}
@@ -1084,4 +1101,14 @@
 
 {#if selected}
   <DetailPanel routine={selected} onclose={closeDetail} />
+{/if}
+
+{#if createModalOpen}
+  <CreateRoutineModal
+    open={createModalOpen}
+    baseUrl={connection.baseUrl}
+    token={connection.token}
+    onclose={() => (createModalOpen = false)}
+    oncreated={handleRoutineCreated}
+  />
 {/if}
