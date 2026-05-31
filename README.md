@@ -125,7 +125,7 @@ The common case: IronClaw already runs on a server you control (baremetal3, abby
    ssh -L 18789:127.0.0.1:3100 user@your-server
    ```
 
-2. **Launch the app**, pick **Remote** on the welcome screen, then enter the local end of the tunnel as the Base URL and paste your gateway token.
+2. **Launch the app**, pick **Connect to hosted** on the welcome screen, then enter the local end of the tunnel as the Base URL and paste your gateway token.
 
    ![Onboarding step 2 — Remote config](docs/screenshots/02-onboarding-remote-config.png)
 
@@ -142,7 +142,7 @@ first approval-mode mission. Cmd+1 still opens Chat.
 
 For users without a remote IronClaw. The `.app` ships a ~120MB IronClaw binary inside `Contents/Resources/binaries/` (universal — both Apple Silicon and Intel slices). The app spawns + manages it for you.
 
-1. **Launch the app**, pick **Local** on the welcome screen.
+1. **Launch the app**, pick **Run on this Mac** on the welcome screen.
 
 2. **Step 2 sets the inference backend.** NEAR.AI Cloud is recommended — it's free during private preview, no API key needed. You'll OAuth into your NEAR account once the sidecar starts. OpenRouter is the advanced alternative (paste a key, picks any model on OpenRouter).
 
@@ -207,12 +207,13 @@ there.
 - **Canvas** (`/canvas`) — a spatial research board: drop nodes, connect them, ask sub-agents on a node
 - **Knowledge** (`/knowledge`, Cmd+2) — browse the workspace doc tree, FTS search, read + write (edit existing, create new)
 - **Memory** (`/memory`, Cmd+M) — a flat card list of what the agent has accumulated, distinct from Knowledge's on-disk tree
-- **Skills** (`/skills`, Cmd+3) — list + filter the 30+ bundled skills, view metadata (trust, source, usage hint)
+- **Skills** (`/skills`, Cmd+3) — list + filter the 30+ bundled skills, view metadata (trust, source, usage hint); **IronHub** (`/skills/ironhub`, reached from Skills) browses + installs more
 - **Routines** (`/routines`, Cmd+4) — view scheduled jobs, toggle on/off, trigger manually, inspect run history
 - **Jobs** (`/jobs`, Cmd+5) — the background queue: inspect in-progress / pending / completed agent jobs
 - **Logs** (`/logs`, Cmd+6) — live-tail the gateway via SSE, filter by level + grep, virtualized for 5K+ entries
 - **Extensions** (`/extensions`, Cmd+7) — install/activate MCP servers, OAuth providers, channel integrations
 - **Settings** (`/settings`, Cmd+,) — per-profile gateway configs, Keychain-backed tokens, local sidecar lifecycle
+- **Mini-mode** (`/mini`, Cmd+Shift+M) — a compact always-on-top floating chat window in its own Tauri window, outside the sidebar
 - **Cmd+K palette** — fuzzy-search across navigation, threads, skills, routines, docs
 - **Signed auto-updater** — releases ship signed `.app.tar.gz` + `.sig` artifacts; the in-app updater verifies the signature against the pubkey baked into the binary before installing. Cadence configurable (off / launch only / launch + 1 h / launch + 6 h) under Settings → Advanced. Apple notarization (the Gatekeeper-facing signature) is a separate, pending TODO.
 

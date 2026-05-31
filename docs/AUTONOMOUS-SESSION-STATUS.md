@@ -4,7 +4,23 @@ Captured at the end of the ~3-hour autonomous build window the lead
 delegated. This is the "what landed, what's pending, what's broken"
 sheet — read this first when you come back.
 
-## LATEST — v0.3.3 + production build validated (read this first)
+## CURRENT — v0.4.141 (read this first)
+
+The trail has continued well past the v0.3.3 snapshot below. As of v0.4.141 the
+app shipped the Workspace OS surfaces (Today/dashboard, Desk, Streams, Canvas,
+Memory, Mini, IronHub) and a multi-agent product review (ICD-001…010) covering
+home/IA reconciliation, token-storage truth, provider honesty, a shared confirm
+dialog, a lightweight streaming renderer, lazy-mounted overlays, and an
+accessibility sweep across all 15 routes. The current route map, shortcuts,
+token-storage model (Keychain + owner-only 0600 fallback), and security model
+are documented in [`README.md`](../README.md) and
+[`ARCHITECTURE.md`](../ARCHITECTURE.md) — those are the sources of truth.
+
+Everything below this line is a **historical snapshot from the v0.3.3 window**;
+its "pending/broken" items have since been addressed or superseded. Keep it for
+provenance, not as a live to-do list.
+
+## EARLIER — v0.3.3 + production build validated (historical snapshot)
 
 Trail now **v0.2.20 → v0.3.3** (10 tags). Since the v0.3.0 cut:
 
@@ -13,7 +29,7 @@ Trail now **v0.2.20 → v0.3.3** (10 tags). Since the v0.3.0 cut:
   the transcript) and shows **R92 thread stats** (count / est. tokens /
   span) from the same history.
 - **Waves 6 & 7** added six pure utils. Honest finding: only three had a
-  *safe* consumer and are wired — `format-time`→streams, `fuzzy`→omnibar
+  _safe_ consumer and are wired — `format-time`→streams, `fuzzy`→omnibar
   recall, `thread-stats`→recap. The other three (`cost-estimate`,
   `text-diff`, `contrast`) are tested library code with **no safe consumer
   today** (usage dashboard uses server-provided costs; prompt-diff has a
@@ -40,6 +56,7 @@ extended the trail to **v0.2.18 → v0.3.0** (tags v0.2.20, .21, .22, .23,
 .24, then v0.3.0).
 
 Sequence this window:
+
 1. Landed all of Waves 1–5 (R49–R88) to `main` — sub-agents (graceful
    404 degrade), workspace files, spatial canvas + canvas v2 (nodes
    dispatch sub-agents), the R85/86/87 utils, and their UI integration
@@ -59,6 +76,7 @@ Health at v0.3.0: **408/408 vitest, 0 svelte-check errors, cargo check +
 Rust unit tests clean, production build OK, bundle budget within limits.**
 
 ### Still open
+
 - **R76 (GitHub Actions billing)** — jobs fail to start (~3s) with a
   spending-limit message. NOT code-fixable: the lead must update
   **GitHub → Settings → Billing & plans**. The signed-DMG release
@@ -77,16 +95,16 @@ Rust unit tests clean, production build OK, bundle budget within limits.**
 
 ## What shipped (eight tags)
 
-| Tag | Highlights |
-|---|---|
-| **v0.2.10** | First public release of the v0.2.x trail |
-| **v0.2.11** | Chat attachments — PDF/DOCX/XLSX/PPTX/CSV/TXT/MD/JSON (was image-only) |
-| **v0.2.12** | R49 lazy-load routes, R50 TTS, R52 chat tabs, R53 Mermaid/Plotly/KaTeX, R55 Omnibar, R60 Spotlight, R62 IDB cache, R63 vibrancy, R65 skill editor, R69 editable bubbles |
+| Tag         | Highlights                                                                                                                                                                                     |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **v0.2.10** | First public release of the v0.2.x trail                                                                                                                                                       |
+| **v0.2.11** | Chat attachments — PDF/DOCX/XLSX/PPTX/CSV/TXT/MD/JSON (was image-only)                                                                                                                         |
+| **v0.2.12** | R49 lazy-load routes, R50 TTS, R52 chat tabs, R53 Mermaid/Plotly/KaTeX, R55 Omnibar, R60 Spotlight, R62 IDB cache, R63 vibrancy, R65 skill editor, R69 editable bubbles                        |
 | **v0.2.13** | R73 review P0 security batch — XSS sanitization on the three renderers, dev-shim backdoor patched, TTS length cap, Omnibar SvelteKit `goto`, ChatTabs nested-button fix, R51 voice answer mode |
-| **v0.2.14** | R54 thread sync long-poll, R58 replay UI, R59 replay wire, R64 mini-mode, R79 reply-thread wire, R82 generative widgets, bundle budget bumped 110→1500 KB for Plotly lazy chunk |
-| **v0.2.15** | R77+R78 Dashboard + tiles, R83 model presence strip on Council |
-| **v0.2.16** | R67 /imagine slash command, R80 reply-thread UI panel, R81 streams route |
-| **v0.2.17** | R61 Apple Notes export, chat-tabs Cmd+W close + Cmd+1..9 jump |
+| **v0.2.14** | R54 thread sync long-poll, R58 replay UI, R59 replay wire, R64 mini-mode, R79 reply-thread wire, R82 generative widgets, bundle budget bumped 110→1500 KB for Plotly lazy chunk                |
+| **v0.2.15** | R77+R78 Dashboard + tiles, R83 model presence strip on Council                                                                                                                                 |
+| **v0.2.16** | R67 /imagine slash command, R80 reply-thread UI panel, R81 streams route                                                                                                                       |
+| **v0.2.17** | R61 Apple Notes export, chat-tabs Cmd+W close + Cmd+1..9 jump                                                                                                                                  |
 
 365/365 vitest passing at HEAD. 0 svelte-check errors. Cargo check
 clean.
@@ -108,17 +126,20 @@ clean.
 ### From the v0.2.12 elite review (`R73` output)
 
 **Resolved** (P0):
+
 - ✅ XSS via Mermaid (DOMPurify on output)
 - ✅ XSS via KaTeX (sanitize + trust:false + strict:'ignore')
 - ✅ XSS via Plotly (recursive sanitize, drop javascript: URIs)
 - ✅ Dev shim refuses to install when `protocol === 'tauri:'`
 
 **Resolved** (P1):
+
 - ✅ Omnibar uses SvelteKit `goto` (no full-page reloads)
 - ✅ TTS length cap (4 KB)
 - ✅ ChatTabs nested-button fix
 
 **Still outstanding** (P1 — reviewer flagged but not yet addressed):
+
 - **Cmd+Space ↔ macOS Spotlight collision** — review claimed conflict.
   Inside the app window, our handler wins because the focused app
   consumes the keydown before the OS routes to Spotlight. Verify
@@ -127,7 +148,7 @@ clean.
 - **`reveal_in_finder` takes arbitrary path from JS** — restrict to
   paths under `app_data_dir`.
 - **`http:default` capability allows `https://**`** — lock to
-  `127.0.0.1:*` + the configured remote.
+`127.0.0.1:\*` + the configured remote.
 - **Spotlight index has no aggregate size cap** — add LRU sweep at
   ~100 MB.
 - **`+page.svelte` is now ~3900 LOC, `settings/+page.svelte` ~4000** —
@@ -206,6 +227,7 @@ points at `http://127.0.0.1:18789`, (c) check
 ```
 
 Cleanup command for stale entries:
+
 ```
 git worktree prune
 git branch -D $(git branch --list 'codex/r6*' 'claude/r7*' | xargs)

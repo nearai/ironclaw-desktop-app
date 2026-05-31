@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.142 — Documentation truth pass (review ICD-007) (2026-05-30)
+
+Docs now match the shipped app.
+
+- **ARCHITECTURE** route tree + shortcut map rewritten: all current routes
+  (Today/dashboard, Desk, Streams, Canvas, Memory, Mini, dev playground,
+  skills/ironhub) are listed, the stale "ten top-level surfaces" line is gone,
+  and the chord table includes Cmd+0 (Today) and Cmd+M (Memory).
+- **README** "What's inside" gains Mini-mode and IronHub; the onboarding steps
+  use the real welcome-screen labels ("Connect to hosted" / "Run on this Mac")
+  instead of the old "Remote"/"Local".
+- **docs/AUTONOMOUS-SESSION-STATUS.md** gets a current v0.4.141 header; the old
+  v0.3.3 snapshot is demoted to a clearly-labelled historical section so its
+  stale "pending/broken" items don't read as live work.
+- (Bundle id `com.openclaw.ironclaw-desktop` and the Keychain + 0600 token
+  fallback were already corrected in ICD-002; verified here.)
+
 ## v0.4.141 — Accessibility sweep across all surfaces (review ICD-008) (2026-05-30)
 
 The axe-core sweep now covers every top-level surface, and the heading-less

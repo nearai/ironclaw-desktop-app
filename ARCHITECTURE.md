@@ -328,31 +328,49 @@ app is a SPA loaded into a Tauri webview. `+layout.ts` sets
 
 ```
 src/routes/
-├── +layout.svelte      # the chrome (sidebar, status bar, all modals)
+├── +layout.svelte      # the chrome (sidebar, status bar, lazy-mounted overlays)
 ├── +layout.ts          # ssr=false, prerender=true
-├── +page.svelte        # / (Chat — 92 KB, the largest route)
+├── +page.svelte        # / (Chat — the largest route)
 ├── +error.svelte       # last-resort render error
 ├── ChatSearch.svelte   # within-thread find (Cmd+F) — local to chat
 ├── SlashAutocomplete.svelte
-├── onboarding/         # /onboarding (full-screen takeover, no sidebar)
+├── onboarding/         # /onboarding (full-screen takeover; on completion → /dashboard)
+├── dashboard/          # /dashboard — "Today": the home tile grid (Cmd+0)
+├── desk/               # /desk — the Desk: proactive "Needs you" action inbox
+├── streams/            # /streams — cross-surface activity feed
+├── canvas/             # /canvas — spatial research board
 ├── knowledge/          # /knowledge — tree + FTS + DocViewer + import/new modals
-├── skills/             # /skills — list + filter + SkillDrawer
+├── memory/             # /memory — flat accumulated-memory card list
+├── skills/             # /skills — list + filter + SkillDrawer; skills/ironhub — catalog browse/install
 ├── routines/           # /routines — list + DetailPanel + time formatting
 ├── jobs/               # /jobs — queue browser + JobDetailPanel
 ├── logs/               # /logs — live SSE tail with filter + grep
 ├── extensions/         # /extensions — ExtensionCard + SetupDrawer
 ├── missions/           # /missions — Engine v2 (gated by engineV2Enabled)
-├── admin/              # /admin — System prompt, Tool policy, Usage dashboard
+├── admin/              # /admin — System prompt, Tool policy, Usage dashboard (gated by adminMode)
+├── mini/               # /mini — compact floating mini-mode panel (its own window)
+├── dev/                # /dev/playground — dev-only component playground
 └── settings/           # /settings — Profiles, LlmProviderPicker, etc
 ```
 
-Total ten top-level surfaces (Chat is the implicit `/`). The Cmd+1..9
-shortcut map lives in `+layout.svelte`:
+Sidebar nav, top to bottom: **Today → Desk → Streams → Chat → Canvas →
+Knowledge → Memory → Skills → Routines → Jobs → Logs → Extensions →
+Settings** — thirteen always-on surfaces, plus **Admin** (gated on
+`adminMode`) and **Missions** (gated on `engineV2Enabled`) which appear above
+Settings when their flags are set. Not in the sidebar: `/onboarding`
+(first-run takeover), `/mini` (a separate floating window), `/dev/playground`
+(dev-only), and `/skills/ironhub` (the catalog, reached from Skills). Chat
+keeps `/` for deep-link compatibility; Today (`/dashboard`) is the named home
+the app opens to after onboarding.
+
+The shortcut map lives in `+layout.svelte` (`ROUTES_BY_DIGIT`):
 
 | Chord | Route                                      |
 | ----- | ------------------------------------------ |
-| Cmd+1 | `/`                                        |
+| Cmd+0 | `/dashboard` (Today)                       |
+| Cmd+1 | `/` (Chat)                                 |
 | Cmd+2 | `/knowledge`                               |
+| Cmd+M | `/memory`                                  |
 | Cmd+3 | `/skills`                                  |
 | Cmd+4 | `/routines`                                |
 | Cmd+5 | `/jobs`                                    |
@@ -361,6 +379,9 @@ shortcut map lives in `+layout.svelte`:
 | Cmd+8 | `/admin` _(gated on `adminMode`)_          |
 | Cmd+9 | `/missions` _(gated on `engineV2Enabled`)_ |
 | Cmd+, | `/settings`                                |
+
+Desk, Streams, and Canvas have no digit chord (0–9 are taken); they're
+reached from the sidebar and command palette.
 
 ### Layout chrome
 
