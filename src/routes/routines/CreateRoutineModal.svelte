@@ -8,6 +8,49 @@
   import { toasts } from '$lib/stores/toasts.svelte';
   import { createRoutine, type Routine, type RoutineClientOptions } from '$lib/api/routines';
 
+  type RoutineTemplateId = 'daily-morning-brief' | 'inbox-triage' | 'weekly-review' | 'custom';
+
+  interface RoutineTemplate {
+    id: RoutineTemplateId;
+    label: string;
+    description: string;
+    schedule: string;
+    prompt: string;
+  }
+
+  const routineTemplates: readonly RoutineTemplate[] = [
+    {
+      id: 'daily-morning-brief',
+      label: 'Daily Morning Brief',
+      description: 'Start each workday with priorities, risks, and follow-ups.',
+      schedule: '0 8 * * *',
+      prompt:
+        'Prepare a concise morning brief: priorities, calendar risks, and follow-ups needing my attention.'
+    },
+    {
+      id: 'inbox-triage',
+      label: 'Inbox Triage (hourly)',
+      description: 'Scan incoming items and surface decisions that need attention.',
+      schedule: '0 * * * *',
+      prompt:
+        'Review new inbox items, group what matters, and flag replies or decisions I should handle.'
+    },
+    {
+      id: 'weekly-review',
+      label: 'Weekly Review',
+      description: 'Close the week with open loops and next priorities.',
+      schedule: '0 17 * * 5',
+      prompt: 'Summarize the week: wins, open loops, risks, and the three priorities for next week.'
+    },
+    {
+      id: 'custom',
+      label: 'Custom',
+      description: 'Write a schedule and prompt from scratch.',
+      schedule: '',
+      prompt: ''
+    }
+  ];
+
   interface Props {
     open: boolean;
     baseUrl: string;
@@ -27,6 +70,9 @@
   let scheduleTouched = $state(false);
   let promptTouched = $state(false);
   let nameInputEl: HTMLInputElement | undefined = $state();
+  let templateFieldsetEl: HTMLFieldSetElement | undefined = $state();
+  let selectedTemplateId = $state<RoutineTemplateId>('daily-morning-brief');
+  let detailsExpanded = $state(false);
 
   const trimmedName = $derived(name.trim());
   const trimmedSchedule = $derived(schedule.trim());
@@ -44,7 +90,13 @@
 
   $effect(() => {
     if (open) {
-      queueMicrotask(() => nameInputEl?.focus());
+      selectTemplate(routineTemplates[0]);
+      queueMicrotask(() => {
+        const firstTemplateInput = templateFieldsetEl?.querySelector<HTMLInputElement>(
+          'input[name="routine-template"]'
+        );
+        firstTemplateInput?.focus();
+      });
     } else {
       name = '';
       schedule = '';
@@ -54,6 +106,8 @@
       nameTouched = false;
       scheduleTouched = false;
       promptTouched = false;
+      selectedTemplateId = 'daily-morning-brief';
+      detailsExpanded = false;
     }
   });
 
@@ -95,6 +149,25 @@
     nameTouched = true;
     scheduleTouched = true;
     promptTouched = true;
+  }
+
+  function selectTemplate(template: RoutineTemplate | undefined) {
+    if (!template) return;
+    selectedTemplateId = template.id;
+    name = template.id === 'custom' ? '' : template.label;
+    schedule = template.schedule;
+    prompt = template.prompt;
+    detailsExpanded = template.id === 'custom';
+    nameTouched = false;
+    scheduleTouched = false;
+    promptTouched = false;
+  }
+
+  function toggleDetails() {
+    detailsExpanded = !detailsExpanded;
+    if (detailsExpanded) {
+      queueMicrotask(() => nameInputEl?.focus());
+    }
   }
 
   function tryClose() {
@@ -148,7 +221,7 @@
         <h2 id="create-routine-title" class="text-sm font-semibold text-text-primary">
           New routine
         </h2>
-        <p class="mt-1 text-xs text-text-muted">Schedule a prompt to run on a cron cadence.</p>
+        <p class="mt-1 text-xs text-text-muted">Pick a starting point, then edit if needed.</p>
       </div>
       <button
         type="button"
@@ -173,85 +246,136 @@
     </header>
 
     <form onsubmit={handleSubmit} class="flex flex-col gap-4 px-5 py-4">
-      <div class="space-y-1.5">
-        <label
-          for="routine-name"
-          class="block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
-        >
-          Name
-        </label>
-        <input
-          id="routine-name"
-          type="text"
-          bind:this={nameInputEl}
-          value={name}
-          oninput={(event) => {
-            name = (event.currentTarget as HTMLInputElement).value;
-            nameTouched = true;
-          }}
-          maxlength="128"
-          autocomplete="off"
-          placeholder="Morning summary"
-          class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors"
-          class:border-red-500={nameError}
-        />
-        {#if nameError}
-          <p class="text-[11px] text-red-400">{nameError}</p>
-        {/if}
-      </div>
+      <fieldset class="space-y-2" bind:this={templateFieldsetEl}>
+        <legend class="block text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+          Template
+        </legend>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {#each routineTemplates as template}
+            <label
+              class="relative rounded-md border border-border-subtle bg-bg-deep px-3 py-2 text-left transition-colors hover:border-accent-cyan focus-within:border-accent-cyan"
+              class:border-accent-cyan={selectedTemplateId === template.id}
+            >
+              <input
+                class="sr-only"
+                type="radio"
+                name="routine-template"
+                value={template.id}
+                checked={selectedTemplateId === template.id}
+                onchange={() => selectTemplate(template)}
+              />
+              <span class="block text-xs font-medium text-text-primary">{template.label}</span>
+              <span class="mt-1 block text-[11px] leading-4 text-text-muted">
+                {template.description}
+              </span>
+            </label>
+          {/each}
+        </div>
+      </fieldset>
 
-      <div class="space-y-1.5">
-        <label
-          for="routine-schedule"
-          class="block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+      <button
+        type="button"
+        aria-expanded={detailsExpanded}
+        aria-controls="routine-details"
+        onclick={toggleDetails}
+        class="inline-flex w-fit items-center gap-2 rounded-md border border-border-subtle px-3 py-1.5 text-xs text-text-muted transition hover:border-accent-cyan hover:text-text-primary"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          class="h-3 w-3 transition-transform"
+          class:rotate-90={detailsExpanded}
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         >
-          Schedule
-        </label>
-        <input
-          id="routine-schedule"
-          type="text"
-          value={schedule}
-          oninput={(event) => {
-            schedule = (event.currentTarget as HTMLInputElement).value;
-            scheduleTouched = true;
-          }}
-          placeholder="0 9 * * *"
-          autocomplete="off"
-          spellcheck="false"
-          class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors"
-          class:border-red-500={scheduleError}
-          aria-describedby="routine-schedule-help"
-        />
-        <p id="routine-schedule-help" class="text-[11px] text-text-muted">
-          Cron format: minute hour day-of-month month day-of-week.
-        </p>
-        {#if scheduleError}
-          <p class="text-[11px] text-red-400">{scheduleError}</p>
-        {/if}
-      </div>
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+        Edit details
+      </button>
 
-      <div class="space-y-1.5">
-        <label
-          for="routine-prompt"
-          class="block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
-        >
-          Prompt
-        </label>
-        <textarea
-          id="routine-prompt"
-          rows="8"
-          value={prompt}
-          oninput={(event) => {
-            prompt = (event.currentTarget as HTMLTextAreaElement).value;
-            promptTouched = true;
-          }}
-          placeholder="Write the instruction this routine should run…"
-          class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors resize-none"
-          class:border-red-500={promptError}
-        ></textarea>
-        {#if promptError}
-          <p class="text-[11px] text-red-400">{promptError}</p>
-        {/if}
+      <div id="routine-details" class="flex flex-col gap-4" class:hidden={!detailsExpanded}>
+        <div class="space-y-1.5">
+          <label
+            for="routine-name"
+            class="block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+          >
+            Name
+          </label>
+          <input
+            id="routine-name"
+            type="text"
+            bind:this={nameInputEl}
+            value={name}
+            oninput={(event) => {
+              name = (event.currentTarget as HTMLInputElement).value;
+              nameTouched = true;
+            }}
+            maxlength="128"
+            autocomplete="off"
+            placeholder="Morning summary"
+            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors"
+            class:border-red-500={nameError}
+          />
+          {#if nameError}
+            <p class="text-[11px] text-red-400">{nameError}</p>
+          {/if}
+        </div>
+
+        <div class="space-y-1.5">
+          <label
+            for="routine-schedule"
+            class="block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+          >
+            Schedule
+          </label>
+          <input
+            id="routine-schedule"
+            type="text"
+            value={schedule}
+            oninput={(event) => {
+              schedule = (event.currentTarget as HTMLInputElement).value;
+              scheduleTouched = true;
+            }}
+            placeholder="0 9 * * *"
+            autocomplete="off"
+            spellcheck="false"
+            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors"
+            class:border-red-500={scheduleError}
+            aria-describedby="routine-schedule-help"
+          />
+          <p id="routine-schedule-help" class="text-[11px] text-text-muted">
+            Cron format: minute hour day-of-month month day-of-week.
+          </p>
+          {#if scheduleError}
+            <p class="text-[11px] text-red-400">{scheduleError}</p>
+          {/if}
+        </div>
+
+        <div class="space-y-1.5">
+          <label
+            for="routine-prompt"
+            class="block text-[11px] font-semibold uppercase tracking-wider text-text-muted"
+          >
+            Prompt
+          </label>
+          <textarea
+            id="routine-prompt"
+            rows="8"
+            value={prompt}
+            oninput={(event) => {
+              prompt = (event.currentTarget as HTMLTextAreaElement).value;
+              promptTouched = true;
+            }}
+            placeholder="Write the instruction this routine should run…"
+            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors resize-none"
+            class:border-red-500={promptError}
+          ></textarea>
+          {#if promptError}
+            <p class="text-[11px] text-red-400">{promptError}</p>
+          {/if}
+        </div>
       </div>
 
       <div

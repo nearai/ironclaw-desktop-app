@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.125 — Template-first routines + plotly lazy-load (2026-05-30)
+
+- **Routines (template-first)**: `CreateRoutineModal` now opens on a template chooser —
+  Daily Morning Brief, Inbox Triage (hourly), Weekly Review, or Custom — that prefills
+  name/schedule/prompt; the raw cron + prompt fields move behind an "Edit details" disclosure
+  (auto-expanded for Custom). Accessible radios + disclosure; the create/validation flow is
+  unchanged underneath.
+- **Bundle (perf)**: the ~4.8 MB client chunk was dominated by `plotly.js-dist-min` (4.6 MB),
+  pulled in via a static import of the Plotly markdown renderer. `MarkdownView` now imports the
+  Plotly renderer dynamically — only when a `plotly` block actually mounts — with a loading state,
+  an error fallback, and a render-batch guard against stale mounts. Plotly drops out of the initial
+  chunk. (Mermaid, 3.2 MB, is a tracked follow-up.) Full suite green (1038), svelte-check 0/0.
+
 ## v0.4.124 — Chief-of-staff foundation: connector packs + first-run missions (data) (2026-05-30)
 
 First foundation slice of the outcome-oriented product layer (pure data; UI follows):

@@ -55,7 +55,6 @@
   import { toasts } from '$lib/stores/toasts.svelte';
   import Mermaid from './markdown-renderers/Mermaid.svelte';
   import MathRenderer from './markdown-renderers/Math.svelte';
-  import Plotly from './markdown-renderers/Plotly.svelte';
   import PythonBlock from './markdown-renderers/PythonBlock.svelte';
 
   // `registerLanguage` auto-registers each grammar's declared aliases too, so
@@ -252,16 +251,60 @@
 
   let wrapperEl = $state<HTMLDivElement | null>(null);
   let mountedRenderers: ReturnType<typeof mount>[] = [];
+  let rendererBatch = 0;
   let promotableBlocks = new Map<string, PromotableBlock>();
+
+  type PlotlyRenderer = (typeof import('./markdown-renderers/Plotly.svelte'))['default'];
+  let plotlyRendererPromise: Promise<PlotlyRenderer> | null = null;
+
+  function loadPlotlyRenderer(): Promise<PlotlyRenderer> {
+    plotlyRendererPromise ??= import('./markdown-renderers/Plotly.svelte').then(
+      (mod) => mod.default
+    );
+    return plotlyRendererPromise;
+  }
 
   const MATH_RE = /(?<!\\)\$\$([\s\S]+?)(?<!\\)\$\$|(?<!\\)\$([^$\n]+?)(?<!\\)\$/gu;
 
   function clearMountedRenderers() {
+    rendererBatch += 1;
     const current = mountedRenderers;
     mountedRenderers = [];
     for (const instance of current) {
       void unmount(instance);
     }
+  }
+
+  function renderPlotlyImportError(target: HTMLElement, source: string, err: unknown) {
+    target.replaceChildren();
+
+    const message = document.createElement('div');
+    message.className = 'mb-2 text-xs text-red-300';
+    message.textContent = `Plotly render failed: ${(err as Error).message}`;
+
+    const pre = document.createElement('pre');
+    pre.dataset.rendererError = 'plotly';
+    const code = document.createElement('code');
+    code.textContent = source;
+    pre.appendChild(code);
+
+    target.append(message, pre);
+  }
+
+  function mountPlotlyRenderer(target: HTMLElement, source: string) {
+    const batch = rendererBatch;
+    target.textContent = 'Rendering chart...';
+
+    void loadPlotlyRenderer()
+      .then((Plotly) => {
+        if (batch !== rendererBatch || !target.isConnected) return;
+        target.textContent = '';
+        mountedRenderers.push(mount(Plotly, { target, props: { source } }));
+      })
+      .catch((err: unknown) => {
+        if (batch !== rendererBatch || !target.isConnected) return;
+        renderPlotlyImportError(target, source, err);
+      });
   }
 
   function shouldScanMathNode(node: Node): boolean {
@@ -334,7 +377,7 @@
       if (kind === 'mermaid') {
         mountedRenderers.push(mount(Mermaid, { target, props: { source } }));
       } else if (kind === 'plotly') {
-        mountedRenderers.push(mount(Plotly, { target, props: { source } }));
+        mountPlotlyRenderer(target, source);
       } else if (kind === 'python') {
         mountedRenderers.push(mount(PythonBlock, { target, props: { code: source } }));
       } else if (kind === 'math') {
