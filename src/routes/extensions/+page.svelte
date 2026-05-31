@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import { connection } from '$lib/stores/connection.svelte';
+  import { confirmDialog } from '$lib/stores/confirm.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import { pins } from '$lib/stores/pins.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
@@ -537,10 +538,15 @@
   async function handleRemove(ext: Extension) {
     const client = connection.client;
     if (!client) return;
-    // Native confirm is consistent with Tauri's webview and avoids pulling
-    // in a modal component just for the destructive-action gate.
     const label = ext.display_name ?? ext.name;
-    if (!confirm(`Remove ${label}? This will uninstall it from IronClaw.`)) {
+    const ok = await confirmDialog.ask({
+      title: `Remove ${label}?`,
+      body: `This will uninstall ${label} from IronClaw. You can reinstall it from the registry later if it is available.`,
+      confirmLabel: 'Remove extension',
+      cancelLabel: 'Keep extension',
+      tone: 'danger'
+    });
+    if (!ok) {
       return;
     }
     setBusy(ext.name, true);

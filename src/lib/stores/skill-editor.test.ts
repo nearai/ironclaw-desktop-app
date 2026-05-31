@@ -11,8 +11,7 @@
 //     re-assigns `connection.client` to swap between "no client",
 //     "client without updateSkillScript", and "client with a mocked
 //     updateSkillScript".
-//   - `confirm` is shimmed via `globalThis.confirm = vi.fn(...)` for
-//     the dirty-hide cases.
+//   - `confirmDialog.ask` is mocked for the dirty-hide cases.
 //   - `localStorage` is shimmed per pins.test.ts's pattern because the
 //     jsdom path Vitest 4 picks here is missing standard Storage
 //     methods.
@@ -23,7 +22,14 @@ vi.mock('./connection.svelte', () => ({
   connection: { client: null as unknown }
 }));
 
+vi.mock('./confirm.svelte', () => ({
+  confirmDialog: {
+    ask: vi.fn(async () => true)
+  }
+}));
+
 import type { Skill } from '$lib/api/types';
+import { confirmDialog } from './confirm.svelte';
 import { connection } from './connection.svelte';
 import { skillEditor } from './skill-editor.svelte';
 
@@ -81,9 +87,7 @@ describe('skillEditor store', () => {
   beforeEach(() => {
     installLocalStorageShim();
     resetEditor();
-    // Default: no confirm prompt installed; individual cases that care
-    // about the dirty-confirm gate install their own.
-    (globalThis as unknown as { confirm?: unknown }).confirm = vi.fn(() => true);
+    vi.mocked(confirmDialog.ask).mockResolvedValue(true);
     (connection as { client: unknown }).client = null;
   });
 
@@ -125,28 +129,35 @@ describe('skillEditor store', () => {
     expect(skillEditor.dirty).toBe(false);
   });
 
-  it('hide() while dirty + confirm-returns-false leaves state intact', () => {
+  it('hide() while dirty + confirm-returns-false leaves state intact', async () => {
     const skill = makeSkill({ script: 'orig' });
     skillEditor.show(skill);
     skillEditor.draft = 'modified';
     expect(skillEditor.dirty).toBe(true);
 
     // Decline the discard prompt.
-    (globalThis as unknown as { confirm: unknown }).confirm = vi.fn(() => false);
+    vi.mocked(confirmDialog.ask).mockResolvedValueOnce(false);
 
-    skillEditor.hide();
+    await skillEditor.hide();
     expect(skillEditor.open).toBe(true);
     expect(skillEditor.skill).toEqual(skill);
     expect(skillEditor.draft).toBe('modified');
+    expect(confirmDialog.ask).toHaveBeenCalledWith({
+      title: 'Discard changes to echo?',
+      body: 'This will throw away the unsaved skill source in the editor.',
+      confirmLabel: 'Discard changes',
+      cancelLabel: 'Keep editing',
+      tone: 'danger'
+    });
   });
 
-  it('hide() not dirty clears all state', () => {
+  it('hide() not dirty clears all state', async () => {
     const skill = makeSkill({ script: 'pristine' });
     skillEditor.show(skill);
     expect(skillEditor.open).toBe(true);
     expect(skillEditor.dirty).toBe(false);
 
-    skillEditor.hide();
+    await skillEditor.hide();
     expect(skillEditor.open).toBe(false);
     expect(skillEditor.skill).toBeNull();
     expect(skillEditor.draft).toBe('');

@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.137 — Shared in-app confirmation dialog (review ICD-005) (2026-05-30)
+
+Native `confirm()` for destructive / data-loss actions is gone — replaced by one accessible in-app
+dialog with consistent risk styling and keyboard behavior.
+
+- New `confirm.svelte.ts` service (`confirmDialog.ask(): Promise<boolean>`) + `ConfirmDialog.svelte`
+  (role=dialog, aria-modal, focus trap, cancel focused by default, Escape/backdrop = cancel, Enter
+  only activates the focused button, focus returns to the invoker). Mounted once in the layout.
+  Reuses existing danger tokens — no new design tokens.
+- Migrated every destructive `confirm()` with object-specific copy: Extensions remove, Admin
+  system-prompt restore/snapshot, Admin tool-policy bulk allow/disable/reset, Knowledge discard
+  (doc viewer + new doc), Quick Capture discard, Skill Editor discard. `rg "confirm("` → no
+  production UI usages remain.
+
 ## v0.4.136 — Honest local-sidecar provider support (review ICD-006) (2026-05-30)
 
 The LLM provider picker no longer lets you select-and-save a local-sidecar provider that can't

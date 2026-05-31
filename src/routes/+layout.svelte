@@ -11,6 +11,7 @@
   import QuickCapture from '$lib/components/QuickCapture.svelte';
   import UpdaterBanner from '$lib/components/UpdaterBanner.svelte';
   import AboutDialog from '$lib/components/AboutDialog.svelte';
+  import ConfirmDialog from '$lib/components/ConfirmDialog.svelte';
   import StatusBar from '$lib/components/StatusBar.svelte';
   import PresetsModal from '$lib/components/PresetsModal.svelte';
   import TemplatesModal from '$lib/components/TemplatesModal.svelte';
@@ -713,6 +714,7 @@
        Placed outside the onboarding guard so it stays reachable even on
        the wizard takeover if a future entry point fires while it's up. -->
   <AboutDialog open={aboutStore.open} onclose={() => aboutStore.close()} />
+  <ConfirmDialog />
 
   <!-- LANE B6 — R63 title-bar drag region (macOS). With `titleBarStyle:
        Overlay` + `hiddenTitle: true`, the traffic lights sit OVER the

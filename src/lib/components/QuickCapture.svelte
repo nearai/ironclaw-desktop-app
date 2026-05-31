@@ -14,7 +14,7 @@
   //     sends on plain Enter — for quick capture we trade that for an
   //     extra modifier so the user can refine the thought before commit.
   //   - Esc closes; if the textarea is non-empty we confirm via the
-  //     native confirm() dialog so a stray Esc doesn't nuke a paragraph.
+  //     shared in-app dialog so a stray Esc doesn't nuke a paragraph.
   //   - On first send we look up or create the canonical "Quick captures"
   //     thread, send the message, toast on success, then close. On error
   //     we toast the message and keep the modal open so the user can
@@ -27,6 +27,7 @@
   import { tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { connection } from '$lib/stores/connection.svelte';
+  import { confirmDialog } from '$lib/stores/confirm.svelte';
   import { quickCapture } from '$lib/stores/quick-capture.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
 
@@ -163,14 +164,16 @@
 
   // -- handlers -------------------------------------------------------------
 
-  /** Esc-close with a confirm guard when there's unsent text. The native
-   *  confirm() is acceptable here — it matches the rest of the app (no
-   *  custom confirm-dialog primitive exists today) and a stray
-   *  keypress losing the user's thought is the failure mode this
-   *  guard is designed to prevent. */
-  function close() {
+  /** Esc-close with a confirm guard when there's unsent text. */
+  async function close() {
     if (trimmed.length > 0) {
-      const ok = typeof window !== 'undefined' ? window.confirm('Discard this capture?') : true;
+      const ok = await confirmDialog.ask({
+        title: 'Discard this quick capture?',
+        body: `This will throw away the unsent text instead of saving it to the "${QUICK_CAPTURE_THREAD_TITLE}" thread.`,
+        confirmLabel: 'Discard capture',
+        cancelLabel: 'Keep writing',
+        tone: 'danger'
+      });
       if (!ok) return;
     }
     quickCapture.close();
@@ -186,7 +189,8 @@
     }
     if (e.key === 'Escape') {
       e.preventDefault();
-      close();
+      e.stopPropagation();
+      void close();
       return;
     }
   }
@@ -195,7 +199,7 @@
     // Only close when the click lands on the backdrop itself — matches
     // the click-outside semantics of the other layout-level modals.
     if (e.target === e.currentTarget) {
-      close();
+      void close();
     }
   }
 

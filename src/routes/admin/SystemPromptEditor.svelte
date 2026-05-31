@@ -20,6 +20,7 @@
 
   import { onMount, tick } from 'svelte';
   import { connection } from '$lib/stores/connection.svelte';
+  import { confirmDialog } from '$lib/stores/confirm.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
   import { redactSecrets } from '$lib/utils/redact';
@@ -230,11 +231,14 @@
     // PUTing an empty string falls back to the gateway's built-in default —
     // the server reads the empty doc as "no admin instructions" and stops
     // injecting the System Instructions section.
-    if (
-      !confirm(
-        'Restore the gateway default? This clears the admin system prompt; users will see only their per-profile system context.'
-      )
-    ) {
+    const ok = await confirmDialog.ask({
+      title: 'Restore gateway default system prompt?',
+      body: 'This clears the admin system prompt. Users will only receive their per-profile system context until a new prompt is saved.',
+      confirmLabel: 'Restore default',
+      cancelLabel: 'Keep prompt',
+      tone: 'danger'
+    });
+    if (!ok) {
       return;
     }
     draft = '';
@@ -248,10 +252,14 @@
     if (!showHistory) diffTarget = null;
   }
 
-  function restoreFromHistory(entry: HistoryEntry) {
-    const ok = confirm(
-      'Load this saved snapshot into the editor? It will mark the draft dirty but not auto-save.'
-    );
+  async function restoreFromHistory(entry: HistoryEntry) {
+    const ok = await confirmDialog.ask({
+      title: 'Load saved system-prompt snapshot?',
+      body: `This replaces the current editor draft with the snapshot from ${formatTimestamp(entry.timestamp)}. It will not save until you click Save.`,
+      confirmLabel: 'Load snapshot',
+      cancelLabel: 'Keep current draft',
+      tone: 'danger'
+    });
     if (!ok) return;
     draft = entry.prompt;
     showHistory = false;
@@ -627,7 +635,7 @@
                   </button>
                   <button
                     type="button"
-                    onclick={() => restoreFromHistory(entry)}
+                    onclick={() => void restoreFromHistory(entry)}
                     class="px-2.5 py-1 rounded text-[11px] font-semibold border border-border-subtle text-text-muted hover:text-accent-gold hover:border-accent-gold transition min-h-[28px]"
                   >
                     Restore

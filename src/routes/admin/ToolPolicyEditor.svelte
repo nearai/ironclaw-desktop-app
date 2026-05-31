@@ -30,6 +30,7 @@
 
   import { onMount } from 'svelte';
   import { connection } from '$lib/stores/connection.svelte';
+  import { confirmDialog } from '$lib/stores/confirm.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import type { ToolPermission, ToolPermissionEntry } from '$lib/api/types';
 
@@ -296,7 +297,7 @@
   // `disabled` we skip too, because locking is a server-side opinion
   // ("this tool always requires approval") that disabling would
   // undermine (the user wouldn't see the prompt at all).
-  function bulkApply(next: WritableState, verb: string) {
+  async function bulkApply(next: WritableState, verb: string) {
     const scope = filterActive ? filteredRows : allRows;
     const target = scope.filter((r) => !r.locked);
     const skipped = scope.length - target.length;
@@ -312,9 +313,13 @@
     if (target.length > 5) {
       const suffix =
         skipped > 0 ? ` (${skipped} locked tool${skipped === 1 ? '' : 's'} will be skipped.)` : '';
-      const ok = confirm(
-        `${verb} ${target.length} tool${target.length === 1 ? '' : 's'}?${suffix}`
-      );
+      const ok = await confirmDialog.ask({
+        title: `${verb} ${target.length} tool${target.length === 1 ? '' : 's'}?`,
+        body: `This will ${verb.toLowerCase()} every unlocked tool in the current ${filterActive ? 'filtered' : 'visible'} scope.${suffix}`,
+        confirmLabel: `${verb} tools`,
+        cancelLabel: 'Keep current policy',
+        tone: next === 'disabled' ? 'danger' : 'default'
+      });
       if (!ok) return;
     }
     const nextDraft: Record<string, WritableState> = { ...draftStates };
@@ -326,14 +331,14 @@
   }
 
   function bulkAllow() {
-    bulkApply('always_allow', 'Allow');
+    void bulkApply('always_allow', 'Allow');
   }
 
   function bulkDeny() {
-    bulkApply('disabled', 'Disable');
+    void bulkApply('disabled', 'Disable');
   }
 
-  function bulkReset() {
+  async function bulkReset() {
     // Reset each in-scope tool to its OWN `default_state` — different
     // tools have different defaults, so we don't collapse to a single
     // value here. Locked tools get reset too (the wire allows resetting
@@ -345,7 +350,13 @@
       return;
     }
     if (scope.length > 5) {
-      const ok = confirm(`Reset ${scope.length} tool${scope.length === 1 ? '' : 's'} to default?`);
+      const ok = await confirmDialog.ask({
+        title: `Reset ${scope.length} tool${scope.length === 1 ? '' : 's'} to default?`,
+        body: `This resets every tool in the current ${filterActive ? 'filtered' : 'visible'} scope to its own gateway default policy.`,
+        confirmLabel: 'Reset tools',
+        cancelLabel: 'Keep current policy',
+        tone: 'danger'
+      });
       if (!ok) return;
     }
     const nextDraft: Record<string, WritableState> = { ...draftStates };
@@ -538,7 +549,7 @@
           </button>
           <button
             type="button"
-            onclick={bulkReset}
+            onclick={() => void bulkReset()}
             class="px-3 py-1.5 rounded-md border border-border-subtle text-xs text-text-primary hover:border-accent-gold hover:text-accent-gold transition min-h-[32px]"
             title={filterActive
               ? `Reset the ${filteredRows.length} filtered tools to their default state`

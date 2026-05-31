@@ -30,7 +30,7 @@ const byText = (c: HTMLElement, text: string) =>
 const title = (c: HTMLElement) => c.querySelector('#skill-editor-title');
 
 beforeEach(() => {
-  vi.spyOn(skillEditor, 'hide').mockImplementation(() => {});
+  vi.spyOn(skillEditor, 'hide').mockResolvedValue(undefined);
   vi.spyOn(skillEditor, 'save').mockResolvedValue(undefined);
   // Reset the shared singleton to an open, empty editor.
   skillEditor.open = true;

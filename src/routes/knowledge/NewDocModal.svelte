@@ -35,6 +35,7 @@
   // tree refresh, selection), keeping the modal free of side effects.
 
   import { onMount } from 'svelte';
+  import { confirmDialog } from '$lib/stores/confirm.svelte';
 
   interface Props {
     onclose: () => void;
@@ -75,11 +76,17 @@
     }
   }
 
-  function tryClose() {
+  async function tryClose() {
     // If the textarea has been touched, confirm before discarding. We treat
     // path-only edits as cheap to lose; only the body warrants a confirm.
     if (content.length > 0) {
-      const ok = window.confirm('Discard new doc? Unsaved content will be lost.');
+      const ok = await confirmDialog.ask({
+        title: `Discard new document${path.trim() ? ` "${path.trim()}"` : ''}?`,
+        body: 'This will delete the unsaved document body you have typed in this modal.',
+        confirmLabel: 'Discard document',
+        cancelLabel: 'Keep editing',
+        tone: 'danger'
+      });
       if (!ok) return;
     }
     onclose();
@@ -88,7 +95,7 @@
   function handleKey(event: KeyboardEvent) {
     if (event.key === 'Escape') {
       event.preventDefault();
-      tryClose();
+      void tryClose();
     }
   }
 </script>
@@ -99,7 +106,7 @@
 <button
   type="button"
   aria-label="Close new-doc modal"
-  onclick={tryClose}
+  onclick={() => void tryClose()}
   class="fixed inset-0 z-40 bg-black/50 cursor-default"
 ></button>
 
@@ -114,7 +121,7 @@
     <h2 id="new-doc-title" class="text-sm font-semibold text-text-primary">New document</h2>
     <button
       type="button"
-      onclick={tryClose}
+      onclick={() => void tryClose()}
       aria-label="Close"
       class="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-text-primary hover:bg-bg-surface transition"
     >
@@ -183,7 +190,7 @@
     >
       <button
         type="button"
-        onclick={tryClose}
+        onclick={() => void tryClose()}
         class="px-3 py-1.5 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition text-xs"
       >
         Cancel

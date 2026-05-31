@@ -19,6 +19,7 @@
   // entries), the viewport is narrow (< 1100px), or we're in edit mode.
 
   import MarkdownView from '$lib/components/MarkdownView.svelte';
+  import { confirmDialog } from '$lib/stores/confirm.svelte';
   import { onMount, tick } from 'svelte';
 
   interface Props {
@@ -90,9 +91,15 @@
     queueMicrotask(() => textareaEl?.focus());
   }
 
-  function cancelEdit() {
+  async function cancelEdit() {
     if (dirty) {
-      const ok = window.confirm('Discard unsaved changes?');
+      const ok = await confirmDialog.ask({
+        title: `Discard changes to ${path}?`,
+        body: 'This will throw away the unsaved edits in the document editor and restore the last saved content.',
+        confirmLabel: 'Discard changes',
+        cancelLabel: 'Keep editing',
+        tone: 'danger'
+      });
       if (!ok) return;
     }
     editing = false;
@@ -131,7 +138,7 @@
     }
     if (event.key === 'Escape') {
       event.preventDefault();
-      cancelEdit();
+      void cancelEdit();
     }
   }
 
@@ -364,7 +371,7 @@
     {#if editing}
       <button
         type="button"
-        onclick={cancelEdit}
+        onclick={() => void cancelEdit()}
         disabled={saving}
         class="text-[11px] px-2.5 py-1 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition disabled:opacity-50"
       >

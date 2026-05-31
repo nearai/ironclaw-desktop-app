@@ -23,12 +23,13 @@
 //    pending the server lighting up the endpoint, the user's draft
 //    survives a reload and re-appears the next time they open the
 //    editor on that skill (see `stashLocally` below).
-//  - Hide cycle prompts on a dirty buffer (via the standard
-//    `window.confirm`) so the user never loses unsaved edits by an
+//  - Hide cycle prompts on a dirty buffer (via the shared in-app
+//    confirmation dialog) so the user never loses unsaved edits by an
 //    accidental backdrop click / Esc.
 
 import type { IronClawClient } from '$lib/api/ironclaw';
 import type { Skill } from '$lib/api/types';
+import { confirmDialog } from './confirm.svelte';
 import { connection } from './connection.svelte';
 
 /** localStorage key prefix for per-skill draft stash. Suffixed with the
@@ -98,9 +99,16 @@ class SkillEditorStore {
    * first — declining cancels the close and leaves the editor state
    * intact (so the user can finish editing or copy the draft out).
    */
-  hide(): void {
-    if (this.dirty && typeof globalThis.confirm === 'function') {
-      const ok = globalThis.confirm('You have unsaved changes. Discard them?');
+  async hide(): Promise<void> {
+    if (this.dirty) {
+      const label = this.skill?.name ?? 'this skill';
+      const ok = await confirmDialog.ask({
+        title: `Discard changes to ${label}?`,
+        body: 'This will throw away the unsaved skill source in the editor.',
+        confirmLabel: 'Discard changes',
+        cancelLabel: 'Keep editing',
+        tone: 'danger'
+      });
       if (!ok) return;
     }
     this.open = false;
