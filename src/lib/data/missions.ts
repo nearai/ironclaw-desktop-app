@@ -103,6 +103,30 @@ Use executive brevity. Do not send, react, assign, archive, or update anything i
 Review available relationship context and identify contacts, accounts, next steps, status changes, or notes that should be reflected in Notion. Produce a proposed update list with the target page or database, the exact fields or notes to change, and the reason for each update.
 
 Use executive brevity. Do not create pages, edit properties, add notes, or write to Notion. Show the proposed Notion changes first and wait for my explicit approval before any write.`
+  },
+  {
+    id: 'contract-review',
+    title: 'Review a Contract',
+    description: 'Flag risks, missing protections, and one-sided terms — with concrete redlines.',
+    icon: 'file-text',
+    mode: 'approval',
+    prompt: `You are my Chief of Staff giving a contract a first-pass review. Paste the contract text or the key clauses, and tell me which side we are on.
+
+Lead with the highest-risk issues. Name the protections that are missing (carve-outs, term limits, mutual remedies, return-or-destroy, liability caps) and call out anything one-sided. Flag structural mismatches explicitly — for example, an agreement titled "mutual" that places obligations on only one party. For each material issue, propose specific redline language with a one-line rationale, then give a short go / negotiate / no-go read for our side.
+
+Write in a hedged, professional voice: avoid categorical claims ("this is X"); prefer "this appears to / is intended to / we recommend". This is preparation for counsel, not legal advice — say so, and flag anything that genuinely needs a licensed attorney. Do not send, save, or share anything; return the review here for my approval.`
+  },
+  {
+    id: 'draft-from-notes',
+    title: 'Draft from Notes',
+    description: 'Turn call or meeting notes into a follow-up and a clean first draft.',
+    icon: 'pen-tool',
+    mode: 'approval',
+    prompt: `You are my Chief of Staff drafting from my notes. Paste the call or meeting notes, and tell me what you need — for example a follow-up email, a term sheet, an MoU, or an engagement letter.
+
+Use only what the notes support. Mark every assumption explicitly, and list open items separately rather than guessing. Never invent commercial terms, numbers, dates, or names that are not in the notes. Produce a clean, ready-to-edit draft in my voice, plus a short cover note where one helps.
+
+Write precisely and skimmably. This is a first draft to prepare for counsel or a counterparty, not legal advice. Do not send, save, or share anything; return the drafts here for my approval before any send or write.`
   }
 ];
 

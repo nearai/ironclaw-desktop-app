@@ -50,8 +50,14 @@
     }
     return statuses;
   });
+  // The "Recommended" highlight is connector-driven — its reason cites the connected
+  // pack(s). Connectorless utility missions (e.g. Review a Contract, Draft from Notes)
+  // are always launchable from the grid, so we exclude them here rather than recommend
+  // them without a workspace reason.
   const recommendedMissions = $derived.by(() =>
-    recommendMissions(missions, packStatusRecord, hourOfDay).slice(0, 2)
+    recommendMissions(missions, packStatusRecord, hourOfDay)
+      .filter((mission) => (mission.required_connectors ?? []).length > 0)
+      .slice(0, 2)
   );
   const usesProvidedPackStatuses = $derived(providedPackStatuses !== null);
 

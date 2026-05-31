@@ -72,6 +72,17 @@ describe('first-run missions', () => {
     expect(missionById('morning-brief')?.title).toBe('Morning Brief');
     expect(missionById('not-a-mission')).toBeUndefined();
   });
+
+  it('includes connectorless legal utility missions in approval mode', () => {
+    for (const id of ['contract-review', 'draft-from-notes']) {
+      const mission = missionById(id);
+      expect(mission).toBeTruthy();
+      expect(mission?.mode).toBe('approval');
+      expect(mission?.required_connectors ?? []).toEqual([]);
+      // First-pass review/draft to prepare for counsel — never positioned as legal advice.
+      expect(mission?.prompt.toLowerCase()).toContain('not legal advice');
+    }
+  });
 });
 
 describe('recommendMissions', () => {
@@ -94,8 +105,14 @@ describe('recommendMissions', () => {
     expect(recommended.map((mission) => mission.id)).toContain('slack-catchup');
   });
 
-  it('returns no first-run recommendations when no connectors are ready', () => {
-    expect(recommendMissions(FIRST_RUN_MISSIONS, DISCONNECTED_STATUSES, 8)).toEqual([]);
+  it('returns only connectorless missions when no connectors are ready', () => {
+    const ids = recommendMissions(FIRST_RUN_MISSIONS, DISCONNECTED_STATUSES, 8).map((m) => m.id);
+    // Connectorless utility missions stay eligible (they need no workspace);
+    // connector-gated missions drop out when their packs are not ready.
+    expect(ids).toContain('contract-review');
+    expect(ids).toContain('draft-from-notes');
+    expect(ids).not.toContain('morning-brief');
+    expect(ids).not.toContain('slack-catchup');
   });
 
   it('keeps connectorless missions eligible', () => {

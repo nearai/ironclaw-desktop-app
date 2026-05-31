@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.134 — Legal missions: Review a Contract + Draft from Notes (2026-05-30)
+
+Two always-available missions, validated against a real legal-work bar before shipping (first-pass
+contract review caught one-sided/mislabeled terms with concrete redlines; drafting stayed faithful
+to the notes and refused to invent terms):
+
+- **Review a Contract** — paste a contract + which side you're on; it leads with the highest risks,
+  names missing protections, flags one-sided/structurally-mislabeled terms, and proposes redlines
+  with a go/negotiate/no-go read.
+- **Draft from Notes** — paste call/meeting notes; it produces a follow-up + a clean first draft
+  using only what the notes support, marking assumptions and listing open items.
+
+Both run in approval mode, write in a hedged "prepare-for-counsel, not legal advice" voice, and
+require **no connectors** (they work on pasted text), so they're launchable from a fresh install.
+They live in the mission grid as utilities; the connector-driven "Recommended" highlight stays
+connector-scoped, so nothing about that surface changes.
+
 ## v0.4.133 — Result receipts on the Desk (2026-05-30)
 
 The Desk's Handled rows are now expandable: click one and it shows what the run actually produced —
