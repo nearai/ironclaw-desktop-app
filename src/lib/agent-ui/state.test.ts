@@ -7,6 +7,7 @@ import { readUiState, redactSecrets, surfaceForPath } from './state';
 describe('surfaceForPath', () => {
   it('maps known routes to their surface names', () => {
     expect(surfaceForPath('/')).toBe('chat');
+    expect(surfaceForPath('/work')).toBe('work');
     expect(surfaceForPath('/knowledge')).toBe('knowledge');
     expect(surfaceForPath('/admin')).toBe('admin');
   });

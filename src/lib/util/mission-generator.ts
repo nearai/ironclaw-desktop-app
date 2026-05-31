@@ -1,3 +1,10 @@
+import type { RunbookDomain } from '$lib/data/runbooks';
+import type {
+  WorkItemApprovalBoundary,
+  WorkItemDossierEntry,
+  WorkItemWatch
+} from '$lib/data/work-item';
+
 // Generative missions — the chief-of-staff core.
 //
 // A static catalog ("pick Contract Review from a menu") is the wrong shape for
@@ -13,11 +20,33 @@
 // Responses API and renders the result on the Desk.
 
 export type GeneratedMissionMode = 'dry-run' | 'approval';
+export type GeneratedMissionDomain = RunbookDomain | 'multi' | 'unknown';
+
+export interface GeneratedMissionArtifact {
+  type: string;
+  title: string;
+  provenance?: string[];
+}
+
+export interface GeneratedMissionRisk {
+  action: string;
+  kind?: WorkItemApprovalBoundary['kind'];
+  payload: string;
+  reason?: string;
+}
+
+const VALID_RUNBOOK_DOMAINS = new Set<RunbookDomain>([
+  'coding',
+  'legal',
+  'finance',
+  'research',
+  'operations'
+]);
 
 /** A piece of live context the agent should reason over. */
 export interface ContextItem {
   kind: 'document' | 'note' | 'email' | 'event' | 'activity';
-  /** Short human label, e.g. "Inbox — Northwind MSA". */
+  /** Short human label, e.g. "Inbox — vendor contract". */
   label: string;
   /** The actual content (contract text, call notes, an event summary…). */
   body: string;
@@ -39,6 +68,18 @@ export interface GeneratedMission {
   run_instruction: string;
   /** What the user gets out of it. */
   deliverable: string;
+  /** Selected runbook domain, or multi for a parent matter. */
+  domain: GeneratedMissionDomain;
+  /** Sub-runbooks when domain is multi. */
+  domains: RunbookDomain[];
+  /** Context used, available, and missing, with provenance. */
+  context: WorkItemDossierEntry[];
+  /** External/mutating actions that must be approved before execution. */
+  risky_actions: GeneratedMissionRisk[];
+  /** Typed expected outputs. */
+  expected_artifacts: GeneratedMissionArtifact[];
+  /** Monitoring intents to attach as watches. */
+  watches: Omit<WorkItemWatch, 'id' | 'status'>[];
 }
 
 const SYSTEM = `You are the user's Chief of Staff inside IronClaw, a desktop workspace. New items just landed in the workspace (below). Do NOT choose from a fixed menu of generic tasks. Read what ACTUALLY arrived and propose the specific, grounded next actions you would put on the user's Desk right now — each tied to a real item, in the user's interest, and scoped so it can run without sending or writing anything until the user approves.
@@ -52,7 +93,13 @@ Return STRICT JSON only — an array (highest priority first), each element:
   "why": "<one sentence: why this matters now>",
   "mode": "approval" | "dry-run",
   "run_instruction": "<the exact task to execute, self-contained>",
-  "deliverable": "<what the user gets>"
+  "deliverable": "<what the user gets>",
+  "domain": "coding" | "legal" | "finance" | "research" | "operations" | "multi" | "unknown",
+  "domains": ["<only for multi: coding|legal|finance|research|operations>"],
+  "context": [{"label":"<input/context name>","state":"used|available|missing","provenance":"<item label/source>","detail":"<optional>"}],
+  "risky_actions": [{"action":"<push/send/trade/export/write/etc>","kind":"send|trade|push|pr|export|delete|write|other","payload":"<exact payload/action to approve>","reason":"<why approval is required>"}],
+  "expected_artifacts": [{"type":"<machine-readable type>","title":"<human title>","provenance":["<source labels>"]}],
+  "watches": [{"trigger":"<what to watch for>","cadence":"<how often/when>","source":"<source system>","next_check":"<next check or null>","escalation":"<what to surface to the user>"}]
 }
 Propose 2-6 actions. No prose outside the JSON array.`;
 
@@ -81,8 +128,117 @@ function coerceMode(v: unknown): GeneratedMissionMode {
   return v === 'dry-run' ? 'dry-run' : 'approval';
 }
 
+function coerceDomain(v: unknown): GeneratedMissionDomain {
+  if (
+    v === 'coding' ||
+    v === 'legal' ||
+    v === 'finance' ||
+    v === 'research' ||
+    v === 'operations' ||
+    v === 'multi'
+  ) {
+    return v;
+  }
+  return 'unknown';
+}
+
 function str(v: unknown): string {
   return typeof v === 'string' ? v.trim() : '';
+}
+
+function strList(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((x): x is string => typeof x === 'string')
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function parseContext(v: unknown): WorkItemDossierEntry[] {
+  if (!Array.isArray(v)) return [];
+  const out: WorkItemDossierEntry[] = [];
+  for (const entry of v) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const label = str(e.label);
+    const provenance = str(e.provenance);
+    const state = e.state;
+    if (!label || !provenance) continue;
+    if (state !== 'used' && state !== 'available' && state !== 'missing') continue;
+    out.push({
+      label,
+      state,
+      provenance,
+      ...(str(e.detail) ? { detail: str(e.detail) } : {})
+    });
+  }
+  return out;
+}
+
+function parseRisks(v: unknown): GeneratedMissionRisk[] {
+  if (!Array.isArray(v)) return [];
+  const out: GeneratedMissionRisk[] = [];
+  for (const entry of v) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const action = str(e.action);
+    const payload = str(e.payload);
+    if (!action || !payload) continue;
+    const kind =
+      e.kind === 'send' ||
+      e.kind === 'trade' ||
+      e.kind === 'push' ||
+      e.kind === 'pr' ||
+      e.kind === 'export' ||
+      e.kind === 'delete' ||
+      e.kind === 'write' ||
+      e.kind === 'other'
+        ? e.kind
+        : 'other';
+    out.push({
+      action,
+      kind,
+      payload,
+      ...(str(e.reason) ? { reason: str(e.reason) } : {})
+    });
+  }
+  return out;
+}
+
+function parseArtifacts(v: unknown): GeneratedMissionArtifact[] {
+  if (!Array.isArray(v)) return [];
+  const out: GeneratedMissionArtifact[] = [];
+  for (const entry of v) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const type = str(e.type);
+    const title = str(e.title);
+    if (!type || !title) continue;
+    out.push({ type, title, provenance: strList(e.provenance) });
+  }
+  return out;
+}
+
+function parseWatches(v: unknown): Omit<WorkItemWatch, 'id' | 'status'>[] {
+  if (!Array.isArray(v)) return [];
+  const out: Omit<WorkItemWatch, 'id' | 'status'>[] = [];
+  for (const entry of v) {
+    if (!entry || typeof entry !== 'object') continue;
+    const e = entry as Record<string, unknown>;
+    const trigger = str(e.trigger);
+    const cadence = str(e.cadence);
+    const source = str(e.source);
+    const escalation = str(e.escalation);
+    if (!trigger || !cadence || !source || !escalation) continue;
+    out.push({
+      trigger,
+      cadence,
+      source,
+      next_check: str(e.next_check) || null,
+      escalation
+    });
+  }
+  return out;
 }
 
 /**
@@ -124,7 +280,15 @@ export function parseProposedMissions(raw: string): GeneratedMission[] {
       why: str(o.why),
       mode: coerceMode(o.mode),
       run_instruction,
-      deliverable: str(o.deliverable)
+      deliverable: str(o.deliverable),
+      domain: coerceDomain(o.domain),
+      domains: strList(o.domains).filter((id): id is RunbookDomain =>
+        VALID_RUNBOOK_DOMAINS.has(id as RunbookDomain)
+      ),
+      context: parseContext(o.context),
+      risky_actions: parseRisks(o.risky_actions),
+      expected_artifacts: parseArtifacts(o.expected_artifacts),
+      watches: parseWatches(o.watches)
     });
   });
   return out;

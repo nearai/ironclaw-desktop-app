@@ -9,9 +9,9 @@
     - Center:  LLM provider id + model name (e.g. "NEAR.AI · auto" or
                "OpenRouter · deepseek-chat-v3"). Clicks /settings#provider.
     - Right:   Live indicators — job queue depth (running + pending,
-               gold when >0), tokens-today (admin-only, hidden
-               otherwise), and the last health-ping latency in ms. Clicks
-               /jobs.
+               gold when >0), rolling 30-day token usage (admin-only,
+               hidden otherwise), and the last health-ping latency in ms.
+               Clicks /jobs.
 
   Self-contained polling:
     - Jobs summary every 30s when connected.
@@ -69,7 +69,7 @@
   // ---- Live state ------------------------------------------------------
   let jobsRunning = $state(0);
   let jobsPending = $state(0);
-  let tokensToday = $state<number | null>(null);
+  let tokens30d = $state<number | null>(null);
   let latencyMs = $state<number | null>(null);
   let usageHidden = $state(false);
 
@@ -133,7 +133,7 @@
    *  the picker decides to expose it on the profile. */
   const modelLabel = $derived('auto');
 
-  /** Compact format for the tokens-today figure (e.g. 12.4K). */
+  /** Compact format for the token-count figure (e.g. 12.4K). */
   function fmtTokens(n: number): string {
     if (n < 1000) return String(n);
     if (n < 1_000_000) return `${(n / 1000).toFixed(n < 10_000 ? 1 : 0)}K`;
@@ -191,17 +191,17 @@
           // Most likely a non-admin token. Hide the cell for the rest of
           // this session — re-enabled on reconnect via the effect below.
           usageHidden = true;
-          tokensToday = null;
+          tokens30d = null;
         } else {
-          // Wire emits 30-day rolling totals; we surface that as "tokens
-          // today" approximation — the gateway doesn't ship a daily
-          // breakdown on the summary endpoint, and the spec's intent is
-          // an at-a-glance heat indicator rather than billing-grade truth.
-          tokensToday = summary.usage_30d?.tokens ?? null;
+          // The summary endpoint reports a rolling 30-day total, not a
+          // daily breakdown — surface it verbatim as the rolling-window
+          // usage figure. The cell is an at-a-glance heat indicator, not
+          // billing-grade truth.
+          tokens30d = summary.usage_30d?.tokens ?? null;
         }
       } catch {
         usageHidden = true;
-        tokensToday = null;
+        tokens30d = null;
       }
     }
   }
@@ -397,13 +397,19 @@
             </span>
           </span>
 
-          <!-- Tokens today (admin-only). Hidden when the gateway returns
-               null from /api/admin/usage/summary (i.e. non-admin token). -->
-          {#if !usageHidden && tokensToday != null}
-            <span class="flex items-center gap-1.5 text-xs">
+          <!-- Rolling 30-day token usage (admin-only). Hidden when the
+               gateway returns null from /api/admin/usage/summary (i.e.
+               non-admin token). Label stays "Tokens" for width; the
+               title/aria-label carry the rolling-window truth. -->
+          {#if !usageHidden && tokens30d != null}
+            <span
+              class="flex items-center gap-1.5 text-xs"
+              title="Tokens, rolling 30 days"
+              aria-label="Tokens, rolling 30 days"
+            >
               <span class="text-text-muted">Tokens</span>
               <span class="font-mono font-medium text-text-primary">
-                {fmtTokens(tokensToday)}
+                {fmtTokens(tokens30d)}
               </span>
             </span>
           {/if}

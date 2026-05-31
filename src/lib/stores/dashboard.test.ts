@@ -109,6 +109,7 @@ describe('dashboard store', () => {
     dashboard.reset();
     expect(dashboard.tiles.length).toBeGreaterThan(0);
     const ids = dashboard.tiles.map((t) => t.id);
+    expect(ids).toContain('work-queue');
     expect(ids).toContain('recent-threads');
     expect(ids).toContain('active-routines');
     expect(ids).toContain('recent-skills');
@@ -120,6 +121,22 @@ describe('dashboard store', () => {
     dashboard.tiles = [];
     dashboard.reset();
     expect(dashboard.tiles.map((t) => t.kind)).toContain('open-loops');
+  });
+
+  it('default layout includes the work queue tile', () => {
+    dashboard.tiles = [];
+    dashboard.reset();
+    expect(dashboard.tiles.map((t) => t.kind)).toContain('work-queue');
+  });
+
+  it('add() accepts a work queue tile and persists it', () => {
+    dashboard.tiles = [];
+    dashboard.add({ id: 'work-queue', kind: 'work-queue', span: 4 });
+    expect(dashboard.tiles.map((t) => t.kind)).toEqual(['work-queue']);
+    const raw = localStorage.getItem(LS_KEY);
+    expect(raw).not.toBeNull();
+    const parsed = JSON.parse(raw as string) as TileConfig[];
+    expect(parsed[0].kind).toBe('work-queue');
   });
 
   it('add() accepts an open-loops tile and persists it', () => {
@@ -134,5 +151,9 @@ describe('dashboard store', () => {
 
   it('defaultTitleForKind labels the open-loops tile', () => {
     expect(defaultTitleForKind('open-loops')).toBe('Open loops');
+  });
+
+  it('defaultTitleForKind labels the work queue tile', () => {
+    expect(defaultTitleForKind('work-queue')).toBe('Work queue');
   });
 });

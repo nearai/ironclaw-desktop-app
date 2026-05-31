@@ -46,6 +46,12 @@
   --v2-text-muted: rgba(255, 255, 255, 0.6);
   --v2-text-faint: rgba(255, 255, 255, 0.45);
   --v2-inverse: #111111;
+  --font-ui:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', Arial,
+    sans-serif;
+  --font-display:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial,
+    sans-serif;
 
   /* Accent — NEAR Blue (PMS 2925C, NEAR AI Brand Guidelines v01).
      --v2-accent-text is NEAR Sky (PMS 2905C), the lighter on-dark tint. */
@@ -139,6 +145,11 @@ body {
      palette). The translucent panels later in the stack let it bleed. */
   background: var(--v2-app-bg);
   background-attachment: fixed;
+  font-family: var(--font-ui);
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* R63 (lane B6): give the chrome a subtle translucency so the native

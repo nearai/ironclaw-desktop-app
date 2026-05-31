@@ -53,10 +53,12 @@ export default {
       },
       fontFamily: {
         sans: [
-          '"Inter Variable"',
-          'Inter',
           '-apple-system',
           'BlinkMacSystemFont',
+          '"SF Pro Text"',
+          '"SF Pro Display"',
+          '"Helvetica Neue"',
+          'Arial',
           '"Segoe UI"',
           'sans-serif'
         ],

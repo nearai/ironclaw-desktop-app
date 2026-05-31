@@ -30,6 +30,7 @@ describe('agent-ui action registry', () => {
     const params = nav!.parameters as { properties: { surface: { enum: string[] } } };
     const surfaces = params.properties.surface.enum;
     expect(surfaces).toContain('knowledge');
+    expect(surfaces).toContain('work');
     expect(surfaces).toContain('chat');
     expect(surfaces).not.toContain('dev'); // internal surfaces excluded
     expect(surfaces).not.toContain('onboarding');

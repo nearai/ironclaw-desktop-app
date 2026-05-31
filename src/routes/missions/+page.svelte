@@ -266,7 +266,7 @@
     <div>
       <h1 class="text-2xl font-semibold text-text-primary">Missions</h1>
       <p class="text-text-muted text-sm mt-1">
-        Engine v2 projects, missions, and the engine threads they spawn.
+        Mission projects, run history, and the threads they generate.
       </p>
     </div>
     {#if connection.status === 'connected'}
@@ -352,13 +352,15 @@
       <aside
         class="shrink-0 surface flex flex-col overflow-hidden"
         style="width: {effectiveProjectsRailWidth}px;"
-        aria-label="Engine v2 projects"
+        aria-label="Mission projects"
       >
         <header class="px-4 py-3 border-b border-border-subtle">
           <h2 class="text-xs font-semibold text-text-muted uppercase tracking-wide">Projects</h2>
         </header>
         {#if projects.length === 0}
-          <div class="flex-1 p-4 text-xs text-text-muted italic">No engine projects yet.</div>
+          <div class="flex-1 p-4 text-xs text-text-muted italic">
+            Enable Engine v2 in Settings, create a project, or run a mission.
+          </div>
         {:else}
           <ul class="flex-1 overflow-auto py-2">
             <!-- "All projects" pseudo-row. Always present; selecting it

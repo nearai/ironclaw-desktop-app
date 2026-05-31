@@ -13,12 +13,14 @@
 
 import { connection } from './connection.svelte';
 import { composerInsert } from './templates.svelte';
+import { workItems } from './work-items.svelte';
 import {
   buildProposalPrompt,
   parseProposedMissions,
   type ContextItem,
   type GeneratedMission
 } from '$lib/util/mission-generator';
+import { planWorkAsk, type WorkRouteClassification } from '$lib/util/work-router';
 
 type GenStatus = 'idle' | 'generating' | 'ready' | 'error' | 'empty';
 
@@ -77,11 +79,32 @@ class GeneratedMissionsStore {
    * Returns the instruction so callers can also navigate to chat.
    */
   run(mission: GeneratedMission): string {
+    const classification: WorkRouteClassification = {
+      domain: mission.domain,
+      confidence: mission.domain === 'unknown' ? 0.3 : 0.82,
+      title: mission.title,
+      domains: mission.domains,
+      context: mission.context,
+      riskyActions: mission.risky_actions,
+      expectedArtifacts: mission.expected_artifacts,
+      watches: mission.watches,
+      nextAction: mission.run_instruction
+    };
+    const route = planWorkAsk({ ask: mission.run_instruction, classification });
+    let workPrefix = '';
+    if (route.status === 'routed') {
+      const created = workItems.create(route.workItem);
+      if (created) {
+        workPrefix = `Work item: ${created.title}\nRunbook: ${created.runbookIds.join(', ') || 'none'}\n\n`;
+      }
+    } else {
+      workPrefix = `Routing note: I could not attach this to a durable work item yet (${route.reason}). Ask me the missing routing/context question before doing external work.\n\n`;
+    }
     const prefix =
       mission.mode === 'approval'
         ? 'Propose this and show me a draft before sending or writing anything:\n\n'
         : '';
-    const text = `${prefix}${mission.run_instruction}`;
+    const text = `${workPrefix}${prefix}${mission.run_instruction}`;
     // composerInsert is a one-shot bus (same path MissionLauncher uses): the
     // chat page consumes the pending text into its composer on next mount.
     composerInsert.push(text, null);

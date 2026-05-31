@@ -31,6 +31,12 @@
   import { messages } from '$lib/stores/messages.svelte';
   import type { ChatEvent } from '$lib/api/types';
   import MarkdownView from '$lib/components/MarkdownView.svelte';
+  // In-flight assistant text renders through the lightweight
+  // StreamingText renderer (plain text + caret) so the live path doesn't
+  // re-parse the whole buffer per token — same renderer the main chat
+  // surface uses for its streaming bubble (see +page.svelte). MarkdownView
+  // takes over for committed/history messages below once the turn lands.
+  import StreamingText from '$lib/components/StreamingText.svelte';
 
   // ---- ui state -----------------------------------------------------------
 
@@ -247,7 +253,7 @@
       <div class="flex h-full items-center justify-center text-center text-text-muted">
         <span>Select a thread in the main window to start.</span>
       </div>
-    {:else if lastFive.length === 0 && !streamingBuffer}
+    {:else if lastFive.length === 0 && !isStreaming && !streamingBuffer}
       <div class="flex h-full items-center justify-center text-center text-text-muted">
         <span>No messages yet — send one below.</span>
       </div>
@@ -282,7 +288,7 @@
         <div class="flex justify-start" data-role="assistant-streaming">
           <div class="max-w-[85%] rounded-md border surface px-2.5 py-1.5">
             {#if streamingBuffer}
-              <MarkdownView markdown={streamingBuffer} />
+              <StreamingText text={streamingBuffer} />
             {:else}
               <span class="inline-flex items-center gap-1.5 text-text-muted">
                 <span

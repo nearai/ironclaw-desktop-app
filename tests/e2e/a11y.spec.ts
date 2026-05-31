@@ -77,6 +77,7 @@ const A11Y_SETTINGS: TauriMockSettings = {
 const ROUTES: Array<{ path: string; label: string }> = [
   { path: '/dashboard', label: 'today' },
   { path: '/desk', label: 'desk' },
+  { path: '/work', label: 'work' },
   { path: '/streams', label: 'streams' },
   { path: '/', label: 'chat' },
   { path: '/canvas', label: 'canvas' },

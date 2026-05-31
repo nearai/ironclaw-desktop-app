@@ -13,6 +13,7 @@
   import NearMark from '$lib/components/NearMark.svelte';
   import { reorderProfiles, resolveTint } from '$lib/stores/settings.svelte';
   import { rebornDesk } from '$lib/stores/reborn-desk.svelte';
+  import { workItems } from '$lib/stores/work-items.svelte';
 
   // ---- Sidebar nav definition ------------------------------------------
   //
@@ -28,6 +29,7 @@
 
   type BadgeKey =
     | 'desk'
+    | 'work'
     | 'chat'
     | 'skills'
     | 'routines'
@@ -42,6 +44,7 @@
     label: string;
     icon:
       | 'desk'
+      | 'work'
       | 'chat'
       | 'knowledge'
       | 'memory'
@@ -77,6 +80,10 @@
     // (Reborn v2). No digit shortcut (0..9 are taken); reached via the sidebar
     // + palette. Sits 2nd, beside Today, as the "what needs me right now" view.
     { href: '/desk', label: 'Desk', icon: 'desk', badgeKey: 'desk' },
+    // Work is the durable matter spine: objective, dossier, approvals,
+    // artifacts, and watches in one place. It sits beside Desk because Desk is
+    // the interrupt inbox while Work is the ongoing command ledger.
+    { href: '/work', label: 'Work', icon: 'work', badgeKey: 'work' },
     // Streams (R81) — the activity feed of what the agent has done / is doing
     // across every surface. No digit slot (0..9 taken); reached via the
     // sidebar + palette. Completes the chief-of-staff trio: Today / Desk /
@@ -478,6 +485,19 @@
     rebornDesk.gateCards.length > 0 ? rebornDesk.gateCards.length : null
   );
 
+  const workAttention = $derived<boolean>(
+    workItems.items.some(
+      (item) =>
+        item.status === 'waiting-approval' ||
+        item.status === 'blocked' ||
+        item.approvalBoundaries.some((gate) => gate.status === 'pending')
+    )
+  );
+
+  const workBadge = $derived<number | null>(
+    workItems.activeCount > 0 ? workItems.activeCount : null
+  );
+
   /**
    * Routines badge — collapses to a string. If any routines are running
    * we render "running/enabled" (e.g. "2/5"); otherwise just the enabled
@@ -548,6 +568,7 @@
 
   onMount(() => {
     void connection.init();
+    workItems.hydrate();
 
     // Hydrate collapsed state from localStorage. Defer to onMount so SSR
     // (if ever enabled) doesn't see a "1" before the browser has settled.
@@ -626,6 +647,8 @@
       // Desk gates are an "act now" attention signal → gold.
       case 'desk':
         return 'bg-accent-gold';
+      case 'work':
+        return workAttention ? 'bg-accent-gold' : 'bg-accent-cyan';
       case 'logs':
         return 'bg-danger';
       case 'settings':
@@ -653,6 +676,8 @@
     switch (key) {
       case 'desk':
         return deskBadge !== null;
+      case 'work':
+        return workBadge !== null;
       case 'chat':
         return chatBadge !== null;
       case 'skills':
@@ -764,6 +789,8 @@
             </svg>
           {:else if item.icon === 'chat'}
             <Icon name="chat" class="w-4 h-4" />
+          {:else if item.icon === 'work'}
+            <Icon name="list" class="w-4 h-4" />
           {:else if item.icon === 'knowledge'}
             <Icon name="folder" class="w-4 h-4" />
           {:else if item.icon === 'memory'}
@@ -851,6 +878,8 @@
             <span class="sidebar-badge" aria-label="{deskBadge} awaiting your approval"
               >{deskBadge}</span
             >
+          {:else if item.badgeKey === 'work' && workBadge !== null}
+            <span class="sidebar-badge" aria-label="{workBadge} live work items">{workBadge}</span>
           {:else if item.badgeKey === 'chat' && chatBadge !== null}
             <span class="sidebar-badge" aria-label="{chatBadge} threads">{chatBadge}</span>
           {:else if item.badgeKey === 'skills' && skillsBadge !== null}

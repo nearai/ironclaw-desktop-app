@@ -295,7 +295,7 @@
   // exactly (see `src/routes/+layout.svelte`). Onboarding intentionally has
   // no shortcut — it's a first-run takeover.
   // Order + keybinds mirror the sidebar nav in `src/lib/components/Sidebar.svelte`
-  // exactly: Today → Desk → Streams → Chat → Canvas → Knowledge → Memory →
+  // exactly: Today → Desk → Work → Streams → Chat → Canvas → Knowledge → Memory →
   // Skills → Routines → Jobs → Logs → Extensions → Missions → Settings, then
   // Onboarding (no shortcut — first-run takeover). Digit chords match
   // ROUTES_BY_DIGIT in the layout (Jobs took ⌘5, shifting Logs→⌘6,
@@ -318,6 +318,14 @@
       subtitle: '/desk',
       icon: 'nav',
       run: () => void goto('/desk')
+    },
+    {
+      id: 'nav:/work',
+      category: 'Navigate',
+      label: 'Work',
+      subtitle: '/work',
+      icon: 'nav',
+      run: () => void goto('/work')
     },
     {
       id: 'nav:/streams',

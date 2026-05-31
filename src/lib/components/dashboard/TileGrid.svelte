@@ -29,6 +29,7 @@
   import ActiveRoutinesTile from './tiles/ActiveRoutinesTile.svelte';
   import RecentSkillsTile from './tiles/RecentSkillsTile.svelte';
   import OpenLoopsTile from './tiles/OpenLoopsTile.svelte';
+  import WorkQueueTile from './tiles/WorkQueueTile.svelte';
 
   /** Source id of the in-flight drag (null when not dragging). */
   let draggedTileId = $state<string | null>(null);
@@ -169,7 +170,9 @@
           onDragStart={onTileDragStart}
           onDragEnd={onTileDragEnd}
         >
-          {#if tile.kind === 'recent-threads'}
+          {#if tile.kind === 'work-queue'}
+            <WorkQueueTile />
+          {:else if tile.kind === 'recent-threads'}
             <RecentThreadsTile />
           {:else if tile.kind === 'active-routines'}
             <ActiveRoutinesTile />
@@ -200,6 +203,18 @@
       >
         <span aria-hidden="true">+</span>
         Add Open Loops
+      </button>
+    {/if}
+
+    {#if !dashboard.tiles.some((t) => t.kind === 'work-queue')}
+      <button
+        type="button"
+        onclick={() => dashboard.add({ id: 'work-queue', kind: 'work-queue', span: 4 })}
+        class="col-span-4 flex min-h-[96px] items-center justify-center gap-2 rounded-lg border border-dashed border-border-subtle bg-bg-surface/40 text-sm text-text-muted transition-colors hover:border-accent-cyan/50 hover:bg-bg-surface/70 hover:text-text-primary"
+        data-testid="add-work-queue-tile"
+      >
+        <span aria-hidden="true">+</span>
+        Add Work Queue
       </button>
     {/if}
   </div>

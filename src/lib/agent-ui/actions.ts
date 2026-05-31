@@ -22,6 +22,7 @@
 export const NAV_SURFACES = {
   chat: '/',
   desk: '/desk',
+  work: '/work',
   dashboard: '/dashboard',
   canvas: '/canvas',
   knowledge: '/knowledge',

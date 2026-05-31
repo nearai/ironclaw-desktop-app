@@ -494,10 +494,11 @@
     margin: 0;
     /* Focused setup-console scale, not a welcome poster. Solid strong text —
        no gradient headline (reads more premium-tool, less generic SaaS). */
+    font-family: var(--font-display);
     font-size: clamp(1.5rem, 3.2vw, 2.05rem);
     line-height: 1.05;
     font-weight: 600;
-    letter-spacing: -0.01em;
+    letter-spacing: 0;
     color: var(--v2-text-strong);
   }
   .ob__value {

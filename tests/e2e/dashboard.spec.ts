@@ -111,6 +111,7 @@ test('/dashboard renders the default dashboard tile grid', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId('tile-grid')).toBeVisible();
+  await expect(page.getByTestId('tile-title').filter({ hasText: 'Work queue' })).toBeVisible();
   await expect(page.getByTestId('tile-title').filter({ hasText: 'Recent threads' })).toBeVisible();
   await expect(page.getByTestId('tile-title').filter({ hasText: 'Active routines' })).toBeVisible();
   await expect(page.getByTestId('tile-title').filter({ hasText: 'Recent skills' })).toBeVisible();

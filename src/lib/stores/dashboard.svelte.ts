@@ -29,6 +29,7 @@
  *  own title; the route falls through to a generic placeholder until
  *  the widget framework lands the matching renderer. */
 export type TileKind =
+  | 'work-queue'
   | 'recent-threads'
   | 'active-routines'
   | 'recent-skills'
@@ -59,6 +60,7 @@ const VALID_SPANS: readonly TileSpan[] = [1, 2, 4] as const;
 
 /** Kinds we accept off-disk. */
 const VALID_KINDS: readonly TileKind[] = [
+  'work-queue',
   'recent-threads',
   'active-routines',
   'recent-skills',
@@ -67,10 +69,11 @@ const VALID_KINDS: readonly TileKind[] = [
 ] as const;
 
 const DEFAULT_LAYOUT: TileConfig[] = [
+  { id: 'work-queue', kind: 'work-queue', span: 4 },
   { id: 'open-loops', kind: 'open-loops', span: 2 },
   { id: 'recent-threads', kind: 'recent-threads', span: 2 },
   { id: 'active-routines', kind: 'active-routines', span: 2 },
-  { id: 'recent-skills', kind: 'recent-skills', span: 4 }
+  { id: 'recent-skills', kind: 'recent-skills', span: 2 }
 ];
 
 /** Safe `localStorage` probe. Same shape as `chat-tabs.svelte.ts` so
@@ -219,6 +222,8 @@ export const dashboard = new DashboardStore();
  *  consumers don't reinvent it. */
 export function defaultTitleForKind(kind: TileKind): string {
   switch (kind) {
+    case 'work-queue':
+      return 'Work queue';
     case 'recent-threads':
       return 'Recent threads';
     case 'active-routines':

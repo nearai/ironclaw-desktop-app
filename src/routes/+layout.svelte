@@ -481,6 +481,12 @@
         path: '/desk'
       },
       {
+        id: 'go:work',
+        title: 'Open Work',
+        keywords: ['matters', 'work items', 'approvals', 'artifacts', 'watches'],
+        path: '/work'
+      },
+      {
         id: 'go:streams',
         title: 'Open Streams',
         keywords: ['activity', 'feed', 'timeline', 'events'],

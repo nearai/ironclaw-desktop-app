@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.4.149 — Work becomes the command-center spine (hostile routing pass) (2026-06-01)
+
+- Work Items are now first-class in the app shell: `/work` is in the sidebar,
+  command palette, omnibar, and agent UI navigation, with a live badge for
+  open matters.
+- Today now includes a Work Queue tile summarizing live matters, pending
+  approvals, blocked context, active watches, and ready artifacts, so the
+  chief-of-staff surface starts with durable work instead of only chat tiles.
+- Generated mission routing now creates durable Work Items with runbooks,
+  dossier entries, approval boundaries, artifacts, watches, and conservative
+  clarification behavior for unknown or low-confidence asks.
+- `/work` gained query deep-linking for specific matters and expanded detail
+  sections for runbooks, dossier, approvals, artifacts, and watches.
+- Typography now uses the native macOS/system UI stack for the app shell and
+  onboarding headline, replacing the cheap-feeling Inter default at runtime.
+- Added hostile routing review docs plus focused tests for runbooks, router,
+  generated missions, Work Items, Work Queue, dashboard layout, and `/work` E2E.
+
 ## v0.4.148 — StatusBar usage truth + Mini streaming parity (review ICD-018 / ICD-015) (2026-05-30)
 
 - **StatusBar**: internal `tokensToday` renamed to `tokens30d` (the value was
@@ -10,7 +28,6 @@
   lightweight `StreamingText` (same as main chat since ICD-003) instead of full
   `MarkdownView`; committed history still uses `MarkdownView`. Last surface
   paying for per-token markdown reparse is fixed.
-
 
 ## v0.4.147 — Operational copy + technical-language cleanup (review ICD-011 / ICD-013) (2026-05-30)
 
@@ -29,7 +46,6 @@ and internal terms are out of user-facing views.
   line; Advanced keeps technical labels).
 - Copy-locked tests updated to match.
 
-
 ## v0.4.146 — Work-object + runbook spine (review ICD-J01 / ICD-J03) (2026-05-30)
 
 The durable work-object and domain-runbook primitives the review calls the
@@ -43,12 +59,11 @@ practical-tool spine. Both are additive; nothing existing changes.
   constraints and approval-required gates on mutating steps; coding gates
   push/PR. Pure data + types, fully tested.
 - **Work Item spine** (`src/lib/data/work-item.ts` + `stores/work-items.svelte.ts`
-  + `/work` route): a durable Work Item / Matter that links an objective to
-  threads, sources, approvals, follow-ups, and a next action, persisted to
-  localStorage. Pure deterministic helpers (caller passes id + timestamp);
-  read/create/update only, no destructive actions. The `/work` route is not yet
-  in the sidebar — a later IA pass wires nav.
-
+  - `/work` route): a durable Work Item / Matter that links an objective to
+    threads, sources, approvals, follow-ups, and a next action, persisted to
+    localStorage. Pure deterministic helpers (caller passes id + timestamp);
+    read/create/update only, no destructive actions. The `/work` route is not yet
+    in the sidebar — a later IA pass wires nav.
 
 ## v0.4.145 — Generative missions: agent proposes actions from live context (ICD-J toward Work Object) (2026-05-30)
 
@@ -72,7 +87,6 @@ came in and proposes grounded, ready-to-run actions.
 Verified live against a local IronClaw gateway: from a real MSA + call-notes
 pair the agent proposed 5 grounded actions and produced a clause-level contract
 red-flag review and a pilot follow-up + term sheet as deliverables.
-
 
 ## v0.4.144 — Agent-controlled UI readiness gating (review ICD-010) (2026-05-30)
 
@@ -100,7 +114,7 @@ widening.
 
 - **ARCHITECTURE** CSP section rewritten to match the live `tauri.conf.json`:
   it had claimed `script-src 'self' tauri:` (inline-free) and `connect-src
-  http://*`, but the real policy is `script-src 'self' 'unsafe-inline' tauri:`
+http://*`, but the real policy is `script-src 'self' 'unsafe-inline' tauri:`
   with loopback-scoped http. The doc now explains why `'unsafe-inline'` is
   load-bearing (SvelteKit's inline hydration script + the production-gated dev
   IPC shim) and why `https://*` is a real product need (user-configurable
@@ -949,7 +963,7 @@ Full suite green (1030), svelte-check 0/0.
 ## v0.4.85 — Fix: settings cache adopts new state only after the write succeeds (2026-05-29)
 
 - **No cache/disk desync on a failed settings write (Codex audit P0, JS half)**:
-  `saveSettings` updated the in-memory `cached` settings *before* awaiting the
+  `saveSettings` updated the in-memory `cached` settings _before_ awaiting the
   Rust `save_settings` IPC, so a rejected write (disk error, serialization
   failure) left memory believing unsaved config had persisted — later reads,
   and the cross-window broadcast, would propagate the phantom state. The cache
@@ -1343,7 +1357,7 @@ Full suite green (1030), svelte-check 0/0.
     a full `{type, frame}` envelope. The Reborn runtime (per its own SPA's
     `useSSE`) names the frame type on the `event:` line and puts the frame
     _body_ in `data:`. The decoder now reconstructs `{ type: body.type ?? <event
-    name>, frame: body }`, so named frames like `event: projection_update` are
+name>, frame: body }`, so named frames like `event: projection_update` are
     no longer dropped. Fixed the transport test's wire shape + added a
     named-event and a default-channel test.
   - **(HIGH) token leak**: a failed SSE open put the full `?token=…` URL into
@@ -2184,6 +2198,7 @@ the release lockdown:
   search, create, edit, delete.
 
 Backtest coverage for this trail:
+
 - R45 codex review (P0/P1/P2 fanout).
 - R46 live dogfood against `baremetal3.agents.near.ai` — 5 smoke
   specs, 5/5 passing in 7.3s.
