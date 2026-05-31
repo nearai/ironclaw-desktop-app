@@ -1,6 +1,6 @@
 {
   "name": "ironclaw-desktop",
-  "version": "0.4.115",
+  "version": "0.4.116",
   "private": true,
   "type": "module",
   "scripts": {

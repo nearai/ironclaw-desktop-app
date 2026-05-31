@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.116 — Routines: create from the app (2026-05-30)
+
+- **New routine (codex stream IC-A)**: the routines page now has a primary
+  "+ New routine" action (header + empty state) that opens `CreateRoutineModal`
+  — name, schedule, prompt, and an enabled toggle with client-side validation.
+  Submit posts to `POST /api/routines` via a new standalone `src/lib/api/routines.ts`
+  helper (mirrors the central client's base-URL / Bearer / Tauri-http-fallback
+  shape, kept separate to avoid widening the core client). On a gateway that
+  doesn't expose the endpoint (404/405/501) it degrades gracefully — keeps the
+  entered data and toasts "Routine creation isn't available on this gateway yet"
+  rather than throwing; on success it optimistically inserts the routine and
+  refreshes. Replaces the previous CLI-only empty state (and removes a leaked
+  internal QA string from the copy). First product slice of the time-to-wow plan.
+  Full suite green (1030), svelte-check 0 errors / 0 warnings.
+
 ## v0.4.115 — Global search: offline empty state (2026-05-30)
 
 - **Offline empty state (Codex review #3-12)**: when Global Search (Cmd+Shift+F)
