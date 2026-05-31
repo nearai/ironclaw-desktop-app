@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.131 — The Desk gets a "Handled" section (2026-05-30)
+
+The Desk header has always promised "what needs you, and what your chief of staff handled" — but
+only "Needs you" + "Open loops" existed. Now there's a **Handled** section: recent agent activity
+(from the jobs feed) rendered as compact read-only rows with done / running / failed status pills,
+between Needs-you and Open-loops. Honest by construction — it reflects only the job state the
+gateway reports, and degrades to a calm "Nothing handled yet" when there's no connected runner or
+no activity.
+
+- `reborn-desk.svelte.ts`: `DeskHandledCard` + an injectable jobs reader + `loadHandled()` that
+  reads `listJobs({ limit: 5 })`; missing client / empty / failure all degrade to `[]`. State
+  mapped honestly (completed→done; failed/cancelled/stuck→failed; else→running).
+- `RebornDeskPanel.svelte`: the Handled section + status pills; loads on mount.
+- `app.css`: added `--v2-success*` (aliased to the canonical positive palette) + a bare
+  `--v2-danger` so the status pills theme through the token system.
+
 ## v0.4.130 — First-run chief-of-staff loop, end to end (2026-05-30)
 
 The whole first impression is now a single operational flow: onboard, connect a workspace, run a

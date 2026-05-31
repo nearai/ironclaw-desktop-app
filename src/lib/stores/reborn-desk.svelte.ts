@@ -7,15 +7,17 @@
 // agent waited for me), and it has had no dedicated home until now (gates only
 // resolved inline mid-chat).
 //
-// This first increment derives the gate cards from the live `RebornChatController`
-// (which already tracks the active thread's `pendingGate` off the projection
-// stream) and resolves them through the same `resolveGate` path. Cross-thread
-// gate aggregation, the "while you were away" activity feed, and open-loop
-// cards layer on in later increments. The controller is injected (defaulting to
-// the app-wide singleton) so this is unit-testable without the connection store.
+// The gate cards derive from the live `RebornChatController` (which already
+// tracks the active thread's `pendingGate` off the projection stream) and
+// resolve through the same `resolveGate` path. "Handled" cards derive from the
+// jobs API. Cross-thread gate aggregation and richer activity feeds layer on in
+// later increments. The controller is injected (defaulting to the app-wide
+// singleton) so this is unit-testable without the connection store.
 
 import { rebornChat, RebornChatController } from './reborn-chat.svelte';
 import { openLoops } from './open-loops.svelte';
+import { connection } from './connection.svelte';
+import type { Job } from '$lib/api/types';
 
 /** A pending approval rendered as a "Needs you" Desk card. */
 export interface DeskGateCard {
@@ -35,10 +37,64 @@ export interface DeskLoopCard {
   createdAt: number;
 }
 
+/** A recent background run rendered as a read-only "Handled" Desk card. */
+export interface DeskHandledCard {
+  id: string;
+  title: string;
+  status: 'done' | 'running' | 'failed';
+  detail?: string;
+  at?: string;
+}
+
+export type DeskJobsReader = () => Promise<Job[]>;
+
+function shortId(id: string): string {
+  return id.length > 12 ? `${id.slice(0, 8)}...` : id;
+}
+
+function jobStatus(job: Job): DeskHandledCard['status'] {
+  if (job.state === 'completed') return 'done';
+  if (job.state === 'failed' || job.state === 'cancelled' || job.state === 'stuck') return 'failed';
+  return 'running';
+}
+
+function jobDetail(job: Job): string {
+  switch (job.state) {
+    case 'completed':
+      return 'Completed';
+    case 'failed':
+      return 'Failed';
+    case 'cancelled':
+      return 'Cancelled';
+    case 'stuck':
+      return 'Stuck';
+    case 'in_progress':
+    case 'running':
+      return 'Running';
+    case 'pending':
+      return 'Pending';
+    default:
+      return job.state || 'Job';
+  }
+}
+
+function handledCardFromJob(job: Job): DeskHandledCard {
+  return {
+    id: job.id,
+    title: job.title || `Job ${shortId(job.id)}`,
+    status: jobStatus(job),
+    detail: jobDetail(job),
+    at: job.started_at || job.created_at || undefined
+  };
+}
+
 export class RebornDesk {
+  handledCardsState = $state<DeskHandledCard[]>([]);
+
   constructor(
     private chat: RebornChatController = rebornChat,
-    private loops: typeof openLoops = openLoops
+    private loops: typeof openLoops = openLoops,
+    private jobsReader: DeskJobsReader | null = null
   ) {}
 
   /**
@@ -87,6 +143,26 @@ export class RebornDesk {
    */
   get loopCards(): DeskLoopCard[] {
     return this.loops.active.map((l) => ({ id: l.id, text: l.text, createdAt: l.createdAt }));
+  }
+
+  /**
+   * "Handled" — recent background jobs the agent has run. The read path is
+   * injectable for tests; the app-wide store falls back to the live connection
+   * client. Any missing client or failed request degrades to an empty list so
+   * the Desk stays honest instead of inventing outcomes.
+   */
+  get handledCards(): DeskHandledCard[] {
+    return this.handledCardsState;
+  }
+
+  async loadHandled(): Promise<void> {
+    const reader = this.jobsReader ?? (async () => connection.client?.listJobs({ limit: 5 }) ?? []);
+    try {
+      const jobs = await reader();
+      this.handledCardsState = jobs.map(handledCardFromJob);
+    } catch {
+      this.handledCardsState = [];
+    }
   }
 
   /** Capture a new commitment on the Desk. Trimming/empty-guarding is handled

@@ -11,8 +11,12 @@ import { RebornChatController } from '$lib/stores/reborn-chat.svelte';
 import { RebornDesk } from '$lib/stores/reborn-desk.svelte';
 import { OpenLoopStore } from '$lib/stores/open-loops.svelte';
 import { initialChatState, type RebornGate } from '$lib/api/reborn';
+import type { Job } from '$lib/api/types';
 
-function deskWith(gate: RebornGate | null): {
+function deskWith(
+  gate: RebornGate | null,
+  jobsReader?: () => Promise<Job[]>
+): {
   desk: RebornDesk;
   chat: RebornChatController;
   loops: OpenLoopStore;
@@ -20,7 +24,7 @@ function deskWith(gate: RebornGate | null): {
   const chat = new RebornChatController(() => null);
   chat.state = { ...initialChatState(), pendingGate: gate };
   const loops = new OpenLoopStore();
-  return { desk: new RebornDesk(chat, loops), chat, loops };
+  return { desk: new RebornDesk(chat, loops, jobsReader ?? null), chat, loops };
 }
 
 describe('RebornDeskPanel', () => {
@@ -82,5 +86,38 @@ describe('RebornDeskPanel', () => {
     });
     await fireEvent.click(getByText('Add'));
     expect(add).toHaveBeenCalledWith('Ship the deck');
+  });
+
+  it('shows an honest empty state when there are no handled jobs', () => {
+    const { desk } = deskWith(null, async () => []);
+    const { getByTestId, getByText } = render(RebornDeskPanel, { props: { desk } });
+    expect(getByTestId('desk-handled-empty')).toBeTruthy();
+    expect(getByText('Nothing handled yet')).toBeTruthy();
+    expect(getByText('Run a mission and results land here.')).toBeTruthy();
+  });
+
+  it('renders populated Handled rows with status pills', async () => {
+    const { desk } = deskWith(null, async () => [
+      {
+        id: 'job-1',
+        title: 'Draft weekly investor update',
+        state: 'completed',
+        user_id: 'default',
+        created_at: '2026-05-31T08:00:00Z'
+      },
+      {
+        id: 'job-2',
+        title: 'Research vendor renewal',
+        state: 'in_progress',
+        user_id: 'default',
+        created_at: '2026-05-31T09:00:00Z'
+      }
+    ]);
+    const { findByText, getByText } = render(RebornDeskPanel, { props: { desk } });
+
+    expect(await findByText('Draft weekly investor update')).toBeTruthy();
+    expect(getByText('Research vendor renewal')).toBeTruthy();
+    expect(getByText('done')).toBeTruthy();
+    expect(getByText('running')).toBeTruthy();
   });
 });

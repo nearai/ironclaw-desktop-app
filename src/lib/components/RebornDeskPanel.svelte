@@ -1,14 +1,14 @@
 <script lang="ts">
-  // "The Desk" — the proactive chief-of-staff home. This first increment is the
-  // "Needs you" approval-gate inbox: pending gates render as cards the user
-  // approves/denies in place, with a calm "all caught up" empty state when
-  // there's nothing awaiting them. Later increments add the "while you were
-  // away" activity feed, open-loop commitments, and standing routines, and make
-  // this the default landing surface.
+  // "The Desk" — the proactive chief-of-staff home: the "Needs you"
+  // approval-gate inbox plus the read-only "Handled" recent activity feed.
+  // Pending gates render as cards the user approves/denies in place, while
+  // handled jobs show what the agent has recently run without fabricating
+  // outcomes.
   //
   // The Desk store is injected (defaulting to the app-wide singleton) so the
   // render tests can drive it with a seeded controller and no I/O.
 
+  import { onMount } from 'svelte';
   import { rebornDesk, RebornDesk } from '$lib/stores/reborn-desk.svelte';
 
   interface Props {
@@ -18,6 +18,7 @@
 
   const gateCards = $derived(desk.gateCards);
   const caughtUp = $derived(desk.caughtUp);
+  const handledCards = $derived(desk.handledCards);
   const loopCards = $derived(desk.loopCards);
 
   let loopDraft = $state('');
@@ -28,6 +29,10 @@
     desk.addLoop(text);
     loopDraft = '';
   }
+
+  onMount(() => {
+    void desk.loadHandled();
+  });
 </script>
 
 <div class="desk" data-testid="reborn-desk">
@@ -66,6 +71,41 @@
           </div>
         </article>
       {/each}
+    {/if}
+  </section>
+
+  <section class="desk__section" aria-label="Handled">
+    <h2 class="desk__section-title">
+      Handled
+      {#if handledCards.length > 0}<span class="desk__count desk__count--muted"
+          >{handledCards.length}</span
+        >{/if}
+    </h2>
+
+    {#if handledCards.length === 0}
+      <div class="desk__empty desk__empty--compact" data-testid="desk-handled-empty">
+        <p class="desk__empty-title">Nothing handled yet</p>
+        <p class="desk__empty-sub">Run a mission and results land here.</p>
+      </div>
+    {:else}
+      <div class="desk-handled-list" data-testid="desk-handled-list">
+        {#each handledCards as card (card.id)}
+          <article class="desk-handled-row">
+            <div class="desk-card__body">
+              <p class="desk-card__headline">{card.title}</p>
+              {#if card.detail}<p class="desk-card__detail">{card.detail}</p>{/if}
+            </div>
+            <span
+              class="desk-status-pill"
+              class:desk-status-pill--done={card.status === 'done'}
+              class:desk-status-pill--running={card.status === 'running'}
+              class:desk-status-pill--failed={card.status === 'failed'}
+            >
+              {card.status}
+            </span>
+          </article>
+        {/each}
+      </div>
     {/if}
   </section>
 
@@ -180,6 +220,10 @@
     border-radius: 0.8rem;
     text-align: center;
   }
+  .desk__empty--compact {
+    padding: 1rem;
+    text-align: left;
+  }
   .desk__empty-title {
     font-weight: 600;
     color: var(--v2-text, #e6ebf2);
@@ -217,6 +261,25 @@
     border-color: var(--v2-border, rgba(255, 255, 255, 0.12));
     background: var(--v2-surface, rgba(255, 255, 255, 0.04));
   }
+  .desk-handled-list {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--v2-border, rgba(255, 255, 255, 0.12));
+    border-radius: 0.55rem;
+    overflow: hidden;
+    background: var(--v2-surface, rgba(255, 255, 255, 0.04));
+  }
+  .desk-handled-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0.8rem;
+    border-bottom: 1px solid var(--v2-border, rgba(255, 255, 255, 0.08));
+  }
+  .desk-handled-row:last-child {
+    border-bottom: 0;
+  }
   .desk-card__body {
     min-width: 0;
   }
@@ -243,6 +306,34 @@
     display: flex;
     gap: 0.5rem;
     flex: 0 0 auto;
+  }
+  .desk-status-pill {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    min-height: 1.4rem;
+    padding: 0 0.45rem;
+    border: 1px solid var(--v2-border, rgba(255, 255, 255, 0.14));
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .desk-status-pill--done {
+    border-color: var(--v2-success, rgba(87, 196, 133, 0.35));
+    background: var(--v2-success-soft, rgba(87, 196, 133, 0.12));
+    color: var(--v2-success-text, #7ee6a5);
+  }
+  .desk-status-pill--running {
+    border-color: var(--v2-warning, rgba(230, 176, 76, 0.35));
+    background: var(--v2-warning-soft, rgba(230, 176, 76, 0.12));
+    color: var(--v2-warning-text, #e6c37a);
+  }
+  .desk-status-pill--failed {
+    border-color: var(--v2-danger, rgba(239, 92, 92, 0.4));
+    background: var(--v2-danger-soft, rgba(239, 92, 92, 0.12));
+    color: var(--v2-danger-text, #ff8f8f);
   }
   .desk-loop-add {
     display: flex;

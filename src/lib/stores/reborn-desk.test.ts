@@ -8,7 +8,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { RebornChatController } from './reborn-chat.svelte';
 import { RebornDesk } from './reborn-desk.svelte';
 import { OpenLoopStore } from './open-loops.svelte';
+import { connection } from './connection.svelte';
 import { initialChatState, type RebornGate } from '$lib/api/reborn';
+import type { Job } from '$lib/api/types';
 
 function deskWithGate(gate: RebornGate | null): { desk: RebornDesk; chat: RebornChatController } {
   const chat = new RebornChatController(() => null);
@@ -106,5 +108,88 @@ describe('RebornDesk open loops', () => {
     expect(desk.loopCards.map((c) => c.text)).toEqual(['Follow up with Sam']);
     desk.addLoop('   ');
     expect(desk.loopCards).toHaveLength(1);
+  });
+});
+
+describe('RebornDesk handled jobs', () => {
+  function deskWithJobs(jobsReader?: () => Promise<Job[]>): RebornDesk {
+    const chat = new RebornChatController(() => null);
+    chat.state = { ...initialChatState() };
+    return new RebornDesk(chat, new OpenLoopStore(), jobsReader ?? null);
+  }
+
+  it('stays empty when there is no connected jobs client', async () => {
+    const previousToken = connection.token;
+    connection.token = null;
+    const desk = deskWithJobs();
+    try {
+      await desk.loadHandled();
+      expect(desk.handledCards).toEqual([]);
+    } finally {
+      connection.token = previousToken;
+    }
+  });
+
+  it('projects recent jobs into Handled cards', async () => {
+    const desk = deskWithJobs(async () => [
+      {
+        id: 'job-completed-123456',
+        title: 'Draft weekly investor update',
+        state: 'completed',
+        user_id: 'default',
+        created_at: '2026-05-31T08:00:00Z'
+      },
+      {
+        id: 'job-running-123456',
+        title: 'Research vendor renewal',
+        state: 'in_progress',
+        user_id: 'default',
+        created_at: '2026-05-31T09:00:00Z',
+        started_at: '2026-05-31T09:01:00Z'
+      },
+      {
+        id: 'job-failed-123456',
+        title: '',
+        state: 'failed',
+        user_id: 'default',
+        created_at: '2026-05-31T10:00:00Z'
+      }
+    ]);
+
+    await desk.loadHandled();
+
+    expect(desk.handledCards).toEqual([
+      {
+        id: 'job-completed-123456',
+        title: 'Draft weekly investor update',
+        status: 'done',
+        detail: 'Completed',
+        at: '2026-05-31T08:00:00Z'
+      },
+      {
+        id: 'job-running-123456',
+        title: 'Research vendor renewal',
+        status: 'running',
+        detail: 'Running',
+        at: '2026-05-31T09:01:00Z'
+      },
+      {
+        id: 'job-failed-123456',
+        title: 'Job job-fail...',
+        status: 'failed',
+        detail: 'Failed',
+        at: '2026-05-31T10:00:00Z'
+      }
+    ]);
+  });
+
+  it('degrades to empty handled cards when the jobs request fails', async () => {
+    const desk = deskWithJobs(async () => {
+      throw new Error('gateway unavailable');
+    });
+
+    await desk.loadHandled();
+
+    expect(desk.handledCards).toEqual([]);
   });
 });

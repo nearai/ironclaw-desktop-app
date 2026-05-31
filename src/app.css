@@ -84,6 +84,13 @@
   /* Solid warning hue for borders/accents (the -text/-soft pair is for
      fills + label text; this is the saturated stroke). */
   --v2-warning: #e6b04c;
+  /* Solid danger hue — saturated stroke companion to --v2-danger-soft/-text. */
+  --v2-danger: var(--v2-danger-text);
+  /* The Desk "Handled" surface authors against --v2-success*; resolve to the
+     canonical positive (green) palette so we don't fork a second green. */
+  --v2-success: var(--v2-positive-text);
+  --v2-success-soft: var(--v2-positive-soft);
+  --v2-success-text: var(--v2-positive-text);
   /* Monospace stack for streaming tool args / code affordances. */
   --v2-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace;
 
