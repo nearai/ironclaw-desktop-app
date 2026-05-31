@@ -1,78 +1,53 @@
 // E2E: cold-start onboarding flow.
 //
 // The layout's first-run guard redirects to `/onboarding` whenever
-// `settings.onboardingComplete === false`. The wizard has three steps:
-//   1. Pick mode (Local / Remote) + optionally pick an accent tint
-//   2. Enter URL + token (remote) or sign-in (local)
-//   3. Auto-runs the connection test, then offers "You're set"
+// `settings.onboardingComplete === false`. The current onboarding surface is a
+// single outcome-first screen: choose Local, reveal Hosted token entry, or use
+// the explicit "Set up later" escape hatch.
 //
-// We exercise the Remote path because it's deterministic — Local would
-// spawn the Rust sidecar, which doesn't exist in the Playwright browser
-// context. After clicking "You're set" the wizard navigates to `/` and
-// the layout no longer redirects (settings.json now has
-// `onboardingComplete: true`).
+// This spec stays gateway-free. It validates that Hosted requires a pasted
+// token before its Connect action can run, then completes deterministically via
+// "Set up later", which writes `onboardingComplete: true` and navigates home.
 //
-// Note: in Vite dev mode the wizard's terminal `goto('/')` call (inside
-// `finish()` / `skip()`) doesn't always navigate cleanly — the click
-// handler runs but the SPA navigation never materializes. We work
-// around it by checking the URL after a brief settle window and
-// falling back to a programmatic `goto('/')` via a `page.evaluate`
-// against the live SvelteKit module. The button click itself is the
-// real user-facing assertion (we verify the wizard reached "You're
-// set"); the navigation fallback just lets the test continue.
+// Note: in Vite dev mode the terminal `goto('/')` call inside onboarding can
+// occasionally fail to materialize as SPA navigation. We keep the old settle +
+// programmatic fallback so the test can continue after asserting the real user
+// action.
 
 import { test, expect } from '@playwright/test';
-import { mockGateway, mockTauri } from './_helpers';
+import { mockTauri } from './_helpers';
 
-test('onboarding flow lands on chat', async ({ page }) => {
+test('onboarding setup-later flow lands on chat without a gateway', async ({ page }) => {
   await mockTauri(page);
-  await mockGateway(page);
 
-  // Cold start — layout's `onMount` calls `connection.init()`, which
-  // hydrates settings. With `onboardingComplete: false` the redirect to
-  // `/onboarding` fires after the first paint.
+  // Cold start: the layout hydrates settings, sees onboardingComplete=false,
+  // and redirects the fresh profile to the onboarding takeover.
   await page.goto('/');
   await expect(page).toHaveURL(/\/onboarding/);
 
-  // ---- Step 1 — pick Remote -----------------------------------------------
-  // The mode cards are <button> elements containing "Local" / "Remote" as
-  // their h2 text. Clicking advances the wizard to step 2 via
-  // `chooseMode('remote')`.
-  await page.getByRole('button', { name: /Remote/ }).first().click();
+  await expect(page.getByRole('heading', { name: 'Welcome to IronClaw' })).toBeVisible();
+  await expect(page.getByText(/chief of staff/i)).toBeVisible();
+  await expect(page.getByRole('heading', { name: "Here's what you'll do" })).toBeVisible();
+  await expect(page.getByText(/Step 1\s*-\s*connect IronClaw/i)).toBeVisible();
+  await expect(page.getByText('Run on this Mac')).toBeVisible();
+  await expect(page.getByText('Connect to hosted')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Set up later' })).toBeVisible();
+  await expect(page.getByText('Advanced')).toBeVisible();
 
-  // ---- Step 2 — URL + token -----------------------------------------------
-  // The URL input pre-fills to the active profile's remoteBaseUrl
-  // (http://127.0.0.1:18789 from the fresh-install seed). The gateway
-  // mock matches `/api/*` regardless of host, so we don't need to change
-  // it — just type a token so `setToken` runs and `connection.refresh`
-  // picks it up in step 3's auto-test.
-  await page.locator('#onb-token').fill('mock-token-abc');
+  await page.getByRole('button', { name: 'Connect to a hosted gateway' }).click();
 
-  // "Next" persists settings + token, then advances to step 3 which
-  // auto-fires the connection test.
-  await page.getByRole('button', { name: /^Next$/ }).click();
+  const tokenInput = page.getByLabel('Access token');
+  const connectButton = page.getByRole('button', { name: /^Connect$/ });
+  await expect(tokenInput).toBeVisible();
+  await expect(connectButton).toBeDisabled();
 
-  // ---- Step 3 — auto-test ------------------------------------------------
-  // The wizard immediately spins; the mocked /api/health + /api/gateway/status
-  // resolve and the status pane flips to "Connected to IronClaw 0.29.4".
-  // 8s timeout covers the network round-trip + the optional chat probe.
-  await expect(page.getByText(/Connected to IronClaw/)).toBeVisible({
-    timeout: 8000
-  });
+  await tokenInput.fill('mock-token-abc');
+  await expect(connectButton).toBeEnabled();
 
-  // The "You're set" CTA only renders once testStatus is 'ok'. Click it
-  // — `finish()` writes `onboardingComplete: true`, refreshes the
-  // connection, and `goto('/')`.
-  await page.getByRole('button', { name: /You're set/ }).click();
+  await page.getByRole('button', { name: 'Set up later' }).click();
 
-  // The click should navigate us to `/`. Under Vite dev mode the
-  // wizard's terminal `goto('/')` occasionally fails to fire the SPA
-  // navigation; fall back to a programmatic goto via the live module
-  // graph so the test continues even when the dev-only quirk hits.
   try {
-    await page.waitForURL((url) => !url.pathname.startsWith('/onboarding'), {
-      timeout: 3000
-    });
+    await page.waitForURL((url) => url.pathname === '/', { timeout: 3000 });
   } catch {
     await page.evaluate(async () => {
       const settingsMod = await import(
@@ -81,22 +56,15 @@ test('onboarding flow lands on chat', async ({ page }) => {
       const navMod = await import(
         /* @vite-ignore */ '/node_modules/@sveltejs/kit/src/runtime/app/navigation.js' as string
       );
-      // Defensive — the wizard SHOULD have written this already.
+      // Defensive: setupLater should already have written this.
       const cur = await settingsMod.loadSettings();
       if (cur.onboardingComplete !== true) {
         await settingsMod.saveSettings({ ...cur, onboardingComplete: true });
       }
       await navMod.goto('/');
     });
-    await page.waitForURL((url) => !url.pathname.startsWith('/onboarding'), {
-      timeout: 5000
-    });
+    await page.waitForURL((url) => url.pathname === '/', { timeout: 5000 });
   }
 
-  // The chat surface's "New Chat" button is the cheapest stable element
-  // to assert against; it lives in the left thread rail and renders
-  // unconditionally once `connection.client` resolves.
-  await expect(page.getByRole('button', { name: /^New Chat$/ })).toBeVisible({
-    timeout: 8000
-  });
+  await expect(page).toHaveURL(/\/$/);
 });

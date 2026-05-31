@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.4.129 — Get-started surface + onboarding e2e (2026-05-30)
+
+The dashboard ("Today") now opens with a dismissible "Get started" panel that runs the outcome flow
+live: connect a Workspace Pack (Google, Notion, or Slack), then launch a first mission in approval
+mode. It composes the existing ConnectorPacks and MissionLauncher, and persists dismissal in
+localStorage so it shows once and then stays out of the way.
+
+- **Get started panel** (`GetStarted.svelte`): two steps, "Connect your workspace" and "Run your
+  first mission", mounted above the tile grid on the dashboard. Dismissal persists across launches.
+- **Onboarding e2e rewritten**: the old spec drove a retired 3-step wizard ("Remote", "Next",
+  "You're set"). It now exercises the current single-screen flow and completes via "Set up later"
+  with no gateway. Hermetic and green.
+
 ## v0.4.128 — Outcome-first onboarding (2026-05-30)
 
 Reframes first-run from "where does the agent run?" (infra-first) to "here's what you'll do"

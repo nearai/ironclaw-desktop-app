@@ -15,6 +15,7 @@
 
   import { onMount } from 'svelte';
   import { connection } from '$lib/stores/connection.svelte';
+  import GetStarted from '$lib/components/GetStarted.svelte';
   import TileGrid from '$lib/components/dashboard/TileGrid.svelte';
 
   onMount(async () => {
@@ -45,5 +46,6 @@
     </div>
   </header>
 
+  <GetStarted />
   <TileGrid />
 </div>
