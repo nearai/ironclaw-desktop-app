@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.4.117 — Sharper empty-state + header copy (2026-05-30)
+
+- **Copy sweep (codex stream, time-to-wow plan)**: rewrote weak, generic
+  empty-state and header strings across six surfaces so each tells the user
+  what the surface is for and what to do next, in the NEAR brand voice —
+  knowledge ("No docs yet. Create or import a file…"), skills ("Reusable
+  capabilities IronClaw can call while it works."), streams, jobs, memory, and
+  canvas. String-only changes, no logic touched; removed a dead empty span left
+  in the memory empty state. Full suite green (1030), svelte-check 0/0.
+
 ## v0.4.116 — Routines: create from the app (2026-05-30)
 
 - **New routine (codex stream IC-A)**: the routines page now has a primary

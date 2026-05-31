@@ -98,7 +98,7 @@
   {:else if streams.filtered().length === 0}
     <div class="text-sm text-text-muted py-8 text-center">
       {streams.filter === 'all'
-        ? 'Nothing has happened yet.'
+        ? 'No activity yet. New chats, skills, and routines will appear here.'
         : `No ${streams.filter} events to show.`}
     </div>
   {:else}

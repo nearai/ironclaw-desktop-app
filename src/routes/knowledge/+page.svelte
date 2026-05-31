@@ -1198,7 +1198,9 @@
           {:else if rootError}
             <div class="text-xs text-red-400 px-3 py-2 break-words">{rootError}</div>
           {:else if rootNodes.length === 0}
-            <div class="text-xs text-text-muted px-3 py-2 italic">Empty workspace.</div>
+            <div class="text-xs text-text-muted px-3 py-2 italic">
+              No docs yet. Create or import a file to build the knowledge base.
+            </div>
           {:else if client}
             {#each rootNodes as node (node.path)}
               <TreeNode

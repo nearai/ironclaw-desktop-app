@@ -603,9 +603,9 @@
             <rect x="3" y="10" width="18" height="4" rx="1" />
             <rect x="3" y="17" width="18" height="4" rx="1" />
           </svg>
-          <div class="text-sm text-text-primary">No background jobs yet.</div>
+          <div class="text-sm text-text-primary">No jobs running.</div>
           <div class="text-xs text-text-muted max-w-md">
-            Jobs appear when the agent kicks off tool calls, skill runs, or scheduled routines.
+            Tool calls, skill runs, and routines will appear here when IronClaw starts work.
           </div>
         </div>
       {:else if filteredJobs.length === 0}

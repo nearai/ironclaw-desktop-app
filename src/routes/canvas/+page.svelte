@@ -306,10 +306,9 @@
   {#if canvas.nodes.length === 0}
     <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
       <div class="text-center max-w-sm px-6">
-        <div class="text-sm text-text-primary font-medium mb-1">Your canvas is empty</div>
+        <div class="text-sm text-text-primary font-medium mb-1">Start a working map.</div>
         <p class="text-xs text-text-muted leading-relaxed">
-          Add a note to start mapping ideas. Drag cards to arrange them, use the ⋮ menu to draw
-          arrows between them, and scroll to pan — hold ⌘ and scroll to zoom.
+          Add a note, then connect ideas as the thread develops.
         </p>
       </div>
     </div>

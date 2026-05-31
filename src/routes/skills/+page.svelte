@@ -542,7 +542,7 @@
     <div>
       <h1 class="text-2xl font-semibold text-text-primary">Skills</h1>
       <p class="text-text-muted text-sm mt-1">
-        Installed skills and tools.
+        Reusable capabilities IronClaw can call while it works.
         {#if loadState === 'loaded'}
           <span class="text-text-muted/70">·</span>
           <span class="text-text-muted">{skills.length} loaded</span>

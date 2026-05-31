@@ -603,9 +603,7 @@
         <p class="px-4 py-3 text-xs text-text-muted">No entries match "{filter}".</p>
       {:else if filteredNodes.length === 0}
         <p class="px-4 py-3 text-xs text-text-muted">
-          No memory yet. Use the
-          <span aria-hidden="true">+</span>
-          button above to add one.
+          No memory yet. Add a fact, preference, or decision IronClaw should remember.
         </p>
       {:else}
         <ul class="py-1" aria-label="Memory entries">
