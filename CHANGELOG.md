@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.135 — Truthful token-storage copy (review ICD-002) (2026-05-30)
+
+Trust-copy correction. The gateway token has a deliberate, load-bearing 0600 file fallback (used
+when a macOS Keychain ACL prompt can't complete), so copy claiming "never in plain text on disk"
+was untrue. Fixed everywhere, and the existing TokenSourceBadge is now shown beside the token field
+so the live store (Keychain / file fallback / absent) is visible — not buried.
+
+- Settings: gateway-token hint now describes Keychain + 0600 fallback; `<TokenSourceBadge>` mounted
+  next to the token field; reconnect + export/import banners reworded ("stays on this machine —
+  Keychain or a 0600 fallback file — never in the export"). Per-provider/OpenRouter lines (genuinely
+  Keychain-only) left unchanged.
+- README: removed "never touches disk in plain text"; fixed the stale sidecar-log path to
+  `com.openclaw.ironclaw-desktop`.
+- ARCHITECTURE: secrets section documents the gateway-token 0600 fallback + `get_token_source`/
+  TokenSourceBadge, marked load-bearing.
+- The fallback itself is unchanged (it prevents a known Keychain-deadlock lockout).
+
 ## v0.4.134 — Legal missions: Review a Contract + Draft from Notes (2026-05-30)
 
 Two always-available missions, validated against a real legal-work bar before shipping (first-pass

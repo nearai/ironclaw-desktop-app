@@ -52,6 +52,7 @@
     type ProfileTint
   } from '$lib/stores/settings.svelte';
   import { connection, type SidecarStatus } from '$lib/stores/connection.svelte';
+  import TokenSourceBadge from '$lib/components/TokenSourceBadge.svelte';
   import { signIn } from '$lib/stores/sign-in.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
@@ -1983,8 +1984,8 @@
         <div class="flex-1 min-w-0">
           <p class="text-sm text-text-primary font-semibold">Welcome back.</p>
           <p class="text-xs text-text-muted mt-0.5">
-            Re-enter your gateway tokens to reconnect. They live in the macOS Keychain on this
-            machine and don't ride along with
+            Re-enter your gateway tokens to reconnect. They stay on this machine — macOS Keychain,
+            or an owner-only (0600) fallback file — and don't ride along with
             <code class="font-mono text-text-primary">settings.json</code>.
           </p>
         </div>
@@ -2212,8 +2213,15 @@
         >
           <h2 class="text-sm font-semibold text-text-primary">Gateway token</h2>
           <p class="text-xs text-text-muted">
-            Stored per-profile in the macOS Keychain — never in plain text on disk.
+            Stored per profile in the macOS Keychain. If a Keychain prompt can't complete, IronClaw
+            uses an owner-only (chmod 0600) fallback file in app data — the badge below shows which
+            store holds it.
           </p>
+
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-text-muted">Active source</span>
+            <TokenSourceBadge profileId={settings.activeProfileId} />
+          </div>
 
           <div>
             <label for="token" class="block text-xs text-text-muted mb-1">Token</label>
@@ -3442,7 +3450,8 @@
       <!-- Settings backup. Lives in the Data card alongside the
            conversation export so backup/restore actions are grouped
            together. Tokens / OpenRouter keys are NOT included — they
-           live in the macOS Keychain, not settings.json.
+           live in the macOS Keychain (gateway tokens may use a 0600
+           app-data fallback file), never in settings.json.
 
            Inline warning banner sits directly above the buttons so the
            user can't fire Export without seeing the "tokens don't ride
@@ -3469,8 +3478,9 @@
           <p class="text-xs text-text-primary leading-relaxed">
             <span class="font-semibold">Tokens not included.</span>
             <span class="text-text-muted">
-              They stay in the macOS Keychain on this machine. On the destination machine you'll
-              re-enter each profile's gateway token.
+              They stay on this machine — macOS Keychain, or an owner-only (0600) fallback file —
+              and are never in the export. On the destination machine you'll re-enter each profile's
+              gateway token.
             </span>
           </p>
         </div>
@@ -4115,8 +4125,8 @@
         </div>
         <p class="text-xs text-text-muted">
           {importedNeeds.length}
-          profile{importedNeeds.length === 1 ? '' : 's'} restored. Tokens stay in the macOS Keychain —
-          re-enter them per profile below.
+          profile{importedNeeds.length === 1 ? '' : 's'} restored. Tokens stay on this machine (Keychain
+          or a 0600 fallback file) — re-enter them per profile below.
         </p>
       </header>
 

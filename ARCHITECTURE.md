@@ -229,12 +229,12 @@ Four LLM backend env blocks are wired (the others land as
 "unsupported provider" errors at the IPC boundary so misconfiguration
 surfaces loudly):
 
-| Backend     | `LLM_BACKEND`          | Base URL                              | Key env                 |
-| ----------- | ---------------------- | ------------------------------------- | ----------------------- |
-| `nearai`    | `nearai`               | `https://private.near.ai`             | (none — IronClaw OAuth) |
-| `openrouter`| `openai_compatible`    | `https://openrouter.ai/api/v1`        | `OPENROUTER_API_KEY`    |
-| `openai`    | `openai`               | `https://api.openai.com/v1`           | `OPENAI_API_KEY`        |
-| `anthropic` | `anthropic`            | `https://api.anthropic.com`           | `ANTHROPIC_API_KEY`     |
+| Backend      | `LLM_BACKEND`       | Base URL                       | Key env                 |
+| ------------ | ------------------- | ------------------------------ | ----------------------- |
+| `nearai`     | `nearai`            | `https://private.near.ai`      | (none — IronClaw OAuth) |
+| `openrouter` | `openai_compatible` | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY`    |
+| `openai`     | `openai`            | `https://api.openai.com/v1`    | `OPENAI_API_KEY`        |
+| `anthropic`  | `anthropic`         | `https://api.anthropic.com`    | `ANTHROPIC_API_KEY`     |
 
 Shared env: `GATEWAY_AUTH_TOKEN`, `GATEWAY_HOST=127.0.0.1`,
 `GATEWAY_PORT=<picked>`, `DATABASE_BACKEND=libsql`, `AGENT_NAME=ironclaw`,
@@ -286,7 +286,7 @@ Two commands: `open_profile_window(profile_id)` and
 `profile-<sanitized-id>`; opening the same id twice focuses the
 existing window rather than creating a duplicate. The window's URL
 includes `?profile=<id>`, which the connection store reads on init
-and uses to pin *this window* to that profile without mutating the
+and uses to pin _this window_ to that profile without mutating the
 persisted `activeProfileId`.
 
 That subtle distinction is the entire point of multi-window: a "work"
@@ -349,35 +349,35 @@ src/routes/
 Total ten top-level surfaces (Chat is the implicit `/`). The Cmd+1..9
 shortcut map lives in `+layout.svelte`:
 
-| Chord | Route        |
-| ----- | ------------ |
-| Cmd+1 | `/`          |
-| Cmd+2 | `/knowledge` |
-| Cmd+3 | `/skills`    |
-| Cmd+4 | `/routines`  |
-| Cmd+5 | `/jobs`      |
-| Cmd+6 | `/logs`      |
-| Cmd+7 | `/extensions`|
-| Cmd+8 | `/admin`     *(gated on `adminMode`)* |
-| Cmd+9 | `/missions`  *(gated on `engineV2Enabled`)* |
-| Cmd+, | `/settings`  |
+| Chord | Route                                      |
+| ----- | ------------------------------------------ |
+| Cmd+1 | `/`                                        |
+| Cmd+2 | `/knowledge`                               |
+| Cmd+3 | `/skills`                                  |
+| Cmd+4 | `/routines`                                |
+| Cmd+5 | `/jobs`                                    |
+| Cmd+6 | `/logs`                                    |
+| Cmd+7 | `/extensions`                              |
+| Cmd+8 | `/admin` _(gated on `adminMode`)_          |
+| Cmd+9 | `/missions` _(gated on `engineV2Enabled`)_ |
+| Cmd+, | `/settings`                                |
 
 ### Layout chrome
 
 The root layout hosts eight cross-surface components that mount once
 and live forever:
 
-| Component         | Triggered by                              | Purpose                                         |
-| ----------------- | ----------------------------------------- | ----------------------------------------------- |
-| `Sidebar`         | always (hidden during onboarding)         | nav rails + collapsed/expanded, badges, profile popover |
-| `StatusBar`       | always (hidden during onboarding), Cmd+/  | bottom 28px bar with gateway/profile/sidecar state |
-| `Toasts`          | always                                    | floating toast viewport                          |
-| `UpdaterBanner`   | non-idle updater state                    | thin top banner above sidebar+main split        |
-| `CommandPalette`  | Cmd+K, `palette.openPalette()`           | fuzzy search across nav/threads/skills/routines/docs/actions |
-| `GlobalSearch`    | Cmd+Shift+F, `globalSearch.show()`       | cross-surface data search (knowledge/skills/routines/threads) |
-| `ThreadSwitcher`  | Cmd+T, `threadSwitcher.show()`            | jump-to-thread (recently selected, fuzzy)       |
-| `QuickCapture`    | Cmd+Shift+N, `quickCapture.show()`        | drop a thought into a "Quick captures" thread without nav |
-| `AboutDialog`     | `aboutStore.show()` (palette + Settings) | app + gateway + profile + sidecar + system info |
+| Component        | Triggered by                             | Purpose                                                       |
+| ---------------- | ---------------------------------------- | ------------------------------------------------------------- |
+| `Sidebar`        | always (hidden during onboarding)        | nav rails + collapsed/expanded, badges, profile popover       |
+| `StatusBar`      | always (hidden during onboarding), Cmd+/ | bottom 28px bar with gateway/profile/sidecar state            |
+| `Toasts`         | always                                   | floating toast viewport                                       |
+| `UpdaterBanner`  | non-idle updater state                   | thin top banner above sidebar+main split                      |
+| `CommandPalette` | Cmd+K, `palette.openPalette()`           | fuzzy search across nav/threads/skills/routines/docs/actions  |
+| `GlobalSearch`   | Cmd+Shift+F, `globalSearch.show()`       | cross-surface data search (knowledge/skills/routines/threads) |
+| `ThreadSwitcher` | Cmd+T, `threadSwitcher.show()`           | jump-to-thread (recently selected, fuzzy)                     |
+| `QuickCapture`   | Cmd+Shift+N, `quickCapture.show()`       | drop a thought into a "Quick captures" thread without nav     |
+| `AboutDialog`    | `aboutStore.show()` (palette + Settings) | app + gateway + profile + sidecar + system info               |
 
 The onboarding route (`/onboarding`) is a full-screen takeover — the
 layout suppresses the sidebar, status bar, banner, palette, etc. when
@@ -468,11 +468,11 @@ What each owns:
   with retry-on-fail metadata.
 - **`notifications`** (~647 LoC) — the desktop notification facade.
   Wraps `@tauri-apps/plugin-notification`, gates on a master toggle
-  + per-category switches (chat / routine / sidecar / error), per-
-  category sound choice (eight macOS system sounds), quiet-hours
-  block with overnight-wrap support. Tracks unseen count, pushes
-  tray badge via `update_tray_badge`, fires `markAllSeen` on window
-  focus.
+  - per-category switches (chat / routine / sidecar / error), per-
+    category sound choice (eight macOS system sounds), quiet-hours
+    block with overnight-wrap support. Tracks unseen count, pushes
+    tray badge via `update_tray_badge`, fires `markAllSeen` on window
+    focus.
 - **`pins`** (~208 LoC) — cross-surface pin store keyed by surface
   (`skill | routine | knowledge | thread | extension`). 20-per-
   surface cap; localStorage persistence. Consumed by the palette's
@@ -519,7 +519,7 @@ class (`IronClawClient`), every method on it is a thin wrapper around
    return {
      // ...
      total_connections: res?.total_connections ?? ws + sse,
-     uptime_seconds: res?.uptime_secs ?? res?.uptime_seconds,
+     uptime_seconds: res?.uptime_secs ?? res?.uptime_seconds
      // ...
    };
    ```
@@ -542,13 +542,13 @@ class (`IronClawClient`), every method on it is a thin wrapper around
 The gateway's `/api/settings` endpoint embeds raw bearer tokens
 inside the `mcp_servers` value on single-tenant owner installs.
 The `/api/admin/system-prompt` endpoint may also contain pasted
-secrets. Surfaces that *render* these payloads use the default,
+secrets. Surfaces that _render_ these payloads use the default,
 redacted methods:
 
 - `getSettings()` — runs `redactJsonObject` over the response
 - `getSystemPrompt()` — runs `redactSecrets` over the text
 
-Surfaces that *edit* these payloads (the system prompt editor, the
+Surfaces that _edit_ these payloads (the system prompt editor, the
 "Server-side card" in /settings) must call:
 
 - `getSettingsRaw()` — unredacted, dangerous, surface MUST render
@@ -599,6 +599,7 @@ soft-falls-back to the legacy path. Per-user opt-out lives in
 Settings → Advanced.
 
 Drops on the floor (deliberate, both wire formats):
+
 - `type: "thinking"` (progress chatter like "Calling LLM...")
 - `type: "status"` (short pings like "Done")
 - Responses-API control events that don't carry UI-relevant state
@@ -698,8 +699,9 @@ test environment doesn't).
 ## Security model
 
 The single-sentence version: **secrets live in the macOS Keychain
-and the Tauri capability allowlist is the only path from webview
-to OS.**
+(gateway tokens fall back to an owner-only 0600 app-data file when a
+Keychain prompt can't complete) and the Tauri capability allowlist is
+the only path from webview to OS.**
 
 The longer version, by surface:
 
@@ -710,8 +712,16 @@ The longer version, by surface:
   `sessionStorage`. The Settings export blob (`export_settings_dialog`)
   reads the raw settings.json off disk so the exported file is
   byte-identical to what the app uses internally — and because the
-  Keychain entries are *not* in settings.json, the export file
+  Keychain entries are _not_ in settings.json, the export file
   contains no secrets. Safe to email or sync across machines.
+- **Gateway-token fallback (load-bearing).** If a Keychain ACL prompt
+  can't complete — a macOS deadlock that hung the app in v0.2.8 — the
+  gateway token is written to an owner-only `chmod 0600` file at
+  `app_data_dir/tokens/<account>.token`. The `get_token_source` command
+  and `TokenSourceBadge` surface whether the live value came from
+  `keychain`, `file`, or is `absent`. This fallback is still never in
+  localStorage, settings.json, or the settings export. It is
+  intentional and must not be removed.
 - **Scoping.** Per-profile for `gateway-token` and
   `openrouter-key` and `llm-<provider>` slots. Global for
   `local-gateway-token` (one bundled sidecar per install,
@@ -752,7 +762,7 @@ goes through a Rust command:
 - `local_data_dir` returns the AppData path so the Settings page
   can render it, and `reveal_in_finder` shells `open -R` so the
   user can navigate there in Finder. Neither command lets the
-  webview *read* an arbitrary path.
+  webview _read_ an arbitrary path.
 
 ### CSP
 
@@ -803,7 +813,7 @@ can be dropped once Svelte 5 grows nonce support.
 
 ### Redaction layer
 
-See [The API client](#the-api-client) → "*Raw / redacted methods".
+See [The API client](#the-api-client) → "\*Raw / redacted methods".
 Defense-in-depth for the day we render `mcp_servers` somewhere we
 shouldn't.
 
