@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
-  import { FIRST_RUN_MISSIONS, type Mission } from '$lib/data/missions';
+  import { FIRST_RUN_MISSIONS, recommendMissions, type Mission } from '$lib/data/missions';
   import {
     CONNECTOR_PACKS,
     connectorPackById,
@@ -26,6 +26,7 @@
   let loadState = $state<LoadState>('idle');
   let loadError = $state<string | null>(null);
   let installed = $state<Extension[]>([]);
+  let hourOfDay = $state(new Date().getHours());
 
   const installedByName = $derived.by(() => {
     const byName = new Map<string, Extension>();
@@ -35,16 +36,27 @@
     return byName;
   });
 
-  const packStatuses = $derived.by(() => {
-    const statuses = new Map<ConnectorPackId, ConnectorPackStatus>();
+  const packStatusRecord = $derived.by(() => {
+    const statuses = {} as Record<ConnectorPackId, ConnectorPackStatus>;
     for (const pack of CONNECTOR_PACKS) {
-      statuses.set(pack.id, providedPackStatuses?.[pack.id] ?? statusForPack(pack.id));
+      statuses[pack.id] = providedPackStatuses?.[pack.id] ?? statusForPack(pack.id);
     }
     return statuses;
   });
+  const packStatuses = $derived.by(() => {
+    const statuses = new Map<ConnectorPackId, ConnectorPackStatus>();
+    for (const pack of CONNECTOR_PACKS) {
+      statuses.set(pack.id, packStatusRecord[pack.id]);
+    }
+    return statuses;
+  });
+  const recommendedMissions = $derived.by(() =>
+    recommendMissions(missions, packStatusRecord, hourOfDay).slice(0, 2)
+  );
   const usesProvidedPackStatuses = $derived(providedPackStatuses !== null);
 
   onMount(() => {
+    hourOfDay = new Date().getHours();
     if (usesProvidedPackStatuses) return;
     untrack(() => void refreshReadiness());
   });
@@ -90,6 +102,13 @@
     if (labels.length === 0) return '';
     if (labels.length === 1) return `Needs ${labels[0]}`;
     return `Needs ${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+  }
+
+  function readyConnectorMessage(mission: Mission): string {
+    const labels = (mission.required_connectors ?? []).map(connectorLabel);
+    if (labels.length === 0) return 'No connectors required';
+    if (labels.length === 1) return `${labels[0]} connected`;
+    return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]} connected`;
   }
 
   function nextConnectorHref(missing: ConnectorPackId[]): string {
@@ -153,6 +172,49 @@ ${mission.prompt}`;
   {/if}
 
   {#if missions.length > 0}
+    <div class="mb-4" data-testid="recommended-missions">
+      {#if recommendedMissions.length > 0}
+        <div class="mb-3 flex items-center justify-between gap-3">
+          <h2 class="text-xs font-semibold uppercase text-text-muted">Recommended</h2>
+        </div>
+        <div class="grid gap-2 md:grid-cols-2">
+          {#each recommendedMissions as mission (mission.id)}
+            <article
+              class="rounded-md border border-accent-cyan/50 bg-bg-deep/60 p-3"
+              data-testid={`recommended-mission-${mission.id}`}
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="text-[11px] font-semibold text-accent-cyan">
+                    Recommended · {readyConnectorMessage(mission)}
+                  </div>
+                  <h3 class="mt-1 text-sm font-semibold text-text-primary">{mission.title}</h3>
+                  <p class="mt-1 text-xs leading-5 text-text-muted">{mission.description}</p>
+                </div>
+                <span
+                  class="shrink-0 rounded-full border border-accent-cyan/30 bg-accent-cyan/10 px-2 py-1 text-[11px] font-medium text-accent-cyan"
+                >
+                  {mission.mode === 'approval' ? 'Approval mode' : 'Dry run'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onclick={() => launchMission(mission)}
+                class="mt-3 inline-flex min-h-[36px] w-full items-center justify-center rounded-md border border-accent-cyan/50 bg-accent-cyan/10 px-3 py-2 text-sm font-semibold text-accent-cyan transition hover:bg-accent-cyan hover:text-bg-deep"
+                aria-label={`Launch recommended mission: ${mission.title}`}
+              >
+                Launch mission
+              </button>
+            </article>
+          {/each}
+        </div>
+      {:else}
+        <p class="text-sm text-text-muted" role="status">
+          Connect a workspace pack to get a recommendation.
+        </p>
+      {/if}
+    </div>
+
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="mission-grid">
       {#each missions as mission (mission.id)}
         {@const missing = missingConnectors(mission)}

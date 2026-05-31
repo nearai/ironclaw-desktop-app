@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { FIRST_RUN_MISSIONS, missionById } from './missions';
-import { connectorPackById } from './connector-packs';
+import { FIRST_RUN_MISSIONS, missionById, recommendMissions, type Mission } from './missions';
+import {
+  connectorPackById,
+  type ConnectorPackId,
+  type ConnectorPackStatus
+} from './connector-packs';
 
 const WRITE_CAPABLE_MISSION_IDS = new Set([
   'inbox-triage',
@@ -10,6 +14,18 @@ const WRITE_CAPABLE_MISSION_IDS = new Set([
   'draft-replies',
   'update-notion-crm'
 ]);
+
+const CONNECTED_STATUSES: Record<ConnectorPackId, ConnectorPackStatus> = {
+  google: 'connected',
+  notion: 'connected',
+  slack: 'connected'
+};
+
+const DISCONNECTED_STATUSES: Record<ConnectorPackId, ConnectorPackStatus> = {
+  google: 'not-installed',
+  notion: 'not-installed',
+  slack: 'not-installed'
+};
 
 describe('first-run missions', () => {
   it('has unique ids', () => {
@@ -55,5 +71,51 @@ describe('first-run missions', () => {
   it('looks up missions by id', () => {
     expect(missionById('morning-brief')?.title).toBe('Morning Brief');
     expect(missionById('not-a-mission')).toBeUndefined();
+  });
+});
+
+describe('recommendMissions', () => {
+  it('recommends missions when all required connectors are ready', () => {
+    const recommended = recommendMissions(FIRST_RUN_MISSIONS, CONNECTED_STATUSES, 8);
+
+    expect(recommended.map((mission) => mission.id)).toContain('morning-brief');
+    expect(recommended.map((mission) => mission.id)).toContain('slack-catchup');
+    expect(recommended.map((mission) => mission.id)).toContain('update-notion-crm');
+  });
+
+  it('does not recommend a mission when a required connector is not ready', () => {
+    const recommended = recommendMissions(
+      FIRST_RUN_MISSIONS,
+      { ...CONNECTED_STATUSES, google: 'needs-auth' },
+      8
+    );
+
+    expect(recommended.map((mission) => mission.id)).not.toContain('morning-brief');
+    expect(recommended.map((mission) => mission.id)).toContain('slack-catchup');
+  });
+
+  it('returns no first-run recommendations when no connectors are ready', () => {
+    expect(recommendMissions(FIRST_RUN_MISSIONS, DISCONNECTED_STATUSES, 8)).toEqual([]);
+  });
+
+  it('keeps connectorless missions eligible', () => {
+    const localMission: Mission = {
+      id: 'local-mission',
+      title: 'Local Mission',
+      description: 'Uses only local context.',
+      prompt: 'Summarize local context.',
+      mode: 'dry-run'
+    };
+
+    expect(recommendMissions([localMission], DISCONNECTED_STATUSES, 8)).toEqual([localMission]);
+  });
+
+  it('uses deterministic time-of-day scoring before declaration order', () => {
+    expect(recommendMissions(FIRST_RUN_MISSIONS, CONNECTED_STATUSES, 8)[0]?.id).toBe(
+      'morning-brief'
+    );
+    expect(recommendMissions(FIRST_RUN_MISSIONS, CONNECTED_STATUSES, 12)[0]?.id).toBe(
+      'inbox-triage'
+    );
   });
 });

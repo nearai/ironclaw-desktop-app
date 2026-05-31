@@ -1,4 +1,4 @@
-import type { ConnectorPackId } from './connector-packs';
+import type { ConnectorPackId, ConnectorPackStatus } from './connector-packs';
 
 export type MissionMode = 'dry-run' | 'approval';
 
@@ -105,6 +105,38 @@ Review available relationship context and identify contacts, accounts, next step
 Use executive brevity. Do not create pages, edit properties, add notes, or write to Notion. Show the proposed Notion changes first and wait for my explicit approval before any write.`
   }
 ];
+
+function timeOfDayScore(mission: Mission, hourOfDay: number): number {
+  if (mission.id === 'morning-brief' && hourOfDay >= 5 && hourOfDay <= 11) return 2;
+  if (
+    (mission.id === 'inbox-triage' || mission.id === 'follow-up-catcher') &&
+    hourOfDay >= 11 &&
+    hourOfDay <= 16
+  ) {
+    return 2;
+  }
+  return 0;
+}
+
+export function recommendMissions(
+  missions: Mission[],
+  packStatuses: Record<ConnectorPackId, ConnectorPackStatus>,
+  hourOfDay: number
+): Mission[] {
+  return missions
+    .map((mission, index) => ({ mission, index }))
+    .filter(({ mission }) =>
+      (mission.required_connectors ?? []).every(
+        (connector) => packStatuses[connector] === 'connected'
+      )
+    )
+    .sort((a, b) => {
+      const scoreDelta =
+        timeOfDayScore(b.mission, hourOfDay) - timeOfDayScore(a.mission, hourOfDay);
+      return scoreDelta || a.index - b.index;
+    })
+    .map(({ mission }) => mission);
+}
 
 export function missionById(id: string): Mission | undefined {
   return FIRST_RUN_MISSIONS.find((mission) => mission.id === id);

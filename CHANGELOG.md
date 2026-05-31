@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.4.132 — Proactive mission recommendations (2026-05-30)
+
+The mission launcher stops being a static grid: it now highlights the **best next action**. A
+"Recommended" row sits above the grid showing the top 1–2 missions whose required connectors are
+all connected, with the reason ("Google Workspace connected"), ranked by a time-of-day heuristic
+(Morning Brief in the morning; triage/follow-up midday). When nothing's connected it says so
+honestly ("Connect a workspace pack to get a recommendation") rather than guessing.
+
+- `missions.ts`: pure `recommendMissions(missions, packStatuses, hourOfDay)` — recommendable only
+  when every required connector is `connected`; deterministic time-of-day → declaration order; no
+  Date/connection access inside (fully unit-tested).
+- `MissionLauncher.svelte`: derives the recommendation from the same readiness it uses for grid
+  gating, renders the highlight, reuses the existing approval-mode launch. No fabricated workspace
+  signals — readiness + time only.
+
 ## v0.4.131 — The Desk gets a "Handled" section (2026-05-30)
 
 The Desk header has always promised "what needs you, and what your chief of staff handled" — but

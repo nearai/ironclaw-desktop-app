@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/sve
 import type { Extension } from '$lib/api/types';
 
 import { FIRST_RUN_MISSIONS } from '$lib/data/missions';
+import type { ConnectorPackId, ConnectorPackStatus } from '$lib/data/connector-packs';
 
 const gotoMock = vi.hoisted(() => vi.fn());
 const composerPushMock = vi.hoisted(() => vi.fn());
@@ -35,6 +36,18 @@ function installFakeClient(extensions: Extension[]): void {
     listExtensions: vi.fn(async () => extensions)
   };
 }
+
+const CONNECTED_PACK_STATUSES: Record<ConnectorPackId, ConnectorPackStatus> = {
+  google: 'connected',
+  notion: 'not-installed',
+  slack: 'not-installed'
+};
+
+const DISCONNECTED_PACK_STATUSES: Record<ConnectorPackId, ConnectorPackStatus> = {
+  google: 'not-installed',
+  notion: 'not-installed',
+  slack: 'not-installed'
+};
 
 beforeEach(() => {
   installFakeClient([]);
@@ -74,6 +87,24 @@ describe('MissionLauncher component', () => {
     expect(
       within(card).getByRole<HTMLButtonElement>('button', { name: mission.title }).disabled
     ).toBe(true);
+  });
+
+  it('shows recommended missions when pack statuses make a mission ready', () => {
+    render(MissionLauncher, { props: { packStatuses: CONNECTED_PACK_STATUSES } });
+
+    const recommended = screen.getByTestId('recommended-missions');
+    expect(
+      within(recommended).getAllByText('Recommended · Google Workspace connected').length
+    ).toBe(2);
+    expect(
+      within(recommended).getAllByRole('button', { name: /Launch recommended mission:/ }).length
+    ).toBe(2);
+  });
+
+  it('shows an honest recommendation prompt when no pack is ready', () => {
+    render(MissionLauncher, { props: { packStatuses: DISCONNECTED_PACK_STATUSES } });
+
+    expect(screen.getByText('Connect a workspace pack to get a recommendation.')).toBeTruthy();
   });
 
   it('pushes mission context and navigates to chat when required connectors are ready', async () => {
