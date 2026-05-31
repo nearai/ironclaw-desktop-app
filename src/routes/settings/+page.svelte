@@ -53,6 +53,7 @@
   } from '$lib/stores/settings.svelte';
   import { connection, type SidecarStatus } from '$lib/stores/connection.svelte';
   import TokenSourceBadge from '$lib/components/TokenSourceBadge.svelte';
+  import { agentUiReadinessState } from '$lib/agent-ui/readiness.svelte';
   import { signIn } from '$lib/stores/sign-in.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
@@ -3772,6 +3773,36 @@
           </div>
         </div>
       </label>
+
+      <!-- Agent-controlled UI readiness (review ICD-010). Read-only
+           diagnostics, not a toggle. The agent-UI client modules ship, but the
+           agent can only drive the desktop once a connected gateway can hand a
+           client-tool call back to us to run (the delegate.ts seam). No gateway
+           advertises that yet, so this reports "not supported" and the app
+           never implies the agent can operate the desktop until it can. Reads
+           the single readiness source so copy + any future affordance agree. -->
+      <div class="flex items-start gap-3 min-h-[44px]" data-testid="agent-ui-readiness">
+        <span class="mt-1 inline-flex h-4 w-4 items-center justify-center" aria-hidden="true">
+          <span
+            class="h-2 w-2 rounded-full"
+            class:bg-positive={agentUiReadinessState.readiness.supported}
+            class:bg-text-muted={!agentUiReadinessState.readiness.supported}
+          ></span>
+        </span>
+        <div class="flex-1">
+          <div class="text-sm text-text-primary">
+            Agent-controlled UI:
+            <span
+              class:text-positive={agentUiReadinessState.readiness.supported}
+              class:text-text-muted={!agentUiReadinessState.readiness.supported}
+              >{agentUiReadinessState.readiness.label}</span
+            >
+          </div>
+          <div class="text-xs text-text-muted mt-0.5">
+            {agentUiReadinessState.readiness.detail}
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Re-run onboarding (discrete footer action). Flips onboardingComplete

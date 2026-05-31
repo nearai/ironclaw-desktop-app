@@ -1,8 +1,11 @@
 # Agent-controlled UI
 
-Letting the IronClaw agent **see and drive the desktop app** the way a person
-does — read what's on screen, navigate, open a thread, start a new chat — by
-exposing the app's own actions to the model as **client-executed tools**.
+The goal: let the IronClaw agent **see and drive the desktop app** the way a
+person does — read what's on screen, navigate, open a thread, start a new chat
+— by exposing the app's own actions to the model as **client-executed tools**.
+This is **gated on gateway support and is not active today** (see Status): the
+client half ships, but the server cannot yet hand a tool call back to the
+desktop, so the app does not claim the agent can operate it.
 
 ## Status
 
@@ -21,6 +24,15 @@ end-to-end is server-side**: IronClaw's Responses API executes tools on the
 server today, so it has no way to hand a tool call back to the client to run.
 That extension is specified at the end of this doc; it needs the live backend
 and is not built here.
+
+**Readiness is gated in the app.** `src/lib/agent-ui/readiness.svelte.ts` is the
+single source of truth: `agentUiReadiness({ clientToolDelegation })` maps a
+gateway capability to a Supported / Not-supported verdict, and **Settings →
+Advanced** renders it as an "Agent-controlled UI" diagnostics row. Nothing sets
+`clientToolDelegation` true yet, so the app honestly reports the feature as
+unavailable and exposes no affordance implying the agent can drive the desktop.
+When the server seam ships, the connection layer flips that one flag and every
+gated surface updates through `readiness`.
 
 ## Principle: semantic actions, not DOM control
 

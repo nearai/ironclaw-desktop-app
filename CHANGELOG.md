@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.4.144 — Agent-controlled UI readiness gating (review ICD-010) (2026-05-30)
+
+The app is now honest about whether the agent can drive the desktop.
+
+- New `agent-ui/readiness.svelte.ts` is the single source of truth:
+  `agentUiReadiness({ clientToolDelegation })` maps the connected gateway's
+  capability to a Supported / Not-supported verdict. Nothing sets the flag
+  true yet (the server can't hand client-tool calls back — the `delegate.ts`
+  seam is unbuilt), so it reports "Not supported by this gateway" by default.
+- **Settings → Advanced** shows an "Agent-controlled UI" diagnostics row with
+  that status + a plain-language explanation, so the capability state is
+  visible without guessing.
+- `docs/agent-ui.md` reframed: the "see and drive the desktop" goal is marked
+  gated/not-active, and the doc points at the in-app readiness gate. No UI
+  affordance or copy claims the agent can operate the desktop until a gateway
+  proves it can — when the server seam ships, one flag flips and every gated
+  surface follows.
+- Tests cover both supported and unsupported gateway states.
+
 ## v0.4.143 — CSP/capability truth + regression guard (review ICD-009) (2026-05-30)
 
 The security model is now accurately documented and pinned against accidental
