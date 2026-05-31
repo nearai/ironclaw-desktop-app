@@ -11,11 +11,12 @@ import { RebornChatController } from '$lib/stores/reborn-chat.svelte';
 import { RebornDesk } from '$lib/stores/reborn-desk.svelte';
 import { OpenLoopStore } from '$lib/stores/open-loops.svelte';
 import { initialChatState, type RebornGate } from '$lib/api/reborn';
-import type { Job } from '$lib/api/types';
+import type { Job, JobDetail, JobEvent, JobFile } from '$lib/api/types';
+import type { DeskJobsReader } from '$lib/stores/reborn-desk.svelte';
 
 function deskWith(
   gate: RebornGate | null,
-  jobsReader?: () => Promise<Job[]>
+  jobsReader?: DeskJobsReader
 ): {
   desk: RebornDesk;
   chat: RebornChatController;
@@ -25,6 +26,24 @@ function deskWith(
   chat.state = { ...initialChatState(), pendingGate: gate };
   const loops = new OpenLoopStore();
   return { desk: new RebornDesk(chat, loops, jobsReader ?? null), chat, loops };
+}
+
+function readerWith(overrides: Partial<DeskJobsReader> & { jobs?: Job[] }): DeskJobsReader {
+  return {
+    listJobs: async () => overrides.jobs ?? [],
+    getJob: async (id: string) => {
+      if (overrides.getJob) return overrides.getJob(id);
+      throw new Error('no detail');
+    },
+    getJobEvents: async (id: string) => {
+      if (overrides.getJobEvents) return overrides.getJobEvents(id);
+      return [];
+    },
+    getJobFiles: async (id: string) => {
+      if (overrides.getJobFiles) return overrides.getJobFiles(id);
+      return [];
+    }
+  };
 }
 
 describe('RebornDeskPanel', () => {
@@ -89,7 +108,7 @@ describe('RebornDeskPanel', () => {
   });
 
   it('shows an honest empty state when there are no handled jobs', () => {
-    const { desk } = deskWith(null, async () => []);
+    const { desk } = deskWith(null, readerWith({ jobs: [] }));
     const { getByTestId, getByText } = render(RebornDeskPanel, { props: { desk } });
     expect(getByTestId('desk-handled-empty')).toBeTruthy();
     expect(getByText('Nothing handled yet')).toBeTruthy();
@@ -97,27 +116,119 @@ describe('RebornDeskPanel', () => {
   });
 
   it('renders populated Handled rows with status pills', async () => {
-    const { desk } = deskWith(null, async () => [
-      {
-        id: 'job-1',
-        title: 'Draft weekly investor update',
-        state: 'completed',
-        user_id: 'default',
-        created_at: '2026-05-31T08:00:00Z'
-      },
-      {
-        id: 'job-2',
-        title: 'Research vendor renewal',
-        state: 'in_progress',
-        user_id: 'default',
-        created_at: '2026-05-31T09:00:00Z'
-      }
-    ]);
+    const { desk } = deskWith(
+      null,
+      readerWith({
+        jobs: [
+          {
+            id: 'job-1',
+            title: 'Draft weekly investor update',
+            state: 'completed',
+            user_id: 'default',
+            created_at: '2026-05-31T08:00:00Z'
+          },
+          {
+            id: 'job-2',
+            title: 'Research vendor renewal',
+            state: 'in_progress',
+            user_id: 'default',
+            created_at: '2026-05-31T09:00:00Z'
+          }
+        ]
+      })
+    );
     const { findByText, getByText } = render(RebornDeskPanel, { props: { desk } });
 
     expect(await findByText('Draft weekly investor update')).toBeTruthy();
     expect(getByText('Research vendor renewal')).toBeTruthy();
     expect(getByText('done')).toBeTruthy();
     expect(getByText('running')).toBeTruthy();
+  });
+
+  it('expands a Handled row and shows a compact result receipt', async () => {
+    const detail: JobDetail = {
+      id: 'job-1',
+      title: 'Draft weekly investor update',
+      description: 'Drafted the weekly investor update.',
+      state: 'completed',
+      user_id: 'default',
+      created_at: '2026-05-31T08:00:00Z',
+      completed_at: '2026-05-31T08:04:00Z',
+      transitions: [],
+      can_restart: true,
+      can_prompt: false
+    };
+    const events: JobEvent[] = [
+      {
+        id: 'evt-1',
+        event_type: 'output_text',
+        data: { message: 'Wrote a concise investor update with metrics and risks.' },
+        created_at: '2026-05-31T08:03:00Z'
+      }
+    ];
+    const files: JobFile[] = [
+      { name: 'update.md', path: 'update.md', is_dir: false },
+      { name: 'metrics.csv', path: 'metrics.csv', is_dir: false }
+    ];
+    const { desk } = deskWith(
+      null,
+      readerWith({
+        jobs: [
+          {
+            id: 'job-1',
+            title: 'Draft weekly investor update',
+            state: 'completed',
+            user_id: 'default',
+            created_at: '2026-05-31T08:00:00Z'
+          }
+        ],
+        getJob: async () => detail,
+        getJobEvents: async () => events,
+        getJobFiles: async () => files
+      })
+    );
+    const { findByRole, findByText, getByText } = render(RebornDeskPanel, { props: { desk } });
+    const row = await findByRole('button', { name: /Draft weekly investor update/ });
+
+    await fireEvent.click(row);
+
+    expect(
+      await findByText('output_text: Wrote a concise investor update with metrics and risks.')
+    ).toBeTruthy();
+    expect(getByText('2 files')).toBeTruthy();
+    const link = getByText('View full job →');
+    expect(link.getAttribute('href')).toBe('/jobs?open=job-1');
+  });
+
+  it('shows an honest no-detail receipt when receipt loading fails', async () => {
+    const { desk } = deskWith(
+      null,
+      readerWith({
+        jobs: [
+          {
+            id: 'job-failed',
+            title: 'Attempt vendor renewal research',
+            state: 'failed',
+            user_id: 'default',
+            created_at: '2026-05-31T09:00:00Z'
+          }
+        ],
+        getJob: async () => {
+          throw new Error('detail unavailable');
+        },
+        getJobEvents: async () => {
+          throw new Error('events unavailable');
+        },
+        getJobFiles: async () => {
+          throw new Error('files unavailable');
+        }
+      })
+    );
+    const { findByRole, findByText } = render(RebornDeskPanel, { props: { desk } });
+    const row = await findByRole('button', { name: /Attempt vendor renewal research/ });
+
+    await fireEvent.click(row);
+
+    expect(await findByText('No result detail available.')).toBeTruthy();
   });
 });

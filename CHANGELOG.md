@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.133 — Result receipts on the Desk (2026-05-30)
+
+The Desk's Handled rows are now expandable: click one and it shows what the run actually produced —
+a compact **receipt** (final state, a short outcome summary, artifact count) with a "View full job"
+deep-link to the Jobs surface. This closes the "approve the results" transparency beat: you can see
+the outcome without leaving the Desk. Honest by construction — the summary comes from real job
+detail/events, and it degrades to "No result detail available" rather than inventing an outcome.
+
+- `reborn-desk.svelte.ts`: the injectable jobs reader gains `getJob`/`getJobEvents`/`getJobFiles`;
+  `loadReceipt(jobId)` builds a typed `DeskReceipt` (state + summary + file count), cached, never
+  throws; `toggleHandled(jobId)` lazy-loads on expand. Real fields only (`JobDetail.state`,
+  `JobEvent.event_type`/`data`, `getJobFiles().length`); no `JobDetail.summary` field exists so it
+  falls back to the last meaningful event then `description`.
+- `RebornDeskPanel.svelte`: each Handled row is now an accessible disclosure (`aria-expanded`/
+  `aria-controls`) with a loading state, the receipt lines, and the `/jobs?open=<id>` link.
+
 ## v0.4.132 — Proactive mission recommendations (2026-05-30)
 
 The mission launcher stops being a static grid: it now highlights the **best next action**. A

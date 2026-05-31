@@ -30,6 +30,10 @@
     loopDraft = '';
   }
 
+  function receiptPanelId(jobId: string): string {
+    return `desk-receipt-${jobId.replace(/[^A-Za-z0-9_-]/g, '-')}`;
+  }
+
   onMount(() => {
     void desk.loadHandled();
   });
@@ -90,19 +94,65 @@
     {:else}
       <div class="desk-handled-list" data-testid="desk-handled-list">
         {#each handledCards as card (card.id)}
-          <article class="desk-handled-row">
-            <div class="desk-card__body">
-              <p class="desk-card__headline">{card.title}</p>
-              {#if card.detail}<p class="desk-card__detail">{card.detail}</p>{/if}
-            </div>
-            <span
-              class="desk-status-pill"
-              class:desk-status-pill--done={card.status === 'done'}
-              class:desk-status-pill--running={card.status === 'running'}
-              class:desk-status-pill--failed={card.status === 'failed'}
+          {@const expanded = desk.expandedHandledId === card.id}
+          {@const receipt = desk.receiptsById[card.id]}
+          {@const loadingReceipt = desk.receiptLoadingById[card.id] === true}
+          <article class="desk-handled-item">
+            <button
+              type="button"
+              class="desk-handled-row"
+              aria-expanded={expanded}
+              aria-controls={receiptPanelId(card.id)}
+              onclick={() => void desk.toggleHandled(card.id)}
             >
-              {card.status}
-            </span>
+              <div class="desk-card__body">
+                <p class="desk-card__headline">{card.title}</p>
+                {#if card.detail}<p class="desk-card__detail">{card.detail}</p>{/if}
+              </div>
+              <span class="desk-handled-row__meta">
+                <span
+                  class="desk-status-pill"
+                  class:desk-status-pill--done={card.status === 'done'}
+                  class:desk-status-pill--running={card.status === 'running'}
+                  class:desk-status-pill--failed={card.status === 'failed'}
+                >
+                  {card.status}
+                </span>
+                <span class="desk-disclosure" aria-hidden="true">{expanded ? '−' : '+'}</span>
+              </span>
+            </button>
+            {#if expanded}
+              <div
+                id={receiptPanelId(card.id)}
+                class="desk-receipt"
+                data-testid={`desk-receipt-${card.id}`}
+              >
+                {#if loadingReceipt && !receipt}
+                  <p class="desk-receipt__muted">Loading result receipt…</p>
+                {:else}
+                  <p class="desk-receipt__state">
+                    Final state <span>{receipt?.state ?? card.detail ?? 'unknown'}</span>
+                  </p>
+                  <p class="desk-receipt__summary">
+                    {receipt?.summary ?? 'No result detail available.'}
+                  </p>
+                  <div class="desk-receipt__foot">
+                    {#if (receipt?.fileCount ?? 0) > 0}
+                      <span class="desk-receipt__files">
+                        {receipt?.fileCount}
+                        {receipt?.fileCount === 1 ? 'file' : 'files'}
+                      </span>
+                    {/if}
+                    <a
+                      class="desk-receipt__link"
+                      href={`/jobs?open=${encodeURIComponent(card.id)}`}
+                    >
+                      View full job →
+                    </a>
+                  </div>
+                {/if}
+              </div>
+            {/if}
           </article>
         {/each}
       </div>
@@ -270,15 +320,92 @@
     background: var(--v2-surface, rgba(255, 255, 255, 0.04));
   }
   .desk-handled-row {
+    width: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 0.75rem;
     padding: 0.7rem 0.8rem;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    text-align: left;
+    font: inherit;
+    cursor: pointer;
+  }
+  .desk-handled-row:hover,
+  .desk-handled-row:focus-visible {
+    background: var(--v2-surface-2, rgba(255, 255, 255, 0.06));
+  }
+  .desk-handled-row:focus-visible {
+    outline: 2px solid var(--v2-accent, #4ca7e6);
+    outline-offset: -2px;
+  }
+  .desk-handled-item {
     border-bottom: 1px solid var(--v2-border, rgba(255, 255, 255, 0.08));
   }
-  .desk-handled-row:last-child {
+  .desk-handled-item:last-child {
     border-bottom: 0;
+  }
+  .desk-handled-row__meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex: 0 0 auto;
+  }
+  .desk-disclosure {
+    width: 1rem;
+    color: var(--v2-text-muted, #8a93a6);
+    font-family: var(--v2-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+    font-size: 0.9rem;
+    line-height: 1;
+    text-align: center;
+  }
+  .desk-receipt {
+    padding: 0.75rem 0.85rem 0.85rem;
+    border-top: 1px solid var(--v2-border, rgba(255, 255, 255, 0.08));
+    background: var(--v2-surface-2, rgba(255, 255, 255, 0.06));
+  }
+  .desk-receipt__state {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--v2-text-muted, #8a93a6);
+  }
+  .desk-receipt__state span {
+    color: var(--v2-text, #e6ebf2);
+  }
+  .desk-receipt__summary {
+    margin-top: 0.35rem;
+    color: var(--v2-text, #e6ebf2);
+    font-size: 0.85rem;
+    line-height: 1.35;
+    word-break: break-word;
+  }
+  .desk-receipt__muted {
+    color: var(--v2-text-muted, #8a93a6);
+    font-size: 0.85rem;
+  }
+  .desk-receipt__foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.7rem;
+    margin-top: 0.55rem;
+  }
+  .desk-receipt__files {
+    color: var(--v2-text-muted, #8a93a6);
+    font-size: 0.78rem;
+  }
+  .desk-receipt__link {
+    color: var(--v2-accent-text, #8fc8f2);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .desk-receipt__link:hover {
+    text-decoration: underline;
   }
   .desk-card__body {
     min-width: 0;

@@ -17,7 +17,7 @@
 import { rebornChat, RebornChatController } from './reborn-chat.svelte';
 import { openLoops } from './open-loops.svelte';
 import { connection } from './connection.svelte';
-import type { Job } from '$lib/api/types';
+import type { Job, JobDetail, JobEvent, JobFile } from '$lib/api/types';
 
 /** A pending approval rendered as a "Needs you" Desk card. */
 export interface DeskGateCard {
@@ -46,7 +46,21 @@ export interface DeskHandledCard {
   at?: string;
 }
 
-export type DeskJobsReader = () => Promise<Job[]>;
+/** Compact result receipt for an expanded Handled row. */
+export interface DeskReceipt {
+  state: string;
+  summary: string;
+  fileCount: number;
+}
+
+export interface DeskJobsReader {
+  listJobs(): Promise<Job[]>;
+  getJob(id: string): Promise<JobDetail>;
+  getJobEvents(id: string): Promise<JobEvent[]>;
+  getJobFiles(id: string): Promise<JobFile[]>;
+}
+
+type LegacyJobsReader = () => Promise<Job[]>;
 
 function shortId(id: string): string {
   return id.length > 12 ? `${id.slice(0, 8)}...` : id;
@@ -88,13 +102,60 @@ function handledCardFromJob(job: Job): DeskHandledCard {
   };
 }
 
+function isJobsReader(reader: DeskJobsReader | LegacyJobsReader): reader is DeskJobsReader {
+  return typeof reader === 'object' && reader !== null && 'listJobs' in reader;
+}
+
+function fallbackReceipt(state = 'unknown'): DeskReceipt {
+  return {
+    state,
+    summary: 'No result detail available.',
+    fileCount: 0
+  };
+}
+
+function compactText(text: string): string {
+  const oneLine = text.replace(/\s+/g, ' ').trim();
+  return oneLine.length <= 180 ? oneLine : `${oneLine.slice(0, 177)}...`;
+}
+
+function stringFromEventData(data: unknown): string {
+  if (typeof data === 'string') return data;
+  if (data && typeof data === 'object') {
+    const record = data as Record<string, unknown>;
+    for (const key of ['message', 'summary', 'result', 'text', 'output', 'content', 'reason']) {
+      const value = record[key];
+      if (typeof value === 'string' && value.trim()) return value;
+    }
+  }
+  if (data === undefined || data === null) return '';
+  try {
+    return JSON.stringify(data) ?? '';
+  } catch {
+    return String(data);
+  }
+}
+
+function summaryFromEvents(events: JobEvent[]): string {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const event = events[i];
+    const text = compactText(stringFromEventData(event.data));
+    if (text) return `${event.event_type}: ${text}`;
+    if (event.event_type) return event.event_type;
+  }
+  return '';
+}
+
 export class RebornDesk {
   handledCardsState = $state<DeskHandledCard[]>([]);
+  expandedHandledId = $state<string | null>(null);
+  receiptsById = $state<Record<string, DeskReceipt>>({});
+  receiptLoadingById = $state<Record<string, boolean>>({});
 
   constructor(
     private chat: RebornChatController = rebornChat,
     private loops: typeof openLoops = openLoops,
-    private jobsReader: DeskJobsReader | null = null
+    private jobsReader: DeskJobsReader | LegacyJobsReader | null = null
   ) {}
 
   /**
@@ -156,12 +217,79 @@ export class RebornDesk {
   }
 
   async loadHandled(): Promise<void> {
-    const reader = this.jobsReader ?? (async () => connection.client?.listJobs({ limit: 5 }) ?? []);
+    const reader = this.jobsReader;
     try {
-      const jobs = await reader();
+      const jobs =
+        reader === null
+          ? await (connection.client?.listJobs({ limit: 5 }) ?? [])
+          : isJobsReader(reader)
+            ? await reader.listJobs()
+            : await reader();
       this.handledCardsState = jobs.map(handledCardFromJob);
     } catch {
       this.handledCardsState = [];
+    }
+  }
+
+  async loadReceipt(jobId: string): Promise<void> {
+    if (this.receiptsById[jobId]) return;
+    this.receiptLoadingById[jobId] = true;
+    const reader = this.jobsReader;
+    try {
+      if (reader && !isJobsReader(reader)) {
+        this.receiptsById[jobId] = fallbackReceipt(
+          this.handledCardsState.find((card) => card.id === jobId)?.detail ?? 'unknown'
+        );
+        return;
+      }
+      const client = reader ?? connection.client;
+      if (!client) {
+        this.receiptsById[jobId] = fallbackReceipt();
+        return;
+      }
+      let detail: JobDetail | null = null;
+      let events: JobEvent[] = [];
+      let fileCount = 0;
+      try {
+        detail = await client.getJob(jobId);
+      } catch {
+        detail = null;
+      }
+      try {
+        events = await client.getJobEvents(jobId);
+      } catch {
+        events = [];
+      }
+      try {
+        fileCount = (await client.getJobFiles(jobId)).length;
+      } catch {
+        fileCount = 0;
+      }
+      if (!detail && events.length === 0 && fileCount === 0) {
+        this.receiptsById[jobId] = fallbackReceipt();
+        return;
+      }
+      const summary = summaryFromEvents(events) || compactText(detail?.description ?? '') || '';
+      this.receiptsById[jobId] = {
+        state: detail?.state || 'unknown',
+        summary: summary || 'No result detail available.',
+        fileCount
+      };
+    } catch {
+      this.receiptsById[jobId] = fallbackReceipt();
+    } finally {
+      this.receiptLoadingById[jobId] = false;
+    }
+  }
+
+  async toggleHandled(jobId: string): Promise<void> {
+    if (this.expandedHandledId === jobId) {
+      this.expandedHandledId = null;
+      return;
+    }
+    this.expandedHandledId = jobId;
+    if (!this.receiptsById[jobId]) {
+      await this.loadReceipt(jobId);
     }
   }
 

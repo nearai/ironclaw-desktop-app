@@ -10,7 +10,8 @@ import { RebornDesk } from './reborn-desk.svelte';
 import { OpenLoopStore } from './open-loops.svelte';
 import { connection } from './connection.svelte';
 import { initialChatState, type RebornGate } from '$lib/api/reborn';
-import type { Job } from '$lib/api/types';
+import type { Job, JobDetail, JobEvent, JobFile } from '$lib/api/types';
+import type { DeskJobsReader } from './reborn-desk.svelte';
 
 function deskWithGate(gate: RebornGate | null): { desk: RebornDesk; chat: RebornChatController } {
   const chat = new RebornChatController(() => null);
@@ -112,7 +113,25 @@ describe('RebornDesk open loops', () => {
 });
 
 describe('RebornDesk handled jobs', () => {
-  function deskWithJobs(jobsReader?: () => Promise<Job[]>): RebornDesk {
+  function readerWith(overrides: Partial<DeskJobsReader> & { jobs?: Job[] }): DeskJobsReader {
+    return {
+      listJobs: async () => overrides.jobs ?? [],
+      getJob: async (id: string) => {
+        if (overrides.getJob) return overrides.getJob(id);
+        throw new Error('no detail');
+      },
+      getJobEvents: async (id: string) => {
+        if (overrides.getJobEvents) return overrides.getJobEvents(id);
+        return [];
+      },
+      getJobFiles: async (id: string) => {
+        if (overrides.getJobFiles) return overrides.getJobFiles(id);
+        return [];
+      }
+    };
+  }
+
+  function deskWithJobs(jobsReader?: DeskJobsReader): RebornDesk {
     const chat = new RebornChatController(() => null);
     chat.state = { ...initialChatState() };
     return new RebornDesk(chat, new OpenLoopStore(), jobsReader ?? null);
@@ -131,30 +150,34 @@ describe('RebornDesk handled jobs', () => {
   });
 
   it('projects recent jobs into Handled cards', async () => {
-    const desk = deskWithJobs(async () => [
-      {
-        id: 'job-completed-123456',
-        title: 'Draft weekly investor update',
-        state: 'completed',
-        user_id: 'default',
-        created_at: '2026-05-31T08:00:00Z'
-      },
-      {
-        id: 'job-running-123456',
-        title: 'Research vendor renewal',
-        state: 'in_progress',
-        user_id: 'default',
-        created_at: '2026-05-31T09:00:00Z',
-        started_at: '2026-05-31T09:01:00Z'
-      },
-      {
-        id: 'job-failed-123456',
-        title: '',
-        state: 'failed',
-        user_id: 'default',
-        created_at: '2026-05-31T10:00:00Z'
-      }
-    ]);
+    const desk = deskWithJobs(
+      readerWith({
+        jobs: [
+          {
+            id: 'job-completed-123456',
+            title: 'Draft weekly investor update',
+            state: 'completed',
+            user_id: 'default',
+            created_at: '2026-05-31T08:00:00Z'
+          },
+          {
+            id: 'job-running-123456',
+            title: 'Research vendor renewal',
+            state: 'in_progress',
+            user_id: 'default',
+            created_at: '2026-05-31T09:00:00Z',
+            started_at: '2026-05-31T09:01:00Z'
+          },
+          {
+            id: 'job-failed-123456',
+            title: '',
+            state: 'failed',
+            user_id: 'default',
+            created_at: '2026-05-31T10:00:00Z'
+          }
+        ]
+      })
+    );
 
     await desk.loadHandled();
 
@@ -184,12 +207,91 @@ describe('RebornDesk handled jobs', () => {
   });
 
   it('degrades to empty handled cards when the jobs request fails', async () => {
-    const desk = deskWithJobs(async () => {
-      throw new Error('gateway unavailable');
-    });
+    const desk = deskWithJobs(
+      readerWith({
+        listJobs: async () => {
+          throw new Error('gateway unavailable');
+        }
+      })
+    );
 
     await desk.loadHandled();
 
     expect(desk.handledCards).toEqual([]);
+  });
+
+  it('lazy-loads and caches a compact receipt for the expanded handled row', async () => {
+    const detail: JobDetail = {
+      id: 'job-completed-123456',
+      title: 'Draft weekly investor update',
+      description: 'Drafted the weekly investor update.',
+      state: 'completed',
+      user_id: 'default',
+      created_at: '2026-05-31T08:00:00Z',
+      completed_at: '2026-05-31T08:04:00Z',
+      transitions: [],
+      can_restart: true,
+      can_prompt: false
+    };
+    const events: JobEvent[] = [
+      {
+        id: 'evt-1',
+        event_type: 'status_change',
+        data: { message: 'Started drafting.' },
+        created_at: '2026-05-31T08:01:00Z'
+      },
+      {
+        id: 'evt-2',
+        event_type: 'output_text',
+        data: { message: 'Wrote a concise investor update with metrics and risks.' },
+        created_at: '2026-05-31T08:03:00Z'
+      }
+    ];
+    const files: JobFile[] = [
+      { name: 'update.md', path: 'update.md', is_dir: false },
+      { name: 'metrics.csv', path: 'metrics.csv', is_dir: false }
+    ];
+    const getJob = vi.fn(async () => detail);
+    const getJobEvents = vi.fn(async () => events);
+    const getJobFiles = vi.fn(async () => files);
+    const desk = deskWithJobs(readerWith({ getJob, getJobEvents, getJobFiles }));
+
+    await desk.toggleHandled('job-completed-123456');
+    await desk.toggleHandled('job-completed-123456');
+    await desk.toggleHandled('job-completed-123456');
+
+    expect(desk.expandedHandledId).toBe('job-completed-123456');
+    expect(desk.receiptsById['job-completed-123456']).toEqual({
+      state: 'completed',
+      summary: 'output_text: Wrote a concise investor update with metrics and risks.',
+      fileCount: 2
+    });
+    expect(getJob).toHaveBeenCalledTimes(1);
+    expect(getJobEvents).toHaveBeenCalledTimes(1);
+    expect(getJobFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores a no-detail receipt when receipt readers fail', async () => {
+    const desk = deskWithJobs(
+      readerWith({
+        getJob: async () => {
+          throw new Error('detail unavailable');
+        },
+        getJobEvents: async () => {
+          throw new Error('events unavailable');
+        },
+        getJobFiles: async () => {
+          throw new Error('files unavailable');
+        }
+      })
+    );
+
+    await desk.loadReceipt('job-failed-123456');
+
+    expect(desk.receiptsById['job-failed-123456']).toEqual({
+      state: 'unknown',
+      summary: 'No result detail available.',
+      fileCount: 0
+    });
   });
 });
