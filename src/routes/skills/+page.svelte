@@ -6,6 +6,7 @@
   import { toasts } from '$lib/stores/toasts.svelte';
   import { pins } from '$lib/stores/pins.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
+  import { composerInsert } from '$lib/stores/templates.svelte';
   import type { Skill, SkillTrust } from '$lib/api/types';
 
   type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
@@ -438,7 +439,10 @@
     pushRecent(skill.name);
     const hint = skillUsageHint(skill);
     toasts.show(`Loaded into chat: ${hint}`, 'info');
-    void goto(`/?prefill=${encodeURIComponent(hint)}`);
+    // Hand the invocation to the chat composer via the one-shot bus; the
+    // active chat surface (v1 page or v2 panel) drains it on arrival.
+    composerInsert.push(hint);
+    void goto('/');
   }
 
   function handleOpenInChat(skill: Skill) {

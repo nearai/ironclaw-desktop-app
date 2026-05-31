@@ -995,7 +995,8 @@
           label = s?.name ?? id;
           run = () => {
             const hint = s?.usage_hint ?? `/${id}`;
-            void goto(`/?prefill=${encodeURIComponent(hint)}`);
+            composerInsert.push(hint);
+            void goto('/');
           };
           break;
         }

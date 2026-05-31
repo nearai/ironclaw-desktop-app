@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.4.123 — Skill launch actually works (dead `?prefill` route → composer bus) (2026-05-30)
+
+The audit's #1 functional bug: every "run a skill" path navigated to `/?prefill=<hint>`,
+but **no surface consumed `?prefill`** — so Skills "Run", the skill drawer's "Open in chat",
+and the command palette's skill rows all dropped you on an empty composer. A `composerInsert`
+one-shot bus already existed (and the v1 chat page already drained it), so the fix routes
+through that:
+
+- **Launch sites** (`skills/+page`, `SkillDrawer`, `CommandPalette` ×2) now `composerInsert.push(hint)`
+  then navigate to `/`, instead of the dead URL param.
+- **v2 chat** (`RebornChatPanel`) now subscribes to the bus and lands the invocation in its
+  composer draft — so skill launch works on the **default** surface, not just v1. The v1 page's
+  drain is guarded on `apiVersion` so only the mounted surface consumes the payload.
+- **Dead chrome**: the v2 tool-flow right rail (fed only by the v1 event handler, so permanently
+  empty in v2) is now gated to the v1 surface — no more 320px of empty rail on widescreen v2.
+
+Full suite green (1030), svelte-check 0/0.
+
 ## v0.4.122 — Functional fixes wave 2: settings honesty, extensions truth, routines stats (2026-05-30)
 
 From the per-surface functional audit. Three route surfaces, all honest-state fixes:

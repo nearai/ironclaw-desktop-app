@@ -1331,6 +1331,9 @@
     // Touch the reactive field so this effect re-runs on every push.
     const pending = composerInsert.pending;
     if (pending === null) return;
+    // On the v2 (Reborn) surface the v2 composer owns the bus payload —
+    // RebornChatPanel drains it. Don't splice it into the hidden v1 composer.
+    if (connection.apiVersion === 'v2') return;
     untrack(() => {
       const payload = composerInsert.consume();
       if (!payload) return;
@@ -4115,12 +4118,17 @@
        `toolFlow` store. Width is fixed at 320px per the v2 design
        vocabulary so we don't add a second draggable handle to the layout
        for a primarily-passive surface. -->
-  <aside
-    class="hidden xl:block shrink-0 h-full w-[320px] border-l border-border-subtle bg-bg-base/40"
-    aria-label="Tool flow"
-  >
-    <ToolFlowPanel threadId={currentId} />
-  </aside>
+  {#if connection.apiVersion !== 'v2'}
+    <!-- Tool-flow ledger is fed only by the v1 event handler; in v2 the tool
+         cards render inline in RebornChatPanel, so this rail would be dead
+         (permanently empty) chrome. Only mount it on the v1 surface. -->
+    <aside
+      class="hidden xl:block shrink-0 h-full w-[320px] border-l border-border-subtle bg-bg-base/40"
+      aria-label="Tool flow"
+    >
+      <ToolFlowPanel threadId={currentId} />
+    </aside>
+  {/if}
 
   <!-- ====================== Right: tool inspector ========================
        Width driven by `effectiveInspectorWidth`. The handle sits to the

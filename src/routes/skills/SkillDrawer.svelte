@@ -2,6 +2,7 @@
   import type { Skill } from '$lib/api/types';
   import { goto } from '$app/navigation';
   import { toasts } from '$lib/stores/toasts.svelte';
+  import { composerInsert } from '$lib/stores/templates.svelte';
   import { revealInFinder } from '$lib/stores/settings.svelte';
 
   type Props = {
@@ -81,14 +82,15 @@
 
   function openInChat() {
     const prefix = input.trim().length > 0 ? `${usageHint} ${input.trim()}` : usageHint;
-    // v1 hands off to the chat surface — the actual chat input pre-populate
-    // is wired in a follow-up once the chat route lands (currently stub).
-    const url = `/?prefill=${encodeURIComponent(prefix)}`;
+    // Hand the rendered invocation (+ any typed arguments) to the chat
+    // composer via the one-shot bus. The active chat surface — v1 page or
+    // v2 panel — drains it on arrival.
+    composerInsert.push(prefix);
     // Notify the parent first so "recently used" state is updated before
     // the navigation tears this drawer down.
     onLaunch?.(skill);
     toasts.show(`Loaded into chat: ${usageHint}`, 'info');
-    void goto(url);
+    void goto('/');
   }
 
   async function reveal() {

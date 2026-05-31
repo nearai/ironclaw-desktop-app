@@ -11,9 +11,10 @@
   // singletons) so the render tests can drive them with mock-client instances
   // and pre-seeded state without standing up the connection store.
 
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import MarkdownView from './MarkdownView.svelte';
   import { connection } from '$lib/stores/connection.svelte';
+  import { composerInsert } from '$lib/stores/templates.svelte';
   import { rebornChat, RebornChatController } from '$lib/stores/reborn-chat.svelte';
   import { rebornThreads, RebornThreadStore } from '$lib/stores/reborn-threads.svelte';
   import type { ThreadSummary } from '$lib/api/reborn';
@@ -28,6 +29,20 @@
   let { controller = rebornChat, threads = rebornThreads }: Props = $props();
 
   let draft = $state('');
+
+  // Skill launch / template insertion: drain the one-shot composer bus into
+  // this v2 composer. Skills "Run", the drawer's "Open in chat", and the
+  // command palette push the invocation here (the v1 page guards its own
+  // drain on apiVersion, so only the mounted surface consumes the payload).
+  $effect(() => {
+    const pending = composerInsert.pending;
+    if (pending === null) return;
+    untrack(() => {
+      const payload = composerInsert.consume();
+      if (!payload) return;
+      draft = draft.trim().length > 0 ? `${draft}\n${payload.text}` : payload.text;
+    });
+  });
 
   // Chief-of-staff starter prompts for the empty conversation. Clicking one
   // sends it through the normal path (creates the thread, opens its stream,
