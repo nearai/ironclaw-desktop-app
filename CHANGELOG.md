@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.4.138 — Home/IA reconciliation (review ICD-001) (2026-05-30)
+
+The chief-of-staff surfaces now lead the app and every entry point agrees on
+the same map.
+
+- **Sidebar** reorders to **Today → Desk → Streams → Chat → Canvas → Knowledge
+  → Memory → …**, with a new **Streams** row (its own activity-feed glyph).
+  Today (the named home) leads; Desk and Streams complete the "what's planned /
+  what needs me / what happened" trio. Admin and Missions still appear above
+  Settings when their gates are on.
+- **Post-onboarding always lands on Today.** The "already onboarded" guard in
+  the layout now redirects to `/dashboard` (matching the wizard's own
+  completion nav) instead of Chat. `Cmd+0` = Today, `Cmd+1` = Chat unchanged;
+  `/` stays Chat for deep-link compatibility.
+- **Command palette + omnibar** now register every surface and match the
+  sidebar order. Added Today, Streams, Canvas, Memory, Jobs, and Missions to
+  the palette; added Today, Desk, Streams, Canvas, and Missions to the omnibar.
+  Fixed stale palette keybinds (Logs `⌘5→⌘6`, Extensions `⌘6→⌘7`) left over
+  from the Jobs insertion.
+- **README** documents the full nav order + per-surface routes and shortcuts.
+
 ## v0.4.137 — Shared in-app confirmation dialog (review ICD-005) (2026-05-30)
 
 Native `confirm()` for destructive / data-loss actions is gone — replaced by one accessible in-app

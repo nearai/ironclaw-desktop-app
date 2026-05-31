@@ -294,7 +294,23 @@
   // These never change at runtime; the keybinds match the layout shortcuts
   // exactly (see `src/routes/+layout.svelte`). Onboarding intentionally has
   // no shortcut — it's a first-run takeover.
+  // Order + keybinds mirror the sidebar nav in `src/lib/components/Sidebar.svelte`
+  // exactly: Today → Desk → Streams → Chat → Canvas → Knowledge → Memory →
+  // Skills → Routines → Jobs → Logs → Extensions → Missions → Settings, then
+  // Onboarding (no shortcut — first-run takeover). Digit chords match
+  // ROUTES_BY_DIGIT in the layout (Jobs took ⌘5, shifting Logs→⌘6,
+  // Extensions→⌘7). Desk / Streams / Canvas have no digit slot. Missions is a
+  // gated Engine-v2 surface; the layout bounces it to /settings when disabled.
   const navItems: Item[] = [
+    {
+      id: 'nav:/dashboard',
+      category: 'Navigate',
+      label: 'Today',
+      subtitle: '/dashboard',
+      keybind: '⌘0',
+      icon: 'nav',
+      run: () => void goto('/dashboard')
+    },
     {
       id: 'nav:/desk',
       category: 'Navigate',
@@ -302,6 +318,14 @@
       subtitle: '/desk',
       icon: 'nav',
       run: () => void goto('/desk')
+    },
+    {
+      id: 'nav:/streams',
+      category: 'Navigate',
+      label: 'Streams',
+      subtitle: '/streams',
+      icon: 'nav',
+      run: () => void goto('/streams')
     },
     {
       id: 'nav:/',
@@ -313,6 +337,14 @@
       run: () => void goto('/')
     },
     {
+      id: 'nav:/canvas',
+      category: 'Navigate',
+      label: 'Canvas',
+      subtitle: '/canvas',
+      icon: 'nav',
+      run: () => void goto('/canvas')
+    },
+    {
       id: 'nav:/knowledge',
       category: 'Navigate',
       label: 'Knowledge',
@@ -320,6 +352,15 @@
       keybind: '⌘2',
       icon: 'nav',
       run: () => void goto('/knowledge')
+    },
+    {
+      id: 'nav:/memory',
+      category: 'Navigate',
+      label: 'Memory',
+      subtitle: '/memory',
+      keybind: '⌘M',
+      icon: 'nav',
+      run: () => void goto('/memory')
     },
     {
       id: 'nav:/skills',
@@ -340,11 +381,20 @@
       run: () => void goto('/routines')
     },
     {
+      id: 'nav:/jobs',
+      category: 'Navigate',
+      label: 'Jobs',
+      subtitle: '/jobs',
+      keybind: '⌘5',
+      icon: 'nav',
+      run: () => void goto('/jobs')
+    },
+    {
       id: 'nav:/logs',
       category: 'Navigate',
       label: 'Logs',
       subtitle: '/logs',
-      keybind: '⌘5',
+      keybind: '⌘6',
       icon: 'nav',
       run: () => void goto('/logs')
     },
@@ -353,9 +403,18 @@
       category: 'Navigate',
       label: 'Extensions',
       subtitle: '/extensions',
-      keybind: '⌘6',
+      keybind: '⌘7',
       icon: 'nav',
       run: () => void goto('/extensions')
+    },
+    {
+      id: 'nav:/missions',
+      category: 'Navigate',
+      label: 'Missions',
+      subtitle: '/missions',
+      keybind: '⌘9',
+      icon: 'nav',
+      run: () => void goto('/missions')
     },
     {
       id: 'nav:/settings',

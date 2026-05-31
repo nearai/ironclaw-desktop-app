@@ -194,13 +194,25 @@ To enable: **Settings → Advanced → "Show Engine v2 surface"**. After flippin
 
 ## What's inside
 
-- **Chat** — streaming conversations with markdown rendering, code-block copy, retry on failure, draft persistence per thread
-- **Knowledge** — browse the workspace doc tree, FTS search, read + write (edit existing, create new)
-- **Skills** — list + filter the 30+ bundled skills, view metadata (trust, source, usage hint)
-- **Routines** — view scheduled jobs, toggle on/off, trigger manually, inspect run history
-- **Logs** — live-tail the gateway via SSE, filter by level + grep, virtualized for 5K+ entries
-- **Extensions** — install/activate MCP servers, OAuth providers, channel integrations
-- **Settings** — per-profile gateway configs, Keychain-backed tokens, local sidecar lifecycle
+The sidebar nav, in order: **Today → Desk → Streams → Chat → Canvas →
+Knowledge → Memory → Skills → Routines → Jobs → Logs → Extensions → Settings**
+(Admin and Missions appear above Settings when their gates are on). Today is
+the named home — post-onboarding and the "already onboarded" guard both land
+there.
+
+- **Today** (`/dashboard`, Cmd+0) — the home surface: a tile grid of live + scheduled widgets (open loops, morning brief, mission launcher). Where the app opens after onboarding.
+- **The Desk** (`/desk`) — the proactive chief-of-staff action inbox: a priority-sorted feed of cards led by the "Needs you" approval gates the agent paused on.
+- **Streams** (`/streams`) — the cross-surface activity feed of what the agent has done and is doing.
+- **Chat** (`/`, Cmd+1) — streaming conversations with markdown rendering, code-block copy, retry on failure, draft persistence per thread
+- **Canvas** (`/canvas`) — a spatial research board: drop nodes, connect them, ask sub-agents on a node
+- **Knowledge** (`/knowledge`, Cmd+2) — browse the workspace doc tree, FTS search, read + write (edit existing, create new)
+- **Memory** (`/memory`, Cmd+M) — a flat card list of what the agent has accumulated, distinct from Knowledge's on-disk tree
+- **Skills** (`/skills`, Cmd+3) — list + filter the 30+ bundled skills, view metadata (trust, source, usage hint)
+- **Routines** (`/routines`, Cmd+4) — view scheduled jobs, toggle on/off, trigger manually, inspect run history
+- **Jobs** (`/jobs`, Cmd+5) — the background queue: inspect in-progress / pending / completed agent jobs
+- **Logs** (`/logs`, Cmd+6) — live-tail the gateway via SSE, filter by level + grep, virtualized for 5K+ entries
+- **Extensions** (`/extensions`, Cmd+7) — install/activate MCP servers, OAuth providers, channel integrations
+- **Settings** (`/settings`, Cmd+,) — per-profile gateway configs, Keychain-backed tokens, local sidecar lifecycle
 - **Cmd+K palette** — fuzzy-search across navigation, threads, skills, routines, docs
 - **Signed auto-updater** — releases ship signed `.app.tar.gz` + `.sig` artifacts; the in-app updater verifies the signature against the pubkey baked into the binary before installing. Cadence configurable (off / launch only / launch + 1 h / launch + 6 h) under Settings → Advanced. Apple notarization (the Gatekeeper-facing signature) is a separate, pending TODO.
 

@@ -54,6 +54,7 @@
       | 'missions'
       | 'admin'
       | 'canvas'
+      | 'streams'
       | 'spark';
     /** Optional shortcut hint shown to the right of the label. Mirrors the
      *  global shortcuts wired in `src/routes/+layout.svelte`. */
@@ -67,13 +68,20 @@
   };
 
   const items: NavItem[] = [
-    // The Desk — the proactive chief-of-staff home. A priority-sorted feed of
-    // cards you act on, led by the "Needs you" approval-gate inbox (Reborn v2).
-    // No digit shortcut (0..9 are taken); reached via the sidebar + palette.
-    { href: '/desk', label: 'Desk', icon: 'desk', badgeKey: 'desk' },
-    // Today (R77 / W1). New home tier per docs/WORKSPACE-OS.md — a tile
-    // grid of live + scheduled widgets. Takes Cmd+0.
+    // Today (R77 / W1) — the named home, takes Cmd+0. A tile grid of live +
+    // scheduled widgets per docs/WORKSPACE-OS.md; post-onboarding lands here
+    // and it leads the nav as the "start here" surface.
     { href: '/dashboard', label: 'Today', icon: 'spark', shortcut: '⌘0' },
+    // The Desk — the proactive chief-of-staff action inbox. A priority-sorted
+    // feed of cards you act on, led by the "Needs you" approval-gate inbox
+    // (Reborn v2). No digit shortcut (0..9 are taken); reached via the sidebar
+    // + palette. Sits 2nd, beside Today, as the "what needs me right now" view.
+    { href: '/desk', label: 'Desk', icon: 'desk', badgeKey: 'desk' },
+    // Streams (R81) — the activity feed of what the agent has done / is doing
+    // across every surface. No digit slot (0..9 taken); reached via the
+    // sidebar + palette. Completes the chief-of-staff trio: Today / Desk /
+    // Streams = "what's planned / what needs me / what happened".
+    { href: '/streams', label: 'Streams', icon: 'streams' },
     { href: '/', label: 'Chat', icon: 'chat', shortcut: '⌘1', badgeKey: 'chat' },
     // Council is no longer a route — it's an in-chat overlay summoned from
     // the composer via `/council <prompt>`. (Removed from the nav.)
@@ -732,6 +740,28 @@
           {:else if item.icon === 'desk'}
             <!-- The Desk: shield glyph — "what needs you / what I'm guarding". -->
             <Icon name="shield" class="w-4 h-4" />
+          {:else if item.icon === 'streams'}
+            <!-- Streams: activity-feed glyph — three stacked rows each led by a
+                 filled dot, reads as "a feed of events" at thumbnail size.
+                 Deliberately distinct from the Logs 'pulse' glyph (Streams is
+                 the cross-surface activity timeline, not the raw log tail). -->
+            <svg
+              viewBox="0 0 24 24"
+              class="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.7"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="5" cy="7" r="1.3" fill="currentColor" stroke="none" />
+              <line x1="9" y1="7" x2="20" y2="7" />
+              <circle cx="5" cy="12" r="1.3" fill="currentColor" stroke="none" />
+              <line x1="9" y1="12" x2="20" y2="12" />
+              <circle cx="5" cy="17" r="1.3" fill="currentColor" stroke="none" />
+              <line x1="9" y1="17" x2="20" y2="17" />
+            </svg>
           {:else if item.icon === 'chat'}
             <Icon name="chat" class="w-4 h-4" />
           {:else if item.icon === 'knowledge'}

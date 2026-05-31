@@ -435,7 +435,31 @@
       keywords?: string[];
       path: string;
     }> = [
+      {
+        id: 'go:today',
+        title: 'Open Today',
+        keywords: ['dashboard', 'home', 'tiles', 'widgets'],
+        path: '/dashboard'
+      },
+      {
+        id: 'go:desk',
+        title: 'Open the Desk',
+        keywords: ['inbox', 'needs you', 'approvals', 'cards', 'chief of staff'],
+        path: '/desk'
+      },
+      {
+        id: 'go:streams',
+        title: 'Open Streams',
+        keywords: ['activity', 'feed', 'timeline', 'events'],
+        path: '/streams'
+      },
       { id: 'go:chat', title: 'Open Chat', keywords: ['threads', 'conversation'], path: '/' },
+      {
+        id: 'go:canvas',
+        title: 'Open Canvas',
+        keywords: ['spatial', 'board', 'research', 'nodes'],
+        path: '/canvas'
+      },
       {
         id: 'go:knowledge',
         title: 'Open Knowledge',
@@ -464,6 +488,12 @@
         path: '/extensions'
       },
       { id: 'go:jobs', title: 'Open Jobs', keywords: ['queue', 'background'], path: '/jobs' },
+      {
+        id: 'go:missions',
+        title: 'Open Missions',
+        keywords: ['engine', 'projects', 'agent', 'v2'],
+        path: '/missions'
+      },
       {
         id: 'go:settings',
         title: 'Open Settings',
@@ -577,7 +607,10 @@
       // a permanent bypass can ALSO be kicked out of /onboarding if the
       // route somehow loads.
       if (onOnboarding && (connection.settings.onboardingComplete || bypass)) {
-        void goto('/');
+        // Land on Today (the named home), matching the wizard's own
+        // completion navigation — not Chat. Keeps every "you're already
+        // onboarded" path converging on /dashboard.
+        void goto('/dashboard');
         return;
       }
 
