@@ -1,5 +1,43 @@
 # Changelog
 
+## v0.4.147 — Operational copy + technical-language cleanup (review ICD-011 / ICD-013) (2026-05-30)
+
+Primary surfaces now name the action instead of leaning on persona/promise copy,
+and internal terms are out of user-facing views.
+
+- Onboarding value copy → "Choose where IronClaw runs, then connect workspace
+  context and launch a first mission." (H1 unchanged.)
+- GetStarted heading → "Finish setup."
+- Desk subcopy → "Approvals waiting, recent handled work, and commitments
+  you're tracking." Chat empty state → "Ask about this workspace, continue a
+  thread, or start a mission."
+- Knowledge subcopy → "Workspace documents and sources IronClaw can read."
+  (drops "RAG"). Missions primary copy → "Mission projects, run history, and the
+  threads they generate." (drops "Engine v2 / engine threads" from the primary
+  line; Advanced keeps technical labels).
+- Copy-locked tests updated to match.
+
+
+## v0.4.146 — Work-object + runbook spine (review ICD-J01 / ICD-J03) (2026-05-30)
+
+The durable work-object and domain-runbook primitives the review calls the
+practical-tool spine. Both are additive; nothing existing changes.
+
+- **Domain Runbook Registry** (`src/lib/data/runbooks.ts`): structured operating
+  modes for coding, legal, finance, research, operations — each with required
+  inputs, ordered steps carrying per-step approval gates, expected artifacts,
+  verification, and constraints. Legal + finance carry explicit "not advice /
+  requires approval before any send, file write, trade, or money movement"
+  constraints and approval-required gates on mutating steps; coding gates
+  push/PR. Pure data + types, fully tested.
+- **Work Item spine** (`src/lib/data/work-item.ts` + `stores/work-items.svelte.ts`
+  + `/work` route): a durable Work Item / Matter that links an objective to
+  threads, sources, approvals, follow-ups, and a next action, persisted to
+  localStorage. Pure deterministic helpers (caller passes id + timestamp);
+  read/create/update only, no destructive actions. The `/work` route is not yet
+  in the sidebar — a later IA pass wires nav.
+
+
 ## v0.4.145 — Generative missions: agent proposes actions from live context (ICD-J toward Work Object) (2026-05-30)
 
 The Desk no longer offers only a static mission menu. It now reads what just
