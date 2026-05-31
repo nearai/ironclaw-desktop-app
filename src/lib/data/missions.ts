@@ -1,3 +1,5 @@
+import type { ConnectorPackId } from './connector-packs';
+
 export type MissionMode = 'dry-run' | 'approval';
 
 export interface Mission {
@@ -6,7 +8,7 @@ export interface Mission {
   description: string;
   icon?: string;
   prompt: string;
-  required_connectors: string[];
+  required_connectors?: ConnectorPackId[];
   mode: MissionMode;
 }
 
@@ -16,7 +18,7 @@ export const FIRST_RUN_MISSIONS: Mission[] = [
     title: 'Morning Brief',
     description: 'Start the day with active work, open loops, and the top three priorities.',
     icon: 'sunrise',
-    required_connectors: [],
+    required_connectors: ['google'],
     mode: 'approval',
     prompt: `You are my Chief of Staff preparing my morning brief.
 
@@ -29,7 +31,7 @@ Use executive brevity. Separate "Decision needed", "FYI", and "Can handle" where
     title: 'Inbox Triage',
     description: 'Sort recent email and Slack into decisions, FYIs, and work you can handle.',
     icon: 'inbox',
-    required_connectors: ['google', 'slack'],
+    required_connectors: ['google'],
     mode: 'approval',
     prompt: `You are my Chief of Staff triaging my recent inbox and Slack.
 
@@ -75,6 +77,19 @@ Use executive brevity. Do not send reminders, create tasks, update records, or c
 Find up to 3 recent email threads where a concise reply would move work forward. For each thread, explain why it matters in one line, then write a single finished draft in my voice: direct, concrete, and ready to send. If key facts are missing, state assumptions after the draft.
 
 Do not send, schedule, archive, label, or modify any email. Return only proposed drafts and the minimum context needed to approve them. Wait for my explicit approval before any send or write.`
+  },
+  {
+    id: 'slack-catchup',
+    title: 'Slack Catch-up',
+    description: 'Summarize missed mentions and draft concise replies for priority threads.',
+    icon: 'message-square',
+    required_connectors: ['slack'],
+    mode: 'approval',
+    prompt: `You are my Chief of Staff catching me up on Slack.
+
+Review recent mentions, direct messages, and high-signal channel threads. Summarize what needs my attention, identify decisions or asks, and draft concise replies for the top priority threads.
+
+Use executive brevity. Do not send, react, assign, archive, or update anything in Slack. Return proposed replies only and wait for my explicit approval before any send or write.`
   },
   {
     id: 'update-notion-crm',

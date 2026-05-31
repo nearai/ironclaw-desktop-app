@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
 import type { Extension } from '$lib/api/types';
 import { CONNECTOR_PACKS } from '$lib/data/connector-packs';
 
+const gotoMock = vi.hoisted(() => vi.fn());
 const { connectionStub } = vi.hoisted(() => ({
   connectionStub: {
     client: null as null | {
@@ -12,21 +13,26 @@ const { connectionStub } = vi.hoisted(() => ({
   }
 }));
 
+vi.mock('$app/navigation', () => ({
+  goto: gotoMock
+}));
+
 vi.mock('$lib/stores/connection.svelte', () => ({
   connection: connectionStub
 }));
 
 import ConnectorPacks from './ConnectorPacks.svelte';
 
-function installFakeClient(): void {
+function installFakeClient(extensions: Extension[] = []): void {
   connectionStub.client = {
-    listExtensions: vi.fn(async () => []),
+    listExtensions: vi.fn(async () => extensions),
     installExtension: vi.fn(async (_name: string) => ({ ok: true }))
   };
 }
 
 describe('ConnectorPacks component', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     installFakeClient();
   });
 
@@ -51,5 +57,37 @@ describe('ConnectorPacks component', () => {
     await fireEvent.click(connectButton);
 
     expect(screen.getByText('Not connected — connect IronClaw first')).toBeTruthy();
+  });
+
+  it('shows readiness states from extension readiness', async () => {
+    installFakeClient([
+      { name: 'tools/gmail', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_calendar', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_docs', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_drive', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_sheets', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_slides', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'notion', installed: true, readiness_message: 'needs_auth' },
+      { name: 'channels/slack', installed: true, ready: true, readiness_message: 'ready' }
+    ]);
+
+    render(ConnectorPacks);
+
+    await waitFor(() => {
+      expect(screen.getByText('Connected')).toBeTruthy();
+      expect(screen.getByText('Needs sign-in')).toBeTruthy();
+      expect(screen.getByText('Partial')).toBeTruthy();
+    });
+  });
+
+  it('opens a pack in Extensions with the primary extension focused', async () => {
+    render(ConnectorPacks);
+
+    const openButtons = await screen.findAllByRole('button', { name: 'Open in Extensions' });
+    await fireEvent.click(openButtons[0]);
+
+    expect(gotoMock).toHaveBeenCalledWith(
+      `/extensions?focus=${encodeURIComponent(CONNECTOR_PACKS[0].primary_extension_id)}`
+    );
   });
 });

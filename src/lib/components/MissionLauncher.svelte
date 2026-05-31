@@ -1,25 +1,68 @@
 <script lang="ts">
+  import { onMount, untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import { FIRST_RUN_MISSIONS, type Mission } from '$lib/data/missions';
+  import {
+    CONNECTOR_PACKS,
+    connectorPackById,
+    connectorPackStatus,
+    type ConnectorPackId,
+    type ConnectorPackStatus
+  } from '$lib/data/connector-packs';
+  import type { Extension } from '$lib/api/types';
+  import { connection } from '$lib/stores/connection.svelte';
   import { composerInsert } from '$lib/stores/templates.svelte';
 
   interface Props {
     onlaunch?: (missionId: string) => void;
+    packStatuses?: Record<string, ConnectorPackStatus> | null;
   }
 
-  let { onlaunch }: Props = $props();
+  let { onlaunch, packStatuses: providedPackStatuses = null }: Props = $props();
 
   const missions: Mission[] = FIRST_RUN_MISSIONS;
+  type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
 
-  const connectorLabels: Record<string, string> = {
-    google: 'Google',
-    notion: 'Notion',
-    slack: 'Slack'
-  };
+  let loadState = $state<LoadState>('idle');
+  let loadError = $state<string | null>(null);
+  let installed = $state<Extension[]>([]);
+
+  const installedByName = $derived.by(() => {
+    const byName = new Map<string, Extension>();
+    for (const ext of installed) {
+      byName.set(ext.name, ext);
+    }
+    return byName;
+  });
+
+  const packStatuses = $derived.by(() => {
+    const statuses = new Map<ConnectorPackId, ConnectorPackStatus>();
+    for (const pack of CONNECTOR_PACKS) {
+      statuses.set(pack.id, providedPackStatuses?.[pack.id] ?? statusForPack(pack.id));
+    }
+    return statuses;
+  });
+  const usesProvidedPackStatuses = $derived(providedPackStatuses !== null);
+
+  onMount(() => {
+    if (usesProvidedPackStatuses) return;
+    untrack(() => void refreshReadiness());
+  });
+
+  $effect(() => {
+    if (usesProvidedPackStatuses) return;
+    const client = connection.client;
+    if (!client) {
+      loadState = 'idle';
+      installed = [];
+      return;
+    }
+    untrack(() => void refreshReadiness());
+  });
 
   function connectorLabel(id: string): string {
     return (
-      connectorLabels[id] ??
+      connectorPackById(id)?.display_name ??
       id
         .split(/[-_]/)
         .filter(Boolean)
@@ -28,23 +71,95 @@
     );
   }
 
+  function statusForPack(packId: ConnectorPackId): ConnectorPackStatus {
+    const pack = connectorPackById(packId);
+    if (!pack) return 'unknown';
+    if (loadState === 'loading' && installed.length === 0) return 'checking';
+    if (loadState === 'error' && installed.length === 0) return 'unknown';
+    return connectorPackStatus(pack, installedByName);
+  }
+
+  function missingConnectors(mission: Mission): ConnectorPackId[] {
+    return (mission.required_connectors ?? []).filter(
+      (connector) => packStatuses.get(connector) !== 'connected'
+    );
+  }
+
+  function missingMessage(missing: ConnectorPackId[]): string {
+    const labels = missing.map(connectorLabel);
+    if (labels.length === 0) return '';
+    if (labels.length === 1) return `Needs ${labels[0]}`;
+    return `Needs ${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+  }
+
+  function nextConnectorHref(missing: ConnectorPackId[]): string {
+    const first = missing[0];
+    const pack = first ? connectorPackById(first) : null;
+    const focus = pack?.primary_extension_id ?? first ?? '';
+    return `/extensions?focus=${encodeURIComponent(focus)}`;
+  }
+
+  function missionPrompt(mission: Mission): string {
+    return `Mission: ${mission.title}
+Source: mission:${mission.id}
+Mode: ${mission.mode}
+
+${mission.prompt}`;
+  }
+
+  async function refreshReadiness(): Promise<void> {
+    const client = connection.client;
+    if (!client) {
+      loadState = 'idle';
+      loadError = null;
+      installed = [];
+      return;
+    }
+
+    loadState = installed.length === 0 ? 'loading' : loadState;
+    loadError = null;
+    try {
+      installed = (await client.listExtensions())
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name));
+      loadState = 'loaded';
+    } catch (error) {
+      loadError = error instanceof Error ? error.message : 'Could not check connector readiness';
+      loadState = 'error';
+    }
+  }
+
   function launchMission(mission: Mission): void {
-    composerInsert.push(mission.prompt);
+    composerInsert.push(missionPrompt(mission), null, {
+      title: mission.title,
+      source: `mission:${mission.id}`,
+      mode: mission.mode,
+      autorun: true
+    });
     void goto('/');
     onlaunch?.(mission.id);
   }
 </script>
 
 <section class="w-full" aria-label="First-run missions">
+  {#if loadState === 'error'}
+    <div
+      class="mb-3 rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+      role="status"
+    >
+      Could not check connector readiness.
+      <span class="font-mono text-xs text-red-200/80">{loadError}</span>
+    </div>
+  {/if}
+
   {#if missions.length > 0}
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="mission-grid">
       {#each missions as mission (mission.id)}
-        <button
-          type="button"
-          onclick={() => launchMission(mission)}
-          class="group flex min-h-[180px] w-full flex-col rounded-lg border border-border-subtle bg-bg-surface/70 p-4 text-left transition-colors hover:border-accent-cyan/70 hover:bg-bg-hover focus:outline-none focus-visible:border-accent-cyan focus-visible:ring-2 focus-visible:ring-accent-cyan/30"
-          aria-labelledby={`mission-title-${mission.id}`}
-          aria-describedby={`mission-description-${mission.id}`}
+        {@const missing = missingConnectors(mission)}
+        {@const disabled = missing.length > 0}
+        <article
+          class={`flex min-h-[210px] w-full flex-col rounded-lg border bg-bg-surface/70 p-4 ${disabled ? 'border-border-subtle' : 'border-accent-cyan/50'}`}
+          class:opacity-80={disabled}
           data-testid={`mission-card-${mission.id}`}
         >
           <div class="flex items-start gap-3">
@@ -70,8 +185,8 @@
           </div>
 
           <div class="mt-auto flex flex-wrap gap-2 pt-4" aria-label="Required connectors">
-            {#if mission.required_connectors.length > 0}
-              {#each mission.required_connectors as connector}
+            {#if (mission.required_connectors ?? []).length > 0}
+              {#each mission.required_connectors ?? [] as connector}
                 <span
                   class="rounded-md border border-border-subtle bg-bg-deep/60 px-2 py-1 text-[11px] font-medium text-text-muted"
                 >
@@ -86,7 +201,33 @@
               </span>
             {/if}
           </div>
-        </button>
+
+          {#if disabled}
+            <div
+              class="mt-3 rounded-md border border-border-subtle bg-bg-deep/70 px-3 py-2 text-xs text-text-muted"
+              role="status"
+            >
+              <div class="font-semibold text-text-primary">{missingMessage(missing)}</div>
+              <a
+                href={nextConnectorHref(missing)}
+                class="mt-1 inline-flex text-accent-cyan underline decoration-dotted hover:decoration-solid"
+              >
+                Open in Extensions
+              </a>
+            </div>
+          {/if}
+
+          <button
+            type="button"
+            onclick={() => launchMission(mission)}
+            {disabled}
+            class="mt-3 inline-flex min-h-[40px] w-full items-center justify-center rounded-md border border-accent-cyan/40 px-3 py-2 text-sm font-semibold text-accent-cyan transition hover:bg-accent-cyan hover:text-bg-deep disabled:cursor-not-allowed disabled:border-border-subtle disabled:text-text-muted disabled:hover:bg-transparent"
+            aria-label={mission.title}
+            aria-describedby={`mission-description-${mission.id}`}
+          >
+            Launch mission
+          </button>
+        </article>
       {/each}
     </div>
   {:else}

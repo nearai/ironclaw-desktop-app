@@ -8,6 +8,8 @@ const gotoMock = vi.hoisted(() => vi.fn());
 const composerPushMock = vi.hoisted(() => vi.fn());
 const { connectionStub } = vi.hoisted(() => ({
   connectionStub: {
+    activeProfile: { id: 'profile-1', name: 'Work' },
+    apiVersion: 'v2',
     client: null as null | {
       listExtensions: () => Promise<Extension[]>;
       installExtension: (name: string) => Promise<{ ok: boolean }>;
@@ -33,7 +35,14 @@ import GetStarted from './GetStarted.svelte';
 
 function installFakeClient(): void {
   connectionStub.client = {
-    listExtensions: vi.fn(async () => []),
+    listExtensions: vi.fn(async () => [
+      { name: 'tools/gmail', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_calendar', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_docs', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_drive', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_sheets', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_slides', installed: true, ready: true, readiness_message: 'ready' }
+    ]),
     installExtension: vi.fn(async (_name: string) => ({ ok: true }))
   };
 }
@@ -67,24 +76,40 @@ describe('GetStarted component', () => {
     render(GetStarted);
 
     expect(screen.getByRole('heading', { name: 'Set up your chief of staff' })).toBeTruthy();
-    expect(screen.getByText('1 · Connect your workspace')).toBeTruthy();
-    expect(screen.getByText('2 · Run your first mission')).toBeTruthy();
+    expect(screen.getByText('1. Runner connected')).toBeTruthy();
+    expect(screen.getByText('2. Workspace packs')).toBeTruthy();
+    expect(screen.getByText('3. Mission launcher')).toBeTruthy();
+    expect(screen.getByText('1 · Runner connected')).toBeTruthy();
+    expect(screen.getByText('2 · Connect a workspace pack')).toBeTruthy();
+    expect(screen.getByText('3 · Run your first mission')).toBeTruthy();
 
     await waitFor(() => {
       expect(connectionStub.client?.listExtensions).toHaveBeenCalled();
     });
 
-    expect(screen.getByText(CONNECTOR_PACKS[0].display_name)).toBeTruthy();
-    expect(screen.getByText(FIRST_RUN_MISSIONS[0].title)).toBeTruthy();
+    expect(screen.getAllByText(CONNECTOR_PACKS[0].display_name).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(FIRST_RUN_MISSIONS[0].title).length).toBeGreaterThan(0);
     expect(screen.getByTestId('mission-grid')).toBeTruthy();
   });
 
-  it('persists dismissal and hides the panel', async () => {
+  it('persists profile-scoped collapse after the flow is complete', async () => {
     render(GetStarted);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    await waitFor(() => {
+      expect(screen.getAllByText('Connected').length).toBeGreaterThan(0);
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', { name: FIRST_RUN_MISSIONS[0].title })
+          .disabled
+      ).toBe(false);
+    });
 
-    expect(localStorage.getItem('ironclaw-getstarted-dismissed')).toBe('1');
+    await fireEvent.click(screen.getByRole('button', { name: FIRST_RUN_MISSIONS[0].title }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Collapse setup tracker' }));
+
+    const raw = localStorage.getItem('ironclaw-get-started:profile-1');
+    expect(raw).toBeTruthy();
+    expect(JSON.parse(raw ?? '{}')).toMatchObject({ collapsed: true });
     expect(screen.queryByRole('heading', { name: 'Set up your chief of staff' })).toBeNull();
+    expect(screen.getByRole('heading', { name: 'Chief-of-staff loop is ready' })).toBeTruthy();
   });
 });

@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.4.130 — First-run chief-of-staff loop, end to end (2026-05-30)
+
+The whole first impression is now a single operational flow: onboard, connect a workspace, run a
+gated mission. Onboarding success (local or hosted) lands on the dashboard, not raw chat.
+
+- **Get Started is a real 3-step tracker** (`GetStarted.svelte`): runner connected → workspace
+  packs → mission launcher, with live status and per-profile progress persisted in localStorage
+  (`get-started-progress.svelte.ts`). It collapses to a "ready" state once the loop is complete.
+- **Missions are gated by their connectors**: `missions.ts` declares `required_connectors`; a
+  mission whose packs aren't ready is disabled and states exactly what's missing ("Needs Google
+  Workspace") with an "Open in Extensions" action deep-linking to `/extensions?focus=<extension>`.
+- **ConnectorPacks** reuses shared readiness helpers (`connector-packs.ts`) and opens the
+  Extensions route focused on the pack's primary extension; the Extensions route honors
+  `?focus=<name>` (scroll + highlight).
+- **Launching a mission** carries the title, source (`mission:<id>`), and approval mode into the
+  composed prompt and the composer bus (`templates.svelte.ts`, additively — existing consumers
+  unchanged). Nothing side-effecting runs without approval.
+- **Tests**: rewritten onboarding E2E proves the full journey (fresh → dashboard → gated mission →
+  ready connector → launch); added readiness/gating tests for MissionLauncher and ConnectorPacks.
+- Docs (README, WORKSPACE-OS) updated to match the journey.
+
 ## v0.4.129 — Get-started surface + onboarding e2e (2026-05-30)
 
 The dashboard ("Today") now opens with a dismissible "Get started" panel that runs the outcome flow

@@ -172,7 +172,7 @@
         );
         localProgress = '';
       }
-      await goto('/');
+      await goto('/dashboard');
     } catch (err) {
       errorMsg = (err as Error).message;
       armBypass();
@@ -215,7 +215,7 @@
       clearBypass();
       await connection.refresh();
       toasts.show('Connected to hosted IronClaw', 'success');
-      await goto('/');
+      await goto('/dashboard');
     } catch (err) {
       errorMsg =
         (err as Error).message || 'Could not reach the gateway. Check the URL and your network.';
@@ -233,11 +233,11 @@
       clearBypass();
       await connection.refresh();
       toasts.show('You can finish setup anytime in Settings', 'info');
-      await goto('/');
+      await goto('/dashboard');
     } catch (err) {
       armBypass();
       toasts.show(`Couldn't save settings: ${(err as Error).message}`, 'error');
-      await goto('/');
+      await goto('/dashboard');
     }
   }
 

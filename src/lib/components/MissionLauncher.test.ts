@@ -1,10 +1,18 @@
-import { describe, expect, it, vi, afterEach } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import type { Extension } from '$lib/api/types';
 
 import { FIRST_RUN_MISSIONS } from '$lib/data/missions';
 
 const gotoMock = vi.hoisted(() => vi.fn());
 const composerPushMock = vi.hoisted(() => vi.fn());
+const { connectionStub } = vi.hoisted(() => ({
+  connectionStub: {
+    client: null as null | {
+      listExtensions: () => Promise<Extension[]>;
+    }
+  }
+}));
 
 vi.mock('$app/navigation', () => ({
   goto: gotoMock
@@ -16,10 +24,25 @@ vi.mock('$lib/stores/templates.svelte', () => ({
   }
 }));
 
+vi.mock('$lib/stores/connection.svelte', () => ({
+  connection: connectionStub
+}));
+
 import MissionLauncher from './MissionLauncher.svelte';
+
+function installFakeClient(extensions: Extension[]): void {
+  connectionStub.client = {
+    listExtensions: vi.fn(async () => extensions)
+  };
+}
+
+beforeEach(() => {
+  installFakeClient([]);
+});
 
 afterEach(() => {
   vi.clearAllMocks();
+  connectionStub.client = null;
 });
 
 describe('MissionLauncher component', () => {
@@ -31,14 +54,59 @@ describe('MissionLauncher component', () => {
     }
   });
 
-  it('pushes the mission prompt and navigates to chat when a mission is launched', async () => {
+  it('disables a mission when required connectors are not ready', async () => {
     render(MissionLauncher);
+    const mission = FIRST_RUN_MISSIONS.find((candidate) => candidate.id === 'morning-brief');
+    expect(mission).toBeTruthy();
+    if (!mission) return;
+
+    const card = screen.getByTestId(`mission-card-${mission.id}`);
+
+    await waitFor(() => {
+      expect(within(card).getByText('Needs Google Workspace')).toBeTruthy();
+    });
+
+    expect(
+      within(card)
+        .getByRole<HTMLAnchorElement>('link', { name: 'Open in Extensions' })
+        .getAttribute('href')
+    ).toBe('/extensions?focus=tools%2Fgmail');
+    expect(
+      within(card).getByRole<HTMLButtonElement>('button', { name: mission.title }).disabled
+    ).toBe(true);
+  });
+
+  it('pushes mission context and navigates to chat when required connectors are ready', async () => {
     const firstMission = FIRST_RUN_MISSIONS[0];
+    installFakeClient([
+      { name: 'tools/gmail', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_calendar', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_docs', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_drive', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_sheets', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'tools/google_slides', installed: true, ready: true, readiness_message: 'ready' }
+    ]);
+    render(MissionLauncher);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole<HTMLButtonElement>('button', { name: firstMission.title }).disabled
+      ).toBe(false);
+    });
 
     await fireEvent.click(screen.getByRole('button', { name: firstMission.title }));
 
     expect(composerPushMock).toHaveBeenCalledTimes(1);
-    expect(composerPushMock).toHaveBeenCalledWith(firstMission.prompt);
+    expect(composerPushMock).toHaveBeenCalledWith(
+      expect.stringContaining(`Mission: ${firstMission.title}`),
+      null,
+      {
+        title: firstMission.title,
+        source: `mission:${firstMission.id}`,
+        mode: firstMission.mode,
+        autorun: true
+      }
+    );
     expect(gotoMock).toHaveBeenCalledTimes(1);
     expect(gotoMock).toHaveBeenCalledWith('/');
   });

@@ -1,21 +1,21 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { CONNECTOR_PACKS, type ConnectorPack } from '$lib/data/connector-packs';
+  import { goto } from '$app/navigation';
+  import {
+    CONNECTOR_PACKS,
+    connectorPackStatus,
+    type ConnectorPack,
+    type ConnectorPackStatus
+  } from '$lib/data/connector-packs';
   import { connection } from '$lib/stores/connection.svelte';
   import type { Extension } from '$lib/api/types';
 
   type Props = {
     onconnected?: (packId: string) => void;
+    onreadinesschange?: (statuses: Record<string, ConnectorPackStatus>) => void;
   };
 
   type LoadState = 'idle' | 'loading' | 'loaded' | 'error';
-  type PackStatus =
-    | 'checking'
-    | 'unknown'
-    | 'connected'
-    | 'partial'
-    | 'needs-auth'
-    | 'not-installed';
 
   type PackActionState = {
     installing: boolean;
@@ -29,7 +29,7 @@
     classes: string;
   };
 
-  let { onconnected }: Props = $props();
+  let { onconnected, onreadinesschange }: Props = $props();
 
   const packs = CONNECTOR_PACKS;
 
@@ -49,7 +49,7 @@
 
   const anyInstalling = $derived(Object.values(actionByPack).some((action) => action.installing));
 
-  const STATUS_VIEW: Record<PackStatus, StatusView> = {
+  const STATUS_VIEW: Record<ConnectorPackStatus, StatusView> = {
     checking: {
       label: 'Checking',
       classes: 'border-border-subtle text-text-muted bg-bg-deep'
@@ -78,6 +78,18 @@
 
   onMount(() => {
     void refreshReadiness();
+  });
+
+  const packStatuses = $derived.by(() => {
+    const statuses: Record<string, ConnectorPackStatus> = {};
+    for (const pack of packs) {
+      statuses[pack.id] = statusForPack(pack);
+    }
+    return statuses;
+  });
+
+  $effect(() => {
+    onreadinesschange?.(packStatuses);
   });
 
   function createActionState(): Record<string, PackActionState> {
@@ -112,28 +124,13 @@
     };
   }
 
-  function isReady(ext: Extension | undefined): boolean {
-    return ext?.ready === true || ext?.readiness_message === 'ready';
-  }
-
-  function needsAuth(ext: Extension | undefined): boolean {
-    return ext?.readiness_message === 'needs_auth';
-  }
-
-  function statusForPack(pack: ConnectorPack, source = installedByName): PackStatus {
+  function statusForPack(pack: ConnectorPack, source = installedByName): ConnectorPackStatus {
     if (loadState === 'loading' && installed.length === 0) return 'checking';
     if (loadState === 'error' && installed.length === 0) return 'unknown';
-
-    const entries = pack.extensions.map((name) => source.get(name));
-    const installedCount = entries.filter((ext) => ext !== undefined).length;
-
-    if (installedCount === 0) return 'not-installed';
-    if (entries.some((ext) => needsAuth(ext))) return 'needs-auth';
-    if (entries.every((ext) => isReady(ext))) return 'connected';
-    return 'partial';
+    return connectorPackStatus(pack, source);
   }
 
-  function statusView(status: PackStatus): StatusView {
+  function statusView(status: ConnectorPackStatus): StatusView {
     return STATUS_VIEW[status];
   }
 
@@ -175,6 +172,14 @@
       byName.set(ext.name, ext);
     }
     return byName;
+  }
+
+  function extensionsHref(pack: ConnectorPack): string {
+    return `/extensions?focus=${encodeURIComponent(pack.primary_extension_id)}`;
+  }
+
+  function openInExtensions(pack: ConnectorPack): void {
+    void goto(extensionsHref(pack));
   }
 
   async function handleConnect(pack: ConnectorPack): Promise<void> {
@@ -357,7 +362,7 @@
                 {#if action.message === 'Sign-in required — finish in Extensions'}
                   <span>Sign-in required — </span>
                   <a
-                    href="/extensions"
+                    href={extensionsHref(pack)}
                     class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
                     >finish in Extensions</a
                   >
@@ -376,19 +381,28 @@
               </div>
             {/if}
 
-            <button
-              type="button"
-              onclick={() => handleConnect(pack)}
-              disabled={action?.installing === true}
-              aria-busy={action?.installing === true}
-              class="inline-flex min-h-[44px] w-full items-center justify-center rounded-md bg-accent-cyan px-4 py-2 text-sm font-semibold text-bg-deep transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {action?.installing
-                ? 'Connecting…'
-                : status === 'connected'
-                  ? 'Reconnect'
-                  : 'Connect'}
-            </button>
+            <div class="grid gap-2 sm:grid-cols-[1fr_auto]">
+              <button
+                type="button"
+                onclick={() => handleConnect(pack)}
+                disabled={action?.installing === true}
+                aria-busy={action?.installing === true}
+                class="inline-flex min-h-[44px] w-full items-center justify-center rounded-md bg-accent-cyan px-4 py-2 text-sm font-semibold text-bg-deep transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {action?.installing
+                  ? 'Connecting…'
+                  : status === 'connected'
+                    ? 'Reconnect'
+                    : 'Connect'}
+              </button>
+              <button
+                type="button"
+                onclick={() => openInExtensions(pack)}
+                class="inline-flex min-h-[44px] items-center justify-center rounded-md border border-border-subtle px-3 py-2 text-sm font-semibold text-text-muted transition hover:border-accent-cyan hover:text-text-primary focus:outline-none focus-visible:border-accent-cyan focus-visible:ring-2 focus-visible:ring-accent-cyan/30"
+              >
+                Open in Extensions
+              </button>
+            </div>
           </div>
         </article>
       {/each}

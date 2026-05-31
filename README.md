@@ -89,7 +89,23 @@ For the wiring underneath all this, see [`ARCHITECTURE.md`](ARCHITECTURE.md). Fo
 
 ## Workflows
 
-The four flows below cover ~95% of how people use the app. Pick the one that matches your setup.
+The flows below cover the main ways people use the app. Pick the one that matches your setup.
+
+### First-run chief-of-staff setup
+
+On a fresh install, onboarding only decides how IronClaw connects: local sidecar or hosted gateway.
+After a successful connect, or after choosing **Set up later**, the app lands on `/dashboard`.
+
+The dashboard shows **Get Started**, a three-step tracker scoped to the active profile:
+
+1. Runner connected — live connection state from the active profile.
+2. Workspace packs — Google Workspace, Notion, and Slack readiness via Extensions.
+3. Mission launcher — first-run missions that run in approval mode.
+
+Connector-gated missions stay disabled until their required pack is ready. For example, Morning
+Brief, Meeting Prep, Inbox Triage, and Draft Replies require Google Workspace; Update Notion CRM
+requires Notion; Slack Catch-up requires Slack. Disabled mission cards state the missing pack and
+link to `/extensions?focus=<extension>` so setup can be finished in Extensions.
 
 ### 1. Connecting to a remote IronClaw
 
@@ -119,7 +135,8 @@ The common case: IronClaw already runs on a server you control (baremetal3, abby
 
    ![Onboarding step 3 — Health check](docs/screenshots/04-onboarding-step3.png)
 
-Once connected, Cmd+1 lands you in Chat and the bottom status bar shows the gateway URL + a green dot.
+Once connected, onboarding routes to `/dashboard` so Get Started can guide connector setup and the
+first approval-mode mission. Cmd+1 still opens Chat.
 
 ### 2. Running the bundled local sidecar
 
@@ -131,7 +148,7 @@ For users without a remote IronClaw. The `.app` ships a ~120MB IronClaw binary i
 
    ![Onboarding step 2 — Local config](docs/screenshots/03-onboarding-local-config.png)
 
-3. **Step 3 spawns the sidecar.** First spawn takes ~3 seconds (binary unpack, libSQL DB init). The app polls `http://127.0.0.1:<port>` until it answers, then drops you into Chat.
+3. **Step 3 spawns the sidecar.** First spawn takes ~3 seconds (binary unpack, libSQL DB init). The app polls `http://127.0.0.1:<port>` until it answers, then opens `/dashboard`.
 
 4. **Sign in to NEAR.AI Cloud.** IronClaw opens its web UI in your browser on first inference request — OAuth flow lives there, not in the desktop app. Once you approve, the sidecar caches the token and the desktop client keeps talking to it normally.
 

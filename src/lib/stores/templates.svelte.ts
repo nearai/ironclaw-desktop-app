@@ -407,6 +407,13 @@ export const templatesModal = new TemplatesModalStore();
 
 // ---- composer-insertion bus ---------------------------------------------
 
+export interface ComposerInsertMeta {
+  title?: string;
+  source?: string;
+  mode?: 'approval' | 'dry-run';
+  autorun?: boolean;
+}
+
 /**
  * One-shot bus the templates modal uses to push rendered text into
  * the chat composer. The chat page (`src/routes/+page.svelte`)
@@ -431,24 +438,34 @@ class ComposerInsertBus {
    *  `templates.recordUse()` on consumption. Cleared together with
    *  the pending text. */
   pendingTemplateId = $state<string | null>(null);
+  /** Optional source metadata for mission/template launches. Existing
+   *  consumers can ignore it; it drains with the text payload. */
+  pendingMeta = $state<ComposerInsertMeta | null>(null);
 
   /** Push rendered text into the bus. The chat page will pick it up
    *  on its next mount/$effect cycle. */
-  push(text: string, templateId: string | null = null): void {
+  push(
+    text: string,
+    templateId: string | null = null,
+    meta: ComposerInsertMeta | null = null
+  ): void {
     this.pending = text;
     this.pendingTemplateId = templateId;
+    this.pendingMeta = meta;
   }
 
   /** Drain the bus, returning the pending payload (or null when
    *  empty). Always clears both fields atomically so a second read
    *  returns null. */
-  consume(): { text: string; templateId: string | null } | null {
+  consume(): { text: string; templateId: string | null; meta?: ComposerInsertMeta } | null {
     const text = this.pending;
     const templateId = this.pendingTemplateId;
+    const meta = this.pendingMeta;
     if (text === null) return null;
     this.pending = null;
     this.pendingTemplateId = null;
-    return { text, templateId };
+    this.pendingMeta = null;
+    return meta ? { text, templateId, meta } : { text, templateId };
   }
 }
 

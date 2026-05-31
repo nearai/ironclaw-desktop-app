@@ -71,6 +71,7 @@
   // either tab). Cleared either way so the param can't re-fire on
   // refresh / Back.
   let pendingFocusName: string | null = null;
+  let focusedName = $state<string | null>(null);
   /**
    * Has the deep-link consumption already happened? Both list-load
    * paths (installed, registry) call `tryConsumeFocus()`; once one of
@@ -338,10 +339,14 @@
       // tick, querySelector returns null on first load.
       void tick().then(() => {
         if (typeof document === 'undefined') return;
+        focusedName = name;
         const el = document.querySelector<HTMLElement>(
           `[data-extension-card="${cssEscape(name)}"]`
         );
         el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        window.setTimeout(() => {
+          if (focusedName === name) focusedName = null;
+        }, 4500);
       });
       clearFocusParam();
       return;
@@ -854,6 +859,7 @@
               class="contents"
               data-extension-card={ext.name}
               data-extension-active={ext.active === true ? 'true' : 'false'}
+              data-extension-focused={focusedName === ext.name ? 'true' : 'false'}
             >
               <ExtensionCard
                 extension={ext}
@@ -938,7 +944,11 @@
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 pb-4">
           {#each filteredRegistry as ext (ext.name)}
             <!-- See installed-tab wrapper above for rationale. -->
-            <div class="contents" data-extension-card={ext.name}>
+            <div
+              class="contents"
+              data-extension-card={ext.name}
+              data-extension-focused={focusedName === ext.name ? 'true' : 'false'}
+            >
               <ExtensionCard
                 extension={ext}
                 variant="registry"
@@ -960,5 +970,12 @@
 <style>
   :global([data-extension-active='true'] button[title='Deactivate']) {
     display: none;
+  }
+
+  :global([data-extension-focused='true'] > *) {
+    border-color: rgba(0, 145, 253, 0.85) !important;
+    box-shadow:
+      0 0 0 1px rgba(0, 145, 253, 0.45),
+      0 0 0 6px rgba(0, 145, 253, 0.12);
   }
 </style>

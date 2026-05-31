@@ -4,12 +4,21 @@
 // depends on what the connected gateway exposes in its extension registry.
 
 export type ConnectorAuthKind = 'oauth' | 'dcr' | 'token' | 'none';
+export type ConnectorPackId = 'google' | 'notion' | 'slack';
+export type ConnectorPackStatus =
+  | 'checking'
+  | 'unknown'
+  | 'connected'
+  | 'partial'
+  | 'needs-auth'
+  | 'not-installed';
 
 export interface ConnectorPack {
-  id: string;
+  id: ConnectorPackId;
   display_name: string;
   description: string;
   extensions: string[];
+  primary_extension_id: string;
   shared_auth: string | null;
   auth_kind: ConnectorAuthKind;
   example_tasks: string[];
@@ -29,6 +38,7 @@ export const CONNECTOR_PACKS: ConnectorPack[] = [
       'tools/google_sheets',
       'tools/google_slides'
     ],
+    primary_extension_id: 'tools/gmail',
     shared_auth: 'google_oauth_token',
     auth_kind: 'oauth',
     example_tasks: [
@@ -42,6 +52,7 @@ export const CONNECTOR_PACKS: ConnectorPack[] = [
     display_name: 'Notion',
     description: 'Connect Notion so plans, docs, and project memory stay organized and actionable.',
     extensions: ['notion'],
+    primary_extension_id: 'notion',
     shared_auth: null,
     auth_kind: 'dcr',
     example_tasks: [
@@ -55,6 +66,7 @@ export const CONNECTOR_PACKS: ConnectorPack[] = [
     display_name: 'Slack',
     description: 'Connect Slack so conversations become decisions, drafts, and follow-through.',
     extensions: ['channels/slack', 'tools/slack_tool'],
+    primary_extension_id: 'channels/slack',
     shared_auth: null,
     auth_kind: 'oauth',
     example_tasks: [
@@ -67,4 +79,32 @@ export const CONNECTOR_PACKS: ConnectorPack[] = [
 
 export function connectorPackById(id: string): ConnectorPack | undefined {
   return CONNECTOR_PACKS.find((pack) => pack.id === id);
+}
+
+export interface ConnectorReadinessLike {
+  name: string;
+  ready?: boolean;
+  readiness_message?: string;
+}
+
+export function isConnectorReady(ext: ConnectorReadinessLike | undefined): boolean {
+  return ext?.ready === true || ext?.readiness_message === 'ready';
+}
+
+export function connectorNeedsAuth(ext: ConnectorReadinessLike | undefined): boolean {
+  return ext?.readiness_message === 'needs_auth';
+}
+
+export function connectorPackStatus(
+  pack: ConnectorPack,
+  source: ReadonlyMap<string, ConnectorReadinessLike>,
+  fallback: ConnectorPackStatus = 'not-installed'
+): ConnectorPackStatus {
+  const entries = pack.extensions.map((name) => source.get(name));
+  const installedCount = entries.filter((ext) => ext !== undefined).length;
+
+  if (installedCount === 0) return fallback;
+  if (entries.some((ext) => connectorNeedsAuth(ext))) return 'needs-auth';
+  if (entries.every((ext) => isConnectorReady(ext))) return 'connected';
+  return 'partial';
 }

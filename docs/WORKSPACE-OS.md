@@ -64,10 +64,18 @@ one knows how to refresh itself. Each tile owns its own composer
 ("Ask anything…"). Drag to rearrange. Pin from anywhere.
 
 Default tile set on fresh install:
+
 - Daily news brief
 - ETH watcher
 - Active council debate (if any)
 - Scheduled (next 5 routines)
+
+Fresh installs also render the dashboard-level **Get Started** tracker
+above the tile grid. It is profile-scoped and advances through: runner
+connected, workspace pack ready, and first approval-mode mission
+launched. Workspace pack readiness comes from Extensions; missions are
+disabled until their required connector pack is ready and link to
+`/extensions?focus=<extension>` for completion.
 
 User-added tiles: anything pinned from chat, council, or research.
 
@@ -86,6 +94,7 @@ dashboard with auto-refresh.
 ### 5. Council (group chat)
 
 Already exists as `/council` (R40). Rebuild with:
+
 - Live presence strip: `Claude · thinking`, `Gemini · ready`,
   `GLM · reasoning` — colored chips per model, animated dots while
   generating.
@@ -114,16 +123,16 @@ Export as PNG / SVG / JSON.
 
 ### Stream W — split across Codex and Claude
 
-| Lane | Task | Owned files | Forbidden | Owner |
-|------|------|-------------|-----------|-------|
-| **W1** | Dashboard (`/dashboard` route + tile framework) | `src/routes/dashboard/+page.svelte` (new) + `src/lib/components/dashboard/` (new dir) + `src/lib/stores/dashboard.svelte.ts` (new) + `src/lib/components/Sidebar.svelte` (item reorder — 4 lines max) | other routes, other stores | claude |
-| **W2** | Reply-thread store + wire | `src/lib/stores/reply-threads.svelte.ts` (new) + `src/lib/api/ironclaw.ts` (append `postReplyThread`, `streamReplyThread`) + `src/lib/api/types.ts` (append) | route files, components | codex |
-| **W3** | Reply-thread UI | `src/lib/components/ReplyThreadPanel.svelte` (new) + `src/routes/+page.svelte` (mount under named marker) + `src/lib/components/MessageBubble.svelte` (hover affordance — uses A3 split) | data stores | claude |
-| **W4** | Streams route | `src/routes/streams/+page.svelte` (new) + `src/lib/stores/streams.svelte.ts` (new) + `src/lib/components/Sidebar.svelte` (item add — 4 lines max) | other routes | codex |
-| **W5** | Generative widget framework | `src/lib/components/widgets/` (new dir — Widget.svelte base + ChartWidget, TableWidget, TextWidget, MermaidWidget subclasses) + `src/lib/stores/widgets.svelte.ts` (new) + `src/lib/components/MarkdownView.svelte` (promote handlers — uses A3 split) | other components | codex |
-| **W6** | Council v2 (live presence + streaming side-by-side) | `src/routes/council/+page.svelte` (replace contents) + `src/lib/stores/council.svelte.ts` (rewrite) + `src/lib/components/ModelPresenceStrip.svelte` (new) + `src/lib/components/CouncilColumn.svelte` (new) | other routes | claude |
-| **W7** | Spatial canvas | `src/routes/canvas/+page.svelte` (new) + `src/lib/components/canvas/` (new dir) + `src/lib/stores/canvas.svelte.ts` (new) + `package.json` (add `tldraw` dep) | other routes | claude |
-| **W8** | Tiles + drag-to-rearrange | `src/lib/components/dashboard/Tile.svelte` (new) + `src/lib/components/dashboard/TileGrid.svelte` (new) + drag-drop helper at `src/lib/util/dnd-grid.ts` (new) | non-dashboard files | claude |
+| Lane   | Task                                                | Owned files                                                                                                                                                                                                                                            | Forbidden                  | Owner  |
+| ------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------- | ------ |
+| **W1** | Dashboard (`/dashboard` route + tile framework)     | `src/routes/dashboard/+page.svelte` (new) + `src/lib/components/dashboard/` (new dir) + `src/lib/stores/dashboard.svelte.ts` (new) + `src/lib/components/Sidebar.svelte` (item reorder — 4 lines max)                                                  | other routes, other stores | claude |
+| **W2** | Reply-thread store + wire                           | `src/lib/stores/reply-threads.svelte.ts` (new) + `src/lib/api/ironclaw.ts` (append `postReplyThread`, `streamReplyThread`) + `src/lib/api/types.ts` (append)                                                                                           | route files, components    | codex  |
+| **W3** | Reply-thread UI                                     | `src/lib/components/ReplyThreadPanel.svelte` (new) + `src/routes/+page.svelte` (mount under named marker) + `src/lib/components/MessageBubble.svelte` (hover affordance — uses A3 split)                                                               | data stores                | claude |
+| **W4** | Streams route                                       | `src/routes/streams/+page.svelte` (new) + `src/lib/stores/streams.svelte.ts` (new) + `src/lib/components/Sidebar.svelte` (item add — 4 lines max)                                                                                                      | other routes               | codex  |
+| **W5** | Generative widget framework                         | `src/lib/components/widgets/` (new dir — Widget.svelte base + ChartWidget, TableWidget, TextWidget, MermaidWidget subclasses) + `src/lib/stores/widgets.svelte.ts` (new) + `src/lib/components/MarkdownView.svelte` (promote handlers — uses A3 split) | other components           | codex  |
+| **W6** | Council v2 (live presence + streaming side-by-side) | `src/routes/council/+page.svelte` (replace contents) + `src/lib/stores/council.svelte.ts` (rewrite) + `src/lib/components/ModelPresenceStrip.svelte` (new) + `src/lib/components/CouncilColumn.svelte` (new)                                           | other routes               | claude |
+| **W7** | Spatial canvas                                      | `src/routes/canvas/+page.svelte` (new) + `src/lib/components/canvas/` (new dir) + `src/lib/stores/canvas.svelte.ts` (new) + `package.json` (add `tldraw` dep)                                                                                          | other routes               | claude |
+| **W8** | Tiles + drag-to-rearrange                           | `src/lib/components/dashboard/Tile.svelte` (new) + `src/lib/components/dashboard/TileGrid.svelte` (new) + drag-drop helper at `src/lib/util/dnd-grid.ts` (new)                                                                                         | non-dashboard files        | claude |
 
 ## Anti-collision matrix
 
@@ -155,16 +164,16 @@ Insert Wave 2.5 between Wave 2 (R56–R62) and Wave 3 (R63–R70):
 
 ### Wave 2.5 — Workspace OS (3–5 days)
 
-| # | Task | Lane | Owner | Notes |
-|---|------|------|-------|-------|
-| R77 | Dashboard route + tile framework | W1 | claude | new `/` default after onboarding |
-| R78 | Tile components + drag-to-rearrange | W8 | claude | lands first, W1 imports |
-| R79 | Reply-thread wire | W2 | codex | brief: `docs/codex-tasks/79-reply-thread-wire.md` |
-| R80 | Reply-thread UI | W3 | claude | mounts under W3 marker |
-| R81 | Streams route | W4 | codex | brief: `docs/codex-tasks/81-streams-route.md` |
-| R82 | Generative widget framework | W5 | codex | brief: `docs/codex-tasks/82-generative-widgets.md` |
-| R83 | Council v2 (live presence) | W6 | claude | rewrites `/council` |
-| R84 | Spatial canvas | W7 | claude | tldraw embed, lazy-loaded |
+| #   | Task                                | Lane | Owner  | Notes                                              |
+| --- | ----------------------------------- | ---- | ------ | -------------------------------------------------- |
+| R77 | Dashboard route + tile framework    | W1   | claude | new `/` default after onboarding                   |
+| R78 | Tile components + drag-to-rearrange | W8   | claude | lands first, W1 imports                            |
+| R79 | Reply-thread wire                   | W2   | codex  | brief: `docs/codex-tasks/79-reply-thread-wire.md`  |
+| R80 | Reply-thread UI                     | W3   | claude | mounts under W3 marker                             |
+| R81 | Streams route                       | W4   | codex  | brief: `docs/codex-tasks/81-streams-route.md`      |
+| R82 | Generative widget framework         | W5   | codex  | brief: `docs/codex-tasks/82-generative-widgets.md` |
+| R83 | Council v2 (live presence)          | W6   | claude | rewrites `/council`                                |
+| R84 | Spatial canvas                      | W7   | claude | tldraw embed, lazy-loaded                          |
 
 Wave 3 (R63–R70) stays as-is and runs AFTER Wave 2.5 since the
 mini-mode / vibrancy / inline tool authoring all benefit from the
@@ -197,6 +206,12 @@ addendum is additive.
 
 - `/` redirects to `/dashboard` AFTER user has completed onboarding.
   Pre-onboarding still goes to `/onboarding`.
+- Successful local or hosted onboarding routes directly to
+  `/dashboard`, not raw chat. The explicit setup-later path also lands
+  on `/dashboard` so Get Started remains visible.
+- First-run missions keep side effects behind approval mode. Launching a
+  mission inserts a source-marked mission prompt into the chat surface;
+  connector requirements gate launch before the prompt is available.
 - `/chat` (or `/threads`) takes over the current `+page.svelte`. The
   existing chat surface stays byte-identical at the new path. Cmd+1
   shortcut still maps to chat for users who memorize it.

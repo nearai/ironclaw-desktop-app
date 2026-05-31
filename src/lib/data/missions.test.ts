@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { FIRST_RUN_MISSIONS, missionById } from './missions';
+import { connectorPackById } from './connector-packs';
 
 const WRITE_CAPABLE_MISSION_IDS = new Set([
   'inbox-triage',
@@ -34,6 +35,19 @@ describe('first-run missions', () => {
       if (WRITE_CAPABLE_MISSION_IDS.has(mission.id)) {
         expect(mission.mode).toBe('approval');
         expect(mission.prompt.toLowerCase()).toContain('approval');
+      }
+    }
+  });
+
+  it('references known connector packs when missions require workspace context', () => {
+    expect(missionById('morning-brief')?.required_connectors).toEqual(['google']);
+    expect(missionById('draft-replies')?.required_connectors).toEqual(['google']);
+    expect(missionById('update-notion-crm')?.required_connectors).toEqual(['notion']);
+    expect(missionById('slack-catchup')?.required_connectors).toEqual(['slack']);
+
+    for (const mission of FIRST_RUN_MISSIONS) {
+      for (const connector of mission.required_connectors ?? []) {
+        expect(connectorPackById(connector)).toBeTruthy();
       }
     }
   });
