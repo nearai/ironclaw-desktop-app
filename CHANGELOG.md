@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.124 — Chief-of-staff foundation: connector packs + first-run missions (data) (2026-05-30)
+
+First foundation slice of the outcome-oriented product layer (pure data; UI follows):
+
+- **Connector packs** (`src/lib/data/connector-packs.ts`): typed "Workspace Pack" definitions —
+  Google Workspace (`tools/gmail`+calendar/docs/drive/sheets/slides, shared `google_oauth_token`),
+  Notion (MCP `notion`, dcr auth), Slack (`channels/slack`+`tools/slack_tool`) — each with
+  outcome-voiced example tasks. These reference the real gateway registry ids and install through
+  the existing `/api/extensions` flow; availability still depends on what the gateway exposes.
+- **First-run missions** (`src/lib/data/missions.ts`): Morning Brief, Inbox Triage, Meeting Prep,
+  Follow-up Catcher, Draft Replies, Update Notion CRM. Every mission is `mode: 'approval'` and its
+  prompt explicitly forbids any send/write without explicit approval — safe first-run by construction.
+  Prompts reuse the existing briefing/triage/draft util language.
+
+Pure data + unit tests; nothing imports them yet (the connector + mission UI lands next). Full suite
+green (1038), svelte-check 0/0.
+
 ## v0.4.123 — Skill launch actually works (dead `?prefill` route → composer bus) (2026-05-30)
 
 The audit's #1 functional bug: every "run a skill" path navigated to `/?prefill=<hint>`,
