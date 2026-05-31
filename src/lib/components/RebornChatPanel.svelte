@@ -13,6 +13,7 @@
 
   import { onDestroy, onMount } from 'svelte';
   import MarkdownView from './MarkdownView.svelte';
+  import { connection } from '$lib/stores/connection.svelte';
   import { rebornChat, RebornChatController } from '$lib/stores/reborn-chat.svelte';
   import { rebornThreads, RebornThreadStore } from '$lib/stores/reborn-threads.svelte';
   import type { ThreadSummary } from '$lib/api/reborn';
@@ -98,8 +99,18 @@
   }
 
   onMount(() => {
-    // Populate the rail. Resilient (the store swallows transport failures).
-    void threads.load();
+    // Populate the rail. On the app-wide store, cold/deep-link loads may reach
+    // this panel before the sidebar has hydrated the connection.
+    void (async () => {
+      if (threads === rebornThreads && !connection.client) {
+        try {
+          await connection.init();
+        } catch {
+          // Non-fatal here; the rail load below already degrades to empty.
+        }
+      }
+      await threads.load();
+    })();
   });
 
   // Bind the controller to the selected thread. `boundThread` is a plain
@@ -197,11 +208,32 @@
     }
   }
 
+  function isTextInputContext(target: EventTarget | Element | null): boolean {
+    if (!(target instanceof Element)) return false;
+    if (
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement
+    ) {
+      return true;
+    }
+    let el: Element | null = target;
+    while (el) {
+      const editable = el.getAttribute('contenteditable');
+      if (editable !== null && editable.toLowerCase() !== 'false') return true;
+      el = el.parentElement;
+    }
+    return false;
+  }
+
   /** Keyboard-accelerated approval while a gate is pending: ⌘⏎ (or Ctrl+Enter)
    *  approves, Esc denies — the elite inline-approval pattern. No-op when no
    *  gate is open so it never steals keys from the composer. */
   function onGateKeydown(e: KeyboardEvent) {
     if (!pendingGate) return;
+    // Gate shortcuts are global chrome actions, but typed composer/editor keys
+    // must remain local while the user is editing text.
+    if (isTextInputContext(e.target) || isTextInputContext(document.activeElement)) return;
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
       void controller.resolveGate('approved');

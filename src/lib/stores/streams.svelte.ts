@@ -24,6 +24,7 @@ export interface StreamEvent {
   preview: string;
   source_count?: number;
   thread_id?: string;
+  /** Empty when the source genuinely has no timestamp. */
   occurred_at: string;
   /** Free-form payload for kind-specific rendering (rarely used today). */
   payload?: Record<string, unknown>;
@@ -116,9 +117,9 @@ async function fetchSkillEvents(client: IronClawClient): Promise<StreamEvent[]> 
       kind: 'skill' as const,
       title: s.name,
       preview: s.description?.slice(0, 100) ?? '',
-      // Skills don't carry a timestamp; use a sentinel so they sort below
-      // real activity events.
-      occurred_at: new Date(0).toISOString()
+      // Skills do not carry a real timestamp; leave it empty so the UI
+      // renders no date instead of a fabricated epoch value.
+      occurred_at: ''
     }));
   } catch {
     return [];
@@ -127,10 +128,18 @@ async function fetchSkillEvents(client: IronClawClient): Promise<StreamEvent[]> 
 
 function sortByOccurredDesc(events: StreamEvent[]): StreamEvent[] {
   return [...events].sort((a, b) => {
-    const ta = new Date(a.occurred_at).getTime();
-    const tb = new Date(b.occurred_at).getTime();
+    const ta = timestampOrNull(a.occurred_at);
+    const tb = timestampOrNull(b.occurred_at);
+    if (ta === null && tb === null) return 0;
+    if (ta === null) return 1;
+    if (tb === null) return -1;
     return tb - ta;
   });
+}
+
+function timestampOrNull(iso: string): number | null {
+  const timestamp = Date.parse(iso);
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 export const streams = new StreamsStore();

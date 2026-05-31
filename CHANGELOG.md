@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.4.121 — Functional fixes wave 1: chat gate keys, provider inputs, stream dates (2026-05-30)
+
+From the per-surface functional audit. Three independent, green-gated fixes:
+
+- **Chat gate-key correctness (P0)**: the approval-gate keyboard handler was
+  window-scoped with no focus check, so pressing Escape in the composer silently
+  **denied** the agent's gate (and Cmd/Ctrl+Enter approved it). It now ignores
+  keystrokes originating in any text-input context. Also: the v2 panel now calls
+  `connection.init()` on a cold mount so a deep-link load shows real state instead
+  of a false "No conversations yet."
+- **Settings provider dead-inputs**: the model + base-URL fields accepted input
+  but were silently discarded on save (no ProfileConfig fields back them yet).
+  They're now disabled with honest "set it in the IronClaw web UI" helper text, and
+  the leaked `/api/llm/providers` path was removed from the fallback copy.
+- **Streams fake timestamps**: skill events were stamped with epoch-0 (rendered as
+  a 1970 date); they now carry no timestamp and sort last, showing "—" instead.
+
+Full suite green (1030), svelte-check 0/0.
+
 ## v0.4.120 — First-run: value-first, guided, and honest (2026-05-30)
 
 - **Value-first onboarding (codex stream + claude)**: the wizard now leads with

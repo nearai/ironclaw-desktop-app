@@ -160,7 +160,8 @@
   $effect(() => {
     const provider = selectedProvider;
     if (!provider) return;
-    // Reset drafts; persisted overrides are not yet wired (TODO below).
+    // ProfileConfig has no per-profile model/base-URL fields yet, so
+    // these drafts are display-only defaults rather than saved overrides.
     modelDraft = provider.default_model ?? '';
     baseUrlDraft = '';
     credentialDraft = '';
@@ -444,8 +445,13 @@
             type="text"
             bind:value={baseUrlDraft}
             placeholder={fallbackBaseUrl || 'https://…'}
-            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan min-h-[44px]"
+            aria-describedby="llm-base-url-help"
+            disabled
+            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-muted focus:outline-none min-h-[44px] disabled:cursor-not-allowed disabled:opacity-70"
           />
+          <p id="llm-base-url-help" class="mt-1 text-[11px] text-text-muted">
+            Base URL isn't configurable here yet — set it in the IronClaw web UI.
+          </p>
         </div>
       {:else if fallbackBaseUrl}
         <div>
@@ -467,7 +473,9 @@
           <select
             id="llm-default-model"
             bind:value={modelDraft}
-            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan min-h-[44px]"
+            aria-describedby="llm-default-model-help"
+            disabled
+            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-muted focus:outline-none min-h-[44px] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {#each modelOptions as m (m.id)}
               <option value={m.id}>{m.name ?? m.id}</option>
@@ -479,9 +487,14 @@
             type="text"
             bind:value={modelDraft}
             placeholder={selectedProvider.default_model ?? 'model-id'}
-            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan min-h-[44px]"
+            aria-describedby="llm-default-model-help"
+            disabled
+            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-muted focus:outline-none min-h-[44px] disabled:cursor-not-allowed disabled:opacity-70"
           />
         {/if}
+        <p id="llm-default-model-help" class="mt-1 text-[11px] text-text-muted">
+          Model selection isn't configurable here yet — set it in the IronClaw web UI.
+        </p>
         {#if canListModels}
           <button
             type="button"
@@ -582,9 +595,7 @@
         </div>
       {:else}
         <div class="text-xs text-text-muted">
-          Credential kind <code class="font-mono">{credentialKind}</code> is not yet supported by
-          this picker. Configure via
-          <code class="font-mono">/api/llm/providers</code> directly.
+          This provider can't be configured here yet. Set it up in the IronClaw web UI.
         </div>
       {/if}
 
