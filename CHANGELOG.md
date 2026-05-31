@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.120 — First-run: value-first, guided, and honest (2026-05-30)
+
+- **Value-first onboarding (codex stream + claude)**: the wizard now leads with
+  what IronClaw is ("your chief of staff — brief, triage, draft, delegate") before
+  the where-it-runs choice, and the local path shows live progress
+  ("Saving settings… → Starting local IronClaw and checking health… → Ready").
+- **Hosted token assist (codex stream)**: the access-token field gets a Paste
+  button, a show/hide toggle, and helper copy pointing to the hosted sign-in link.
+- **Honest local completion (claude, P0)**: "Run on this Mac" no longer claims
+  success unconditionally. It now gates the success toast on the real
+  `connection.status` — if the sidecar didn't come up / isn't connected, it says
+  so and points to Settings instead of dropping the user into a chat that would
+  silently fail. Onboarding still always completes (never traps the user), and the
+  new offline composer CTA (v0.4.119) guides them the rest of the way. Full suite
+  green (1030), svelte-check 0/0.
+
 ## v0.4.119 — Connection clarity: actionable errors + offline composer CTA (2026-05-30)
 
 - **Actionable connection errors (codex stream, time-to-wow plan)**: `connection.svelte.ts`

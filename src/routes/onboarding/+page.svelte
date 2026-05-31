@@ -58,8 +58,10 @@
 
   let hostedUrl = $state(HOSTED_DEFAULT_URL);
   let tokenInput = $state('');
+  let tokenVisible = $state(false);
   let connecting = $state(false);
   let busyLocal = $state(false);
+  let localProgress = $state('');
   // False until onMount's loadSettings() resolves. Until then `activeProfile`
   // is null (settings.profiles starts empty), so the Local action would
   // silently no-op on an early click — gate it on this instead.
@@ -132,6 +134,7 @@
   async function chooseLocal() {
     if (busyLocal || !activeProfile) return;
     busyLocal = true;
+    localProgress = 'Saving settings…';
     errorMsg = null;
     try {
       // Local always runs on NEAR.AI Cloud inference — that's the product's
@@ -147,13 +150,30 @@
       const next: AppSettings = { ...$state.snapshot(settings), onboardingComplete: true };
       await saveSettings(next);
       clearBypass();
+      localProgress = 'Starting local IronClaw and checking health…';
       await connection.refresh();
-      toasts.show('Running locally on this Mac', 'success');
+      // Honest completion: only claim success if the sidecar actually came up
+      // and answered a health check. If it didn't (failed to start, or not
+      // signed in to NEAR.AI yet), say so and point at Settings rather than
+      // dropping the user into a chat that will silently fail on the first
+      // message. We still mark onboarding complete (saved above) so they're
+      // never trapped here, and the chat composer's offline CTA guides them.
+      if (connection.status === 'connected') {
+        toasts.show('Running locally on this Mac', 'success');
+        localProgress = 'Ready';
+      } else {
+        toasts.show(
+          'Local IronClaw started but isn’t connected yet — finish setup in Settings.',
+          'info'
+        );
+        localProgress = '';
+      }
       await goto('/');
     } catch (err) {
       errorMsg = (err as Error).message;
       armBypass();
       busyLocal = false;
+      localProgress = '';
     }
   }
 
@@ -233,6 +253,15 @@
       }
     }
   }
+
+  async function pasteToken() {
+    try {
+      tokenInput = await navigator.clipboard.readText();
+      errorMsg = null;
+    } catch (err) {
+      errorMsg = (err as Error).message || 'Could not read from the clipboard.';
+    }
+  }
 </script>
 
 <div class="ob">
@@ -243,6 +272,7 @@
            because Svelte's scoped CSS does not cross into the component. -->
       <NearMark size={48} style="display: block; margin: 0 auto 1rem; color: var(--v2-accent);" />
       <h1 class="ob__title">Welcome to IronClaw</h1>
+      <p class="ob__value">Your chief of staff — brief, triage, draft, and delegate.</p>
       <p class="ob__sub">Choose where your agent runs. You can change this anytime in Settings.</p>
     </header>
 
@@ -272,6 +302,9 @@
           <span class="ob__choice-cta"
             >{!hydrated ? 'Loading…' : busyLocal ? 'Starting…' : 'Local →'}</span
           >
+          {#if localProgress}
+            <span class="ob__progress" aria-live="polite">{localProgress}</span>
+          {/if}
         </button>
 
         <button
@@ -307,17 +340,28 @@
           <p class="ob__hint">
             <span>Sign in at</span>
             <button type="button" class="ob__link" onclick={openSignIn}>{signInHost}</button>
-            <span>and paste your access token below.</span>
+            <span>to get your access token, then paste it below.</span>
           </p>
-          <input
-            id="ob-token"
-            class="ob__input"
-            type="password"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="Paste your IronClaw access token"
-            bind:value={tokenInput}
-          />
+          <div class="ob__token-row">
+            <input
+              id="ob-token"
+              class="ob__input"
+              type={tokenVisible ? 'text' : 'password'}
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Paste your IronClaw access token"
+              bind:value={tokenInput}
+            />
+            <button type="button" class="ob__token-btn" onclick={pasteToken}>Paste</button>
+            <button
+              type="button"
+              class="ob__token-btn"
+              aria-pressed={tokenVisible}
+              onclick={() => (tokenVisible = !tokenVisible)}
+            >
+              {tokenVisible ? 'Hide' : 'Show'}
+            </button>
+          </div>
         </div>
         <button
           type="button"
@@ -418,8 +462,15 @@
     background-clip: text;
     -webkit-text-fill-color: transparent;
   }
+  .ob__value {
+    margin: 0.85rem auto 0;
+    max-width: 34rem;
+    font-size: 1.04rem;
+    line-height: 1.45;
+    color: var(--v2-text-strong);
+  }
   .ob__sub {
-    margin: 0.8rem auto 0;
+    margin: 0.35rem auto 0;
     max-width: 28rem;
     font-size: 0.98rem;
     line-height: 1.55;
@@ -513,6 +564,13 @@
     font-size: 0.86rem;
     font-weight: 600;
     color: var(--v2-accent-text);
+  }
+  .ob__progress {
+    min-height: 1.25rem;
+    margin-top: -0.55rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--v2-text-muted);
   }
   .ob__hosted {
     display: flex;
@@ -608,6 +666,40 @@
     background: var(--v2-surface);
   }
   .ob__input:focus-visible {
+    outline: 2px solid var(--v2-accent);
+    outline-offset: 2px;
+  }
+  .ob__token-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 0.45rem;
+  }
+  .ob__token-row .ob__input {
+    min-width: 0;
+    width: 100%;
+  }
+  .ob__token-btn {
+    min-height: 3rem;
+    padding: 0 0.75rem;
+    border: 1px solid var(--v2-border);
+    border-radius: 0.65rem;
+    background: var(--v2-surface-soft);
+    color: var(--v2-text);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition:
+      border-color var(--v2-dur-fast) var(--v2-ease-out),
+      background var(--v2-dur-fast) var(--v2-ease-out),
+      color var(--v2-dur-fast) var(--v2-ease-out);
+  }
+  .ob__token-btn:hover {
+    border-color: var(--v2-accent);
+    background: var(--v2-accent-soft);
+    color: var(--v2-text-strong);
+  }
+  .ob__token-btn:focus-visible {
     outline: 2px solid var(--v2-accent);
     outline-offset: 2px;
   }
