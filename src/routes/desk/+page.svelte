@@ -11,6 +11,9 @@
   <title>The Desk · IronClaw</title>
 </svelte:head>
 
-<div class="h-full min-h-0">
+<!-- Named region landmark: the Desk has no `<h1>` (its headings live inside
+     RebornDeskPanel's card sections), so the surface root carries an
+     accessible name for screen-reader navigation + the a11y sweep anchor. -->
+<section class="h-full min-h-0" aria-label="The Desk">
   <RebornDeskPanel />
-</div>
+</section>

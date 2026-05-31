@@ -276,9 +276,12 @@ cargo check --manifest-path src-tauri/Cargo.toml
 ### Accessibility
 
 `tests/e2e/a11y.spec.ts` is an automated axe-core sweep that visits every
-top-level surface (`/`, `/knowledge`, `/skills`, `/routines`, `/jobs`,
-`/logs`, `/extensions`, `/admin`, `/settings`, `/missions`) and asserts
-the route has no critical/serious axe violations. Runs in CI on every PR
+top-level surface (`/dashboard`, `/desk`, `/streams`, `/`, `/canvas`,
+`/knowledge`, `/memory`, `/skills`, `/routines`, `/jobs`, `/logs`,
+`/extensions`, `/admin`, `/settings`, `/missions`) and asserts the route has
+no critical/serious axe violations. Heading-less workspaces (chat, the Desk,
+the canvas) expose an `aria-label`'d region landmark on their root, which the
+sweep waits on instead of an `<h1>`. Runs in CI on every PR
 via `.github/workflows/e2e.yml` and locally via:
 
 ```bash

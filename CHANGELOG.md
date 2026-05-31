@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.141 — Accessibility sweep across all surfaces (review ICD-008) (2026-05-30)
+
+The axe-core sweep now covers every top-level surface, and the heading-less
+workspaces are proper named landmarks.
+
+- Chat (`/`), the Desk (`/desk`), and the Canvas (`/canvas`) carry an
+  `aria-label`'d region landmark on their root — these workspaces have no
+  `<h1>`, so screen-reader users now get a named region to navigate to.
+- The a11y sweep (`tests/e2e/a11y.spec.ts`) adds `/dashboard`, `/desk`,
+  `/streams`, `/canvas`, and `/memory` — all 15 top-level routes are scanned
+  and pass with no critical/serious violations.
+- Fixed the chat (`/`) sweep case, which had gone red: it waited for the v1
+  thread-rail "New Chat" button, but `apiVersion` now defaults to `'v2'`
+  (RebornChatPanel), where that button doesn't render. It now waits on the
+  `Chat` region landmark, which is present in both layouts.
+
 ## v0.4.140 — Lazy-mount global overlays (review ICD-004) (2026-05-30)
 
 The root layout no longer imports and instantiates every overlay at boot.

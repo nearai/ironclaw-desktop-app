@@ -217,7 +217,10 @@
 
 <svelte:head><title>Canvas · IronClaw</title></svelte:head>
 
-<div class="relative w-full h-full" bind:this={stageEl}>
+<!-- Named region landmark: the spatial canvas is a full-bleed board with no
+     `<h1>`, so the stage root carries an accessible name for screen-reader
+     navigation + the a11y sweep anchor. -->
+<div class="relative w-full h-full" bind:this={stageEl} role="region" aria-label="Canvas">
   <CanvasViewport>
     <CanvasArrows />
     {#each canvas.nodes as node (node.id)}

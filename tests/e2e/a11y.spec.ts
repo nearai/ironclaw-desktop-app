@@ -75,8 +75,13 @@ const A11Y_SETTINGS: TauriMockSettings = {
 
 /** Routes the sweep covers. Order matches the sidebar top-down. */
 const ROUTES: Array<{ path: string; label: string }> = [
+  { path: '/dashboard', label: 'today' },
+  { path: '/desk', label: 'desk' },
+  { path: '/streams', label: 'streams' },
   { path: '/', label: 'chat' },
+  { path: '/canvas', label: 'canvas' },
   { path: '/knowledge', label: 'knowledge' },
+  { path: '/memory', label: 'memory' },
   { path: '/skills', label: 'skills' },
   { path: '/routines', label: 'routines' },
   { path: '/jobs', label: 'jobs' },
@@ -86,6 +91,16 @@ const ROUTES: Array<{ path: string; label: string }> = [
   { path: '/settings', label: 'settings' },
   { path: '/missions', label: 'missions' }
 ];
+
+/** Heading-less surfaces. These workspaces (chat thread view, the Desk
+ *  action inbox, the spatial canvas) carry no `<h1>` — they each expose an
+ *  `aria-label`'d region landmark on their root instead. We wait on that
+ *  region rather than an `<h1>` so axe scans against a settled DOM. */
+const REGION_BY_PATH: Record<string, string> = {
+  '/': 'Chat',
+  '/desk': 'The Desk',
+  '/canvas': 'Canvas'
+};
 
 // One Playwright test per route. Splitting them gives per-route failure
 // granularity (CI annotates the failing route directly) and avoids the
@@ -100,13 +115,17 @@ for (const { path, label } of ROUTES) {
     await page.goto(path);
 
     // Wait for a stable per-route signal so axe scans against a settled
-    // DOM. The chat surface has no `<h1>` (it's a thread workspace, not
-    // a labelled page); for `/` we wait on the always-present "New Chat"
-    // button. Every other surface ships an `<h1>` inside its `<section>`.
-    // The 8s ceiling covers a cold Vite dev-server hot compile of the
-    // route module the first time it's hit in the run.
-    if (path === '/') {
-      await expect(page.getByRole('button', { name: /^New Chat$/ })).toBeVisible({
+    // DOM. Heading-less workspaces (see REGION_BY_PATH) expose an
+    // `aria-label`'d region on their root — e.g. chat carries
+    // `aria-label="Chat"`, present in BOTH the v1 thread-rail and the
+    // default v2 (RebornChatPanel) layouts (the old "New Chat" anchor only
+    // existed in the v1 rail, and apiVersion now defaults to 'v2'). Every
+    // other surface ships an `<h1>` inside its `<section>`. The 8s ceiling
+    // covers a cold Vite dev-server hot compile of the route module the
+    // first time it's hit in the run.
+    const regionName = REGION_BY_PATH[path];
+    if (regionName) {
+      await expect(page.getByRole('region', { name: regionName })).toBeVisible({
         timeout: 8000
       });
     } else {

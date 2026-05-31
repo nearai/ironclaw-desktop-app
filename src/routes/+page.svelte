@@ -2760,7 +2760,7 @@
   }
 </script>
 
-<section class="flex h-full w-full">
+<section class="flex h-full w-full" aria-label="Chat">
   <!-- ============================ Left: thread rail ======================
        Width comes from `effectiveThreadRailWidth`, driven by the
        `ResizeHandle` below. Border lives on the handle's left edge so the
