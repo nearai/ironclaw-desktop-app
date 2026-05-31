@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.4.145 — Generative missions: agent proposes actions from live context (ICD-J toward Work Object) (2026-05-30)
+
+The Desk no longer offers only a static mission menu. It now reads what just
+came in and proposes grounded, ready-to-run actions.
+
+- New `mission-generator.ts` (pure): `buildProposalPrompt(contextItems)` +
+  `parseProposedMissions(raw)` — turns live context (a pasted contract, call
+  notes, an email thread) into typed, grounded action proposals. Tolerant
+  parser (fences/prose), approval-mode default, unique ids. 8 unit tests.
+- New `generated-missions.svelte.ts` store: feeds context to the connected
+  gateway via the new `IronClawClient.createResponse()` (`/api/v1/responses`,
+  non-streaming) and renders proposals; running one drops an approval-first
+  instruction into the chat composer (same bus MissionLauncher uses). Nothing
+  is sent or written without the user.
+- New `GeneratedMissionsPanel.svelte`, mounted on the Desk above the approval
+  inbox: paste what landed → "Generate actions" → grounded proposals with
+  why/deliverable/mode, each runnable in chat.
+- `IronClawClient.createResponse()` added for one-shot completions.
+
+Verified live against a local IronClaw gateway: from a real MSA + call-notes
+pair the agent proposed 5 grounded actions and produced a clause-level contract
+red-flag review and a pilot follow-up + term sheet as deliverables.
+
+
 ## v0.4.144 — Agent-controlled UI readiness gating (review ICD-010) (2026-05-30)
 
 The app is now honest about whether the agent can drive the desktop.

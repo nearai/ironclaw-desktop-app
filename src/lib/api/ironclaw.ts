@@ -809,6 +809,36 @@ export class IronClawClient {
 
   private _capabilitiesCache: { responses_api: boolean } | null = null;
 
+  /**
+   * One-shot, non-streaming completion via `POST /api/v1/responses`
+   * (`stream: false`). Returns the concatenated assistant text. Used by the
+   * generative-missions store to propose grounded actions from live context;
+   * the proposal output is small (a JSON array), so a blocking call is fine.
+   * Prefers the OpenAI Responses `output[].content[].text` shape, with an
+   * `output_text` convenience fallback.
+   */
+  async createResponse(
+    input: string,
+    opts?: { model?: string; signal?: AbortSignal }
+  ): Promise<string> {
+    const body: Record<string, unknown> = { input, stream: false };
+    if (opts?.model) body.model = opts.model;
+    const res = await this.request<{
+      output_text?: string;
+      output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
+    }>('POST', '/api/v1/responses', body, { signal: opts?.signal });
+    if (typeof res.output_text === 'string' && res.output_text.trim()) {
+      return res.output_text.trim();
+    }
+    const chunks: string[] = [];
+    for (const o of res.output ?? []) {
+      for (const c of o.content ?? []) {
+        if (c?.type === 'output_text' && typeof c.text === 'string') chunks.push(c.text);
+      }
+    }
+    return chunks.join('\n').trim();
+  }
+
   async listThreads(signal?: AbortSignal): Promise<Thread[]> {
     // Wire (verified 2026-05-27): each thread carries `turn_count` (one turn =
     // one user msg + one assistant response rolled into one row). Older /
