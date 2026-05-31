@@ -36,12 +36,12 @@ import GetStarted from './GetStarted.svelte';
 function installFakeClient(): void {
   connectionStub.client = {
     listExtensions: vi.fn(async () => [
-      { name: 'tools/gmail', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_calendar', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_docs', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_drive', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_sheets', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_slides', installed: true, ready: true, readiness_message: 'ready' }
+      { name: 'gmail', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_calendar', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_docs', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_drive', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_sheets', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_slides', installed: true, ready: true, readiness_message: 'ready' }
     ]),
     installExtension: vi.fn(async (_name: string) => ({ ok: true }))
   };

@@ -121,7 +121,15 @@
     const first = missing[0];
     const pack = first ? connectorPackById(first) : null;
     const focus = pack?.primary_extension_id ?? first ?? '';
-    return `/extensions?focus=${encodeURIComponent(focus)}`;
+    const params = new URLSearchParams({ focus });
+    params.set('setup', '1');
+    return `/extensions?${params.toString()}`;
+  }
+
+  function connectorActionLabel(missing: ConnectorPackId[]): string {
+    const first = missing[0];
+    if (!first) return 'Open setup';
+    return `Connect ${connectorLabel(first)}`;
   }
 
   function missionPrompt(mission: Mission): string {
@@ -280,7 +288,7 @@ ${mission.prompt}`;
                 href={nextConnectorHref(missing)}
                 class="mt-1 inline-flex text-accent-cyan underline decoration-dotted hover:decoration-solid"
               >
-                Open in Extensions
+                {connectorActionLabel(missing)}
               </a>
             </div>
           {/if}

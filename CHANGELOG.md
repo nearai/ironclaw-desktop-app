@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.150 — Reborn connector identity + setup flow (2026-06-01)
+
+- Extension lifecycle calls now normalize catalog references like
+  `tools/gmail`, `channels/slack`, and `mcp-servers/notion` into Reborn bare
+  `ExtensionName` values with valid kind hints.
+- Google Workspace, Notion, and Slack packs now install through bare Reborn
+  names and route the user directly into the primary setup/sign-in surface when
+  credentials are still needed.
+- `/extensions?focus=...&setup=1` supports old prefixed deep links while setup,
+  login, activation, and removal calls go through bare extension names.
+- Browser E2E now mocks Tauri's HTTP plugin path, so connector flows exercise
+  the same API request bridge the packaged app uses.
+- Added regression coverage for connector readiness aliases, API lifecycle
+  normalization, onboarding mission links, and the focused Extensions setup
+  flow.
+
 ## v0.4.149 — Work becomes the command-center spine (hostile routing pass) (2026-06-01)
 
 - Work Items are now first-class in the app shell: `/work` is in the sidebar,

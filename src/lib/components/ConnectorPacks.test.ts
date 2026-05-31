@@ -61,14 +61,14 @@ describe('ConnectorPacks component', () => {
 
   it('shows readiness states from extension readiness', async () => {
     installFakeClient([
-      { name: 'tools/gmail', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_calendar', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_docs', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_drive', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_sheets', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_slides', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'gmail', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_calendar', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_docs', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_drive', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_sheets', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_slides', installed: true, ready: true, readiness_message: 'ready' },
       { name: 'notion', installed: true, readiness_message: 'needs_auth' },
-      { name: 'channels/slack', installed: true, ready: true, readiness_message: 'ready' }
+      { name: 'slack', installed: true, ready: true, readiness_message: 'ready' }
     ]);
 
     render(ConnectorPacks);
@@ -78,6 +78,26 @@ describe('ConnectorPacks component', () => {
       expect(screen.getByText('Needs sign-in')).toBeTruthy();
       expect(screen.getByText('Partial')).toBeTruthy();
     });
+  });
+
+  it('connects packs using Reborn bare extension names', async () => {
+    installFakeClient([]);
+    render(ConnectorPacks);
+
+    const [googleConnect] = await screen.findAllByRole('button', { name: 'Connect' });
+    await fireEvent.click(googleConnect);
+
+    await waitFor(() => {
+      expect(connectionStub.client?.installExtension).toHaveBeenCalledTimes(
+        CONNECTOR_PACKS[0].extensions.length
+      );
+    });
+    const install = connectionStub.client?.installExtension;
+    expect(install).toBeTruthy();
+    const names = vi.mocked(install!).mock.calls.map(([name]) => name);
+    expect(names).toEqual(CONNECTOR_PACKS[0].extensions);
+    expect(names.every((name) => !name.includes('/'))).toBe(true);
+    expect(gotoMock).toHaveBeenCalledWith('/extensions?focus=gmail&setup=1');
   });
 
   it('opens a pack in Extensions with the primary extension focused', async () => {

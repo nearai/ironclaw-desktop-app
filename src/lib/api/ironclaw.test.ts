@@ -332,6 +332,123 @@ describe('IronClawClient.listRegistry', () => {
   });
 });
 
+describe('IronClawClient extension identity compatibility', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('installs prefixed registry refs as Reborn bare ExtensionName values with kind hints', async () => {
+    let capturedInit: RequestInit | undefined;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async (_url: string, init: RequestInit) => {
+      capturedInit = init;
+      return fetchOk({ status: 'queued' });
+    }) as unknown as typeof fetch);
+
+    const c = makeClient();
+    await expect(c.installExtension('channels/slack')).resolves.toEqual({ ok: true });
+
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({
+      name: 'slack',
+      slug: 'slack',
+      kind: 'wasm_channel'
+    });
+  });
+
+  it('maps UI category hints to Reborn install kind strings', async () => {
+    let capturedInit: RequestInit | undefined;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async (_url: string, init: RequestInit) => {
+      capturedInit = init;
+      return fetchOk({ status: 'queued' });
+    }) as unknown as typeof fetch);
+
+    const c = makeClient();
+    await expect(c.installExtension('notion', 'mcp')).resolves.toEqual({ ok: true });
+
+    expect(JSON.parse(String(capturedInit?.body))).toMatchObject({
+      name: 'notion',
+      slug: 'notion',
+      kind: 'mcp_server'
+    });
+  });
+
+  it('drops UI-only category hints rather than posting invalid Reborn kinds', async () => {
+    let capturedInit: RequestInit | undefined;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async (_url: string, init: RequestInit) => {
+      capturedInit = init;
+      return fetchOk({ status: 'queued' });
+    }) as unknown as typeof fetch);
+
+    const c = makeClient();
+    await expect(c.installExtension('gmail', 'oauth')).resolves.toEqual({ ok: true });
+
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({
+      name: 'gmail',
+      slug: 'gmail'
+    });
+  });
+
+  it('normalizes setup and login URLs so no slash-bearing identity reaches Reborn', async () => {
+    const urls: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async (url: string) => {
+      urls.push(String(url));
+      return fetchOk({ fields: [], status: 'pending', session_id: 's1' });
+    }) as unknown as typeof fetch);
+
+    const c = makeClient();
+    await c.getExtensionSetup('mcp-servers/notion');
+    await c.startExtensionLogin('tools/gmail');
+
+    expect(urls).toEqual([
+      'http://example.test/api/extensions/notion/setup',
+      'http://example.test/api/extensions/gmail/login/start'
+    ]);
+  });
+
+  it('normalizes activate, remove, setup submit, and login poll URLs', async () => {
+    const urls: string[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async (url: string) => {
+      urls.push(String(url));
+      return fetchOk({ status: 'ok', session_id: 's1' });
+    }) as unknown as typeof fetch);
+
+    const c = makeClient();
+    await c.activateExtension('channels/slack');
+    await c.removeExtension('tools/gmail');
+    await c.submitExtensionSetup('mcp-servers/notion', {});
+    await c.pollExtensionLogin('tools/gmail', 's1');
+
+    expect(urls).toEqual([
+      'http://example.test/api/extensions/slack/activate',
+      'http://example.test/api/extensions/gmail/remove',
+      'http://example.test/api/extensions/notion/setup',
+      'http://example.test/api/extensions/gmail/login/poll'
+    ]);
+  });
+
+  it('normalizes installed/readiness/tool owner refs to bare names', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async (url: string) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/api/extensions') {
+        return fetchOk({
+          extensions: [{ name: 'tools/gmail', kind: 'wasm_tool', tools: ['gmail.list'] }]
+        });
+      }
+      if (path === '/api/extensions/readiness') {
+        return fetchOk({ extensions: [{ name: 'tools/gmail', phase: 'ready' }] });
+      }
+      if (path === '/api/extensions/tools') {
+        return fetchOk({ tools: [{ name: 'gmail.list', extension: 'tools/gmail' }] });
+      }
+      return fetchOk({});
+    }) as unknown as typeof fetch);
+
+    const c = makeClient();
+    await expect(c.listExtensions()).resolves.toMatchObject([
+      { name: 'gmail', ready: true, readiness_message: 'ready', tool_count: 1 }
+    ]);
+  });
+});
+
 describe('IronClawClient.request timeout', () => {
   // Mirrors REQUEST_TIMEOUT_MS in ironclaw.ts (not exported).
   const TIMEOUT_MS = 15_000;

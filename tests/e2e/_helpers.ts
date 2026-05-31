@@ -48,6 +48,7 @@ export interface TauriMockSettings {
     localBaseUrl?: string;
     llmBackend?: 'nearai' | 'openrouter';
     llmProviderId?: string;
+    apiVersion?: 'v1' | 'v2';
     tint?: string;
   }>;
   onboardingComplete?: boolean;
@@ -161,6 +162,10 @@ export async function mockTauri(page: Page, overrides: TauriMockOverrides = {}):
       state.tokens[firstProfileId] = seedToken;
       state.openRouterKeys[firstProfileId] = seedOpenRouterKey;
 
+      let nextHttpRid = 1;
+      const httpRequests = new Map<number, Promise<Response>>();
+      const httpBodies = new Map<number, Uint8Array[]>();
+
       function pick<T extends object>(obj: unknown, key: string): T[keyof T] | undefined {
         if (obj && typeof obj === 'object' && key in obj) {
           return (obj as Record<string, T[keyof T]>)[key];
@@ -253,6 +258,18 @@ export async function mockTauri(page: Page, overrides: TauriMockOverrides = {}):
           case 'reveal_in_finder':
             return null;
 
+          // Diagnostic logging. The desktop writes best-effort client
+          // diagnostics through this IPC command; browser E2E should not
+          // turn those background log writes into rejected promises.
+          case 'diag_log':
+            return null;
+
+          // Spotlight indexing is native-only and best-effort. Tests that load
+          // or create threads should not stall on the macOS index bridge.
+          case 'spotlight_index_thread':
+          case 'spotlight_remove_thread':
+            return null;
+
           // ---- Tauri plugin internals ----
           // Tauri's event plugin uses `plugin:event|listen` to register
           // listeners. We return a fake numeric handle (the real Tauri
@@ -284,6 +301,63 @@ export async function mockTauri(page: Page, overrides: TauriMockOverrides = {}):
 
           // The shell plugin's `open` is used by "open in browser" links.
           case 'plugin:shell|open':
+            return null;
+
+          // Tauri HTTP plugin. The production app routes gateway calls
+          // through Rust to avoid webview CORS; browser E2E needs to
+          // exercise that same path, then delegate back to Playwright's
+          // routed `window.fetch` mocks.
+          case 'plugin:http|fetch': {
+            const cfg =
+              pick<{
+                clientConfig: {
+                  method?: string;
+                  url: string;
+                  headers?: Array<[string, string]>;
+                  data?: number[] | null;
+                };
+              }>(args, 'clientConfig') ?? null;
+            if (!cfg?.url) throw new Error('mockTauri: plugin:http|fetch missing url');
+            const rid = nextHttpRid++;
+            const body = cfg.data ? new Uint8Array(cfg.data) : undefined;
+            httpRequests.set(
+              rid,
+              window.fetch(cfg.url, {
+                method: cfg.method ?? 'GET',
+                headers: cfg.headers ? Object.fromEntries(cfg.headers) : undefined,
+                body
+              })
+            );
+            return rid;
+          }
+          case 'plugin:http|fetch_send': {
+            const rid = pick<{ rid: number }>(args, 'rid');
+            const req = typeof rid === 'number' ? httpRequests.get(rid) : null;
+            if (!req) throw new Error(`mockTauri: unknown http request rid ${String(rid)}`);
+            return req.then(async (res) => {
+              const responseRid = nextHttpRid++;
+              const bytes = new Uint8Array(await res.arrayBuffer());
+              const bodyChunk = new Uint8Array(bytes.length + 1);
+              bodyChunk.set(bytes, 0);
+              bodyChunk[bodyChunk.length - 1] = 0;
+              httpBodies.set(responseRid, [bodyChunk, new Uint8Array([1])]);
+              return {
+                status: res.status,
+                statusText: res.statusText,
+                url: res.url,
+                headers: Array.from(res.headers.entries()),
+                rid: responseRid
+              };
+            });
+          }
+          case 'plugin:http|fetch_read_body': {
+            const rid = pick<{ rid: number }>(args, 'rid');
+            const chunks = typeof rid === 'number' ? httpBodies.get(rid) : null;
+            const chunk = chunks?.shift() ?? new Uint8Array([1]);
+            return Array.from(chunk);
+          }
+          case 'plugin:http|fetch_cancel':
+          case 'plugin:http|fetch_cancel_body':
             return null;
 
           // App version / window / metadata plugins. The AboutDialog and
@@ -489,10 +563,21 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
   // closure capture; each `mockGateway` call snapshots the seed list.
   // Cloning so test mutations don't bleed back into the seed array.
   const liveThreads = threads.map((t) => ({ ...t }));
+  const liveV2Threads = threads.map((t) => ({
+    thread_id: t.id,
+    title: t.title,
+    created_at: t.created_at,
+    updated_at: t.last_message_at ?? t.created_at
+  }));
   let lastThreadId = 0;
+  let lastV2ThreadId = 0;
   function nextThreadId(): string {
     lastThreadId += 1;
     return `mock-thread-${lastThreadId}`;
+  }
+  function nextV2ThreadId(): string {
+    lastV2ThreadId += 1;
+    return `mock-v2-thread-${lastV2ThreadId}`;
   }
 
   // Per-thread history. The chat surface's post-stream reconcile
@@ -505,6 +590,10 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
   const turnsByThread = new Map<
     string,
     Array<{ turn_number: number; user_input: string; response: string }>
+  >();
+  const v2TurnsByThread = new Map<
+    string,
+    Array<{ run_id: string; user_input: string; response: string; created_at: string }>
   >();
 
   // Host prefix: ALL gateway routes are anchored to `127.0.0.1|localhost`
@@ -587,6 +676,145 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
     }
   );
 
+  // --- /api/webchat/v2/threads (Reborn list + create) --------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/webchat/v2/threads(?:\\?.*)?$`),
+    async (route: Route) => {
+      const method = route.request().method();
+      if (method === 'GET') {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ threads: liveV2Threads, next_cursor: null })
+        });
+        return;
+      }
+      if (method === 'POST') {
+        const id = nextV2ThreadId();
+        const now = new Date().toISOString();
+        const thread = {
+          thread_id: id,
+          title: 'Untitled conversation',
+          created_at: now,
+          updated_at: now
+        };
+        liveV2Threads.unshift(thread);
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ thread })
+        });
+        return;
+      }
+      await route.fulfill({ status: 405, body: '{}' });
+    }
+  );
+
+  // --- /api/webchat/v2/threads/:id/messages -------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/webchat/v2/threads/([^/]+)/messages$`),
+    async (route: Route) => {
+      const url = new URL(route.request().url());
+      const threadId = decodeURIComponent(url.pathname.split('/').at(-2) ?? '');
+      let content = '';
+      try {
+        const body = route.request().postDataJSON() as { content?: string } | null;
+        content = body?.content ?? '';
+      } catch {
+        // ignore
+      }
+      const existing = v2TurnsByThread.get(threadId) ?? [];
+      const runId = `mock-v2-run-${existing.length + 1}`;
+      existing.push({
+        run_id: runId,
+        user_input: content,
+        response: mockedReply,
+        created_at: new Date().toISOString()
+      });
+      v2TurnsByThread.set(threadId, existing);
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ run_id: runId, thread_id: threadId, status: 'accepted' })
+      });
+    }
+  );
+
+  // --- /api/webchat/v2/threads/:id/timeline -------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/webchat/v2/threads/([^/]+)/timeline(?:\\?.*)?$`),
+    async (route: Route) => {
+      const url = new URL(route.request().url());
+      const threadId = decodeURIComponent(url.pathname.split('/').at(-2) ?? '');
+      const turns = v2TurnsByThread.get(threadId) ?? [];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          records: turns.flatMap((t, index) => [
+            {
+              kind: 'user',
+              message_id: `user-${index + 1}`,
+              content: t.user_input,
+              sequence: index * 2 + 1,
+              turn_run_id: t.run_id,
+              created_at: t.created_at
+            },
+            {
+              kind: 'assistant',
+              message_id: `assistant-${index + 1}`,
+              content: t.response,
+              sequence: index * 2 + 2,
+              turn_run_id: t.run_id,
+              created_at: t.created_at
+            }
+          ]),
+          next_cursor: null,
+          has_more: false
+        })
+      });
+    }
+  );
+
+  // --- /api/webchat/v2/threads/:id/events (SSE) ---------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/webchat/v2/threads/([^/]+)/events(?:\\?.*)?$`),
+    async (route: Route) => {
+      const url = new URL(route.request().url());
+      const threadId = decodeURIComponent(url.pathname.split('/').at(-2) ?? '');
+      // The Reborn UI opens the stream before posting the first message. Wait
+      // one tick for the message route to record a run, then emit the reply.
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      const turns = v2TurnsByThread.get(threadId) ?? [];
+      const latest = turns.at(-1);
+      const runId = latest?.run_id ?? 'mock-v2-run-1';
+      const reply = latest?.response ?? mockedReply;
+      const frames = [
+        `event: accepted\ndata: ${JSON.stringify({
+          type: 'accepted',
+          ack: { run_id: runId, thread_id: threadId, status: 'accepted' }
+        })}\n\n`,
+        `event: final_reply\ndata: ${JSON.stringify({
+          type: 'final_reply',
+          reply: {
+            turn_run_id: runId,
+            text: reply,
+            generated_at: new Date().toISOString()
+          }
+        })}\n\n`
+      ];
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive'
+        },
+        body: frames.join('')
+      });
+    }
+  );
+
   // --- /api/chat/threads (GET) ------------------------------------------
   await page.route(
     new RegExp(`^https?://${GATEWAY_HOSTS}/api/chat/threads(?:\\?.*)?$`),
@@ -600,6 +828,18 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
         return;
       }
       await route.fulfill({ status: 404, body: '{}' });
+    }
+  );
+
+  // --- /api/chat/threads/poll (GET) ---------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/chat/threads/poll(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ changed: [], deleted: [], nextSince: Date.now() })
+      });
     }
   );
 
@@ -937,6 +1177,18 @@ export async function mockGatewaySurfaces(
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ installed: skills, catalog: [] })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/llm/providers(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          providers: [{ id: 'nearai', name: 'NEAR AI', configured: true, builtin: true }]
+        })
       });
     }
   );

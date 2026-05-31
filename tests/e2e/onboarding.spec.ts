@@ -67,10 +67,9 @@ test('first-run setup lands on dashboard and gates missions by connector readine
   // reads "Disconnected" — that's not what this journey asserts).
   const morningBrief = page.getByTestId('mission-card-morning-brief');
   await expect(morningBrief.getByText('Needs Google Workspace')).toBeVisible();
-  await expect(morningBrief.getByRole('link', { name: 'Open in Extensions' })).toHaveAttribute(
-    'href',
-    '/extensions?focus=tools%2Fgmail'
-  );
+  await expect(
+    morningBrief.getByRole('link', { name: 'Connect Google Workspace' })
+  ).toHaveAttribute('href', '/extensions?focus=gmail&setup=1');
   await expect(morningBrief.getByRole('button', { name: 'Morning Brief' })).toBeDisabled();
 
   // Make the Google Workspace connectors READY. The hermetic browser harness has
@@ -80,12 +79,12 @@ test('first-run setup lands on dashboard and gates missions by connector readine
   await page.evaluate(async () => {
     const mod = await import(/* @vite-ignore */ '/src/lib/stores/connection.svelte.ts' as string);
     const ready = [
-      'tools/gmail',
-      'tools/google_calendar',
-      'tools/google_docs',
-      'tools/google_drive',
-      'tools/google_sheets',
-      'tools/google_slides'
+      'gmail',
+      'google_calendar',
+      'google_docs',
+      'google_drive',
+      'google_sheets',
+      'google_slides'
     ].map((name) => ({ name, installed: true, ready: true, readiness_message: 'ready' }));
     const stub = new Proxy(
       {},

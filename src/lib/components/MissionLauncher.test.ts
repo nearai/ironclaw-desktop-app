@@ -81,9 +81,9 @@ describe('MissionLauncher component', () => {
 
     expect(
       within(card)
-        .getByRole<HTMLAnchorElement>('link', { name: 'Open in Extensions' })
+        .getByRole<HTMLAnchorElement>('link', { name: 'Connect Google Workspace' })
         .getAttribute('href')
-    ).toBe('/extensions?focus=tools%2Fgmail');
+    ).toBe('/extensions?focus=gmail&setup=1');
     expect(
       within(card).getByRole<HTMLButtonElement>('button', { name: mission.title }).disabled
     ).toBe(true);
@@ -110,12 +110,12 @@ describe('MissionLauncher component', () => {
   it('pushes mission context and navigates to chat when required connectors are ready', async () => {
     const firstMission = FIRST_RUN_MISSIONS[0];
     installFakeClient([
-      { name: 'tools/gmail', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_calendar', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_docs', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_drive', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_sheets', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'tools/google_slides', installed: true, ready: true, readiness_message: 'ready' }
+      { name: 'gmail', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_calendar', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_docs', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_drive', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_sheets', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'google_slides', installed: true, ready: true, readiness_message: 'ready' }
     ]);
     render(MissionLauncher);
 

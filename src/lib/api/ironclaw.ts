@@ -57,6 +57,7 @@ import type {
 import { SubAgentUnsupportedError } from './types';
 import { containsSecret, redactJsonObject, redactSecrets } from '$lib/utils/redact';
 import { diagEnabled, inTauri } from '$lib/utils/runtime';
+import { extensionTarget } from '$lib/util/extension-identity';
 import {
   V2_BASE,
   clientActionId,
@@ -1858,22 +1859,31 @@ export class IronClawClient {
     if (Array.isArray(readiness?.extensions)) {
       for (const r of readiness.extensions ?? []) {
         const phase = String(r.phase ?? '');
-        readinessByName.set(r.name, {
+        const normalized = extensionTarget(r.name).name;
+        const value = {
           ready: phase === 'ready',
           message: phase || undefined
-        });
+        };
+        readinessByName.set(r.name, value);
+        if (normalized) readinessByName.set(normalized, value);
       }
     } else {
       // Legacy fallback (ready/not_ready/errors triples).
       for (const n of readiness?.ready ?? []) {
-        readinessByName.set(n, { ready: true, message: 'ready' });
+        const normalized = extensionTarget(n).name;
+        const value = { ready: true, message: 'ready' };
+        readinessByName.set(n, value);
+        if (normalized) readinessByName.set(normalized, value);
       }
       for (const n of readiness?.not_ready ?? []) {
         const err = readiness?.errors?.[n];
-        readinessByName.set(n, {
+        const normalized = extensionTarget(n).name;
+        const value = {
           ready: false,
           message: err ? `error: ${err}` : 'not_ready'
-        });
+        };
+        readinessByName.set(n, value);
+        if (normalized) readinessByName.set(normalized, value);
       }
     }
 
@@ -1887,7 +1897,8 @@ export class IronClawClient {
     const toolCounts = new Map<string, number>();
     for (const t of tools) {
       if (t.extension.length === 0) continue;
-      toolCounts.set(t.extension, (toolCounts.get(t.extension) ?? 0) + 1);
+      const owner = extensionTarget(t.extension).name;
+      toolCounts.set(owner, (toolCounts.get(owner) ?? 0) + 1);
     }
 
     // Drop blank names + dedupe by name (keep first) — the installed grid
@@ -1898,10 +1909,12 @@ export class IronClawClient {
     const seen = new Set<string>();
     const out: Extension[] = [];
     for (const e of base?.extensions ?? []) {
-      const name = (e.name ?? '').trim();
+      const rawName = (e.name ?? '').trim();
+      const target = extensionTarget(rawName, e.kind);
+      const name = target.name;
       if (name.length === 0 || seen.has(name)) continue;
       seen.add(name);
-      const rd = readinessByName.get(e.name);
+      const rd = readinessByName.get(name) ?? readinessByName.get(rawName);
       out.push({
         name,
         display_name: e.display_name,
@@ -1916,7 +1929,7 @@ export class IronClawClient {
         // Prefer the joined count from /api/extensions/tools when present,
         // otherwise fall back to the inline `tools[]` array the base list
         // emits (currently the only path that yields a non-zero count).
-        tool_count: toolCounts.get(e.name) ?? (Array.isArray(e.tools) ? e.tools.length : 0),
+        tool_count: toolCounts.get(name) ?? (Array.isArray(e.tools) ? e.tools.length : 0),
         readiness_message: rd?.message,
         keywords: e.keywords
       } satisfies Extension);
@@ -1954,7 +1967,7 @@ export class IronClawClient {
     const seen = new Set<string>();
     const out: Extension[] = [];
     for (const e of list) {
-      const name = (e.name ?? e.slug ?? '').trim();
+      const name = extensionTarget((e.name ?? e.slug ?? '').trim(), e.kind).name;
       if (name.length === 0 || seen.has(name)) continue;
       seen.add(name);
       out.push({
@@ -2002,7 +2015,7 @@ export class IronClawClient {
       .map((t) => ({
         // Empty-string `extension` ("") means "builtin / no provider" —
         // a stable key consumers can group on without nullable handling.
-        extension: typeof t.extension === 'string' ? t.extension : '',
+        extension: typeof t.extension === 'string' ? extensionTarget(t.extension).name : '',
         name: t.name,
         description: t.description
       }));
@@ -2012,28 +2025,32 @@ export class IronClawClient {
    * Install an extension from the registry. The gateway accepts either
    * `{name}` or `{slug}` depending on version — we send both for safety.
    */
-  async installExtension(name: string): Promise<{ ok: boolean }> {
+  async installExtension(name: string, kindHint?: string): Promise<{ ok: boolean }> {
+    const target = extensionTarget(name, kindHint);
     const res = await this.request<{ status?: string }>('POST', '/api/extensions/install', {
-      name,
-      slug: name
+      name: target.name,
+      slug: target.name,
+      ...(target.kind ? { kind: target.kind } : {})
     });
     const status = res?.status;
     return { ok: status === 'queued' || status === 'installed' || status === 'ok' || !status };
   }
 
   async activateExtension(name: string): Promise<{ ok: boolean }> {
+    const target = extensionTarget(name);
     const res = await this.request<{ status?: string }>(
       'POST',
-      `/api/extensions/${encodeURIComponent(name)}/activate`
+      `/api/extensions/${encodeURIComponent(target.name)}/activate`
     );
     const status = res?.status;
     return { ok: status === 'activated' || status === 'ok' || !status };
   }
 
   async removeExtension(name: string): Promise<{ ok: boolean }> {
+    const target = extensionTarget(name);
     const res = await this.request<{ status?: string }>(
       'POST',
-      `/api/extensions/${encodeURIComponent(name)}/remove`
+      `/api/extensions/${encodeURIComponent(target.name)}/remove`
     );
     const status = res?.status;
     return { ok: status === 'removed' || status === 'ok' || !status };
@@ -2047,6 +2064,7 @@ export class IronClawClient {
    * Both are merged into a single field list keyed by `key`.
    */
   async getExtensionSetup(name: string): Promise<ExtensionSetupSchema> {
+    const target = extensionTarget(name);
     type SetupWire = {
       // current gateway shape
       secrets?: Array<{
@@ -2084,7 +2102,7 @@ export class IronClawClient {
     };
     const res = await this.request<SetupWire>(
       'GET',
-      `/api/extensions/${encodeURIComponent(name)}/setup`
+      `/api/extensions/${encodeURIComponent(target.name)}/setup`
     );
 
     const fields: ExtensionSetupSchema['fields'] = [];
@@ -2142,9 +2160,10 @@ export class IronClawClient {
     name: string,
     fields: Record<string, unknown>
   ): Promise<{ ok: boolean }> {
+    const target = extensionTarget(name);
     const res = await this.request<{ status?: string }>(
       'POST',
-      `/api/extensions/${encodeURIComponent(name)}/setup`,
+      `/api/extensions/${encodeURIComponent(target.name)}/setup`,
       fields
     );
     const status = res?.status;
@@ -3173,6 +3192,7 @@ export class IronClawClient {
    * the spec vocabulary can read either.
    */
   async startExtensionLogin(name: string): Promise<DeviceLoginStart> {
+    const target = extensionTarget(name);
     // The wire requires a session_id. crypto.randomUUID is available in
     // every browser context Tauri runs in (and in modern Node). If the
     // runtime somehow doesn't provide it we fall back to a timestamp-based
@@ -3195,7 +3215,7 @@ export class IronClawClient {
       user_code?: string;
       expires_in?: number;
       interval?: number;
-    }>('POST', `/api/extensions/${encodeURIComponent(name)}/login/start`, {
+    }>('POST', `/api/extensions/${encodeURIComponent(target.name)}/login/start`, {
       session_id: sessionId
     });
 
@@ -3229,13 +3249,14 @@ export class IronClawClient {
    * cases populate `error` from the wire's `message`.
    */
   async pollExtensionLogin(name: string, deviceCode: string): Promise<DeviceLoginPoll> {
+    const target = extensionTarget(name);
     const res = await this.request<{
       success?: boolean;
       status?: string;
       message?: string;
       activated?: boolean;
       session_id?: string;
-    }>('POST', `/api/extensions/${encodeURIComponent(name)}/login/poll`, {
+    }>('POST', `/api/extensions/${encodeURIComponent(target.name)}/login/poll`, {
       session_id: deviceCode
     });
 

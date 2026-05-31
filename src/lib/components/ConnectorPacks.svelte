@@ -174,8 +174,10 @@
     return byName;
   }
 
-  function extensionsHref(pack: ConnectorPack): string {
-    return `/extensions?focus=${encodeURIComponent(pack.primary_extension_id)}`;
+  function extensionsHref(pack: ConnectorPack, opts: { setup?: boolean } = {}): string {
+    const params = new URLSearchParams({ focus: pack.primary_extension_id });
+    if (opts.setup) params.set('setup', '1');
+    return `/extensions?${params.toString()}`;
   }
 
   function openInExtensions(pack: ConnectorPack): void {
@@ -203,7 +205,7 @@
 
     try {
       for (const extensionId of pack.extensions) {
-        await client.installExtension(extensionId);
+        await client.installExtension(extensionId, pack.extension_kind_hints?.[extensionId]);
       }
 
       const latest = await refreshReadiness({ quiet: true });
@@ -233,19 +235,21 @@
       if (status === 'needs-auth') {
         setPackAction(pack.id, {
           installing: false,
-          message: 'Sign-in required — finish in Extensions',
+          message: 'Sign-in required — open setup',
           error: null,
           unavailable: false
         });
+        void goto(extensionsHref(pack, { setup: true }));
         return;
       }
 
       setPackAction(pack.id, {
         installing: false,
-        message: 'Install requested — waiting for IronClaw to report every connector ready.',
+        message: 'Install requested — open setup if credentials are needed.',
         error: null,
         unavailable: false
       });
+      void goto(extensionsHref(pack, { setup: true }));
     } catch (error) {
       const unavailable = isEndpointUnavailable(error);
       setPackAction(pack.id, {
@@ -359,12 +363,12 @@
                 class="rounded-md border border-border-subtle bg-bg-deep px-3 py-2 text-xs text-text-primary"
                 role="status"
               >
-                {#if action.message === 'Sign-in required — finish in Extensions'}
+                {#if action.message === 'Sign-in required — open setup'}
                   <span>Sign-in required — </span>
                   <a
-                    href={extensionsHref(pack)}
+                    href={extensionsHref(pack, { setup: true })}
                     class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
-                    >finish in Extensions</a
+                    >open setup</a
                   >
                 {:else}
                   {action.message}

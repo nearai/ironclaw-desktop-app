@@ -11,7 +11,8 @@ const SETTINGS: TauriMockSettings = {
       remoteBaseUrl: 'http://127.0.0.1:18789',
       localBaseUrl: 'http://127.0.0.1:3100',
       llmBackend: 'nearai',
-      llmProviderId: 'nearai'
+      llmProviderId: 'nearai',
+      apiVersion: 'v1'
     }
   ],
   onboardingComplete: true,

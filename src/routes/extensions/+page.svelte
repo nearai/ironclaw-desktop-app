@@ -7,6 +7,7 @@
   import { toasts } from '$lib/stores/toasts.svelte';
   import { pins } from '$lib/stores/pins.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
+  import { extensionTarget } from '$lib/util/extension-identity';
   import type { Extension, ExtensionTool } from '$lib/api/types';
 
   type Tab = 'installed' | 'registry';
@@ -72,6 +73,7 @@
   // either tab). Cleared either way so the param can't re-fire on
   // refresh / Back.
   let pendingFocusName: string | null = null;
+  let pendingSetupForFocus = false;
   let focusedName = $state<string | null>(null);
   /**
    * Has the deep-link consumption already happened? Both list-load
@@ -277,7 +279,9 @@
 
     // Capture deep-link target synchronously so a slow connection init
     // doesn't race with a URL-param mutation from elsewhere.
-    pendingFocusName = page.url.searchParams.get('focus');
+    pendingFocusName = extensionTarget(page.url.searchParams.get('focus') ?? '').name || null;
+    pendingSetupForFocus =
+      page.url.searchParams.get('setup') === '1' || page.url.searchParams.get('action') === 'setup';
     void connection.init();
 
     // Surface refresh (Cmd+R): reload installed + readiness + tools and
@@ -330,6 +334,9 @@
       if (inInstalled) {
         activeTab = 'installed';
         expandedName = name;
+        if (pendingSetupForFocus) {
+          setupTarget = inInstalled;
+        }
       } else {
         activeTab = 'registry';
         // Registry cards don't expand inline — collapse any installed
@@ -350,12 +357,14 @@
         }, 4500);
       });
       clearFocusParam();
+      pendingSetupForFocus = false;
       return;
     }
     // No match yet — only give up after BOTH lists have loaded.
     if (installedState === 'loaded' && registryState === 'loaded') {
       focusConsumed = true;
       pendingFocusName = null;
+      pendingSetupForFocus = false;
       toasts.show('Extension not found', 'error');
       clearFocusParam();
     }
@@ -379,9 +388,17 @@
    */
   function clearFocusParam() {
     if (typeof window === 'undefined') return;
-    if (!page.url.searchParams.has('focus')) return;
+    if (
+      !page.url.searchParams.has('focus') &&
+      !page.url.searchParams.has('setup') &&
+      !page.url.searchParams.has('action')
+    ) {
+      return;
+    }
     const url = new URL(page.url);
     url.searchParams.delete('focus');
+    url.searchParams.delete('setup');
+    url.searchParams.delete('action');
     const target = url.pathname + (url.search ? url.search : '') + url.hash;
     void goto(target, { replaceState: true, noScroll: true, keepFocus: true });
   }
@@ -483,13 +500,17 @@
     const label = ext.display_name ?? ext.name;
     setBusy(ext.name, true);
     try {
-      const res = await client.installExtension(ext.name);
+      const res = await client.installExtension(ext.name, ext.category);
       // Refresh both panes — registry's `installed` flag and the installed
       // list both move when this succeeds.
       const [latest] = await Promise.all([loadInstalled(), loadRegistry()]);
       const confirmed = latest?.some((item) => item.name === ext.name) === true;
+      const updated = latest?.find((item) => item.name === ext.name);
       if (confirmed) {
         toasts.show(`Installed ${label}`, 'success');
+        if (updated && updated.ready !== true && updated.readiness_message !== 'ready') {
+          setupTarget = updated;
+        }
       } else if (res.ok) {
         toasts.show(
           `Install requested for ${label}; waiting for IronClaw to report it installed.`,
