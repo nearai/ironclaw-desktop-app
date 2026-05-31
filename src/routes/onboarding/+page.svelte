@@ -1,6 +1,6 @@
 <script lang="ts">
-  // First-run onboarding — collapsed to a single decision: where does your
-  // agent run?
+  // First-run onboarding — outcome-first orientation with a single required
+  // connection decision: where does your agent run?
   //
   //   • Local  → one click. Spawns the bundled sidecar (NEAR.AI Cloud
   //              default, no key needed) and drops you into chat.
@@ -26,6 +26,8 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { IronClawClient } from '$lib/api/ironclaw';
+  import { CONNECTOR_PACKS } from '$lib/data/connector-packs';
+  import { FIRST_RUN_MISSIONS } from '$lib/data/missions';
   import { connection } from '$lib/stores/connection.svelte';
   import NearMark from '$lib/components/NearMark.svelte';
   import {
@@ -42,6 +44,8 @@
   import { validateHostedUrl } from '$lib/util/validate-url';
 
   const LOCAL_DEFAULT_URL = 'http://127.0.0.1:3100';
+  const connectorPreviewLabels = CONNECTOR_PACKS.map((pack) => pack.display_name);
+  const missionPreviewTitles = FIRST_RUN_MISSIONS.slice(0, 4).map((mission) => mission.title);
 
   let view = $state<'choose' | 'hosted'>('choose');
 
@@ -272,11 +276,49 @@
            because Svelte's scoped CSS does not cross into the component. -->
       <NearMark size={48} style="display: block; margin: 0 auto 1rem; color: var(--v2-accent);" />
       <h1 class="ob__title">Welcome to IronClaw</h1>
-      <p class="ob__value">Your chief of staff — brief, triage, draft, and delegate.</p>
-      <p class="ob__sub">Choose where your agent runs. You can change this anytime in Settings.</p>
+      <p class="ob__value">
+        Your chief of staff - connect your apps, run a mission, approve the results.
+      </p>
+      <p class="ob__sub">
+        First connect IronClaw, then add workspace context and launch the first mission.
+      </p>
     </header>
 
     {#if view === 'choose'}
+      <section class="ob__preview" aria-labelledby="ob-preview-title">
+        <div class="ob__preview-head">
+          <p class="ob__eyebrow">Outcome preview</p>
+          <h2 id="ob-preview-title" class="ob__preview-title">Here's what you'll do</h2>
+        </div>
+
+        <div class="ob__preview-rows">
+          <div class="ob__preview-row">
+            <div class="ob__preview-copy">
+              <span class="ob__preview-step">Step 2</span>
+              <span class="ob__preview-label">Connect your workspace</span>
+            </div>
+            <div class="ob__chips" aria-label="Workspace connector examples">
+              {#each connectorPreviewLabels as label}
+                <span class="ob__chip">{label}</span>
+              {/each}
+            </div>
+          </div>
+
+          <div class="ob__preview-row">
+            <div class="ob__preview-copy">
+              <span class="ob__preview-step">Step 3</span>
+              <span class="ob__preview-label">Run your first mission</span>
+            </div>
+            <div class="ob__chips" aria-label="First mission examples">
+              {#each missionPreviewTitles as title}
+                <span class="ob__chip">{title}</span>
+              {/each}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="ob__section-label">Step 1 - connect IronClaw</div>
       <div class="ob__choices">
         <button
           type="button"
@@ -295,8 +337,8 @@
           <span class="ob__choice-copy">
             <span class="ob__choice-title">Run on this Mac</span>
             <span class="ob__choice-desc">
-              Starts a private IronClaw on your machine — no setup, no token. Defaults to NEAR.AI
-              Cloud for the model.
+              Start the local runner so IronClaw can prepare briefs, triage work, and draft actions
+              from this Mac.
             </span>
           </span>
           <span class="ob__choice-cta"
@@ -326,7 +368,8 @@
           <span class="ob__choice-copy">
             <span class="ob__choice-title">Connect to hosted</span>
             <span class="ob__choice-desc">
-              Use a NEAR.AI-hosted IronClaw gateway. Sign in and paste your access token.
+              Use a hosted IronClaw gateway when your team already has one. Sign in and paste your
+              access token.
             </span>
           </span>
           <span class="ob__choice-cta">Hosted →</span>
@@ -470,6 +513,86 @@
     font-size: 0.98rem;
     line-height: 1.55;
     color: var(--v2-text-muted);
+  }
+  .ob__preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 1rem;
+    border: 1px solid var(--v2-panel-border);
+    border-radius: 0.9rem;
+    background: var(--v2-surface);
+  }
+  .ob__preview-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.45rem 0.75rem;
+  }
+  .ob__eyebrow,
+  .ob__section-label,
+  .ob__preview-step {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--v2-text-faint);
+  }
+  .ob__preview-title {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.3;
+    font-weight: 650;
+    color: var(--v2-text-strong);
+  }
+  .ob__preview-rows {
+    display: grid;
+    gap: 0.65rem;
+  }
+  .ob__preview-row {
+    display: grid;
+    grid-template-columns: minmax(9.5rem, 0.78fr) minmax(0, 1.4fr);
+    align-items: center;
+    gap: 0.75rem;
+    padding-top: 0.65rem;
+    border-top: 1px solid var(--v2-border);
+  }
+  .ob__preview-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+  .ob__preview-label {
+    font-size: 0.9rem;
+    line-height: 1.35;
+    font-weight: 600;
+    color: var(--v2-text);
+  }
+  .ob__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+  .ob__chip {
+    display: inline-flex;
+    min-height: 2rem;
+    align-items: center;
+    padding: 0 0.6rem;
+    border: 1px solid var(--v2-border);
+    border-radius: 999px;
+    background: var(--v2-input-bg);
+    color: var(--v2-text-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+  .ob__section-label {
+    margin: 0.1rem 0 -0.3rem;
   }
   .ob__choices {
     display: grid;
@@ -844,6 +967,13 @@
   @media (max-width: 44rem) {
     .ob {
       align-items: flex-start;
+    }
+    .ob__preview-row {
+      grid-template-columns: 1fr;
+      align-items: start;
+    }
+    .ob__chip {
+      white-space: normal;
     }
     .ob__choices {
       grid-template-columns: 1fr;

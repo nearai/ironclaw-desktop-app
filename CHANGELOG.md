@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.128 — Outcome-first onboarding (2026-05-30)
+
+Reframes first-run from "where does the agent run?" (infra-first) to "here's what you'll do"
+(magic-first), the core product-review note:
+
+- **Outcome hero**: the headline copy now leads with the outcome — "connect your apps, run a
+  mission, approve the results" — and a 3-step mental model.
+- **Outcome preview**: a new "Here's what you'll do" panel renders, from the connector/mission
+  data, the Workspace Packs you'll connect (Google Workspace · Notion · Slack) and the first
+  missions you'll run (Morning Brief · Inbox Triage · Meeting Prep · …) as chips — selling the
+  payoff before any setup. Purely presentational; the live install/launch happens after connecting.
+- **Runner choice reframed as "Step 1 — connect IronClaw"** (kept fully functional; it's the real
+  connection prerequisite), with outcome-oriented card copy.
+
+Onboarding unit + e2e contract strings preserved. Full suite green (1042), svelte-check 0/0.
+
 ## v0.4.127 — Workspace Packs + mission launcher (chief-of-staff UI) (2026-05-30)
 
 The UI layer on the CoS foundation — turns the connector/mission data into one-click surfaces:
