@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.4.148 — StatusBar usage truth + Mini streaming parity (review ICD-018 / ICD-015) (2026-05-30)
+
+- **StatusBar**: internal `tokensToday` renamed to `tokens30d` (the value was
+  always `usage_30d`), comment corrected, and a "Tokens, rolling 30 days"
+  title/aria-label added so the figure isn't read as a daily count. Snapshot
+  regenerated.
+- **Mini mode**: the in-flight streaming buffer now renders through the
+  lightweight `StreamingText` (same as main chat since ICD-003) instead of full
+  `MarkdownView`; committed history still uses `MarkdownView`. Last surface
+  paying for per-token markdown reparse is fixed.
+
+
 ## v0.4.147 — Operational copy + technical-language cleanup (review ICD-011 / ICD-013) (2026-05-30)
 
 Primary surfaces now name the action instead of leaning on persona/promise copy,
