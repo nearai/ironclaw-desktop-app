@@ -787,37 +787,54 @@ goes through a Rust command:
 
 ### CSP
 
-`tauri.conf.json` sets an explicit Content Security Policy:
+`tauri.conf.json` (`app.security.csp`) sets an explicit Content Security
+Policy. The live value is one line; expanded for readability:
 
 ```
 default-src 'self' tauri:;
-connect-src 'self' tauri: ipc: http://* https://*;
-img-src    'self' data: blob: tauri: http://* https://*;
-style-src  'self' 'unsafe-inline' tauri:;
-script-src 'self' tauri:;
-font-src   'self' data: tauri:;
-media-src  'self' data: blob: tauri:;
-frame-src  'none';
-object-src 'none';
-base-uri   'self';
+connect-src 'self' tauri: ipc: http://127.0.0.1:* http://localhost:* https://*;
+img-src     'self' data: blob: tauri: http://* https://*;
+style-src   'self' 'unsafe-inline' tauri:;
+script-src  'self' 'unsafe-inline' tauri:;
+font-src    'self' data: tauri:;
+media-src   'self' data: blob: tauri:;
+frame-src   'none';
+object-src  'none';
+base-uri    'self';
 ```
 
 Directive-by-directive rationale:
 
 - `default-src 'self' tauri:` — fallback that allows only the
   bundled origin (`tauri://localhost`) and the `tauri:` scheme.
-- `connect-src 'self' tauri: ipc: http://* https://*` — fetches
-  and SSE streams. `http://*` and `https://*` are required because
-  the user configures arbitrary gateway URLs (could be `127.0.0.1`,
-  `abby`, or any remote host); `ipc:` is needed for Tauri IPC.
+- `connect-src 'self' tauri: ipc: http://127.0.0.1:* http://localhost:* https://*`
+  — fetches and SSE streams. The http scheme is **loopback-only**
+  (the bundled local sidecar); `https://*` is the deliberate broad
+  allowance, because a profile can point at **any** remote gateway
+  URL (`abby`, a Caddy host, an SSH tunnel) and we can't enumerate
+  them ahead of time. `ipc:` is needed for Tauri IPC. There is no
+  bare `http://*` — insecure remote http is not permitted.
 - `img-src 'self' data: blob: tauri: http://* https://*` — bundled
   assets, chat attachments rendered as `data:` URLs (R11b), and
-  remote images served from a gateway response.
+  remote images referenced from a gateway/markdown response. Images
+  are passive content, so the http allowance here is wider than
+  `connect-src`.
 - `style-src 'self' 'unsafe-inline' tauri:` — Svelte 5 emits inline
   styles for scoped CSS; `'unsafe-inline'` is the standard accepted
-  cost. The XSS guard is `script-src`, not `style-src`.
-- `script-src 'self' tauri:` — bundled scripts only, no inline,
-  no `eval`. This is the meaningful XSS mitigation.
+  cost. The XSS guard is `script-src` shedding `unsafe-eval` + remote
+  hosts, not `style-src`.
+- `script-src 'self' 'unsafe-inline' tauri:` — bundled scripts, plus
+  `'unsafe-inline'`. Inline is required by **two** things we can't
+  cheaply remove: SvelteKit's inline hydration-start script, and the
+  dev-only IPC shim in `app.html` (which is itself production-gated —
+  it early-returns under the `tauri:` / `tauri-localhost:` protocols,
+  so it never installs in the shipped webview; see `app.html` and the
+  `native-security-guard.test.ts` dev-shim test). Critically there is
+  **no `'unsafe-eval'`** and **no remote script origin**, so a gateway
+  response still cannot inject executable script. Dropping
+  `'unsafe-inline'` would require SvelteKit CSP hashing/nonces
+  coordinated with Tauri's static CSP — a fragile change deferred
+  rather than forced.
 - `font-src 'self' data: tauri:` — bundled fonts and any `data:`-
   embedded font.
 - `media-src 'self' data: blob: tauri:` — bundled and inline media.
@@ -826,11 +843,29 @@ Directive-by-directive rationale:
 - `base-uri 'self'` — blocks `<base>` tag redirection of relative
   URLs.
 
-The notable looseness is `connect-src http://* https://*`: gateway
-URLs are user-configurable at runtime, so we can't enumerate them.
-Tightening it would require proxying every HTTP call through a
-Rust command, which is a larger refactor. `style-src 'unsafe-inline'`
-can be dropped once Svelte 5 grows nonce support.
+### Tauri capabilities
+
+`src-tauri/capabilities/default.json` scopes the native permissions:
+
+- `http:default` → `http://127.0.0.1:*`, `http://localhost:*`,
+  `https://**`. Same shape as `connect-src`: loopback for the sidecar,
+  arbitrary https for the user's remote gateway.
+- `shell:allow-execute` / `shell:allow-kill` → **only** the bundled
+  `binaries/ironclaw` sidecar. No general shell execution.
+- `shell:allow-open` → `https://**` plus loopback. Opens external
+  links (release notes, docs, NEAR.AI OAuth) in the OS browser; the
+  set of legitimate https destinations isn't enumerable, so it stays
+  broad-but-https-only.
+- The webview has no `fs:` permissions (see Filesystem above).
+
+The broad `https://*` / `https://**` allowances are a genuine product
+need (user-configurable remote gateways and external links), not an
+oversight. They are pinned by `src/lib/native-security-guard.test.ts`,
+which fails CI if any scope is widened further (a bare `http://*`
+wildcard, `'unsafe-eval'`, a remote script host, an unscoped sidecar
+exec, etc.) or if the dev-shim production guard is removed. Narrowing
+`connect-src https://*` would require proxying every gateway call
+through a Rust command — a larger refactor tracked separately.
 
 ### Redaction layer
 

@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.4.143 — CSP/capability truth + regression guard (review ICD-009) (2026-05-30)
+
+The security model is now accurately documented and pinned against accidental
+widening.
+
+- **ARCHITECTURE** CSP section rewritten to match the live `tauri.conf.json`:
+  it had claimed `script-src 'self' tauri:` (inline-free) and `connect-src
+  http://*`, but the real policy is `script-src 'self' 'unsafe-inline' tauri:`
+  with loopback-scoped http. The doc now explains why `'unsafe-inline'` is
+  load-bearing (SvelteKit's inline hydration script + the production-gated dev
+  IPC shim) and why `https://*` is a real product need (user-configurable
+  remote gateways + external links), with the capability scopes documented
+  alongside.
+- New `native-security-guard.test.ts` pins the invariants: CSP keeps
+  `frame-src/object-src 'none'` + `base-uri 'self'`, never gains
+  `'unsafe-eval'` or a remote script host, http stays loopback-only in
+  `connect-src`; the Tauri http capability and sidecar shell exec/kill scopes
+  are pinned; and the dev IPC shim's `tauri:`/`tauri-localhost:` production
+  guard can't be removed. CI fails if any scope is widened.
+- No capability was changed — the broad `https` allowances are justified, not
+  loosened.
+
 ## v0.4.142 — Documentation truth pass (review ICD-007) (2026-05-30)
 
 Docs now match the shipped app.
