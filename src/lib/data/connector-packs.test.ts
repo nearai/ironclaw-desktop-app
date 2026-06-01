@@ -38,6 +38,37 @@ describe('connector packs', () => {
     ).toBe('needs-auth');
   });
 
+  it('treats core extensions as enough to unlock a workspace pack', () => {
+    const google = connectorPackById('google');
+    expect(google).toBeTruthy();
+    if (!google) return;
+
+    expect(
+      connectorPackStatus(
+        google,
+        new Map([
+          ['gmail', { name: 'gmail', readiness_message: 'ready' }],
+          ['google_calendar', { name: 'google_calendar', readiness_message: 'ready' }]
+        ])
+      )
+    ).toBe('connected');
+    expect(
+      connectorPackStatus(
+        google,
+        new Map([['gmail', { name: 'gmail', readiness_message: 'ready' }]])
+      )
+    ).toBe('partial');
+    expect(
+      connectorPackStatus(
+        google,
+        new Map([
+          ['google_docs', { name: 'google_docs', readiness_message: 'ready' }],
+          ['google_drive', { name: 'google_drive', readiness_message: 'ready' }]
+        ])
+      )
+    ).toBe('partial');
+  });
+
   it('connectorPackById returns matching packs', () => {
     expect(connectorPackById('google')?.display_name).toBe('Google Workspace');
     expect(connectorPackById('notion')?.extensions).toEqual(['notion']);
@@ -110,5 +141,27 @@ describe('connector packs', () => {
         ])
       )
     ).toBe('not-installed');
+  });
+
+  it('requires Slack read capability before marking Slack connected', () => {
+    const slack = connectorPackById('slack');
+    expect(slack).toBeTruthy();
+    if (!slack) return;
+
+    expect(
+      connectorPackStatus(
+        slack,
+        new Map([['slack', { name: 'slack', ready: true, readiness_message: 'ready' }]])
+      )
+    ).toBe('partial');
+    expect(
+      connectorPackStatus(
+        slack,
+        new Map([
+          ['slack', { name: 'slack', ready: true, readiness_message: 'ready' }],
+          ['slack_tool', { name: 'slack_tool', ready: true, readiness_message: 'ready' }]
+        ])
+      )
+    ).toBe('connected');
   });
 });

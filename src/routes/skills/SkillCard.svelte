@@ -33,7 +33,7 @@
   }
 
   /** DOM ref so the parent can imperatively .focus() this card. */
-  let el = $state<HTMLDivElement | null>(null);
+  let el = $state<HTMLButtonElement | null>(null);
 
   // Expose the element via a data-focus-id attribute the parent queries
   // back through the DOM. Using a ref-bag pattern would require a more
@@ -133,14 +133,8 @@
 </script>
 
 <div
-  bind:this={el}
-  role="button"
-  tabindex="0"
   data-skill-card={focusId ?? skill.name}
-  onclick={() => onOpen(skill)}
-  onkeydown={handleKey}
-  onfocus={handleFocus}
-  class="v2-interactive-card group relative flex flex-col p-4 cursor-pointer focus:outline-none min-h-[160px]"
+  class="v2-interactive-card group relative flex flex-col p-4 focus-within:outline-none min-h-[160px]"
 >
   <!-- Pin star. Sits top-right; when a trust badge is present, the badge
        renders inline next to the star so neither overlaps the other.
@@ -203,25 +197,33 @@
     </button>
   </div>
 
-  <div class="mb-2 pr-20">
+  <button
+    bind:this={el}
+    type="button"
+    data-skill-card-focus
+    onclick={() => onOpen(skill)}
+    onkeydown={handleKey}
+    onfocus={handleFocus}
+    class="mb-2 flex flex-1 flex-col pr-20 text-left focus:outline-none"
+  >
     <h3 class="text-sm font-semibold text-accent-cyan break-words">
       {skill.name}
     </h3>
-  </div>
 
-  <p
-    class="text-xs text-text-muted leading-relaxed flex-1 overflow-hidden"
-    style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
-  >
-    {skill.description || 'No description available.'}
-  </p>
+    <p
+      class="mt-2 text-xs text-text-muted leading-relaxed flex-1 overflow-hidden"
+      style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
+    >
+      {skill.description || 'No description available.'}
+    </p>
 
-  <div
-    class="mt-2 text-[11px] font-mono text-accent-cyan/90 truncate"
-    title="Run this skill by typing this in chat."
-  >
-    {usageHint}
-  </div>
+    <div
+      class="mt-2 max-w-full text-[11px] font-mono text-accent-cyan/90 truncate"
+      title="Run this skill by typing this in chat."
+    >
+      {usageHint}
+    </div>
+  </button>
 
   <div class="mt-3 pt-3 border-t border-border-subtle flex items-center justify-between">
     <span class="text-[10px] font-mono text-text-muted bg-bg-deep px-2 py-1 rounded">

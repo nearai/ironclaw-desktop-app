@@ -53,6 +53,7 @@ export default {
       },
       fontFamily: {
         sans: [
+          '"Inter Variable"',
           '-apple-system',
           'BlinkMacSystemFont',
           '"SF Pro Text"',

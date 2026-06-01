@@ -273,6 +273,8 @@ export function planWorkAsk(input: {
   const boundaries = approvalBoundaries(input.classification, runbookIds);
   const plannedArtifacts = artifacts(input.classification, runbookIds);
   const plannedWatches = watches(input.classification);
+  const workStatus: WorkItemStatus =
+    missingContext.length > 0 ? 'blocked' : boundaries.length > 0 ? 'waiting-approval' : 'active';
   const domain: WorkItemDomain =
     input.classification.domain === 'multi'
       ? 'multi'
@@ -287,7 +289,7 @@ export function planWorkAsk(input: {
       objective: ask,
       domain,
       runbookIds,
-      status: missingContext.length > 0 ? 'blocked' : 'active',
+      status: workStatus,
       dossier,
       approvalBoundaries: boundaries,
       artifacts: plannedArtifacts,
@@ -296,7 +298,11 @@ export function planWorkAsk(input: {
       followUps: plannedWatches.map((watch) => watch.escalation),
       nextAction:
         clean(input.classification.nextAction) ||
-        (missingContext[0] ? `Provide ${missingContext[0].label}` : null)
+        (missingContext[0]
+          ? `Provide ${missingContext[0].label}`
+          : boundaries[0]
+            ? `Review approval: ${boundaries[0].action}`
+            : null)
     }
   };
 }

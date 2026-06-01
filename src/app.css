@@ -47,10 +47,10 @@
   --v2-text-faint: rgba(255, 255, 255, 0.45);
   --v2-inverse: #111111;
   --font-ui:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', Arial,
+    'Inter Variable', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', Arial,
     sans-serif;
   --font-display:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Arial,
+    'Inter Variable', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', Arial,
     sans-serif;
 
   /* Accent — NEAR Blue (PMS 2925C, NEAR AI Brand Guidelines v01).
@@ -147,6 +147,8 @@ body {
   background-attachment: fixed;
   font-family: var(--font-ui);
   font-kerning: normal;
+  font-optical-sizing: auto;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

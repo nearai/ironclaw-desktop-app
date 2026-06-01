@@ -394,7 +394,11 @@
   // sitting on the route, bounce them to /settings so they don't see a
   // stranded page.
   $effect(() => {
-    if (connection.settings.engineV2Enabled !== true && page.url.pathname.startsWith('/missions')) {
+    if (
+      connection.initialized &&
+      connection.settings.engineV2Enabled !== true &&
+      page.url.pathname.startsWith('/missions')
+    ) {
       void goto('/settings');
     }
   });

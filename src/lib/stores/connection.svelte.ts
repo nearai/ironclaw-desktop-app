@@ -179,7 +179,7 @@ class ConnectionStore {
   windowProfileOverride = $state<string | null>(null);
 
   private timer: ReturnType<typeof setInterval> | null = null;
-  private initialized = false;
+  initialized = $state(false);
   /** In-flight `init()` promise. Cached so concurrent callers from the
    *  layout root, the sidebar, the status bar, and the chat surface
    *  dedupe to ONE initialization AND every caller awaits the same

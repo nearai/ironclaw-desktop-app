@@ -29,15 +29,15 @@ Use executive brevity. Separate "Decision needed", "FYI", and "Can handle" where
   {
     id: 'inbox-triage',
     title: 'Inbox Triage',
-    description: 'Sort recent email and Slack into decisions, FYIs, and work you can handle.',
+    description: 'Sort recent email into decisions, FYIs, and work you can handle.',
     icon: 'inbox',
     required_connectors: ['google'],
     mode: 'approval',
-    prompt: `You are my Chief of Staff triaging my recent inbox and Slack.
+    prompt: `You are my Chief of Staff triaging my recent email inbox.
 
-Review recent unread or high-signal email and Slack threads. Classify each item into exactly one bucket: "Decision needed", "FYI", or "Can handle". For each, give a one-line reason and a concrete suggested next action. Put the most urgent items first and reference the source clearly.
+Review recent unread or high-signal email threads. Classify each item into exactly one bucket: "Decision needed", "FYI", or "Can handle". For each, give a one-line reason and a concrete suggested next action. Put the most urgent items first and reference the source clearly.
 
-Use executive brevity. Do not archive, mark read, reply, react, assign, snooze, or change anything. For any "Can handle" item, propose the exact next step and wait for my approval before sending or writing.`
+Use executive brevity. Do not archive, mark read, reply, label, snooze, or change anything. For any "Can handle" item, propose the exact next step and wait for my approval before sending or writing.`
   },
   {
     id: 'meeting-prep',

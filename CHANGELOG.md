@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.4.151 — Overnight connector hardening + hostile surface fixes (2026-06-01)
+
+- Google Workspace packs now distinguish core Gmail/Calendar readiness from
+  optional Docs/Drive/Sheets/Slides availability, so optional extension 404s do
+  not block users from reaching Gmail setup and running the first workspace
+  missions.
+- Slack readiness now requires both the channel and Slack tool capability
+  before Slack catch-up missions unlock.
+- Mission copy no longer claims Slack work in the Google-only Inbox Triage
+  mission; Slack catch-up stays its own connector-gated mission.
+- Work routing now marks approval-gated work as `waiting-approval` instead of
+  merely `active`, with the next action pointed at the pending approval.
+- `/extensions` now consumes `?focus=...&setup=1` on same-route navigation as
+  well as cold entry, preserving Reborn bare-name setup calls.
+- `/missions` waits for hydrated settings before redirecting disabled Engine v2
+  routes, avoiding premature bounces to Settings.
+- The app shell now actually uses the self-hosted Inter Variable font, and the
+  skills card grid no longer nests controls inside a button-like card.
+- Added regression coverage for optional connector install failures, Slack read
+  readiness, same-route extension setup deep links, missions route guards,
+  onboarding connector readiness, and skills a11y.
+
 ## v0.4.150 — Reborn connector identity + setup flow (2026-06-01)
 
 - Extension lifecycle calls now normalize catalog references like

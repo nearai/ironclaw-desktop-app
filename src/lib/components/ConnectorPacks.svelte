@@ -174,6 +174,15 @@
     return byName;
   }
 
+  function coreExtensionIds(pack: ConnectorPack): string[] {
+    return pack.core_extensions ?? pack.extensions;
+  }
+
+  function optionalExtensionIds(pack: ConnectorPack): string[] {
+    const core = new Set(coreExtensionIds(pack));
+    return pack.extensions.filter((extensionId) => !core.has(extensionId));
+  }
+
   function extensionsHref(pack: ConnectorPack, opts: { setup?: boolean } = {}): string {
     const params = new URLSearchParams({ focus: pack.primary_extension_id });
     if (opts.setup) params.set('setup', '1');
@@ -204,8 +213,17 @@
     });
 
     try {
-      for (const extensionId of pack.extensions) {
+      for (const extensionId of coreExtensionIds(pack)) {
         await client.installExtension(extensionId, pack.extension_kind_hints?.[extensionId]);
+      }
+
+      let optionalFailures = 0;
+      for (const extensionId of optionalExtensionIds(pack)) {
+        try {
+          await client.installExtension(extensionId, pack.extension_kind_hints?.[extensionId]);
+        } catch {
+          optionalFailures += 1;
+        }
       }
 
       const latest = await refreshReadiness({ quiet: true });
@@ -224,7 +242,10 @@
       if (status === 'connected') {
         setPackAction(pack.id, {
           installing: false,
-          message: 'Connected',
+          message:
+            optionalFailures > 0
+              ? 'Connected; optional apps unavailable on this gateway.'
+              : 'Connected',
           error: null,
           unavailable: false
         });
@@ -245,7 +266,10 @@
 
       setPackAction(pack.id, {
         installing: false,
-        message: 'Install requested — open setup if credentials are needed.',
+        message:
+          optionalFailures > 0
+            ? 'Core apps installed — optional apps unavailable. Open setup if credentials are needed.'
+            : 'Install requested — open setup if credentials are needed.',
         error: null,
         unavailable: false
       });

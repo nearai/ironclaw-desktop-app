@@ -12,7 +12,10 @@ test('first-run setup lands on dashboard and gates missions by connector readine
     kind?: string;
     description?: string;
     version?: string;
+    installed?: boolean;
     active?: boolean;
+    ready?: boolean;
+    readiness_message?: string;
   }> = [];
 
   await mockTauri(page);
@@ -72,31 +75,27 @@ test('first-run setup lands on dashboard and gates missions by connector readine
   ).toHaveAttribute('href', '/extensions?focus=gmail&setup=1');
   await expect(morningBrief.getByRole('button', { name: 'Morning Brief' })).toBeDisabled();
 
-  // Make the Google Workspace connectors READY. The hermetic browser harness has
-  // no Tauri sidecar / live gateway socket, so we inject a connected client stub
-  // exposing the same `listExtensions` readiness contract the gateway would
-  // report. Unknown methods are async no-ops so other surfaces don't throw.
-  await page.evaluate(async () => {
-    const mod = await import(/* @vite-ignore */ '/src/lib/stores/connection.svelte.ts' as string);
-    const ready = [
+  // Make the Google Workspace connectors READY. The surface mock closes over
+  // this array, so mutating it makes the next Refresh see the same readiness
+  // shape the gateway would report.
+  extensions.splice(
+    0,
+    extensions.length,
+    ...[
       'gmail',
       'google_calendar',
       'google_docs',
       'google_drive',
       'google_sheets',
       'google_slides'
-    ].map((name) => ({ name, installed: true, ready: true, readiness_message: 'ready' }));
-    const stub = new Proxy(
-      {},
-      {
-        get(_t, prop) {
-          if (prop === 'listExtensions') return async () => ready;
-          return async () => [];
-        }
-      }
-    );
-    (mod as { connection: { client: unknown } }).connection.client = stub;
-  });
+    ].map((name) => ({
+      name,
+      installed: true,
+      active: true,
+      ready: true,
+      readiness_message: 'ready'
+    }))
+  );
 
   await page.getByRole('button', { name: 'Refresh' }).first().click();
   await expect(morningBrief.getByText('Needs Google Workspace')).toBeHidden();

@@ -39,9 +39,12 @@ describe('planWorkAsk', () => {
     expect(result.status).toBe('routed');
     if (result.status !== 'routed') return;
     expect(result.workItem.domain).toBe('coding');
+    expect(result.workItem.status).toBe('waiting-approval');
     expect(result.workItem.runbookIds).toEqual(['coding']);
     expect(result.workItem.dossier.some((entry) => entry.state === 'available')).toBe(true);
     expect(result.workItem.approvalBoundaries.some((gate) => gate.kind === 'push')).toBe(true);
+    expect(result.workItem.openApprovals).toContain('Push branch');
+    expect(result.workItem.nextAction).toMatch(/^Review approval:/);
     expect(result.workItem.artifacts.some((artifact) => artifact.type === 'pr-summary')).toBe(true);
     expect(result.workItem.watches).toHaveLength(0);
   });

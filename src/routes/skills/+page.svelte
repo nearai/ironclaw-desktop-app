@@ -486,7 +486,8 @@
 
   function focusByName(name: string) {
     if (typeof document === 'undefined') return;
-    const el = document.querySelector<HTMLElement>(`[data-skill-card="${cssEscape(name)}"]`);
+    const card = document.querySelector<HTMLElement>(`[data-skill-card="${cssEscape(name)}"]`);
+    const el = card?.querySelector<HTMLElement>('[data-skill-card-focus]');
     el?.focus();
   }
 

@@ -111,11 +111,7 @@ describe('MissionLauncher component', () => {
     const firstMission = FIRST_RUN_MISSIONS[0];
     installFakeClient([
       { name: 'gmail', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'google_calendar', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'google_docs', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'google_drive', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'google_sheets', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'google_slides', installed: true, ready: true, readiness_message: 'ready' }
+      { name: 'google_calendar', installed: true, ready: true, readiness_message: 'ready' }
     ]);
     render(MissionLauncher);
 

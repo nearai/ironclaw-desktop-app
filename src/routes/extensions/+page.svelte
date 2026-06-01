@@ -68,12 +68,14 @@
   let expandedName = $state<string | null>(null);
 
   // Deep-link target name from `?focus=<name>` (set by GlobalSearch R14b /
-  // CommandPalette R6η). Captured once on mount and consumed after both
+  // CommandPalette R6η). Captured on mount and on same-route navigations,
+  // then consumed after both
   // the installed + registry lists resolve (so we can find a match in
   // either tab). Cleared either way so the param can't re-fire on
   // refresh / Back.
   let pendingFocusName: string | null = null;
   let pendingSetupForFocus = false;
+  let lastFocusQuery: string | null = null;
   let focusedName = $state<string | null>(null);
   /**
    * Has the deep-link consumption already happened? Both list-load
@@ -267,6 +269,27 @@
     startRefresh();
   });
 
+  function captureFocusFromUrl(): void {
+    const rawFocus = page.url.searchParams.get('focus') ?? '';
+    const setup =
+      page.url.searchParams.get('setup') === '1' || page.url.searchParams.get('action') === 'setup';
+    const focusQuery = `${rawFocus}\u0000${setup ? 'setup' : ''}`;
+    if (focusQuery === lastFocusQuery) return;
+    lastFocusQuery = focusQuery;
+
+    const targetName = extensionTarget(rawFocus).name || null;
+    if (!targetName) return;
+
+    pendingFocusName = targetName;
+    pendingSetupForFocus = setup;
+    focusConsumed = false;
+    tryConsumeFocus();
+  }
+
+  $effect(() => {
+    captureFocusFromUrl();
+  });
+
   onMount(() => {
     void (async () => {
       const [extensionCardModule, setupDrawerModule] = await Promise.all([
@@ -279,9 +302,7 @@
 
     // Capture deep-link target synchronously so a slow connection init
     // doesn't race with a URL-param mutation from elsewhere.
-    pendingFocusName = extensionTarget(page.url.searchParams.get('focus') ?? '').name || null;
-    pendingSetupForFocus =
-      page.url.searchParams.get('setup') === '1' || page.url.searchParams.get('action') === 'setup';
+    captureFocusFromUrl();
     void connection.init();
 
     // Surface refresh (Cmd+R): reload installed + readiness + tools and

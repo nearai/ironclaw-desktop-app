@@ -22,6 +22,7 @@ export interface ConnectorPack {
   display_name: string;
   description: string;
   extensions: string[];
+  core_extensions?: string[];
   extension_kind_hints?: Record<string, ExtensionKindHint>;
   primary_extension_id: string;
   shared_auth: string | null;
@@ -34,7 +35,7 @@ export const CONNECTOR_PACKS: ConnectorPack[] = [
     id: 'google',
     display_name: 'Google Workspace',
     description:
-      'Connect Gmail, Calendar, Drive, Docs, Sheets, and Slides so work moves with context.',
+      'Connect Gmail and Calendar first, then add Drive, Docs, Sheets, and Slides for richer workspace context.',
     extensions: [
       'gmail',
       'google_calendar',
@@ -43,6 +44,7 @@ export const CONNECTOR_PACKS: ConnectorPack[] = [
       'google_sheets',
       'google_slides'
     ],
+    core_extensions: ['gmail', 'google_calendar'],
     extension_kind_hints: {
       gmail: 'wasm_tool',
       google_calendar: 'wasm_tool',
@@ -65,6 +67,7 @@ export const CONNECTOR_PACKS: ConnectorPack[] = [
     display_name: 'Notion',
     description: 'Connect Notion so plans, docs, and project memory stay organized and actionable.',
     extensions: ['notion'],
+    core_extensions: ['notion'],
     extension_kind_hints: {
       notion: 'mcp_server'
     },
@@ -82,6 +85,7 @@ export const CONNECTOR_PACKS: ConnectorPack[] = [
     display_name: 'Slack',
     description: 'Connect Slack so conversations become decisions, drafts, and follow-through.',
     extensions: ['slack', 'slack_tool'],
+    core_extensions: ['slack', 'slack_tool'],
     extension_kind_hints: {
       slack: 'wasm_channel',
       slack_tool: 'wasm_tool'
@@ -120,7 +124,21 @@ export function connectorPackStatus(
   source: ReadonlyMap<string, ConnectorReadinessLike>,
   fallback: ConnectorPackStatus = 'not-installed'
 ): ConnectorPackStatus {
-  const entries = pack.extensions.map((name) => {
+  const entriesByName = new Map(
+    pack.extensions.map((name) => {
+      let match: ConnectorReadinessLike | undefined;
+      for (const candidate of extensionRefCandidates(name, pack.extension_kind_hints?.[name])) {
+        const ext = source.get(candidate);
+        if (ext) {
+          match = ext;
+          break;
+        }
+      }
+      return [name, match] as const;
+    })
+  );
+  const entries = Array.from(entriesByName.values());
+  const coreEntries = (pack.core_extensions ?? pack.extensions).map((name) => {
     for (const candidate of extensionRefCandidates(name, pack.extension_kind_hints?.[name])) {
       const ext = source.get(candidate);
       if (ext) return ext;
@@ -130,7 +148,7 @@ export function connectorPackStatus(
   const installedCount = entries.filter((ext) => ext !== undefined).length;
 
   if (installedCount === 0) return fallback;
-  if (entries.some((ext) => connectorNeedsAuth(ext))) return 'needs-auth';
-  if (entries.every((ext) => isConnectorReady(ext))) return 'connected';
+  if (coreEntries.some((ext) => connectorNeedsAuth(ext))) return 'needs-auth';
+  if (coreEntries.every((ext) => isConnectorReady(ext))) return 'connected';
   return 'partial';
 }

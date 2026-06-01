@@ -57,6 +57,7 @@ describe('first-run missions', () => {
 
   it('references known connector packs when missions require workspace context', () => {
     expect(missionById('morning-brief')?.required_connectors).toEqual(['google']);
+    expect(missionById('inbox-triage')?.required_connectors).toEqual(['google']);
     expect(missionById('draft-replies')?.required_connectors).toEqual(['google']);
     expect(missionById('update-notion-crm')?.required_connectors).toEqual(['notion']);
     expect(missionById('slack-catchup')?.required_connectors).toEqual(['slack']);
@@ -66,6 +67,15 @@ describe('first-run missions', () => {
         expect(connectorPackById(connector)).toBeTruthy();
       }
     }
+  });
+
+  it('keeps email and Slack triage missions scoped to the connectors they require', () => {
+    const inboxTriage = missionById('inbox-triage');
+    const slackCatchup = missionById('slack-catchup');
+
+    expect(inboxTriage?.description.toLowerCase()).not.toContain('slack');
+    expect(inboxTriage?.prompt.toLowerCase()).not.toContain('slack');
+    expect(slackCatchup?.required_connectors).toEqual(['slack']);
   });
 
   it('looks up missions by id', () => {

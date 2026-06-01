@@ -8,7 +8,7 @@ const { connectionStub } = vi.hoisted(() => ({
   connectionStub: {
     client: null as null | {
       listExtensions: () => Promise<Extension[]>;
-      installExtension: (name: string) => Promise<{ ok: boolean }>;
+      installExtension: (name: string, kindHint?: unknown) => Promise<{ ok: boolean }>;
     }
   }
 }));
@@ -23,10 +23,15 @@ vi.mock('$lib/stores/connection.svelte', () => ({
 
 import ConnectorPacks from './ConnectorPacks.svelte';
 
-function installFakeClient(extensions: Extension[] = []): void {
+function installFakeClient(
+  extensions: Extension[] = [],
+  installExtension: (name: string, kindHint?: unknown) => Promise<{ ok: boolean }> = vi.fn(
+    async (_name: string) => ({ ok: true })
+  )
+): void {
   connectionStub.client = {
     listExtensions: vi.fn(async () => extensions),
-    installExtension: vi.fn(async (_name: string) => ({ ok: true }))
+    installExtension
   };
 }
 
@@ -62,13 +67,13 @@ describe('ConnectorPacks component', () => {
   it('shows readiness states from extension readiness', async () => {
     installFakeClient([
       { name: 'gmail', installed: true, ready: true, readiness_message: 'ready' },
-      { name: 'google_calendar', installed: true, ready: true, readiness_message: 'ready' },
       { name: 'google_docs', installed: true, ready: true, readiness_message: 'ready' },
       { name: 'google_drive', installed: true, ready: true, readiness_message: 'ready' },
       { name: 'google_sheets', installed: true, ready: true, readiness_message: 'ready' },
       { name: 'google_slides', installed: true, ready: true, readiness_message: 'ready' },
       { name: 'notion', installed: true, readiness_message: 'needs_auth' },
-      { name: 'slack', installed: true, ready: true, readiness_message: 'ready' }
+      { name: 'slack', installed: true, ready: true, readiness_message: 'ready' },
+      { name: 'slack_tool', installed: true, ready: true, readiness_message: 'ready' }
     ]);
 
     render(ConnectorPacks);
@@ -98,6 +103,34 @@ describe('ConnectorPacks component', () => {
     expect(names).toEqual(CONNECTOR_PACKS[0].extensions);
     expect(names.every((name) => !name.includes('/'))).toBe(true);
     expect(gotoMock).toHaveBeenCalledWith('/extensions?focus=gmail&setup=1');
+  });
+
+  it('does not let optional Google app install failures block core setup', async () => {
+    const installExtension = vi.fn(async (name: string) => {
+      if (name === 'google_docs') {
+        const error = new Error('404 optional app not available');
+        Object.assign(error, { status: 404 });
+        throw error;
+      }
+      return { ok: true };
+    });
+    installFakeClient([], installExtension);
+    render(ConnectorPacks);
+
+    const [googleConnect] = await screen.findAllByRole('button', { name: 'Connect' });
+    await fireEvent.click(googleConnect);
+
+    await waitFor(() => {
+      expect(gotoMock).toHaveBeenCalledWith('/extensions?focus=gmail&setup=1');
+    });
+    expect(installExtension).toHaveBeenCalledWith('gmail', 'wasm_tool');
+    expect(installExtension).toHaveBeenCalledWith('google_calendar', 'wasm_tool');
+    expect(installExtension).toHaveBeenCalledWith('google_docs', 'wasm_tool');
+    expect(
+      screen.getByText(
+        'Core apps installed — optional apps unavailable. Open setup if credentials are needed.'
+      )
+    ).toBeTruthy();
   });
 
   it('opens a pack in Extensions with the primary extension focused', async () => {
