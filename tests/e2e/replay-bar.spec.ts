@@ -81,40 +81,47 @@ test('Cmd+. reveals replay bar with scrubber and play button', async ({ page }) 
   };
 
   await mockTauri(page, { settings: SETTINGS, token: 'tok' });
-  await mockGateway(page);
+  const messages = [
+    {
+      id: 'msg-user-replay',
+      role: 'user' as const,
+      content: 'Replay this',
+      created_at: now.toISOString()
+    },
+    {
+      id: 'msg-assistant-replay',
+      role: 'assistant' as const,
+      content: 'Replayed answer',
+      created_at: now.toISOString()
+    }
+  ];
+  const replayEvents = [
+    {
+      id: 'ev-1',
+      kind: 'message_start',
+      ts: new Date(now.getTime() - 2000).toISOString(),
+      payload: { role: 'user' }
+    },
+    {
+      id: 'ev-2',
+      kind: 'content_delta',
+      ts: new Date(now.getTime() - 1000).toISOString(),
+      payload: { delta: 'Replayed answer' }
+    }
+  ];
+
+  await mockGateway(page, {
+    threads: [thread],
+    threadMessages: { 'thread-replay': messages },
+    threadEvents: { 'thread-replay': { events: replayEvents, nextSinceTs: now.getTime() } }
+  });
   await pinConnectionConnected(page);
   await stubClientMethods(page, {
     health: { ok: true, status: 'ok' },
     listThreads: [thread],
-    getHistory: [
-      {
-        id: 'msg-user-replay',
-        role: 'user',
-        content: 'Replay this',
-        created_at: now.toISOString()
-      },
-      {
-        id: 'msg-assistant-replay',
-        role: 'assistant',
-        content: 'Replayed answer',
-        created_at: now.toISOString()
-      }
-    ],
+    getHistory: messages,
     getThreadEvents: {
-      events: [
-        {
-          id: 'ev-1',
-          kind: 'message_start',
-          ts: new Date(now.getTime() - 2000).toISOString(),
-          payload: { role: 'user' }
-        },
-        {
-          id: 'ev-2',
-          kind: 'content_delta',
-          ts: new Date(now.getTime() - 1000).toISOString(),
-          payload: { delta: 'Replayed answer' }
-        }
-      ],
+      events: replayEvents,
       nextSinceTs: now.getTime()
     },
     listSkills: [],

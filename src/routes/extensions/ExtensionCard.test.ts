@@ -50,6 +50,17 @@ describe('ExtensionCard — needs-setup affordance (R108)', () => {
     expect(container.textContent).toContain('Sign in to connect (OAuth)');
   });
 
+  it('uses a sign-in hint whenever readiness says auth is missing', async () => {
+    const { container } = render(ExtensionCard, {
+      props: {
+        extension: ext({ category: 'wasm_tool', ready: false, readiness_message: 'needs_auth' }),
+        variant: 'installed'
+      }
+    });
+    await tick();
+    expect(container.textContent).toContain('Sign in to connect (OAuth)');
+  });
+
   it('shows the icon gear (Configure), not a Set up CTA, when ready', async () => {
     const { container } = render(ExtensionCard, {
       props: { extension: ext({ category: 'channel', ready: true }), variant: 'installed' }

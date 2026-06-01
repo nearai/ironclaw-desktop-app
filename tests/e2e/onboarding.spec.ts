@@ -27,10 +27,10 @@ test('first-run setup lands on dashboard and gates missions by connector readine
   await page.goto('/');
   await expect(page).toHaveURL(/\/onboarding/);
 
-  await expect(page.getByRole('heading', { name: 'Welcome to IronClaw' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'IronClaw Desktop' })).toBeVisible();
   await expect(page.getByText(/chief of staff/i)).toBeVisible();
-  await expect(page.getByRole('heading', { name: "Here's what you'll do" })).toBeVisible();
-  await expect(page.getByText(/Step 1\s*-\s*connect IronClaw/i)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Connect, brief, approve' })).toBeVisible();
+  await expect(page.getByText(/Step 1\s*-\s*connect the runner/i)).toBeVisible();
   await expect(page.getByText('Run on this Mac')).toBeVisible();
   await expect(page.getByText('Connect to hosted')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Set up later' })).toBeVisible();

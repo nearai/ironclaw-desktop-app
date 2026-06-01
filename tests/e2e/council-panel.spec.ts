@@ -90,14 +90,13 @@ async function stubClientMethods(page: Page, overrides: Record<string, unknown>)
 test('chat slash command opens council overlay with provider chips', async ({ page }) => {
   await mockTauri(page, { settings: SETTINGS, token: 'tok' });
   await mockGateway(page);
-  await mockGatewaySurfaces(page);
-  await pinConnectionConnected(page);
-  await stubClientMethods(page, {
-    listLlmProviders: [
+  await mockGatewaySurfaces(page, {
+    llmProviders: [
       { id: 'nearai', name: 'NEAR AI', configured: true, builtin: true },
       { id: 'openrouter', name: 'OpenRouter', configured: true, builtin: true }
     ]
   });
+  await pinConnectionConnected(page);
 
   await page.goto('/');
 

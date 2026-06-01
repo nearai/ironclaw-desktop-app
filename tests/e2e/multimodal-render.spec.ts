@@ -87,7 +87,33 @@ test('assistant markdown mounts mermaid, math, and plotly render hosts', async (
   ].join('\n');
 
   await mockTauri(page, { settings: SETTINGS, token: 'tok' });
-  await mockGateway(page);
+  const messages = [
+    {
+      id: 'msg-user-mm',
+      role: 'user' as const,
+      content: 'Render multimodal blocks',
+      created_at: now
+    },
+    {
+      id: 'msg-assistant-mm',
+      role: 'assistant' as const,
+      content: markdown,
+      created_at: now
+    }
+  ];
+
+  await mockGateway(page, {
+    threads: [
+      {
+        id: 'thread-multimodal',
+        title: 'Multimodal thread',
+        created_at: now,
+        updated_at: now,
+        message_count: 1
+      }
+    ],
+    threadMessages: { 'thread-multimodal': messages }
+  });
   await pinConnectionConnected(page);
   await stubClientMethods(page, {
     health: { ok: true, status: 'ok' },
@@ -100,20 +126,7 @@ test('assistant markdown mounts mermaid, math, and plotly render hosts', async (
         message_count: 1
       }
     ],
-    getHistory: [
-      {
-        id: 'msg-user-mm',
-        role: 'user',
-        content: 'Render multimodal blocks',
-        created_at: now
-      },
-      {
-        id: 'msg-assistant-mm',
-        role: 'assistant',
-        content: markdown,
-        created_at: now
-      }
-    ],
+    getHistory: messages,
     listSkills: [],
     listLlmProviders: [{ id: 'nearai', name: 'NEAR AI', configured: true, builtin: true }],
     pollThreadChanges: { changed: [], deleted: [], nextSince: Date.now() }

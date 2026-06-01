@@ -73,37 +73,41 @@ test('/streams renders filter chips and aggregated activity cards', async ({ pag
   const now = new Date().toISOString();
 
   await mockTauri(page, { settings: SETTINGS, token: 'tok' });
-  await mockGateway(page);
+  const threads = [
+    {
+      id: 'thread-stream',
+      title: 'Stream thread',
+      created_at: now,
+      updated_at: now,
+      message_count: 4
+    }
+  ];
+  const routines = [
+    {
+      id: 'routine-stream',
+      name: 'Stream briefing',
+      schedule: '0 8 * * *',
+      enabled: true,
+      last_run: now,
+      next_run: new Date(Date.now() + 7_200_000).toISOString()
+    }
+  ];
+  const skills = [
+    {
+      name: 'stream-skill',
+      description: 'Skill event fixture',
+      version: '1.0.0',
+      installed: true
+    }
+  ];
+
+  await mockGateway(page, { threads, routines, skills });
   await pinConnectionConnected(page);
   await stubClientMethods(page, {
     health: { ok: true, status: 'ok' },
-    listThreads: [
-      {
-        id: 'thread-stream',
-        title: 'Stream thread',
-        created_at: now,
-        updated_at: now,
-        message_count: 4
-      }
-    ],
-    listRoutines: [
-      {
-        id: 'routine-stream',
-        name: 'Stream briefing',
-        schedule: '0 8 * * *',
-        enabled: true,
-        last_run: now,
-        next_run: new Date(Date.now() + 7_200_000).toISOString()
-      }
-    ],
-    listSkills: [
-      {
-        name: 'stream-skill',
-        description: 'Skill event fixture',
-        version: '1.0.0',
-        installed: true
-      }
-    ],
+    listThreads: threads,
+    listRoutines: routines,
+    listSkills: skills,
     pollThreadChanges: { changed: [], deleted: [], nextSince: Date.now() }
   });
 

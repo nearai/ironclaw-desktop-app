@@ -42,6 +42,7 @@
     type PromptTemplate
   } from '$lib/stores/templates.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
+  import { CONNECTOR_PACKS } from '$lib/data/connector-packs';
   import type { Extension, MemoryNode, Routine, Skill, Thread } from '$lib/api/types';
 
   // -- types ----------------------------------------------------------------
@@ -640,6 +641,30 @@
     }
   }
 
+  function connectorSetupHref(focus: string): string {
+    const params = new URLSearchParams({ focus });
+    params.set('setup', '1');
+    return `/extensions?${params.toString()}`;
+  }
+
+  function connectorAliasLabel(id: string): string {
+    const aliases: Record<string, string> = {
+      gmail: 'Gmail',
+      google_calendar: 'Google Calendar',
+      slack: 'Slack',
+      slack_tool: 'Slack search',
+      notion: 'Notion'
+    };
+    return (
+      aliases[id] ??
+      id
+        .split(/[_-]+/)
+        .filter(Boolean)
+        .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+        .join(' ')
+    );
+  }
+
   // -- actions (dynamic, applicability-gated) -------------------------------
   // We re-derive the action list every render so toggles reflect the
   // current state instantly. Each row is responsible for its own
@@ -656,6 +681,48 @@
       const token = connection.token ?? '';
 
       const rows: Array<Item | null> = [
+        ...CONNECTOR_PACKS.flatMap((pack) => {
+          const core = pack.core_extensions ?? [pack.primary_extension_id];
+          const packRow: Item = {
+            id: `action:connect-pack:${pack.id}`,
+            category: 'Actions' as const,
+            label: `Connect ${pack.display_name}`,
+            subtitle: pack.description,
+            icon: 'extension' as const,
+            keywords: [
+              'connect',
+              'connector',
+              'setup',
+              'workspace',
+              'oauth',
+              pack.id,
+              pack.display_name,
+              ...pack.extensions,
+              ...pack.example_tasks
+            ],
+            run: () => void goto(connectorSetupHref(pack.primary_extension_id))
+          };
+          const coreRows = core.map<Item>((extensionId) => ({
+            id: `action:connect-extension:${extensionId}`,
+            category: 'Actions' as const,
+            label: `Connect ${connectorAliasLabel(extensionId)}`,
+            subtitle: `Set up ${pack.display_name}`,
+            icon: 'extension' as const,
+            keywords: [
+              'connect',
+              'connector',
+              'setup',
+              'workspace',
+              'oauth',
+              pack.id,
+              pack.display_name,
+              extensionId,
+              connectorAliasLabel(extensionId)
+            ],
+            run: () => void goto(connectorSetupHref(extensionId))
+          }));
+          return [packRow, ...coreRows];
+        }),
         // Reload current surface — Cmd+R chord. Closes the palette
         // first so the post-refresh toast lands cleanly. Falls through
         // silently when the active route hasn't registered a refresh
@@ -1529,7 +1596,7 @@
           type="text"
           placeholder="Search commands, threads, skills, routines, docs… (? for shortcuts)"
           aria-label="Command palette search"
-          class="flex-1 bg-transparent border-0 outline-none font-mono text-base text-text-primary placeholder:text-text-muted/60"
+          class="flex-1 bg-transparent border-0 outline-none text-base font-medium text-text-primary placeholder:text-text-muted/60"
           spellcheck="false"
           autocomplete="off"
         />
@@ -1551,7 +1618,7 @@
           <button
             type="button"
             onclick={() => setPill(pill)}
-            class="px-2.5 py-1 rounded-full text-[10px] font-mono uppercase tracking-widest border transition shrink-0"
+            class="px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wide border transition shrink-0"
             class:bg-accent-cyan={active}
             class:text-bg-deep={active}
             class:border-accent-cyan={active}
@@ -1569,13 +1636,11 @@
            empty; press `?` or Esc again to close. Renders inside the panel
            rather than as a modal so the user can still see search context. -->
       {#if showHelp}
-        <div
-          class="px-5 py-3 border-b border-border-subtle bg-bg-surface/40 text-xs font-mono space-y-1.5"
-        >
+        <div class="px-5 py-3 border-b border-border-subtle bg-bg-surface/40 text-xs space-y-1.5">
           <div class="text-[10px] uppercase tracking-widest text-text-muted/70 mb-1">
             Keyboard shortcuts
           </div>
-          {#each [{ k: '⌘K', d: 'Open / close palette' }, { k: '⌘1..6', d: 'Jump to Chat / Knowledge / Skills / Routines / Logs / Extensions' }, { k: '⌘,', d: 'Open Settings' }, { k: '⌘7', d: 'Admin (if enabled in Settings → Advanced)' }, { k: '↑ / ↓', d: 'Navigate results' }, { k: '↵', d: 'Activate selection' }, { k: '?', d: 'Toggle this panel (when search is empty)' }, { k: 'Esc', d: 'Close panel / close palette' }] as row (row.k)}
+          {#each [{ k: '⌘K', d: 'Open / close palette' }, { k: '⌘0', d: 'Today' }, { k: '⌘1', d: 'Chat' }, { k: '⌘2..7', d: 'Knowledge, Skills, Routines, Jobs, Logs, Extensions' }, { k: '⌘8', d: 'Admin (if enabled)' }, { k: '⌘9', d: 'Missions (if enabled)' }, { k: '⌘,', d: 'Open Settings' }, { k: '↑ / ↓', d: 'Navigate results' }, { k: '↵', d: 'Activate selection' }, { k: '?', d: 'Toggle this panel (when search is empty)' }, { k: 'Esc', d: 'Close panel / close palette' }] as row (row.k)}
             <div class="flex items-center gap-3">
               <kbd
                 class="text-text-primary border border-border-subtle rounded px-1.5 py-0.5 min-w-[3.5rem] text-center shrink-0"
@@ -1946,7 +2011,7 @@
 
       <!-- Footer hint strip -->
       <div
-        class="px-5 py-2 border-t border-border-subtle flex items-center gap-4 text-[10px] text-text-muted/70 font-mono"
+        class="px-5 py-2 border-t border-border-subtle flex items-center gap-4 text-[10px] text-text-muted/70"
       >
         <span><kbd class="text-text-muted">↑ ↓</kbd> navigate</span>
         <span><kbd class="text-text-muted">↵</kbd> select</span>

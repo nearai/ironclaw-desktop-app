@@ -26,4 +26,11 @@ describe('extension identity helpers', () => {
     expect(extensionTarget('slack', 'channel')).toEqual({ name: 'slack', kind: 'wasm_channel' });
     expect(extensionTarget('gmail', 'oauth')).toEqual({ name: 'gmail', kind: undefined });
   });
+
+  it('rejects malformed slash refs instead of laundering them into lifecycle names', () => {
+    expect(() => extensionTarget('mcp-servers/../gmail')).toThrow(/invalid extension/i);
+    expect(() => extensionTarget('tools//gmail')).toThrow(/invalid extension/i);
+    expect(() => extensionTarget('unknown/gmail')).toThrow(/invalid extension/i);
+    expect(() => extensionTarget('tools\\gmail')).toThrow(/invalid extension/i);
+  });
 });

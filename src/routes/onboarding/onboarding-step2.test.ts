@@ -74,7 +74,7 @@ describe('onboarding — collapsed Local-vs-Hosted screen', () => {
   it('renders the welcome heading and both choice cards', async () => {
     const { container, getByText } = render(OnboardingPage);
     await waitFor(() => {
-      expect(container.textContent).toMatch(/Welcome to IronClaw/);
+      expect(container.textContent).toMatch(/IronClaw Desktop/);
     });
     expect(getByText('Run on this Mac')).toBeTruthy();
     expect(getByText('Connect to hosted')).toBeTruthy();
@@ -85,7 +85,7 @@ describe('onboarding — collapsed Local-vs-Hosted screen', () => {
   it('reveals the token field on "Connect to hosted" and gates Connect on a token', async () => {
     const { container, getByText, getByLabelText, queryByLabelText } = render(OnboardingPage);
     await waitFor(() => {
-      expect(container.textContent).toMatch(/Welcome to IronClaw/);
+      expect(container.textContent).toMatch(/IronClaw Desktop/);
     });
     // Token field is hidden until the user chooses Hosted.
     expect(queryByLabelText('Access token')).toBeNull();
@@ -103,7 +103,7 @@ describe('onboarding — collapsed Local-vs-Hosted screen', () => {
   it('prefills the hosted gateway URL and defaults the API version to v2', async () => {
     const { container, getByLabelText, getByText } = render(OnboardingPage);
     await waitFor(() => {
-      expect(container.textContent).toMatch(/Welcome to IronClaw/);
+      expect(container.textContent).toMatch(/IronClaw Desktop/);
     });
     const url = getByLabelText('Custom server URL') as HTMLInputElement;
     expect(url.value).toBe(HOSTED_DEFAULT_URL);

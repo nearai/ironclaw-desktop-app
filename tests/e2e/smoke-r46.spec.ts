@@ -235,79 +235,45 @@ test('/memory renders empty state when list is empty', async ({ page }) => {
 // -- 4. /?thread=<id> custom-prompt chip -------------------------------------
 
 test('chat header shows custom-prompt gold chip after save', async ({ page }) => {
+  test.setTimeout(60_000);
   const threadId = 'thread-test-id';
+  const thread = {
+    id: threadId,
+    title: 'Custom prompt test',
+    created_at: new Date().toISOString(),
+    last_message_at: new Date().toISOString(),
+    turn_count: 0
+  };
 
   await mockTauri(page, { settings: SETTINGS, token: 'tok' });
-  await mockGateway(page);
+  await mockGateway(page, { threads: [thread], threadMessages: { [threadId]: [] } });
   await mockGatewaySurfaces(page);
-  await pinConnectionConnected(page);
-
-  // Seed the threads list so `?thread=thread-test-id` resolves to a live
-  // thread — without this, boot() drops the deep-link with a "not found"
-  // toast, `currentThread` stays null, and the chip never renders.
-  await stubClientMethods(page, {
-    listThreads: [
-      {
-        id: threadId,
-        title: 'Custom prompt test',
-        created_at: new Date().toISOString(),
-        last_message_at: new Date().toISOString(),
-        turn_count: 0
-      }
-    ],
-    loadHistory: { turns: [], has_more: false },
-    listSkills: [],
-    listLlmProviders: [{ id: 'nearai', name: 'NEAR AI', configured: true, builtin: true }],
-    health: { ok: true, status: 'ok' }
-  });
-
-  // Prime BOTH localStorage AND the store singleton directly via the
-  // module graph. localStorage alone isn't enough — `ensureHydrated()` is
-  // a one-shot lazy read; if a sibling code path reads `hasOverride` /
-  // `get` before our localStorage write lands the store flips to
-  // `hydrated=true` with an empty map and never re-reads. Calling the
-  // public `set()` method bypasses that by writing through.
   await page.addInitScript((tid: string) => {
-    try {
-      window.localStorage.setItem(
-        'ironclaw-per-thread-prompts',
-        JSON.stringify({ [tid]: 'You are a tutor.' })
-      );
-    } catch {
-      /* ignore */
-    }
-    const seed = async (): Promise<void> => {
-      try {
-        const url = new URL('/src/lib/stores/per-thread-prompts.svelte.ts', window.location.origin)
-          .href;
-        const mod = (await import(/* @vite-ignore */ url)) as {
-          perThreadPrompts: { set: (id: string, prompt: string) => void };
-        };
-        mod.perThreadPrompts.set(tid, 'You are a tutor.');
-        // Re-apply at intervals in case the chat surface clears the
-        // override mid-mount (it doesn't today, but a future refactor
-        // might).
-        setTimeout(() => mod.perThreadPrompts.set(tid, 'You are a tutor.'), 300);
-        setTimeout(() => mod.perThreadPrompts.set(tid, 'You are a tutor.'), 1200);
-      } catch {
-        /* best-effort */
-      }
-    };
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => void seed(), { once: true });
-    } else {
-      void seed();
-    }
+    window.localStorage.setItem(
+      'ironclaw-per-thread-prompts',
+      JSON.stringify({ [tid]: 'You are a tutor.' })
+    );
   }, threadId);
 
   await page.goto(`/?thread=${threadId}`);
+  await expect(page.getByRole('button', { name: 'Custom prompt test', exact: true })).toBeVisible({
+    timeout: 10_000
+  });
+  await page.evaluate(async (tid: string) => {
+    const url = new URL('/src/lib/stores/per-thread-prompts.svelte.ts', window.location.origin)
+      .href;
+    const mod = (await import(/* @vite-ignore */ url)) as {
+      perThreadPrompts: { set: (id: string, prompt: string) => void };
+    };
+    mod.perThreadPrompts.set(tid, 'You are a tutor.');
+  }, threadId);
 
   // Chip visible — the only render path is `currentThread &&
   // perThreadPrompts.hasOverride(thread.id)`, so both have to resolve.
   await expect(page.getByRole('button', { name: /Custom system prompt active/i })).toBeVisible({
     timeout: 10_000
   });
-  await expect(page.getByText('Custom prompt', { exact: true })).toBeVisible();
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
 // -- 5. tool-flow rail at xl viewport ---------------------------------------

@@ -42,6 +42,13 @@ function canonicalName(raw: string): string {
   return raw.trim().replace(/-/g, '_');
 }
 
+function assertSafeName(name: string, original: string): string {
+  if (!name || name === '.' || name === '..' || name.includes('/') || name.includes('\\')) {
+    throw new Error(`Invalid extension name: ${original}`);
+  }
+  return name;
+}
+
 function canonicalKind(kind: ExtensionKindHint | undefined): ExtensionKindHint | undefined {
   if (!kind) return undefined;
   const k = String(kind).toLowerCase();
@@ -55,11 +62,26 @@ function canonicalKind(kind: ExtensionKindHint | undefined): ExtensionKindHint |
 
 export function extensionTarget(ref: string, kindHint?: ExtensionKindHint): ExtensionTarget {
   const trimmed = String(ref ?? '').trim();
-  const parts = trimmed.split(/[\\/]+/).filter(Boolean);
-  const prefix = parts.length > 1 ? parts[0]?.toLowerCase() : undefined;
-  const last = parts.at(-1) ?? '';
+  if (!trimmed) return { name: '', kind: canonicalKind(kindHint) };
+  if (trimmed.includes('\\')) throw new Error(`Invalid extension name: ${trimmed}`);
+
+  let prefix: string | undefined;
+  let rawName = trimmed;
+  if (trimmed.includes('/')) {
+    const parts = trimmed.split('/');
+    if (
+      parts.length !== 2 ||
+      parts.some((part) => part.length === 0 || part === '.' || part === '..')
+    ) {
+      throw new Error(`Invalid extension catalog ref: ${trimmed}`);
+    }
+    prefix = parts[0]?.toLowerCase();
+    if (!PREFIX_KIND[prefix]) throw new Error(`Invalid extension catalog ref: ${trimmed}`);
+    rawName = parts[1] ?? '';
+  }
+  const name = assertSafeName(canonicalName(rawName), trimmed);
   return {
-    name: canonicalName(last),
+    name,
     kind: canonicalKind(kindHint ?? (prefix ? PREFIX_KIND[prefix] : undefined))
   };
 }

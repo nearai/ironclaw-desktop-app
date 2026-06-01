@@ -1859,10 +1859,16 @@ export class IronClawClient {
     if (Array.isArray(readiness?.extensions)) {
       for (const r of readiness.extensions ?? []) {
         const phase = String(r.phase ?? '');
-        const normalized = extensionTarget(r.name).name;
+        let normalized = '';
+        try {
+          normalized = extensionTarget(r.name).name;
+        } catch {
+          continue;
+        }
+        const boolReady = r.authenticated === true && (r.active === true || r.active === undefined);
         const value = {
-          ready: phase === 'ready',
-          message: phase || undefined
+          ready: phase === 'ready' || boolReady,
+          message: phase || (boolReady ? 'ready' : undefined)
         };
         readinessByName.set(r.name, value);
         if (normalized) readinessByName.set(normalized, value);
@@ -1870,14 +1876,24 @@ export class IronClawClient {
     } else {
       // Legacy fallback (ready/not_ready/errors triples).
       for (const n of readiness?.ready ?? []) {
-        const normalized = extensionTarget(n).name;
+        let normalized = '';
+        try {
+          normalized = extensionTarget(n).name;
+        } catch {
+          continue;
+        }
         const value = { ready: true, message: 'ready' };
         readinessByName.set(n, value);
         if (normalized) readinessByName.set(normalized, value);
       }
       for (const n of readiness?.not_ready ?? []) {
         const err = readiness?.errors?.[n];
-        const normalized = extensionTarget(n).name;
+        let normalized = '';
+        try {
+          normalized = extensionTarget(n).name;
+        } catch {
+          continue;
+        }
         const value = {
           ready: false,
           message: err ? `error: ${err}` : 'not_ready'
@@ -1897,7 +1913,12 @@ export class IronClawClient {
     const toolCounts = new Map<string, number>();
     for (const t of tools) {
       if (t.extension.length === 0) continue;
-      const owner = extensionTarget(t.extension).name;
+      let owner = '';
+      try {
+        owner = extensionTarget(t.extension).name;
+      } catch {
+        continue;
+      }
       toolCounts.set(owner, (toolCounts.get(owner) ?? 0) + 1);
     }
 
@@ -1910,7 +1931,12 @@ export class IronClawClient {
     const out: Extension[] = [];
     for (const e of base?.extensions ?? []) {
       const rawName = (e.name ?? '').trim();
-      const target = extensionTarget(rawName, e.kind);
+      let target: ReturnType<typeof extensionTarget>;
+      try {
+        target = extensionTarget(rawName, e.kind);
+      } catch {
+        continue;
+      }
       const name = target.name;
       if (name.length === 0 || seen.has(name)) continue;
       seen.add(name);
@@ -1952,12 +1978,13 @@ export class IronClawClient {
       requires_setup?: boolean;
     };
     // Registry returns {entries:[…]} on the wire today, but older versions
-    // expose {available:[…]}. Accept both.
+    // expose {available:[…]} or {registry:[…]}. Accept all three.
     const res = await this.request<{
       entries?: RegistryWire[];
       available?: RegistryWire[];
+      registry?: RegistryWire[];
     }>('GET', '/api/extensions/registry');
-    const list = res?.entries ?? res?.available ?? [];
+    const list = res?.entries ?? res?.available ?? res?.registry ?? [];
     // Drop entries with no resolvable name and dedupe by name (keep first).
     // The registry grid renders `{#each … (ext.name)}`; a blank or duplicate
     // name makes Svelte's keyed-each throw uncaught, which surfaces as a
@@ -1967,7 +1994,12 @@ export class IronClawClient {
     const seen = new Set<string>();
     const out: Extension[] = [];
     for (const e of list) {
-      const name = extensionTarget((e.name ?? e.slug ?? '').trim(), e.kind).name;
+      let name = '';
+      try {
+        name = extensionTarget((e.name ?? e.slug ?? '').trim(), e.kind).name;
+      } catch {
+        continue;
+      }
       if (name.length === 0 || seen.has(name)) continue;
       seen.add(name);
       out.push({
@@ -3211,6 +3243,7 @@ export class IronClawClient {
       message?: string;
       activated?: boolean;
       session_id?: string;
+      device_code?: string;
       verification_uri?: string;
       user_code?: string;
       expires_in?: number;
@@ -3219,9 +3252,20 @@ export class IronClawClient {
       session_id: sessionId
     });
 
-    const returnedId = res?.session_id ?? sessionId;
+    const returnedId = res?.session_id ?? res?.device_code ?? sessionId;
+    const wireStatus = String(res?.status ?? '').toLowerCase();
+    const hasDeviceFields =
+      typeof res?.verification_uri === 'string' &&
+      res.verification_uri.length > 0 &&
+      typeof res?.user_code === 'string' &&
+      res.user_code.length > 0 &&
+      returnedId.length > 0;
     return {
-      success: res?.success === true,
+      success:
+        res?.success === true ||
+        wireStatus === 'pending' ||
+        wireStatus === 'completed' ||
+        hasDeviceFields,
       status: res?.status,
       message: res?.message,
       activated: res?.activated === true,

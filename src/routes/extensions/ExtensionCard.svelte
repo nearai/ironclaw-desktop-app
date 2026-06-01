@@ -119,7 +119,8 @@
   // opened; this just orients the user (token vs sign-in) before they click.
   const setupHint = $derived.by<string>(() => {
     const c = (extension.category ?? '').toLowerCase();
-    if (c === 'oauth') return 'Sign in to connect (OAuth)';
+    const msg = (extension.readiness_message ?? '').toLowerCase();
+    if (c === 'oauth' || msg === 'needs_auth') return 'Sign in to connect (OAuth)';
     if (c === 'channel') return 'Add a token to connect';
     if (c === 'mcp') return 'Add credentials or config';
     return 'Complete setup to enable';

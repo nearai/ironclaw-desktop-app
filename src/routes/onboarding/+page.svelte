@@ -275,20 +275,21 @@
            Decorative: the h1 already names the product. Styled via props
            because Svelte's scoped CSS does not cross into the component. -->
       <NearMark size={48} style="display: block; margin: 0 auto 1rem; color: var(--v2-accent);" />
-      <h1 class="ob__title">Welcome to IronClaw</h1>
+      <h1 class="ob__title">IronClaw Desktop</h1>
       <p class="ob__value">
-        Your chief of staff - connect your apps, run a mission, approve the results.
+        An agentic chief of staff for the work already moving through your apps.
       </p>
       <p class="ob__sub">
-        First connect IronClaw, then add workspace context and launch the first mission.
+        Connect a runner, add workspace context, then run a mission that returns drafts and
+        decisions for approval.
       </p>
     </header>
 
     {#if view === 'choose'}
       <section class="ob__preview" aria-labelledby="ob-preview-title">
         <div class="ob__preview-head">
-          <p class="ob__eyebrow">Outcome preview</p>
-          <h2 id="ob-preview-title" class="ob__preview-title">Here's what you'll do</h2>
+          <p class="ob__eyebrow">First run</p>
+          <h2 id="ob-preview-title" class="ob__preview-title">Connect, brief, approve</h2>
         </div>
 
         <div class="ob__preview-rows">
@@ -318,7 +319,7 @@
         </div>
       </section>
 
-      <div class="ob__section-label">Step 1 - connect IronClaw</div>
+      <div class="ob__section-label">Step 1 - connect the runner</div>
       <div class="ob__choices">
         <button
           type="button"

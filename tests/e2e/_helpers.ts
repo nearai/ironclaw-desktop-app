@@ -510,8 +510,47 @@ export interface GatewayMockOverrides {
     title?: string;
     created_at: string;
     last_message_at?: string;
+    updated_at?: string;
     turn_count?: number;
+    message_count?: number;
   }>;
+  /** Flat message history returned by /api/chat/history, keyed by thread id. */
+  threadMessages?: Record<
+    string,
+    Array<{
+      id?: string;
+      role: 'user' | 'assistant' | 'tool';
+      content: string;
+      created_at?: string;
+      timestamp?: string;
+    }>
+  >;
+  /** Replay events returned by /api/chat/threads/:id/events, keyed by thread id. */
+  threadEvents?: Record<
+    string,
+    {
+      events: Array<Record<string, unknown>>;
+      nextSinceTs?: number;
+      next_since_ts?: number;
+    }
+  >;
+  /** Skills returned by /api/skills. Default: empty for chat-only mocks. */
+  skills?: Array<{ name: string; description?: string; version?: string }>;
+  /** Routines returned by /api/routines. Default: empty for chat-only mocks. */
+  routines?: Array<{
+    id: string;
+    name: string;
+    enabled?: boolean;
+    schedule?: string;
+    trigger_summary?: string;
+    trigger_raw?: string;
+    last_run?: string;
+    last_run_at?: string;
+    next_run?: string;
+    next_fire_at?: string;
+  }>;
+  /** LLM providers returned by /api/llm/providers. */
+  llmProviders?: Array<{ id: string; name?: string; configured?: boolean; builtin?: boolean }>;
   /** Reply text the mocked stream emits. Default: "Mocked reply". */
   mockedReply?: string;
   /** Whether to expose `/api/v1/responses` as an available route.
@@ -544,6 +583,13 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
   const version = overrides.version ?? '0.29.4';
   const llmBackend = overrides.llmBackend ?? 'nearai';
   const threads = overrides.threads ?? [];
+  const threadMessages = overrides.threadMessages ?? {};
+  const threadEvents = overrides.threadEvents ?? {};
+  const skills = overrides.skills ?? [];
+  const routines = overrides.routines ?? [];
+  const llmProviders = overrides.llmProviders ?? [
+    { id: 'nearai', name: 'NEAR AI', configured: true, builtin: true }
+  ];
   const mockedReply = overrides.mockedReply ?? 'Mocked reply';
   const exposeResponsesApi = overrides.exposeResponsesApi === true;
   const profile =
@@ -567,7 +613,7 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
     thread_id: t.id,
     title: t.title,
     created_at: t.created_at,
-    updated_at: t.last_message_at ?? t.created_at
+    updated_at: t.last_message_at ?? t.updated_at ?? t.created_at
   }));
   let lastThreadId = 0;
   let lastV2ThreadId = 0;
@@ -595,6 +641,24 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
     string,
     Array<{ run_id: string; user_input: string; response: string; created_at: string }>
   >();
+  const fulfill = async (
+    route: Route,
+    response: Parameters<Route['fulfill']>[0]
+  ): Promise<void> => {
+    try {
+      await route.fulfill(response);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (
+        message.includes('Target page, context or browser has been closed') ||
+        message.includes('Test ended') ||
+        message.includes('Test timeout')
+      ) {
+        return;
+      }
+      throw err;
+    }
+  };
 
   // Host prefix: ALL gateway routes are anchored to `127.0.0.1|localhost`
   // on the known IronClaw ports. Without this anchor a regex like
@@ -672,6 +736,104 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(profile)
+      });
+    }
+  );
+
+  // --- /api/llm/providers -------------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/llm/providers(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          llmProviders.map((p) => ({
+            id: p.id,
+            name: p.name ?? p.id,
+            has_api_key: p.configured === true,
+            has_credentials: p.configured === true,
+            builtin: p.builtin === true
+          }))
+        )
+      });
+    }
+  );
+
+  // --- /api/skills --------------------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/skills(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          skills: skills.map((s) => ({
+            name: s.name,
+            description: s.description ?? '',
+            version: s.version ?? '1.0.0'
+          }))
+        })
+      });
+    }
+  );
+
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/skills/search$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          installed: skills.map((s) => ({
+            name: s.name,
+            description: s.description ?? '',
+            version: s.version ?? '1.0.0'
+          })),
+          catalog: []
+        })
+      });
+    }
+  );
+
+  // --- /api/routines ------------------------------------------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/routines(?:\\?.*)?$`),
+    async (route: Route) => {
+      if (route.request().method() !== 'GET') {
+        await route.fulfill({ status: 405, body: '{}' });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          routines: routines.map((r) => ({
+            id: r.id,
+            name: r.name,
+            enabled: r.enabled ?? true,
+            trigger_summary: r.trigger_summary ?? r.schedule ?? '',
+            trigger_raw: r.trigger_raw,
+            last_run_at: r.last_run_at ?? r.last_run,
+            next_fire_at: r.next_fire_at ?? r.next_run
+          }))
+        })
+      });
+    }
+  );
+
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/routines/summary(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          total: routines.length,
+          enabled: routines.filter((r) => r.enabled !== false).length,
+          failing: 0,
+          runs_today: 0
+        })
       });
     }
   );
@@ -835,10 +997,28 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
   await page.route(
     new RegExp(`^https?://${GATEWAY_HOSTS}/api/chat/threads/poll(?:\\?.*)?$`),
     async (route: Route) => {
-      await route.fulfill({
+      await fulfill(route, {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({ changed: [], deleted: [], nextSince: Date.now() })
+      });
+    }
+  );
+
+  // --- /api/chat/threads/:id/events (replay events) ----------------------
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/chat/threads/([^/]+)/events(?:\\?.*)?$`),
+    async (route: Route) => {
+      const url = new URL(route.request().url());
+      const threadId = decodeURIComponent(url.pathname.split('/').at(-2) ?? '');
+      const replay = threadEvents[threadId] ?? { events: [], nextSinceTs: Date.now() };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          events: replay.events,
+          next_since_ts: replay.next_since_ts ?? replay.nextSinceTs ?? Date.now()
+        })
       });
     }
   );
@@ -1009,9 +1189,28 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
     async (route: Route) => {
       const url = new URL(route.request().url());
       const threadId = url.searchParams.get('thread_id') ?? '';
+      const seededMessages = threadMessages[threadId];
+      if (seededMessages) {
+        await fulfill(route, {
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            thread_id: threadId,
+            messages: seededMessages.map((m, index) => ({
+              id: m.id ?? `mock-msg-${threadId}-${index + 1}`,
+              role: m.role,
+              content: m.content,
+              created_at: m.created_at ?? m.timestamp ?? new Date().toISOString()
+            })),
+            has_more: false,
+            oldest_timestamp: seededMessages.at(0)?.created_at ?? null
+          })
+        });
+        return;
+      }
       const turns = turnsByThread.get(threadId) ?? [];
       const now = new Date().toISOString();
-      await route.fulfill({
+      await fulfill(route, {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
@@ -1077,8 +1276,19 @@ export interface SurfaceMockOverrides {
     version?: string;
     active?: boolean;
   }>;
+  /** Registry rows returned by `/api/extensions/registry`. Default: empty. */
+  registryExtensions?: Array<{
+    name: string;
+    display_name?: string;
+    kind?: string;
+    description?: string;
+    version?: string;
+    installed?: boolean;
+  }>;
   /** Memory tree nodes from `/api/memory/list`. Default: 3 fixture nodes. */
   memoryNodes?: Array<{ path: string; type: 'file' | 'dir' }>;
+  /** LLM providers returned by `/api/llm/providers`. Default: NEAR AI. */
+  llmProviders?: Array<{ id: string; name?: string; configured?: boolean; builtin?: boolean }>;
   /** Whether the user has admin role for `/api/admin/*` reads. Default: true. */
   isAdmin?: boolean;
 }
@@ -1150,6 +1360,10 @@ export async function mockGatewaySurfaces(
       active: false
     }
   ];
+  const registryExtensions = overrides.registryExtensions ?? [];
+  const llmProviders = overrides.llmProviders ?? [
+    { id: 'nearai', name: 'NEAR AI', configured: true, builtin: true }
+  ];
   const memoryNodes = overrides.memoryNodes ?? [
     { path: 'README.md', type: 'file' as const },
     { path: 'notes', type: 'dir' as const },
@@ -1186,9 +1400,15 @@ export async function mockGatewaySurfaces(
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          providers: [{ id: 'nearai', name: 'NEAR AI', configured: true, builtin: true }]
-        })
+        body: JSON.stringify(
+          llmProviders.map((p) => ({
+            id: p.id,
+            name: p.name ?? p.id,
+            has_api_key: p.configured === true,
+            has_credentials: p.configured === true,
+            builtin: p.builtin === true
+          }))
+        )
       });
     }
   );
@@ -1310,7 +1530,7 @@ export async function mockGatewaySurfaces(
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ registry: [] })
+        body: JSON.stringify({ registry: registryExtensions })
       });
     }
   );
@@ -1322,7 +1542,27 @@ export async function mockGatewaySurfaces(
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ nodes: memoryNodes })
+        body: JSON.stringify({
+          entries: memoryNodes.map((node) => ({
+            path: node.path,
+            is_dir: node.type === 'dir'
+          }))
+        })
+      });
+    }
+  );
+  await page.route(
+    new RegExp(`^https?://${GATEWAY_HOSTS}/api/memory/tree(?:\\?.*)?$`),
+    async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          entries: memoryNodes.map((node) => ({
+            path: node.path,
+            is_dir: node.type === 'dir'
+          }))
+        })
       });
     }
   );

@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.4.152 — Source-aware Desk + connector setup hardening (2026-06-01)
+
+- Desk generated missions can now start from connected source sweeps for Google
+  Workspace, Notion, and Slack, so the first useful chief-of-staff action no
+  longer requires pasted text. The generated prompt explicitly treats those as
+  read-only collection requests and forbids invented inbox/page/thread content.
+- Connector setup is more Reborn-compatible: registry responses can arrive as
+  `{ registry: [...] }`, OAuth device-code login accepts RFC-style
+  `device_code` responses, authenticated/active readiness aliases are honored,
+  and malformed slash/traversal lifecycle refs are rejected before fetch.
+- `/extensions?focus=...&setup=1` now preserves connector-specific intent while
+  offline, with setup copy for Gmail/Calendar/Slack/Notion instead of a generic
+  dead-end.
+- Command palette and global search now expose connector setup actions, include
+  installable registry entries, and route setup-intent results with `setup=1`.
+- Onboarding and setup typography/copy were tightened around IronClaw Desktop as
+  a connected chief-of-staff app instead of a generic welcome screen.
+- Added regression coverage for connected-source mission generation, OAuth
+  device-code setup, registry/install readiness normalization, malformed Reborn
+  refs, offline setup deep links, command-palette connector discovery, and the
+  affected onboarding/a11y paths.
+
 ## v0.4.151 — Overnight connector hardening + hostile surface fixes (2026-06-01)
 
 - Google Workspace packs now distinguish core Gmail/Calendar readiness from

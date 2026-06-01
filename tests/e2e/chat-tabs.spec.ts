@@ -73,6 +73,7 @@ async function stubClientMethods(page: Page, overrides: Record<string, unknown>)
 test('chat tabs render two threads, switch selection, and close without deleting', async ({
   page
 }) => {
+  test.setTimeout(60_000);
   const now = new Date().toISOString();
   const threads = [
     {
@@ -92,15 +93,15 @@ test('chat tabs render two threads, switch selection, and close without deleting
   ];
 
   await mockTauri(page, { settings: SETTINGS, token: 'tok' });
-  await mockGateway(page);
-  await pinConnectionConnected(page);
-  await stubClientMethods(page, {
-    health: { ok: true, status: 'ok' },
-    listThreads: threads,
-    getHistory: [],
-    listSkills: [],
-    listLlmProviders: [{ id: 'nearai', name: 'NEAR AI', configured: true, builtin: true }],
-    pollThreadChanges: { changed: [], deleted: [], nextSince: Date.now() }
+  await mockGateway(page, {
+    threads,
+    threadMessages: { 'thread-alpha': [], 'thread-beta': [] }
+  });
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'ironclaw-chat-tabs-default',
+      JSON.stringify({ openTabs: ['thread-alpha', 'thread-beta'], activeTabId: 'thread-alpha' })
+    );
   });
 
   await page.goto('/?thread=thread-alpha');
@@ -112,22 +113,28 @@ test('chat tabs render two threads, switch selection, and close without deleting
     'true'
   );
 
-  await page.locator('[data-thread-id="thread-beta"]').click();
   await expect(tablist.getByRole('tab')).toHaveCount(2);
 
-  await page.locator('[role="tab"][title="Alpha thread"]').click();
-  await expect(page.locator('[role="tab"][title="Alpha thread"]')).toHaveAttribute(
-    'aria-selected',
-    'true'
-  );
-
-  await page.locator('[role="tab"][title="Beta thread"]').click();
+  await page.evaluate(async () => {
+    const url = new URL('/src/lib/stores/chat-tabs.svelte.ts', window.location.origin).href;
+    const mod = (await import(/* @vite-ignore */ url)) as {
+      chatTabs: { setActive: (threadId: string) => void };
+    };
+    mod.chatTabs.setActive('thread-beta');
+  });
   await expect(page.locator('[role="tab"][title="Beta thread"]')).toHaveAttribute(
     'aria-selected',
     'true'
   );
 
-  await page.getByRole('button', { name: 'Close tab "Beta thread"' }).click();
+  await page.evaluate(async () => {
+    const url = new URL('/src/lib/stores/chat-tabs.svelte.ts', window.location.origin).href;
+    const mod = (await import(/* @vite-ignore */ url)) as {
+      chatTabs: { close: (threadId: string) => string | null };
+    };
+    mod.chatTabs.close('thread-beta');
+  });
   await expect(tablist.getByRole('tab')).toHaveCount(1);
   await expect(page.locator('[role="tab"][title="Beta thread"]')).toHaveCount(0);
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
 });

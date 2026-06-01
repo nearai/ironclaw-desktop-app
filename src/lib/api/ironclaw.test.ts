@@ -330,6 +330,15 @@ describe('IronClawClient.listRegistry', () => {
     expect(list).toHaveLength(1);
     expect(list[0].name).toBe('x');
   });
+
+  it('accepts the helper/Reborn {registry:[…]} wire shape and normalizes catalog refs', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      fetchOk({ registry: [{ name: 'mcp-servers/notion', kind: 'mcp_server' }] })
+    );
+    const c = makeClient();
+    const list = await c.listRegistry();
+    expect(list).toMatchObject([{ name: 'notion', category: 'mcp' }]);
+  });
 });
 
 describe('IronClawClient extension identity compatibility', () => {
@@ -385,6 +394,15 @@ describe('IronClawClient extension identity compatibility', () => {
       name: 'gmail',
       slug: 'gmail'
     });
+  });
+
+  it('rejects malformed catalog refs before lifecycle requests', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(fetchOk({ status: 'queued' }));
+    const c = makeClient();
+
+    await expect(c.installExtension('mcp-servers/../gmail')).rejects.toThrow(/invalid extension/i);
+    await expect(c.getExtensionSetup('tools//gmail')).rejects.toThrow(/invalid extension/i);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('normalizes setup and login URLs so no slash-bearing identity reaches Reborn', async () => {
@@ -446,6 +464,47 @@ describe('IronClawClient extension identity compatibility', () => {
     await expect(c.listExtensions()).resolves.toMatchObject([
       { name: 'gmail', ready: true, readiness_message: 'ready', tool_count: 1 }
     ]);
+  });
+
+  it('treats authenticated active readiness as ready even without a phase', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async (url: string) => {
+      const path = new URL(String(url)).pathname;
+      if (path === '/api/extensions') {
+        return fetchOk({ extensions: [{ name: 'gmail', kind: 'wasm_tool' }] });
+      }
+      if (path === '/api/extensions/readiness') {
+        return fetchOk({ extensions: [{ name: 'gmail', authenticated: true, active: true }] });
+      }
+      if (path === '/api/extensions/tools') {
+        return fetchOk({ tools: [] });
+      }
+      return fetchOk({});
+    }) as unknown as typeof fetch);
+
+    const c = makeClient();
+    await expect(c.listExtensions()).resolves.toMatchObject([
+      { name: 'gmail', ready: true, readiness_message: 'ready' }
+    ]);
+  });
+
+  it('accepts RFC-style device_code OAuth start responses without explicit success', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      fetchOk({
+        device_code: 'device-1',
+        verification_uri: 'https://accounts.example.test/device',
+        user_code: 'ABCD-EFGH',
+        expires_in: 600
+      })
+    );
+
+    const c = makeClient();
+    await expect(c.startExtensionLogin('tools/gmail')).resolves.toMatchObject({
+      success: true,
+      session_id: 'device-1',
+      device_code: 'device-1',
+      verification_uri: 'https://accounts.example.test/device',
+      user_code: 'ABCD-EFGH'
+    });
   });
 });
 

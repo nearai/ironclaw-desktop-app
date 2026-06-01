@@ -73,8 +73,8 @@
   // the installed + registry lists resolve (so we can find a match in
   // either tab). Cleared either way so the param can't re-fire on
   // refresh / Back.
-  let pendingFocusName: string | null = null;
-  let pendingSetupForFocus = false;
+  let pendingFocusName = $state<string | null>(null);
+  let pendingSetupForFocus = $state(false);
   let lastFocusQuery: string | null = null;
   let focusedName = $state<string | null>(null);
   /**
@@ -277,7 +277,12 @@
     if (focusQuery === lastFocusQuery) return;
     lastFocusQuery = focusQuery;
 
-    const targetName = extensionTarget(rawFocus).name || null;
+    let targetName: string | null = null;
+    try {
+      targetName = extensionTarget(rawFocus).name || null;
+    } catch {
+      targetName = null;
+    }
     if (!targetName) return;
 
     pendingFocusName = targetName;
@@ -664,6 +669,15 @@
       (registryState === 'idle' || registryState === 'loading') &&
       registry.length === 0
   );
+
+  function formatExtensionName(name: string | null): string {
+    if (!name) return 'this connector';
+    return name
+      .split(/[_-]+/)
+      .filter(Boolean)
+      .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
 </script>
 
 <section class="p-8 h-full flex flex-col overflow-hidden">
@@ -671,7 +685,7 @@
     <div>
       <h1 class="text-2xl font-semibold text-text-primary">Extensions</h1>
       <p class="text-text-muted text-sm mt-1">
-        MCP servers, OAuth tools, and channel integrations.
+        Connect Gmail, Calendar, Slack, Notion, and other workspace context.
         {#if installedState === 'loaded'}
           <span class="text-text-muted/70">·</span>
           <span class="text-text-muted">{installed.length} installed</span>
@@ -823,12 +837,34 @@
   <div class="flex-1 overflow-auto -mx-2 px-2">
     {#if isDisconnected}
       <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
-        <div class="text-sm text-text-primary mb-2">IronClaw is offline</div>
-        <div class="text-xs text-text-muted">
-          Check <a
+        <div class="text-sm text-text-primary mb-2">
+          {#if pendingSetupForFocus && pendingFocusName}
+            Connect IronClaw to set up {formatExtensionName(pendingFocusName)}
+          {:else}
+            IronClaw is offline
+          {/if}
+        </div>
+        <div class="max-w-md text-xs leading-5 text-text-muted">
+          {#if pendingSetupForFocus && pendingFocusName}
+            This setup link is queued. Connect a runner or hosted gateway, then return here and the
+            setup drawer will open for {formatExtensionName(pendingFocusName)}.
+          {:else}
+            Connect a runner before installing or configuring workspace connectors.
+          {/if}
+        </div>
+        <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <a
             href="/settings"
-            class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
-          > to configure the connection.
+            class="inline-flex min-h-[36px] items-center rounded-md border border-accent-cyan/60 px-3 py-1.5 text-xs font-semibold text-accent-cyan transition hover:bg-accent-cyan/10"
+          >
+            Open Settings
+          </a>
+          <a
+            href="/onboarding"
+            class="inline-flex min-h-[36px] items-center rounded-md border border-border-subtle px-3 py-1.5 text-xs font-semibold text-text-muted transition hover:border-accent-cyan hover:text-text-primary"
+          >
+            Connect runner
+          </a>
         </div>
       </div>
     {:else if activeTab === 'installed'}

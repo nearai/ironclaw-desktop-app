@@ -5,18 +5,103 @@
   // agent reads it and proposes specific next actions, each runnable
   // approval-first via the chat composer.
   import { goto } from '$app/navigation';
+  import { onMount, untrack } from 'svelte';
+  import type { Extension } from '$lib/api/types';
   import { generatedMissions } from '$lib/stores/generated-missions.svelte';
+  import { connection } from '$lib/stores/connection.svelte';
   import type { ContextItem } from '$lib/util/mission-generator';
+  import {
+    connectedWorkspaceSources,
+    workspaceContextItems,
+    workspaceContextSources,
+    type WorkspaceContextSource
+  } from '$lib/util/workspace-context';
 
   const gm = generatedMissions;
   let pasted = $state('');
+  let installed = $state<Extension[]>([]);
+  let sourceLoadState = $state<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+  let sourceError = $state<string | null>(null);
+  let selectedSourceIds = $state<string[]>([]);
+  let sourceSelectionTouched = $state(false);
 
-  const canGenerate = $derived(
-    gm.available && pasted.trim().length > 0 && gm.status !== 'generating'
+  const workspaceSources = $derived(workspaceContextSources(installed));
+  const connectedSources = $derived(
+    workspaceSources.filter((source) => source.status === 'connected')
+  );
+  const selectedSources = $derived(
+    connectedWorkspaceSources(installed, selectedSourceIds as WorkspaceContextSource['id'][])
   );
 
+  const canGenerate = $derived(
+    gm.available &&
+      (pasted.trim().length > 0 || selectedSources.length > 0) &&
+      gm.status !== 'generating'
+  );
+
+  onMount(() => {
+    void refreshSources();
+  });
+
+  $effect(() => {
+    const client = connection.client;
+    if (!client) {
+      installed = [];
+      sourceLoadState = 'idle';
+      sourceError = null;
+      selectedSourceIds = [];
+      sourceSelectionTouched = false;
+      return;
+    }
+    untrack(() => void refreshSources());
+  });
+
+  $effect(() => {
+    const connectedIds = connectedSources.map((source) => source.id);
+    if (!sourceSelectionTouched) {
+      selectedSourceIds = connectedIds;
+      return;
+    }
+    const connected = new Set(connectedIds);
+    const next = selectedSourceIds.filter((id) =>
+      connected.has(id as WorkspaceContextSource['id'])
+    );
+    if (next.length !== selectedSourceIds.length) selectedSourceIds = next;
+  });
+
+  async function refreshSources() {
+    const client = connection.client;
+    if (!client) {
+      installed = [];
+      sourceLoadState = 'idle';
+      sourceError = null;
+      return;
+    }
+    sourceLoadState = installed.length === 0 ? 'loading' : sourceLoadState;
+    sourceError = null;
+    try {
+      installed = await client.listExtensions();
+      sourceLoadState = 'loaded';
+    } catch (err) {
+      sourceError = err instanceof Error ? err.message : 'Could not check connected sources.';
+      sourceLoadState = 'error';
+    }
+  }
+
+  function toggleSource(id: WorkspaceContextSource['id']) {
+    sourceSelectionTouched = true;
+    selectedSourceIds = selectedSourceIds.includes(id)
+      ? selectedSourceIds.filter((x) => x !== id)
+      : [...selectedSourceIds, id];
+  }
+
   async function generate() {
-    const items: ContextItem[] = [{ kind: 'note', label: 'Pasted into the Desk', body: pasted }];
+    const items: ContextItem[] = [
+      ...workspaceContextItems(selectedSources),
+      ...(pasted.trim().length > 0
+        ? [{ kind: 'note' as const, label: 'Pasted into the Desk', body: pasted }]
+        : [])
+    ];
     await gm.generateFrom(items);
   }
 
@@ -33,12 +118,58 @@
   class="surface border border-border-subtle rounded-lg p-4 space-y-3"
 >
   <header class="space-y-1">
-    <h2 class="text-sm font-semibold text-text-primary">What just came in</h2>
+    <h2 class="text-sm font-semibold text-text-primary">What needs attention</h2>
     <p class="text-xs text-text-muted">
-      Paste a contract, call notes, or an email thread. IronClaw reads it and proposes the specific
-      next actions to put on your Desk — nothing is sent or written without your approval.
+      Use connected sources, pasted context, or both. IronClaw proposes specific next actions for
+      your Desk; sending or writing still requires your approval.
     </p>
   </header>
+
+  <div class="space-y-2 border-y border-border-subtle py-3">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <h3 class="text-xs font-semibold text-text-primary">Connected sources</h3>
+        <p class="text-[11px] text-text-muted">
+          {connectedSources.length > 0
+            ? `${selectedSources.length} of ${connectedSources.length} selected for a read-only sweep.`
+            : 'Connect Google Workspace, Slack, or Notion to generate from live context.'}
+        </p>
+      </div>
+      <button
+        type="button"
+        onclick={refreshSources}
+        disabled={!connection.client || sourceLoadState === 'loading'}
+        class="min-h-[32px] rounded-md border border-border-subtle px-2.5 py-1 text-xs font-medium text-text-muted transition hover:border-accent-cyan hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {sourceLoadState === 'loading' ? 'Checking...' : 'Refresh'}
+      </button>
+    </div>
+
+    {#if sourceLoadState === 'error'}
+      <p class="text-xs text-danger" role="alert">{sourceError}</p>
+    {/if}
+
+    {#if connectedSources.length > 0}
+      <div class="flex flex-wrap gap-2" aria-label="Connected source selection">
+        {#each connectedSources as source (source.id)}
+          {@const checked = selectedSourceIds.includes(source.id)}
+          <label
+            class={`inline-flex min-h-[34px] cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs transition ${checked ? 'border-accent-cyan/70 bg-accent-cyan/10 text-accent-cyan' : 'border-border-subtle text-text-muted hover:border-accent-cyan/60 hover:text-text-primary'}`}
+          >
+            <input
+              type="checkbox"
+              class="sr-only"
+              {checked}
+              onchange={() => toggleSource(source.id)}
+              aria-label={source.label}
+            />
+            <span class="font-medium">{source.label}</span>
+            <span class="text-[11px] opacity-75">{source.summary}</span>
+          </label>
+        {/each}
+      </div>
+    {/if}
+  </div>
 
   <textarea
     bind:value={pasted}
@@ -62,7 +193,7 @@
         ></span>
         Generating…
       {:else}
-        Generate actions
+        {selectedSources.length > 0 ? 'Generate from Desk context' : 'Generate actions'}
       {/if}
     </button>
     {#if gm.missions.length > 0 || gm.status === 'error' || gm.status === 'empty'}

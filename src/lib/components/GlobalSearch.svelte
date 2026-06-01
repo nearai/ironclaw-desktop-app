@@ -334,14 +334,22 @@
       case 'Extensions': {
         if (extensionsCache !== null || loadingExtensions) return null;
         loadingExtensions = true;
-        return client
-          .listExtensions()
-          .then((e) => {
-            extensionsCache = e;
-          })
-          .catch((err: Error) => {
+        return Promise.all([
+          client.listExtensions().catch((err: Error) => {
             errorExtensions = err.message;
-            extensionsCache = [];
+            return [];
+          }),
+          client.listRegistry().catch(() => [])
+        ])
+          .then(([installed, registry]) => {
+            const seen = new Set<string>();
+            const merged = [];
+            for (const ext of [...installed, ...registry]) {
+              if (seen.has(ext.name)) continue;
+              seen.add(ext.name);
+              merged.push(ext);
+            }
+            extensionsCache = merged;
           })
           .finally(() => {
             loadingExtensions = false;
@@ -609,7 +617,9 @@
       surface: 'Extensions' as const,
       label: e.display_name || e.name,
       subtitle: e.description || (e.installed ? 'installed' : 'available'),
-      href: `/extensions?focus=${encodeURIComponent(e.name)}`
+      href: `/extensions?focus=${encodeURIComponent(e.name)}${
+        !e.installed || e.ready !== true ? '&setup=1' : ''
+      }`
     }));
     return {
       surface: 'Extensions' as const,
@@ -952,7 +962,7 @@
           type="text"
           placeholder="Search everywhere — knowledge, threads, jobs, skills, routines, extensions"
           aria-label="Global search across all surfaces"
-          class="flex-1 bg-transparent border-0 outline-none font-mono text-base text-text-primary placeholder:text-text-muted/60"
+          class="flex-1 bg-transparent border-0 outline-none text-base font-medium text-text-primary placeholder:text-text-muted/60"
           spellcheck="false"
           autocomplete="off"
         />
@@ -986,7 +996,7 @@
             tabindex="0"
             onclick={() => setFilter(pill)}
             onkeydown={(e) => onPillKeyDown(e, pill)}
-            class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-mono uppercase tracking-wider border transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-cyan"
+            class="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide border transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-accent-cyan"
             class:bg-accent-cyan={isActive}
             class:text-bg-deep={isActive}
             class:border-accent-cyan={isActive}
@@ -1025,12 +1035,19 @@
               Connect to an IronClaw profile to search across knowledge, threads, jobs, skills,
               routines, and extensions.
             </div>
+            <a
+              href="/settings"
+              class="mt-4 inline-flex min-h-[36px] items-center rounded-md border border-accent-cyan/60 px-3 py-1.5 text-xs font-semibold text-accent-cyan transition hover:bg-accent-cyan/10"
+              onclick={() => globalSearch.close()}
+            >
+              Open Settings
+            </a>
           </div>
         {:else if !query.trim() && recent.length > 0}
           <!-- Empty-input state: surface recent queries. -->
           <div class="mb-1">
             <div
-              class="px-5 pt-2 pb-1 text-[10px] font-mono uppercase tracking-widest text-text-muted/70"
+              class="px-5 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wide text-text-muted/70"
             >
               Recent searches
             </div>
@@ -1055,7 +1072,7 @@
                     <polyline points="12 6 12 12 16 14" />
                   </svg>
                 </span>
-                <span class="text-sm text-text-muted font-mono">{q}</span>
+                <span class="text-sm text-text-muted">{q}</span>
               </div>
             {/each}
           </div>
@@ -1078,7 +1095,7 @@
                 {#if activeFilter === 'All'}
                   <div class="px-5 pt-3 pb-1 flex items-center justify-between gap-3">
                     <div
-                      class="flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest text-text-muted/70"
+                      class="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-wide text-text-muted/70"
                     >
                       <span class="text-text-muted">
                         <!-- Inline glyph per surface — kept inline so we don't
@@ -1179,7 +1196,7 @@
                       <button
                         type="button"
                         onclick={() => activateShowAll(group)}
-                        class="text-[10px] font-mono uppercase tracking-widest text-accent-cyan hover:text-accent-gold transition-colors"
+                        class="text-[10px] font-semibold uppercase tracking-wide text-accent-cyan hover:text-accent-gold transition-colors"
                       >
                         Show all
                       </button>
@@ -1189,11 +1206,11 @@
 
                 <!-- Loading / error / empty states for this surface. -->
                 {#if loadingForSurface(group.surface) && group.rows.length === 0}
-                  <div class="mx-2 px-3 py-2 text-xs text-text-muted/70 font-mono">
+                  <div class="mx-2 px-3 py-2 text-xs text-text-muted/70">
                     Loading {group.surface.toLowerCase()}…
                   </div>
                 {:else if errorForSurface(group.surface) && group.rows.length === 0}
-                  <div class="mx-2 px-3 py-2 text-xs text-text-muted/70 font-mono">
+                  <div class="mx-2 px-3 py-2 text-xs text-text-muted/70">
                     Failed to load {group.surface.toLowerCase()}: {errorForSurface(group.surface)}
                   </div>
                 {:else}
@@ -1268,7 +1285,7 @@
                      ROWS_PER_GROUP". -->
                 {#if activeFilter !== 'All' && group.total > group.rows.length}
                   <div
-                    class="mx-2 mt-2 px-3 py-2 flex items-center justify-between text-[10px] font-mono uppercase tracking-widest"
+                    class="mx-2 mt-2 px-3 py-2 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide"
                   >
                     <span class="text-text-muted/60">
                       Showing {group.rows.length} of {group.total}
@@ -1290,7 +1307,7 @@
 
       <!-- Footer hint strip -->
       <div
-        class="px-5 py-2 border-t border-border-subtle flex items-center gap-4 text-[10px] text-text-muted/70 font-mono"
+        class="px-5 py-2 border-t border-border-subtle flex items-center gap-4 text-[10px] text-text-muted/70"
       >
         <span><kbd class="text-text-muted">↑ ↓</kbd> navigate</span>
         <span><kbd class="text-text-muted">↵</kbd> open</span>
