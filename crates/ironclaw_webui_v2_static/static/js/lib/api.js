@@ -16,9 +16,10 @@
 const TOKEN_KEY = 'ironclaw_token';
 const V2_BASE = '/api/webchat/v2';
 const DESKTOP_GATEWAY_ORIGIN_KEY = 'ironclaw:desktop-gateway-origin';
-const DEFAULT_DESKTOP_GATEWAY_ORIGIN = 'http://127.0.0.1:3000';
+const DEFAULT_DESKTOP_GATEWAY_ORIGIN = 'http://127.0.0.1:3100';
 
 let tauriFetchPromise = null;
+let bootstrappedDesktopGatewayOrigin = '';
 
 function inTauri() {
   return Boolean(typeof window !== 'undefined' && (window.__TAURI_INTERNALS__ || window.__TAURI__));
@@ -50,8 +51,9 @@ function normalizeOrigin(value) {
 export function gatewayOrigin() {
   if (!inTauri()) return '';
   const configured =
-    normalizeOrigin(localStorage.getItem(DESKTOP_GATEWAY_ORIGIN_KEY)) ||
+    bootstrappedDesktopGatewayOrigin ||
     normalizeOrigin(window.__IRONCLAW_GATEWAY_ORIGIN__) ||
+    normalizeOrigin(localStorage.getItem(DESKTOP_GATEWAY_ORIGIN_KEY)) ||
     DEFAULT_DESKTOP_GATEWAY_ORIGIN;
   return configured;
 }
@@ -193,24 +195,29 @@ export async function bootstrapDesktopSession() {
     profile?.remoteBaseUrl ||
     profile?.localBaseUrl ||
     DEFAULT_DESKTOP_GATEWAY_ORIGIN;
-  const origin =
-    (await runningSidecarOrigin()) || normalizeOrigin(baseUrl) || DEFAULT_DESKTOP_GATEWAY_ORIGIN;
+  const sidecarOrigin = await runningSidecarOrigin();
+  const origin = sidecarOrigin || normalizeOrigin(baseUrl) || DEFAULT_DESKTOP_GATEWAY_ORIGIN;
+  bootstrappedDesktopGatewayOrigin = origin;
   localStorage.setItem(DESKTOP_GATEWAY_ORIGIN_KEY, origin);
 
   let token = '';
-  try {
-    token = (await tauriInvoke('get_token', { profileId: activeId })) || '';
-  } catch (err) {
-    console.warn('[ironclaw] desktop profile token bootstrap failed', err);
-  }
-
   const looksLocal =
-    origin.includes('127.0.0.1') || origin.includes('localhost') || profile?.mode === 'local';
-  if (!token && looksLocal) {
+    Boolean(sidecarOrigin) ||
+    origin.includes('127.0.0.1') ||
+    origin.includes('localhost') ||
+    profile?.mode === 'local';
+  if (looksLocal) {
     try {
       token = (await tauriInvoke('get_or_create_local_token')) || '';
     } catch (err) {
       console.warn('[ironclaw] local gateway token bootstrap failed', err);
+    }
+  }
+  if (!token) {
+    try {
+      token = (await tauriInvoke('get_token', { profileId: activeId })) || '';
+    } catch (err) {
+      console.warn('[ironclaw] desktop profile token bootstrap failed', err);
     }
   }
 

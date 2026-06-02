@@ -277,6 +277,21 @@ export const DEFAULT_PROFILE_ID = 'default';
  *  card prefills this so a brand-new user only has to paste their access
  *  token (no URL typing) to connect to a running NEAR.AI-backed gateway. */
 export const HOSTED_DEFAULT_URL = 'https://baremetal3.agents.near.ai';
+const LOCAL_SIDECAR_DEFAULT_URL = 'http://127.0.0.1:3100';
+const STALE_LOCAL_SIDECAR_URLS = new Set(['http://127.0.0.1:3000', 'http://localhost:3000']);
+
+function normalizedLocalUrl(value: string | undefined): string {
+  const raw = value || LOCAL_SIDECAR_DEFAULT_URL;
+  return STALE_LOCAL_SIDECAR_URLS.has(raw.replace(/\/+$/, '')) ? LOCAL_SIDECAR_DEFAULT_URL : raw;
+}
+
+function shouldRecoverStaleLocalProfile(profile: Partial<ProfileConfig>): boolean {
+  if (profile.mode === 'local') return false;
+  const remoteBaseUrl = (profile.remoteBaseUrl || '').replace(/\/+$/, '');
+  if (!STALE_LOCAL_SIDECAR_URLS.has(remoteBaseUrl)) return false;
+  const label = (profile.name || '').toLowerCase();
+  return label.includes('local ironclaw') || label.includes('ironclaw');
+}
 
 function newProfileId(): string {
   // crypto.randomUUID() is available in modern webviews (Tauri 2 ships
@@ -291,8 +306,8 @@ function defaultProfile(overrides?: Partial<ProfileConfig>): ProfileConfig {
     id: overrides?.id ?? newProfileId(),
     name: overrides?.name ?? 'Default',
     mode: overrides?.mode ?? 'remote',
-    remoteBaseUrl: overrides?.remoteBaseUrl ?? 'http://127.0.0.1:3100',
-    localBaseUrl: overrides?.localBaseUrl ?? 'http://127.0.0.1:3100',
+    remoteBaseUrl: normalizedLocalUrl(overrides?.remoteBaseUrl),
+    localBaseUrl: normalizedLocalUrl(overrides?.localBaseUrl),
     llmBackend: overrides?.llmBackend ?? 'nearai',
     llmProviderId: overrides?.llmProviderId ?? overrides?.llmBackend ?? 'nearai',
     llmModelId:
@@ -346,6 +361,8 @@ export function migrateLoaded(raw: Partial<AppSettings> & LegacyAppSettings): Ap
   // is the discriminator.
   if (Array.isArray(raw.profiles) && raw.profiles.length > 0) {
     const profiles = raw.profiles.map((p) => {
+      const recoveredLocal = shouldRecoverStaleLocalProfile(p);
+      const localBaseUrl = normalizedLocalUrl(p.localBaseUrl);
       const llmBackend = (p.llmBackend === 'openrouter' ? 'openrouter' : 'nearai') as LlmBackend;
       const llmProviderId =
         typeof p.llmProviderId === 'string' && p.llmProviderId.length > 0
@@ -359,10 +376,12 @@ export function migrateLoaded(raw: Partial<AppSettings> & LegacyAppSettings): Ap
           : undefined;
       return {
         id: p.id || newProfileId(),
-        name: p.name || 'Untitled',
-        mode: (p.mode === 'local' ? 'local' : 'remote') as ConnectionMode,
-        remoteBaseUrl: p.remoteBaseUrl || 'http://127.0.0.1:3100',
-        localBaseUrl: p.localBaseUrl || 'http://127.0.0.1:3100',
+        name: recoveredLocal
+          ? (p.name || 'Local IronClaw').replace('(:3000)', '(:3100)')
+          : p.name || 'Untitled',
+        mode: (recoveredLocal || p.mode === 'local' ? 'local' : 'remote') as ConnectionMode,
+        remoteBaseUrl: recoveredLocal ? localBaseUrl : normalizedLocalUrl(p.remoteBaseUrl),
+        localBaseUrl,
         llmBackend,
         // Derive from the legacy field if the new one wasn't stored yet,
         // so existing installs land on the matching provider without a
@@ -414,12 +433,18 @@ export function migrateLoaded(raw: Partial<AppSettings> & LegacyAppSettings): Ap
   // get_settings's `{}` first-run response), we still produce one default
   // profile so the rest of the app has something to render.
   const legacyBackend = raw.llmBackend ?? 'nearai';
+  const legacyRecoveredLocal = shouldRecoverStaleLocalProfile({
+    mode: raw.mode,
+    name: 'Default IronClaw',
+    remoteBaseUrl: raw.remoteBaseUrl,
+    localBaseUrl: raw.localBaseUrl
+  });
   const profile = defaultProfile({
     id: DEFAULT_PROFILE_ID,
     name: 'Default',
-    mode: raw.mode ?? 'remote',
-    remoteBaseUrl: raw.remoteBaseUrl ?? 'http://127.0.0.1:3100',
-    localBaseUrl: raw.localBaseUrl ?? 'http://127.0.0.1:3100',
+    mode: legacyRecoveredLocal ? 'local' : (raw.mode ?? 'remote'),
+    remoteBaseUrl: normalizedLocalUrl(raw.remoteBaseUrl),
+    localBaseUrl: normalizedLocalUrl(raw.localBaseUrl),
     llmBackend: legacyBackend,
     llmProviderId: legacyBackend,
     llmModelId: raw.llmModelId

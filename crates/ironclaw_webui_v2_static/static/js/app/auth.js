@@ -128,11 +128,11 @@ export function useAuthSession() {
     Boolean(loginTicket && !readStoredToken())
   );
   const [isBootstrappingDesktop, setIsBootstrappingDesktop] = React.useState(() =>
-    Boolean(!readStoredToken() && !loginTicket && isDesktopRuntime())
+    Boolean(!loginTicket && isDesktopRuntime())
   );
 
   React.useEffect(() => {
-    if (readStoredToken() || loginTicket || !isDesktopRuntime()) {
+    if (loginTicket || !isDesktopRuntime()) {
       setIsBootstrappingDesktop(false);
       return undefined;
     }

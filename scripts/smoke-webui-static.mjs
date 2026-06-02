@@ -50,6 +50,9 @@ function installTauriShim(page) {
         bodies: new Map()
       };
 
+      window.localStorage.setItem('ironclaw:desktop-gateway-origin', 'http://127.0.0.1:3000');
+      window.sessionStorage.setItem('ironclaw_token', 'stale-token-from-previous-run');
+
       function pick(obj, key) {
         return obj && typeof obj === 'object' && key in obj ? obj[key] : undefined;
       }
@@ -151,6 +154,11 @@ try {
 
   await installTauriShim(page);
   const connectorRequests = [];
+  const staleGatewayRequests = [];
+  await page.route('http://127.0.0.1:3000/**', async (route) => {
+    staleGatewayRequests.push(route.request().url());
+    await route.abort();
+  });
   let gatewayStatusPayload = {
     engine_v2_enabled: true,
     restart_enabled: true,
@@ -434,6 +442,23 @@ try {
     waitUntil: 'domcontentloaded'
   });
   await page.getByText('Gateway session', { exact: true }).waitFor({ timeout: 20_000 });
+  const bootstrappedOrigin = await page.evaluate(() =>
+    window.localStorage.getItem('ironclaw:desktop-gateway-origin')
+  );
+  if (bootstrappedOrigin !== gatewayOrigin) {
+    throw new Error(
+      `desktop bootstrap did not replace stale gateway origin: ${bootstrappedOrigin}`
+    );
+  }
+  const bootstrappedToken = await page.evaluate(() =>
+    window.sessionStorage.getItem('ironclaw_token')
+  );
+  if (bootstrappedToken !== 'local-token') {
+    throw new Error(`desktop bootstrap did not replace stale session token: ${bootstrappedToken}`);
+  }
+  if (staleGatewayRequests.length > 0) {
+    throw new Error(`static app requested stale :3000 origin: ${staleGatewayRequests.join(', ')}`);
+  }
   const bodyText = await page.locator('body').innerText();
   if (bodyText.includes('Gateway token')) {
     throw new Error('desktop bootstrap failed: login token form is still visible');
@@ -788,9 +813,9 @@ try {
     );
   }
   await assertNoCatalogRefLifecycle();
-  if (!connectorRequests.every((request) => request.authorization === 'Bearer desktop-token')) {
+  if (!connectorRequests.every((request) => request.authorization === 'Bearer local-token')) {
     throw new Error(
-      `connector requests missed desktop bearer:\n${JSON.stringify(connectorRequests, null, 2)}`
+      `connector requests missed local sidecar bearer:\n${JSON.stringify(connectorRequests, null, 2)}`
     );
   }
   if (errors.length) {

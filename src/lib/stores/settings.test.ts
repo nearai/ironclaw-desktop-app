@@ -130,6 +130,29 @@ describe('migrateLoaded', () => {
     expect(s.profiles[0].llmBackend).toBe('nearai');
   });
 
+  it('recovers stale packaged Local IronClaw profiles that still point remote mode at :3000', () => {
+    const s = migrateLoaded({
+      activeProfileId: 'default',
+      onboardingComplete: true,
+      profiles: [
+        {
+          id: 'default',
+          name: 'Local IronClaw (:3000)',
+          mode: 'remote',
+          remoteBaseUrl: 'http://127.0.0.1:3000',
+          localBaseUrl: 'http://127.0.0.1:3100',
+          llmBackend: 'nearai',
+          llmProviderId: 'nearai',
+          llmModelId: 'auto'
+        }
+      ]
+    });
+    expect(s.profiles[0].mode).toBe('local');
+    expect(s.profiles[0].name).toBe('Local IronClaw (:3100)');
+    expect(s.profiles[0].remoteBaseUrl).toBe('http://127.0.0.1:3100');
+    expect(s.profiles[0].localBaseUrl).toBe('http://127.0.0.1:3100');
+  });
+
   it('preserves a non-empty per-profile model id and defaults blank NEAR.AI ids to GLM', () => {
     const s = migrateLoaded({
       activeProfileId: 'p1',
