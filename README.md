@@ -2,7 +2,7 @@
 
 [![Latest release](https://img.shields.io/github/v/release/abbyshekit/ironclaw-desktop?label=release&color=4ca7e6)](https://github.com/abbyshekit/ironclaw-desktop/releases/latest)
 
-A native macOS client for [IronClaw](https://github.com/nearai/ironclaw) — the Rust knowledge agent from NEAR AI. Tauri v2 + SvelteKit. Dark, fast, ~5MB binary footprint (excluding bundled sidecar).
+A native macOS client for [IronClaw](https://github.com/nearai/ironclaw) — the Rust knowledge agent from NEAR AI. Tauri v2 shell, packaging the Reborn static WebUI from `crates/ironclaw_webui_v2_static/static`. Dark, fast, ~5MB binary footprint (excluding bundled sidecar).
 
 ## Download
 
@@ -86,6 +86,10 @@ Top-level routes:
 The menu-bar tray gives you Show/Hide, Restart sidecar, Open Settings, Quit even when the window is hidden.
 
 For the wiring underneath all this, see [`ARCHITECTURE.md`](ARCHITECTURE.md). For how to contribute a change, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+The shipped desktop UI is the static Reborn WebUI, not the legacy SvelteKit
+tree. See [`docs/STATIC_WEBUI_SYNC.md`](docs/STATIC_WEBUI_SYNC.md) before
+syncing with Reborn or claiming a Svelte test proves packaged-app behavior.
 
 ## Workflows
 
@@ -274,6 +278,9 @@ is not set. Release builds that provide the key still generate the signed
 
 ```bash
 npm run check    # svelte-check + TypeScript
+npm run verify:static-frontend
+npm run smoke:webui-static
+npm run test:e2e # default rendered static WebUI smoke
 npm run build    # vite frontend build (no Tauri compile)
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
@@ -290,7 +297,7 @@ sweep waits on instead of an `<h1>`. Runs in CI on every PR
 via `.github/workflows/e2e.yml` and locally via:
 
 ```bash
-npm run test:e2e -- a11y.spec.ts
+npm run test:e2e:legacy -- a11y.spec.ts
 ```
 
 How to read the output:
@@ -327,12 +334,12 @@ This fetches both `aarch64-apple-darwin` and `x86_64-apple-darwin` from the offi
 
 ```
 ironclaw-desktop/
-├── src/                         # SvelteKit frontend (Svelte 5 runes + TS)
-│   ├── routes/                  # one folder per surface
-│   └── lib/
-│       ├── api/ironclaw.ts      # typed HTTP client
-│       ├── stores/              # rune singletons (settings, connection, threads, ...)
-│       └── components/          # shared (Toasts, MarkdownView, UpdaterBanner, ...)
+├── crates/ironclaw_webui_v2_static/static/
+│   ├── index.html               # packaged Reborn static WebUI entry
+│   ├── js/                      # shared static app source + generated bundle
+│   ├── styles/                  # app.css + generated Tailwind CSS
+│   └── vendor/                  # local browser libraries prepared for packaging
+├── src/                         # legacy/reference SvelteKit shell, not packaged
 ├── src-tauri/                   # Rust backend
 │   ├── src/
 │   │   ├── lib.rs               # Tauri commands + plugin registration
@@ -445,7 +452,7 @@ bash scripts/analyze-bundle.sh
 # sizes with UPDATE_BASELINE=1.
 bash scripts/bundle-compare.sh
 
-# Spin up `npm run dev` (Vite on :1420), probe a handful of routes for TTFB
+# Spin up the legacy Vite app on :1420, probe a handful of routes for TTFB
 # + total transfer time, count critical resources, kill the server. Writes
 # /tmp/ironclaw-perf-snapshot.txt. Smoke test only — not Lighthouse.
 bash scripts/perf-snapshot.sh
@@ -480,7 +487,8 @@ against `scripts/bundle-budget.json`:
 
 Exit codes: `0` under budget, `1` over (fails CI), `2` within 90% of budget
 (warning — CI treats this as a soft signal, not a block). The check runs on
-every PR via `.github/workflows/check.yml` after `npm run build`.
+every PR via `.github/workflows/check.yml` after the static WebUI contract and
+smoke gates.
 
 To run locally:
 

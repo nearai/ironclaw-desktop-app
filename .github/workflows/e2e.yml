@@ -44,7 +44,13 @@ jobs:
       - run: npm run check
       - run: npm run test
 
-      - run: npm run test:e2e
+      - name: Static WebUI rendered smoke
+        run: npm run test:e2e
+        env:
+          CI: 'true'
+
+      - name: Legacy Svelte/Vite Playwright suite
+        run: npm run test:e2e:legacy
         env:
           CI: 'true'
 
@@ -54,7 +60,7 @@ jobs:
       # build — see `tests/e2e/a11y.spec.ts` for the rule scoping
       # rationale. Hard-fails on regression (continue-on-error: false).
       - name: A11y sweep (axe-core)
-        run: npm run test:e2e -- a11y.spec.ts
+        run: npm run test:e2e:legacy -- a11y.spec.ts
         continue-on-error: false
         env:
           CI: 'true'

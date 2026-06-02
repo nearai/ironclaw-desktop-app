@@ -1,7 +1,7 @@
 // IronClaw Desktop — Tauri command surface.
 //
-// Frontend (SvelteKit) calls these via @tauri-apps/api invoke().
-// Settings live on disk (as an opaque JSON blob — the frontend owns the
+// The packaged Reborn static WebUI calls these via @tauri-apps/api invoke().
+// Settings live on disk (as an opaque JSON blob — the WebUI owns the
 // schema, see the Profiles system); the bearer token (and OpenRouter
 // key, and the auto-generated local-gateway token) live in the macOS
 // Keychain.
@@ -1055,7 +1055,7 @@ async fn update_tray_recent(app: AppHandle, items: Vec<tray::RecentItem>) -> Res
 // LANE B7 (R64) — Mini-mode child window.
 //
 // Opens (or re-focuses) a 320×400 always-on-top floating panel pointed
-// at the `/mini` SvelteKit route. Triggered from JS via the
+// at the `/mini` static WebUI route. Triggered from JS via the
 // `miniMode.toggle()` store, which fires the Cmd+Shift+M chord in the
 // layout-level keydown handler.
 //

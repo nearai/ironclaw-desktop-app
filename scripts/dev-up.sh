@@ -8,7 +8,7 @@
 #   2. Verify the gateway responds at 200.
 #   3. Stage the file-fallback token (so the macOS keychain ACL hang
 #      can't wedge the launch — see v0.2.8).
-#   4. Build the frontend, the Rust binary, copy + ad-hoc-sign the
+#   4. Prepare the static WebUI, build the Rust binary, copy + ad-hoc-sign the
 #      .app, launch it with RUST_LOG=info captured to /tmp/log.txt.
 #   5. Tail the log for the first ~10s and surface the diag_log
 #      events so you can see token-load + first-fetch happen.
@@ -116,8 +116,10 @@ if [[ "${SKIP_BUILD}" -eq 1 ]]; then
   fi
   info "skipping build (--skip-build); using existing ${BUNDLE}"
 else
-  info "frontend build…"
-  npm run build >/dev/null
+  info "static WebUI contract…"
+  npm run verify:static-frontend >/dev/null
+  info "static WebUI prepare…"
+  npm run prepare:webui-static >/dev/null
   info "cargo --release…"
   touch src-tauri/build.rs
   cargo build --release --manifest-path src-tauri/Cargo.toml >/dev/null 2>&1 \

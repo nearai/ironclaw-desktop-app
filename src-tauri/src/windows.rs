@@ -11,7 +11,7 @@
 // contexts.
 //
 // We deliberately reuse the same App URL ("/") rather than rendering a
-// distinct entry — the SvelteKit routes are profile-agnostic; everything
+// distinct entry — the static WebUI routes are profile-agnostic; everything
 // that matters reads from the per-window connection store, which already
 // knows how to scope by profile id.
 //

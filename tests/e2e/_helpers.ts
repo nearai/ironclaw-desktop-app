@@ -1,7 +1,9 @@
-// Test helpers for the IronClaw desktop Playwright suite.
+// Test helpers for the legacy IronClaw desktop Playwright suite.
 //
-// The app is a SvelteKit + Tauri client. Two boundaries need to be mocked
-// to run it in a browser-only Playwright context:
+// The shipped desktop UI is the Reborn static WebUI. These helpers drive the
+// legacy SvelteKit + Tauri reference shell in a browser-only Playwright context,
+// so this suite is useful regression coverage but not packaged-app proof.
+// Two boundaries need to be mocked:
 //
 //   1. Tauri IPC. Real handlers live in Rust; the webview talks to them via
 //      `window.__TAURI_INTERNALS__.invoke('command', args)`. We inject a

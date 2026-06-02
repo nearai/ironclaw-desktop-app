@@ -12,10 +12,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
+    "test:e2e": "npm run smoke:webui-static",
+    "test:e2e:legacy": "playwright test --config playwright.config.ts",
+    "test:e2e:legacy:ui": "playwright test --config playwright.config.ts --ui",
     "smoke:packaged": "bash scripts/smoke-packaged-app.sh",
     "smoke:webui-static": "node scripts/smoke-webui-static.mjs",
+    "verify:static-frontend": "node scripts/verify-static-frontend-contract.mjs",
     "prepare:webui-static": "node scripts/prepare-webui-static.mjs",
     "dev:webui-static": "node scripts/serve-webui-static.mjs",
     "tauri": "node scripts/tauri-cli.mjs",
@@ -24,7 +26,7 @@
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged",
-    "pre-push": "npm run check && npm run test"
+    "pre-push": "npm run check && npm run verify:static-frontend && npm run smoke:webui-static && npm run test"
   },
   "lint-staged": {
     "*.{svelte,ts,js}": [

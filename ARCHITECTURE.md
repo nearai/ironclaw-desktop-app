@@ -1,9 +1,15 @@
 # Architecture
 
 This document explains how the IronClaw Desktop client is wired together: the
-Tauri shell on the Rust side, the SvelteKit frontend, the store layer, the
-typed HTTP client to the gateway, multi-window state synchronization, the
-bundled sidecar, and the CI / release pipeline.
+Tauri shell on the Rust side, the packaged Reborn static WebUI, the gateway API
+surface, multi-window state synchronization, the bundled sidecar, and the CI /
+release pipeline.
+
+Current packaging contract: Tauri packages
+`crates/ironclaw_webui_v2_static/static` through `frontendDist`. The legacy
+`src/` SvelteKit shell remains in the repo for reference/tests, but it is not
+the shipped desktop UI. See `docs/STATIC_WEBUI_SYNC.md` before syncing static
+assets or using frontend tests as release proof.
 
 If you only have time for the one-pager, read [Pitch](#pitch),
 [Top-level shape](#top-level-shape), and [Security model](#security-model).
@@ -31,11 +37,12 @@ The app intentionally has **no AI runtime of its own**. No bundled
 inference, no MCP server registry of our own, no model catalog we
 maintain. Every capability comes from the gateway. When the gateway
 adds a feature, this app gets a new surface; when the gateway changes
-a wire format, the typed client in `src/lib/api/ironclaw.ts` maps it.
+a wire format, the static WebUI client under
+`crates/ironclaw_webui_v2_static/static/js` maps it.
 This is the only way a two-person-evenings desktop client can stay
 honest about a 200K-LoC Rust agent backend.
 
-### Why Tauri + Svelte, not Electron
+### Why Tauri + Reborn static WebUI, not Electron
 
 Three reasons, in order of weight:
 
@@ -56,11 +63,11 @@ Three reasons, in order of weight:
   through a `#[tauri::command]` we explicitly declared in `lib.rs`.
   That's the security model the app needs anyway; Tauri makes it free.
 
-Svelte 5 (with runes) over React: state stores compile down to a few
-function calls and `$state(...)` reads, no virtual DOM. The largest
-single component in the tree (`CommandPalette.svelte`, 1.7K LoC, runs
-a fuzzy search over six surface lists on every keystroke) holds 60 fps
-on an M1 without memoization.
+The desktop app now embeds the same static Reborn WebUI tree served by the Rust
+gateway. That keeps desktop and web architecture aligned: shared routes, shared
+connector behavior, shared chat behavior, and one static asset pipeline. The
+old SvelteKit shell is no longer the packaged frontend and cannot be the final
+proof for user-visible desktop behavior.
 
 ---
 
@@ -68,15 +75,12 @@ on an M1 without memoization.
 
 ```
 ironclaw-desktop/
-├── src/                          # SvelteKit frontend (Svelte 5 runes + TS)
-│   ├── routes/                   # one folder per surface
-│   ├── lib/
-│   │   ├── api/                  # typed HTTP client + Files plugin
-│   │   ├── components/           # shared (palette, sidebar, statusbar, ...)
-│   │   ├── stores/               # rune singletons (settings, threads, ...)
-│   │   └── utils/                # redact, helpers
-│   ├── app.css                   # tailwind + design tokens
-│   └── hooks.client.ts           # SvelteKit error hook
+├── crates/ironclaw_webui_v2_static/static/
+│   ├── index.html                # packaged Reborn static WebUI entry
+│   ├── js/                       # shared static UI source + generated bundle
+│   ├── styles/                   # app.css + generated Tailwind CSS
+│   └── vendor/                   # local browser libraries for packaged app
+├── src/                          # legacy/reference SvelteKit shell, not packaged
 ├── src-tauri/                    # Rust backend
 │   ├── src/
 │   │   ├── main.rs               # entry — calls lib::run()
@@ -97,9 +101,8 @@ ironclaw-desktop/
 ```mermaid
 flowchart LR
   subgraph WebView["Webview (WKWebView, sandboxed)"]
-    SvelteKit
-    StoresLayer["Stores (Svelte 5 runes)"]
-    APIClient["IronClawClient"]
+    StaticWebUI["Reborn static WebUI"]
+    APIClient["Gateway API client"]
   end
 
   subgraph Rust["Tauri shell (Rust)"]
@@ -121,9 +124,8 @@ flowchart LR
     Local["Local sidecar (127.0.0.1:31xx)"]
   end
 
-  SvelteKit --> StoresLayer
-  StoresLayer --> APIClient
-  StoresLayer -->|invoke| Commands
+  StaticWebUI --> APIClient
+  StaticWebUI -->|invoke| Commands
   APIClient -->|fetch| Gateway
   Commands --> Keychain
   Commands --> Sidecar
@@ -132,7 +134,7 @@ flowchart LR
   Keychain --> Kc
   Tray --> NSBar
   Sidecar -->|spawn| Local
-  StoresLayer -->|plugin-notification| Ns
+  StaticWebUI -->|plugin-notification| Ns
 ```
 
 ---
@@ -318,7 +320,19 @@ image compositing). Numbers > 9 collapse to `"9+"`.
 
 ---
 
-## The SvelteKit frontend
+## The Packaged Static WebUI
+
+The packaged UI is the static Reborn WebUI under
+`crates/ironclaw_webui_v2_static/static`. Tauri embeds that directory via
+`frontendDist`, and `npm run prepare:webui-static` regenerates local vendor
+assets, `js/main.bundle.js`, and `styles/tailwind.generated.css` before a
+build.
+
+`npm run verify:static-frontend` is the release guard for this contract.
+`npm run smoke:webui-static` is the rendered static smoke. Svelte-only tests
+are not release proof for the shipped desktop UI.
+
+## Legacy SvelteKit Reference
 
 `svelte.config.js` uses the static adapter — there is no SSR, the whole
 app is a SPA loaded into a Tauri webview. `+layout.ts` sets
@@ -434,7 +448,7 @@ cleanup return.
 
 ---
 
-## The store layer
+## Legacy Store Layer
 
 Every store is a Svelte 5 rune singleton living in `src/lib/stores/`.
 The `.svelte.ts` suffix is required for the Svelte compiler to enable
@@ -520,9 +534,10 @@ What each owns:
 
 ---
 
-## The API client
+## Legacy API client
 
-`src/lib/api/ironclaw.ts` is the typed HTTP client. 3.5K lines, one
+For the legacy Svelte shell, `src/lib/api/ironclaw.ts` is the typed HTTP
+client. 3.5K lines, one
 class (`IronClawClient`), every method on it is a thin wrapper around
 `fetch` with two non-negotiable properties:
 
@@ -819,22 +834,16 @@ Directive-by-directive rationale:
   remote images referenced from a gateway/markdown response. Images
   are passive content, so the http allowance here is wider than
   `connect-src`.
-- `style-src 'self' 'unsafe-inline' tauri:` — Svelte 5 emits inline
-  styles for scoped CSS; `'unsafe-inline'` is the standard accepted
-  cost. The XSS guard is `script-src` shedding `unsafe-eval` + remote
-  hosts, not `style-src`.
+- `style-src 'self' 'unsafe-inline' tauri:` — the static WebUI and legacy
+  reference shell both use inline style paths in the webview; `'unsafe-inline'`
+  is the standard accepted cost. The XSS guard is `script-src` shedding
+  `unsafe-eval` + remote hosts, not `style-src`.
 - `script-src 'self' 'unsafe-inline' tauri:` — bundled scripts, plus
-  `'unsafe-inline'`. Inline is required by **two** things we can't
-  cheaply remove: SvelteKit's inline hydration-start script, and the
-  dev-only IPC shim in `app.html` (which is itself production-gated —
-  it early-returns under the `tauri:` / `tauri-localhost:` protocols,
-  so it never installs in the shipped webview; see `app.html` and the
-  `native-security-guard.test.ts` dev-shim test). Critically there is
-  **no `'unsafe-eval'`** and **no remote script origin**, so a gateway
-  response still cannot inject executable script. Dropping
-  `'unsafe-inline'` would require SvelteKit CSP hashing/nonces
-  coordinated with Tauri's static CSP — a fragile change deferred
-  rather than forced.
+  `'unsafe-inline'`. Inline is currently required by the static bootstrap and
+  legacy dev shim paths. Critically there is **no `'unsafe-eval'`** and **no
+  remote script origin**, so a gateway response still cannot inject executable
+  script. Dropping `'unsafe-inline'` would require coordinated CSP nonces across
+  the static WebUI and Tauri configuration.
 - `font-src 'self' data: tauri:` — bundled fonts and any `data:`-
   embedded font.
 - `media-src 'self' data: blob: tauri:` — bundled and inline media.

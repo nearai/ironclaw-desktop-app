@@ -2,7 +2,8 @@
 # Walk a clean tree through the pre-release ritual:
 #
 #   1. Sanity check (clean tree, on main, in sync with origin).
-#   2. Verify all four CI gates locally (svelte-check, vitest, build, cargo).
+#   2. Verify release gates locally (Svelte legacy checks, static WebUI,
+#      vitest, build, cargo).
 #   3. Bump the version across package.json + tauri.conf.json + Cargo.toml
 #      via `scripts/bump-version.sh`.
 #   4. Print the diff so the user can sanity-check before committing.
@@ -90,6 +91,12 @@ info "tag v${NEW_VER} is free"
 info "svelte-check..."
 npm run check >/tmp/release-prep-check.log 2>&1 \
   || { err "svelte-check failed; see /tmp/release-prep-check.log"; exit 1; }
+info "static frontend contract..."
+npm run verify:static-frontend >/tmp/release-prep-static-contract.log 2>&1 \
+  || { err "static frontend contract failed; see /tmp/release-prep-static-contract.log"; exit 1; }
+info "static WebUI smoke..."
+npm run smoke:webui-static >/tmp/release-prep-static-smoke.log 2>&1 \
+  || { err "static WebUI smoke failed; see /tmp/release-prep-static-smoke.log"; exit 1; }
 info "vitest..."
 npm run test >/tmp/release-prep-test.log 2>&1 \
   || { err "vitest failed; see /tmp/release-prep-test.log"; exit 1; }
@@ -100,7 +107,7 @@ info "cargo build (release)..."
 cargo build --release --manifest-path src-tauri/Cargo.toml \
        >/tmp/release-prep-cargo.log 2>&1 \
   || { err "cargo build failed; see /tmp/release-prep-cargo.log"; exit 1; }
-info "all four gates green"
+info "release gates green"
 
 # ---- 3) Bump --------------------------------------------------------------
 

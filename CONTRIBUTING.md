@@ -148,7 +148,7 @@ Whichever bucket you're in, the sequence is the same:
 
 | Workflow         | Trigger                | Hard-fails on                                         |
 | ---------------- | ---------------------- | ----------------------------------------------------- |
-| `check.yml`      | PR + push to main      | `npm run check`, `npm run test`, `npm run build`, `cargo check` |
+| `check.yml`      | PR + push to main      | `npm run check`, `npm run verify:static-frontend`, `npm run smoke:webui-static`, `npm run test`, `npm run build`, `cargo check` |
 | `check.yml`      | PR + push to main      | `cargo clippy` (currently `continue-on-error: true`; warn-don't-block) |
 | `style-guard.yml`| PR                     | Hardcoded `#00d4ff` / `#4ca7e6` / `#2882c8` / `#00bcd4` outside the allowlist |
 | `release.yml`    | tag `v*`               | Full `tauri build` for both arches; signs updater artifacts if secrets present |
@@ -578,6 +578,8 @@ via the shared Sidebar items array.
 ### PR checklist
 
 - [ ] `npm run check` passes (0 errors, 0 warnings)
+- [ ] `npm run verify:static-frontend` passes
+- [ ] `npm run smoke:webui-static` passes
 - [ ] `npm run test` passes
 - [ ] `npm run build` passes
 - [ ] If Rust changed: `cargo check` + `cargo clippy` pass

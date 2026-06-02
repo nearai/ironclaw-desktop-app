@@ -19,7 +19,7 @@
 //
 // Network calls go out through `reqwest` directly rather than through the
 // tauri-plugin-http channel — those plugin routes are wired for the
-// SvelteKit fetcher (webview-origin allowlist). The Rust commands here
+// webview fetcher (webview-origin allowlist). The Rust commands here
 // run server-side so there's no CORS layer to bypass.
 
 use std::{

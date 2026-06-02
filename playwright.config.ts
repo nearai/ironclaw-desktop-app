@@ -1,11 +1,15 @@
-// Playwright config for IronClaw desktop E2E tests.
+// Legacy Playwright config for the Svelte/Vite reference shell.
+//
+// The shipped desktop UI is the Reborn static WebUI. The default `npm run
+// test:e2e` command runs `smoke:webui-static`; use `npm run test:e2e:legacy`
+// when you explicitly want this older browser-only suite.
 //
 // Two suites today live under `tests/e2e/`:
 //   - onboarding.spec.ts — cold-start wizard through to the chat surface
 //   - chat.spec.ts       — sends a message and verifies the optimistic +
 //                          mocked-stream bubbles render
 //
-// Both run browser-only (not against the real Tauri shell). Tauri IPC is
+// These specs run browser-only (not against the real Tauri shell). Tauri IPC is
 // shimmed via `window.__TAURI_INTERNALS__` injected by `mockTauri()`; the
 // IronClaw gateway is mocked via `page.route()` from `mockGateway()`. See
 // `tests/e2e/_helpers.ts` for the contract.
