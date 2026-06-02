@@ -93,9 +93,9 @@
     {/each}
   </ul>
 {:else if routines.length === 0}
-  <p class="text-xs text-text-muted">No routines defined yet.</p>
+  <p class="text-xs text-text-muted">No routines yet.</p>
 {:else if upcoming.length === 0}
-  <p class="text-xs text-text-muted">All routines are disabled.</p>
+  <p class="text-xs text-text-muted">All routines disabled.</p>
 {:else}
   <ul class="space-y-1.5" data-testid="active-routines-list">
     {#each upcoming as routine (routine.id)}

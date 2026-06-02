@@ -251,11 +251,11 @@
   <main class="flex-1 overflow-y-auto px-3 py-2 space-y-2 text-xs">
     {#if !currentId}
       <div class="flex h-full items-center justify-center text-center text-text-muted">
-        <span>Select a thread in the main window to start.</span>
+        <span>Pick a thread in the main window to start.</span>
       </div>
     {:else if lastFive.length === 0 && !isStreaming && !streamingBuffer}
       <div class="flex h-full items-center justify-center text-center text-text-muted">
-        <span>No messages yet — send one below.</span>
+        <span>No messages yet. Send one below.</span>
       </div>
     {:else}
       {#each lastFive as msg (msg.id)}

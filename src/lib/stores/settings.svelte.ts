@@ -20,6 +20,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 
+import { DEFAULT_NEARAI_MODEL } from '$lib/data/llm-defaults';
 import { inTauri } from '$lib/utils/runtime';
 import { broadcast } from './broadcast.svelte';
 
@@ -87,6 +88,11 @@ export interface ProfileConfig {
    *  registry). New field — supersedes `llmBackend` for the richer
    *  provider switcher. Defaults to `'nearai'` for new installs. */
   llmProviderId?: string;
+  /** Optional default model id for the selected provider. When unset, the
+   *  provider/gateway default is used. In local mode this is passed to the
+   *  bundled runner on start; hosted gateways may still enforce their own
+   *  server-side default until they expose per-user model overrides. */
+  llmModelId?: string;
   /** Optional accent-color override for the active profile window.
    *  Defaults to `signal` at consume time when undefined, which preserves
    *  every existing surface that uses the design-system accent. The
@@ -289,6 +295,12 @@ function defaultProfile(overrides?: Partial<ProfileConfig>): ProfileConfig {
     localBaseUrl: overrides?.localBaseUrl ?? 'http://127.0.0.1:3100',
     llmBackend: overrides?.llmBackend ?? 'nearai',
     llmProviderId: overrides?.llmProviderId ?? overrides?.llmBackend ?? 'nearai',
+    llmModelId:
+      typeof overrides?.llmModelId === 'string' && overrides.llmModelId.trim().length > 0
+        ? overrides.llmModelId.trim()
+        : (overrides?.llmProviderId ?? overrides?.llmBackend ?? 'nearai') === 'nearai'
+          ? DEFAULT_NEARAI_MODEL
+          : undefined,
     apiVersion: overrides?.apiVersion ?? 'v2'
   };
 }
@@ -310,6 +322,7 @@ interface LegacyAppSettings {
   remoteBaseUrl?: string;
   localBaseUrl?: string;
   llmBackend?: LlmBackend;
+  llmModelId?: string;
   onboardingComplete?: boolean;
   trayEnabled?: boolean;
   useResponsesApi?: boolean;
@@ -334,6 +347,10 @@ export function migrateLoaded(raw: Partial<AppSettings> & LegacyAppSettings): Ap
   if (Array.isArray(raw.profiles) && raw.profiles.length > 0) {
     const profiles = raw.profiles.map((p) => {
       const llmBackend = (p.llmBackend === 'openrouter' ? 'openrouter' : 'nearai') as LlmBackend;
+      const llmProviderId =
+        typeof p.llmProviderId === 'string' && p.llmProviderId.length > 0
+          ? p.llmProviderId
+          : llmBackend;
       // `tint` is opt-in and defensively narrowed — unknown values fall
       // through to `undefined`, which the consume site treats as `signal`.
       const tint =
@@ -350,10 +367,13 @@ export function migrateLoaded(raw: Partial<AppSettings> & LegacyAppSettings): Ap
         // Derive from the legacy field if the new one wasn't stored yet,
         // so existing installs land on the matching provider without a
         // user round-trip.
-        llmProviderId:
-          typeof p.llmProviderId === 'string' && p.llmProviderId.length > 0
-            ? p.llmProviderId
-            : llmBackend,
+        llmProviderId,
+        llmModelId:
+          typeof p.llmModelId === 'string' && p.llmModelId.trim().length > 0
+            ? p.llmModelId.trim()
+            : llmProviderId === 'nearai'
+              ? DEFAULT_NEARAI_MODEL
+              : undefined,
         tint,
         // v2 is the default; only an explicit 'v1' opts back to the legacy
         // gateway. Absent (existing files) and unknown values resolve to 'v2'.
@@ -401,7 +421,8 @@ export function migrateLoaded(raw: Partial<AppSettings> & LegacyAppSettings): Ap
     remoteBaseUrl: raw.remoteBaseUrl ?? 'http://127.0.0.1:3100',
     localBaseUrl: raw.localBaseUrl ?? 'http://127.0.0.1:3100',
     llmBackend: legacyBackend,
-    llmProviderId: legacyBackend
+    llmProviderId: legacyBackend,
+    llmModelId: raw.llmModelId
   });
   return {
     activeProfileId: DEFAULT_PROFILE_ID,
@@ -550,6 +571,12 @@ export function validateImportedSettings(raw: string): ImportValidationResult {
       typeof pp.llmProviderId === 'string' && pp.llmProviderId.length > 0
         ? pp.llmProviderId
         : pp.llmBackend;
+    const llmModelId =
+      typeof pp.llmModelId === 'string' && pp.llmModelId.trim().length > 0
+        ? pp.llmModelId.trim()
+        : llmProviderId === 'nearai'
+          ? DEFAULT_NEARAI_MODEL
+          : undefined;
     // `tint` is opt-in; unknown / missing values import as undefined so
     // the consume site (resolveTint) falls back to `signal`. We do not
     // reject an unknown tint — round-tripping a future tint name from a
@@ -570,6 +597,7 @@ export function validateImportedSettings(raw: string): ImportValidationResult {
       localBaseUrl: pp.localBaseUrl,
       llmBackend: pp.llmBackend,
       llmProviderId,
+      llmModelId,
       tint,
       apiVersion
     });
@@ -973,7 +1001,8 @@ export interface SidecarStatusPayload {
 export async function startSidecar(
   profileId: string,
   backend?: LlmBackend,
-  providerId?: string
+  providerId?: string,
+  modelId?: string
 ): Promise<number> {
   if (!inTauri()) throw new Error('startSidecar requires the Tauri runtime');
   // Forward the chosen backend; the Rust side defaults to NEAR.AI if
@@ -987,6 +1016,7 @@ export async function startSidecar(
   return invoke<number>('start_sidecar', {
     backend: backend ?? 'nearai',
     providerId,
+    modelId: modelId && modelId.trim().length > 0 ? modelId.trim() : undefined,
     profileId
   });
 }

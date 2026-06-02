@@ -89,10 +89,13 @@ describe('Tauri http capability is scoped to loopback + https', () => {
 
 describe('sidecar shell capabilities are pinned to the bundled binary', () => {
   it.each(['shell:allow-execute', 'shell:allow-kill'])(
-    '%s only targets binaries/ironclaw',
+    '%s only targets bundled IronClaw sidecars',
     (id) => {
       const perm = permission(id);
-      expect(perm.allow).toEqual([{ name: 'binaries/ironclaw', sidecar: true, args: true }]);
+      expect(perm.allow).toEqual([
+        { name: 'binaries/ironclaw-reborn', sidecar: true, args: true },
+        { name: 'binaries/ironclaw', sidecar: true, args: true }
+      ]);
     }
   );
 

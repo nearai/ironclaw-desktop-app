@@ -36,7 +36,7 @@
 
 {#if results.length === 0}
   <div class="surface p-8 text-center text-text-muted text-sm">
-    No matches for «{query}». Try a different phrase.
+    No matches for «{query}»
   </div>
 {:else}
   <ul class="space-y-2">

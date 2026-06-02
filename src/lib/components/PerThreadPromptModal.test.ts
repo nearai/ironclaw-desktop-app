@@ -109,7 +109,7 @@ describe('PerThreadPromptModal component', () => {
       await fireEvent.click(byText(container, 'Save'));
     });
     expect(perThreadPrompts.set).toHaveBeenCalledWith('t1', 'keep me');
-    expect(toasts.show).toHaveBeenCalledWith('Custom prompt saved for this thread', 'success');
+    expect(toasts.show).toHaveBeenCalledWith('Custom prompt saved.', 'success');
     expect(onChanged).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -124,10 +124,7 @@ describe('PerThreadPromptModal component', () => {
     });
     expect(perThreadPrompts.clear).toHaveBeenCalledWith('t1');
     expect(perThreadPrompts.set).not.toHaveBeenCalled();
-    expect(toasts.show).toHaveBeenCalledWith(
-      'Thread reverted to the default system prompt',
-      'info'
-    );
+    expect(toasts.show).toHaveBeenCalledWith('Reverted to the default prompt.', 'info');
   });
 
   it('Reset clears the override, toasts, and closes', async () => {
@@ -142,10 +139,7 @@ describe('PerThreadPromptModal component', () => {
       await fireEvent.click(byIncludes(container, 'Reset to default'));
     });
     expect(perThreadPrompts.clear).toHaveBeenCalledWith('t1');
-    expect(toasts.show).toHaveBeenCalledWith(
-      'Thread reverted to the default system prompt',
-      'info'
-    );
+    expect(toasts.show).toHaveBeenCalledWith('Reverted to the default prompt.', 'info');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

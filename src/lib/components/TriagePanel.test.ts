@@ -34,7 +34,7 @@ describe('TriagePanel component', () => {
     const { container } = render(TriagePanel, { props: { onRegenerate: vi.fn() } });
     await tick();
     expect(container.textContent).toContain('Triage');
-    expect(container.textContent).toContain('Triaging your threads');
+    expect(container.textContent).toContain('Triaging threads');
     // Header legend names the three buckets.
     expect(container.textContent).toContain('Decision needed');
     expect(container.textContent).toContain('Can handle');

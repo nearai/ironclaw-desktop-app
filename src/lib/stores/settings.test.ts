@@ -42,6 +42,7 @@ describe('migrateLoaded', () => {
       remoteBaseUrl: 'http://example.test:3100',
       localBaseUrl: 'http://127.0.0.1:3100',
       llmBackend: 'openrouter',
+      llmModelId: 'anthropic/claude-opus-4.1',
       onboardingComplete: true
     });
     expect(s.profiles).toHaveLength(1);
@@ -52,6 +53,7 @@ describe('migrateLoaded', () => {
     // llmProviderId should default to the legacy backend on the
     // migrated profile so existing installs round-trip cleanly.
     expect(s.profiles[0].llmProviderId).toBe('openrouter');
+    expect(s.profiles[0].llmModelId).toBe('anthropic/claude-opus-4.1');
     expect(s.activeProfileId).toBe(DEFAULT_PROFILE_ID);
     expect(s.onboardingComplete).toBe(true);
   });
@@ -126,6 +128,34 @@ describe('migrateLoaded', () => {
     });
     expect(s.profiles[0].mode).toBe('remote');
     expect(s.profiles[0].llmBackend).toBe('nearai');
+  });
+
+  it('preserves a non-empty per-profile model id and defaults blank NEAR.AI ids to GLM', () => {
+    const s = migrateLoaded({
+      activeProfileId: 'p1',
+      profiles: [
+        {
+          id: 'p1',
+          name: 'with-model',
+          mode: 'remote',
+          remoteBaseUrl: 'http://127.0.0.1:3100',
+          localBaseUrl: 'http://127.0.0.1:3100',
+          llmBackend: 'nearai',
+          llmModelId: 'nearai/fast'
+        },
+        {
+          id: 'p2',
+          name: 'blank-model',
+          mode: 'remote',
+          remoteBaseUrl: 'http://127.0.0.1:3100',
+          localBaseUrl: 'http://127.0.0.1:3100',
+          llmBackend: 'nearai',
+          llmModelId: '   '
+        }
+      ]
+    });
+    expect(s.profiles[0].llmModelId).toBe('nearai/fast');
+    expect(s.profiles[1].llmModelId).toBe('auto');
   });
 
   it('defaults apiVersion to v2; only an explicit v1 opts back out', () => {
@@ -205,6 +235,18 @@ describe('validateImportedSettings apiVersion', () => {
     const res = validateImportedSettings(withProfile({ apiVersion: 'v3' }));
     expect(res.ok).toBe(true);
     if (res.ok) expect(res.settings.profiles[0].apiVersion).toBe('v2');
+  });
+
+  it('preserves a non-empty llmModelId through import validation', () => {
+    const res = validateImportedSettings(withProfile({ llmModelId: 'gpt-5-mini' }));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.settings.profiles[0].llmModelId).toBe('gpt-5-mini');
+  });
+
+  it('defaults missing NEAR.AI model ids to auto through import validation', () => {
+    const res = validateImportedSettings(withProfile({ llmModelId: '   ' }));
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.settings.profiles[0].llmModelId).toBe('auto');
   });
 });
 

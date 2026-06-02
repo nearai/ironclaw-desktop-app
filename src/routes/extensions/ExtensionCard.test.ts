@@ -42,23 +42,59 @@ describe('ExtensionCard — needs-setup affordance (R108)', () => {
     expect(setupBtn).toBeTruthy();
   });
 
-  it('uses an OAuth hint for an oauth connector', async () => {
+  it('uses a direct login CTA for an oauth connector', async () => {
     const { container } = render(ExtensionCard, {
-      props: { extension: ext({ category: 'oauth', ready: false }), variant: 'installed' }
+      props: {
+        extension: ext({
+          name: 'gmail',
+          display_name: 'Gmail',
+          category: 'oauth',
+          ready: false
+        }),
+        variant: 'installed'
+      }
     });
     await tick();
-    expect(container.textContent).toContain('Sign in to connect (OAuth)');
+    expect(container.textContent).toContain('Log in with Gmail');
+    expect(container.textContent ?? '').not.toContain('OAuth');
   });
 
   it('uses a sign-in hint whenever readiness says auth is missing', async () => {
     const { container } = render(ExtensionCard, {
       props: {
-        extension: ext({ category: 'wasm_tool', ready: false, readiness_message: 'needs_auth' }),
+        extension: ext({
+          name: 'notion',
+          display_name: 'Notion',
+          category: 'wasm_tool',
+          ready: false,
+          readiness_message: 'needs_auth'
+        }),
         variant: 'installed'
       }
     });
     await tick();
-    expect(container.textContent).toContain('Sign in to connect (OAuth)');
+    expect(container.textContent).toContain('Needs sign-in');
+    expect(container.textContent).toContain('Connect Notion');
+    expect(container.textContent ?? '').not.toContain('WASM');
+  });
+
+  it('does not leak raw readiness errors in the card label', async () => {
+    const { container } = render(ExtensionCard, {
+      props: {
+        extension: ext({
+          name: 'slack',
+          display_name: 'Slack',
+          category: 'channel',
+          ready: false,
+          readiness_message: 'ERROR: invalid_auth 401 refresh token expired'
+        }),
+        variant: 'installed'
+      }
+    });
+    await tick();
+    expect(container.textContent).toContain('Error');
+    expect(container.textContent ?? '').not.toContain('invalid_auth');
+    expect(container.textContent ?? '').not.toContain('401');
   });
 
   it('shows the icon gear (Configure), not a Set up CTA, when ready', async () => {

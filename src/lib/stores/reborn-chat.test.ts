@@ -9,6 +9,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { IronClawClient } from '$lib/api/ironclaw';
+import { perThreadPrompts } from './per-thread-prompts.svelte';
 import { RebornChatController } from './reborn-chat.svelte';
 
 async function* gen<T>(items: T[]): AsyncGenerator<T> {
@@ -20,6 +21,7 @@ function mockClient(over: Record<string, unknown> = {}): IronClawClient {
     createThreadV2: vi.fn(async () => ({ thread: { thread_id: 't-new' } })),
     sendMessageV2: vi.fn(async () => ({ run_id: 'r1', thread_id: 't1', status: 'queued' })),
     fetchTimelineV2: vi.fn(async () => ({ records: [] })),
+    getRunStateV2: vi.fn(async () => ({ run_id: 'r1', status: 'running' })),
     resolveGateV2: vi.fn(async () => undefined),
     cancelRunV2: vi.fn(async () => undefined),
     streamWebChatV2Events: vi.fn(() => gen([])),
@@ -28,13 +30,22 @@ function mockClient(over: Record<string, unknown> = {}): IronClawClient {
 }
 
 describe('RebornChatController.send', () => {
+  beforeEach(() => {
+    perThreadPrompts.clear('t-prompt');
+  });
+
   it('auto-creates a thread on first send, then posts the message', async () => {
     const client = mockClient();
     const c = new RebornChatController(() => client);
     await c.send('hi there');
     expect(client.createThreadV2).toHaveBeenCalledTimes(1);
     expect(c.threadId).toBe('t-new');
-    expect(client.sendMessageV2).toHaveBeenCalledWith('t-new', 'hi there');
+    expect(client.sendMessageV2).toHaveBeenCalledWith(
+      't-new',
+      'hi there',
+      [],
+      expect.stringContaining('IronClaw format contract.')
+    );
     const userMsg = c.state.messages.find((m) => m.role === 'user');
     expect(userMsg?.content).toBe('hi there');
     expect(c.state.activeRun?.runId).toBe('r1');
@@ -47,7 +58,43 @@ describe('RebornChatController.send', () => {
     c.threadId = 't1';
     await c.send('hello');
     expect(client.createThreadV2).not.toHaveBeenCalled();
-    expect(client.sendMessageV2).toHaveBeenCalledWith('t1', 'hello');
+    expect(client.sendMessageV2).toHaveBeenCalledWith(
+      't1',
+      'hello',
+      [],
+      expect.stringContaining('IronClaw format contract.')
+    );
+  });
+
+  it('forwards attachments to the v2 transport', async () => {
+    const client = mockClient();
+    const c = new RebornChatController(() => client);
+    c.threadId = 't1';
+    await c.send('see attached', undefined, [
+      { name: 'notes.md', mime_type: 'text/markdown', data_base64: 'IyBub3Rlcw==' }
+    ]);
+    expect(client.sendMessageV2).toHaveBeenCalledWith(
+      't1',
+      'see attached',
+      [{ name: 'notes.md', mime_type: 'text/markdown', data_base64: 'IyBub3Rlcw==' }],
+      expect.stringContaining('IronClaw format contract.')
+    );
+  });
+
+  it('forwards redacted per-thread instructions on v2 sends', async () => {
+    const client = mockClient();
+    const c = new RebornChatController(() => client);
+    c.threadId = 't-prompt';
+    perThreadPrompts.set('t-prompt', 'Answer tersely with sk-agent-secret12345');
+
+    await c.send('hello');
+
+    expect(client.sendMessageV2).toHaveBeenCalledTimes(1);
+    const [, , , instructions] = vi.mocked(client.sendMessageV2).mock.calls[0];
+    expect(instructions).toContain('IronClaw format contract.');
+    expect(instructions).toContain('Authority: user-configured behavior');
+    expect(instructions).toContain('Answer tersely');
+    expect(instructions).not.toContain('sk-agent-secret12345');
   });
 
   it('marks the optimistic bubble errored and stops processing on failure', async () => {
@@ -63,6 +110,38 @@ describe('RebornChatController.send', () => {
     expect(m?.status).toBe('error');
     expect(m?.error).toBe('boom');
     expect(c.state.isProcessing).toBe(false);
+  });
+
+  it('polls run state after an accepted send and surfaces provider policy denial', async () => {
+    vi.useFakeTimers();
+    try {
+      const client = mockClient({
+        fetchTimelineV2: vi.fn(async () => ({
+          records: [{ kind: 'user', message_id: 'u1', content: 'hello live assistant check' }]
+        })),
+        getRunStateV2: vi.fn(async () => ({
+          run_id: 'r1',
+          status: 'Failed',
+          failure: { category: 'policy_denied' }
+        }))
+      });
+      const c = new RebornChatController(() => client);
+      c.threadId = 't1';
+
+      await c.send('hello live assistant check');
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(client.getRunStateV2).toHaveBeenCalledWith('t1', 'r1');
+      expect(c.state.messages.some((m) => m.content === 'hello live assistant check')).toBe(true);
+      expect(
+        c.state.messages.some((m) =>
+          m.content?.includes('The selected model is not available for this account')
+        )
+      ).toBe(true);
+      expect(c.state.isProcessing).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -89,6 +168,63 @@ describe('RebornChatController.openStream', () => {
     expect(client.fetchTimelineV2).toHaveBeenCalledWith('t1', { limit: 50 });
     expect(c.state.messages.some((m) => m.content === 'hello back')).toBe(true);
     expect(c.state.isProcessing).toBe(false);
+  });
+
+  it('keeps a sent user bubble visible when terminal refetch lags the user timeline row', async () => {
+    const client = mockClient({
+      streamWebChatV2Events: vi.fn(() =>
+        gen([
+          {
+            type: 'projection_update',
+            frame: { state: { items: [{ run_status: { run_id: 'r1', status: 'completed' } }] } }
+          }
+        ])
+      ),
+      fetchTimelineV2: vi.fn(async () => ({
+        records: [{ kind: 'assistant', message_id: 'a1', content: 'hello back' }]
+      }))
+    });
+    const c = new RebornChatController(() => client);
+    c.threadId = 't1';
+
+    await c.send('do not vanish');
+    await c.openStream('t1');
+
+    expect(c.state.messages.some((m) => m.role === 'user' && m.content === 'do not vanish')).toBe(
+      true
+    );
+    expect(c.state.messages.some((m) => m.role === 'assistant' && m.content === 'hello back')).toBe(
+      true
+    );
+  });
+
+  it('does not duplicate a sent bubble once the timeline confirms it', async () => {
+    const client = mockClient({
+      streamWebChatV2Events: vi.fn(() =>
+        gen([
+          {
+            type: 'projection_update',
+            frame: { state: { items: [{ run_status: { run_id: 'r1', status: 'completed' } }] } }
+          }
+        ])
+      ),
+      fetchTimelineV2: vi.fn(async () => ({
+        records: [
+          { kind: 'user', message_id: 'u1', content: 'show once' },
+          { kind: 'assistant', message_id: 'a1', content: 'ack' }
+        ]
+      }))
+    });
+    const c = new RebornChatController(() => client);
+    c.threadId = 't1';
+
+    await c.send('show once');
+    await c.openStream('t1');
+
+    const userCopies = c.state.messages.filter(
+      (m) => m.role === 'user' && m.content === 'show once'
+    );
+    expect(userCopies).toHaveLength(1);
   });
 
   it('does not refetch while a run is merely running', async () => {
@@ -155,6 +291,18 @@ describe('RebornChatController.loadTimeline', () => {
     const c = new RebornChatController(() => client);
     await c.loadTimeline('t1');
     expect(c.state.messages[0]).toMatchObject({ role: 'user', content: 'hey' });
+  });
+
+  it('surfaces timeline load failures without pretending the thread is empty', async () => {
+    const client = mockClient({
+      fetchTimelineV2: vi.fn(async () => {
+        throw new Error('timeline down');
+      })
+    });
+    const c = new RebornChatController(() => client);
+    await c.loadTimeline('t1');
+    expect(c.timelineError).toBe('Could not load messages for this conversation.');
+    expect(c.state.messages).toEqual([]);
   });
 
   it('drops a stale timeline result when the thread switched mid-fetch', async () => {

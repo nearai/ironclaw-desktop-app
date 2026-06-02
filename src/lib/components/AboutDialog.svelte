@@ -430,7 +430,7 @@
                 class="px-2.5 py-1 rounded-md text-[11px] font-medium bg-accent-gold/15 text-accent-gold border border-accent-gold/40 hover:bg-accent-gold/25 transition"
                 data-testid="about-release-install"
               >
-                Update available
+                Update
               </button>
             {/if}
           </div>
@@ -447,7 +447,7 @@
           {#if gateway.kind === 'loading'}
             <p class="text-text-muted font-mono">Loading…</p>
           {:else if gateway.kind === 'disconnected'}
-            <p class="text-text-muted font-mono">Not connected to a gateway.</p>
+            <p class="text-text-muted font-mono">Not connected</p>
           {:else if gateway.kind === 'error'}
             <p class="text-red-300 font-mono break-words">
               Error: {gateway.message}
@@ -610,8 +610,8 @@
       <footer
         class="px-5 py-3 border-t border-border-subtle text-[11px] text-text-muted/80 leading-relaxed"
       >
-        Built with Tauri v2 + Svelte 5 + Tailwind. Markdown via marked + DOMPurify. Auth via macOS
-        Keychain. © 2026 Abhishek Vaidyanathan.
+        Tauri v2, Svelte 5, Tailwind. Markdown via marked + DOMPurify. Auth via macOS Keychain. ©
+        2026 Abhishek Vaidyanathan.
       </footer>
     </div>
   </div>

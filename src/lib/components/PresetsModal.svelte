@@ -92,7 +92,7 @@
   function handleSave() {
     const trimmed = saveName.trim();
     if (!trimmed) {
-      toasts.show('Give the preset a name first.', 'info');
+      toasts.show('Name the preset first.', 'info');
       saveInputEl?.focus();
       return;
     }
@@ -255,7 +255,7 @@
           bind:this={saveInputEl}
           bind:value={saveName}
           type="text"
-          placeholder="Save current workspace as preset…"
+          placeholder="Save workspace as preset…"
           aria-label="Preset name"
           maxlength="80"
           onkeydown={(e) => {
@@ -281,7 +281,7 @@
       <div class="flex-1 overflow-y-auto py-2">
         {#if presets.presets.length === 0}
           <div class="px-5 py-10 text-center text-sm text-text-muted">
-            No presets yet. Set up your layout, then save it above.
+            No presets yet. Set up your layout, then save above.
           </div>
         {:else}
           {#each presets.presets as preset, idx (preset.id)}

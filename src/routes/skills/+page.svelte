@@ -442,7 +442,7 @@
     // Hand the invocation to the chat composer via the one-shot bus; the
     // active chat surface (v1 page or v2 panel) drains it on arrival.
     composerInsert.push(hint);
-    void goto('/');
+    void goto('/chat');
   }
 
   function handleOpenInChat(skill: Skill) {
@@ -563,7 +563,7 @@
       <a
         href="/skills/ironhub"
         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent-cyan/40 text-xs font-semibold text-accent-cyan hover:bg-accent-cyan/10 transition min-h-[34px]"
-        title="Browse the IronHub catalog and install new skills"
+        title="Browse IronHub and install skills"
       >
         Browse IronHub
       </a>
@@ -638,10 +638,11 @@
       <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
         <div class="text-sm text-text-primary mb-2">IronClaw is offline</div>
         <div class="text-xs text-text-muted">
-          Check <a
+          Configure the connection in
+          <a
             href="/settings"
             class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
-          > to configure the connection.
+          >.
         </div>
       </div>
     {:else if loadState === 'error'}
@@ -683,14 +684,12 @@
       </div>
     {:else if filteredSkills.length === 0}
       <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
-        <div class="text-sm text-text-primary mb-1">No skills installed.</div>
-        <div class="text-xs text-text-muted mb-4">
-          Browse the IronHub catalog to install your first skill.
-        </div>
+        <div class="text-sm text-text-primary mb-1">No skills installed</div>
+        <div class="text-xs text-text-muted mb-4">Browse IronHub to install your first skill.</div>
         <a
           href="/skills/ironhub"
           class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-accent-cyan/40 text-xs font-semibold text-accent-cyan hover:bg-accent-cyan/10 transition min-h-[34px]"
-          title="Browse the IronHub catalog and install new skills"
+          title="Browse IronHub and install skills"
         >
           Browse IronHub
         </a>

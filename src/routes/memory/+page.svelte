@@ -159,7 +159,7 @@
   // ---- Loaders -------------------------------------------------------------
   async function loadNodes(): Promise<void> {
     if (!client) {
-      listError = 'IronClaw client unavailable.';
+      listError = 'IronClaw client unavailable';
       return;
     }
     listLoading = true;
@@ -203,7 +203,7 @@
     selectedContent = '';
     detailError = null;
     if (!client) {
-      detailError = 'IronClaw client unavailable.';
+      detailError = 'IronClaw client unavailable';
       return;
     }
     detailLoading = true;
@@ -267,7 +267,7 @@
       const nowIso = new Date().toISOString();
       nodes = nodes.map((n) => (n.path === selectedNode!.path ? { ...n, updated_at: nowIso } : n));
       selectedNode = { ...selectedNode, updated_at: nowIso };
-      toasts.show('Memory saved.', 'success');
+      toasts.show('Memory saved', 'success');
     } catch (err) {
       toasts.show(`Save failed: ${(err as Error).message}`, 'error');
     } finally {
@@ -305,7 +305,7 @@
       loadedContents = Object.fromEntries(
         Object.entries(loadedContents).filter(([path]) => path !== removed)
       );
-      toasts.show('Memory deleted.', 'success');
+      toasts.show('Memory deleted', 'success');
     } catch (err) {
       toasts.show(`Delete failed: ${(err as Error).message}`, 'error');
     } finally {
@@ -317,13 +317,13 @@
   // ---- New memory ----------------------------------------------------------
   async function createMemory(path: string, content: string): Promise<void> {
     if (!client) {
-      toasts.show('IronClaw client unavailable.', 'error');
+      toasts.show('IronClaw client unavailable', 'error');
       return;
     }
     try {
       const res = await client.writeMemory(path, content);
       if (!res.ok) {
-        toasts.show('Server did not confirm write.', 'error');
+        toasts.show("Server didn't confirm the write", 'error');
         return;
       }
       // Insert at the top of the list with a stamped updated_at. A
@@ -337,7 +337,7 @@
       };
       nodes = [created, ...nodes.filter((n) => n.path !== created.path)];
       newModalOpen = false;
-      toasts.show('Memory created.', 'success');
+      toasts.show('Memory created', 'success');
       // Auto-select the newly created entry so the user can verify the
       // rendered content immediately.
       await selectNode(created);
@@ -351,9 +351,9 @@
     if (!selectedNode) return;
     try {
       await navigator.clipboard.writeText(selectedNode.path);
-      toasts.show('Path copied.', 'success');
+      toasts.show('Path copied', 'success');
     } catch {
-      toasts.show('Copy failed.', 'error');
+      toasts.show('Copy failed', 'error');
     }
   }
 
@@ -364,7 +364,7 @@
       .filter((n) => loadedContents[n.path] !== undefined)
       .map((n) => ({ path: n.path, content: loadedContents[n.path] }));
     if (files.length === 0) {
-      toasts.show('Open a memory file before exporting to Finder.', 'error');
+      toasts.show('Open a memory file before exporting', 'error');
       return;
     }
     exportingToFinder = true;
@@ -437,7 +437,7 @@
     e.preventDefault();
     const path = newPath.trim();
     if (!path) {
-      toasts.show('Path is required.', 'error');
+      toasts.show('Path is required', 'error');
       return;
     }
     // Tags are a UI affordance only today — the server has no tag column,
@@ -495,7 +495,7 @@
             type="button"
             onclick={() => void onExportToFinder()}
             disabled={exportingToFinder}
-            title="Export memory tree to ~/Documents/IronClaw and open in Finder"
+            title="Export to ~/Documents/IronClaw and open in Finder"
             class="inline-flex items-center justify-center h-7 px-2.5 rounded-md border border-border-subtle text-[11px] text-text-muted hover:text-text-primary hover:border-accent-cyan focus-visible:ring-2 focus-visible:ring-accent-cyan focus-visible:outline-none transition disabled:opacity-50"
           >
             {exportingToFinder ? 'Opening…' : 'Open in Finder'}
@@ -603,7 +603,7 @@
         <p class="px-4 py-3 text-xs text-text-muted">No entries match "{filter}".</p>
       {:else if filteredNodes.length === 0}
         <p class="px-4 py-3 text-xs text-text-muted">
-          No memory yet. Add a fact, preference, or decision IronClaw should remember.
+          No memory yet. Add a fact, preference, or decision to remember.
         </p>
       {:else}
         <ul class="py-1" aria-label="Memory entries">
@@ -655,7 +655,7 @@
   <section class="flex-1 flex flex-col min-w-0 overflow-hidden" aria-label="Memory detail">
     {#if !selectedNode}
       <div class="flex-1 flex items-center justify-center text-text-muted text-sm">
-        <p>Pick a memory from the left to inspect.</p>
+        <p>Pick a memory to inspect.</p>
       </div>
     {:else}
       {@const node = selectedNode}

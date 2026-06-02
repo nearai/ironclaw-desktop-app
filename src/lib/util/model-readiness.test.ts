@@ -1,0 +1,52 @@
+import { describe, expect, it } from 'vitest';
+
+import { isModelExecutionVerified, modelExecutionReadiness } from './model-readiness';
+
+describe('modelExecutionReadiness', () => {
+  it('blocks configured models until execution is verified', () => {
+    const status = {
+      llm_backend: 'NEAR.AI',
+      llm_model: 'z-ai/glm-4.5',
+      model_readiness: 'unverified'
+    };
+
+    expect(isModelExecutionVerified(status)).toBe(false);
+    expect(modelExecutionReadiness(status)).toEqual(
+      expect.objectContaining({
+        verified: false,
+        sendBlocked: true,
+        buttonPrefix: 'Configured (unverified)'
+      })
+    );
+  });
+
+  it('accepts explicit execution verification', () => {
+    expect(isModelExecutionVerified({ model_execution_verified: true })).toBe(true);
+    expect(modelExecutionReadiness({ model_execution_verified: true }).sendBlocked).toBe(false);
+  });
+
+  it('accepts nested GREEN readiness fields', () => {
+    expect(
+      isModelExecutionVerified({
+        readiness: { model_execution_readiness: 'GREEN' }
+      })
+    ).toBe(true);
+  });
+
+  it('does not accept configured-only readiness text', () => {
+    expect(isModelExecutionVerified({ model_execution_readiness: 'configured' })).toBe(false);
+  });
+
+  it('surfaces actionable backend reasons when model auth is missing', () => {
+    const readiness = modelExecutionReadiness({
+      model_execution_verified: false,
+      model_readiness: 'unverified',
+      model_readiness_reason:
+        'NEAR.AI is selected, but no NEARAI_SESSION_TOKEN, NEARAI_API_KEY, or vaulted nearai credential is available.'
+    });
+
+    expect(readiness.sendBlocked).toBe(true);
+    expect(readiness.description).toContain('NEARAI_SESSION_TOKEN');
+    expect(readiness.sendBlockReason).toContain('vaulted nearai credential');
+  });
+});

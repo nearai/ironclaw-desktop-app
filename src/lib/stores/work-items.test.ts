@@ -69,6 +69,7 @@ describe('createWorkItem (pure)', () => {
       approvalBoundaries: [],
       artifacts: [],
       watches: [],
+      receipts: [],
       openApprovals: [],
       followUps: [],
       nextAction: null
@@ -200,6 +201,198 @@ describe('work-items store', () => {
 
   it('update() is a no-op for an unknown id', () => {
     expect(workItems.update('ghost', { status: 'done' })).toBeUndefined();
+  });
+
+  it('updateApprovalBoundary() approves a boundary and clears waiting state when unblocked', () => {
+    const item = workItems.create({
+      title: 'Approve send',
+      status: 'waiting-approval',
+      approvalBoundaries: [
+        {
+          id: 'approval-send',
+          action: 'Send reply',
+          kind: 'send',
+          payload: 'Outbound reply',
+          reason: 'User approval required.',
+          status: 'pending'
+        }
+      ],
+      openApprovals: ['Send reply'],
+      nextAction: 'Review approval: Send reply'
+    });
+
+    const updated = workItems.updateApprovalBoundary(item!.id, 'approval-send', 'approved');
+
+    expect(updated?.approvalBoundaries[0]).toEqual(
+      expect.objectContaining({ id: 'approval-send', status: 'approved' })
+    );
+    expect(updated?.status).toBe('active');
+    expect(updated?.openApprovals).toEqual([]);
+    expect(updated?.nextAction).toBe('Approved; continue the work.');
+  });
+
+  it('updateApprovalBoundary() keeps a matter blocked when required context is missing', () => {
+    const item = workItems.create({
+      title: 'Missing dossier',
+      status: 'blocked',
+      dossier: [
+        {
+          label: 'Inbox, queue, or backlog to triage',
+          state: 'missing',
+          provenance: 'runbook:operations'
+        }
+      ],
+      approvalBoundaries: [
+        {
+          id: 'approval-send',
+          action: 'Send reply',
+          kind: 'send',
+          payload: 'Outbound reply',
+          reason: 'User approval required.',
+          status: 'pending'
+        }
+      ],
+      openApprovals: ['Send reply']
+    });
+
+    const updated = workItems.updateApprovalBoundary(item!.id, 'approval-send', 'approved');
+
+    expect(updated?.approvalBoundaries[0]?.status).toBe('approved');
+    expect(updated?.status).toBe('blocked');
+    expect(updated?.openApprovals).toEqual([]);
+  });
+
+  it('updateApprovalBoundary() keeps explicit other approval gates waiting until resolved', () => {
+    const item = workItems.create({
+      title: 'Runbook gate',
+      status: 'waiting-approval',
+      approvalBoundaries: [
+        {
+          id: 'approval-runbook',
+          action: 'Review runbook gate',
+          kind: 'other',
+          payload: 'A runbook approval-required step.',
+          reason: 'Runbook requires explicit user approval.',
+          status: 'pending'
+        },
+        {
+          id: 'approval-send',
+          action: 'Send reply',
+          kind: 'send',
+          payload: 'Outbound reply',
+          reason: 'User approval required.',
+          status: 'pending'
+        }
+      ],
+      openApprovals: ['Review runbook gate', 'Send reply'],
+      nextAction: 'Review approval: Review runbook gate'
+    });
+
+    const updated = workItems.updateApprovalBoundary(item!.id, 'approval-send', 'approved');
+
+    expect(updated?.status).toBe('waiting-approval');
+    expect(updated?.openApprovals).toEqual(['Review runbook gate']);
+    expect(updated?.nextAction).toBe('Review approval: Review runbook gate');
+  });
+
+  it('updateApprovalBoundary() denies a boundary and blocks the matter', () => {
+    const item = workItems.create({
+      title: 'Deny send',
+      status: 'waiting-approval',
+      approvalBoundaries: [
+        {
+          id: 'approval-send',
+          action: 'Send reply',
+          kind: 'send',
+          payload: 'Outbound reply',
+          reason: 'User approval required.',
+          status: 'pending'
+        }
+      ],
+      openApprovals: ['Send reply']
+    });
+
+    const updated = workItems.updateApprovalBoundary(item!.id, 'approval-send', 'denied');
+
+    expect(updated?.approvalBoundaries[0]?.status).toBe('denied');
+    expect(updated?.status).toBe('blocked');
+    expect(updated?.openApprovals).toEqual([]);
+    expect(updated?.nextAction).toBe('Revise the ask or approval boundary.');
+  });
+
+  it('runDueWatches() fires due watches, writes receipts, and rearms recurring cadence', () => {
+    const now = new Date('2026-06-01T10:00:00.000Z');
+    const item = workItems.create({
+      title: 'Watch competitor pricing',
+      watches: [
+        {
+          id: 'watch-pricing',
+          trigger: 'competitor pricing changes',
+          cadence: 'daily',
+          source: 'competitor site',
+          next_check: '2026-06-01T09:59:00.000Z',
+          escalation: 'Surface material pricing changes before drafting a response.',
+          status: 'active'
+        },
+        {
+          id: 'watch-later',
+          trigger: 'later event',
+          cadence: 'daily',
+          source: 'calendar',
+          next_check: '2026-06-02T09:59:00.000Z',
+          escalation: 'Not due yet.',
+          status: 'active'
+        }
+      ]
+    });
+
+    const receipts = workItems.runDueWatches(now);
+    const updated = workItems.get(item!.id)!;
+
+    expect(receipts).toHaveLength(1);
+    expect(receipts[0]).toEqual(
+      expect.objectContaining({
+        kind: 'watch',
+        title: 'Checked competitor pricing changes',
+        source: 'competitor site',
+        status: 'handled',
+        created_at: '2026-06-01T10:00:00.000Z'
+      })
+    );
+    expect(updated.receipts[0]).toEqual(receipts[0]);
+    expect(updated.watches.find((watch) => watch.id === 'watch-pricing')?.next_check).toBe(
+      '2026-06-02T10:00:00.000Z'
+    );
+    expect(updated.watches.find((watch) => watch.id === 'watch-pricing')?.status).toBe('active');
+    expect(updated.watches.find((watch) => watch.id === 'watch-later')?.next_check).toBe(
+      '2026-06-02T09:59:00.000Z'
+    );
+    expect(updated.nextAction).toBe('Review watch receipt: Checked competitor pricing changes');
+  });
+
+  it('runDueWatches() completes one-shot watches with a handled receipt', () => {
+    const item = workItems.create({
+      title: 'One-shot watch',
+      watches: [
+        {
+          id: 'watch-once',
+          trigger: 'signed term sheet arrives',
+          cadence: 'once',
+          source: 'gmail',
+          next_check: '2026-06-01T09:00:00.000Z',
+          escalation: 'Tell the user to review it.',
+          status: 'active'
+        }
+      ]
+    });
+
+    const receipts = workItems.runDueWatches(new Date('2026-06-01T10:00:00.000Z'));
+    const updated = workItems.get(item!.id)!;
+
+    expect(receipts).toHaveLength(1);
+    expect(updated.watches[0].status).toBe('done');
+    expect(updated.watches[0].next_check).toBeNull();
+    expect(updated.receipts[0].title).toBe('Checked signed term sheet arrives');
   });
 
   it('activeCount excludes done + archived', () => {

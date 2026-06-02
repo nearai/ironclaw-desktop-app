@@ -12,6 +12,8 @@
   import type { Extension } from '$lib/api/types';
   import { connection } from '$lib/stores/connection.svelte';
   import { composerInsert } from '$lib/stores/templates.svelte';
+  import { workItems } from '$lib/stores/work-items.svelte';
+  import { planFirstRunMissionWorkflow } from '$lib/util/workflow-orchestrator';
 
   interface Props {
     onlaunch?: (missionId: string) => void;
@@ -35,11 +37,14 @@
     }
     return byName;
   });
+  const runnerReady = $derived(connection.client !== null && connection.status === 'connected');
 
   const packStatusRecord = $derived.by(() => {
     const statuses = {} as Record<ConnectorPackId, ConnectorPackStatus>;
     for (const pack of CONNECTOR_PACKS) {
-      statuses[pack.id] = providedPackStatuses?.[pack.id] ?? statusForPack(pack.id);
+      statuses[pack.id] = runnerReady
+        ? (providedPackStatuses?.[pack.id] ?? statusForPack(pack.id))
+        : 'locked';
     }
     return statuses;
   });
@@ -63,14 +68,13 @@
 
   onMount(() => {
     hourOfDay = new Date().getHours();
-    if (usesProvidedPackStatuses) return;
+    if (usesProvidedPackStatuses || !runnerReady) return;
     untrack(() => void refreshReadiness());
   });
 
   $effect(() => {
     if (usesProvidedPackStatuses) return;
-    const client = connection.client;
-    if (!client) {
+    if (!runnerReady) {
       loadState = 'idle';
       installed = [];
       return;
@@ -142,7 +146,7 @@ ${mission.prompt}`;
 
   async function refreshReadiness(): Promise<void> {
     const client = connection.client;
-    if (!client) {
+    if (!client || connection.status !== 'connected') {
       loadState = 'idle';
       loadError = null;
       installed = [];
@@ -157,19 +161,38 @@ ${mission.prompt}`;
         .sort((a, b) => a.name.localeCompare(b.name));
       loadState = 'loaded';
     } catch (error) {
-      loadError = error instanceof Error ? error.message : 'Could not check connector readiness';
+      loadError = error instanceof Error ? error.message : 'Could not check connectors';
       loadState = 'error';
     }
   }
 
   function launchMission(mission: Mission): void {
-    composerInsert.push(missionPrompt(mission), null, {
+    if (!runnerReady) return;
+    const workflow = planFirstRunMissionWorkflow(mission);
+    let prompt = missionPrompt(mission);
+    if (workflow.status === 'routed') {
+      const created = workItems.create({
+        ...workflow.route.workItem,
+        links: [{ kind: 'mission', ref: mission.id, label: mission.title }]
+      });
+      if (created) {
+        prompt = `Work item: ${created.title}
+Runbook: ${created.runbookIds.join(', ') || 'none'}
+
+${prompt}`;
+      }
+    } else if (workflow.status === 'needs_clarification') {
+      prompt = `Routing note: ${workflow.route.reason}. Ask the missing routing/context question before doing external work.
+
+${prompt}`;
+    }
+    composerInsert.push(prompt, null, {
       title: mission.title,
       source: `mission:${mission.id}`,
       mode: mission.mode,
       autorun: true
     });
-    void goto('/');
+    void goto('/chat');
     onlaunch?.(mission.id);
   }
 </script>
@@ -180,7 +203,7 @@ ${mission.prompt}`;
       class="mb-3 rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
       role="status"
     >
-      Could not check connector readiness.
+      Could not check connectors.
       <span class="font-mono text-xs text-red-200/80">{loadError}</span>
     </div>
   {/if}
@@ -224,7 +247,9 @@ ${mission.prompt}`;
         </div>
       {:else}
         <p class="text-sm text-text-muted" role="status">
-          Connect a workspace pack to get a recommendation.
+          {runnerReady
+            ? 'Connect a workspace pack for a recommendation.'
+            : 'Connect a healthy runner for recommendations.'}
         </p>
       {/if}
     </div>
@@ -232,7 +257,7 @@ ${mission.prompt}`;
     <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="mission-grid">
       {#each missions as mission (mission.id)}
         {@const missing = missingConnectors(mission)}
-        {@const disabled = missing.length > 0}
+        {@const disabled = !runnerReady || missing.length > 0}
         <article
           class={`flex min-h-[210px] w-full flex-col rounded-lg border bg-bg-surface/70 p-4 ${disabled ? 'border-border-subtle' : 'border-accent-cyan/50'}`}
           class:opacity-80={disabled}
@@ -278,7 +303,20 @@ ${mission.prompt}`;
             {/if}
           </div>
 
-          {#if disabled}
+          {#if !runnerReady}
+            <div
+              class="mt-3 rounded-md border border-border-subtle bg-bg-deep/70 px-3 py-2 text-xs text-text-muted"
+              role="status"
+            >
+              <div class="font-semibold text-text-primary">Connect runner first</div>
+              <a
+                href="/settings"
+                class="mt-1 inline-flex text-accent-cyan underline decoration-dotted hover:decoration-solid"
+              >
+                Open Settings
+              </a>
+            </div>
+          {:else if missing.length > 0}
             <div
               class="mt-3 rounded-md border border-border-subtle bg-bg-deep/70 px-3 py-2 text-xs text-text-muted"
               role="status"
@@ -311,7 +349,7 @@ ${mission.prompt}`;
       class="rounded-lg border border-border-subtle bg-bg-surface/70 px-4 py-5 text-sm text-text-muted"
       role="status"
     >
-      No missions are available yet.
+      No missions available yet.
     </div>
   {/if}
 </section>

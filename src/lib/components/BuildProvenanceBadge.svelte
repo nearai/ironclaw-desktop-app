@@ -38,21 +38,19 @@
       label: 'Public release',
       chipClass: 'bg-accent-cyan/10 text-accent-cyan border-accent-cyan/30',
       dotClass: 'bg-accent-cyan',
-      title:
-        'Release build, no devtools, intended for end users. Should be Developer-ID signed before distribution.'
+      title: 'Release build, no devtools. Developer-ID sign before distributing.'
     },
     support: {
       label: 'Support build',
       chipClass: 'bg-accent-gold/10 text-accent-gold border-accent-gold/30',
       dotClass: 'bg-accent-gold',
-      title:
-        'Release build with the dev-devtools feature flag enabled. Right-click → Inspect available; do not distribute to end users.'
+      title: 'Release build with dev-devtools enabled. Inspect available. Do not distribute.'
     },
     dev: {
       label: 'Dev',
       chipClass: 'bg-text-muted/10 text-text-muted border-text-muted/30',
       dotClass: 'bg-text-muted',
-      title: 'Debug build (cargo run / npm run tauri dev). Not for distribution.'
+      title: 'Debug build. Not for distribution.'
     }
   };
 </script>

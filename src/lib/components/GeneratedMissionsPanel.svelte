@@ -3,7 +3,7 @@
   // the user actually has in front of them, instead of a static menu. Paste in
   // what just came in (a contract, call notes, an email thread); the connected
   // agent reads it and proposes specific next actions, each runnable
-  // approval-first via the chat composer.
+  // approval-first into a durable Work item.
   import { goto } from '$app/navigation';
   import { onMount, untrack } from 'svelte';
   import type { Extension } from '$lib/api/types';
@@ -24,6 +24,8 @@
   let sourceError = $state<string | null>(null);
   let selectedSourceIds = $state<string[]>([]);
   let sourceSelectionTouched = $state(false);
+  let runningMissionId = $state<string | null>(null);
+  let runError = $state<string | null>(null);
 
   const workspaceSources = $derived(workspaceContextSources(installed));
   const connectedSources = $derived(
@@ -105,11 +107,21 @@
     await gm.generateFrom(items);
   }
 
-  function runMission(id: string) {
+  async function runMission(id: string) {
     const m = gm.missions.find((x) => x.id === id);
     if (!m) return;
-    gm.run(m);
-    void goto('/');
+    runningMissionId = id;
+    runError = null;
+    const result = await gm.run(m);
+    runningMissionId = null;
+    if (result.status === 'created') {
+      const artifactParam = result.artifactId
+        ? `&artifact=${encodeURIComponent(result.artifactId)}`
+        : '';
+      void goto(`/work?item=${encodeURIComponent(result.workItemId)}${artifactParam}`);
+      return;
+    }
+    runError = result.reason;
   }
 </script>
 
@@ -120,8 +132,8 @@
   <header class="space-y-1">
     <h2 class="text-sm font-semibold text-text-primary">What needs attention</h2>
     <p class="text-xs text-text-muted">
-      Use connected sources, pasted context, or both. IronClaw proposes specific next actions for
-      your Desk; sending or writing still requires your approval.
+      IronClaw proposes next actions from connected sources or pasted context. Sending still needs
+      your approval.
     </p>
   </header>
 
@@ -132,7 +144,7 @@
         <p class="text-[11px] text-text-muted">
           {connectedSources.length > 0
             ? `${selectedSources.length} of ${connectedSources.length} selected for a read-only sweep.`
-            : 'Connect Google Workspace, Slack, or Notion to generate from live context.'}
+            : 'Connect Google Workspace, Slack, or Notion for live context.'}
         </p>
       </div>
       <button
@@ -174,7 +186,7 @@
   <textarea
     bind:value={pasted}
     rows="5"
-    placeholder="Paste what landed — a contract to review, notes from a call, an email thread…"
+    placeholder="Paste a contract, call notes, or an email thread…"
     aria-label="Context for the agent to propose actions from"
     class="w-full resize-y rounded-md border border-border-subtle bg-bg-deep/60 px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-cyan focus:outline-none"
   ></textarea>
@@ -209,16 +221,17 @@
 
   {#if !gm.available}
     <p class="text-xs text-accent-gold">
-      Not connected to a gateway — connect one in Settings to generate actions.
+      IronClaw is offline. Connect a gateway in Settings to generate.
     </p>
+  {/if}
+  {#if runError}
+    <p class="text-xs text-danger" role="alert">{runError}</p>
   {/if}
 
   {#if gm.status === 'error'}
     <p class="text-xs text-danger" role="alert">{gm.error}</p>
   {:else if gm.status === 'empty'}
-    <p class="text-xs text-text-muted">
-      The agent didn't find a clear action in that. Try pasting more of the item.
-    </p>
+    <p class="text-xs text-text-muted">No clear action found. Paste more of the item.</p>
   {:else if gm.status === 'ready'}
     <ul class="space-y-2" aria-label="Proposed actions">
       {#each gm.missions as m (m.id)}
@@ -244,9 +257,10 @@
             <button
               type="button"
               onclick={() => runMission(m.id)}
+              disabled={runningMissionId !== null}
               class="rounded-md border border-accent-cyan/60 px-2.5 py-1 text-xs text-accent-cyan hover:bg-accent-cyan/10 transition-colors min-h-[36px]"
             >
-              Run in chat
+              {runningMissionId === m.id ? 'Creating...' : 'Create in Work'}
             </button>
             <button
               type="button"

@@ -122,7 +122,7 @@
       // Belt-and-suspenders — the disabled state should have prevented
       // this, but the rune is async-poll-driven and the user could
       // theoretically click in the gap.
-      toasts.show('IronClaw is offline — try again when connected.', 'error');
+      toasts.show('IronClaw is offline. Try again when connected.', 'error');
       return;
     }
     sending = true;
@@ -169,7 +169,7 @@
     if (trimmed.length > 0) {
       const ok = await confirmDialog.ask({
         title: 'Discard this quick capture?',
-        body: `This will throw away the unsent text instead of saving it to the "${QUICK_CAPTURE_THREAD_TITLE}" thread.`,
+        body: `Discards the unsent text. It won't reach ${QUICK_CAPTURE_THREAD_TITLE}.`,
         confirmLabel: 'Discard capture',
         cancelLabel: 'Keep writing',
         tone: 'danger'
@@ -210,7 +210,7 @@
   async function viewThread() {
     if (lastCapturedThreadId) {
       quickCapture.close();
-      void goto(`/?thread=${encodeURIComponent(lastCapturedThreadId)}`);
+      void goto(`/chat?thread=${encodeURIComponent(lastCapturedThreadId)}`);
       return;
     }
     const client = connection.client;
@@ -218,7 +218,7 @@
       // Offline — just route to the chat root; the surface will show
       // the offline state and the user can come back later.
       quickCapture.close();
-      void goto('/');
+      void goto('/chat');
       return;
     }
     try {
@@ -226,16 +226,16 @@
       const existing = list.find((t) => (t.title ?? '').trim() === QUICK_CAPTURE_THREAD_TITLE);
       quickCapture.close();
       if (existing) {
-        void goto(`/?thread=${encodeURIComponent(existing.id)}`);
+        void goto(`/chat?thread=${encodeURIComponent(existing.id)}`);
       } else {
         // No captures yet — land on the chat root.
-        void goto('/');
+        void goto('/chat');
       }
     } catch {
       // listThreads failure should not eat the click; route to chat
       // root and rely on the surface to surface the error itself.
       quickCapture.close();
-      void goto('/');
+      void goto('/chat');
     }
   }
 </script>
@@ -311,9 +311,7 @@
           bind:value={content}
           onkeydown={onTextareaKeyDown}
           rows={ROWS_MIN}
-          placeholder={offline
-            ? 'IronClaw is offline — try again when connected.'
-            : 'Type a quick note…  ⌘↵ to send, ↵ for newline'}
+          placeholder={offline ? 'IronClaw is offline' : 'Type a note…  ⌘↵ send, ↵ newline'}
           aria-label="Quick capture message"
           disabled={offline}
           class="w-full bg-bg-surface/40 border border-border-subtle rounded-md px-3 py-2 font-mono text-sm text-text-primary placeholder:text-text-muted/60 outline-none focus:border-accent-cyan/60 resize-none disabled:opacity-60 disabled:cursor-not-allowed"

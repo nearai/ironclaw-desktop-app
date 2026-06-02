@@ -72,6 +72,9 @@ export interface WorkItemArtifact {
   title: string;
   status: WorkItemArtifactStatus;
   provenance: string[];
+  /** Optional markdown draft/body for the artifact when a surface has rendered it. */
+  content?: string;
+  content_format?: 'markdown';
 }
 
 export interface WorkItemWatch {
@@ -82,6 +85,20 @@ export interface WorkItemWatch {
   next_check: string | null;
   escalation: string;
   status: 'active' | 'paused' | 'done';
+}
+
+export type WorkItemReceiptKind = 'approval' | 'watch' | 'routine' | 'system';
+export type WorkItemReceiptStatus = 'handled' | 'failed';
+
+export interface WorkItemReceipt {
+  id: string;
+  kind: WorkItemReceiptKind;
+  title: string;
+  detail: string;
+  source: string;
+  status: WorkItemReceiptStatus;
+  created_at: string;
+  reversible: boolean;
 }
 
 export interface WorkItem {
@@ -108,6 +125,8 @@ export interface WorkItem {
   artifacts: WorkItemArtifact[];
   /** Monitoring/watch intents linked to this matter. */
   watches: WorkItemWatch[];
+  /** Quiet ledger of work the agent handled or attempted. */
+  receipts: WorkItemReceipt[];
   /** Free-text descriptions of approvals the matter is waiting on. */
   openApprovals: string[];
   /** Free-text follow-ups the matter has spawned. */
@@ -195,6 +214,7 @@ export function createWorkItem(input: {
   approvalBoundaries?: WorkItemApprovalBoundary[];
   artifacts?: WorkItemArtifact[];
   watches?: WorkItemWatch[];
+  receipts?: WorkItemReceipt[];
   openApprovals?: string[];
   followUps?: string[];
   nextAction?: string | null;
@@ -215,6 +235,7 @@ export function createWorkItem(input: {
     approvalBoundaries: input.approvalBoundaries ?? [],
     artifacts: input.artifacts ?? [],
     watches: input.watches ?? [],
+    receipts: input.receipts ?? [],
     openApprovals: input.openApprovals ?? [],
     followUps: input.followUps ?? [],
     nextAction: input.nextAction ?? null

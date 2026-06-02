@@ -494,7 +494,7 @@
         surface: 'Threads' as const,
         rows: [],
         total: 0,
-        showAllHref: '/'
+        showAllHref: '/chat'
       };
     }
     const matched = (threadsCache ?? []).filter((t) => localMatch(t.title, q));
@@ -505,13 +505,13 @@
       subtitle: t.message_count
         ? `${t.message_count} message${t.message_count === 1 ? '' : 's'}`
         : 'Empty',
-      href: `/?thread=${encodeURIComponent(t.id)}`
+      href: `/chat?thread=${encodeURIComponent(t.id)}`
     }));
     return {
       surface: 'Threads' as const,
       rows: rows.slice(0, ROWS_PER_GROUP),
       total: rows.length,
-      showAllHref: '/'
+      showAllHref: '/chat'
     };
   });
 
@@ -920,7 +920,7 @@
       return;
     }
     if (!connection.client && !toastedNoClient) {
-      toasts.show('Not connected — search results will be empty.', 'info');
+      toasts.show('IronClaw is offline. Results will be empty.', 'info');
       toastedNoClient = true;
     }
   });
@@ -960,7 +960,7 @@
           bind:value={query}
           onkeydown={onKeyDown}
           type="text"
-          placeholder="Search everywhere — knowledge, threads, jobs, skills, routines, extensions"
+          placeholder="Search knowledge, threads, jobs, skills, routines, extensions"
           aria-label="Global search across all surfaces"
           class="flex-1 bg-transparent border-0 outline-none text-base font-medium text-text-primary placeholder:text-text-muted/60"
           spellcheck="false"
@@ -1030,7 +1030,7 @@
                inline status explains the state and the fix, and announces
                itself to assistive tech via role="status". (#3-12) -->
           <div role="status" class="px-5 py-10 text-center">
-            <div class="text-sm text-text-primary mb-1">Not connected</div>
+            <div class="text-sm text-text-primary mb-1">IronClaw is offline</div>
             <div class="text-sm text-text-muted">
               Connect to an IronClaw profile to search across knowledge, threads, jobs, skills,
               routines, and extensions.
@@ -1079,7 +1079,7 @@
         {:else if !query.trim()}
           <!-- Empty-input + no history: stub hint. -->
           <div class="px-5 py-8 text-center text-sm text-text-muted">
-            Type to search across knowledge, threads, jobs, skills, routines, and extensions.
+            Type to search knowledge, threads, jobs, skills, routines, and extensions.
           </div>
         {:else if totalRows === 0 && !initialLoading && !loadingKnowledge}
           <div class="px-5 py-8 text-center text-sm text-text-muted">

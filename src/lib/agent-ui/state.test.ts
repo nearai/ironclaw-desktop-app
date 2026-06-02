@@ -6,7 +6,8 @@ import { readUiState, redactSecrets, surfaceForPath } from './state';
 
 describe('surfaceForPath', () => {
   it('maps known routes to their surface names', () => {
-    expect(surfaceForPath('/')).toBe('chat');
+    expect(surfaceForPath('/')).toBe('dashboard');
+    expect(surfaceForPath('/chat')).toBe('chat');
     expect(surfaceForPath('/work')).toBe('work');
     expect(surfaceForPath('/knowledge')).toBe('knowledge');
     expect(surfaceForPath('/admin')).toBe('admin');
@@ -50,7 +51,7 @@ describe('readUiState', () => {
   });
 
   it('defaults missing optional fields to null', () => {
-    const s = readUiState({ path: '/' });
+    const s = readUiState({ path: '/chat' });
     expect(s.surface).toBe('chat');
     expect(s.activeThreadId).toBeNull();
     expect(s.openModal).toBeNull();
@@ -60,7 +61,7 @@ describe('readUiState', () => {
   });
 
   it('redacts a token pasted into the composer draft', () => {
-    const s = readUiState({ path: '/', composerDraft: 'use Bearer abcdef123456 to connect' });
+    const s = readUiState({ path: '/chat', composerDraft: 'use Bearer abcdef123456 to connect' });
     expect(s.composerDraft).not.toContain('abcdef123456');
     expect(s.composerDraft).toContain('[redacted]');
   });

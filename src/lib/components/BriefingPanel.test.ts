@@ -37,7 +37,7 @@ describe('BriefingPanel component', () => {
     const { container } = render(BriefingPanel, { props: { onRegenerate: vi.fn() } });
     await tick();
     expect(container.textContent).toContain('Daily brief');
-    expect(container.textContent).toContain('Preparing your brief');
+    expect(container.textContent).toContain('Preparing brief');
   });
 
   it('surfaces an error inline', async () => {

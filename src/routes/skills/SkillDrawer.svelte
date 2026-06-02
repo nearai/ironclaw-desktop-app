@@ -90,7 +90,7 @@
     // the navigation tears this drawer down.
     onLaunch?.(skill);
     toasts.show(`Loaded into chat: ${usageHint}`, 'info');
-    void goto('/');
+    void goto('/chat');
   }
 
   async function reveal() {
@@ -207,7 +207,7 @@
         Description
       </h3>
       <p class="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
-        {skill.description || 'No description available.'}
+        {skill.description || 'No description'}
       </p>
     </section>
 
@@ -308,8 +308,7 @@
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
-          <span>This skill is unverified. Review the source before running on production data.</span
-          >
+          <span>Unverified. Review the source before running on production data.</span>
         </div>
       {/if}
 

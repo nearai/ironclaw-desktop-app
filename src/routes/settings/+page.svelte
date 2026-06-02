@@ -396,7 +396,7 @@
         soundOverride: 'default'
       });
       testNotifyStatus = 'sent';
-      testNotifyMessage = 'Sent — check Notification Center.';
+      testNotifyMessage = 'Sent · check Notification Center';
     } catch (err) {
       testNotifyStatus = 'error';
       testNotifyMessage = (err as Error).message;
@@ -577,7 +577,7 @@
     }
     try {
       await shellOpen(`http://127.0.0.1:${port}/`);
-      toasts.show('Opened IronClaw — complete NEAR sign-in there', 'info');
+      toasts.show('Opened IronClaw · complete NEAR sign-in there', 'info');
     } catch (err) {
       toasts.show(`Could not open browser: ${(err as Error).message}`, 'error');
     }
@@ -596,12 +596,12 @@
    */
   async function onSignOutFromNearAi() {
     if (connection.sidecarStatus !== 'running' || !connection.sidecarPort) {
-      toasts.show('Sidecar not running — web UI unavailable', 'info');
+      toasts.show('Sidecar not running · web UI unavailable', 'info');
       return;
     }
     try {
       await shellOpen(`http://127.0.0.1:${connection.sidecarPort}/`);
-      toasts.show('Opened IronClaw web UI — manage sign-in there, then click Refresh', 'info');
+      toasts.show('Opened IronClaw web UI · manage sign-in, then Refresh', 'info');
     } catch (err) {
       toasts.show(`Could not open browser: ${(err as Error).message}`, 'error');
     }
@@ -1033,7 +1033,7 @@
     if (next && !telemetry.endpoint) {
       // Loud hint that the toggle is on but nothing will go anywhere
       // until the endpoint is set. Avoids the silent-no-op trap.
-      toasts.show('Telemetry on, but no endpoint configured — events queue locally.', 'info');
+      toasts.show('Telemetry on, but no endpoint set. Events queue locally.', 'info');
     } else if (next) {
       toasts.show('Anonymous usage metrics enabled', 'success');
     } else {
@@ -1155,7 +1155,7 @@
     const client = connection.client;
     if (!client) {
       serverSettingsStatus = 'error';
-      serverSettingsError = 'Not connected to a gateway.';
+      serverSettingsError = 'Not connected to a gateway';
       return;
     }
     serverSettingsStatus = 'loading';
@@ -1311,7 +1311,7 @@
       profileTokenStatus = { ...profileTokenStatus, [profile.id]: false };
       renamingProfileId = profile.id;
       renameDraft = profile.name;
-      toasts.show('Profile added — rename and edit below', 'success');
+      toasts.show('Profile added · rename and edit below', 'success');
     } catch (err) {
       toasts.show(`Add failed: ${(err as Error).message}`, 'error');
     }
@@ -1399,7 +1399,7 @@
 
   function onDeleteProfile(profile: ProfileConfig) {
     if (settings.profiles.length <= 1) {
-      toasts.show('Cannot delete the last profile', 'error');
+      toasts.show("Can't delete the last profile", 'error');
       return;
     }
     deleteProfileTarget = profile;
@@ -1500,7 +1500,7 @@
     const client = connection.client;
     if (!client) {
       tokensStatus = 'error';
-      tokensError = 'Not connected to a gateway.';
+      tokensError = 'Not connected to a gateway';
       return;
     }
     tokensStatus = 'loading';
@@ -1551,7 +1551,7 @@
     if (!canCreate) return;
     const client = connection.client;
     if (!client) {
-      toasts.show('Not connected to a gateway.', 'error');
+      toasts.show('Not connected to a gateway', 'error');
       return;
     }
     creating = true;
@@ -1582,13 +1582,13 @@
       !navigator.clipboard ||
       typeof navigator.clipboard.writeText !== 'function'
     ) {
-      toasts.show('Clipboard unavailable in this environment.', 'error');
+      toasts.show('Clipboard unavailable', 'error');
       return;
     }
     copyBusy = true;
     try {
       await navigator.clipboard.writeText(createdToken);
-      toasts.show('Token copied — treat as a secret; do not paste anywhere public.', 'info');
+      toasts.show('Token copied · treat as a secret', 'info');
     } catch (err) {
       toasts.show(`Copy failed: ${(err as Error).message}`, 'error');
     } finally {
@@ -1983,11 +1983,10 @@
       >
         <Icon name="warning" class="w-4 h-4 text-accent-gold shrink-0 mt-0.5" />
         <div class="flex-1 min-w-0">
-          <p class="text-sm text-text-primary font-semibold">Welcome back.</p>
+          <p class="text-sm text-text-primary font-semibold">Welcome back</p>
           <p class="text-xs text-text-muted mt-0.5">
-            Re-enter your gateway tokens to reconnect. They stay on this machine — macOS Keychain,
-            or an owner-only (0600) fallback file — and don't ride along with
-            <code class="font-mono text-text-primary">settings.json</code>.
+            Re-enter your gateway tokens to reconnect. Tokens stay on this machine and never export
+            with <code class="font-mono text-text-primary">settings.json</code>.
           </p>
         </div>
         <div class="flex items-center gap-2 shrink-0">
@@ -2074,13 +2073,13 @@
             <div>
               <div class="text-sm text-text-primary">Local (sidecar)</div>
               <div class="text-xs text-text-muted">
-                Run IronClaw as a bundled child process — no remote server required.
+                Run IronClaw as a bundled child process. No remote server needed.
               </div>
             </div>
           </label>
         </div>
         {#if connectionDraftDirty}
-          <p class="mt-3 text-xs font-medium text-accent-gold">Unsaved changes — Save to apply.</p>
+          <p class="mt-3 text-xs font-medium text-accent-gold">Unsaved changes. Save to apply.</p>
         {/if}
       </div>
 
@@ -2125,8 +2124,8 @@
             <div>
               <div class="text-sm text-text-primary">Legacy v1 gateway</div>
               <div class="text-xs text-text-muted">
-                The historical <code>/api/chat/*</code> gateway. Other surfaces (Skills, Logs, Knowledge,
-                Routines) always use v1 regardless of this setting.
+                The historical <code>/api/chat/*</code> gateway. Skills, Logs, Knowledge, and Routines
+                always use v1 regardless.
               </div>
             </div>
           </label>
@@ -2159,7 +2158,7 @@
             />
             {#if connectionDraftDirty}
               <p class="mt-2 text-xs font-medium text-accent-gold">
-                Unsaved changes — Save to apply.
+                Unsaved changes. Save to apply.
               </p>
             {/if}
           </div>
@@ -2214,9 +2213,8 @@
         >
           <h2 class="text-sm font-semibold text-text-primary">Gateway token</h2>
           <p class="text-xs text-text-muted">
-            Stored per profile in the macOS Keychain. If a Keychain prompt can't complete, IronClaw
-            uses an owner-only (chmod 0600) fallback file in app data — the badge below shows which
-            store holds it.
+            Stored per profile in the macOS Keychain, or an owner-only (0600) fallback file if
+            Keychain can't complete. The badge shows which holds it.
           </p>
 
           <div class="flex items-center gap-2">
@@ -2364,7 +2362,7 @@
               {#if !sidecarUp}
                 <span class="w-2 h-2 rounded-full bg-text-muted"></span>
                 <span class="text-text-muted">
-                  Sidecar not running — start it to check sign-in status
+                  Sidecar not running. Start it to check sign-in.
                 </span>
               {:else if signIn.status === 'signed-in'}
                 <span class="w-2 h-2 rounded-full bg-green-500"></span>
@@ -2530,7 +2528,7 @@
                 onclick={onStartSidecar}
                 disabled={!canStart}
                 class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition disabled:opacity-50 min-h-[44px]"
-                title={canStart ? '' : 'Save the provider credential in the picker above first'}
+                title={canStart ? '' : 'Save the provider credential above first'}
               >
                 Start
               </button>
@@ -2824,7 +2822,7 @@
                   type="button"
                   onclick={() => void onClickTokenBadge(profile)}
                   class="hidden sm:inline-flex items-center gap-1.5 shrink-0 text-[10px] font-semibold text-red-300 hover:text-red-200 transition-colors"
-                  title="No gateway token stored — click to enter one"
+                  title="No token stored. Click to enter one."
                 >
                   <span class="w-1.5 h-1.5 rounded-full bg-red-500" aria-hidden="true"></span>
                   Token: missing
@@ -2961,7 +2959,7 @@
               {#if updater.lastCheckedAt}
                 Checked {lastCheckedLabel}.
               {:else}
-                No check yet this session.
+                No check yet this session
               {/if}
             {:else if updater.status === 'checking'}
               Contacting update server…
@@ -2972,7 +2970,7 @@
             {:else if updater.status === 'downloading'}
               Downloading {updater.progress ?? 0}%…
             {:else if updater.status === 'installing'}
-              Installed — restart to apply.
+              Installed · restart to apply
             {:else if updater.status === 'error'}
               <span class="text-red-400">Check failed</span>
               {#if updater.lastCheckedAt}
@@ -3068,23 +3066,23 @@
           </button>
         </div>
         <p class="text-xs text-text-muted">
-          Server-side configuration. Tokens auto-masked — click eyeball to reveal.
+          Server-side configuration. Tokens masked; click the eye to reveal.
         </p>
 
         {#if !connection.client}
           <div class="text-xs text-text-muted italic">
-            Not connected to a gateway. Configure a profile above and reconnect.
+            Not connected. Configure a profile above and reconnect.
           </div>
         {:else if serverSettingsStatus === 'loading' && !serverSettings}
           <div class="text-xs text-text-muted italic">Loading server-side settings…</div>
         {:else if serverSettingsStatus === 'error'}
           <div class="px-3 py-2 rounded-md bg-red-950/40 border border-red-800/60">
             <p class="text-xs text-red-200 break-words">
-              {serverSettingsError ?? 'Failed to load settings.'}
+              {serverSettingsError ?? 'Failed to load settings'}
             </p>
           </div>
         {:else if serverSettingsRows.length === 0 && serverSettingsStatus === 'ok'}
-          <div class="text-xs text-text-muted italic">Gateway returned no settings.</div>
+          <div class="text-xs text-text-muted italic">Gateway returned no settings</div>
         {:else if serverSettings}
           <!-- Key/value rows. Primitives go through MaskedValue (tap to
                reveal); objects/arrays are pretty-printed JSON with their
@@ -3154,8 +3152,8 @@
     >
       <h2 class="text-sm font-semibold text-text-primary">Notifications</h2>
       <p class="text-xs text-text-muted">
-        Desktop alerts for chat replies (while you're focused elsewhere), completed routines, and
-        sidecar exits. Toggles persist locally; the OS-level permission is granted on first send.
+        Desktop alerts for chat replies, completed routines, and sidecar exits. Toggles persist
+        locally; macOS grants permission on first send.
       </p>
 
       <!-- Per-category sound dropdowns. Each row maps to one of the
@@ -3185,7 +3183,7 @@
             type="button"
             onclick={() => void onPreviewSound('chat', notifications.chatReplySound)}
             class="px-3 py-1.5 rounded-md border border-border-subtle text-text-primary text-xs font-semibold hover:border-accent-cyan hover:text-accent-cyan transition min-h-[40px]"
-            title="Fire a test notification with the chosen sound"
+            title="Test notification with this sound"
           >
             Preview
           </button>
@@ -3195,9 +3193,7 @@
         <div class="flex items-center gap-3 flex-wrap">
           <label for="notif-sound-routine" class="text-sm text-text-primary flex-1 min-w-[160px]">
             Routine completion sound
-            <div class="text-xs text-text-muted mt-0.5">
-              Plays when a routine finishes (success or failure).
-            </div>
+            <div class="text-xs text-text-muted mt-0.5">Plays when a routine finishes.</div>
           </label>
           <select
             id="notif-sound-routine"
@@ -3213,7 +3209,7 @@
             type="button"
             onclick={() => void onPreviewSound('routine', notifications.routineSound)}
             class="px-3 py-1.5 rounded-md border border-border-subtle text-text-primary text-xs font-semibold hover:border-accent-cyan hover:text-accent-cyan transition min-h-[40px]"
-            title="Fire a test notification with the chosen sound"
+            title="Test notification with this sound"
           >
             Preview
           </button>
@@ -3224,7 +3220,7 @@
           <label for="notif-sound-sidecar" class="text-sm text-text-primary flex-1 min-w-[160px]">
             Sidecar exit sound
             <div class="text-xs text-text-muted mt-0.5">
-              Plays when the bundled IronClaw sidecar exits unexpectedly.
+              Plays when the bundled sidecar exits unexpectedly.
             </div>
           </label>
           <select
@@ -3241,7 +3237,7 @@
             type="button"
             onclick={() => void onPreviewSound('sidecar', notifications.sidecarSound)}
             class="px-3 py-1.5 rounded-md border border-border-subtle text-text-primary text-xs font-semibold hover:border-accent-cyan hover:text-accent-cyan transition min-h-[40px]"
-            title="Fire a test notification with the chosen sound"
+            title="Test notification with this sound"
           >
             Preview
           </button>
@@ -3263,8 +3259,8 @@
           <div class="flex-1">
             <div class="text-sm text-text-primary">Show unseen count in menu bar</div>
             <div class="text-xs text-text-muted mt-0.5">
-              Displays a small number next to the tray icon when there are unseen notifications from
-              the last 5 minutes. Clears when you focus the window or click the tray icon.
+              Shows a count by the tray icon for unseen notifications in the last 5 minutes. Clears
+              when you focus the window or click the icon.
             </div>
           </div>
         </label>
@@ -3285,9 +3281,8 @@
           <div class="flex-1">
             <div class="text-sm text-text-primary">Group nearby notifications (last 30s)</div>
             <div class="text-xs text-text-muted mt-0.5">
-              When a second notification of the same category fires within 30 seconds, update the
-              existing banner instead of stacking a new one. The tray badge still counts every
-              event.
+              A second notification of the same category within 30s updates the existing banner
+              instead of stacking. The tray badge still counts every event.
             </div>
           </div>
         </label>
@@ -3333,8 +3328,8 @@
           <div class="flex-1">
             <div class="text-sm text-text-primary">Quiet hours</div>
             <div class="text-xs text-text-muted mt-0.5">
-              During the window below, notifications still appear but stay silent. Overnight ranges
-              work — e.g. 22 → 7 mutes from 22:00 to 06:59.
+              Notifications appear but stay silent during the window. Overnight ranges work: 22 → 7
+              mutes 22:00-06:59.
             </div>
           </div>
         </label>
@@ -3426,8 +3421,8 @@
     >
       <h2 class="text-sm font-semibold text-text-primary">Data</h2>
       <p class="text-xs text-text-muted">
-        Export every conversation in this profile as a single JSON file. Includes thread metadata
-        and full message history.
+        Export every conversation in this profile as one JSON file, with thread metadata and full
+        message history.
       </p>
       <div class="flex items-center gap-3 flex-wrap">
         <button
@@ -3437,7 +3432,7 @@
           class="px-4 py-2 rounded-md border border-accent-cyan text-accent-cyan text-sm font-semibold hover:bg-accent-cyan hover:text-bg-deep transition disabled:opacity-50 min-h-[44px]"
           title={connection.status === 'connected'
             ? 'Export every conversation'
-            : 'Connect to the IronClaw gateway first'}
+            : 'Connect to IronClaw first'}
         >
           {bulkExportRunning ? 'Exporting…' : 'Export all conversations'}
         </button>
@@ -3477,11 +3472,10 @@
         >
           <Icon name="warning" class="w-3.5 h-3.5 text-accent-gold shrink-0 mt-0.5" />
           <p class="text-xs text-text-primary leading-relaxed">
-            <span class="font-semibold">Tokens not included.</span>
+            <span class="font-semibold">Tokens not included</span>
             <span class="text-text-muted">
-              They stay on this machine — macOS Keychain, or an owner-only (0600) fallback file —
-              and are never in the export. On the destination machine you'll re-enter each profile's
-              gateway token.
+              Tokens stay on this machine and never export. Re-enter each profile's gateway token on
+              the destination machine.
             </span>
           </p>
         </div>
@@ -3492,7 +3486,7 @@
             onclick={onExportSettings}
             disabled={settingsExportBusy}
             class="px-4 py-2 rounded-md border border-accent-cyan text-accent-cyan text-sm font-semibold hover:bg-accent-cyan hover:text-bg-deep transition disabled:opacity-50 min-h-[44px]"
-            title="Save your profile list and preferences to a JSON file (tokens stay in Keychain)"
+            title="Save profiles and preferences to JSON · tokens stay in Keychain"
           >
             {settingsExportBusy ? 'Exporting…' : 'Export settings'}
           </button>
@@ -3501,7 +3495,7 @@
             onclick={onImportSettings}
             disabled={settingsImportBusy}
             class="px-4 py-2 rounded-md border border-border-subtle text-text-primary text-sm font-semibold hover:border-accent-cyan hover:text-accent-cyan transition disabled:opacity-50 min-h-[44px]"
-            title="Restore a settings backup from a JSON file (you'll re-enter tokens after)"
+            title="Restore a settings backup from JSON · re-enter tokens after"
           >
             {settingsImportBusy ? 'Importing…' : 'Import settings'}
           </button>
@@ -3548,7 +3542,7 @@
 
       {#if !connection.client}
         <div class="text-xs text-text-muted italic">
-          Not connected to a gateway. Configure a profile above and reconnect.
+          Not connected. Configure a profile above and reconnect.
         </div>
       {:else if tokensStatus === 'loading' && tokens.length === 0}
         <div class="text-xs text-text-muted italic">Loading tokens…</div>
@@ -3557,7 +3551,7 @@
           class="px-3 py-2 rounded-md bg-red-950/40 border border-red-800/60 flex items-start gap-3"
         >
           <p class="text-xs text-red-200 flex-1 break-words">
-            {tokensError ?? 'Failed to load tokens.'}
+            {tokensError ?? 'Failed to load tokens'}
           </p>
           <button
             type="button"
@@ -3572,8 +3566,7 @@
         <div
           class="px-3 py-4 rounded-md bg-bg-deep border border-border-subtle text-xs text-text-muted"
         >
-          You haven't created any API tokens yet. Click "Create new token" to make one. Tokens let
-          you grant external apps access to your IronClaw instance without sharing your sign-in.
+          No API tokens yet. Create one to grant external apps access without sharing your sign-in.
         </div>
       {:else}
         <ul class="space-y-2">
@@ -3694,8 +3687,8 @@
         <div class="flex-1">
           <div class="text-sm text-text-primary">Show admin surfaces</div>
           <div class="text-xs text-text-muted mt-0.5">
-            Adds the Admin section to the sidebar (Cmd+7) for editing the multi-tenant tool policy
-            and admin SYSTEM.md. Requires a bearer token with the admin role on the active profile.
+            Adds the Admin section (Cmd+7) for the multi-tenant tool policy and admin SYSTEM.md.
+            Needs a bearer token with the admin role.
           </div>
         </div>
       </label>
@@ -3714,8 +3707,8 @@
         <div class="flex-1">
           <div class="text-sm text-text-primary">Show in menu bar</div>
           <div class="text-xs text-text-muted mt-0.5">
-            Adds an IronClaw status icon to the macOS menu bar. Click to toggle the window;
-            right-click for quick actions (Restart sidecar, Settings, Quit).
+            Adds an IronClaw icon to the menu bar. Click to toggle the window; right-click for
+            Restart sidecar, Settings, and Quit.
           </div>
         </div>
       </label>
@@ -3736,13 +3729,11 @@
           class="mt-1 accent-accent-cyan w-4 h-4"
         />
         <div class="flex-1">
-          <div class="text-sm text-text-primary">
-            Use Responses API streaming (better delta streaming)
-          </div>
+          <div class="text-sm text-text-primary">Use Responses API streaming</div>
           <div class="text-xs text-text-muted mt-0.5">
-            Streams assistant replies via <code class="text-text-primary">/api/v1/responses</code>
-            with real incremental deltas. Older IronClaw gateways without this endpoint fall back automatically
-            to <code class="text-text-primary">/api/chat</code>. Turn off to pin every send to the
+            Streams replies via <code class="text-text-primary">/api/v1/responses</code> with real
+            incremental deltas. Gateways without it fall back to
+            <code class="text-text-primary">/api/chat</code>. Turn off to pin every send to the
             legacy pipeline.
           </div>
         </div>
@@ -3766,10 +3757,9 @@
         <div class="flex-1">
           <div class="text-sm text-text-primary">Show Engine v2 surface (missions, projects)</div>
           <div class="text-xs text-text-muted mt-0.5">
-            Adds the Missions section to the sidebar (Cmd+9) for browsing Engine v2 projects,
-            missions, and their engine threads. Requires an IronClaw gateway with <code
-              class="text-text-primary">engine_v2_enabled</code
-            >; older builds return 404 on the underlying endpoints.
+            Adds the Missions section (Cmd+9) for Engine v2 projects, missions, and engine threads.
+            Needs a gateway with <code class="text-text-primary">engine_v2_enabled</code>; older
+            builds return 404.
           </div>
         </div>
       </label>
@@ -3868,8 +3858,7 @@
             Create new token
           </h2>
           <p class="text-xs text-text-muted">
-            Give the token a memorable name (which app, which machine). Optionally restrict it to
-            specific scopes.
+            Name it for the app and machine. Optionally restrict it to specific scopes.
           </p>
         </header>
 
@@ -3888,14 +3877,14 @@
               class:border-red-500={createNameTooLong}
             />
             {#if createNameTooLong}
-              <p class="text-xs text-red-400 mt-1">Name must be 64 characters or fewer.</p>
+              <p class="text-xs text-red-400 mt-1">Name must be 64 characters or fewer</p>
             {/if}
           </div>
 
           <div role="group" aria-labelledby="new-token-scopes-legend">
             <div id="new-token-scopes-legend" class="text-xs text-text-muted mb-2">
               Scopes
-              <span class="text-text-muted/70">(optional — leave empty for server defaults)</span>
+              <span class="text-text-muted/70">· optional, empty for server defaults</span>
             </div>
             <div class="flex flex-wrap gap-2">
               {#each TOKEN_SCOPES as scope (scope)}
@@ -3945,7 +3934,7 @@
             Your new token
           </h2>
           <p class="text-xs text-text-muted">
-            Copy this value now and store it somewhere safe (password manager, 1Password, etc.).
+            Copy this now and store it in a password manager. You won't see it again.
           </p>
         </header>
 
@@ -4034,8 +4023,7 @@
           <span class="font-mono text-accent-gold break-all">{deleteProfileTarget.name}</span>?
         </h2>
         <p class="text-xs text-text-muted">
-          This cannot be undone. The stored gateway token and OpenRouter key for this profile will
-          also be removed.
+          Can't be undone. Also removes this profile's gateway token and OpenRouter key.
         </p>
       </header>
 
@@ -4090,7 +4078,7 @@
           <span class="font-mono text-accent-gold break-all">{revokeTarget.name}</span>?
         </h2>
         <p class="text-xs text-text-muted">
-          This cannot be undone. Apps using this token will lose access immediately.
+          Can't be undone. Apps using this token lose access immediately.
         </p>
       </header>
 
@@ -4156,8 +4144,7 @@
         </div>
         <p class="text-xs text-text-muted">
           {importedNeeds.length}
-          profile{importedNeeds.length === 1 ? '' : 's'} restored. Tokens stay on this machine (Keychain
-          or a 0600 fallback file) — re-enter them per profile below.
+          profile{importedNeeds.length === 1 ? '' : 's'} restored. Re-enter each profile's tokens below.
         </p>
       </header>
 

@@ -13,6 +13,8 @@
 // consumer of the Rust DTOs in `ironclaw_product_workflow::webui_inbound` /
 // `::reborn_services::types`.
 
+import type { AttachmentInput } from './types';
+
 export const V2_BASE = '/api/webchat/v2';
 
 // ---- Idempotency key ------------------------------------------------------
@@ -50,15 +52,30 @@ export interface CreateThreadResponse {
 
 export interface ThreadSummary {
   thread_id: string;
+  /** Legacy/list adapters sometimes still send `id`; normalize to thread_id. */
+  id?: string | null;
   title?: string | null;
   updated_at?: string | null;
   created_at?: string | null;
+  /** Present in legacy-shaped rows; kept for rail/status display callers. */
+  message_count?: number | null;
+  turn_count?: number | null;
+}
+
+export interface RawThreadSummary {
+  thread_id?: string | null;
+  id?: string | null;
+  title?: string | null;
+  updated_at?: string | null;
+  created_at?: string | null;
+  message_count?: number | null;
+  turn_count?: number | null;
 }
 
 /** `listThreads` → `{ threads, next_cursor }` (field names tolerated loosely). */
 export interface ListThreadsResponse {
-  threads?: ThreadSummary[];
-  items?: ThreadSummary[];
+  threads?: RawThreadSummary[];
+  items?: RawThreadSummary[];
   next_cursor?: string | null;
   cursor?: string | null;
 }
@@ -66,6 +83,8 @@ export interface ListThreadsResponse {
 export interface SendMessageRequest {
   client_action_id: string;
   content: string;
+  attachments?: AttachmentInput[];
+  instructions?: string;
 }
 
 /** `sendMessage` → `{ run_id, thread_id?, status? }`. */
@@ -73,6 +92,17 @@ export interface SendMessageResponse {
   run_id?: string;
   thread_id?: string;
   status?: string | null;
+}
+
+export interface RebornRunStateResponse {
+  run_id?: string;
+  status?: string | null;
+  failure?: {
+    category?: string | null;
+    summary?: string | null;
+  } | null;
+  failure_category?: string | null;
+  failure_summary?: string | null;
 }
 
 /** One row of a `RebornTimelineResponse`. */
@@ -91,6 +121,9 @@ export interface ThreadMessageRecord {
 export interface RebornTimelineResponse {
   records?: ThreadMessageRecord[];
   messages?: ThreadMessageRecord[];
+  items?: ThreadMessageRecord[];
+  timeline?: ThreadMessageRecord[];
+  events?: ThreadMessageRecord[];
   next_cursor?: string | null;
   cursor?: string | null;
   has_more?: boolean;
@@ -350,7 +383,12 @@ function toolCardFromPreviewRecord(record: ThreadMessageRecord): RebornToolCard 
 // ---- Live event reducer (ported from useChatEvents.js) --------------------
 
 export interface ProjectionItem {
-  run_status?: { run_id?: string; status: string };
+  run_status?: {
+    run_id?: string;
+    status: string;
+    failure_category?: string | null;
+    failure_summary?: string | null;
+  };
   text?: { id: string; body?: string };
   gate?: { gate_ref: string; headline?: string };
   skill_activation?: { id?: string; skill_names?: string[]; feedback?: string[] };
@@ -410,6 +448,82 @@ const TERMINAL_RUN_STATUSES = new Set([
   'recovery_required'
 ]);
 const SUCCESS_RUN_STATUSES = new Set(['completed', 'succeeded']);
+const FAILED_RUN_STATUSES = new Set(['failed', 'cancelled', 'recovery_required']);
+
+export function normalizeRunStatus(status: string | null | undefined): string {
+  return String(status || '')
+    .trim()
+    .toLowerCase();
+}
+
+export function isTerminalRunStatus(status: string | null | undefined): boolean {
+  return TERMINAL_RUN_STATUSES.has(normalizeRunStatus(status));
+}
+
+export function isSuccessfulRunStatus(status: string | null | undefined): boolean {
+  return SUCCESS_RUN_STATUSES.has(normalizeRunStatus(status));
+}
+
+export function isFailedRunStatus(status: string | null | undefined): boolean {
+  return FAILED_RUN_STATUSES.has(normalizeRunStatus(status));
+}
+
+export function failureMessageForRunState(runState: RebornRunStateResponse): string {
+  const status = normalizeRunStatus(runState.status);
+  const category = normalizeFailureCategory(
+    runState.failure?.category || runState.failure_category || ''
+  );
+  const summary = firstString(runState.failure?.summary, runState.failure_summary);
+  if (summary) return summary;
+  if (status === 'cancelled') return 'The run was cancelled before producing a reply.';
+  if (isDriverUnavailable(category)) {
+    return 'The selected model is configured, but its execution driver is unavailable. Check provider setup or choose a verified model before retrying.';
+  }
+  if (category === 'model_credentials_unavailable') {
+    return 'Model credentials are unavailable. Sign in or update provider credentials before retrying.';
+  }
+  if (category === 'policy_denied') {
+    return 'The selected model is not available for this account or provider plan. Choose a model this account can run, or update provider credentials.';
+  }
+  if (isModelUnavailable(category)) {
+    return 'The selected model is configured, but the gateway says that model is unavailable. Choose a verified model or update the configured model before retrying.';
+  }
+  if (category) return `The run failed: ${category.replaceAll('_', ' ')}.`;
+  return status === 'recovery_required'
+    ? 'The run is awaiting recovery — backend reported `recovery_required`.'
+    : 'The run failed before producing a reply.';
+}
+
+export function upsertRunFailureMessage(
+  messages: RebornMessage[],
+  runId: string | null | undefined,
+  runState: RebornRunStateResponse
+): RebornMessage[] {
+  return upsertById(messages, {
+    id: `err-${runId || 'unknown'}`,
+    role: 'error',
+    content: failureMessageForRunState(runState),
+    timestamp: new Date().toISOString()
+  });
+}
+
+function normalizeFailureCategory(value: string | null | undefined): string {
+  return String(value || '')
+    .trim()
+    .toLowerCase();
+}
+
+function isDriverUnavailable(category: string): boolean {
+  return /(^|_)driver(_|$)/.test(category) && /unavailable|not_available|missing/.test(category);
+}
+
+function isModelUnavailable(category: string): boolean {
+  return /(^|_)model(_|$)/.test(category) && /unavailable|not_available|missing/.test(category);
+}
+
+function firstString(...values: Array<string | null | undefined>): string {
+  return values.find((value) => typeof value === 'string' && value.trim())?.trim() || '';
+}
 
 function upsertById(messages: RebornMessage[], next: RebornMessage): RebornMessage[] {
   const idx = messages.findIndex((m) => m.id === next.id);
@@ -440,6 +554,8 @@ export function applyProjectionItems(
     if (item.run_status) {
       const runId = item.run_status.run_id;
       const status = item.run_status.status;
+      const failureCategory = item.run_status.failure_category || null;
+      const failureSummary = item.run_status.failure_summary || null;
       if (runId) {
         activeRunId = runId;
         state.activeRun =
@@ -454,21 +570,11 @@ export function applyProjectionItems(
           state.refetchTimeline = true;
         }
         if (status === 'failed' || status === 'recovery_required') {
-          const id = `err-${runId || 'unknown'}`;
-          if (!state.messages.some((m) => m.id === id)) {
-            state.messages = [
-              ...state.messages,
-              {
-                id,
-                role: 'error',
-                content:
-                  status === 'recovery_required'
-                    ? 'The run is awaiting recovery — backend reported `recovery_required`.'
-                    : 'The run failed before producing a reply.',
-                timestamp: new Date().toISOString()
-              }
-            ];
-          }
+          state.messages = upsertRunFailureMessage(state.messages, runId, {
+            run_id: runId,
+            status,
+            failure: { category: failureCategory, summary: failureSummary }
+          });
         }
       } else {
         state.isProcessing = true;
@@ -680,20 +786,39 @@ export function reduceEvent(
 
 /** Normalize the loosely-shaped list-threads response into an array. */
 export function threadsFromListResponse(
-  resp: ListThreadsResponse | null | undefined
+  resp: ListThreadsResponse | RawThreadSummary[] | null | undefined
 ): ThreadSummary[] {
   if (!resp) return [];
-  if (Array.isArray(resp.threads)) return resp.threads;
-  if (Array.isArray(resp.items)) return resp.items;
-  return [];
+  const rows = Array.isArray(resp)
+    ? resp
+    : Array.isArray(resp.threads)
+      ? resp.threads
+      : Array.isArray(resp.items)
+        ? resp.items
+        : [];
+  const normalized: ThreadSummary[] = [];
+  for (const row of rows) {
+    const threadId = row.thread_id || row.id || '';
+    if (!threadId) continue;
+    normalized.push({
+      ...row,
+      thread_id: threadId,
+      message_count: row.message_count ?? row.turn_count ?? null
+    });
+  }
+  return normalized;
 }
 
 /** Pull the timeline records array regardless of wrapper field name. */
 export function recordsFromTimeline(
-  resp: RebornTimelineResponse | null | undefined
+  resp: RebornTimelineResponse | ThreadMessageRecord[] | null | undefined
 ): ThreadMessageRecord[] {
   if (!resp) return [];
+  if (Array.isArray(resp)) return resp;
   if (Array.isArray(resp.records)) return resp.records;
   if (Array.isArray(resp.messages)) return resp.messages;
+  if (Array.isArray(resp.items)) return resp.items;
+  if (Array.isArray(resp.timeline)) return resp.timeline;
+  if (Array.isArray(resp.events)) return resp.events;
   return [];
 }

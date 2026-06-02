@@ -44,6 +44,15 @@ export type ChatEvent =
   | { type: 'tool_call'; name: string; args: unknown }
   | { type: 'tool_call_delta'; name?: string; arguments_delta: string }
   | { type: 'tool_result'; name: string; result: unknown }
+  | {
+      type: 'approval_needed';
+      request_id: string;
+      thread_id?: string;
+      tool_name: string;
+      description: string;
+      parameters: unknown;
+      allow_always: boolean;
+    }
   | { type: 'message_end'; thread_id?: string; message_id?: string; finish_reason: string }
   | { type: 'error'; message: string };
 
@@ -108,11 +117,10 @@ export interface PromotableBlock {
  * `mime_type` is required (server 400s with `missing field 'mime_type'`
  * when omitted).
  *
- * v1 supports IMAGES only (`image/png`, `image/jpeg`, `image/gif`,
- * `image/webp`). PDF / plaintext support is a follow-up — the wire itself
- * tolerates any `mime_type` the gateway handler knows how to decode, but
- * the UI rejects non-image MIMEs at the composer to keep behavior
- * predictable until the server-side decoders are confirmed.
+ * The desktop composer accepts images plus document/text formats and sends
+ * them through the gateway's attachment block. Images also render as previews;
+ * document/text attachments render as file chips and are scanned locally for
+ * obvious approval-risk language before dispatch.
  */
 export interface AttachmentInput {
   /** Filename as the user dropped/pasted it. Echoed back inside the
@@ -414,6 +422,18 @@ export interface GatewayStatus {
   llm_model?: string;
   /** LLM backend identifier (e.g. "nearai", "openrouter"). Wire: `llm_backend`. */
   llm_backend?: string;
+  /** True only when the gateway has proven the configured model can execute. */
+  model_execution_verified?: boolean;
+  /** Execution readiness summary. GREEN means the chat composer may send. */
+  model_execution_readiness?: unknown;
+  /** Backward/alternate readiness field emitted by some Reborn builds. */
+  model_readiness?: unknown;
+  /** Human-readable reason for the current model readiness. */
+  model_readiness_reason?: string;
+  /** Optional terminal failure category from the latest execution probe. */
+  model_execution_failure_category?: string;
+  /** Optional terminal failure summary from the latest execution probe. */
+  model_execution_failure_summary?: string;
   enabled_channels: string[];
   sse_connections: number;
   ws_connections: number;

@@ -82,7 +82,7 @@
     if (content.length > 0) {
       const ok = await confirmDialog.ask({
         title: `Discard new document${path.trim() ? ` "${path.trim()}"` : ''}?`,
-        body: 'This will delete the unsaved document body you have typed in this modal.',
+        body: 'Discards the text you typed here.',
         confirmLabel: 'Discard document',
         cancelLabel: 'Keep editing',
         tone: 'danger'
@@ -180,7 +180,7 @@
         rows="10"
         value={content}
         oninput={(e) => (content = (e.currentTarget as HTMLTextAreaElement).value)}
-        placeholder="Write your content here…"
+        placeholder="Write your content…"
         class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors font-mono resize-none"
       ></textarea>
     </div>

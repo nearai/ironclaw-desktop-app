@@ -6,14 +6,14 @@ describe('agentUiReadiness', () => {
     const r = agentUiReadiness({ clientToolDelegation: true });
     expect(r.supported).toBe(true);
     expect(r.label).toBe('Supported');
-    expect(r.detail).toMatch(/request app actions/i);
+    expect(r.detail).toMatch(/drive the app/i);
   });
 
   it('reports unsupported when the gateway cannot delegate', () => {
     const r = agentUiReadiness({ clientToolDelegation: false });
     expect(r.supported).toBe(false);
     expect(r.label).toBe('Not supported by this gateway');
-    expect(r.detail).toMatch(/cannot operate the app/i);
+    expect(r.detail).toMatch(/can't drive the app/i);
   });
 
   it('treats an absent capability as unsupported (honest default)', () => {

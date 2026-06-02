@@ -58,6 +58,7 @@ import { SubAgentUnsupportedError } from './types';
 import { containsSecret, redactJsonObject, redactSecrets } from '$lib/utils/redact';
 import { diagEnabled, inTauri } from '$lib/utils/runtime';
 import { extensionTarget } from '$lib/util/extension-identity';
+import { unwrapDocumentAssignment } from '$lib/util/work-product-normalize';
 import {
   V2_BASE,
   clientActionId,
@@ -66,6 +67,7 @@ import {
   type CreateThreadResponse,
   type GateResolution,
   type ListThreadsResponse,
+  type RebornRunStateResponse,
   type RebornTimelineResponse,
   type ResolveGateRequest,
   type SendMessageRequest,
@@ -252,6 +254,12 @@ export class IronClawClient {
       engine_v2_enabled?: boolean;
       llm_model?: string;
       llm_backend?: string;
+      model_execution_verified?: boolean;
+      model_execution_readiness?: unknown;
+      model_readiness?: unknown;
+      model_readiness_reason?: string;
+      model_execution_failure_category?: string;
+      model_execution_failure_summary?: string;
       enabled_channels?: string[];
       ws_connections?: number;
       sse_connections?: number;
@@ -271,6 +279,12 @@ export class IronClawClient {
       engine_v2_enabled: res?.engine_v2_enabled,
       llm_model: res?.llm_model,
       llm_backend: res?.llm_backend,
+      model_execution_verified: res?.model_execution_verified,
+      model_execution_readiness: res?.model_execution_readiness,
+      model_readiness: res?.model_readiness,
+      model_readiness_reason: res?.model_readiness_reason,
+      model_execution_failure_category: res?.model_execution_failure_category,
+      model_execution_failure_summary: res?.model_execution_failure_summary,
       enabled_channels: res?.enabled_channels ?? [],
       sse_connections: sse,
       ws_connections: ws,
@@ -428,7 +442,8 @@ export class IronClawClient {
   async sendMessage(
     threadId: string | null,
     content: string,
-    attachments?: AttachmentInput[]
+    attachments?: AttachmentInput[],
+    instructions?: string
   ): Promise<{ thread_id: string; message_id: string }> {
     // POST /api/chat/send accepts {content, thread_id?, attachments?[]} and
     // returns {message_id, status}. Thread ID may be created server-side; if
@@ -449,13 +464,16 @@ export class IronClawClient {
     // Omit the field entirely when there are no attachments — the wire
     // doesn't require it and an empty array would be a needless wire round.
     const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+    const cleanInstructions =
+      typeof instructions === 'string' && instructions.trim() !== '' ? instructions : undefined;
     const res = await this.request<{ message_id: string; thread_id?: string }>(
       'POST',
       '/api/chat/send',
       {
         content,
         ...(threadId ? { thread_id: threadId } : {}),
-        ...(hasAttachments ? { attachments } : {})
+        ...(hasAttachments ? { attachments } : {}),
+        ...(cleanInstructions ? { instructions: cleanInstructions } : {})
       }
     );
     return {
@@ -464,13 +482,25 @@ export class IronClawClient {
     };
   }
 
+  async resolveLegacyChatApproval(input: {
+    threadId: string;
+    requestId: string;
+    action: 'approve' | 'always' | 'deny';
+  }): Promise<void> {
+    await this.request<unknown>('POST', '/api/chat/approval', {
+      thread_id: input.threadId,
+      request_id: input.requestId,
+      action: input.action
+    });
+  }
+
   async generateImage(
     prompt: string,
     options: ImageGenerationOptions = {}
   ): Promise<ImageGenerationResult> {
     void prompt;
     void options;
-    throw new Error('Image generation not implemented on this gateway version');
+    throw new Error('Image generation unavailable on this gateway version');
   }
 
   async postReplyThread(
@@ -960,7 +990,7 @@ export class IronClawClient {
       return res.messages.map((m) => ({
         id: m.id,
         role: m.role,
-        content: m.content,
+        content: m.role === 'assistant' ? unwrapDocumentAssignment(m.content) : m.content,
         created_at: m.created_at ?? m.timestamp ?? ''
       }));
     }
@@ -989,7 +1019,7 @@ export class IronClawClient {
         messages.push({
           id: t.response_id ?? `turn-${turnNo}-asst`,
           role: 'assistant',
-          content: t.response,
+          content: unwrapDocumentAssignment(t.response),
           created_at: asstTs
         });
       }
@@ -2068,14 +2098,38 @@ export class IronClawClient {
     return { ok: status === 'queued' || status === 'installed' || status === 'ok' || !status };
   }
 
-  async activateExtension(name: string): Promise<{ ok: boolean }> {
+  async activateExtension(name: string): Promise<{
+    ok: boolean;
+    message?: string;
+    auth_url?: string;
+    instructions?: string;
+    activated?: boolean;
+    awaiting_token?: boolean;
+  }> {
     const target = extensionTarget(name);
-    const res = await this.request<{ status?: string }>(
-      'POST',
-      `/api/extensions/${encodeURIComponent(target.name)}/activate`
-    );
+    const res = await this.request<{
+      success?: boolean;
+      status?: string;
+      message?: string;
+      auth_url?: string;
+      instructions?: string;
+      activated?: boolean;
+      awaiting_token?: boolean;
+    }>('POST', `/api/extensions/${encodeURIComponent(target.name)}/activate`);
     const status = res?.status;
-    return { ok: status === 'activated' || status === 'ok' || !status };
+    return {
+      ok:
+        res?.success === true ||
+        res?.activated === true ||
+        typeof res?.auth_url === 'string' ||
+        status === 'activated' ||
+        status === 'ok',
+      message: res?.message,
+      auth_url: res?.auth_url,
+      instructions: res?.instructions,
+      activated: res?.activated === true,
+      awaiting_token: res?.awaiting_token === true
+    };
   }
 
   async removeExtension(name: string): Promise<{ ok: boolean }> {
@@ -2191,15 +2245,35 @@ export class IronClawClient {
   async submitExtensionSetup(
     name: string,
     fields: Record<string, unknown>
-  ): Promise<{ ok: boolean }> {
+  ): Promise<{
+    ok: boolean;
+    message?: string;
+    auth_url?: string;
+    instructions?: string;
+    activated?: boolean;
+  }> {
     const target = extensionTarget(name);
-    const res = await this.request<{ status?: string }>(
-      'POST',
-      `/api/extensions/${encodeURIComponent(target.name)}/setup`,
-      fields
-    );
+    const res = await this.request<{
+      success?: boolean;
+      status?: string;
+      message?: string;
+      auth_url?: string;
+      instructions?: string;
+      activated?: boolean;
+    }>('POST', `/api/extensions/${encodeURIComponent(target.name)}/setup`, fields);
     const status = res?.status;
-    return { ok: status === 'configured' || status === 'ok' || !status };
+    return {
+      ok:
+        res?.success === true ||
+        res?.activated === true ||
+        typeof res?.auth_url === 'string' ||
+        status === 'configured' ||
+        status === 'ok',
+      message: res?.message,
+      auth_url: res?.auth_url,
+      instructions: res?.instructions,
+      activated: res?.activated === true
+    };
   }
 
   // ---- Admin: tool policy + system prompt ------------------------------
@@ -3482,9 +3556,46 @@ export class IronClawClient {
     return this.request<ListThreadsResponse>('GET', `${V2_BASE}/threads${buildV2Query(opts)}`);
   }
 
+  /**
+   * Cheap capability probe for the Reborn WebChat v2 routes. Some gateways
+   * advertise Engine v2 but do not expose `/api/webchat/v2/*`; when that
+   * happens the desktop client must keep the legacy chat path alive instead
+   * of mounting a dead Reborn surface.
+   */
+  async probeWebChatV2(timeoutMs = 2500): Promise<boolean> {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      await this.request<ListThreadsResponse>('GET', `${V2_BASE}/threads?limit=1`, undefined, {
+        signal: ctrl.signal
+      });
+      return true;
+    } catch (err) {
+      // 401/403 still prove the route exists; the normal request path will
+      // surface auth problems. 404/405/5xx/network failures should fall back
+      // to the legacy chat surface, which is broadly supported by older local
+      // gateways.
+      if (err instanceof HttpError && (err.status === 401 || err.status === 403)) {
+        return true;
+      }
+      return false;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   /** Post a user message; returns `{ run_id, thread_id?, status? }`. */
-  async sendMessageV2(threadId: string, content: string): Promise<SendMessageResponse> {
+  async sendMessageV2(
+    threadId: string,
+    content: string,
+    attachments: AttachmentInput[] = [],
+    instructions?: string
+  ): Promise<SendMessageResponse> {
     const body: SendMessageRequest = { client_action_id: clientActionId(), content };
+    if (attachments.length > 0) body.attachments = attachments;
+    if (typeof instructions === 'string' && instructions.trim() !== '') {
+      body.instructions = instructions;
+    }
     return this.request<SendMessageResponse>(
       'POST',
       `${V2_BASE}/threads/${encodeURIComponent(threadId)}/messages`,
@@ -3500,6 +3611,14 @@ export class IronClawClient {
     return this.request<RebornTimelineResponse>(
       'GET',
       `${V2_BASE}/threads/${encodeURIComponent(threadId)}/timeline${buildV2Query(opts)}`
+    );
+  }
+
+  /** Fetch the current state of an accepted/running WebChat v2 run. */
+  async getRunStateV2(threadId: string, runId: string): Promise<RebornRunStateResponse> {
+    return this.request<RebornRunStateResponse>(
+      'GET',
+      `${V2_BASE}/threads/${encodeURIComponent(threadId)}/runs/${encodeURIComponent(runId)}`
     );
   }
 
@@ -3926,7 +4045,7 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
         type: 'content_delta',
         thread_id: raw.thread_id as string | undefined,
         message_id: raw.message_id as string | undefined,
-        delta: String(raw.content ?? '')
+        delta: unwrapDocumentAssignment(String(raw.content ?? ''))
       };
     case 'thinking':
     case 'status':
@@ -3954,6 +4073,16 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
         name: String(raw.tool ?? raw.name ?? ''),
         result: raw.result ?? raw.output
       };
+    case 'approval_needed':
+      return {
+        type: 'approval_needed',
+        request_id: String(raw.request_id ?? ''),
+        thread_id: raw.thread_id as string | undefined,
+        tool_name: String(raw.tool_name ?? raw.tool ?? raw.name ?? ''),
+        description: String(raw.description ?? 'Tool approval required'),
+        parameters: normalizeApprovalParameters(raw.parameters),
+        allow_always: raw.allow_always === true
+      };
     case 'message_start':
       return {
         type: 'message_start',
@@ -3977,6 +4106,17 @@ function normalizeEvent(raw: Record<string, unknown>): ChatEvent | null {
       // wire-format drift; that's a job for ironclaw_diag at the
       // request layer + the gateway's own changelog.
       return null;
+  }
+}
+
+function normalizeApprovalParameters(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw;
+  const trimmed = raw.trim();
+  if (!trimmed) return {};
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return raw;
   }
 }
 

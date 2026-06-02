@@ -13,8 +13,11 @@
   // Calm + dense by design: list rows, not nested cards; the detail pane uses
   // the same input / label / chip idioms as the memory route.
 
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
+  import { goto } from '$app/navigation';
   import { page } from '$app/state';
+  import MarkdownView from '$lib/components/MarkdownView.svelte';
+  import WorkProductActions from '$lib/components/WorkProductActions.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { workItems } from '$lib/stores/work-items.svelte';
   import {
@@ -24,9 +27,15 @@
     WORK_ITEM_DOMAINS,
     WORK_ITEM_STATUSES,
     type WorkItem,
+    type WorkItemApprovalStatus,
     type WorkItemDomain,
     type WorkItemStatus
   } from '$lib/data/work-item';
+  import {
+    getWorkDispatchResume,
+    workDispatchChatHref,
+    WORK_DISPATCH_RESUME_PARAM
+  } from '$lib/util/work-dispatch-resume';
 
   // ---- Selection -----------------------------------------------------------
   let selectedId = $state<string | null>(null);
@@ -34,6 +43,8 @@
     selectedId ? (workItems.get(selectedId) ?? null) : null
   );
   const requestedItemId = $derived(page.url.searchParams.get('item'));
+  const requestedArtifactId = $derived(page.url.searchParams.get('artifact'));
+  const requestedResumeId = $derived(page.url.searchParams.get(WORK_DISPATCH_RESUME_PARAM));
 
   // ---- New-item form state -------------------------------------------------
   let newTitle = $state('');
@@ -62,6 +73,19 @@
     if (workItems.get(requestedItemId)) selectedId = requestedItemId;
   });
 
+  $effect(() => {
+    const artifactId = requestedArtifactId;
+    const item = selected;
+    if (!artifactId || !item?.artifacts.some((artifact) => artifact.id === artifactId)) return;
+    void tick().then(() => {
+      if (typeof document === 'undefined') return;
+      const el = document.getElementById(artifactElementId(artifactId));
+      if (!(el instanceof HTMLElement)) return;
+      el.scrollIntoView({ block: 'start' });
+      el.focus({ preventScroll: true });
+    });
+  });
+
   onDestroy(() => surfaceRefresh.unregister());
 
   function openForm(): void {
@@ -88,6 +112,23 @@
     workItems.update(selected.id, { status });
   }
 
+  function setApprovalBoundaryStatus(boundaryId: string, status: WorkItemApprovalStatus): void {
+    if (!selected) return;
+    const updated = workItems.updateApprovalBoundary(selected.id, boundaryId, status);
+    if (!updated || status !== 'approved' || !requestedResumeId) return;
+    const resume = getWorkDispatchResume(requestedResumeId);
+    if (!resume || resume.workItemId !== updated.id) return;
+    const hasOpenBoundary = updated.approvalBoundaries.some(
+      (boundary) => boundary.status === 'pending'
+    );
+    const hasDeniedBoundary = updated.approvalBoundaries.some(
+      (boundary) => boundary.status === 'denied'
+    );
+    if (!hasOpenBoundary && !hasDeniedBoundary) {
+      void goto(workDispatchChatHref(resume));
+    }
+  }
+
   // ---- Helpers -------------------------------------------------------------
   function statusPillClass(status: WorkItemStatus): string {
     switch (status) {
@@ -108,6 +149,27 @@
     if (state === 'missing') return 'bg-status-warning/15 text-status-warning';
     if (state === 'used') return 'bg-status-success/15 text-status-success';
     return 'bg-bg-deep text-text-muted';
+  }
+
+  function approvalPillClass(status: WorkItemApprovalStatus): string {
+    if (status === 'approved') return 'bg-status-success/15 text-status-success';
+    if (status === 'denied') return 'bg-status-error/15 text-status-error';
+    return 'bg-status-warning/15 text-status-warning';
+  }
+
+  function artifactElementId(id: string): string {
+    return `work-artifact-${id}`;
+  }
+
+  function artifactStatusLabel(status: WorkItem['artifacts'][number]['status']): string {
+    if (status === 'draft') return 'Draft';
+    if (status === 'ready') return 'Ready';
+    if (status === 'approved') return 'Approved';
+    return 'Planned';
+  }
+
+  function receiptSourceLabel(source: string): string {
+    return source.startsWith('generated-mission:') ? 'Desk generated action' : source;
   }
 </script>
 
@@ -154,8 +216,7 @@
     <div class="flex-1 overflow-y-auto" data-testid="work-list-body">
       {#if workItems.items.length === 0}
         <p class="px-4 py-3 text-xs text-text-muted">
-          No work items yet. Create a matter to track an objective across threads, sources, and
-          approvals.
+          No work items yet. Create a matter to track an objective across threads and approvals.
         </p>
       {:else}
         <ul class="py-1" aria-label="Work item list">
@@ -206,7 +267,7 @@
   <section class="flex-1 flex flex-col min-w-0 overflow-hidden" aria-label="Work item detail">
     {#if !selected}
       <div class="flex-1 flex items-center justify-center text-text-muted text-sm">
-        <p>Pick a work item from the left, or create one.</p>
+        <p>Pick a work item, or create one.</p>
       </div>
     {:else}
       {@const item = selected}
@@ -253,7 +314,7 @@
             Objective
           </h3>
           <p class="text-sm text-text-secondary whitespace-pre-wrap">
-            {item.objective || 'No objective set.'}
+            {item.objective || 'No objective set'}
           </p>
         </section>
 
@@ -271,7 +332,7 @@
             Runbooks
           </h3>
           {#if item.runbookIds.length === 0}
-            <p class="text-sm text-text-muted">No runbook selected yet.</p>
+            <p class="text-sm text-text-muted">No runbook selected</p>
           {:else}
             <div class="flex flex-wrap gap-1.5">
               {#each item.runbookIds as runbookId (runbookId)}
@@ -289,7 +350,7 @@
         <section aria-label="Links" class="space-y-1.5">
           <h3 class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">Links</h3>
           {#if item.links.length === 0}
-            <p class="text-sm text-text-muted">No linked threads, docs, or sources yet.</p>
+            <p class="text-sm text-text-muted">No linked threads, docs, or sources</p>
           {:else}
             <ul class="divide-y divide-border-subtle border border-border-subtle rounded-md">
               {#each item.links as link (link.kind + ':' + link.ref)}
@@ -306,13 +367,44 @@
           {/if}
         </section>
 
+        <!-- Receipts -->
+        <section aria-label="Receipts" class="space-y-1.5">
+          <h3 class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
+            Receipts
+          </h3>
+          {#if item.receipts.length === 0}
+            <p class="text-sm text-text-muted">No handled receipts yet</p>
+          {:else}
+            <ul class="divide-y divide-border-subtle border border-border-subtle rounded-md">
+              {#each item.receipts as receipt (receipt.id)}
+                <li class="px-3 py-2">
+                  <div class="flex items-center justify-between gap-3">
+                    <span class="min-w-0 truncate text-[12.5px] text-text-secondary">
+                      {receipt.title}
+                    </span>
+                    <span
+                      class="inline-block shrink-0 rounded-sm bg-positive-soft px-1.5 py-0 text-[10px] text-positive"
+                    >
+                      {receipt.status === 'handled' ? 'Handled' : 'Failed'}
+                    </span>
+                  </div>
+                  <p class="mt-1 text-[11px] text-text-muted">
+                    {receiptSourceLabel(receipt.source)}
+                  </p>
+                  <p class="mt-1 text-[11px] text-text-muted/80">{receipt.detail}</p>
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </section>
+
         <!-- Open approvals -->
         <section aria-label="Context dossier" class="space-y-1.5">
           <h3 class="text-[11px] font-semibold uppercase tracking-wider text-text-muted">
             Context dossier
           </h3>
           {#if item.dossier.length === 0}
-            <p class="text-sm text-text-muted">No context has been attached yet.</p>
+            <p class="text-sm text-text-muted">No context attached</p>
           {:else}
             <ul class="divide-y divide-border-subtle border border-border-subtle rounded-md">
               {#each item.dossier as entry, i (entry.state + ':' + entry.label + ':' + i)}
@@ -340,14 +432,19 @@
             Approval boundaries
           </h3>
           {#if item.approvalBoundaries.length === 0}
-            <p class="text-sm text-text-muted">No risky action boundaries recorded.</p>
+            <p class="text-sm text-text-muted">No risky-action boundaries recorded</p>
           {:else}
             <ul class="divide-y divide-border-subtle border border-border-subtle rounded-md">
               {#each item.approvalBoundaries as boundary (boundary.id)}
                 <li class="px-3 py-2">
                   <div class="flex items-center gap-2">
                     <span
-                      class="inline-block px-1.5 py-0 text-[10px] rounded-sm bg-status-warning/15 text-status-warning shrink-0"
+                      class={`inline-block px-1.5 py-0 text-[10px] rounded-sm shrink-0 ${approvalPillClass(boundary.status)}`}
+                    >
+                      {boundary.status}
+                    </span>
+                    <span
+                      class="inline-block px-1.5 py-0 text-[10px] rounded-sm bg-bg-deep text-accent-cyan/80 font-mono shrink-0"
                     >
                       {boundary.kind}
                     </span>
@@ -356,6 +453,24 @@
                   <p class="mt-1 text-[11px] text-text-muted">{boundary.payload}</p>
                   {#if boundary.reason}
                     <p class="mt-1 text-[11px] text-text-muted/80">{boundary.reason}</p>
+                  {/if}
+                  {#if boundary.status === 'pending'}
+                    <div class="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onclick={() => setApprovalBoundaryStatus(boundary.id, 'approved')}
+                        class="px-2.5 py-1 rounded-md border border-status-success/50 text-status-success text-[11px] font-semibold hover:bg-status-success/10 transition"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onclick={() => setApprovalBoundaryStatus(boundary.id, 'denied')}
+                        class="px-2.5 py-1 rounded-md border border-status-error/50 text-status-error text-[11px] font-semibold hover:bg-status-error/10 transition"
+                      >
+                        Deny
+                      </button>
+                    </div>
                   {/if}
                 </li>
               {/each}
@@ -369,18 +484,46 @@
             Artifacts
           </h3>
           {#if item.artifacts.length === 0}
-            <p class="text-sm text-text-muted">No artifacts planned yet.</p>
+            <p class="text-sm text-text-muted">No artifacts planned</p>
           {:else}
             <ul class="divide-y divide-border-subtle border border-border-subtle rounded-md">
               {#each item.artifacts as artifact (artifact.id)}
-                <li class="flex items-center gap-2 px-3 py-2">
-                  <span
-                    class="inline-block px-1.5 py-0 text-[10px] rounded-sm bg-bg-deep text-accent-cyan/80 font-mono shrink-0"
-                  >
-                    {artifact.status}
-                  </span>
-                  <span class="text-[12.5px] text-text-secondary truncate">{artifact.title}</span>
-                  <span class="ml-auto text-[11px] text-text-muted shrink-0">{artifact.type}</span>
+                <li
+                  id={artifactElementId(artifact.id)}
+                  class="scroll-mt-4 px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-accent-cyan"
+                  tabindex="-1"
+                  aria-label={`Artifact ${artifact.title}`}
+                >
+                  <div class="flex items-center gap-2">
+                    <span
+                      class="inline-block px-1.5 py-0 text-[10px] rounded-sm bg-bg-deep text-accent-cyan/80 font-mono shrink-0"
+                    >
+                      {artifactStatusLabel(artifact.status)}
+                    </span>
+                    <span class="text-[12.5px] text-text-secondary truncate">
+                      {artifact.title}
+                    </span>
+                    <span class="ml-auto text-[11px] text-text-muted shrink-0">
+                      {artifact.type}
+                    </span>
+                  </div>
+                  {#if artifact.content}
+                    <div
+                      class="mt-2 max-h-[420px] overflow-auto rounded-md border border-border-subtle bg-bg-deep/35 px-3 py-2 text-sm"
+                      data-testid="work-artifact-content"
+                    >
+                      <WorkProductActions
+                        title={artifact.title}
+                        content={artifact.content}
+                        compact
+                      />
+                      <MarkdownView markdown={artifact.content} />
+                    </div>
+                  {:else}
+                    <p class="mt-2 text-xs text-text-muted" data-testid="work-artifact-pending">
+                      No draft yet. The artifact appears here when IronClaw produces it.
+                    </p>
+                  {/if}
                 </li>
               {/each}
             </ul>
@@ -393,7 +536,7 @@
             Watches
           </h3>
           {#if item.watches.length === 0}
-            <p class="text-sm text-text-muted">No watches attached.</p>
+            <p class="text-sm text-text-muted">No watches attached</p>
           {:else}
             <ul class="divide-y divide-border-subtle border border-border-subtle rounded-md">
               {#each item.watches as watch (watch.id)}
@@ -424,7 +567,7 @@
             Open approvals
           </h3>
           {#if item.openApprovals.length === 0}
-            <p class="text-sm text-text-muted">Nothing waiting on approval.</p>
+            <p class="text-sm text-text-muted">Nothing waiting on approval</p>
           {:else}
             <ul class="space-y-1">
               {#each item.openApprovals as approval, i (i)}
@@ -440,7 +583,7 @@
             Follow-ups
           </h3>
           {#if item.followUps.length === 0}
-            <p class="text-sm text-text-muted">No follow-ups.</p>
+            <p class="text-sm text-text-muted">No follow-ups</p>
           {:else}
             <ul class="space-y-1">
               {#each item.followUps as followUp, i (i)}
@@ -526,7 +669,7 @@
           rows="4"
           value={newObjective}
           oninput={(e) => (newObjective = (e.currentTarget as HTMLTextAreaElement).value)}
-          placeholder="What does done look like for this matter?"
+          placeholder="What does done look like?"
           data-testid="new-work-objective"
           class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors resize-none"
         ></textarea>

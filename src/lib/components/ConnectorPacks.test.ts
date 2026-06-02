@@ -6,6 +6,7 @@ import { CONNECTOR_PACKS } from '$lib/data/connector-packs';
 const gotoMock = vi.hoisted(() => vi.fn());
 const { connectionStub } = vi.hoisted(() => ({
   connectionStub: {
+    status: 'connected' as 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error',
     client: null as null | {
       listExtensions: () => Promise<Extension[]>;
       installExtension: (name: string, kindHint?: unknown) => Promise<{ ok: boolean }>;
@@ -29,6 +30,7 @@ function installFakeClient(
     async (_name: string) => ({ ok: true })
   )
 ): void {
+  connectionStub.status = 'connected';
   connectionStub.client = {
     listExtensions: vi.fn(async () => extensions),
     installExtension
@@ -55,13 +57,27 @@ describe('ConnectorPacks component', () => {
   });
 
   it('shows an inline connection message when no gateway client exists', async () => {
+    connectionStub.status = 'disconnected';
     connectionStub.client = null;
     render(ConnectorPacks);
 
-    const [connectButton] = screen.getAllByRole('button', { name: 'Connect' });
-    await fireEvent.click(connectButton);
+    expect(screen.getAllByRole('button', { name: 'Connect runner first' }).length).toBeGreaterThan(
+      0
+    );
+    expect(screen.getAllByText('Needs runner').length).toBeGreaterThan(0);
+  });
 
-    expect(screen.getByText('Not connected — connect IronClaw first')).toBeTruthy();
+  it('does not install when a configured client is not healthy yet', async () => {
+    const installExtension = vi.fn(async (_name: string) => ({ ok: true }));
+    installFakeClient([], installExtension);
+    connectionStub.status = 'error';
+    render(ConnectorPacks);
+
+    const [connectButton] = await screen.findAllByRole('button', {
+      name: 'Connect runner first'
+    });
+    expect((connectButton as HTMLButtonElement).disabled).toBe(true);
+    expect(installExtension).not.toHaveBeenCalled();
   });
 
   it('shows readiness states from extension readiness', async () => {
@@ -127,9 +143,7 @@ describe('ConnectorPacks component', () => {
     expect(installExtension).toHaveBeenCalledWith('google_calendar', 'wasm_tool');
     expect(installExtension).toHaveBeenCalledWith('google_docs', 'wasm_tool');
     expect(
-      screen.getByText(
-        'Core apps installed — optional apps unavailable. Open setup if credentials are needed.'
-      )
+      screen.getByText('Core apps installed. Open setup if optional apps need credentials.')
     ).toBeTruthy();
   });
 

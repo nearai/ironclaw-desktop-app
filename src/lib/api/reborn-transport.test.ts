@@ -104,6 +104,31 @@ describe('IronClawClient.listThreadsV2', () => {
   });
 });
 
+describe('IronClawClient.probeWebChatV2', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('returns true when the v2 thread list route answers', async () => {
+    const cap = captureFetch({ threads: [] });
+    await expect(makeClient().probeWebChatV2()).resolves.toBe(true);
+    expect(cap.url).toBe('http://example.test/api/webchat/v2/threads?limit=1');
+    expect(cap.init?.method).toBe('GET');
+  });
+
+  it('returns false for older gateways where the v2 route 404s', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async () => {
+      return new Response('', { status: 404, statusText: 'Not Found' });
+    }) as unknown as typeof fetch);
+    await expect(makeClient().probeWebChatV2()).resolves.toBe(false);
+  });
+
+  it('treats auth failures as route-present capability signals', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async () => {
+      return new Response('', { status: 401, statusText: 'Unauthorized' });
+    }) as unknown as typeof fetch);
+    await expect(makeClient().probeWebChatV2()).resolves.toBe(true);
+  });
+});
+
 describe('IronClawClient.sendMessageV2', () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -115,6 +140,31 @@ describe('IronClawClient.sendMessageV2', () => {
     expect(cap.init?.method).toBe('POST');
     expect(cap.parsedBody.content).toBe('hello world');
     expect(typeof cap.parsedBody.client_action_id).toBe('string');
+  });
+
+  it('includes attachments only when supplied', async () => {
+    const cap = captureFetch({ run_id: 'r1', thread_id: 't1', status: 'queued' });
+    await makeClient().sendMessageV2('t1', 'see attached', [
+      { name: 'brief.pdf', mime_type: 'application/pdf', data_base64: 'cGRm' }
+    ]);
+    expect(cap.parsedBody.attachments).toEqual([
+      { name: 'brief.pdf', mime_type: 'application/pdf', data_base64: 'cGRm' }
+    ]);
+  });
+
+  it('includes per-thread instructions with attachments when supplied', async () => {
+    const cap = captureFetch({ run_id: 'r1', thread_id: 't1', status: 'queued' });
+    await makeClient().sendMessageV2(
+      't1',
+      'see attached',
+      [{ name: 'brief.pdf', mime_type: 'application/pdf', data_base64: 'cGRm' }],
+      'custom thread instructions'
+    );
+    expect(cap.parsedBody).toMatchObject({
+      content: 'see attached',
+      attachments: [{ name: 'brief.pdf', mime_type: 'application/pdf', data_base64: 'cGRm' }],
+      instructions: 'custom thread instructions'
+    });
   });
 });
 

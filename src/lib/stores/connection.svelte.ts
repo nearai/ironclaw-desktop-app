@@ -22,6 +22,7 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { IronClawClient } from '$lib/api/ironclaw';
+import { effectiveDefaultModelForProvider } from '$lib/data/llm-defaults';
 import { diagEnabled, inTauri } from '$lib/utils/runtime';
 import { notifications } from './notifications.svelte';
 import { telemetry } from './telemetry.svelte';
@@ -159,6 +160,14 @@ class ConnectionStore {
   token = $state<string | null>(null);
   /** Human-readable error message when status === 'error'. */
   lastError = $state<string | null>(null);
+  /**
+   * Runtime capability of the active gateway's Reborn WebChat v2 routes.
+   * `engine_v2_enabled` is not enough: older local gateways can expose Engine
+   * v2 while `/api/webchat/v2/*` still 404s. Chat routing consumes this field
+   * so a configured/default v2 profile falls back to the legacy chat surface
+   * instead of rendering an empty/broken Reborn panel.
+   */
+  webChatV2Available = $state<boolean | null>(null);
 
   /** Local sidecar lifecycle (irrelevant in remote mode; stays 'idle'). */
   sidecarStatus = $state<SidecarStatus>('idle');
@@ -316,12 +325,19 @@ class ConnectionStore {
   );
 
   /**
-   * API contract the active profile speaks. `'v2'` (now the default) routes
-   * the chat surface through the IronClaw Reborn WebChat v2 client; an explicit
-   * `'v1'` keeps the historical `/api/chat/*` path. Read reactively so a profile
-   * switch re-evaluates the chat path.
+   * Effective chat API contract. Profiles may request v2, but the live gateway
+   * must also expose the WebChat v2 routes; if the probe says no, use v1 so
+   * existing conversations and sends continue to work.
    */
-  apiVersion = $derived<ApiVersion>(this.activeProfile.apiVersion ?? 'v2');
+  apiVersion = $derived<ApiVersion>(
+    this.activeProfile.apiVersion === 'v1' ? 'v1' : this.webChatV2Available === false ? 'v1' : 'v2'
+  );
+
+  /** True when a v2/default profile is being kept on legacy chat because the
+   *  gateway does not expose `/api/webchat/v2/*`. */
+  webChatV2FallbackActive = $derived(
+    this.activeProfile.apiVersion !== 'v1' && this.webChatV2Available === false
+  );
 
   /**
    * Configured client, or null if we don't have a token yet.
@@ -455,7 +471,13 @@ class ConnectionStore {
       // Forward both the legacy backend tag and the new provider id so
       // the Rust side can prefer the richer field when present and fall
       // back to the binary enum otherwise.
-      const port = await startSidecar(profile.id, profile.llmBackend, profile.llmProviderId);
+      const port = await startSidecar(
+        profile.id,
+        profile.llmBackend,
+        profile.llmProviderId,
+        profile.llmModelId ??
+          effectiveDefaultModelForProvider(profile.llmProviderId ?? profile.llmBackend)
+      );
       this.sidecarPort = port;
       this.setSidecarStatus('running');
       // Opt-in telemetry — `provider` is the identifier the user
@@ -502,6 +524,7 @@ class ConnectionStore {
   /** One-shot health check; updates status. Returns true on success. */
   async ping(): Promise<boolean> {
     if (!this.client) {
+      this.webChatV2Available = null;
       this.status = 'disconnected';
       if (this.activeProfile.mode === 'remote' && !this.token) {
         this.lastError = classifyConnectionFailure({ kind: 'missing-token' });
@@ -512,14 +535,17 @@ class ConnectionStore {
     try {
       const h = await this.client.health();
       if (h.ok) {
+        this.webChatV2Available = await this.client.probeWebChatV2();
         this.status = 'connected';
         this.lastError = null;
         return true;
       }
+      this.webChatV2Available = null;
       this.status = 'error';
       this.lastError = classifyConnectionFailure({ kind: 'health', status: h.status });
       return false;
     } catch (err) {
+      this.webChatV2Available = null;
       this.status = 'error';
       this.lastError = classifyConnectionFailure({
         kind: 'error',
@@ -554,6 +580,7 @@ class ConnectionStore {
    */
   private async applyModeAndConnect(opts: { allowAutoStart: boolean }) {
     this.stopPolling();
+    this.webChatV2Available = null;
     const profile = this.activeProfile;
     if (profile.mode === 'local') {
       // First, check whether a sidecar is already running from a prior

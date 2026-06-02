@@ -274,11 +274,11 @@
     <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
       <div class="text-sm text-text-primary mb-2">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check <a
+        Configure the connection in
+        <a
           href="/settings"
           class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
-        >
-        to configure the connection.
+        >.
       </div>
     </div>
   {:else if loadState === 'loading'}
@@ -312,8 +312,7 @@
         {loadError ?? 'Unknown error'}
       </div>
       <div class="text-[11px] text-text-muted/70 max-w-md mb-4">
-        Usage data is admin-only. If you keep seeing this, switch profile or use a token with the
-        admin role.
+        Usage is admin-only. Switch profile or use a token with the admin role.
       </div>
       <button
         type="button"
@@ -327,14 +326,14 @@
     <!-- Header row: profile-agnostic title + refresh button. -->
     <div class="flex items-center justify-between gap-3 mb-4">
       <div class="text-xs text-text-muted">
-        Usage rollup. 30-day window for the summary cards; the table reflects the selected period.
+        Summary cards cover 30 days; the table follows the selected period.
       </div>
       <button
         type="button"
         onclick={() => void refresh()}
         disabled={refreshing}
         class="px-3 py-1.5 rounded-md border border-border-subtle text-xs text-text-primary hover:border-accent-cyan hover:text-accent-cyan transition disabled:opacity-40 min-h-[32px] flex items-center gap-2"
-        title="Refresh now (auto-refreshes every 60s)"
+        title="Refresh · auto every 60s"
       >
         <svg
           viewBox="0 0 24 24"
@@ -392,7 +391,7 @@
         <div class="text-2xl font-semibold text-text-primary leading-none mb-3">
           {formatInt(summary?.jobs?.total)}
         </div>
-        <div class="text-[11px] text-text-muted mt-auto">Total recorded.</div>
+        <div class="text-[11px] text-text-muted mt-auto">Total recorded</div>
       </div>
 
       <!-- LLM calls (30d) card. Big number — the prompt called this out
@@ -408,7 +407,7 @@
         <div class="mb-2 text-accent-cyan">
           <Sparkline data={llmCallsSpark} variant="bars" width={160} height={32} color="#4ca7e6" />
         </div>
-        <div class="text-[11px] text-text-muted mt-auto">Across all users + models.</div>
+        <div class="text-[11px] text-text-muted mt-auto">All users and models</div>
       </div>
 
       <!-- Total cost (30d) card. Accent-gold for monetary callouts. -->
@@ -516,10 +515,9 @@
       {#if filteredRows.length === 0}
         <div class="p-10 text-center text-xs text-text-muted">
           {#if events.length === 0}
-            No LLM usage recorded yet. Once IronClaw starts handling requests, costs and call counts
-            appear here.
+            No LLM usage yet. Costs and call counts appear here once IronClaw handles requests.
           {:else}
-            No rows match the current search.
+            No rows match the search
           {/if}
         </div>
       {:else}

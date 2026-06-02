@@ -55,6 +55,7 @@ const PATH_TO_SURFACE = Object.fromEntries(
  */
 export function surfaceForPath(path: string): string {
   const clean = (path.split('?')[0] ?? '').replace(/\/+$/, '') || '/';
+  if (clean === '/') return 'dashboard';
   return PATH_TO_SURFACE[clean] ?? PATH_TO_SURFACE[path] ?? 'unknown';
 }
 

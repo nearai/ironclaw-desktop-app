@@ -14,9 +14,8 @@
   //
   // This route owns the surface-level orchestration: the floating toolbar
   // (+ Note / zoom / Fit), the pending-arrow handshake between two nodes,
-  // and the "Ask this node…" stub (toasts "coming soon" until the gateway
-  // wire lands as a follow-up). All node/edge/viewport state lives in the
-  // canvas store; the components are thin views over it.
+  // and the "Ask this node…" dispatch. All node/edge/viewport state lives
+  // in the canvas store; the components are thin views over it.
 
   import { untrack } from 'svelte';
   import CanvasArrows from '$lib/components/canvas/CanvasArrows.svelte';
@@ -262,7 +261,7 @@
       type="button"
       class="text-xs w-12 py-1 rounded text-text-muted hover:text-text-primary tabular-nums"
       onclick={() => canvas.setZoom(1)}
-      title="Reset zoom to 100%"
+      title="Reset zoom"
     >
       {zoomPct}%
     </button>
@@ -309,10 +308,8 @@
   {#if canvas.nodes.length === 0}
     <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
       <div class="text-center max-w-sm px-6">
-        <div class="text-sm text-text-primary font-medium mb-1">Start a working map.</div>
-        <p class="text-xs text-text-muted leading-relaxed">
-          Add a note, then connect ideas as the thread develops.
-        </p>
+        <div class="text-sm text-text-primary font-medium mb-1">Start a working map</div>
+        <p class="text-xs text-text-muted leading-relaxed">Add a note, then connect ideas.</p>
       </div>
     </div>
   {/if}

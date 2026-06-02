@@ -104,7 +104,7 @@ class SkillEditorStore {
       const label = this.skill?.name ?? 'this skill';
       const ok = await confirmDialog.ask({
         title: `Discard changes to ${label}?`,
-        body: 'This will throw away the unsaved skill source in the editor.',
+        body: 'Discards the unsaved skill source.',
         confirmLabel: 'Discard changes',
         cancelLabel: 'Keep editing',
         tone: 'danger'

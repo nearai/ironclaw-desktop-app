@@ -266,7 +266,7 @@
     <div>
       <h1 class="text-2xl font-semibold text-text-primary">Missions</h1>
       <p class="text-text-muted text-sm mt-1">
-        Mission projects, run history, and the threads they generate.
+        Mission projects, runs, and the threads they generate.
       </p>
     </div>
     {#if connection.status === 'connected'}
@@ -316,10 +316,11 @@
       </svg>
       <div class="text-sm text-text-primary">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check <a
+        Verify the gateway connection in
+        <a
           href="/settings"
           class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
-        > to verify the gateway connection.
+        >.
       </div>
     </div>
   {:else if initialLoad && projects.length === 0 && missions.length === 0 && !loadError}
@@ -359,7 +360,7 @@
         </header>
         {#if projects.length === 0}
           <div class="flex-1 p-4 text-xs text-text-muted italic">
-            Enable Engine v2 in Settings, create a project, or run a mission.
+            Enable Engine v2 in Settings, then create a project or run a mission.
           </div>
         {:else}
           <ul class="flex-1 overflow-auto py-2">
@@ -474,7 +475,7 @@
             </svg>
             <div class="text-sm text-text-primary">No missions in this project.</div>
             <div class="text-xs text-text-muted max-w-md">
-              Missions appear here once the IronClaw gateway provisions them.
+              Missions appear here once the gateway provisions them.
             </div>
           </div>
         {:else if filteredMissions.length === 0}

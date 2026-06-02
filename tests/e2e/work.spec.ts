@@ -80,3 +80,77 @@ test('/work lets a user create a local work item and change its status', async (
     )
     .toBe('blocked');
 });
+
+test('/work lets a user approve or deny pending approval boundaries', async ({ page }) => {
+  await mockTauri(page, { settings: SETTINGS, token: 'tok' });
+  await mockGateway(page, { threads: [] });
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'ironclaw-work-items',
+      JSON.stringify([
+        {
+          id: 'approval-work',
+          title: 'Client reply approval',
+          objective: 'Review and send the client reply.',
+          domain: 'operations',
+          runbookIds: ['operations'],
+          status: 'waiting-approval',
+          created_at: '2026-06-01T08:00:00.000Z',
+          updated_at: '2026-06-01T08:00:00.000Z',
+          links: [],
+          dossier: [],
+          approvalBoundaries: [
+            {
+              id: 'approval-send',
+              action: 'Send client reply',
+              kind: 'send',
+              payload: 'Outbound client email.',
+              reason: 'Replies leave IronClaw.',
+              status: 'pending'
+            }
+          ],
+          artifacts: [],
+          watches: [],
+          openApprovals: ['Send client reply'],
+          followUps: [],
+          nextAction: 'Review approval: Send client reply'
+        }
+      ])
+    );
+  });
+
+  await page.goto('/work?item=approval-work');
+
+  const detail = page.getByRole('region', { name: 'Work item detail' });
+  await expect(detail.getByRole('heading', { name: 'Client reply approval' })).toBeVisible();
+  await expect(detail).toContainText('pending');
+  await detail.getByRole('button', { name: 'Approve' }).click();
+
+  await expect(detail).toContainText('approved');
+  await expect(detail.getByRole('button', { name: 'Active' })).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+  await expect(detail.getByRole('button', { name: 'Approve' })).toHaveCount(0);
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const raw = window.localStorage.getItem('ironclaw-work-items');
+        const items = raw
+          ? (JSON.parse(raw) as Array<{
+              id?: string;
+              status?: string;
+              approvalBoundaries?: Array<{ id?: string; status?: string }>;
+            }>)
+          : [];
+        const item = items.find((entry) => entry.id === 'approval-work');
+        return {
+          status: item?.status,
+          boundary: item?.approvalBoundaries?.find((boundary) => boundary.id === 'approval-send')
+            ?.status
+        };
+      })
+    )
+    .toEqual({ status: 'active', boundary: 'approved' });
+});

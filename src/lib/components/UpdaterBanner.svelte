@@ -32,7 +32,7 @@
       case 'downloading':
         return updater.progress != null ? `Downloading ${updater.progress}%…` : 'Downloading…';
       case 'installing':
-        return 'Installing — restart the app to apply.';
+        return 'Installing. Restart to apply.';
       case 'error':
         return updater.error ?? 'Update failed';
       default:
@@ -141,7 +141,7 @@
         type="button"
         onclick={onSkip}
         class="text-text-muted hover:text-text-primary transition-colors text-xs"
-        title="Hide this banner until a newer version is published"
+        title="Hide until a newer version ships"
       >
         Skip this version
       </button>
@@ -175,7 +175,7 @@
     >
       <header class="flex items-center justify-between mb-2">
         <h2 class="text-xs font-semibold text-text-primary">
-          Release notes — v{updater.update.version}
+          Release notes · v{updater.update.version}
         </h2>
         <button
           type="button"

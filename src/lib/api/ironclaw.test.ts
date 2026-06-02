@@ -105,6 +105,107 @@ describe('IronClawClient.getHistory', () => {
   });
 });
 
+describe('IronClawClient.sendMessage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('posts legacy chat instructions alongside attachment payloads', async () => {
+    let capturedUrl = '';
+    let capturedInit: RequestInit | undefined;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async (url: string, init: RequestInit) => {
+      capturedUrl = String(url);
+      capturedInit = init;
+      return fetchOk({ thread_id: 't1', message_id: 'm1' });
+    }) as unknown as typeof fetch);
+
+    const c = makeClient();
+    const res = await c.sendMessage(
+      't1',
+      'review this',
+      [{ name: 'contract.md', mime_type: 'text/markdown', data_base64: 'IyBNU0E=' }],
+      'thread persona'
+    );
+
+    expect(res).toEqual({ thread_id: 't1', message_id: 'm1' });
+    expect(capturedUrl).toBe('http://example.test/api/chat/send');
+    expect(capturedInit?.method).toBe('POST');
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({
+      content: 'review this',
+      thread_id: 't1',
+      attachments: [{ name: 'contract.md', mime_type: 'text/markdown', data_base64: 'IyBNU0E=' }],
+      instructions: 'thread persona'
+    });
+  });
+});
+
+describe('IronClawClient legacy approval handling', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('normalizes approval_needed SSE frames from the legacy chat stream', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        `event: approval_needed\ndata: ${JSON.stringify({
+          type: 'approval_needed',
+          request_id: 'req-1',
+          thread_id: 't1',
+          tool_name: 'read_file',
+          description: "Tool 'read_file' requires approval",
+          parameters: '{"path":".ironclaw/attachments/u/t/doc.pdf"}',
+          allow_always: true
+        })}\n\n`,
+        {
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' }
+        }
+      )
+    );
+
+    const events = [];
+    for await (const ev of makeClient().streamEvents('t1', new AbortController().signal)) {
+      events.push(ev);
+    }
+
+    expect(events).toEqual([
+      {
+        type: 'approval_needed',
+        request_id: 'req-1',
+        thread_id: 't1',
+        tool_name: 'read_file',
+        description: "Tool 'read_file' requires approval",
+        parameters: { path: '.ironclaw/attachments/u/t/doc.pdf' },
+        allow_always: true
+      }
+    ]);
+  });
+
+  it('posts legacy chat approval resolutions to /api/chat/approval', async () => {
+    let capturedUrl = '';
+    let capturedInit: RequestInit | undefined;
+    vi.spyOn(globalThis, 'fetch').mockImplementation((async (url: string, init: RequestInit) => {
+      capturedUrl = String(url);
+      capturedInit = init;
+      return fetchOk({ message_id: 'approval-msg', status: 'accepted' });
+    }) as unknown as typeof fetch);
+
+    await makeClient().resolveLegacyChatApproval({
+      threadId: 't1',
+      requestId: '0b0b0b0b-1111-2222-3333-444444444444',
+      action: 'approve'
+    });
+
+    expect(capturedUrl).toBe('http://example.test/api/chat/approval');
+    expect(capturedInit?.method).toBe('POST');
+    expect(JSON.parse(String(capturedInit?.body))).toEqual({
+      thread_id: 't1',
+      request_id: '0b0b0b0b-1111-2222-3333-444444444444',
+      action: 'approve'
+    });
+  });
+});
+
 describe('IronClawClient.listThreads', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -166,7 +267,7 @@ describe('IronClawClient.generateImage', () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch');
     const c = makeClient();
     await expect(c.generateImage('a red apple')).rejects.toThrow(
-      'Image generation not implemented on this gateway version'
+      'Image generation unavailable on this gateway version'
     );
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -441,6 +542,60 @@ describe('IronClawClient extension identity compatibility', () => {
       'http://example.test/api/extensions/notion/setup',
       'http://example.test/api/extensions/gmail/login/poll'
     ]);
+  });
+
+  it('preserves activation auth URLs for browser-based connector sign-in', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      fetchOk({
+        success: false,
+        message: 'Gmail requires authentication.',
+        auth_url: 'https://accounts.google.com/o/oauth2/v2/auth?state=hosted',
+        instructions: 'Finish sign-in in the browser.',
+        awaiting_token: false
+      })
+    );
+
+    const c = makeClient();
+    await expect(c.activateExtension('tools/gmail')).resolves.toMatchObject({
+      ok: true,
+      message: 'Gmail requires authentication.',
+      auth_url: 'https://accounts.google.com/o/oauth2/v2/auth?state=hosted',
+      instructions: 'Finish sign-in in the browser.',
+      awaiting_token: false
+    });
+  });
+
+  it('does not treat an empty activation response as connected', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(fetchOk({}));
+
+    const c = makeClient();
+    await expect(c.activateExtension('tools/gmail')).resolves.toMatchObject({
+      ok: false,
+      activated: false
+    });
+  });
+
+  it('preserves setup-submit auth URLs for connector OAuth after saving fields', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      fetchOk({
+        success: true,
+        message: 'Configuration saved. Complete OAuth in your browser.',
+        auth_url: 'https://accounts.google.com/o/oauth2/v2/auth?state=setup',
+        instructions: 'Finish sign-in in the browser.',
+        activated: false
+      })
+    );
+
+    const c = makeClient();
+    await expect(
+      c.submitExtensionSetup('tools/gmail', { client_secret: 'redacted' })
+    ).resolves.toMatchObject({
+      ok: true,
+      message: 'Configuration saved. Complete OAuth in your browser.',
+      auth_url: 'https://accounts.google.com/o/oauth2/v2/auth?state=setup',
+      instructions: 'Finish sign-in in the browser.',
+      activated: false
+    });
   });
 
   it('normalizes installed/readiness/tool owner refs to bare names', async () => {

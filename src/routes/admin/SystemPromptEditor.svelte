@@ -233,7 +233,7 @@
     // injecting the System Instructions section.
     const ok = await confirmDialog.ask({
       title: 'Restore gateway default system prompt?',
-      body: 'This clears the admin system prompt. Users will only receive their per-profile system context until a new prompt is saved.',
+      body: 'Clears the admin system prompt. Users get only per-profile context until you save a new one.',
       confirmLabel: 'Restore default',
       cancelLabel: 'Keep prompt',
       tone: 'danger'
@@ -255,7 +255,7 @@
   async function restoreFromHistory(entry: HistoryEntry) {
     const ok = await confirmDialog.ask({
       title: 'Load saved system-prompt snapshot?',
-      body: `This replaces the current editor draft with the snapshot from ${formatTimestamp(entry.timestamp)}. It will not save until you click Save.`,
+      body: `Replaces the draft with the ${formatTimestamp(entry.timestamp)} snapshot. Not saved until you click Save.`,
       confirmLabel: 'Load snapshot',
       cancelLabel: 'Keep current draft',
       tone: 'danger'
@@ -264,7 +264,7 @@
     draft = entry.prompt;
     showHistory = false;
     diffTarget = null;
-    toasts.show('Snapshot loaded into editor (not saved).', 'info');
+    toasts.show('Snapshot loaded into editor; not saved', 'info');
   }
 
   function openDiff(entry: HistoryEntry) {
@@ -394,10 +394,11 @@
     <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
       <div class="text-sm text-text-primary mb-2">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check <a
+        Configure the connection in
+        <a
           href="/settings"
           class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
-        > to configure the connection.
+        >.
       </div>
     </div>
   {:else if loadState === 'loading'}
@@ -432,7 +433,7 @@
         <span>Preview</span>
       </label>
       <span class="text-[10px] text-text-muted font-mono">
-        Side-by-side on wide screens, stacked when narrow.
+        Side-by-side when wide, stacked when narrow.
       </span>
       <span class="ml-auto text-xs">
         {#if dirty}
@@ -474,15 +475,13 @@
               class="mb-3 px-3 py-2 rounded-md border border-accent-gold/60 bg-accent-gold/10 text-[11px] text-accent-gold flex items-start gap-2"
             >
               <span aria-hidden="true">⚠</span>
-              <span class="flex-1">
-                Token-like patterns detected — view masked. Edit mode shows raw.
-              </span>
+              <span class="flex-1"> Token-like patterns masked. Edit mode shows raw. </span>
             </div>
           {/if}
           {#if draft.trim()}
             <MarkdownView markdown={redactedDraft} />
           {:else}
-            <div class="text-xs text-text-muted italic">Nothing to preview.</div>
+            <div class="text-xs text-text-muted italic">Nothing to preview</div>
           {/if}
         </div>
       {/if}
@@ -519,7 +518,7 @@
         type="button"
         onclick={() => void restoreDefault()}
         class="text-xs text-text-muted hover:text-accent-gold transition-colors"
-        title="Clear the admin SYSTEM.md so the gateway falls back to the built-in default"
+        title="Clear SYSTEM.md to fall back to the built-in default"
       >
         Restore default
       </button>
@@ -578,7 +577,7 @@
 
         {#if history.length === 0}
           <div class="text-xs text-text-muted italic">
-            No saves recorded yet. Each successful Save appears here (last 5).
+            No saves yet. Each Save appears here (last 5).
           </div>
         {:else if diffTarget}
           <div class="text-[11px] text-text-muted font-mono mb-2">
@@ -590,7 +589,7 @@
             class="bg-bg-deep border border-border-subtle rounded-md overflow-auto max-h-[400px] font-mono text-xs"
           >
             {#if diffLines.length === 0}
-              <div class="p-4 text-text-muted italic">No differences.</div>
+              <div class="p-4 text-text-muted italic">No differences</div>
             {:else}
               {#each diffLines as line, i (i)}
                 {@const cls =

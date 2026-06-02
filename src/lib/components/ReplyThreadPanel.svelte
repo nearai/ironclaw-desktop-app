@@ -90,7 +90,7 @@
 
   <div class="flex-1 overflow-y-auto px-3 py-2 flex flex-col gap-3">
     {#if replies.length === 0}
-      <div class="text-xs text-text-muted py-6 text-center">No replies yet. Be the first.</div>
+      <div class="text-xs text-text-muted py-6 text-center">No replies yet.</div>
     {:else}
       {#each replies as reply (reply.id)}
         <div

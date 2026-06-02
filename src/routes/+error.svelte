@@ -29,20 +29,20 @@
   }
 
   function goHome() {
-    void goto('/');
+    void goto('/dashboard');
   }
 
   async function copyError() {
     const payload = stack ? `${message}\n\n${stack}` : message;
     try {
       await navigator.clipboard.writeText(payload);
-      toasts.show('Error copied to clipboard', 'success');
+      toasts.show('Error copied', 'success');
     } catch (e) {
       // Clipboard can fail in restricted contexts; surface but don't
       // re-throw — we're already on the error page.
       // eslint-disable-next-line no-console
       console.error('clipboard write failed:', e);
-      toasts.show('Could not copy to clipboard', 'error');
+      toasts.show('Copy failed', 'error');
     }
   }
 
@@ -52,7 +52,7 @@
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error('shell open failed:', e);
-      toasts.show('Could not open issue tracker', 'error');
+      toasts.show("Couldn't open issue tracker", 'error');
     }
   }
 </script>
@@ -75,11 +75,11 @@
           <line x1="12" y1="8" x2="12" y2="12" />
           <line x1="12" y1="16" x2="12.01" y2="16" />
         </svg>
-        <h1 class="text-xl font-semibold text-text-primary">Something went wrong on this page</h1>
+        <h1 class="text-xl font-semibold text-text-primary">This page hit an error</h1>
       </div>
       <p class="text-sm text-text-muted leading-relaxed">
-        The rest of IronClaw is still running — use the sidebar or the buttons below to move on. If
-        this keeps happening, copy the error and file an issue so we can fix it.
+        The rest of IronClaw is running. Use the sidebar to move on, or report the issue if it
+        repeats.
         {#if status && status !== 500}
           <span class="text-text-muted/70">(status {status})</span>
         {/if}
@@ -126,14 +126,14 @@
         onclick={reload}
         class="px-3 py-1.5 text-xs rounded-md bg-accent-cyan/15 border border-accent-cyan/40 text-accent-cyan hover:bg-accent-cyan/25 transition-colors"
       >
-        Reload page
+        Reload
       </button>
       <button
         type="button"
         onclick={goHome}
         class="px-3 py-1.5 text-xs rounded-md bg-bg-deep border border-border-subtle text-text-primary hover:border-accent-gold/60 hover:text-accent-gold transition-colors"
       >
-        Go home
+        Home
       </button>
       <button
         type="button"

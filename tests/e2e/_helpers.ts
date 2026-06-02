@@ -48,6 +48,7 @@ export interface TauriMockSettings {
     localBaseUrl?: string;
     llmBackend?: 'nearai' | 'openrouter';
     llmProviderId?: string;
+    llmModelId?: string;
     apiVersion?: 'v1' | 'v2';
     tint?: string;
   }>;
@@ -491,6 +492,36 @@ export async function mockTauri(page: Page, overrides: TauriMockOverrides = {}):
   }
 }
 
+/**
+ * Reconnect the app through its real connection store against the mocked
+ * gateway. This avoids test-only assignment of `connection.status` while still
+ * driving the same refresh/ping path a user gets after settings or onboarding
+ * changes.
+ */
+export async function refreshMockedGatewayConnection(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const url = new URL('/src/lib/stores/connection.svelte.ts', location.origin).href;
+    const mod = (await import(/* @vite-ignore */ url)) as {
+      connection: { refresh: () => Promise<void> };
+    };
+    await mod.connection.refresh();
+  });
+
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(async () => {
+          const url = new URL('/src/lib/stores/connection.svelte.ts', location.origin).href;
+          const mod = (await import(/* @vite-ignore */ url)) as {
+            connection: { status: string };
+          };
+          return mod.connection.status;
+        }),
+      { timeout: 5000 }
+    )
+    .toBe('connected');
+}
+
 // ---- Gateway mock ---------------------------------------------------------
 
 /** Per-test overrides for the gateway-route mock. */
@@ -550,7 +581,16 @@ export interface GatewayMockOverrides {
     next_fire_at?: string;
   }>;
   /** LLM providers returned by /api/llm/providers. */
-  llmProviders?: Array<{ id: string; name?: string; configured?: boolean; builtin?: boolean }>;
+  llmProviders?: Array<{
+    id: string;
+    name?: string;
+    configured?: boolean;
+    builtin?: boolean;
+    default_model?: string;
+    adapter?: string;
+    base_url?: string;
+    can_list_models?: boolean;
+  }>;
   /** Reply text the mocked stream emits. Default: "Mocked reply". */
   mockedReply?: string;
   /** Whether to expose `/api/v1/responses` as an available route.
@@ -558,6 +598,10 @@ export interface GatewayMockOverrides {
    *  `/api/chat/send` + `/api/chat/events` path, which is the path the
    *  prompt's `chat.spec.ts` exercises. */
   exposeResponsesApi?: boolean;
+  /** Whether to expose the Reborn WebChat v2 routes. Default: true. */
+  webChatV2Available?: boolean;
+  /** Additional fields merged into `/api/gateway/status`. */
+  gatewayStatus?: Record<string, unknown>;
   /** User profile shape returned by /api/profile. Default: a signed-in
    *  NEAR account so the wizard's chat-probe pre-flight passes. */
   profile?: {
@@ -592,6 +636,7 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
   ];
   const mockedReply = overrides.mockedReply ?? 'Mocked reply';
   const exposeResponsesApi = overrides.exposeResponsesApi === true;
+  const webChatV2Available = overrides.webChatV2Available !== false;
   const profile =
     overrides.profile === undefined
       ? {
@@ -710,6 +755,8 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
           engine_v2_enabled: false,
           llm_model: 'mock-model',
           llm_backend: llmBackend,
+          model_execution_verified: true,
+          model_readiness: 'GREEN',
           enabled_channels: ['web'],
           ws_connections: 0,
           sse_connections: 0,
@@ -718,7 +765,8 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
           daily_cost: '0.00',
           actions_this_hour: 0,
           restart_enabled: false,
-          model_usage: []
+          model_usage: [],
+          ...(overrides.gatewayStatus ?? {})
         })
       });
     }
@@ -753,7 +801,11 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
             name: p.name ?? p.id,
             has_api_key: p.configured === true,
             has_credentials: p.configured === true,
-            builtin: p.builtin === true
+            builtin: p.builtin === true,
+            default_model: p.default_model,
+            adapter: p.adapter,
+            base_url: p.base_url,
+            can_list_models: p.can_list_models === true
           }))
         )
       });
@@ -843,6 +895,10 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
     new RegExp(`^https?://${GATEWAY_HOSTS}/api/webchat/v2/threads(?:\\?.*)?$`),
     async (route: Route) => {
       const method = route.request().method();
+      if (!webChatV2Available) {
+        await route.fulfill({ status: 404, body: '' });
+        return;
+      }
       if (method === 'GET') {
         await route.fulfill({
           status: 200,
@@ -944,10 +1000,16 @@ export async function mockGateway(page: Page, overrides: GatewayMockOverrides = 
     async (route: Route) => {
       const url = new URL(route.request().url());
       const threadId = decodeURIComponent(url.pathname.split('/').at(-2) ?? '');
-      // The Reborn UI opens the stream before posting the first message. Wait
-      // one tick for the message route to record a run, then emit the reply.
-      await new Promise((resolve) => setTimeout(resolve, 120));
-      const turns = v2TurnsByThread.get(threadId) ?? [];
+      // The Reborn UI opens the stream before posting the first message. Large
+      // attachment payloads can take longer than a single tick to hit the
+      // message route, so wait briefly for the posted turn instead of racing the
+      // timeline back to empty.
+      const started = Date.now();
+      let turns = v2TurnsByThread.get(threadId) ?? [];
+      while (turns.length === 0 && Date.now() - started < 2500) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        turns = v2TurnsByThread.get(threadId) ?? [];
+      }
       const latest = turns.at(-1);
       const runId = latest?.run_id ?? 'mock-v2-run-1';
       const reply = latest?.response ?? mockedReply;
@@ -1288,7 +1350,16 @@ export interface SurfaceMockOverrides {
   /** Memory tree nodes from `/api/memory/list`. Default: 3 fixture nodes. */
   memoryNodes?: Array<{ path: string; type: 'file' | 'dir' }>;
   /** LLM providers returned by `/api/llm/providers`. Default: NEAR AI. */
-  llmProviders?: Array<{ id: string; name?: string; configured?: boolean; builtin?: boolean }>;
+  llmProviders?: Array<{
+    id: string;
+    name?: string;
+    configured?: boolean;
+    builtin?: boolean;
+    default_model?: string;
+    adapter?: string;
+    base_url?: string;
+    can_list_models?: boolean;
+  }>;
   /** Whether the user has admin role for `/api/admin/*` reads. Default: true. */
   isAdmin?: boolean;
 }
@@ -1406,7 +1477,11 @@ export async function mockGatewaySurfaces(
             name: p.name ?? p.id,
             has_api_key: p.configured === true,
             has_credentials: p.configured === true,
-            builtin: p.builtin === true
+            builtin: p.builtin === true,
+            default_model: p.default_model,
+            adapter: p.adapter,
+            base_url: p.base_url,
+            can_list_models: p.can_list_models === true
           }))
         )
       });

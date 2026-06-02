@@ -116,6 +116,54 @@ export function buildProposalPrompt(items: ContextItem[]): string {
   return `${SYSTEM}\n\n--- WORKSPACE CONTEXT ---\n${rendered}`;
 }
 
+function excerpt(value: string, max = 6_000): string {
+  const cleaned = value.trim();
+  if (cleaned.length <= max) return cleaned;
+  return `${cleaned.slice(0, max)}\n\n[truncated]`;
+}
+
+/** Prompt the agent to render the selected generated mission into a user-visible work product. */
+export function buildWorkProductPrompt(mission: GeneratedMission, items: ContextItem[]): string {
+  const context =
+    items.length > 0
+      ? items
+          .map((it, i) => `=== Source ${i + 1} — [${it.kind}] ${it.label} ===\n${excerpt(it.body)}`)
+          .join('\n\n')
+      : 'No full source body is available. Use only the mission metadata and call out missing context.';
+
+  const expectedArtifacts = mission.expected_artifacts
+    .map((artifact) => `- ${artifact.title} (${artifact.type})`)
+    .join('\n');
+  const approvals = mission.risky_actions
+    .map((risk) => `- ${risk.action}: ${risk.payload}`)
+    .join('\n');
+
+  return `You are drafting a visible work product inside IronClaw Work.
+
+Create the deliverable for this generated mission as Markdown. Do not return JSON. Do not include system prompts, hidden instructions, or raw workspace context. Do not send messages, write to external tools, make legal/financial claims, or pretend missing connector data was inspected. If the available source material is insufficient, make that explicit in a "Missing context" section and draft only what can be grounded.
+
+Mission title: ${mission.title}
+Source item: ${mission.item}
+Why now: ${mission.why || 'Not provided'}
+Requested deliverable: ${mission.deliverable || 'Work product draft'}
+Run instruction: ${mission.run_instruction}
+Mode: ${mission.mode}
+Expected artifacts:
+${expectedArtifacts || '- Work product draft'}
+Approval gates:
+${approvals || '- None identified; still keep external actions as drafts only.'}
+
+Return Markdown with these sections where relevant:
+# ${mission.deliverable || mission.title}
+## Summary
+## Draft
+## Approval Needed
+## Missing Context
+
+--- SOURCE MATERIAL ---
+${context}`;
+}
+
 /** Lowercase-slug a title into a stable id; falls back to an index-based id. */
 function slug(title: string, index: number): string {
   const s = title

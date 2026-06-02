@@ -21,23 +21,72 @@
 
 import { connection } from './connection.svelte';
 import type { IronClawClient } from '$lib/api/ironclaw';
+import type { AttachmentInput } from '$lib/api/types';
+import { composeInstructions } from '$lib/util/prompt-instructions';
 import {
   clientActionId,
   initialChatState,
+  isFailedRunStatus,
+  isSuccessfulRunStatus,
   messagesFromTimeline,
   recordsFromTimeline,
   reduceEvent,
+  upsertRunFailureMessage,
   type GateResolution,
   type RebornChatState,
-  type RebornMessage
+  type RebornMessage,
+  type RebornRunStateResponse,
+  type ThreadMessageRecord
 } from '$lib/api/reborn';
+import { perThreadPrompts } from './per-thread-prompts.svelte';
 
 /** How many timeline records to pull per page. */
 export const REBORN_TIMELINE_LIMIT = 50;
+const RUN_STATE_POLL_DELAYS_MS = [300, 700, 1200, 2000, 3200, 5000];
+const MISSING_ASSISTANT_REPLY_MESSAGE =
+  'IronClaw accepted this turn, but no assistant result arrived from Reborn yet. The stream or run state did not report a completed reply. Your message and attachments are still preserved in this thread.';
 
 function isAbortError(err: unknown): boolean {
   if (!err || typeof err !== 'object' || !('name' in err)) return false;
   return (err as { name?: unknown }).name === 'AbortError';
+}
+
+function normalizedMessageContent(content: string | undefined): string {
+  return (content ?? '').replace(/\s+/g, ' ').trim();
+}
+
+function isUserTimelineRecord(record: ThreadMessageRecord): boolean {
+  return record.kind === 'user' || record.kind === 'user_message';
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    (timer as { unref?: () => void }).unref?.();
+  });
+}
+
+function upsertMissingAssistantReply(messages: RebornMessage[], key: string): RebornMessage[] {
+  const id = `missing-assistant-${key}`;
+  if (messages.some((message) => message.id === id)) return messages;
+  return [
+    ...messages,
+    {
+      id,
+      role: 'error',
+      content: MISSING_ASSISTANT_REPLY_MESSAGE,
+      timestamp: new Date().toISOString()
+    }
+  ];
+}
+
+function hasAssistantForRun(messages: RebornMessage[], runId: string): boolean {
+  return messages.some(
+    (message) =>
+      message.role === 'assistant' &&
+      (!message.turnRunId || message.turnRunId === runId) &&
+      normalizedMessageContent(message.content)
+  );
 }
 
 export class RebornChatController {
@@ -51,6 +100,9 @@ export class RebornChatController {
   /** User-visible stream failure state; aborts are expected and never surface. */
   streamError = $state<string | null>(null);
 
+  /** User-visible timeline/history load failure. */
+  timelineError = $state<string | null>(null);
+
   /** Optimistic user bubbles not yet confirmed by a timeline refetch. Kept
    *  separate from `state.messages` so a timeline reload can re-append the
    *  ones the server hasn't surfaced yet (mirrors the SPA's pendingMessages). */
@@ -59,8 +111,34 @@ export class RebornChatController {
 
   /** Aborts the live SSE stream on teardown / thread switch. */
   private abort: AbortController | null = null;
+  private pollingRuns = new Set<string>();
 
   constructor(private getClient: () => IronClawClient | null = () => connection.client) {}
+
+  /**
+   * Timeline rows can lag just behind run completion. Reborn should never make
+   * a sent user bubble disappear during that gap, but it also shouldn't show a
+   * duplicate once the server row lands. Reconcile by content against user
+   * timeline records; unmatched pending messages stay visible.
+   */
+  private reconcilePendingWithTimeline(records: ThreadMessageRecord[]): void {
+    const confirmedUserMessages = new Map<string, number>();
+    for (const record of records) {
+      if (!isUserTimelineRecord(record)) continue;
+      const key = normalizedMessageContent(record.content);
+      if (!key) continue;
+      confirmedUserMessages.set(key, (confirmedUserMessages.get(key) ?? 0) + 1);
+    }
+
+    this.pending = this.pending.filter((pending) => {
+      if (pending.role !== 'user') return true;
+      const key = normalizedMessageContent(pending.content);
+      const count = confirmedUserMessages.get(key) ?? 0;
+      if (!key || count <= 0) return true;
+      confirmedUserMessages.set(key, count - 1);
+      return false;
+    });
+  }
 
   /** Reset to a clean state (e.g. when switching threads or starting a new
    *  chat). Clears the bound thread so a subsequent `send()` doesn't post into
@@ -71,6 +149,8 @@ export class RebornChatController {
     this.pending = [];
     this.threadId = null;
     this.streamError = null;
+    this.timelineError = null;
+    this.pollingRuns.clear();
     this.state = initialChatState(messages);
   }
 
@@ -105,6 +185,7 @@ export class RebornChatController {
     // Viewing a thread's timeline binds us to it, so a later resolveGate /
     // cancel / send targets the right thread even without openStream.
     this.threadId = threadId;
+    this.timelineError = null;
     try {
       const resp = await client.fetchTimelineV2(threadId, { limit: REBORN_TIMELINE_LIMIT });
       // Generation guard: if the user switched threads while this fetch was in
@@ -112,6 +193,7 @@ export class RebornChatController {
       // overwriting the newly-selected thread's messages.
       if (this.threadId !== threadId) return;
       const records = recordsFromTimeline(resp);
+      this.reconcilePendingWithTimeline(records);
       this.state = { ...this.state, messages: messagesFromTimeline(records, this.pending) };
     } catch (err) {
       // A timeline fetch can 404 (e.g. a thread id from another backend, or a
@@ -119,9 +201,16 @@ export class RebornChatController {
       // thread rather than letting the rejection bubble out of the UI effect.
       // Same generation guard: ignore a stale failure for a thread we left.
       if (this.threadId !== threadId) return;
-      console.warn('[reborn-chat] loadTimeline failed; treating as empty', err);
+      console.warn('[reborn-chat] loadTimeline failed', err);
+      this.timelineError = 'Could not load messages for this conversation.';
       this.state = { ...this.state, messages: messagesFromTimeline([], this.pending) };
     }
+  }
+
+  /** Retry the currently-bound timeline after a history load failure. */
+  async retryTimeline(): Promise<void> {
+    if (!this.threadId) return;
+    await this.loadTimeline(this.threadId);
   }
 
   /**
@@ -131,8 +220,13 @@ export class RebornChatController {
    * active run from the response. On failure the optimistic bubble is marked
    * errored and removed from the pending set.
    */
-  async send(content: string, threadIdOpt?: string): Promise<void> {
+  async send(
+    content: string,
+    threadIdOpt?: string,
+    attachments: AttachmentInput[] = []
+  ): Promise<void> {
     this.streamError = null;
+    this.timelineError = null;
     const client = this.getClient();
     if (!client) throw new Error('no IronClaw client configured');
 
@@ -163,17 +257,22 @@ export class RebornChatController {
     };
 
     try {
-      const resp = await client.sendMessageV2(threadId, content);
+      const instructions = composeInstructions(perThreadPrompts.get(threadId), {
+        hasAttachments: attachments.length > 0
+      });
+      const resp = await client.sendMessageV2(threadId, content, attachments, instructions);
       if (resp?.run_id) {
+        const runThreadId = resp.thread_id || threadId;
         this.state = {
           ...this.state,
           activeRun: {
             runId: resp.run_id,
-            threadId: resp.thread_id || threadId,
+            threadId: runThreadId,
             status: resp.status || null
           },
           latestRunId: resp.run_id
         };
+        this.startRunPolling(runThreadId, resp.run_id);
       }
     } catch (err) {
       this.pending = this.pending.filter((m) => m.id !== optimisticId);
@@ -214,8 +313,10 @@ export class RebornChatController {
         if (ctrl.signal.aborted || this.threadId !== threadId) break;
         const next = reduceEvent(this.state, envelope, threadId);
         this.state = next;
+        if (next.activeRun?.runId && next.activeRun.threadId === threadId) {
+          this.startRunPolling(threadId, next.activeRun.runId);
+        }
         if (next.refetchTimeline) {
-          this.pending = [];
           await this.loadTimeline(threadId);
         }
       }
@@ -240,6 +341,75 @@ export class RebornChatController {
   closeStream(): void {
     this.abort?.abort();
     this.abort = null;
+  }
+
+  private startRunPolling(threadId: string, runId: string): void {
+    const key = `${threadId}\n${runId}`;
+    if (this.pollingRuns.has(key)) return;
+    this.pollingRuns.add(key);
+    void this.pollRunUntilTerminal(threadId, runId).finally(() => {
+      this.pollingRuns.delete(key);
+    });
+  }
+
+  private async pollRunUntilTerminal(threadId: string, runId: string): Promise<void> {
+    const client = this.getClient();
+    if (!client) return;
+
+    for (const delay of RUN_STATE_POLL_DELAYS_MS) {
+      await wait(delay);
+      if (this.threadId !== threadId) return;
+
+      await this.loadTimeline(threadId);
+      if (this.threadId !== threadId) return;
+      if (hasAssistantForRun(this.state.messages, runId)) {
+        this.state = { ...this.state, isProcessing: false, activeRun: null };
+        return;
+      }
+
+      const runState = await this.readRunState(client, threadId, runId);
+      if (!runState) continue;
+      if (isSuccessfulRunStatus(runState.status)) {
+        await this.loadTimeline(threadId);
+        if (this.threadId === threadId) {
+          this.state = { ...this.state, isProcessing: false, activeRun: null };
+        }
+        return;
+      }
+      if (isFailedRunStatus(runState.status)) {
+        await this.loadTimeline(threadId);
+        if (this.threadId !== threadId) return;
+        this.state = {
+          ...this.state,
+          messages: upsertRunFailureMessage(this.state.messages, runId, runState),
+          pendingGate: null,
+          isProcessing: false,
+          activeRun: null
+        };
+        return;
+      }
+    }
+
+    if (this.threadId !== threadId) return;
+    this.state = {
+      ...this.state,
+      messages: upsertMissingAssistantReply(this.state.messages, runId),
+      isProcessing: false,
+      activeRun: null
+    };
+  }
+
+  private async readRunState(
+    client: IronClawClient,
+    threadId: string,
+    runId: string
+  ): Promise<RebornRunStateResponse | null> {
+    try {
+      return await client.getRunStateV2(threadId, runId);
+    } catch (err) {
+      console.warn('[reborn-chat] run state poll failed', err);
+      return null;
+    }
   }
 
   /**

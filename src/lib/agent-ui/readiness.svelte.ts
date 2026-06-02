@@ -35,15 +35,14 @@ export function agentUiReadiness(cap: AgentUiCapability): AgentUiReadiness {
     return {
       supported: true,
       label: 'Supported',
-      detail:
-        'This gateway can hand tool calls back to the desktop, so the agent can request app actions such as navigating, opening a thread, or starting a chat.'
+      detail: 'The agent can drive the app: navigate, open a thread, start a chat.'
     };
   }
   return {
     supported: false,
     label: 'Not supported by this gateway',
     detail:
-      'IronClaw runs tools on the server today, so it cannot hand actions back to the desktop. The agent cannot operate the app until a connected gateway adds client-tool delegation.'
+      "This gateway runs tools server-side, so the agent can't drive the app. Needs client-tool delegation."
   };
 }
 

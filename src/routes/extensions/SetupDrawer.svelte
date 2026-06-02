@@ -23,6 +23,7 @@
     | 'idle' // no flow ever started, render plain "Sign in" button
     | 'starting' // POST /login/start in flight
     | 'pending' // waiting for user authorization; polling /login/poll
+    | 'external' // browser redirect OAuth; /oauth/callback completes on gateway
     | 'authorized' // success — flow complete
     | 'denied' // user denied; offer retry
     | 'expired' // device code expired; offer retry
@@ -39,6 +40,10 @@
     expires_in?: number;
     /** Wire identifier passed to /login/poll. */
     session_id?: string;
+    /** Browser redirect OAuth URL returned by /activate on current Reborn gateways. */
+    auth_url?: string;
+    /** Gateway guidance for hosted/browser OAuth or manual-token fallback. */
+    instructions?: string;
     interval_seconds: number;
     /** Last error message surfaced from the server or network layer. */
     error?: string;
@@ -55,8 +60,11 @@
 
   /** Per-field OAuth flow state, keyed by field.key. */
   let oauthByField = $state<Record<string, OAuthState>>({});
+  /** Browser auth started by POST /setup after fields/secrets are saved. */
+  let setupSubmitAuth = $state<OAuthState | null>(null);
   /** Force re-render of the countdown without spinning a derived. */
   let nowTick = $state(0);
+  const OAUTH_FALLBACK_KEY = '__oauth_sign_in__';
 
   // Internal handles used to tear down timers when the drawer closes or the
   // user cancels. Kept outside `$state` since they aren't reactive.
@@ -86,8 +94,11 @@
   // required (so the user can't save with an unfinished auth flow).
   const canSubmit = $derived.by(() => {
     if (!schema || submitting) return false;
+    if (setupSubmitAuth?.phase === 'external' || setupSubmitAuth?.phase === 'starting') {
+      return false;
+    }
     if (activeOauth) return false; // never submit mid-flow
-    for (const f of schema.fields) {
+    for (const f of fieldsForSchema()) {
       if (!f.required) continue;
       if (f.type === 'oauth') {
         if (oauthByField[f.key]?.phase !== 'authorized') return false;
@@ -117,6 +128,51 @@
     return raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
   });
 
+  const authProviderLabel = $derived(authProviderName(providerLabel, extension.name));
+  const authActionLabel = $derived(`${authActionVerb(authProviderLabel)} ${authProviderLabel}`);
+  const categoryLabel = $derived(
+    workspaceCategoryLabel(extension.category, extension.name, providerLabel)
+  );
+
+  function needsOAuthFallback(nextSchema: ExtensionSetupSchema | null = schema): boolean {
+    if (!nextSchema) return false;
+    if (nextSchema.oauth_url || nextSchema.fields.some((field) => field.type === 'oauth')) {
+      return false;
+    }
+    if (extension.ready === true || extension.readiness_message === 'ready') return false;
+    const category = (extension.category ?? '').toLowerCase();
+    const readiness = (extension.readiness_message ?? '').toLowerCase();
+    return (
+      category === 'oauth' ||
+      readiness === 'needs_auth' ||
+      readiness.includes('needs_auth') ||
+      readiness.includes('oauth') ||
+      readiness.includes('sign in') ||
+      readiness.includes('auth')
+    );
+  }
+
+  function fallbackOAuthField(): ExtensionSetupField {
+    return {
+      key: OAUTH_FALLBACK_KEY,
+      label: `${providerLabel} connection`,
+      type: 'oauth',
+      required: true,
+      description:
+        'Sign in to authorize this connector. IronClaw will finish the connection once access is confirmed.'
+    };
+  }
+
+  function fieldsForSchema(
+    nextSchema: ExtensionSetupSchema | null = schema
+  ): ExtensionSetupField[] {
+    if (!nextSchema) return [];
+    if (nextSchema.fields.length > 0) return nextSchema.fields;
+    return needsOAuthFallback(nextSchema) ? [fallbackOAuthField()] : [];
+  }
+
+  const effectiveFields = $derived.by<ExtensionSetupField[]>(() => fieldsForSchema());
+
   onMount(() => {
     void loadSchema();
   });
@@ -141,17 +197,17 @@
     const client = connection.client;
     if (!client) {
       loadState = 'error';
-      loadError = 'Not connected to IronClaw.';
+      loadError = 'Not connected to IronClaw';
       return;
     }
     loadState = 'loading';
     loadError = null;
     try {
-      schema = await client.getExtensionSetup(extension.name);
+      const loadedSchema = await client.getExtensionSetup(extension.name);
       // Seed defaults so toggles and selects start with the server's intent.
       const seed: Record<string, string | boolean> = {};
       const oauthSeed: Record<string, OAuthState> = {};
-      for (const f of schema.fields) {
+      for (const f of fieldsForSchema(loadedSchema)) {
         if (f.type === 'boolean') {
           seed[f.key] = f.default === 'true' || (f.default as unknown) === true;
         } else if (f.type === 'oauth') {
@@ -166,6 +222,7 @@
           seed[f.key] = '';
         }
       }
+      schema = loadedSchema;
       values = seed;
       oauthByField = oauthSeed;
       loadState = 'loaded';
@@ -184,6 +241,21 @@
       // Pass values through verbatim — we don't know the gateway's per-field
       // type, so the only coercion is boolean handling (already correct).
       const res = await client.submitExtensionSetup(extension.name, values);
+      if (res.auth_url) {
+        setupSubmitAuth = {
+          phase: 'external',
+          auth_url: res.auth_url,
+          instructions:
+            res.instructions ??
+            res.message ??
+            'Finish sign-in in your browser, then return here to check the connection.',
+          interval_seconds: 5
+        };
+        await launchOAuthUrl(res.auth_url);
+        toasts.show(`Opened ${providerLabel} sign-in in your browser.`, 'info');
+        onSaved();
+        return;
+      }
       if (res.ok) {
         toasts.show(`Saved setup for ${title}`, 'success');
         onSaved();
@@ -197,6 +269,49 @@
       toasts.show(`Failed to save: ${(err as Error).message}`, 'error');
     } finally {
       submitting = false;
+    }
+  }
+
+  async function checkSubmittedBrowserAuthorization() {
+    if (!setupSubmitAuth?.auth_url) return;
+    const client = connection.client;
+    if (!client) return;
+    setupSubmitAuth = { ...setupSubmitAuth, phase: 'starting', error: undefined };
+    try {
+      const res = await client.activateExtension(extension.name);
+      if (res.activated || (res.ok && !res.auth_url && !res.awaiting_token)) {
+        setupSubmitAuth = { ...setupSubmitAuth, phase: 'authorized', error: undefined };
+        toasts.show(`Connected to ${providerLabel}`, 'success');
+        onSaved();
+        onClose();
+        return;
+      }
+      if (res.auth_url) {
+        setupSubmitAuth = {
+          ...setupSubmitAuth,
+          phase: 'external',
+          auth_url: res.auth_url,
+          instructions:
+            res.instructions ??
+            res.message ??
+            'Finish sign-in in your browser, then return here to check the connection.',
+          error: undefined
+        };
+        toasts.show(`Still waiting for ${providerLabel} authorization.`, 'info');
+        return;
+      }
+      setupSubmitAuth = {
+        ...setupSubmitAuth,
+        phase: 'failed',
+        error:
+          res.instructions ?? res.message ?? `Still waiting for ${providerLabel} authorization.`
+      };
+    } catch (err) {
+      setupSubmitAuth = {
+        ...setupSubmitAuth,
+        phase: 'failed',
+        error: `Could not check ${providerLabel} connection: ${humanAuthError(err)}`
+      };
     }
   }
 
@@ -222,7 +337,7 @@
   async function startOAuth(field: ExtensionSetupField) {
     const client = connection.client;
     if (!client) {
-      toasts.show('Not connected to IronClaw.', 'error');
+      toasts.show('Not connected to IronClaw', 'error');
       return;
     }
     // Reset any previous error / countdown timers for this field.
@@ -241,6 +356,8 @@
       verification_uri: undefined,
       user_code: undefined,
       session_id: undefined,
+      auth_url: undefined,
+      instructions: undefined,
       expires_at: undefined,
       expires_in: undefined,
       identity: undefined
@@ -252,6 +369,11 @@
 
       // Server can decline up front — e.g. "Server does not support OAuth".
       if (res.success === false || res.status === 'failed') {
+        const handled = await startBrowserAuthorization(field.key, {
+          autoOpen: true,
+          fallbackMessage: res.message
+        });
+        if (handled) return;
         patchOAuth(field.key, {
           phase: 'failed',
           error: res.message || 'Server refused to start OAuth flow.'
@@ -314,10 +436,108 @@
       schedulePoll(field.key, intervalSeconds);
     } catch (err) {
       if (aborted) return;
+      if (isMissingLoginEndpoint(err)) {
+        const handled = await startBrowserAuthorization(field.key, { autoOpen: true });
+        if (handled) return;
+      }
       patchOAuth(field.key, {
         phase: 'failed',
-        error: (err as Error).message
+        error: humanAuthError(err)
       });
+    }
+  }
+
+  function httpStatus(err: unknown): number | undefined {
+    if (typeof err === 'object' && err && 'status' in err) {
+      const status = (err as { status?: unknown }).status;
+      return typeof status === 'number' ? status : undefined;
+    }
+    return undefined;
+  }
+
+  function isMissingLoginEndpoint(err: unknown): boolean {
+    return httpStatus(err) === 404;
+  }
+
+  function humanAuthError(err: unknown): string {
+    if (isMissingLoginEndpoint(err)) {
+      return 'This IronClaw gateway does not expose device sign-in for this connector yet.';
+    }
+    return err instanceof Error ? err.message : String(err);
+  }
+
+  async function startBrowserAuthorization(
+    fieldKey: string,
+    opts: { autoOpen?: boolean; fallbackMessage?: string; checking?: boolean } = {}
+  ): Promise<boolean> {
+    const client = connection.client;
+    if (!client) return false;
+    patchOAuth(fieldKey, {
+      phase: 'starting',
+      error: undefined,
+      verification_uri: undefined,
+      user_code: undefined,
+      session_id: undefined,
+      auth_url: undefined,
+      instructions: undefined,
+      expires_at: undefined,
+      expires_in: undefined,
+      identity: undefined
+    });
+
+    try {
+      const res = await client.activateExtension(extension.name);
+      if (aborted) return true;
+
+      if (res.activated || (res.ok && !res.auth_url && !res.awaiting_token)) {
+        patchOAuth(fieldKey, {
+          phase: 'authorized',
+          error: undefined,
+          auth_url: undefined,
+          instructions: undefined
+        });
+        toasts.show(`Connected to ${providerLabel}`, 'success');
+        onSaved();
+        return true;
+      }
+
+      if (res.auth_url) {
+        patchOAuth(fieldKey, {
+          phase: 'external',
+          auth_url: res.auth_url,
+          instructions:
+            res.instructions ??
+            res.message ??
+            'Finish sign-in in your browser, then return here to check the connection.',
+          error: undefined
+        });
+        if (opts.autoOpen !== false) {
+          await launchOAuthUrl(res.auth_url);
+          toasts.show(`Opened ${providerLabel} sign-in in your browser.`, 'info');
+        } else if (opts.checking) {
+          toasts.show(`Still waiting for ${providerLabel} authorization.`, 'info');
+        }
+        return true;
+      }
+
+      patchOAuth(fieldKey, {
+        phase: 'failed',
+        error:
+          res.instructions ??
+          res.message ??
+          opts.fallbackMessage ??
+          `This gateway could not start ${providerLabel} sign-in.`
+      });
+      return true;
+    } catch (err) {
+      if (aborted) return true;
+      patchOAuth(fieldKey, {
+        phase: 'failed',
+        error:
+          opts.fallbackMessage ??
+          `This gateway could not start ${providerLabel} sign-in: ${humanAuthError(err)}`
+      });
+      return true;
     }
   }
 
@@ -340,7 +560,7 @@
         phase: 'expired',
         error: 'The authorization code expired before you signed in.'
       });
-      toasts.show('Authorization code expired.', 'error');
+      toasts.show('Authorization code expired', 'error');
       return;
     }
 
@@ -373,7 +593,7 @@
           phase: 'denied',
           error: res.error || 'Authorization was denied.'
         });
-        toasts.show('Authorization denied.', 'error');
+        toasts.show('Authorization denied', 'error');
         return;
       }
 
@@ -382,7 +602,7 @@
           phase: 'expired',
           error: res.error || 'The authorization code expired.'
         });
-        toasts.show('Authorization code expired.', 'error');
+        toasts.show('Authorization code expired', 'error');
         return;
       }
 
@@ -392,7 +612,7 @@
           phase: 'failed',
           error: res.error || `Unexpected status: ${res.status}`
         });
-        toasts.show('Authorization failed.', 'error');
+        toasts.show('Authorization failed', 'error');
         return;
       }
 
@@ -406,7 +626,7 @@
           phase: 'failed',
           error: `Network error after 3 attempts: ${(err as Error).message}`
         });
-        toasts.show('Network error during authorization.', 'error');
+        toasts.show('Network error during authorization', 'error');
         return;
       }
       // Transient error — retry on the same cadence.
@@ -454,9 +674,11 @@
       expires_at: undefined,
       expires_in: undefined,
       identity: undefined,
+      auth_url: undefined,
+      instructions: undefined,
       error: undefined
     });
-    toasts.show(`Cleared local state (server-side disconnect not yet supported).`, 'info');
+    toasts.show(`Cleared local state. Server-side disconnect isn't supported yet.`, 'info');
   }
 
   async function copyToClipboard(text: string, label: string) {
@@ -483,6 +705,56 @@
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function authActionVerb(label: string): string {
+    const lower = label.toLowerCase();
+    if (lower.includes('gmail') || lower.includes('google')) return 'Log in with';
+    return 'Connect';
+  }
+
+  function authProviderName(label: string, name: string | undefined): string {
+    const lower = `${label} ${name ?? ''}`.toLowerCase();
+    if (lower.includes('google_calendar') || lower.includes('google calendar')) return 'Google';
+    return label;
+  }
+
+  function workspaceCategoryLabel(
+    category: string | undefined,
+    name: string | undefined,
+    label: string
+  ): string | null {
+    const c = (category ?? '').toLowerCase();
+    const normalized = `${name ?? ''} ${label}`.toLowerCase();
+    if (normalized.includes('gmail') || normalized.includes('mail')) return 'Mail';
+    if (normalized.includes('calendar') || normalized.includes('gcal')) return 'Calendar';
+    if (normalized.includes('notion')) return 'Knowledge';
+    if (normalized.includes('slack')) return 'Team chat';
+    if (c === 'mcp') return 'Knowledge';
+    if (c === 'oauth') return 'Account';
+    if (c === 'channel') return 'Team chat';
+    if (c === 'wasm_tool' || c === 'tool') return 'Workspace';
+    if (!c) return null;
+    return c.replace(/[_-]+/g, ' ').replace(/^./, (m) => m.toUpperCase());
+  }
+
+  function displayFieldLabel(field: ExtensionSetupField): string {
+    return field.label.replace(/\boauth\b/gi, 'sign-in');
+  }
+
+  function isSecretField(field: ExtensionSetupField): boolean {
+    const type = String(field.type ?? '').toLowerCase();
+    const key = String(field.key ?? '').toLowerCase();
+    const label = String(field.label ?? '').toLowerCase();
+    return (
+      type === 'password' ||
+      type === 'secret' ||
+      type === 'token' ||
+      key.includes('secret') ||
+      key.includes('token') ||
+      label.includes('secret') ||
+      label.includes('token')
+    );
   }
 
   function handleBackdropKey(event: KeyboardEvent) {
@@ -532,11 +804,11 @@
             v{extension.version}
           </span>
         {/if}
-        {#if extension.category}
+        {#if categoryLabel}
           <span
             class="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded border border-border-subtle text-text-muted"
           >
-            {extension.category}
+            {categoryLabel}
           </span>
         {/if}
       </div>
@@ -585,16 +857,91 @@
           Retry
         </button>
       </div>
-    {:else if schema && schema.fields.length === 0 && !schema.oauth_url}
+    {:else if schema && effectiveFields.length === 0 && !schema.oauth_url}
       <div class="surface p-6 text-sm text-text-muted">
-        This extension has no setup fields. {extension.ready
-          ? 'It is ready to use.'
-          : 'Activate it from the card to enable.'}
+        {extension.ready
+          ? `${providerLabel} is connected and ready to use.`
+          : `Activate ${providerLabel} from the card to enable it.`}
       </div>
     {:else if schema}
       <form onsubmit={handleSubmit} class="space-y-5">
         {#if schema.notes}
           <p class="text-xs text-text-muted leading-relaxed">{schema.notes}</p>
+        {/if}
+
+        {#if setupSubmitAuth?.phase === 'external' && setupSubmitAuth.auth_url}
+          <div class="surface px-4 py-5 space-y-4">
+            <div class="space-y-1">
+              <div class="text-sm font-semibold text-text-primary">
+                Finish sign-in in your browser
+              </div>
+              <div class="text-xs text-text-muted leading-relaxed">
+                IronClaw saved the setup details. Complete {providerLabel} sign-in, then check the connection.
+              </div>
+            </div>
+            {#if setupSubmitAuth.instructions}
+              <div
+                class="rounded-md border border-border-subtle bg-bg-deep/60 px-3 py-2 text-xs text-text-muted leading-relaxed"
+              >
+                {setupSubmitAuth.instructions}
+              </div>
+            {/if}
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                onclick={() => launchOAuthUrl(setupSubmitAuth!.auth_url!)}
+                class="flex-1 truncate text-left text-xs font-mono text-accent-cyan underline hover:brightness-110 transition"
+                title={setupSubmitAuth.auth_url}
+              >
+                {setupSubmitAuth.auth_url}
+              </button>
+              <button
+                type="button"
+                onclick={() => copyToClipboard(setupSubmitAuth!.auth_url!, 'Sign-in link')}
+                class="shrink-0 px-2 py-1.5 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition text-[11px] min-h-[32px]"
+              >
+                Copy link
+              </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onclick={() => launchOAuthUrl(setupSubmitAuth!.auth_url!)}
+                class="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md border border-accent-cyan text-accent-cyan hover:bg-accent-cyan hover:text-bg-deep transition text-xs font-semibold min-h-[36px]"
+              >
+                Open sign-in
+              </button>
+              <button
+                type="button"
+                onclick={checkSubmittedBrowserAuthorization}
+                class="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-accent-cyan text-bg-deep hover:brightness-95 transition text-xs font-semibold min-h-[36px]"
+              >
+                Check connection
+              </button>
+            </div>
+          </div>
+        {:else if setupSubmitAuth?.phase === 'starting'}
+          <div class="surface px-4 py-3 text-xs text-text-muted">Checking connection…</div>
+        {:else if setupSubmitAuth?.phase === 'failed'}
+          <div class="surface px-4 py-3 space-y-3">
+            <div class="text-xs text-red-400 break-words">
+              {setupSubmitAuth.error ?? "Couldn't confirm the connector yet"}
+            </div>
+            {#if setupSubmitAuth.auth_url}
+              <button
+                type="button"
+                onclick={() =>
+                  (setupSubmitAuth = {
+                    ...setupSubmitAuth!,
+                    phase: 'external',
+                    error: undefined
+                  })}
+                class="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-95 transition min-h-[40px]"
+              >
+                Continue sign-in
+              </button>
+            {/if}
+          </div>
         {/if}
 
         {#if schema.oauth_url}
@@ -616,11 +963,11 @@
               <polyline points="15 3 21 3 21 9" />
               <line x1="10" y1="14" x2="21" y2="3" />
             </svg>
-            Connect with OAuth
+            {authActionLabel}
           </button>
         {/if}
 
-        {#each schema.fields as field (field.key)}
+        {#each effectiveFields as field (field.key)}
           {@const isOAuthField = field.type === 'oauth'}
           {@const oauthState = oauthByField[field.key]}
           {@const isThisFlowActive =
@@ -631,7 +978,7 @@
               for={`ext-field-${field.key}`}
               class="block text-xs font-semibold text-text-primary"
             >
-              {field.label}
+              {displayFieldLabel(field)}
               {#if field.required}
                 <span class="text-accent-cyan" aria-label="required">*</span>
               {/if}
@@ -702,15 +1049,73 @@
                     type="button"
                     onclick={() => disconnectOAuth(field.key)}
                     class="shrink-0 px-3 py-1.5 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition text-xs min-h-[32px]"
-                    title="Disconnect (clears local state only — server endpoint pending)"
+                    title="Disconnect · clears local state only"
                   >
                     Disconnect
                   </button>
                 </div>
+              {:else if oauthState?.phase === 'external' && oauthState.auth_url}
+                <div class="surface px-4 py-5 space-y-4">
+                  <div class="space-y-1">
+                    <div class="text-sm font-semibold text-text-primary">
+                      Finish sign-in in your browser
+                    </div>
+                    <div class="text-xs text-text-muted leading-relaxed">
+                      After {providerLabel} redirects back to IronClaw, return here and check the connection.
+                    </div>
+                  </div>
+
+                  {#if oauthState.instructions}
+                    <div
+                      class="rounded-md border border-border-subtle bg-bg-deep/60 px-3 py-2 text-xs text-text-muted leading-relaxed"
+                    >
+                      {oauthState.instructions}
+                    </div>
+                  {/if}
+
+                  <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onclick={() => launchOAuthUrl(oauthState.auth_url!)}
+                      class="flex-1 truncate text-left text-xs font-mono text-accent-cyan underline hover:brightness-110 transition"
+                      title={oauthState.auth_url}
+                    >
+                      {oauthState.auth_url}
+                    </button>
+                    <button
+                      type="button"
+                      onclick={() => copyToClipboard(oauthState.auth_url!, 'Sign-in link')}
+                      class="shrink-0 px-2 py-1.5 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition text-[11px] min-h-[32px]"
+                    >
+                      Copy link
+                    </button>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onclick={() => launchOAuthUrl(oauthState.auth_url!)}
+                      class="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md border border-accent-cyan text-accent-cyan hover:bg-accent-cyan hover:text-bg-deep transition text-xs font-semibold min-h-[36px]"
+                    >
+                      Open sign-in
+                    </button>
+                    <button
+                      type="button"
+                      onclick={() =>
+                        startBrowserAuthorization(field.key, {
+                          autoOpen: false,
+                          checking: true
+                        })}
+                      class="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md bg-accent-cyan text-bg-deep hover:brightness-95 transition text-xs font-semibold min-h-[36px]"
+                    >
+                      Check connection
+                    </button>
+                  </div>
+                </div>
               {:else if isThisFlowActive && oauthState?.phase === 'pending'}
                 <div class="surface px-4 py-5 space-y-4">
                   <div class="text-xs text-text-muted leading-relaxed">
-                    Open this URL in your browser and enter the code below.
+                    Open this URL and enter the code below.
                   </div>
 
                   <!-- Verification URI row -->
@@ -764,7 +1169,7 @@
                         <circle cx="12" cy="12" r="10" opacity="0.25" />
                         <path d="M22 12a10 10 0 0 0-10-10" />
                       </svg>
-                      Waiting for you to authorize…
+                      Waiting for authorization…
                     </div>
                     {#if oauthState.expires_at}
                       <div class="text-[11px] font-mono text-text-muted">
@@ -786,7 +1191,7 @@
               {:else if oauthState?.phase === 'denied' || oauthState?.phase === 'expired' || oauthState?.phase === 'failed'}
                 <div class="surface px-3 py-3 space-y-3">
                   <div class="text-xs text-red-400 break-words">
-                    {oauthState.error ?? 'Authorization failed.'}
+                    {oauthState.error ?? 'Authorization failed'}
                   </div>
                   <button
                     type="button"
@@ -830,14 +1235,14 @@
                       <path d="M10 14L21 3" />
                       <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
                     </svg>
-                    Sign in with {providerLabel}
+                    {authActionLabel}
                   {/if}
                 </button>
               {/if}
             {:else}
               <input
                 id={`ext-field-${field.key}`}
-                type={field.type === 'password' ? 'password' : 'text'}
+                type={isSecretField(field) ? 'password' : 'text'}
                 value={String(values[field.key] ?? '')}
                 disabled={lockedByOtherFlow}
                 oninput={(e) =>
@@ -846,9 +1251,9 @@
                     [field.key]: (e.currentTarget as HTMLInputElement).value
                   })}
                 placeholder={field.placeholder ?? ''}
-                autocomplete={field.type === 'password' ? 'new-password' : 'off'}
+                autocomplete={isSecretField(field) ? 'new-password' : 'off'}
                 class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors min-h-[40px] font-mono disabled:opacity-60 disabled:cursor-not-allowed"
-                aria-label={field.label}
+                aria-label={displayFieldLabel(field)}
               />
             {/if}
           </div>

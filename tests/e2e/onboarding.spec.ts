@@ -30,7 +30,7 @@ test('first-run setup lands on dashboard and gates missions by connector readine
   await expect(page.getByRole('heading', { name: 'IronClaw Desktop' })).toBeVisible();
   await expect(page.getByText(/chief of staff/i)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Connect, brief, approve' })).toBeVisible();
-  await expect(page.getByText(/Step 1\s*-\s*connect the runner/i)).toBeVisible();
+  await expect(page.getByText(/Step 1\s*[—-]\s*connect a runner/i)).toBeVisible();
   await expect(page.getByText('Run on this Mac')).toBeVisible();
   await expect(page.getByText('Connect to hosted')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Set up later' })).toBeVisible();
@@ -38,25 +38,7 @@ test('first-run setup lands on dashboard and gates missions by connector readine
 
   await page.getByRole('button', { name: 'Run locally on this Mac' }).click();
 
-  try {
-    await page.waitForURL((url) => url.pathname === '/dashboard', { timeout: 5000 });
-  } catch {
-    await page.evaluate(async () => {
-      const settingsMod = await import(
-        /* @vite-ignore */ '/src/lib/stores/settings.svelte.ts' as string
-      );
-      const navMod = await import(
-        /* @vite-ignore */ '/node_modules/@sveltejs/kit/src/runtime/app/navigation.js' as string
-      );
-      // Defensive: setupLater should already have written this.
-      const cur = await settingsMod.loadSettings();
-      if (cur.onboardingComplete !== true) {
-        await settingsMod.saveSettings({ ...cur, onboardingComplete: true });
-      }
-      await navMod.goto('/dashboard');
-    });
-    await page.waitForURL((url) => url.pathname === '/dashboard', { timeout: 5000 });
-  }
+  await page.waitForURL((url) => url.pathname === '/dashboard', { timeout: 5000 });
 
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
@@ -65,9 +47,9 @@ test('first-run setup lands on dashboard and gates missions by connector readine
   await expect(page.getByText('2. Workspace packs')).toBeVisible();
   await expect(page.getByText('3. Mission launcher')).toBeVisible();
 
-  // Connector state is shown via the gated mission cards below (the hermetic
-  // mock doesn't establish a live gateway socket, so the status bar legitimately
-  // reads "Disconnected" — that's not what this journey asserts).
+  // The hermetic first-run path must land with a healthy mocked local runner;
+  // the connector-readiness journey below should fail if onboarding leaves the
+  // app disconnected.
   const morningBrief = page.getByTestId('mission-card-morning-brief');
   await expect(morningBrief.getByText('Needs Google Workspace')).toBeVisible();
   await expect(
@@ -102,5 +84,5 @@ test('first-run setup lands on dashboard and gates missions by connector readine
   await expect(morningBrief.getByRole('button', { name: 'Morning Brief' })).toBeEnabled();
 
   await morningBrief.getByRole('button', { name: 'Morning Brief' }).click();
-  await page.waitForURL((url) => url.pathname === '/', { timeout: 5000 });
+  await page.waitForURL((url) => url.pathname === '/chat', { timeout: 5000 });
 });

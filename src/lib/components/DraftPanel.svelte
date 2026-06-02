@@ -23,9 +23,9 @@
     if (!draft.draft) return;
     try {
       await navigator.clipboard.writeText(draft.draft);
-      toasts.show('Draft copied to clipboard.', 'success');
+      toasts.show('Draft copied.', 'success');
     } catch {
-      toasts.show('Could not copy — select and copy manually.', 'error');
+      toasts.show('Copy failed. Select and copy manually.', 'error');
     }
   }
 
@@ -70,7 +70,7 @@
           class="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-text-muted
                  hover:text-text-primary hover:bg-bg-hover transition-colors
                  disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Regenerate with the current instruction"
+          title="Rebuild from current instruction"
         >
           <Icon name="pulse" class="w-3.5 h-3.5" />
           Regenerate
@@ -117,7 +117,7 @@
               class="w-3 h-3 rounded-full border-2 border-accent-cyan border-t-transparent animate-spin"
               aria-hidden="true"
             ></span>
-            Writing your draft…
+            Writing draft…
           </div>
         {:else if draft.error}
           <div class="text-red-300/90">{draft.error}</div>
@@ -130,7 +130,7 @@
 
       <footer class="flex items-center gap-2 px-4 py-2 border-t border-border-subtle">
         <span class="flex-1 text-[11px] text-text-muted">
-          Drafted in your voice — read-only; nothing was sent.
+          Drafted in your voice. Read-only; nothing was sent.
         </span>
         <button
           type="button"

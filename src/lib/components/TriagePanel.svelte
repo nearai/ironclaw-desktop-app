@@ -48,7 +48,7 @@
           class="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-text-muted
                  hover:text-text-primary hover:bg-bg-hover transition-colors
                  disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Re-triage with the current threads"
+          title="Re-triage current threads"
         >
           <Icon name="pulse" class="w-3.5 h-3.5" />
           Regenerate
@@ -71,7 +71,7 @@
               class="w-3 h-3 rounded-full border-2 border-accent-cyan border-t-transparent animate-spin"
               aria-hidden="true"
             ></span>
-            Triaging your threads…
+            Triaging threads…
           </div>
         {:else if triage.error}
           <div class="text-red-300/90">{triage.error}</div>
@@ -83,7 +83,7 @@
       </div>
 
       <footer class="px-4 py-2 border-t border-border-subtle text-[11px] text-text-muted">
-        Your Chief of Staff sorted your recent threads — read-only; nothing was changed or sent.
+        Your Chief of Staff sorted recent threads. Read-only; nothing was sent.
       </footer>
     </div>
   </div>

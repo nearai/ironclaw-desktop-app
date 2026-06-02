@@ -6,12 +6,32 @@ const gotoMock = vi.hoisted(() => vi.fn());
 const generateFromMock = vi.hoisted(() => vi.fn(async () => undefined));
 const resetMock = vi.hoisted(() => vi.fn());
 const dismissMock = vi.hoisted(() => vi.fn());
-const runMock = vi.hoisted(() => vi.fn());
-const { connectionStub } = vi.hoisted(() => ({
+const runMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    status: 'created',
+    workItemId: 'work-1',
+    title: 'Work item',
+    artifactId: 'artifact-1',
+    artifactTitle: 'Draft',
+    draftStatus: 'planned'
+  }))
+);
+const { connectionStub, gmState } = vi.hoisted(() => ({
   connectionStub: {
     client: null as null | {
       listExtensions: () => Promise<Extension[]>;
     }
+  },
+  gmState: {
+    status: 'idle',
+    missions: [] as Array<{
+      id: string;
+      title: string;
+      why: string;
+      mode: 'approval' | 'dry-run';
+      deliverable: string;
+    }>,
+    error: null as string | null
   }
 }));
 
@@ -23,9 +43,15 @@ vi.mock('$lib/stores/connection.svelte', () => ({
 
 vi.mock('$lib/stores/generated-missions.svelte', () => ({
   generatedMissions: {
-    status: 'idle',
-    missions: [],
-    error: null,
+    get status() {
+      return gmState.status;
+    },
+    get missions() {
+      return gmState.missions;
+    },
+    get error() {
+      return gmState.error;
+    },
     get available() {
       return connectionStub.client !== null;
     },
@@ -47,6 +73,9 @@ function installClient(extensions: Extension[]): void {
 describe('GeneratedMissionsPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    gmState.status = 'idle';
+    gmState.missions = [];
+    gmState.error = null;
   });
 
   afterEach(() => {
@@ -91,5 +120,28 @@ describe('GeneratedMissionsPanel', () => {
         body: 'Vendor sent a new MSA.'
       })
     ]);
+  });
+
+  it('creates generated actions in Work instead of navigating to chat', async () => {
+    installClient([]);
+    gmState.status = 'ready';
+    gmState.missions = [
+      {
+        id: 'm1',
+        title: 'Prepare the client follow-up',
+        why: 'A call note needs follow-through.',
+        mode: 'approval',
+        deliverable: 'Follow-up draft'
+      }
+    ];
+
+    render(GeneratedMissionsPanel);
+    await fireEvent.click(screen.getByRole('button', { name: 'Create in Work' }));
+
+    expect(runMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1' }));
+    await waitFor(() => {
+      expect(gotoMock).toHaveBeenCalledWith('/work?item=work-1&artifact=artifact-1');
+    });
+    expect(gotoMock).not.toHaveBeenCalledWith('/chat');
   });
 });

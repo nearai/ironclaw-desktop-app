@@ -73,6 +73,97 @@ fn diag_log(msg: String) {
     log::info!(target: "ironclaw_diag", "{msg}");
 }
 
+fn packaged_webview_smoke_enabled() -> bool {
+    std::env::var("IRONCLAW_PACKAGED_WEBVIEW_SMOKE")
+        .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+        .unwrap_or(false)
+}
+
+fn packaged_webview_smoke_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    if let Some(path) = std::env::var_os("IRONCLAW_PACKAGED_WEBVIEW_SMOKE_EVIDENCE") {
+        return Ok(std::path::PathBuf::from(path));
+    }
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("resolve app_data_dir: {e}"))?
+        .join("smoke");
+    let generated_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    Ok(dir.join(format!("packaged-webview-smoke-{generated_at}.json")))
+}
+
+/// Packaged-app test hook. The command is intentionally inert unless the
+/// smoke harness opts in with IRONCLAW_PACKAGED_WEBVIEW_SMOKE=1; the shared
+/// static UI can call it safely on every load without exposing a user-facing
+/// action or filesystem write path.
+#[tauri::command]
+async fn packaged_smoke_request(app: AppHandle) -> Result<serde_json::Value, String> {
+    let enabled = packaged_webview_smoke_enabled();
+    let evidence_path = if enabled {
+        Some(
+            packaged_webview_smoke_path(&app)?
+                .to_string_lossy()
+                .into_owned(),
+        )
+    } else {
+        None
+    };
+    Ok(serde_json::json!({
+        "enabled": enabled,
+        "evidence_path": evidence_path,
+        "schema": "ironclaw-packaged-webview-smoke-request.v1",
+    }))
+}
+
+#[tauri::command]
+async fn packaged_smoke_report(
+    app: AppHandle,
+    report: serde_json::Value,
+) -> Result<String, String> {
+    if !packaged_webview_smoke_enabled() {
+        return Err("packaged WebView smoke is disabled".into());
+    }
+
+    let path = packaged_webview_smoke_path(&app)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("create {}: {e}", parent.display()))?;
+    }
+
+    let written_at_epoch_seconds = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let evidence_path = path.to_string_lossy().into_owned();
+    let payload = match report {
+        serde_json::Value::Object(mut map) => {
+            map.insert(
+                "written_at_epoch_seconds".into(),
+                serde_json::json!(written_at_epoch_seconds),
+            );
+            map.insert("evidence_path".into(), serde_json::json!(evidence_path));
+            serde_json::Value::Object(map)
+        }
+        other => serde_json::json!({
+            "schema": "ironclaw-packaged-webview-smoke.v1",
+            "written_at_epoch_seconds": written_at_epoch_seconds,
+            "evidence_path": evidence_path,
+            "report": other,
+        }),
+    };
+    let bytes =
+        serde_json::to_vec_pretty(&payload).map_err(|e| format!("serialize smoke report: {e}"))?;
+    std::fs::write(&path, bytes).map_err(|e| format!("write {}: {e}", path.display()))?;
+    log::info!(
+        target: "ironclaw_diag",
+        "packaged WebView smoke evidence written to {}",
+        path.display()
+    );
+    Ok(path.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 async fn get_settings(app: AppHandle) -> Result<AppSettings, String> {
     settings::load(&app)
@@ -333,8 +424,8 @@ async fn delete_llm_provider_credential(
 }
 
 #[tauri::command]
-async fn get_or_create_local_token(_app: AppHandle) -> Result<String, String> {
-    keychain::get_or_create_local_token()
+async fn get_or_create_local_token(app: AppHandle) -> Result<String, String> {
+    keychain::get_or_create_local_token(&app)
 }
 
 // ---- Sidecar lifecycle ----------------------------------------------------
@@ -345,6 +436,7 @@ async fn start_sidecar(
     state: State<'_, SidecarState>,
     backend: Option<BackendKind>,
     provider_id: Option<String>,
+    model_id: Option<String>,
     profile_id: String,
 ) -> Result<u16, String> {
     // Default to NEAR.AI Cloud — IronClaw's built-in inference path. The
@@ -369,14 +461,21 @@ async fn start_sidecar(
         .map(|s| s.trim())
         .filter(|s| !s.is_empty());
     let backend_cfg = match provider {
-        Some("nearai") => BackendConfig::Nearai,
+        Some("nearai") => BackendConfig::Nearai {
+            model: clean_model_id(model_id.as_deref()),
+            session_token: nearai_session_token_for_profile(&profile_id),
+            api_key: env_secret("NEARAI_API_KEY"),
+        },
         Some("openrouter") => {
             let api_key = keychain::get_openrouter_key(&profile_id)?
                 .filter(|s| !s.is_empty())
                 .ok_or_else(|| {
                     "Set your OpenRouter API key in Settings before starting local mode".to_string()
                 })?;
-            BackendConfig::Openrouter { api_key }
+            BackendConfig::Openrouter {
+                api_key,
+                model: clean_model_id(model_id.as_deref()),
+            }
         }
         Some("openai") => {
             let api_key = keychain::get_llm_provider_credential(&profile_id, "openai")?
@@ -384,7 +483,10 @@ async fn start_sidecar(
                 .ok_or_else(|| {
                     "Set your OpenAI API key in Settings before starting local mode".to_string()
                 })?;
-            BackendConfig::OpenAi { api_key }
+            BackendConfig::OpenAi {
+                api_key,
+                model: clean_model_id(model_id.as_deref()),
+            }
         }
         Some("anthropic") => {
             let api_key = keychain::get_llm_provider_credential(&profile_id, "anthropic")?
@@ -392,7 +494,10 @@ async fn start_sidecar(
                 .ok_or_else(|| {
                     "Set your Anthropic API key in Settings before starting local mode".to_string()
                 })?;
-            BackendConfig::Anthropic { api_key }
+            BackendConfig::Anthropic {
+                api_key,
+                model: clean_model_id(model_id.as_deref()),
+            }
         }
         Some(other) => {
             return Err(format!(
@@ -401,7 +506,11 @@ async fn start_sidecar(
             ));
         }
         None => match backend.unwrap_or(BackendKind::Nearai) {
-            BackendKind::Nearai => BackendConfig::Nearai,
+            BackendKind::Nearai => BackendConfig::Nearai {
+                model: clean_model_id(model_id.as_deref()),
+                session_token: nearai_session_token_for_profile(&profile_id),
+                api_key: env_secret("NEARAI_API_KEY"),
+            },
             BackendKind::Openrouter => {
                 let api_key = keychain::get_openrouter_key(&profile_id)?
                     .filter(|s| !s.is_empty())
@@ -409,13 +518,268 @@ async fn start_sidecar(
                         "Set your OpenRouter API key in Settings before starting local mode"
                             .to_string()
                     })?;
-                BackendConfig::Openrouter { api_key }
+                BackendConfig::Openrouter {
+                    api_key,
+                    model: clean_model_id(model_id.as_deref()),
+                }
             }
         },
     };
-    let gateway_token = keychain::get_or_create_local_token()?;
+    let gateway_token = keychain::get_or_create_local_token(&app)?;
     sidecar::spawn(app, state, backend_cfg, gateway_token).await
 }
+
+fn clean_model_id(raw: Option<&str>) -> Option<String> {
+    raw.map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn clean_config_string(raw: Option<&str>) -> Option<String> {
+    raw.map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn env_secret(name: &str) -> Option<String> {
+    std::env::var(name)
+        .ok()
+        .and_then(|value| clean_config_string(Some(&value)))
+}
+
+fn nearai_session_token_for_profile(profile_id: &str) -> Option<String> {
+    keychain::get_llm_provider_credential(profile_id, "nearai")
+        .ok()
+        .flatten()
+        .and_then(|value| clean_config_string(Some(&value)))
+        .or_else(|| env_secret("NEARAI_SESSION_TOKEN"))
+}
+
+#[derive(Debug, Clone)]
+struct SidecarBootSelection {
+    profile_id: String,
+    provider_id: Option<String>,
+    backend: Option<BackendKind>,
+    model_id: Option<String>,
+}
+
+impl Default for SidecarBootSelection {
+    fn default() -> Self {
+        Self {
+            profile_id: "default".into(),
+            provider_id: Some("nearai".into()),
+            backend: Some(BackendKind::Nearai),
+            model_id: None,
+        }
+    }
+}
+
+fn sidecar_boot_selection_from_settings(settings: &AppSettings) -> SidecarBootSelection {
+    let Some(profiles) = settings.get("profiles").and_then(|value| value.as_array()) else {
+        return SidecarBootSelection::default();
+    };
+    let active_profile_id = settings
+        .get("activeProfileId")
+        .and_then(|value| value.as_str())
+        .and_then(|value| clean_config_string(Some(value)));
+    let active_profile = active_profile_id
+        .as_deref()
+        .and_then(|id| {
+            profiles.iter().find(|profile| {
+                profile
+                    .get("id")
+                    .and_then(|value| value.as_str())
+                    .map(|candidate| candidate == id)
+                    .unwrap_or(false)
+            })
+        })
+        .or_else(|| profiles.first());
+    let Some(profile) = active_profile else {
+        return SidecarBootSelection::default();
+    };
+
+    let profile_id = profile
+        .get("id")
+        .and_then(|value| value.as_str())
+        .and_then(|value| clean_config_string(Some(value)))
+        .unwrap_or_else(|| "default".into());
+    let backend = match profile
+        .get("llmBackend")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+    {
+        Some("openrouter") => Some(BackendKind::Openrouter),
+        Some("nearai") => Some(BackendKind::Nearai),
+        _ => None,
+    };
+    let provider_id = profile
+        .get("llmProviderId")
+        .and_then(|value| value.as_str())
+        .and_then(|value| clean_config_string(Some(value)))
+        .or_else(|| {
+            profile
+                .get("llmBackend")
+                .and_then(|value| value.as_str())
+                .and_then(|value| clean_config_string(Some(value)))
+        });
+    let model_id = profile
+        .get("llmModelId")
+        .and_then(|value| value.as_str())
+        .and_then(|value| clean_model_id(Some(value)));
+
+    SidecarBootSelection {
+        profile_id,
+        provider_id,
+        backend,
+        model_id,
+    }
+}
+
+fn backend_config_for_selection(selection: &SidecarBootSelection) -> Result<BackendConfig, String> {
+    let provider = selection
+        .provider_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|provider| !provider.is_empty());
+    match provider {
+        Some("nearai") => Ok(BackendConfig::Nearai {
+            model: selection.model_id.clone(),
+            session_token: nearai_session_token_for_profile(&selection.profile_id),
+            api_key: env_secret("NEARAI_API_KEY"),
+        }),
+        Some("openrouter") => {
+            let api_key = keychain::get_openrouter_key(&selection.profile_id)?
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| {
+                    "Set your OpenRouter API key in Settings before starting local mode".to_string()
+                })?;
+            Ok(BackendConfig::Openrouter {
+                api_key,
+                model: selection.model_id.clone(),
+            })
+        }
+        Some("openai") => {
+            let api_key = keychain::get_llm_provider_credential(&selection.profile_id, "openai")?
+                .filter(|s| !s.is_empty())
+                .ok_or_else(|| {
+                    "Set your OpenAI API key in Settings before starting local mode".to_string()
+                })?;
+            Ok(BackendConfig::OpenAi {
+                api_key,
+                model: selection.model_id.clone(),
+            })
+        }
+        Some("anthropic") => {
+            let api_key =
+                keychain::get_llm_provider_credential(&selection.profile_id, "anthropic")?
+                    .filter(|s| !s.is_empty())
+                    .ok_or_else(|| {
+                        "Set your Anthropic API key in Settings before starting local mode"
+                            .to_string()
+                    })?;
+            Ok(BackendConfig::Anthropic {
+                api_key,
+                model: selection.model_id.clone(),
+            })
+        }
+        Some(other) => Err(format!(
+            "LLM provider \"{other}\" is not yet wired in the desktop sidecar. \
+             Supported providers: nearai, openrouter, openai, anthropic."
+        )),
+        None => match selection.backend.unwrap_or(BackendKind::Nearai) {
+            BackendKind::Nearai => Ok(BackendConfig::Nearai {
+                model: selection.model_id.clone(),
+                session_token: nearai_session_token_for_profile(&selection.profile_id),
+                api_key: env_secret("NEARAI_API_KEY"),
+            }),
+            BackendKind::Openrouter => {
+                let api_key = keychain::get_openrouter_key(&selection.profile_id)?
+                    .filter(|s| !s.is_empty())
+                    .ok_or_else(|| {
+                        "Set your OpenRouter API key in Settings before starting local mode"
+                            .to_string()
+                    })?;
+                Ok(BackendConfig::Openrouter {
+                    api_key,
+                    model: selection.model_id.clone(),
+                })
+            }
+        },
+    }
+}
+
+#[cfg(test)]
+mod runtime_model_auth_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn sidecar_boot_selection_uses_active_profile_provider_and_model() {
+        let settings = json!({
+            "activeProfileId": "work",
+            "profiles": [
+                {
+                    "id": "default",
+                    "llmBackend": "nearai",
+                    "llmProviderId": "nearai",
+                    "llmModelId": "auto"
+                },
+                {
+                    "id": "work",
+                    "llmBackend": "nearai",
+                    "llmProviderId": "openai",
+                    "llmModelId": "gpt-4o"
+                }
+            ]
+        });
+
+        let selection = sidecar_boot_selection_from_settings(&settings);
+
+        assert_eq!(selection.profile_id, "work");
+        assert_eq!(selection.provider_id.as_deref(), Some("openai"));
+        assert_eq!(selection.model_id.as_deref(), Some("gpt-4o"));
+        assert!(matches!(selection.backend, Some(BackendKind::Nearai)));
+    }
+
+    #[test]
+    fn sidecar_boot_selection_falls_back_to_nearai_auto_intent() {
+        let selection = sidecar_boot_selection_from_settings(&json!({}));
+
+        assert_eq!(selection.profile_id, "default");
+        assert_eq!(selection.provider_id.as_deref(), Some("nearai"));
+        assert_eq!(selection.model_id, None);
+        assert!(matches!(selection.backend, Some(BackendKind::Nearai)));
+    }
+}
+
+#[cfg(unix)]
+fn install_signal_shutdown(handle: &AppHandle) {
+    let app_handle = handle.clone();
+    tauri::async_runtime::spawn(async move {
+        use tokio::signal::unix::{signal, SignalKind};
+
+        let term = signal(SignalKind::terminate());
+        let int = signal(SignalKind::interrupt());
+        let (Ok(mut term), Ok(mut int)) = (term, int) else {
+            log::warn!(target: "ironclaw_sidecar", "failed to install SIGTERM/SIGINT shutdown handler");
+            return;
+        };
+
+        let signal_name = tokio::select! {
+            _ = term.recv() => "SIGTERM",
+            _ = int.recv() => "SIGINT",
+        };
+        log::info!(target: "ironclaw_sidecar", "{signal_name} received, stopping sidecar");
+        let state = app_handle.state::<SidecarState>();
+        if let Err(err) = sidecar::stop(state).await {
+            log::warn!(target: "ironclaw_sidecar", "signal shutdown sidecar stop failed: {err}");
+        }
+        app_handle.exit(0);
+    });
+}
+
+#[cfg(not(unix))]
+fn install_signal_shutdown(_handle: &AppHandle) {}
 
 #[tauri::command]
 async fn stop_sidecar(state: State<'_, SidecarState>) -> Result<(), String> {
@@ -803,13 +1167,10 @@ pub fn run() {
         // because that IS in the allowlist. Required for production.
         .plugin(tauri_plugin_http::init())
         // Auto-updater plugin. The JS side (@tauri-apps/plugin-updater) wraps
-        // check / downloadAndInstall — no Rust commands needed here.
-        // TODO: tauri.conf.json `plugins.updater.endpoints` currently points
-        // at a placeholder URL (openclaw/ironclaw-desktop releases) and
-        // `pubkey` is empty. Both must be set before shipping a release:
-        //   1. Generate a signing keypair: `npm run tauri signer generate -- -w ~/.tauri/ironclaw.key`
-        //   2. Paste the public key (base64) into `plugins.updater.pubkey`.
-        //   3. Confirm the GitHub release repo + latest.json artifact path.
+        // check / downloadAndInstall — no Rust commands needed here. The
+        // release endpoint and public key live in tauri.conf.json; release
+        // builds still need TAURI_SIGNING_PRIVATE_KEY so updater artifacts can
+        // be signed with the private half of that keypair.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SidecarState::default())
         .manage(tts::TtsState::default())
@@ -829,6 +1190,8 @@ pub fn run() {
         .manage(tray::TrayIconState::default())
         .invoke_handler(tauri::generate_handler![
             diag_log,
+            packaged_smoke_request,
+            packaged_smoke_report,
             get_settings,
             save_settings,
             get_token,
@@ -889,25 +1252,29 @@ pub fn run() {
         // tray visible (least-surprising default).
         .setup(|app| {
             let handle = app.handle();
+            install_signal_shutdown(handle);
 
-            // R63 (lane B6): apply NSVisualEffectMaterial::Sidebar to the
-            // main window so the chrome shows the proper Mail/Finder-style
-            // vibrancy instead of a flat panel. Best-effort — if the API
-            // call fails (older macOS, future Tauri API rename) we log
-            // and continue; the app still works, just without the blur.
-            #[cfg(target_os = "macos")]
             if let Some(window) = app.get_webview_window("main") {
-                use window_vibrancy::{
-                    apply_vibrancy, NSVisualEffectMaterial, NSVisualEffectState,
-                };
-                if let Err(e) = apply_vibrancy(
-                    &window,
-                    NSVisualEffectMaterial::Sidebar,
-                    Some(NSVisualEffectState::Active),
-                    None,
-                ) {
-                    log::warn!(target: "ironclaw_chrome", "vibrancy apply failed: {e}");
+                let initial_visible = window.is_visible().ok();
+                let initial_minimized = window.is_minimized().ok();
+                log::debug!(
+                    target: "ironclaw_window",
+                    "main window found during setup: visible={initial_visible:?} minimized={initial_minimized:?}"
+                );
+                if let Err(e) = window.show() {
+                    log::warn!(target: "ironclaw_window", "show main window on setup failed: {e}");
                 }
+                if let Err(e) = window.set_focus() {
+                    log::debug!(target: "ironclaw_window", "focus main window on setup failed: {e}");
+                }
+                let post_show_visible = window.is_visible().ok();
+                let post_show_minimized = window.is_minimized().ok();
+                log::debug!(
+                    target: "ironclaw_window",
+                    "main window after setup show/focus: visible={post_show_visible:?} minimized={post_show_minimized:?}"
+                );
+            } else {
+                log::warn!(target: "ironclaw_window", "main window missing during setup");
             }
 
             if let Err(e) = tray::create(handle) {
@@ -926,7 +1293,59 @@ pub fn run() {
                     let _ = tray::set_visible(handle, false);
                 }
             }
+
+            let sidecar_handle = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                let state = sidecar_handle.state::<SidecarState>();
+                let selection = settings::load(&sidecar_handle)
+                    .map(|settings| sidecar_boot_selection_from_settings(&settings))
+                    .unwrap_or_else(|err| {
+                        log::warn!(
+                            target: "ironclaw_sidecar",
+                            "auto-start settings load failed; using NEAR.AI Cloud defaults: {err}"
+                        );
+                        SidecarBootSelection::default()
+                    });
+                let backend_cfg = match backend_config_for_selection(&selection) {
+                    Ok(config) => config,
+                    Err(err) => {
+                        log::warn!(
+                            target: "ironclaw_sidecar",
+                            "auto-start provider config failed for profile {}: {err}",
+                            selection.profile_id
+                        );
+                        return;
+                    }
+                };
+                let gateway_token = match keychain::get_or_create_local_token(&sidecar_handle) {
+                    Ok(token) => token,
+                    Err(err) => {
+                        log::warn!(target: "ironclaw_sidecar", "auto-start token load failed: {err}");
+                        return;
+                    }
+                };
+                match sidecar::spawn(sidecar_handle.clone(), state, backend_cfg, gateway_token)
+                .await
+                {
+                    Ok(port) => {
+                        log::info!(target: "ironclaw_sidecar", "auto-started Reborn WebUI sidecar on port {port}");
+                    }
+                    Err(err) => {
+                        log::warn!(target: "ironclaw_sidecar", "auto-start failed: {err}");
+                    }
+                }
+            });
             Ok(())
+        })
+        .on_web_content_process_terminate(|webview| {
+            log::warn!(
+                target: "ironclaw_window",
+                "web content process terminated for webview {:?}; attempting reload",
+                webview.label()
+            );
+            if let Err(e) = webview.reload() {
+                log::warn!(target: "ironclaw_window", "webview reload after termination failed: {e}");
+            }
         })
         // Hide the window on close instead of quitting so the tray stays
         // alive. Quit only happens via the tray "Quit" menu item or
@@ -949,6 +1368,16 @@ pub fn run() {
     // the sidecar there so we never leak a zombie child after the window
     // closes.
     app.run(|app_handle, event| {
+        if let RunEvent::Reopen { .. } = event {
+            if let Some(window) = app_handle.get_webview_window("main") {
+                if let Err(e) = window.show() {
+                    log::warn!(target: "ironclaw_window", "show main window on reopen failed: {e}");
+                }
+                if let Err(e) = window.set_focus() {
+                    log::debug!(target: "ironclaw_window", "focus main window on reopen failed: {e}");
+                }
+            }
+        }
         if let RunEvent::ExitRequested { .. } = event {
             log::info!("App exit requested, stopping sidecar");
             let state = app_handle.state::<SidecarState>();

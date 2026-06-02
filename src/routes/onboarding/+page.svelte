@@ -27,6 +27,7 @@
   import { goto } from '$app/navigation';
   import { IronClawClient } from '$lib/api/ironclaw';
   import { CONNECTOR_PACKS } from '$lib/data/connector-packs';
+  import { DEFAULT_NEARAI_MODEL } from '$lib/data/llm-defaults';
   import { FIRST_RUN_MISSIONS } from '$lib/data/missions';
   import { connection } from '$lib/stores/connection.svelte';
   import NearMark from '$lib/components/NearMark.svelte';
@@ -149,6 +150,7 @@
         mode: 'local',
         llmBackend: 'nearai',
         llmProviderId: 'nearai',
+        llmModelId: DEFAULT_NEARAI_MODEL,
         apiVersion: apiVersionChoice
       });
       const next: AppSettings = { ...$state.snapshot(settings), onboardingComplete: true };
@@ -166,10 +168,7 @@
         toasts.show('Running locally on this Mac', 'success');
         localProgress = 'Ready';
       } else {
-        toasts.show(
-          'Local IronClaw started but isn’t connected yet — finish setup in Settings.',
-          'info'
-        );
+        toasts.show('Local runner started. Finish setup in Settings.', 'info');
         localProgress = '';
       }
       await goto('/dashboard');
@@ -187,7 +186,7 @@
     if (connecting || !activeProfile) return;
     const token = tokenInput.trim();
     if (!token) {
-      errorMsg = 'Paste your access token to connect.';
+      errorMsg = 'Paste your access token to connect';
       return;
     }
     // Validate the gateway URL BEFORE constructing a client — a pasted
@@ -204,7 +203,7 @@
       const probe = new IronClawClient({ baseUrl: url, token });
       const h = await probe.health();
       if (!h.ok) {
-        errorMsg = `Gateway reachable but not healthy (status="${h.status ?? 'unknown'}"). Check the token.`;
+        errorMsg = `Gateway unhealthy (status="${h.status ?? 'unknown'}"). Check the token.`;
         connecting = false;
         return;
       }
@@ -214,11 +213,10 @@
       await saveSettings(next);
       clearBypass();
       await connection.refresh();
-      toasts.show('Connected to hosted IronClaw', 'success');
+      toasts.show('Connected', 'success');
       await goto('/dashboard');
     } catch (err) {
-      errorMsg =
-        (err as Error).message || 'Could not reach the gateway. Check the URL and your network.';
+      errorMsg = (err as Error).message || "Can't reach the gateway. Check the URL and network.";
       connecting = false;
     }
   }
@@ -232,7 +230,7 @@
       await saveSettings({ ...onDisk, onboardingComplete: true });
       clearBypass();
       await connection.refresh();
-      toasts.show('You can finish setup anytime in Settings', 'info');
+      toasts.show('Finish setup anytime in Settings', 'info');
       await goto('/dashboard');
     } catch (err) {
       armBypass();
@@ -263,7 +261,7 @@
       tokenInput = await navigator.clipboard.readText();
       errorMsg = null;
     } catch (err) {
-      errorMsg = (err as Error).message || 'Could not read from the clipboard.';
+      errorMsg = (err as Error).message || "Couldn't read the clipboard";
     }
   }
 </script>
@@ -276,50 +274,14 @@
            because Svelte's scoped CSS does not cross into the component. -->
       <NearMark size={48} style="display: block; margin: 0 auto 1rem; color: var(--v2-accent);" />
       <h1 class="ob__title">IronClaw Desktop</h1>
-      <p class="ob__value">
-        An agentic chief of staff for the work already moving through your apps.
-      </p>
+      <p class="ob__value">A Chief of Staff for the work moving through your apps.</p>
       <p class="ob__sub">
-        Connect a runner, add workspace context, then run a mission that returns drafts and
-        decisions for approval.
+        Connect a runner, add context, run a mission. Get drafts and decisions back to approve.
       </p>
     </header>
 
     {#if view === 'choose'}
-      <section class="ob__preview" aria-labelledby="ob-preview-title">
-        <div class="ob__preview-head">
-          <p class="ob__eyebrow">First run</p>
-          <h2 id="ob-preview-title" class="ob__preview-title">Connect, brief, approve</h2>
-        </div>
-
-        <div class="ob__preview-rows">
-          <div class="ob__preview-row">
-            <div class="ob__preview-copy">
-              <span class="ob__preview-step">Step 2</span>
-              <span class="ob__preview-label">Connect your workspace</span>
-            </div>
-            <div class="ob__chips" aria-label="Workspace connector examples">
-              {#each connectorPreviewLabels as label}
-                <span class="ob__chip">{label}</span>
-              {/each}
-            </div>
-          </div>
-
-          <div class="ob__preview-row">
-            <div class="ob__preview-copy">
-              <span class="ob__preview-step">Step 3</span>
-              <span class="ob__preview-label">Run your first mission</span>
-            </div>
-            <div class="ob__chips" aria-label="First mission examples">
-              {#each missionPreviewTitles as title}
-                <span class="ob__chip">{title}</span>
-              {/each}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div class="ob__section-label">Step 1 - connect the runner</div>
+      <div class="ob__section-label">Step 1 — connect a runner</div>
       <div class="ob__choices">
         <button
           type="button"
@@ -338,8 +300,7 @@
           <span class="ob__choice-copy">
             <span class="ob__choice-title">Run on this Mac</span>
             <span class="ob__choice-desc">
-              Start the local runner so IronClaw can prepare briefs, triage work, and draft actions
-              from this Mac.
+              Run IronClaw on this Mac to brief, triage, and draft locally.
             </span>
           </span>
           <span class="ob__choice-cta"
@@ -369,13 +330,45 @@
           <span class="ob__choice-copy">
             <span class="ob__choice-title">Connect to hosted</span>
             <span class="ob__choice-desc">
-              Use a hosted IronClaw gateway when your team already has one. Sign in and paste your
-              access token.
+              Connect to your team's hosted gateway. Sign in, paste your token.
             </span>
           </span>
           <span class="ob__choice-cta">Hosted →</span>
         </button>
       </div>
+
+      <section class="ob__preview" aria-labelledby="ob-preview-title">
+        <div class="ob__preview-head">
+          <p class="ob__eyebrow">First run</p>
+          <h2 id="ob-preview-title" class="ob__preview-title">Connect, brief, approve</h2>
+        </div>
+
+        <div class="ob__preview-rows">
+          <div class="ob__preview-row">
+            <div class="ob__preview-copy">
+              <span class="ob__preview-step">Workspace</span>
+              <span class="ob__preview-label">Connect your sources</span>
+            </div>
+            <div class="ob__chips" aria-label="Workspace connector examples">
+              {#each connectorPreviewLabels as label}
+                <span class="ob__chip">{label}</span>
+              {/each}
+            </div>
+          </div>
+
+          <div class="ob__preview-row">
+            <div class="ob__preview-copy">
+              <span class="ob__preview-step">Mission</span>
+              <span class="ob__preview-label">Get useful work back</span>
+            </div>
+            <div class="ob__chips" aria-label="First mission examples">
+              {#each missionPreviewTitles as title}
+                <span class="ob__chip">{title}</span>
+              {/each}
+            </div>
+          </div>
+        </div>
+      </section>
     {:else}
       <div class="ob__hosted">
         <button type="button" class="ob__back" onclick={() => (view = 'choose')}>← Back</button>
@@ -384,7 +377,7 @@
           <p class="ob__hint">
             <span>Sign in at</span>
             <button type="button" class="ob__link" onclick={openSignIn}>{signInHost}</button>
-            <span>to get your access token, then paste it below.</span>
+            <span>to get your token, then paste it below.</span>
           </p>
           <div class="ob__token-row">
             <input
@@ -393,7 +386,7 @@
               type={tokenVisible ? 'text' : 'password'}
               autocomplete="off"
               spellcheck="false"
-              placeholder="Paste your IronClaw access token"
+              placeholder="Paste your access token"
               bind:value={tokenInput}
             />
             <button type="button" class="ob__token-btn" onclick={pasteToken}>Paste</button>

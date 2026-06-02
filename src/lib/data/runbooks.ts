@@ -39,8 +39,7 @@ export const RUNBOOKS: Runbook[] = [
     steps: [
       {
         title: 'Investigate',
-        detail:
-          'Read the relevant files, tests, and history to locate the change and its blast radius.',
+        detail: 'Read the files, tests, and history to scope the change and its blast radius.',
         gate: 'read-only'
       },
       {

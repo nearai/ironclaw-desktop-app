@@ -54,8 +54,8 @@
     {#if caughtUp}
       <div class="desk__empty" data-testid="desk-caught-up">
         <p class="desk__empty-title">You're all caught up</p>
-        <p class="desk__empty-sub">Nothing is waiting on your approval right now.</p>
-        <a class="desk__empty-action" href="/">Start a conversation →</a>
+        <p class="desk__empty-sub">Nothing is waiting on your approval.</p>
+        <a class="desk__empty-action" href="/chat">Start a conversation →</a>
       </div>
     {:else}
       {#each gateCards as card (card.id)}
@@ -134,7 +134,7 @@
                     Final state <span>{receipt?.state ?? card.detail ?? 'unknown'}</span>
                   </p>
                   <p class="desk-receipt__summary">
-                    {receipt?.summary ?? 'No result detail available.'}
+                    {receipt?.summary ?? 'No result detail.'}
                   </p>
                   <div class="desk-receipt__foot">
                     {#if (receipt?.fileCount ?? 0) > 0}

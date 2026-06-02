@@ -144,7 +144,7 @@ describe('skillEditor store', () => {
     expect(skillEditor.draft).toBe('modified');
     expect(confirmDialog.ask).toHaveBeenCalledWith({
       title: 'Discard changes to echo?',
-      body: 'This will throw away the unsaved skill source in the editor.',
+      body: 'Discards the unsaved skill source.',
       confirmLabel: 'Discard changes',
       cancelLabel: 'Keep editing',
       tone: 'danger'

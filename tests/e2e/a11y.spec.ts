@@ -79,7 +79,7 @@ const ROUTES: Array<{ path: string; label: string }> = [
   { path: '/desk', label: 'desk' },
   { path: '/work', label: 'work' },
   { path: '/streams', label: 'streams' },
-  { path: '/', label: 'chat' },
+  { path: '/chat', label: 'chat' },
   { path: '/canvas', label: 'canvas' },
   { path: '/knowledge', label: 'knowledge' },
   { path: '/memory', label: 'memory' },
@@ -98,7 +98,7 @@ const ROUTES: Array<{ path: string; label: string }> = [
  *  `aria-label`'d region landmark on their root instead. We wait on that
  *  region rather than an `<h1>` so axe scans against a settled DOM. */
 const REGION_BY_PATH: Record<string, string> = {
-  '/': 'Chat',
+  '/chat': 'Chat',
   '/desk': 'The Desk',
   '/canvas': 'Canvas'
 };

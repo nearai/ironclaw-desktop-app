@@ -79,7 +79,7 @@
     // rather than an unexplained empty screen.
     if (!import.meta.env.DEV) {
       toasts.show('Playground is dev-only.', 'info');
-      void goto('/');
+      void goto('/chat');
       return;
     }
     let mounted = true;

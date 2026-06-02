@@ -135,7 +135,7 @@
     try {
       const blob = await fetchIronHubSkill(entry.name);
       if (!blob) {
-        toasts.show('Could not fetch SKILL.md', 'error');
+        toasts.show("Couldn't fetch SKILL.md", 'error');
         return;
       }
       await navigator.clipboard.writeText(blob.content);
@@ -147,7 +147,7 @@
 
   async function installLocal(entry: IronHubCatalogEntry) {
     if (!localSidecarRunning) {
-      toasts.show('Local sidecar is not running', 'error');
+      toasts.show('Local sidecar not running', 'error');
       return;
     }
     if (installingLocal.has(entry.name)) return;
@@ -178,7 +178,7 @@
   async function tryGatewayInstall(entry: IronHubCatalogEntry) {
     const client = gatewayClient;
     if (!client) {
-      toasts.show('IronClaw gateway is offline', 'error');
+      toasts.show('Gateway offline', 'error');
       return;
     }
     if (installingGateway.has(entry.name)) return;
@@ -199,7 +199,7 @@
 
   /** Cap a README excerpt at ~100 chars for the card body. */
   function shortExcerpt(raw: string | null): string {
-    if (!raw) return 'No description available.';
+    if (!raw) return 'No description';
     const cleaned = raw
       // Drop a leading `# title` line so the excerpt doesn't lead with the
       // skill name (which is already the card heading).
@@ -207,7 +207,7 @@
       .replace(/[#*_`>]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
-    if (cleaned.length <= 110) return cleaned || 'No description available.';
+    if (cleaned.length <= 110) return cleaned || 'No description';
     return cleaned.slice(0, 107).trimEnd() + '…';
   }
 
@@ -257,7 +257,7 @@
         onclick={() => load(true)}
         disabled={loadState === 'loading' || refreshing}
         class="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border-subtle text-text-muted hover:text-text-primary hover:border-accent-cyan transition text-xs min-h-[36px] disabled:opacity-50 disabled:cursor-not-allowed"
-        title="Bypass the 1h cache and re-fetch from GitHub"
+        title="Re-fetch from GitHub now"
       >
         <svg
           viewBox="0 0 24 24"
@@ -342,7 +342,7 @@
             </h2>
           </div>
           {#if catalog.tools.length === 0}
-            <div class="surface px-4 py-3 text-xs text-text-muted">No tools listed.</div>
+            <div class="surface px-4 py-3 text-xs text-text-muted">No tools listed</div>
           {:else}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               {#each catalog.tools as entry (entry.path)}
@@ -378,7 +378,7 @@
                       disabled={!gatewayClient || installingGateway.has(entry.name)}
                       onclick={() => tryGatewayInstall(entry)}
                       title={!gatewayClient
-                        ? 'IronClaw gateway is offline'
+                        ? 'Gateway offline'
                         : `Ask the gateway to installSkill("${entry.name}")`}
                       class="inline-flex items-center px-3 py-1.5 rounded-md border border-accent-cyan/40 text-xs text-accent-cyan hover:bg-accent-cyan/10 transition min-h-[32px] disabled:opacity-40 disabled:cursor-not-allowed"
                     >
@@ -402,7 +402,7 @@
             </h2>
           </div>
           {#if catalog.skills.length === 0}
-            <div class="surface px-4 py-3 text-xs text-text-muted">No skills listed.</div>
+            <div class="surface px-4 py-3 text-xs text-text-muted">No skills listed</div>
           {:else}
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               {#each catalog.skills as entry (entry.path)}
@@ -456,7 +456,7 @@
                       disabled={!gatewayClient || installingGateway.has(entry.name)}
                       onclick={() => tryGatewayInstall(entry)}
                       title={!gatewayClient
-                        ? 'IronClaw gateway is offline'
+                        ? 'Gateway offline'
                         : `Ask the gateway to installSkill("${entry.name}")`}
                       class="inline-flex items-center px-3 py-1.5 rounded-md border border-accent-cyan/40 text-xs text-accent-cyan hover:bg-accent-cyan/10 transition min-h-[32px] disabled:opacity-40 disabled:cursor-not-allowed"
                     >

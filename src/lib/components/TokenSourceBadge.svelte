@@ -69,20 +69,20 @@
       label: 'Keychain',
       dotClass: 'bg-accent-cyan',
       chipClass: 'bg-accent-cyan/10 text-accent-cyan border-accent-cyan/30',
-      title: 'Token loaded from macOS Keychain (normal path).'
+      title: 'Token loaded from macOS Keychain.'
     },
     file: {
       label: 'File fallback',
       dotClass: 'bg-accent-gold',
       chipClass: 'bg-accent-gold/10 text-accent-gold border-accent-gold/30',
       title:
-        'Token loaded from app_data_dir/tokens/. The keychain ACL prompt likely hung; signed Developer-ID builds avoid this path.'
+        'Token loaded from a file, not Keychain. The Keychain prompt likely hung. Signed builds avoid this.'
     },
     absent: {
       label: 'No token',
       dotClass: 'bg-text-muted/50',
       chipClass: 'bg-text-muted/10 text-text-muted border-text-muted/30',
-      title: 'No gateway token saved. Enter one in the profile section above to sign in.'
+      title: 'No gateway token. Add one in the profile section to sign in.'
     }
   };
 </script>

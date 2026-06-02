@@ -95,7 +95,7 @@
     if (dirty) {
       const ok = await confirmDialog.ask({
         title: `Discard changes to ${path}?`,
-        body: 'This will throw away the unsaved edits in the document editor and restore the last saved content.',
+        body: 'Discards unsaved edits and restores the last save.',
         confirmLabel: 'Discard changes',
         cancelLabel: 'Keep editing',
         tone: 'danger'

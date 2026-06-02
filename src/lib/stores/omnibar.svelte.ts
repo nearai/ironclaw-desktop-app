@@ -205,7 +205,7 @@ class OmnibarStore {
             // etc.) on every omnibar pick. Lazy-imported to avoid a
             // cycle through `$app/navigation` in vitest.
             const { goto } = await import('$app/navigation');
-            await goto(`/?thread=${encodeURIComponent(t.id)}`);
+            await goto(`/chat?thread=${encodeURIComponent(t.id)}`);
           }
         });
       }
@@ -277,7 +277,7 @@ class OmnibarStore {
         score: 1.6 - i * 0.001,
         action: async () => {
           const { goto } = await import('$app/navigation');
-          await goto(`/?thread=${encodeURIComponent(h.threadId)}`);
+          await goto(`/chat?thread=${encodeURIComponent(h.threadId)}`);
         }
       }));
     } catch {

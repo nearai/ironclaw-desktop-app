@@ -3,11 +3,10 @@
   state without forcing the user to navigate to a specific page.
 
   Three sections:
-    - Left:    profile name + mode badge (Remote/Local) + sidecar port if
+    - Left:    profile name + mode badge (Remote/Local) + runner port if
                local. Clicking the section navigates to /settings (the
                profile section is the default landing on that page).
-    - Center:  LLM provider id + model name (e.g. "NEAR.AI · auto" or
-               "OpenRouter · deepseek-chat-v3"). Clicks /settings#provider.
+    - Center:  LLM provider id. Clicks /settings#provider.
     - Right:   Live indicators — job queue depth (running + pending,
                gold when >0), rolling 30-day token usage (admin-only,
                hidden otherwise), and the last health-ping latency in ms.
@@ -25,8 +24,8 @@
   `window.matchMedia('(max-width: 899px)')` so resizes update reactively.
 
   Disconnected state replaces the live values with a single "Disconnected"
-  link to /settings. Sidecar-idle (local mode, not started) surfaces a
-  "Start" affordance inline that calls `connection.startSidecar()`.
+  link to /settings. Runner-idle (local mode, not started) surfaces a
+  "Start" affordance inline.
 
   Visibility:
     - Cmd+/ (or Ctrl+/ on non-mac) toggles the bar from the layout.
@@ -95,9 +94,9 @@
   // banner / sidebar dot for connecting / error states).
   const isConnected = $derived(connection.status === 'connected');
 
-  // Sidecar-only convenience flags. Local mode + idle status surfaces
+  // Local-runner convenience flags. Local mode + idle status surfaces
   // the "Start" affordance; the spec calls for this inline action so
-  // the user can wake the sidecar without leaving the bar.
+  // the user can wake the runner without leaving the bar.
   const isLocal = $derived(connection.activeProfile.mode === 'local');
   const sidecarIdle = $derived(
     isLocal && (connection.sidecarStatus === 'idle' || connection.sidecarStatus === 'exited')
@@ -124,14 +123,6 @@
     if (id === 'openrouter') return 'OpenRouter';
     return id;
   });
-
-  /** Model name. We don't ship a per-profile model selection on the
-   *  ProfileConfig surface — the picker stores it elsewhere — so for now
-   *  we render "auto" as a stable placeholder. This stays factual: the
-   *  sidecar resolves the default model from the registry when none is
-   *  pinned. A future pass can pipe a real model name through if/when
-   *  the picker decides to expose it on the profile. */
-  const modelLabel = $derived('auto');
 
   /** Compact format for the token-count figure (e.g. 12.4K). */
   function fmtTokens(n: number): string {
@@ -270,7 +261,7 @@
     role="status"
     aria-label="IronClaw status bar"
   >
-    <!-- Left: profile + mode + sidecar port. Always shown (even in
+    <!-- Left: profile + mode + runner port. Always shown (even in
          compact mode) — this is the highest-signal cell. -->
     <button
       type="button"
@@ -303,14 +294,14 @@
           {modeBadge}
         </span>
         {#if isLocal && connection.sidecarPort != null}
-          <span class="text-[11px] font-mono text-text-muted" aria-label="Sidecar port">
+          <span class="text-[11px] font-mono text-text-muted" aria-label="Runner port">
             :{connection.sidecarPort}
           </span>
         {/if}
       {/if}
     </button>
 
-    <!-- Center: provider + model. Hidden in compact mode. The cell uses
+    <!-- Center: provider. Hidden in compact mode. The cell uses
          flex-1 to soak the middle of the bar so the right section sits
          flush against the viewport edge. -->
     {#if !compact}
@@ -323,10 +314,6 @@
         <span class="text-xs truncate">
           {providerLabel}
         </span>
-        <span class="text-text-muted text-xs" aria-hidden="true">·</span>
-        <span class="text-[11px] font-mono truncate text-text-primary">
-          {modelLabel}
-        </span>
       </button>
     {:else}
       <!-- Compact: a flex spacer so the left section doesn't bleed into
@@ -334,11 +321,11 @@
       <div class="flex-1"></div>
     {/if}
 
-    <!-- Right: live indicators OR offline / sidecar affordances.
+    <!-- Right: live indicators OR offline / runner affordances.
          Hidden in compact mode. -->
     {#if !compact}
       {#if sidecarIdle}
-        <!-- Local-mode but sidecar hasn't started. Render the status
+        <!-- Local-mode but runner hasn't started. Render the status
              text + an inline Start button as siblings (no nested
              interactives so the markup stays valid). The status label
              routes to /jobs; the Start button calls into the connection
@@ -347,18 +334,18 @@
              rather than detouring through /settings. -->
         <div
           class="min-h-[44px] flex items-center gap-2 px-4 text-xs border-l border-border-subtle/70"
-          title="Local sidecar is idle"
+          title="Local runner is idle"
         >
           <button
             type="button"
             onclick={goJobs}
             class="min-h-[44px] text-warning-v2 hover:text-text-primary transition-colors"
           >
-            Sidecar: idle
+            Runner: idle
           </button>
           <button
             type="button"
-            aria-label="Start sidecar"
+            aria-label="Start runner"
             onclick={startSidecar}
             disabled={sidecarStarting}
             class="min-h-[44px] text-[11px] font-medium px-3 rounded border border-accent-cyan/60 text-accent-cyan hover:bg-accent-cyan hover:text-bg-deep transition-colors disabled:opacity-50 disabled:cursor-progress"
@@ -373,7 +360,7 @@
           type="button"
           onclick={goSettings}
           class="min-h-[44px] px-4 flex items-center text-xs text-danger hover:text-text-primary hover:bg-bg-surface/80 transition-colors"
-          title={connection.lastError ?? 'Gateway is offline'}
+          title={connection.lastError ?? 'Runner is offline'}
         >
           Disconnected
         </button>

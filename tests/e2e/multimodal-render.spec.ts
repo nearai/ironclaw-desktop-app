@@ -132,7 +132,7 @@ test('assistant markdown mounts mermaid, math, and plotly render hosts', async (
     pollThreadChanges: { changed: [], deleted: [], nextSince: Date.now() }
   });
 
-  await page.goto('/?thread=thread-multimodal');
+  await page.goto('/chat?thread=thread-multimodal');
 
   await expect(page.getByText('Here is a diagram:')).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('[data-md-renderer="mermaid"]').first()).toHaveCount(1);

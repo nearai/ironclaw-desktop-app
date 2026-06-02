@@ -232,7 +232,7 @@
         <pre
           class="text-xs text-text-primary bg-bg-deep border border-border-subtle rounded-md p-3 whitespace-pre-wrap font-mono leading-relaxed">{mission.goal.trim()}</pre>
       {:else}
-        <p class="text-xs text-text-muted italic">No goal recorded.</p>
+        <p class="text-xs text-text-muted italic">No goal recorded</p>
       {/if}
     </section>
 
@@ -244,7 +244,7 @@
         {/if}
       </h3>
       {#if missionThreads.length === 0}
-        <p class="text-xs text-text-muted italic">No threads recorded.</p>
+        <p class="text-xs text-text-muted italic">No threads recorded</p>
       {:else}
         <ul class="space-y-2">
           {#each missionThreads as thread (thread.id)}

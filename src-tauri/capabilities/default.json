@@ -21,12 +21,14 @@
     {
       "identifier": "shell:allow-execute",
       "allow": [
+        { "name": "binaries/ironclaw-reborn", "sidecar": true, "args": true },
         { "name": "binaries/ironclaw", "sidecar": true, "args": true }
       ]
     },
     {
       "identifier": "shell:allow-kill",
       "allow": [
+        { "name": "binaries/ironclaw-reborn", "sidecar": true, "args": true },
         { "name": "binaries/ironclaw", "sidecar": true, "args": true }
       ]
     },

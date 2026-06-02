@@ -109,7 +109,7 @@ function isJobsReader(reader: DeskJobsReader | LegacyJobsReader): reader is Desk
 function fallbackReceipt(state = 'unknown'): DeskReceipt {
   return {
     state,
-    summary: 'No result detail available.',
+    summary: 'No result detail.',
     fileCount: 0
   };
 }
@@ -272,7 +272,7 @@ export class RebornDesk {
       const summary = summaryFromEvents(events) || compactText(detail?.description ?? '') || '';
       this.receiptsById[jobId] = {
         state: detail?.state || 'unknown',
-        summary: summary || 'No result detail available.',
+        summary: summary || 'No result detail.',
         fileCount
       };
     } catch {

@@ -98,7 +98,7 @@ test('chat slash command opens council overlay with provider chips', async ({ pa
   });
   await pinConnectionConnected(page);
 
-  await page.goto('/');
+  await page.goto('/chat');
 
   const composer = page.getByPlaceholder('Message IronClaw…');
   await composer.fill('/council compare two databases');

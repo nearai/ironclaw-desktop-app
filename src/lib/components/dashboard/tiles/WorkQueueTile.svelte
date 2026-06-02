@@ -187,8 +187,7 @@
       <Icon name="list" class="h-4 w-4 text-text-muted" />
       <p class="text-sm font-semibold text-text-primary">No live work yet</p>
       <p class="max-w-md text-xs leading-5 text-text-muted">
-        Work items are where IronClaw keeps the objective, context, approvals, artifacts, and
-        watches together.
+        A work item holds the objective, context, approvals, artifacts, and watches in one place.
       </p>
     </div>
   {/if}

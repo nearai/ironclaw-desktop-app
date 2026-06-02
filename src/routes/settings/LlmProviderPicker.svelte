@@ -30,6 +30,7 @@
 
   import { open as shellOpen } from '@tauri-apps/plugin-shell';
   import type { LlmModel, LlmProvider } from '$lib/api/types';
+  import { effectiveDefaultModelForProvider } from '$lib/data/llm-defaults';
   import { connection } from '$lib/stores/connection.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import {
@@ -173,9 +174,11 @@
   $effect(() => {
     const provider = selectedProvider;
     if (!provider) return;
-    // ProfileConfig has no per-profile model/base-URL fields yet, so
-    // these drafts are display-only defaults rather than saved overrides.
-    modelDraft = provider.default_model ?? '';
+    const profile = connection.activeProfile;
+    modelDraft =
+      profile?.llmProviderId === provider.id && profile.llmModelId
+        ? profile.llmModelId
+        : effectiveDefaultModelForProvider(provider.id, provider.default_model);
     baseUrlDraft = '';
     credentialDraft = '';
     awsSecretDraft = '';
@@ -222,7 +225,8 @@
           provider.base_url_required && baseUrlDraft.trim()
             ? baseUrlDraft.trim()
             : (provider.base_url ?? ''),
-        model: modelDraft.trim() || provider.default_model || ''
+        model:
+          modelDraft.trim() || effectiveDefaultModelForProvider(provider.id, provider.default_model)
       };
       if (credentialDraft.trim()) {
         config.api_key = credentialDraft.trim();
@@ -272,7 +276,7 @@
     }
     try {
       await shellOpen(`http://127.0.0.1:${port}/`);
-      toasts.show('Opened IronClaw — complete sign-in there', 'info');
+      toasts.show('Opened IronClaw · complete sign-in there', 'info');
     } catch (err) {
       toasts.show(`Could not open browser: ${(err as Error).message}`, 'error');
     }
@@ -296,7 +300,8 @@
       const legacyBackend: LlmBackend = provider.id === 'openrouter' ? 'openrouter' : 'nearai';
       await updateProfile(profile.id, {
         llmProviderId: provider.id,
-        llmBackend: legacyBackend
+        llmBackend: legacyBackend,
+        llmModelId: modelDraft.trim() || undefined
       });
 
       // Save the credential to the right Keychain slot, when the user
@@ -531,8 +536,7 @@
             id="llm-default-model"
             bind:value={modelDraft}
             aria-describedby="llm-default-model-help"
-            disabled
-            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-muted focus:outline-none min-h-[44px] disabled:cursor-not-allowed disabled:opacity-70"
+            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan min-h-[44px]"
           >
             {#each modelOptions as m (m.id)}
               <option value={m.id}>{m.name ?? m.id}</option>
@@ -543,14 +547,17 @@
             id="llm-default-model"
             type="text"
             bind:value={modelDraft}
-            placeholder={selectedProvider.default_model ?? 'model-id'}
+            placeholder={effectiveDefaultModelForProvider(
+              selectedProvider.id,
+              selectedProvider.default_model
+            )}
             aria-describedby="llm-default-model-help"
-            disabled
-            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-muted focus:outline-none min-h-[44px] disabled:cursor-not-allowed disabled:opacity-70"
+            class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan min-h-[44px]"
           />
         {/if}
         <p id="llm-default-model-help" class="mt-1 text-[11px] text-text-muted">
-          Model selection isn't configurable here yet — set it in the IronClaw web UI.
+          Saved on this profile. Local runner changes apply after restart; hosted gateways may keep
+          their server default.
         </p>
         {#if canListModels}
           <button

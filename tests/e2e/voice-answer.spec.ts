@@ -83,7 +83,7 @@ test('composer speaker toggle shows the voice answer bar', async ({ page }) => {
     pollThreadChanges: { changed: [], deleted: [], nextSince: Date.now() }
   });
 
-  await page.goto('/');
+  await page.goto('/chat');
 
   const speaker = page.getByRole('button', { name: /Voice answer off.*click to turn on/i });
   await expect(speaker).toBeEnabled({ timeout: 10_000 });

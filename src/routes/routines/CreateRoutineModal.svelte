@@ -24,23 +24,21 @@
       label: 'Daily Morning Brief',
       description: 'Start each workday with priorities, risks, and follow-ups.',
       schedule: '0 8 * * *',
-      prompt:
-        'Prepare a concise morning brief: priorities, calendar risks, and follow-ups needing my attention.'
+      prompt: 'Prepare a morning brief: priorities, calendar risks, and follow-ups that need me.'
     },
     {
       id: 'inbox-triage',
       label: 'Inbox Triage (hourly)',
       description: 'Scan incoming items and surface decisions that need attention.',
       schedule: '0 * * * *',
-      prompt:
-        'Review new inbox items, group what matters, and flag replies or decisions I should handle.'
+      prompt: 'Review new inbox items, group what matters, flag replies and decisions for me.'
     },
     {
       id: 'weekly-review',
       label: 'Weekly Review',
       description: 'Close the week with open loops and next priorities.',
       schedule: '0 17 * * 5',
-      prompt: 'Summarize the week: wins, open loops, risks, and the three priorities for next week.'
+      prompt: "Summarize the week: wins, open loops, risks, and next week's three priorities."
     },
     {
       id: 'custom',
@@ -188,7 +186,7 @@
         enabled
       });
       if (!result.ok) {
-        toasts.show("Routine creation isn't available on this gateway yet", 'info');
+        toasts.show('Routine creation needs a newer gateway', 'info');
         submitting = false;
         return;
       }
@@ -221,7 +219,7 @@
         <h2 id="create-routine-title" class="text-sm font-semibold text-text-primary">
           New routine
         </h2>
-        <p class="mt-1 text-xs text-text-muted">Pick a starting point, then edit if needed.</p>
+        <p class="mt-1 text-xs text-text-muted">Pick a starting point, then edit.</p>
       </div>
       <button
         type="button"
@@ -368,7 +366,7 @@
               prompt = (event.currentTarget as HTMLTextAreaElement).value;
               promptTouched = true;
             }}
-            placeholder="Write the instruction this routine should run…"
+            placeholder="What should this routine run?"
             class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-cyan transition-colors resize-none"
             class:border-red-500={promptError}
           ></textarea>
@@ -383,7 +381,9 @@
       >
         <span>
           <span class="block text-xs font-medium text-text-primary">Enabled</span>
-          <span class="block text-[11px] text-text-muted">Start this routine after creation.</span>
+          <span class="block text-[11px] text-text-muted"
+            >Start this routine after creating it.</span
+          >
         </span>
         <button
           type="button"

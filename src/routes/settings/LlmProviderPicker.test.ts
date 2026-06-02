@@ -18,7 +18,8 @@ const { connectionStub, clientStub, settingsStub, toastsStub } = vi.hoisted(() =
       remoteBaseUrl: 'https://gateway.example',
       localBaseUrl: 'http://127.0.0.1:3100',
       llmBackend: 'nearai',
-      llmProviderId: 'nearai'
+      llmProviderId: 'nearai',
+      llmModelId: undefined as string | undefined
     },
     sidecarPort: 31337,
     refresh: vi.fn<() => Promise<void>>().mockResolvedValue(undefined)
@@ -79,7 +80,8 @@ const PROVIDERS: LlmProvider[] = [
     adapter: 'nearai',
     credential_kind: 'session_token',
     builtin: true,
-    configured: true
+    configured: true,
+    default_model: 'auto'
   },
   {
     id: 'openrouter',
@@ -87,7 +89,8 @@ const PROVIDERS: LlmProvider[] = [
     adapter: 'open_ai_completions',
     credential_kind: 'api_key',
     builtin: true,
-    configured: false
+    configured: false,
+    default_model: 'deepseek/deepseek-chat-v3-0324'
   },
   {
     id: 'bedrock',
@@ -99,7 +102,7 @@ const PROVIDERS: LlmProvider[] = [
   }
 ];
 
-function setProfile(mode: 'local' | 'remote', llmProviderId: string): void {
+function setProfile(mode: 'local' | 'remote', llmProviderId: string, llmModelId?: string): void {
   connectionStub.activeProfile = {
     id: 'profile-1',
     name: mode === 'local' ? 'Local profile' : 'Remote profile',
@@ -107,7 +110,8 @@ function setProfile(mode: 'local' | 'remote', llmProviderId: string): void {
     remoteBaseUrl: 'https://gateway.example',
     localBaseUrl: 'http://127.0.0.1:3100',
     llmBackend: 'nearai',
-    llmProviderId
+    llmProviderId,
+    llmModelId
   };
 }
 
@@ -155,7 +159,8 @@ describe('LlmProviderPicker local sidecar support', () => {
     await waitFor(() => {
       expect(settingsStub.updateProfile).toHaveBeenCalledWith('profile-1', {
         llmProviderId: 'openrouter',
-        llmBackend: 'openrouter'
+        llmBackend: 'openrouter',
+        llmModelId: 'deepseek/deepseek-chat-v3-0324'
       });
     });
   });
@@ -172,7 +177,26 @@ describe('LlmProviderPicker local sidecar support', () => {
     await waitFor(() => {
       expect(settingsStub.updateProfile).toHaveBeenCalledWith('profile-1', {
         llmProviderId: 'bedrock',
-        llmBackend: 'nearai'
+        llmBackend: 'nearai',
+        llmModelId: undefined
+      });
+    });
+  });
+
+  it('saves an explicit model override with the provider', async () => {
+    setProfile('local', 'nearai', 'nearai/fast');
+    const save = await renderPicker();
+    const model = screen.getByLabelText('Default model') as HTMLInputElement;
+    expect(model.value).toBe('nearai/fast');
+
+    await fireEvent.input(model, { target: { value: 'nearai/pro' } });
+    await fireEvent.click(save);
+
+    await waitFor(() => {
+      expect(settingsStub.updateProfile).toHaveBeenCalledWith('profile-1', {
+        llmProviderId: 'nearai',
+        llmBackend: 'nearai',
+        llmModelId: 'nearai/pro'
       });
     });
   });

@@ -36,6 +36,8 @@ Thumbs.db
 playwright-report/
 test-results/
 tests/e2e/.cache/
+.playwright-cli/
+output/
 
 # Codex parallel-dispatch worktrees (see scripts/codex-dispatch.sh)
 .codex-worktrees/

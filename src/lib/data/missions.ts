@@ -16,7 +16,7 @@ export const FIRST_RUN_MISSIONS: Mission[] = [
   {
     id: 'morning-brief',
     title: 'Morning Brief',
-    description: 'Start the day with active work, open loops, and the top three priorities.',
+    description: 'Active work, open loops, and your top three priorities.',
     icon: 'sunrise',
     required_connectors: ['google'],
     mode: 'approval',
@@ -42,7 +42,7 @@ Use executive brevity. Do not archive, mark read, reply, label, snooze, or chang
   {
     id: 'meeting-prep',
     title: 'Meeting Prep',
-    description: 'Prepare a tight brief for the next important calendar event.',
+    description: 'Brief for your next important calendar event.',
     icon: 'calendar',
     required_connectors: ['google'],
     mode: 'approval',
@@ -81,7 +81,7 @@ Do not send, schedule, archive, label, or modify any email. Return only proposed
   {
     id: 'slack-catchup',
     title: 'Slack Catch-up',
-    description: 'Summarize missed mentions and draft concise replies for priority threads.',
+    description: 'Summarize missed mentions and draft replies for priority threads.',
     icon: 'message-square',
     required_connectors: ['slack'],
     mode: 'approval',
@@ -107,7 +107,7 @@ Use executive brevity. Do not create pages, edit properties, add notes, or write
   {
     id: 'contract-review',
     title: 'Review a Contract',
-    description: 'Flag risks, missing protections, and one-sided terms — with concrete redlines.',
+    description: 'Flag risks, missing protections, and one-sided terms with redlines.',
     icon: 'file-text',
     mode: 'approval',
     prompt: `You are my Chief of Staff giving a contract a first-pass review. Paste the contract text or the key clauses, and tell me which side we are on.

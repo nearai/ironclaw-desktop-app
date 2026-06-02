@@ -113,7 +113,7 @@
       return;
     }
     perThreadPrompts.set(threadId, trimmed);
-    toasts.show('Custom prompt saved for this thread', 'success');
+    toasts.show('Custom prompt saved.', 'success');
     onChanged?.();
     onClose();
   }
@@ -125,7 +125,7 @@
     }
     if (perThreadPrompts.hasOverride(threadId)) {
       perThreadPrompts.clear(threadId);
-      toasts.show('Thread reverted to the default system prompt', 'info');
+      toasts.show('Reverted to the default prompt.', 'info');
       onChanged?.();
     }
     onClose();
@@ -178,7 +178,7 @@
           spellcheck="false"
           autocomplete="off"
           autocapitalize="off"
-          placeholder="You are a Spanish tutor. Reply only in Spanish unless asked otherwise…"
+          placeholder="You are a Spanish tutor. Reply only in Spanish…"
           class="w-full bg-bg-deep border border-border-subtle rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:outline-none focus:border-accent-cyan transition-colors resize-y"
           class:border-accent-gold={overLimit}
         ></textarea>

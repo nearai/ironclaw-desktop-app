@@ -408,7 +408,7 @@
           if (!detail?.browse_url) return;
           const full = `${connection.baseUrl}${detail.browse_url}`;
           void navigator.clipboard?.writeText(full).then(() => {
-            toasts.show('Copied project URL to clipboard', 'success');
+            toasts.show('Copied project URL', 'success');
           });
         }}
         class="px-3 py-1.5 rounded-md border border-border-subtle text-text-muted text-xs hover:border-accent-cyan hover:text-accent-cyan transition-colors min-h-[32px]"
@@ -479,7 +479,7 @@
         {:else if eventsLoading && events.length === 0}
           <div class="text-text-muted">Waiting for events…</div>
         {:else if events.length === 0}
-          <div class="text-text-muted">No events yet.</div>
+          <div class="text-text-muted">No events yet</div>
         {:else}
           {#each events as evt (eventKey(evt))}
             {@const key = eventKey(evt)}
@@ -529,9 +529,9 @@
       {:else if files.length === 0}
         <div class="text-xs text-text-muted">
           {#if detail?.job_kind === 'agent'}
-            Agent jobs do not produce files.
+            Agent jobs produce no files
           {:else}
-            No files in this job's workspace.
+            No files in this job's workspace
           {/if}
         </div>
       {:else}

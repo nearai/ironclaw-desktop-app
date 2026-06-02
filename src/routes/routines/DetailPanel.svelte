@@ -146,7 +146,7 @@
     {:else if loading && runs.length === 0}
       <div class="text-xs text-text-muted py-6 text-center">Loading runs…</div>
     {:else if runs.length === 0}
-      <div class="text-xs text-text-muted py-6 text-center">No runs recorded.</div>
+      <div class="text-xs text-text-muted py-6 text-center">No runs recorded</div>
     {:else}
       <table class="w-full text-xs">
         <thead>

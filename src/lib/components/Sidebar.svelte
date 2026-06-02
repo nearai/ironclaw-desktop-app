@@ -89,7 +89,7 @@
     // sidebar + palette. Completes the chief-of-staff trio: Today / Desk /
     // Streams = "what's planned / what needs me / what happened".
     { href: '/streams', label: 'Streams', icon: 'streams' },
-    { href: '/', label: 'Chat', icon: 'chat', shortcut: '⌘1', badgeKey: 'chat' },
+    { href: '/chat', label: 'Chat', icon: 'chat', shortcut: '⌘1', badgeKey: 'chat' },
     // Council is no longer a route — it's an in-chat overlay summoned from
     // the composer via `/council <prompt>`. (Removed from the nav.)
     // Canvas (R84 / W7). Research-mode spatial surface — no digit slot to
@@ -115,7 +115,7 @@
     // shortcut renumber (Logs Cmd+5 → Cmd+6, Extensions Cmd+6 → Cmd+7,
     // Admin Cmd+7 → Cmd+8). Jobs takes Cmd+5.
     { href: '/jobs', label: 'Jobs', icon: 'jobs', shortcut: '⌘5', badgeKey: 'jobs' },
-    { href: '/logs', label: 'Logs', icon: 'logs', shortcut: '⌘6', badgeKey: 'logs' },
+    { href: '/logs', label: 'Logs', icon: 'logs', shortcut: '⌘6' },
     {
       href: '/extensions',
       label: 'Extensions',
@@ -357,7 +357,6 @@
 
   let skillsCount = $state<number | null>(null);
   let routinesEnabled = $state<number | null>(null);
-  let routinesRunning = $state<number>(0);
   let extensionsCount = $state<number | null>(null);
   /** Jobs badge — number of jobs currently in `in_progress` state. We do
    *  NOT badge `pending` or `stuck` so the count stays a useful "what's
@@ -380,7 +379,6 @@
     if (!client) {
       skillsCount = null;
       routinesEnabled = null;
-      routinesRunning = 0;
       extensionsCount = null;
       jobsRunning = null;
       missionsActive = null;
@@ -407,7 +405,6 @@
     if (skillsRes.status === 'fulfilled') skillsCount = skillsRes.value.length;
     if (routinesRes.status === 'fulfilled') {
       routinesEnabled = routinesRes.value.enabled;
-      routinesRunning = routinesRes.value.running;
     }
     if (extensionsRes.status === 'fulfilled') extensionsCount = extensionsRes.value.length;
     if (jobsRes.status === 'fulfilled') jobsRunning = jobsRes.value.in_progress;
@@ -455,7 +452,6 @@
       stopBadgePolling();
       skillsCount = null;
       routinesEnabled = null;
-      routinesRunning = 0;
       extensionsCount = null;
       jobsRunning = null;
       missionsActive = null;
@@ -499,16 +495,13 @@
   );
 
   /**
-   * Routines badge — collapses to a string. If any routines are running
-   * we render "running/enabled" (e.g. "2/5"); otherwise just the enabled
-   * count. The gateway currently always returns `running: 0` (per a TODO
-   * in IronClawClient.routinesSummary), so the "/N" path is reserved for
-   * when the server lights it up.
+   * Routines badge — the count of enabled routines. The client does not
+   * expose a real running count yet, so avoid implying live scheduler
+   * state we cannot prove.
    */
   const routinesBadge = $derived.by<string | null>(() => {
     if (routinesEnabled === null) return null;
     if (routinesEnabled === 0) return null;
-    if (routinesRunning > 0) return `${routinesRunning}/${routinesEnabled}`;
     return String(routinesEnabled);
   });
 
@@ -542,7 +535,7 @@
   /**
    * Settings yellow dot — surfaces "needs attention" without piling text
    * into the row. Sources:
-   *   - Sidecar in a terminal error / unexpected exit state.
+   *   - Local runner in a terminal error / unexpected exit state.
    *   - Updater in an error state (signature, network, etc).
    *
    * Hidden when neither condition holds, so the row stays quiet in the
@@ -553,18 +546,6 @@
       connection.sidecarStatus === 'exited' ||
       updater.status === 'error'
   );
-
-  /**
-   * Logs red dot — designed to flag a recent ERROR-level entry in the
-   * gateway's tracing buffer. There is no shared logs store today (the
-   * logs page is page-local), so v1 ships dark.
-   *
-   * TODO: once an app-wide logs store lands (or the connection store
-   * starts tracking the last server-side error timestamp via the SSE
-   * /api/logs/events stream), wire this to flip red for ~60s after the
-   * last error event.
-   */
-  const logsHasRecentError = $derived<boolean>(false);
 
   onMount(() => {
     void connection.init();
@@ -649,8 +630,6 @@
         return 'bg-accent-gold';
       case 'work':
         return workAttention ? 'bg-accent-gold' : 'bg-accent-cyan';
-      case 'logs':
-        return 'bg-danger';
       case 'settings':
         return 'bg-accent-gold';
       // Jobs uses gold to match the "Running" tile on the /jobs page and
@@ -690,8 +669,6 @@
         return extensionsBadge !== null;
       case 'missions':
         return missionsBadge !== null;
-      case 'logs':
-        return logsHasRecentError;
       case 'settings':
         return settingsNeedsAttention;
       default:
@@ -870,8 +847,8 @@
 
           <!-- Expanded-mode badges + dots. Three flavors:
                1. Numeric pill — Chat / Skills / Extensions.
-               2. String pill ("2/5") — Routines.
-               3. Attention dot — Settings (gold), Logs (red).
+               2. String pill — Routines.
+               3. Attention dot — Settings (gold).
                All sit before the shortcut hint so the shortcut keeps its
                right-anchored column. -->
           {#if item.badgeKey === 'desk' && deskBadge !== null}
@@ -900,17 +877,11 @@
             <span class="sidebar-badge" aria-label="{missionsBadge} active missions"
               >{missionsBadge}</span
             >
-          {:else if item.badgeKey === 'logs' && logsHasRecentError}
-            <span
-              class="w-2 h-2 rounded-full bg-danger"
-              aria-label="recent errors"
-              title="Recent errors in logs"
-            ></span>
           {:else if item.badgeKey === 'settings' && settingsNeedsAttention}
             <span
               class="w-2 h-2 rounded-full bg-accent-gold"
               aria-label="settings need attention"
-              title={updater.status === 'error' ? 'Updater error' : 'Sidecar needs attention'}
+              title={updater.status === 'error' ? 'Updater error' : 'Runner needs attention'}
             ></span>
           {/if}
 
@@ -1290,8 +1261,7 @@
 
 <style>
   /* Badge pill — small mono number on a dark surface, deliberately muted
-     so it doesn't compete with the row label. Same visual treatment for
-     both numeric (5, 12) and string ("2/5") payloads. */
+     so it doesn't compete with the row label. */
   :global(.sidebar-badge) {
     display: inline-flex;
     align-items: center;

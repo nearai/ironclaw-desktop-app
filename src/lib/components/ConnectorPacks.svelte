@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { untrack } from 'svelte';
   import { goto } from '$app/navigation';
   import {
     CONNECTOR_PACKS,
@@ -47,6 +47,7 @@
     return byName;
   });
 
+  const runnerReady = $derived(connection.client !== null && connection.status === 'connected');
   const anyInstalling = $derived(Object.values(actionByPack).some((action) => action.installing));
 
   const STATUS_VIEW: Record<ConnectorPackStatus, StatusView> = {
@@ -56,6 +57,10 @@
     },
     unknown: {
       label: 'Unknown',
+      classes: 'border-border-subtle text-text-muted bg-bg-deep'
+    },
+    locked: {
+      label: 'Needs runner',
       classes: 'border-border-subtle text-text-muted bg-bg-deep'
     },
     connected: {
@@ -76,10 +81,6 @@
     }
   };
 
-  onMount(() => {
-    void refreshReadiness();
-  });
-
   const packStatuses = $derived.by(() => {
     const statuses: Record<string, ConnectorPackStatus> = {};
     for (const pack of packs) {
@@ -90,6 +91,16 @@
 
   $effect(() => {
     onreadinesschange?.(packStatuses);
+  });
+
+  $effect(() => {
+    if (!runnerReady) {
+      installed = [];
+      loadState = 'idle';
+      loadError = null;
+      return;
+    }
+    untrack(() => void refreshReadiness());
   });
 
   function createActionState(): Record<string, PackActionState> {
@@ -125,6 +136,7 @@
   }
 
   function statusForPack(pack: ConnectorPack, source = installedByName): ConnectorPackStatus {
+    if (!runnerReady) return 'locked';
     if (loadState === 'loading' && installed.length === 0) return 'checking';
     if (loadState === 'error' && installed.length === 0) return 'unknown';
     return connectorPackStatus(pack, source);
@@ -136,10 +148,11 @@
 
   async function refreshReadiness(opts: { quiet?: boolean } = {}): Promise<Extension[] | null> {
     const client = connection.client;
-    if (!client) {
+    if (!client || connection.status !== 'connected') {
       if (!opts.quiet) {
         loadState = 'idle';
         loadError = null;
+        installed = [];
       }
       return null;
     }
@@ -195,10 +208,10 @@
 
   async function handleConnect(pack: ConnectorPack): Promise<void> {
     const client = connection.client;
-    if (!client) {
+    if (!client || connection.status !== 'connected') {
       setPackAction(pack.id, {
         installing: false,
-        message: 'Not connected — connect IronClaw first',
+        message: 'Connect a healthy runner first.',
         error: null,
         unavailable: false
       });
@@ -231,8 +244,8 @@
         const unavailable = isEndpointUnavailable(readinessError);
         setPackAction(pack.id, {
           installing: false,
-          message: unavailable ? 'Not available on this gateway yet' : null,
-          error: unavailable ? null : (loadError ?? 'Could not check connector readiness.'),
+          message: unavailable ? 'Not available on this gateway' : null,
+          error: unavailable ? null : (loadError ?? 'Could not check connectors.'),
           unavailable
         });
         return;
@@ -244,7 +257,7 @@
           installing: false,
           message:
             optionalFailures > 0
-              ? 'Connected; optional apps unavailable on this gateway.'
+              ? 'Connected. Optional apps unavailable on this gateway.'
               : 'Connected',
           error: null,
           unavailable: false
@@ -256,7 +269,7 @@
       if (status === 'needs-auth') {
         setPackAction(pack.id, {
           installing: false,
-          message: 'Sign-in required — open setup',
+          message: 'Sign-in required. Open setup.',
           error: null,
           unavailable: false
         });
@@ -268,8 +281,8 @@
         installing: false,
         message:
           optionalFailures > 0
-            ? 'Core apps installed — optional apps unavailable. Open setup if credentials are needed.'
-            : 'Install requested — open setup if credentials are needed.',
+            ? 'Core apps installed. Open setup if optional apps need credentials.'
+            : 'Install requested. Open setup if credentials are needed.',
         error: null,
         unavailable: false
       });
@@ -278,7 +291,7 @@
       const unavailable = isEndpointUnavailable(error);
       setPackAction(pack.id, {
         installing: false,
-        message: unavailable ? 'Not available on this gateway yet' : null,
+        message: unavailable ? 'Not available on this gateway' : null,
         error: unavailable ? null : describeError(error),
         unavailable
       });
@@ -307,14 +320,12 @@
       <h2 id="connector-packs-heading" class="text-lg font-semibold text-text-primary">
         Workspace Packs
       </h2>
-      <p class="mt-1 text-sm text-text-muted">
-        Connect curated extension bundles for common workspaces.
-      </p>
+      <p class="mt-1 text-sm text-text-muted">Curated extension bundles for common workspaces.</p>
     </div>
     <button
       type="button"
       onclick={() => refreshReadiness()}
-      disabled={!connection.client || loadState === 'loading' || anyInstalling}
+      disabled={!runnerReady || loadState === 'loading' || anyInstalling}
       class="inline-flex min-h-[44px] items-center justify-center rounded-md border border-border-subtle px-3 py-2 text-sm font-semibold text-text-muted transition hover:border-accent-cyan hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
     >
       {loadState === 'loading' ? 'Checking…' : 'Refresh'}
@@ -326,21 +337,21 @@
       class="rounded-md border border-border-subtle bg-bg-surface px-4 py-3 text-sm text-text-muted"
       role="status"
     >
-      Checking connector readiness…
+      Checking connectors…
     </div>
   {:else if loadState === 'error'}
     <div
       class="rounded-md border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
       role="status"
     >
-      Could not check connector readiness.
+      Could not check connectors.
       <span class="font-mono text-xs text-red-200/80">{loadError ?? 'Unknown error'}</span>
     </div>
   {/if}
 
   {#if packs.length === 0}
     <div class="rounded-lg border border-border-subtle bg-bg-surface p-6 text-sm text-text-muted">
-      No workspace packs are available.
+      No workspace packs available.
     </div>
   {:else}
     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -387,8 +398,8 @@
                 class="rounded-md border border-border-subtle bg-bg-deep px-3 py-2 text-xs text-text-primary"
                 role="status"
               >
-                {#if action.message === 'Sign-in required — open setup'}
-                  <span>Sign-in required — </span>
+                {#if action.message === 'Sign-in required. Open setup.'}
+                  <span>Sign-in required. </span>
                   <a
                     href={extensionsHref(pack, { setup: true })}
                     class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
@@ -413,15 +424,17 @@
               <button
                 type="button"
                 onclick={() => handleConnect(pack)}
-                disabled={action?.installing === true}
+                disabled={!runnerReady || action?.installing === true}
                 aria-busy={action?.installing === true}
                 class="inline-flex min-h-[44px] w-full items-center justify-center rounded-md bg-accent-cyan px-4 py-2 text-sm font-semibold text-bg-deep transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {action?.installing
                   ? 'Connecting…'
-                  : status === 'connected'
-                    ? 'Reconnect'
-                    : 'Connect'}
+                  : !runnerReady
+                    ? 'Connect runner first'
+                    : status === 'connected'
+                      ? 'Reconnect'
+                      : 'Connect'}
               </button>
               <button
                 type="button"

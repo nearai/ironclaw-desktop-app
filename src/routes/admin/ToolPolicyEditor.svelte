@@ -305,7 +305,7 @@
       toasts.show(
         skipped > 0
           ? `Only locked tools in scope; nothing to ${verb.toLowerCase()}.`
-          : 'No tools match the current filter.',
+          : 'No tools match the filter',
         'info'
       );
       return;
@@ -346,13 +346,13 @@
     // shouldn't be — the lock implies a non-escalated default).
     const scope = filterActive ? filteredRows : allRows;
     if (scope.length === 0) {
-      toasts.show('No tools match the current filter.', 'info');
+      toasts.show('No tools match the filter', 'info');
       return;
     }
     if (scope.length > 5) {
       const ok = await confirmDialog.ask({
         title: `Reset ${scope.length} tool${scope.length === 1 ? '' : 's'} to default?`,
-        body: `This resets every tool in the current ${filterActive ? 'filtered' : 'visible'} scope to its own gateway default policy.`,
+        body: `Resets every tool in the ${filterActive ? 'filtered' : 'visible'} scope to its gateway default.`,
         confirmLabel: 'Reset tools',
         cancelLabel: 'Keep current policy',
         tone: 'danger'
@@ -491,10 +491,11 @@
     <div class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]">
       <div class="text-sm text-text-primary mb-2">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check <a
+        Configure the connection in
+        <a
           href="/settings"
           class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
-        > to configure the connection.
+        >.
       </div>
     </div>
   {:else if loadState === 'loading'}
@@ -609,7 +610,7 @@
             type="button"
             onclick={clearFilters}
             class="ml-auto text-[11px] text-text-muted hover:text-accent-gold transition"
-            title="Clear search + filter"
+            title="Clear search and filter"
           >
             Clear filters
           </button>
@@ -653,7 +654,7 @@
     <div class="flex-1 min-h-0 overflow-auto surface">
       {#if filteredRows.length === 0}
         <div class="p-10 text-center text-xs text-text-muted">
-          {filterActive ? 'No tools match the current filter.' : 'No tools available.'}
+          {filterActive ? 'No tools match the filter' : 'No tools available'}
         </div>
       {:else}
         <div

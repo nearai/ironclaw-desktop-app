@@ -42,7 +42,7 @@
   async function loadCatalog(): Promise<void> {
     const client = connection.client;
     if (!client) {
-      catalogError = 'IronClaw is not connected';
+      catalogError = 'IronClaw is offline';
       providers = [];
       return;
     }
@@ -100,7 +100,7 @@
   async function onConvene(): Promise<void> {
     const client = connection.client;
     if (!client) {
-      toasts.show('Not connected — check Settings.', 'error');
+      toasts.show('IronClaw is offline. Verify the gateway in Settings.', 'error');
       return;
     }
     if (!canConvene) return;
@@ -117,7 +117,7 @@
     try {
       const threadId = await council.promote(idx, client);
       council.closePanel();
-      await goto(`/?thread=${encodeURIComponent(threadId)}`);
+      await goto(`/chat?thread=${encodeURIComponent(threadId)}`);
     } catch {
       // promote() already surfaces a toast on failure.
     }
@@ -146,7 +146,7 @@
       class="w-full max-w-4xl max-h-[85vh] flex flex-col rounded-xl border border-border-subtle bg-bg-surface shadow-2xl"
       role="dialog"
       aria-modal="true"
-      aria-label="Council — ask multiple models"
+      aria-label="Council, ask multiple models"
       tabindex="-1"
       onclick={(e) => e.stopPropagation()}
     >
@@ -238,7 +238,7 @@
       </div>
 
       <footer class="px-4 py-2 border-t border-border-subtle text-[11px] text-text-muted">
-        Responses run sequentially. Promote any column to continue it as a chat thread.
+        Responses run in sequence. Promote any column to a thread.
       </footer>
     </div>
   </div>

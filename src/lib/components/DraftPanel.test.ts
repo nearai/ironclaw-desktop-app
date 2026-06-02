@@ -37,7 +37,7 @@ describe('DraftPanel component', () => {
     const { container } = render(DraftPanel, { props: { onRegenerate: vi.fn() } });
     await tick();
     expect(container.textContent).toContain('Draft');
-    expect(container.textContent).toContain('Writing your draft');
+    expect(container.textContent).toContain('Writing draft');
     expect(container.textContent).toContain('Vendor contract');
   });
 

@@ -7,8 +7,8 @@
 //
 // The bundled binary is wired up via `bundle.externalBin` in
 // `tauri.conf.json`. At runtime, Tauri's shell plugin resolves
-// `binaries/ironclaw` to the per-target-triple variant (e.g.
-// `binaries/ironclaw-aarch64-apple-darwin`). If the file is missing — for
+// `binaries/ironclaw-reborn` to the per-target-triple variant (e.g.
+// `binaries/ironclaw-reborn-aarch64-apple-darwin`). If the file is missing — for
 // example a debug build that didn't go through `tauri build` — spawn will
 // return a clear error.
 
@@ -22,6 +22,7 @@ use tauri_plugin_shell::{
 };
 use tokio::sync::Mutex;
 
+const PREFERRED_PORT: u16 = 3000;
 const PORT_MIN: u16 = 3100;
 const PORT_MAX: u16 = 3200;
 const HEALTH_POLL_INTERVAL: Duration = Duration::from_millis(250);
@@ -38,16 +39,31 @@ const HEALTH_POLL_TIMEOUT: Duration = Duration::from_secs(15);
 /// ollama, groq, mistral, cohere, fireworks, together, etc.
 #[derive(Debug, Clone)]
 pub enum BackendConfig {
-    /// NEAR.AI Cloud — IronClaw's built-in inference. No API key at spawn;
-    /// auth happens inside IronClaw via its onboard/login flow on first
-    /// connect.
-    Nearai,
+    /// NEAR.AI Cloud — IronClaw's built-in inference. The desktop can pass
+    /// a vaulted NEAR.AI session token/API key when one exists, but an
+    /// unauthenticated sidecar is still allowed to start so the packaged UI
+    /// can render an honest "sign in required" state instead of failing to
+    /// boot.
+    Nearai {
+        model: Option<String>,
+        session_token: Option<String>,
+        api_key: Option<String>,
+    },
     /// OpenRouter (openai-compatible). Requires a non-empty API key.
-    Openrouter { api_key: String },
+    Openrouter {
+        api_key: String,
+        model: Option<String>,
+    },
     /// OpenAI native API. Requires a non-empty API key.
-    OpenAi { api_key: String },
+    OpenAi {
+        api_key: String,
+        model: Option<String>,
+    },
     /// Anthropic native API. Requires a non-empty API key.
-    Anthropic { api_key: String },
+    Anthropic {
+        api_key: String,
+        model: Option<String>,
+    },
 }
 
 /// Shared state held by Tauri's manager. Only one sidecar is supported at
@@ -80,22 +96,22 @@ pub async fn spawn(
     // handles auth via its own onboard/login flow on first connect. The
     // other three v1 providers all require a non-empty API key.
     match &backend {
-        BackendConfig::Nearai => {}
-        BackendConfig::Openrouter { api_key } => {
+        BackendConfig::Nearai { .. } => {}
+        BackendConfig::Openrouter { api_key, .. } => {
             if api_key.trim().is_empty() {
                 return Err(
                     "Set your OpenRouter API key in Settings before starting local mode".into(),
                 );
             }
         }
-        BackendConfig::OpenAi { api_key } => {
+        BackendConfig::OpenAi { api_key, .. } => {
             if api_key.trim().is_empty() {
                 return Err(
                     "Set your OpenAI API key in Settings before starting local mode".into(),
                 );
             }
         }
-        BackendConfig::Anthropic { api_key } => {
+        BackendConfig::Anthropic { api_key, .. } => {
             if api_key.trim().is_empty() {
                 return Err(
                     "Set your Anthropic API key in Settings before starting local mode".into(),
@@ -116,8 +132,12 @@ pub async fn spawn(
     let port = pick_free_port()?;
     let cwd = ensure_data_dir(&app)?;
 
-    // Base env shared by both backends (gateway wiring, db, agent name).
+    // Base env shared by both sidecar generations. The Reborn WebUI v2
+    // serve path consumes the IRONCLAW_REBORN_* values; the legacy names
+    // stay here for any lower-level runtime shims that still read them.
     let mut envs: Vec<(String, String)> = vec![
+        ("IRONCLAW_REBORN_WEBUI_TOKEN".into(), gateway_token.clone()),
+        ("IRONCLAW_REBORN_WEBUI_USER_ID".into(), "owner".into()),
         ("GATEWAY_AUTH_TOKEN".into(), gateway_token),
         ("GATEWAY_HOST".into(), "127.0.0.1".into()),
         ("GATEWAY_PORT".into(), port.to_string()),
@@ -131,12 +151,41 @@ pub async fn spawn(
     // backend; OpenRouter, OpenAI, and Anthropic each get their own env
     // block matching the gateway's catalog entries.
     match &backend {
-        BackendConfig::Nearai => {
+        BackendConfig::Nearai {
+            model,
+            session_token,
+            api_key,
+        } => {
+            let env_session_token = std::env::var("NEARAI_SESSION_TOKEN").ok();
+            let env_api_key = std::env::var("NEARAI_API_KEY").ok();
+            let session_token = clean_secret(session_token.as_deref())
+                .or_else(|| clean_secret(env_session_token.as_deref()));
+            let api_key =
+                clean_secret(api_key.as_deref()).or_else(|| clean_secret(env_api_key.as_deref()));
+            let auth_configured = session_token.is_some() || api_key.is_some();
+            let selected = if auth_configured {
+                selected_model(model, "auto")
+            } else {
+                "auto".to_owned()
+            };
             envs.extend([
                 ("LLM_BACKEND".into(), "nearai".into()),
                 ("NEARAI_BASE_URL".into(), "https://private.near.ai".into()),
                 ("NEARAI_API_URL".into(), "https://private.near.ai/v1".into()),
-                ("NEARAI_MODEL".into(), "auto".into()),
+                ("NEARAI_MODEL".into(), selected),
+                (
+                    "IRONCLAW_DESKTOP_NEARAI_AUTH_CONFIGURED".into(),
+                    auth_configured.to_string(),
+                ),
+                (
+                    "IRONCLAW_DESKTOP_MODEL_READINESS_REASON".into(),
+                    if auth_configured {
+                        "NEAR.AI credential is configured; execution readiness still depends on a successful WebChat run."
+                    } else {
+                        "NEAR.AI is selected, but no NEARAI_SESSION_TOKEN, NEARAI_API_KEY, or vaulted nearai credential is available in this desktop build."
+                    }
+                    .into(),
+                ),
                 (
                     "IRONCLAW_OAUTH_EXCHANGE_URL".into(),
                     "https://ironclaw-oauth.up.railway.app".into(),
@@ -146,40 +195,59 @@ pub async fn spawn(
                     "https://ironclaw-oauth.up.railway.app".into(),
                 ),
             ]);
+            if let Some(token) = session_token {
+                envs.push(("NEARAI_SESSION_TOKEN".into(), token));
+            }
+            if let Some(key) = api_key {
+                envs.push(("NEARAI_API_KEY".into(), key));
+            }
+            if !auth_configured {
+                log::warn!(
+                    target: "ironclaw_sidecar",
+                    "NEAR.AI selected without session/API credential; starting sidecar with model=auto and execution unverified"
+                );
+            }
         }
-        BackendConfig::Openrouter { api_key } => {
+        BackendConfig::Openrouter { api_key, model } => {
             envs.extend([
                 ("LLM_BACKEND".into(), "openai_compatible".into()),
                 ("LLM_BASE_URL".into(), "https://openrouter.ai/api/v1".into()),
-                ("LLM_MODEL".into(), "deepseek/deepseek-chat-v3-0324".into()),
+                (
+                    "LLM_MODEL".into(),
+                    selected_model(model, "deepseek/deepseek-chat-v3-0324"),
+                ),
                 ("OPENROUTER_API_KEY".into(), api_key.clone()),
             ]);
         }
-        BackendConfig::OpenAi { api_key } => {
+        BackendConfig::OpenAi { api_key, model } => {
             envs.extend([
                 ("LLM_BACKEND".into(), "openai".into()),
                 ("LLM_BASE_URL".into(), "https://api.openai.com/v1".into()),
-                ("LLM_MODEL".into(), "gpt-4o-mini".into()),
+                ("LLM_MODEL".into(), selected_model(model, "gpt-4o-mini")),
                 ("OPENAI_API_KEY".into(), api_key.clone()),
             ]);
         }
-        BackendConfig::Anthropic { api_key } => {
+        BackendConfig::Anthropic { api_key, model } => {
             envs.extend([
                 ("LLM_BACKEND".into(), "anthropic".into()),
                 ("LLM_BASE_URL".into(), "https://api.anthropic.com".into()),
-                ("LLM_MODEL".into(), "claude-3-5-sonnet-latest".into()),
+                (
+                    "LLM_MODEL".into(),
+                    selected_model(model, "claude-3-5-sonnet-latest"),
+                ),
                 ("ANTHROPIC_API_KEY".into(), api_key.clone()),
             ]);
         }
     }
 
+    let port_arg = port.to_string();
     let command = app
         .shell()
-        .sidecar("ironclaw")
+        .sidecar("ironclaw-reborn")
         .map_err(|e| sidecar_missing_error(e.to_string()))?
         .envs(envs)
         .current_dir(&cwd)
-        .args(["--no-onboard", "run"]);
+        .args(["serve", "--host", "127.0.0.1", "--port", port_arg.as_str()]);
 
     let (mut rx, child) = command.spawn().map_err(|e| format!("spawn sidecar: {e}"))?;
 
@@ -253,6 +321,22 @@ pub async fn spawn(
     }
 }
 
+fn selected_model(configured: &Option<String>, fallback: &str) -> String {
+    configured
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(fallback)
+        .to_owned()
+}
+
+fn clean_secret(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
 /// Stop the running sidecar if any. Idempotent.
 pub async fn stop(state: State<'_, SidecarState>) -> Result<(), String> {
     stop_inner(&state).await
@@ -284,6 +368,9 @@ pub async fn status(state: State<'_, SidecarState>) -> SidecarStatus {
 // ---- helpers --------------------------------------------------------------
 
 fn pick_free_port() -> Result<u16, String> {
+    if TcpListener::bind(("127.0.0.1", PREFERRED_PORT)).is_ok() {
+        return Ok(PREFERRED_PORT);
+    }
     for port in PORT_MIN..=PORT_MAX {
         if TcpListener::bind(("127.0.0.1", port)).is_ok() {
             return Ok(port);
@@ -400,6 +487,6 @@ async fn http_health_probe(url: &str) -> Result<(), String> {
 fn sidecar_missing_error(detail: String) -> String {
     format!(
         "Local sidecar binary not bundled — rebuild with `npm run tauri build` after running \
-         src-tauri/binaries/download.sh ({detail})"
+         src-tauri/binaries/download.sh or copying ironclaw-reborn ({detail})"
     )
 }

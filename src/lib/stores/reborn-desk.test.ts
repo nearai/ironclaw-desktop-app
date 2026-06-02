@@ -290,7 +290,7 @@ describe('RebornDesk handled jobs', () => {
 
     expect(desk.receiptsById['job-failed-123456']).toEqual({
       state: 'unknown',
-      summary: 'No result detail available.',
+      summary: 'No result detail.',
       fileCount: 0
     });
   });

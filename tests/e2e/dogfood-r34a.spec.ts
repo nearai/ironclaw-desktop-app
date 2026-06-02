@@ -176,7 +176,7 @@ const ROUTES: Array<{
   label: string;
   landmark: RegExp;
 }> = [
-  { path: '/', label: 'chat-threads', landmark: /Threads|New chat|Chat/i },
+  { path: '/chat', label: 'chat-threads', landmark: /Threads|New chat|Chat/i },
   { path: '/knowledge', label: 'knowledge', landmark: /Knowledge|Memory|MEMORY\.md/i },
   { path: '/skills', label: 'skills', landmark: /Skills|skill/i },
   { path: '/routines', label: 'routines', landmark: /Routines|routine/i },
@@ -245,7 +245,7 @@ test(`dogfood: chat send roundtrip (skipped unless IRONCLAW_DOGFOOD_FUNCTIONAL=1
   const sinks = attachErrorSinks(page);
   await mockTauri(page, { settings: REAL_SETTINGS, token: TOKEN });
   await proxyToGateway(page, GATEWAY_BASE, TOKEN);
-  await page.goto('/');
+  await page.goto('/chat');
 
   // Wait for thread list to load.
   await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});

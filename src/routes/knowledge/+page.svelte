@@ -650,7 +650,7 @@
     }
     if (content.length === 0) {
       // Allow but warn — empty docs are valid but rarely useful.
-      toasts.show('Empty doc created — add content to make it searchable.', 'info');
+      toasts.show('Empty doc created. Add content to make it searchable.', 'info');
     }
     try {
       const res = await client.writeMemory(trimmed, content);
@@ -758,7 +758,7 @@
     // mislead the user into thinking the import is in flight. Toast so the
     // intent isn't silently dropped.
     if (!client) {
-      toasts.show('Cannot import — IronClaw is offline.', 'error');
+      toasts.show("Can't import — IronClaw is offline", 'error');
       return;
     }
 
@@ -826,7 +826,7 @@
     onProgress: (index: number, total: number, ok: boolean, error?: string) => void
   ): Promise<void> {
     if (!client) {
-      toasts.show('Import failed: IronClaw client unavailable.', 'error');
+      toasts.show('Import failed: client unavailable', 'error');
       return;
     }
     let okCount = 0;
@@ -901,7 +901,7 @@
 >
   <header class="mb-6">
     <h1 class="text-2xl font-semibold text-text-primary">Knowledge</h1>
-    <p class="text-text-muted text-sm mt-1">Workspace documents and sources IronClaw can read.</p>
+    <p class="text-text-muted text-sm mt-1">Documents and sources IronClaw can read.</p>
   </header>
 
   {#if connection.status !== 'connected'}
@@ -920,7 +920,7 @@
         <line x1="12" y1="16" x2="12.01" y2="16" />
       </svg>
       <div class="text-sm text-text-primary mb-1">IronClaw is offline</div>
-      <div class="text-xs text-text-muted">Check Settings to configure or restart the gateway.</div>
+      <div class="text-xs text-text-muted">Configure or restart the gateway in Settings.</div>
       {#if connection.lastError}
         <div class="mt-3 text-xs text-red-400 font-mono max-w-md break-all">
           {connection.lastError}
@@ -952,8 +952,8 @@
             <button
               type="button"
               onclick={expandAll}
-              title="Expand all directories"
-              aria-label="Expand all directories"
+              title="Expand all"
+              aria-label="Expand all"
               class="inline-flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-accent-cyan transition-colors"
             >
               <svg
@@ -972,8 +972,8 @@
             <button
               type="button"
               onclick={collapseAll}
-              title="Collapse all directories"
-              aria-label="Collapse all directories"
+              title="Collapse all"
+              aria-label="Collapse all"
               class="inline-flex items-center justify-center w-7 h-7 rounded-md text-text-muted hover:text-accent-cyan transition-colors"
             >
               <svg
@@ -1199,7 +1199,7 @@
             <div class="text-xs text-red-400 px-3 py-2 break-words">{rootError}</div>
           {:else if rootNodes.length === 0}
             <div class="text-xs text-text-muted px-3 py-2 italic">
-              No docs yet. Create or import a file to build the knowledge base.
+              No docs yet. Create or import a file to start.
             </div>
           {:else if client}
             {#each rootNodes as node (node.path)}
@@ -1306,7 +1306,7 @@
                off the very edge of the surface. -->
           <div class="surface flex-1 flex items-center justify-center min-w-0 px-6">
             <div class="text-text-muted text-sm text-balance text-center">
-              Select a doc or search the knowledge base.
+              Select a doc or search knowledge.
             </div>
           </div>
         {/if}
@@ -1384,9 +1384,7 @@
           <path d="m8 8.2 4-4 4 4" />
           <path d="M5 17.5v2.7h14v-2.7" />
         </svg>
-        <div class="text-sm font-semibold text-text-primary">
-          Drop files here to import as knowledge docs
-        </div>
+        <div class="text-sm font-semibold text-text-primary">Drop files to import as docs</div>
         <div class="text-xs text-text-muted">
           .md, .txt, .json — up to {MAX_FILES_PER_BATCH} files, 1 MB each
         </div>

@@ -32,7 +32,7 @@
 
   function onCardClick(event: StreamEvent): void {
     if (event.thread_id) {
-      goto(`/?thread=${encodeURIComponent(event.thread_id)}`);
+      goto(`/chat?thread=${encodeURIComponent(event.thread_id)}`);
       return;
     }
     if (event.kind === 'briefing') {
@@ -72,7 +72,7 @@
 <div class="p-6 h-full overflow-auto">
   <header class="mb-6">
     <h1 class="text-2xl font-medium text-text-primary">Streams</h1>
-    <p class="text-sm text-text-muted mt-1">Activity across your workspace.</p>
+    <p class="text-sm text-text-muted mt-1">Activity across your workspace</p>
   </header>
 
   <div class="flex items-center gap-2 mb-4 flex-wrap">
@@ -98,8 +98,8 @@
   {:else if streams.filtered().length === 0}
     <div class="text-sm text-text-muted py-8 text-center">
       {streams.filter === 'all'
-        ? 'No activity yet. New chats, skills, and routines will appear here.'
-        : `No ${streams.filter} events to show.`}
+        ? 'No activity yet. Chats, skills, and routines appear here.'
+        : `No ${streams.filter} events`}
     </div>
   {:else}
     <div class="flex flex-col gap-2 max-w-3xl">

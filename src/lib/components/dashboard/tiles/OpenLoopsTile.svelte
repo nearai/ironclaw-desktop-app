@@ -31,7 +31,7 @@
   }
 
   function briefMe(): void {
-    void goto('/?brief=1');
+    void goto('/chat?brief=1');
   }
 </script>
 
@@ -71,7 +71,7 @@
     </ul>
   {:else}
     <p class="text-xs text-text-muted px-1">
-      No open loops. Track a commitment and your brief will fold it into today's priorities.
+      No open loops. Track a commitment and the brief picks it up.
     </p>
   {/if}
 

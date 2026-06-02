@@ -25,7 +25,7 @@
     untrack(() => getStartedProgress.bindProfile(profileId));
   });
 
-  const runnerConnected = $derived(connection.client !== null);
+  const runnerReady = $derived(connection.client !== null && connection.status === 'connected');
   const liveConnectedPackIds = $derived(
     Object.entries(packStatuses)
       .filter(([, status]) => status === 'connected')
@@ -35,7 +35,7 @@
     getStartedProgress.snapshot.connectedPackIds.length > 0 || liveConnectedPackIds.length > 0
   );
   const missionDone = $derived(getStartedProgress.snapshot.launchedMissionIds.length > 0);
-  const allDone = $derived(runnerConnected && workspaceDone && missionDone);
+  const allDone = $derived(runnerReady && workspaceDone && missionDone);
   const collapsed = $derived(getStartedProgress.snapshot.collapsed && allDone);
 
   $effect(() => {
@@ -45,13 +45,13 @@
   });
 
   function stepState(step: 1 | 2 | 3): StepState {
-    if (step === 1) return runnerConnected ? 'done' : 'current';
+    if (step === 1) return runnerReady ? 'done' : 'current';
     if (step === 2) {
       if (workspaceDone) return 'done';
-      return runnerConnected ? 'current' : 'locked';
+      return runnerReady ? 'current' : 'locked';
     }
     if (missionDone) return 'done';
-    return runnerConnected && workspaceDone ? 'current' : 'locked';
+    return runnerReady && workspaceDone ? 'current' : 'locked';
   }
 
   function statusLabel(state: StepState): string {
@@ -62,7 +62,7 @@
 
   function statusClass(state: StepState): string {
     if (state === 'done') return 'border-accent-cyan/60 bg-accent-cyan/10 text-accent-cyan';
-    if (state === 'current') return 'border-yellow-500/50 bg-yellow-500/10 text-yellow-300';
+    if (state === 'current') return 'border-warning-v2/50 bg-warning-v2-soft text-warning-v2';
     return 'border-border-subtle bg-bg-deep text-text-muted';
   }
 
@@ -92,7 +92,7 @@
 
 {#if collapsed}
   <section
-    class="mb-6 rounded-lg border border-border-subtle bg-bg-surface px-4 py-3 shadow-sm shadow-black/10"
+    class="rounded-[var(--v2-radius-card)] border border-border-subtle bg-bg-surface px-4 py-3"
     aria-labelledby="get-started-heading"
   >
     <div class="flex flex-wrap items-center justify-between gap-3">
@@ -115,7 +115,7 @@
   </section>
 {:else}
   <section
-    class="mb-6 rounded-lg border border-border-subtle bg-bg-surface p-4 shadow-sm shadow-black/10 sm:p-5"
+    class="rounded-[var(--v2-radius-card)] border border-border-subtle bg-bg-surface p-4 sm:p-5"
     aria-labelledby="get-started-heading"
   >
     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -125,8 +125,7 @@
           Set up your chief of staff
         </h2>
         <p class="mt-2 max-w-2xl text-sm leading-6 text-text-muted">
-          Connect the workspace context IronClaw can use, then launch a first mission in approval
-          mode.
+          Connect workspace context, then launch a first mission in approval mode.
         </p>
       </div>
 
@@ -149,7 +148,7 @@
           <div class="flex items-center justify-between gap-3">
             <span class="font-semibold text-text-primary">{step.id}. {step.label}</span>
             <span
-              class={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-mono ${statusClass(state)}`}
+              class={`inline-flex shrink-0 items-center rounded-[var(--v2-radius-control)] border px-2 py-0.5 text-[10px] font-mono ${statusClass(state)}`}
             >
               {statusLabel(state)}
             </span>
@@ -160,7 +159,7 @@
 
     <div class="mt-6 space-y-6">
       <section
-        class="rounded-lg border border-border-subtle bg-bg-base/35 p-4"
+        class="rounded-[var(--v2-radius-card)] border border-border-subtle bg-bg-base/35 p-4"
         aria-labelledby="get-started-runner-heading"
       >
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -169,21 +168,37 @@
               1 · Runner connected
             </h3>
             <p class="mt-1 text-sm text-text-muted">
-              {runnerConnected
+              {runnerReady
                 ? `Connected to ${connection.apiVersion.toUpperCase()} on ${connection.activeProfile?.name ?? 'active profile'}`
-                : 'Connect IronClaw before installing packs or launching missions.'}
+                : 'Connect a healthy runner before packs or missions.'}
             </p>
           </div>
           <span
-            class={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-mono ${runnerConnected ? 'border-accent-cyan/60 bg-accent-cyan/10 text-accent-cyan' : 'border-border-subtle bg-bg-deep text-text-muted'}`}
+            class={`inline-flex rounded-[var(--v2-radius-control)] border px-2 py-0.5 text-[10px] font-mono ${runnerReady ? 'border-accent-cyan/60 bg-accent-cyan/10 text-accent-cyan' : 'border-border-subtle bg-bg-deep text-text-muted'}`}
           >
-            {runnerConnected ? 'Connected' : 'Disconnected'}
+            {runnerReady ? 'Connected' : 'Disconnected'}
           </span>
         </div>
+        {#if !runnerReady}
+          <div class="mt-4 flex flex-wrap gap-2">
+            <a
+              href="/settings"
+              class="inline-flex min-h-[36px] items-center rounded-md border border-accent-cyan/60 px-3 py-1.5 text-xs font-semibold text-accent-cyan transition hover:bg-accent-cyan/10"
+            >
+              Open Settings
+            </a>
+            <a
+              href="/onboarding"
+              class="inline-flex min-h-[36px] items-center rounded-md border border-border-subtle px-3 py-1.5 text-xs font-semibold text-text-muted transition hover:border-accent-cyan hover:text-text-primary"
+            >
+              Re-run onboarding
+            </a>
+          </div>
+        {/if}
       </section>
 
       <section
-        class="rounded-lg border border-border-subtle bg-bg-base/35 p-4"
+        class="rounded-[var(--v2-radius-card)] border border-border-subtle bg-bg-base/35 p-4"
         aria-labelledby="get-started-connect-heading"
       >
         <h3 id="get-started-connect-heading" class="mb-4 text-sm font-semibold text-text-primary">
@@ -193,7 +208,7 @@
       </section>
 
       <section
-        class="rounded-lg border border-border-subtle bg-bg-base/35 p-4"
+        class="rounded-[var(--v2-radius-card)] border border-border-subtle bg-bg-base/35 p-4"
         aria-labelledby="get-started-mission-heading"
       >
         <h3 id="get-started-mission-heading" class="mb-4 text-sm font-semibold text-text-primary">

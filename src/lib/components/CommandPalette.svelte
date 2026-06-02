@@ -97,6 +97,8 @@
     keywords?: string[];
     /** Called when the row is activated (Enter or click). */
     run: () => void;
+    /** Optional route/applicability gate, kept in sync with sidebar visibility. */
+    showWhen?: () => boolean;
   }
 
   /** Shape persisted to localStorage. Intentionally minimal — we re-derive
@@ -272,7 +274,7 @@
           if (target) void goto(target);
         };
       case 'Threads':
-        return () => void goto('/');
+        return () => void goto('/chat');
       case 'Skills':
         return () => void goto('/skills');
       case 'Routines':
@@ -283,7 +285,7 @@
         // Actions are stateful — if the underlying state isn't applicable
         // (e.g. "Disconnect" recorded while connected, then re-attempted
         // while disconnected), surface a toast rather than silently failing.
-        return () => toasts.show('Action no longer available in this state.', 'info');
+        return () => toasts.show('Action unavailable in this state.', 'info');
       default:
         return () => {
           /* no-op */
@@ -301,8 +303,9 @@
   // Onboarding (no shortcut — first-run takeover). Digit chords match
   // ROUTES_BY_DIGIT in the layout (Jobs took ⌘5, shifting Logs→⌘6,
   // Extensions→⌘7). Desk / Streams / Canvas have no digit slot. Missions is a
-  // gated Engine-v2 surface; the layout bounces it to /settings when disabled.
-  const navItems: Item[] = [
+  // gated Engine-v2 surface, so the palette hides it under the same setting as
+  // the sidebar instead of advertising a route that immediately bounces.
+  const baseNavItems: Item[] = [
     {
       id: 'nav:/dashboard',
       category: 'Navigate',
@@ -337,13 +340,13 @@
       run: () => void goto('/streams')
     },
     {
-      id: 'nav:/',
+      id: 'nav:/chat',
       category: 'Navigate',
       label: 'Chat',
-      subtitle: '/',
+      subtitle: '/chat',
       keybind: '⌘1',
       icon: 'nav',
-      run: () => void goto('/')
+      run: () => void goto('/chat')
     },
     {
       id: 'nav:/canvas',
@@ -423,7 +426,8 @@
       subtitle: '/missions',
       keybind: '⌘9',
       icon: 'nav',
-      run: () => void goto('/missions')
+      run: () => void goto('/missions'),
+      showWhen: () => connection.settings.engineV2Enabled === true
     },
     {
       id: 'nav:/settings',
@@ -443,6 +447,9 @@
       run: () => void goto('/onboarding')
     }
   ];
+  const navItems = $derived<Item[]>(
+    baseNavItems.filter((item) => !item.showWhen || item.showWhen())
+  );
 
   // -- lifecycle ------------------------------------------------------------
 
@@ -525,8 +532,8 @@
   async function actSignIn() {
     const ok = await connection.startSidecar();
     if (ok) {
-      toasts.show('Sidecar started — IronClaw is connecting.', 'info');
-      void goto('/');
+      toasts.show('Sidecar started. IronClaw is connecting.', 'info');
+      void goto('/chat');
     }
     // startSidecar already surfaces sidecarError on failure; no extra toast.
   }
@@ -626,7 +633,7 @@
       !navigator.clipboard ||
       typeof navigator.clipboard.writeText !== 'function'
     ) {
-      toasts.show('Clipboard unavailable in this environment.', 'error');
+      toasts.show('Clipboard unavailable here.', 'error');
       return;
     }
     try {
@@ -1056,7 +1063,7 @@
       icon: 'thread' as const,
       run: () => {
         threads.selectThread(t.id);
-        void goto('/');
+        void goto('/chat');
       }
     }))
   );
@@ -1122,7 +1129,7 @@
       const icon = iconForSurface(surface);
       const surfaceTag = surfaceLabel(surface);
       let label = id;
-      let run: () => void = () => void goto('/');
+      let run: () => void = () => void goto('/chat');
       switch (surface) {
         case 'skill': {
           const s = skillsCache?.find((sk) => sk.name === id);
@@ -1130,7 +1137,7 @@
           run = () => {
             const hint = s?.usage_hint ?? `/${id}`;
             composerInsert.push(hint);
-            void goto('/');
+            void goto('/chat');
           };
           break;
         }
@@ -1150,7 +1157,7 @@
           label = t?.title || 'Untitled thread';
           run = () => {
             threads.selectThread(id);
-            void goto('/');
+            void goto('/chat');
           };
           break;
         }
@@ -1253,7 +1260,7 @@
           composerInsert.push(t.body, t.id);
           templates.recordUse(t.id);
           if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-            void goto('/');
+            void goto('/chat');
           }
         }
       }
@@ -1594,7 +1601,7 @@
           bind:value={query}
           onkeydown={onKeyDown}
           type="text"
-          placeholder="Search commands, threads, skills, routines, docs… (? for shortcuts)"
+          placeholder="Search commands, threads, skills, docs… (? for shortcuts)"
           aria-label="Command palette search"
           class="flex-1 bg-transparent border-0 outline-none text-base font-medium text-text-primary placeholder:text-text-muted/60"
           spellcheck="false"
@@ -1662,7 +1669,7 @@
             {:else if activePill === 'Pinned' && pinnedItems.length === 0}
               <!-- Explicit empty-state for the Pinned pill so the user
                    knows the section is intentional, not a load failure. -->
-              No pinned items yet. Tap the star on a skill, routine, thread, or extension to pin it here.
+              No pins yet. Star a skill, routine, thread, or extension to pin it.
             {:else if query.trim()}
               No matches for <span class="text-text-primary">{query}</span>
             {:else}

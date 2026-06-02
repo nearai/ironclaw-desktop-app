@@ -180,16 +180,31 @@ describe('messagesFromTimeline', () => {
 });
 
 describe('response normalizers', () => {
-  it('threadsFromListResponse tolerates threads/items/empty', () => {
+  it('threadsFromListResponse tolerates threads/items/legacy ids/empty', () => {
     expect(threadsFromListResponse({ threads: [{ thread_id: 't1' }] })).toHaveLength(1);
     expect(threadsFromListResponse({ items: [{ thread_id: 't2' }] })).toHaveLength(1);
+    expect(
+      threadsFromListResponse({ threads: [{ id: 'legacy-t3', title: 'Legacy', turn_count: 19 }] })
+    ).toEqual([
+      expect.objectContaining({
+        thread_id: 'legacy-t3',
+        message_count: 19,
+        title: 'Legacy'
+      })
+    ]);
+    expect(threadsFromListResponse([{ id: 'raw-t4' }])).toEqual([
+      expect.objectContaining({ thread_id: 'raw-t4' })
+    ]);
     expect(threadsFromListResponse({})).toEqual([]);
     expect(threadsFromListResponse(null)).toEqual([]);
   });
 
-  it('recordsFromTimeline tolerates records/messages/empty', () => {
+  it('recordsFromTimeline tolerates records/messages/items/raw array/empty', () => {
     expect(recordsFromTimeline({ records: [rec()] })).toHaveLength(1);
     expect(recordsFromTimeline({ messages: [rec()] })).toHaveLength(1);
+    expect(recordsFromTimeline({ items: [rec({ message_id: 'item' })] })).toHaveLength(1);
+    expect(recordsFromTimeline({ timeline: [rec({ message_id: 'tl' })] })).toHaveLength(1);
+    expect(recordsFromTimeline([rec({ message_id: 'raw' })])).toHaveLength(1);
     expect(recordsFromTimeline(null)).toEqual([]);
   });
 });

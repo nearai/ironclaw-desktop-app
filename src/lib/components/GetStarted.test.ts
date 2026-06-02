@@ -10,6 +10,7 @@ const { connectionStub } = vi.hoisted(() => ({
   connectionStub: {
     activeProfile: { id: 'profile-1', name: 'Work' },
     apiVersion: 'v2',
+    status: 'connected' as 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error',
     client: null as null | {
       listExtensions: () => Promise<Extension[]>;
       installExtension: (name: string) => Promise<{ ok: boolean }>;
@@ -34,6 +35,7 @@ vi.mock('$lib/stores/connection.svelte', () => ({
 import GetStarted from './GetStarted.svelte';
 
 function installFakeClient(): void {
+  connectionStub.status = 'connected';
   connectionStub.client = {
     listExtensions: vi.fn(async () => [
       { name: 'gmail', installed: true, ready: true, readiness_message: 'ready' },
@@ -111,5 +113,21 @@ describe('GetStarted component', () => {
     expect(JSON.parse(raw ?? '{}')).toMatchObject({ collapsed: true });
     expect(screen.queryByRole('heading', { name: 'Set up your chief of staff' })).toBeNull();
     expect(screen.getByRole('heading', { name: 'Chief-of-staff loop is ready' })).toBeTruthy();
+  });
+
+  it('keeps connector setup locked when the runner client exists but health is failing', async () => {
+    installFakeClient();
+    connectionStub.status = 'error';
+    render(GetStarted);
+
+    expect(screen.getByText('Connect a healthy runner before packs or missions.')).toBeTruthy();
+    expect(screen.getAllByRole('link', { name: 'Open Settings' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Connect runner first' }).length).toBeGreaterThan(
+      0
+    );
+
+    await waitFor(() => {
+      expect(connectionStub.client?.listExtensions).not.toHaveBeenCalled();
+    });
   });
 });

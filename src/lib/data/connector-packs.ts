@@ -12,6 +12,7 @@ export type ConnectorPackId = 'google' | 'notion' | 'slack';
 export type ConnectorPackStatus =
   | 'checking'
   | 'unknown'
+  | 'locked'
   | 'connected'
   | 'partial'
   | 'needs-auth'
@@ -35,7 +36,7 @@ export const CONNECTOR_PACKS: ConnectorPack[] = [
     id: 'google',
     display_name: 'Google Workspace',
     description:
-      'Connect Gmail and Calendar first, then add Drive, Docs, Sheets, and Slides for richer workspace context.',
+      'Start with Gmail and Calendar. Add Drive, Docs, Sheets, and Slides for more context.',
     extensions: [
       'gmail',
       'google_calendar',
@@ -65,7 +66,7 @@ export const CONNECTOR_PACKS: ConnectorPack[] = [
   {
     id: 'notion',
     display_name: 'Notion',
-    description: 'Connect Notion so plans, docs, and project memory stay organized and actionable.',
+    description: 'Connect Notion to keep plans, docs, and project memory actionable.',
     extensions: ['notion'],
     core_extensions: ['notion'],
     extension_kind_hints: {
@@ -83,7 +84,7 @@ export const CONNECTOR_PACKS: ConnectorPack[] = [
   {
     id: 'slack',
     display_name: 'Slack',
-    description: 'Connect Slack so conversations become decisions, drafts, and follow-through.',
+    description: 'Connect Slack to turn conversations into decisions and drafts.',
     extensions: ['slack', 'slack_tool'],
     core_extensions: ['slack', 'slack_tool'],
     extension_kind_hints: {

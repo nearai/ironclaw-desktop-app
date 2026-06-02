@@ -19,6 +19,7 @@ export default defineConfig({
   // shim if they shared a page, and the dev server can't easily be
   // multiplexed. Keep this serial; the suite is small.
   fullyParallel: false,
+  workers: 1,
   retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: 'http://localhost:1420',

@@ -55,7 +55,7 @@
 
   function openThread(id: string) {
     threads.selectThread(id);
-    void goto('/');
+    void goto('/chat');
   }
 </script>
 

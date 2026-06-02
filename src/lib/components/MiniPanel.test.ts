@@ -168,7 +168,7 @@ describe('MiniPanel component', () => {
     expect(container.textContent).toContain('Quick chat');
     // The empty-state strip tells the user to pick a thread from the
     // main window.
-    expect(container.textContent).toContain('Select a thread');
+    expect(container.textContent).toContain('Pick a thread');
   });
 
   it("renders the current thread's title in the header", async () => {

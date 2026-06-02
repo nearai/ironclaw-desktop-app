@@ -528,7 +528,7 @@
               ''
             ).trim()}</pre>
         {:else}
-          <p class="text-xs text-text-muted italic">No goal recorded.</p>
+          <p class="text-xs text-text-muted italic">No goal recorded</p>
         {/if}
       </section>
 
@@ -543,7 +543,7 @@
         {#if initialLoad && messages.length === 0 && !loadError}
           <p class="text-xs text-text-muted italic">Loading transcript…</p>
         {:else if messages.length === 0}
-          <p class="text-xs text-text-muted italic">No messages recorded.</p>
+          <p class="text-xs text-text-muted italic">No messages recorded</p>
         {:else}
           <ol class="space-y-3">
             {#each messages as msg, i (i)}
@@ -632,9 +632,9 @@
         {#if initialLoad && timeline.length === 0 && !loadError}
           <p class="text-xs text-text-muted italic">Loading timeline…</p>
         {:else if loadError && timeline.length === 0}
-          <p class="text-xs text-red-400">Failed to load timeline.</p>
+          <p class="text-xs text-red-400">Failed to load timeline</p>
         {:else if timeline.length === 0}
-          <p class="text-xs text-text-muted italic">No events recorded.</p>
+          <p class="text-xs text-text-muted italic">No events recorded</p>
         {:else}
           <ol class="space-y-2">
             {#each timeline as row, i (`${row.source}-${row.source === 'event' ? (row.event.id ?? i) : (row.step.id ?? i)}`)}

@@ -46,7 +46,7 @@ describe('RecapPanel component', () => {
     const { container } = render(RecapPanel);
     await tick();
     expect(container.textContent).toContain('Thread recap');
-    expect(container.textContent).toContain('Summarizing the conversation…');
+    expect(container.textContent).toContain('Summarizing…');
   });
 
   it('surfaces an error inline (not while loading)', async () => {
@@ -56,7 +56,7 @@ describe('RecapPanel component', () => {
     const { container } = render(RecapPanel);
     await tick();
     expect(container.textContent).toContain('gateway down');
-    expect(container.textContent).not.toContain('Summarizing the conversation…');
+    expect(container.textContent).not.toContain('Summarizing…');
   });
 
   it('renders the summary text once landed', async () => {

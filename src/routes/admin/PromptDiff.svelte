@@ -261,7 +261,7 @@
          and footer stay pinned. -->
     <div class="flex-1 min-h-0 overflow-auto bg-bg-deep font-mono text-xs">
       {#if noChange}
-        <div class="p-8 text-center text-text-muted italic">The two versions are identical.</div>
+        <div class="p-8 text-center text-text-muted italic">The two versions are identical</div>
       {:else if mode === 'side'}
         <!-- Side-by-side: CSS grid with two equal columns. Each row is a
              paired left/right pair from `sideRows`. Background tint is
@@ -363,7 +363,7 @@
           type="button"
           onclick={handleRestore}
           class="px-4 py-2 rounded-md bg-accent-cyan text-bg-deep text-sm font-semibold hover:brightness-110 transition min-h-[36px]"
-          title="Load this snapshot into the editor draft"
+          title="Load this snapshot into the draft"
         >
           Restore this version
         </button>

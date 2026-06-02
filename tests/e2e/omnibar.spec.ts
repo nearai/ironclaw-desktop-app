@@ -106,7 +106,7 @@ test('Cmd+Space opens omnibar, typing filters, and Esc closes it', async ({ page
     pollThreadChanges: { changed: [], deleted: [], nextSince: Date.now() }
   });
 
-  await page.goto('/');
+  await page.goto('/chat');
   await expect(page.getByRole('button', { name: /^New Chat$/ })).toBeEnabled({ timeout: 10_000 });
 
   await page.keyboard.down('Meta');

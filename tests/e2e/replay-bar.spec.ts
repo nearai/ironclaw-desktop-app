@@ -129,7 +129,7 @@ test('Cmd+. reveals replay bar with scrubber and play button', async ({ page }) 
     pollThreadChanges: { changed: [], deleted: [], nextSince: Date.now() }
   });
 
-  await page.goto('/?thread=thread-replay');
+  await page.goto('/chat?thread=thread-replay');
   await expect(page.getByText('Replayed answer')).toBeVisible({ timeout: 10_000 });
 
   await page.keyboard.down('Meta');

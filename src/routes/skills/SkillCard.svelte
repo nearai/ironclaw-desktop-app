@@ -214,12 +214,12 @@
       class="mt-2 text-xs text-text-muted leading-relaxed flex-1 overflow-hidden"
       style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
     >
-      {skill.description || 'No description available.'}
+      {skill.description || 'No description'}
     </p>
 
     <div
       class="mt-2 max-w-full text-[11px] font-mono text-accent-cyan/90 truncate"
-      title="Run this skill by typing this in chat."
+      title="Type this in chat to run"
     >
       {usageHint}
     </div>

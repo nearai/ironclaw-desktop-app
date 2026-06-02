@@ -255,7 +255,7 @@ test('chat header shows custom-prompt gold chip after save', async ({ page }) =>
     );
   }, threadId);
 
-  await page.goto(`/?thread=${threadId}`);
+  await page.goto(`/chat?thread=${threadId}`);
   await expect(page.getByRole('button', { name: 'Custom prompt test', exact: true })).toBeVisible({
     timeout: 10_000
   });
@@ -316,7 +316,7 @@ test('chat tool-flow rail mounts at xl viewport', async ({ page }) => {
     health: { ok: true, status: 'ok' }
   });
 
-  await page.goto(`/?thread=${threadId}`);
+  await page.goto(`/chat?thread=${threadId}`);
 
   // Aria-label "Tool flow" lives on the aside that's gated by
   // `hidden xl:block` — visible at 1400px viewport.

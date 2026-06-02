@@ -20,7 +20,7 @@
  * modal-only surface.
  */
 export const NAV_SURFACES = {
-  chat: '/',
+  chat: '/chat',
   desk: '/desk',
   work: '/work',
   dashboard: '/dashboard',

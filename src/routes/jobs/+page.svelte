@@ -442,10 +442,11 @@
       </svg>
       <div class="text-sm text-text-primary">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check <a
+        Verify the gateway connection in
+        <a
           href="/settings"
           class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
-        > to verify the gateway connection.
+        >.
       </div>
     </div>
   {:else}
@@ -603,14 +604,14 @@
             <rect x="3" y="10" width="18" height="4" rx="1" />
             <rect x="3" y="17" width="18" height="4" rx="1" />
           </svg>
-          <div class="text-sm text-text-primary">No jobs running.</div>
+          <div class="text-sm text-text-primary">No jobs running</div>
           <div class="text-xs text-text-muted max-w-md">
-            Tool calls, skill runs, and routines will appear here when IronClaw starts work.
+            Tool calls, skill runs, and routines appear here when IronClaw starts work.
           </div>
         </div>
       {:else if filteredJobs.length === 0}
         <div class="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
-          <div class="text-sm text-text-primary">No jobs match the current filters.</div>
+          <div class="text-sm text-text-primary">No jobs match the filters</div>
           <button
             type="button"
             onclick={clearFilters}

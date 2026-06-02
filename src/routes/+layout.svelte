@@ -24,6 +24,7 @@
   import { perThreadPrompts } from '$lib/stores/per-thread-prompts.svelte';
   import { PERSONAS } from '$lib/data/personas';
   import { openLoops } from '$lib/stores/open-loops.svelte';
+  import { workItems } from '$lib/stores/work-items.svelte';
   import { aboutStore } from '$lib/stores/about.svelte';
   import { broadcast } from '$lib/stores/broadcast.svelte';
   import { pins } from '$lib/stores/pins.svelte';
@@ -55,6 +56,8 @@
   let presetsSeen = $state(false);
   let templatesSeen = $state(false);
   let aboutSeen = $state(false);
+
+  const WATCH_SCHEDULER_INTERVAL_MS = 60_000;
 
   $effect(() => {
     if (!isOnboarding && palette.open) paletteSeen = true;
@@ -162,7 +165,7 @@
     }
     try {
       await navigator.clipboard.writeText(window.location.href);
-      toasts.show('Link copied.', 'success');
+      toasts.show('Link copied', 'success');
     } catch {
       toasts.show('Copy failed', 'error');
     }
@@ -266,14 +269,14 @@
     // whichever closure is currently registered. We deliberately do NOT
     // trap Cmd+Shift+R — the browser reserves that for a hard reload
     // (which in Tauri's webview is a no-op anyway, but the keystroke
-    // shouldn't surface a confusing "Refreshed." toast either).
+    // shouldn't surface a confusing "Refreshed" toast either).
     //
     // Suppressed on the onboarding takeover so the wizard owns the
     // screen; the user has nothing to refresh until they finish setup.
     if (mod && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'r' && !isOnboarding) {
       e.preventDefault();
       void surfaceRefresh.invoke().then((fired) => {
-        if (fired) toasts.show('Refreshed.', 'info');
+        if (fired) toasts.show('Refreshed', 'info');
       });
       return;
     }
@@ -353,7 +356,7 @@
 
   const ROUTES_BY_DIGIT: Record<string, string> = {
     '0': '/dashboard',
-    '1': '/',
+    '1': '/chat',
     '2': '/knowledge',
     '3': '/skills',
     '4': '/routines',
@@ -431,6 +434,10 @@
     // brief and its inline editor see the user's saved commitments without
     // a flash of empty state on first open.
     openLoops.init();
+    // Work items own watches/receipts. Hydrate once in the shell so the
+    // scheduler below can make proactive watches real even when the user
+    // never visits Work first.
+    workItems.hydrate();
     // Same shape for the workspace-presets store — hydrate once so the
     // first open of the modal (Cmd+Shift+P or palette action) sees the
     // user's saved list without a flash of empty state.
@@ -461,6 +468,10 @@
     // out (or hasn't opted in yet).
     telemetry.recordEvent('app:launched');
     threadSync.start({ intervalMs: 3_000 });
+    const watchScheduler = window.setInterval(() => {
+      workItems.runDueWatches();
+    }, WATCH_SCHEDULER_INTERVAL_MS);
+    workItems.runDueWatches();
 
     // LANE B3 — Omnibar (R55). Register the baseline navigation
     // commands so an empty-query omnibar already has surfaces to
@@ -480,7 +491,7 @@
       },
       {
         id: 'go:desk',
-        title: 'Open the Desk',
+        title: 'Open Desk',
         keywords: ['inbox', 'needs you', 'approvals', 'cards', 'chief of staff'],
         path: '/desk'
       },
@@ -496,7 +507,12 @@
         keywords: ['activity', 'feed', 'timeline', 'events'],
         path: '/streams'
       },
-      { id: 'go:chat', title: 'Open Chat', keywords: ['threads', 'conversation'], path: '/' },
+      {
+        id: 'go:chat',
+        title: 'Open Chat',
+        keywords: ['threads', 'conversation'],
+        path: '/chat'
+      },
       {
         id: 'go:canvas',
         title: 'Open Canvas',
@@ -566,17 +582,17 @@
         subtitle: persona.blurb,
         action: async () => {
           if (!connection.client) {
-            toasts.show('Connect to IronClaw first.', 'error');
+            toasts.show('Connect to IronClaw first', 'error');
             return;
           }
           const threadId = await threads.createThread(`${persona.name} session`);
           if (!threadId) {
-            toasts.show('Could not create a thread.', 'error');
+            toasts.show("Couldn't create thread", 'error');
             return;
           }
           perThreadPrompts.set(threadId, persona.systemPrompt);
-          await goto(`/?thread=${encodeURIComponent(threadId)}`);
-          toasts.show(`New thread running as ${persona.name}.`, 'success');
+          await goto(`/chat?thread=${encodeURIComponent(threadId)}`);
+          toasts.show(`Thread running as ${persona.name}`, 'success');
         }
       });
     }
@@ -589,13 +605,13 @@
       id: 'brief:me',
       title: 'Brief me',
       keywords: ['brief', 'daily', 'agenda', 'morning', 'chief', 'staff', 'priorities', 'today'],
-      subtitle: 'Chief of Staff agenda from recent threads + open loops',
+      subtitle: 'Agenda from recent threads and open loops',
       action: async () => {
         if (!connection.client) {
-          toasts.show('Connect to IronClaw first.', 'error');
+          toasts.show('Connect to IronClaw first', 'error');
           return;
         }
-        await goto('/?brief=1');
+        await goto('/chat?brief=1');
       }
     });
 
@@ -606,13 +622,13 @@
       id: 'triage:threads',
       title: 'Triage my threads',
       keywords: ['triage', 'sort', 'decision', 'fyi', 'filter', 'chief', 'staff', 'inbox'],
-      subtitle: 'Sort recent threads into decisions, FYI, and what I can handle',
+      subtitle: 'Sort recent threads by what needs you',
       action: async () => {
         if (!connection.client) {
-          toasts.show('Connect to IronClaw first.', 'error');
+          toasts.show('Connect to IronClaw first', 'error');
           return;
         }
-        await goto('/?triage=1');
+        await goto('/chat?triage=1');
       }
     });
 
@@ -743,14 +759,14 @@
     function onWindowError(e: ErrorEvent) {
       // eslint-disable-next-line no-console
       console.error('[ironclaw] window error:', e.error ?? e.message);
-      toasts.show('An error occurred — check console for details.', 'error');
+      toasts.show('Something failed. Check the console', 'error');
       const err = e.error instanceof Error ? e.error : null;
       recordCrashSafe('error', err?.message ?? e.message ?? 'Unknown window error', err?.stack);
     }
     function onUnhandledRejection(e: PromiseRejectionEvent) {
       // eslint-disable-next-line no-console
       console.error('[ironclaw] unhandled rejection:', e.reason);
-      toasts.show('An error occurred — check console for details.', 'error');
+      toasts.show('Something failed. Check the console', 'error');
       const reason = e.reason;
       const err = reason instanceof Error ? reason : null;
       // Reason can be anything (a thrown string, a plain object, …).
@@ -772,6 +788,7 @@
       // pivot in dev) does not stack handlers.
       broadcast.teardown();
       threadSync.stop();
+      window.clearInterval(watchScheduler);
     };
   });
 </script>

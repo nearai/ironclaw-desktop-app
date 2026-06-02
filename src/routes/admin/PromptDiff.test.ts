@@ -61,7 +61,7 @@ describe('PromptDiff render', () => {
     const { getByText } = render(PromptDiff, {
       props: { ...baseProps, oldText: 'hello\nworld', newText: 'hello\nworld' }
     });
-    expect(getByText('The two versions are identical.')).toBeTruthy();
+    expect(getByText('The two versions are identical')).toBeTruthy();
   });
 
   it('renders the changed text and drops the identical notice when they differ', () => {

@@ -326,9 +326,7 @@
           {#if pathErrors[i]}
             <p class="mt-1 text-[11px] text-red-400">{pathErrors[i]}</p>
           {:else if dupe}
-            <p class="mt-1 text-[11px] text-red-400">
-              Duplicate destination — another row writes the same path.
-            </p>
+            <p class="mt-1 text-[11px] text-red-400">Duplicate path — another row uses it</p>
           {/if}
 
           <!-- First-100-char preview. Always shown so users can sanity-check

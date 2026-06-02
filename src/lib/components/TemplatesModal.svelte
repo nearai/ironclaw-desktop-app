@@ -202,7 +202,7 @@
     templatesModal.close();
     toasts.show(`Inserted "${tpl.name}".`, 'success');
     if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-      void goto('/');
+      void goto('/chat');
     }
   }
 
@@ -241,7 +241,7 @@
   function commitEditor() {
     const trimmedName = editorName.trim();
     if (!trimmedName) {
-      toasts.show('Give the template a name first.', 'info');
+      toasts.show('Name the template first.', 'info');
       editorNameEl?.focus();
       return;
     }
@@ -281,7 +281,7 @@
     templatesModal.close();
     toasts.show(`Inserted "${tpl.name}".`, 'success');
     if (typeof window !== 'undefined' && window.location.pathname !== '/') {
-      void goto('/');
+      void goto('/chat');
     }
   }
 
@@ -443,7 +443,7 @@
           {#if filteredTemplates.length === 0}
             <div class="px-5 py-10 text-center text-sm text-text-muted">
               {#if templates.templates.length === 0}
-                No templates yet. Create one with "New template…" above.
+                No templates yet. Create one above.
               {:else}
                 No templates match
                 <span class="text-text-primary">{filter}</span>.

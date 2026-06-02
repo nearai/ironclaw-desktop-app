@@ -578,7 +578,7 @@
 
   async function exportLogs() {
     if (filtered.length === 0) {
-      toasts.show('Nothing to export — filtered list is empty.', 'info');
+      toasts.show('Nothing to export — filter is empty', 'info');
       return;
     }
     const body = filtered.map(formatEntryLine).join('\n') + '\n';
@@ -666,12 +666,11 @@
       </svg>
       <div class="text-sm text-text-primary">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check
+        Verify the gateway connection in
         <a
           href="/settings"
           class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
-        >
-        to verify the gateway connection.
+        >.
       </div>
     </div>
   {:else}
@@ -810,7 +809,7 @@
         type="button"
         onclick={exportLogs}
         class="px-2.5 py-1 rounded border border-border-subtle text-text-muted hover:border-accent-cyan hover:text-accent-cyan transition-colors min-h-[28px] flex items-center gap-1.5"
-        title="Export currently-filtered entries to a text file"
+        title="Export filtered entries"
       >
         <svg
           viewBox="0 0 24 24"

@@ -61,7 +61,7 @@
   <span
     class="font-mono break-all"
     class:text-accent-gold={revealed && hasSecret}
-    title={revealed && hasSecret ? 'Secret revealed — tokens visible' : undefined}
+    title={revealed && hasSecret ? 'Secret visible' : undefined}
   >
     {displayed}
   </span>

@@ -38,33 +38,37 @@
    * something specific.
    */
   type CategoryBadge = { label: string; classes: string };
+  const title = $derived(extension.display_name ?? extension.name);
 
   const categoryBadge = $derived.by<CategoryBadge | null>(() => {
     const c = (extension.category ?? '').toLowerCase();
     if (!c) return null;
     if (c === 'mcp') {
       return {
-        label: 'MCP',
+        label: 'Knowledge',
         classes: 'border-accent-cyan/60 text-accent-cyan bg-accent-cyan/10'
       };
     }
     if (c === 'oauth') {
       return {
-        label: 'OAuth',
+        label: 'Account',
         classes: 'border-accent-gold/60 text-accent-gold bg-accent-gold/10'
       };
     }
     if (c === 'channel') {
       return {
-        label: 'Channel',
+        label: 'Team chat',
         classes: 'border-emerald-400/60 text-emerald-300 bg-emerald-500/10'
       };
     }
-    // wasm_tool, builtin, etc. — humanize lightly and use a muted slate.
-    const humanized = c
-      .replace(/[_-]+/g, ' ')
-      .replace(/\bwasm\b/, 'WASM')
-      .replace(/^./, (m) => m.toUpperCase());
+    if (c === 'wasm_tool' || c === 'tool') {
+      return {
+        label: workspaceConnectorLabel(extension.name, title),
+        classes: 'border-border-subtle text-text-muted bg-bg-deep'
+      };
+    }
+    // builtin, local, etc. — humanize lightly and use a muted slate.
+    const humanized = c.replace(/[_-]+/g, ' ').replace(/^./, (m) => m.toUpperCase());
     return {
       label: humanized,
       classes: 'border-border-subtle text-text-muted bg-bg-deep'
@@ -80,24 +84,32 @@
 
   const readiness = $derived.by<ReadinessIndicator>(() => {
     const msg = extension.readiness_message ?? '';
+    const normalized = msg.toLowerCase();
     // Explicit error state from /readiness wire.
-    if (msg.startsWith('error')) {
+    if (normalized.startsWith('error')) {
       return {
         dot: 'bg-red-500',
         label: 'Error',
         title: msg
       };
     }
-    if (extension.ready === true || msg === 'ready') {
+    if (extension.ready === true || normalized === 'ready') {
       return {
         dot: 'bg-emerald-500',
         label: 'Ready',
         title: 'Authenticated and ready to use'
       };
     }
-    // Anything else (needs_auth, needs_setup, not_ready, unknown) is "needs
-    // setup" from the user's POV. The tooltip carries the underlying reason
-    // so debugging is still possible.
+    if (normalized === 'needs_auth' || normalized.includes('needs_auth')) {
+      return {
+        dot: 'bg-accent-gold',
+        label: 'Needs sign-in',
+        title: 'Sign in to connect this workspace app'
+      };
+    }
+    // Anything else (needs_setup, not_ready, unknown) is setup from the
+    // user's POV. The tooltip carries the underlying reason so debugging is
+    // still possible.
     return {
       dot: 'bg-accent-gold',
       label: 'Needs setup',
@@ -105,14 +117,16 @@
     };
   });
 
-  const title = $derived(extension.display_name ?? extension.name);
   const toolCount = $derived(extension.tool_count ?? 0);
   const toolsClickable = $derived(variant === 'installed' && toolCount > 0);
 
   // True when this installed extension is unconfigured (not ready, not in an
   // error state). Drives the prominent "Set up" CTA so "Needs setup" isn't a
   // dead-end label next to a cryptic gear.
-  const needsSetup = $derived(variant === 'installed' && readiness.label === 'Needs setup');
+  const needsSetup = $derived(
+    variant === 'installed' &&
+      (readiness.label === 'Needs setup' || readiness.label === 'Needs sign-in')
+  );
 
   // A short, human hint about WHAT the setup needs, inferred from the
   // connector category. The exact fields come from the setup drawer once
@@ -120,10 +134,17 @@
   const setupHint = $derived.by<string>(() => {
     const c = (extension.category ?? '').toLowerCase();
     const msg = (extension.readiness_message ?? '').toLowerCase();
-    if (c === 'oauth' || msg === 'needs_auth') return 'Sign in to connect (OAuth)';
+    if (c === 'oauth' || msg === 'needs_auth') return `${oauthActionVerb(title)} ${title}`;
     if (c === 'channel') return 'Add a token to connect';
     if (c === 'mcp') return 'Add credentials or config';
     return 'Complete setup to enable';
+  });
+
+  const setupActionLabel = $derived.by(() => {
+    const c = (extension.category ?? '').toLowerCase();
+    const msg = (extension.readiness_message ?? '').toLowerCase();
+    if (c === 'oauth' || msg === 'needs_auth') return `${oauthActionVerb(title)} ${title}`;
+    return 'Set up';
   });
 
   // Pin star. Bound against extension.name (the stable id; display_name
@@ -136,6 +157,21 @@
     // but defensive against future "click to open detail" wiring).
     event.stopPropagation();
     pins.toggle('extension', extension.name, title);
+  }
+
+  function oauthActionVerb(label: string): string {
+    const lower = label.toLowerCase();
+    if (lower.includes('gmail') || lower.includes('google')) return 'Log in with';
+    return 'Connect';
+  }
+
+  function workspaceConnectorLabel(name: string, label: string): string {
+    const normalized = `${name} ${label}`.toLowerCase();
+    if (normalized.includes('gmail') || normalized.includes('mail')) return 'Mail';
+    if (normalized.includes('calendar') || normalized.includes('gcal')) return 'Calendar';
+    if (normalized.includes('notion')) return 'Knowledge';
+    if (normalized.includes('slack')) return 'Team chat';
+    return 'Workspace';
   }
 </script>
 
@@ -182,7 +218,7 @@
   </div>
 
   <!-- pr-28 (112px) reserves enough space for the absolute top-right cluster
-       (category badge up to ~80px wide for "WASM tool" + 6px gap + 20px pin
+       (category badge up to ~80px wide + 6px gap + 20px pin
        star) so the title doesn't sit underneath the badge at narrow card
        widths (single-column grid <768px). flex-wrap lets the version chip
        flow to the next line when the title itself is long; min-w-0 on the
@@ -203,7 +239,7 @@
     class="text-xs text-text-muted leading-relaxed flex-1 overflow-hidden"
     style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
   >
-    {extension.description || 'No description available.'}
+    {extension.description || 'No description'}
   </p>
 
   <!-- Footer row: tool count + readiness on the left, action buttons on the
@@ -270,7 +306,7 @@
     {:else if extension.installed}
       <span
         class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-300"
-        title="This extension is already installed"
+        title="Already installed"
       >
         <svg
           viewBox="0 0 24 24"
@@ -301,7 +337,7 @@
           <button
             type="button"
             onclick={() => onSetup?.(extension)}
-            aria-label={`Set up ${title} — ${setupHint}`}
+            aria-label={`${setupActionLabel} — ${setupHint}`}
             title={setupHint}
             disabled={busy}
             class="inline-flex items-center gap-1.5 px-3 h-8 rounded-md border border-accent-gold/60 text-accent-gold bg-accent-gold/10 text-xs font-semibold hover:bg-accent-gold/20 transition disabled:opacity-50 disabled:cursor-not-allowed"
@@ -320,7 +356,7 @@
                 d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
               />
             </svg>
-            Set up
+            {setupActionLabel}
           </button>
         {:else}
           <button
@@ -451,7 +487,7 @@
       aria-label={`Tools contributed by ${title}`}
     >
       {#if toolNames.length === 0}
-        <p class="text-[11px] text-text-muted italic">No tool names available.</p>
+        <p class="text-[11px] text-text-muted italic">No tool names</p>
       {:else}
         <ul class="flex flex-wrap gap-1.5">
           {#each toolNames as tool (tool)}

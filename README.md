@@ -266,6 +266,10 @@ npm run tauri build
 # Output: src-tauri/target/release/bundle/{macos,dmg}/
 ```
 
+Local builds automatically skip updater artifacts when `TAURI_SIGNING_PRIVATE_KEY`
+is not set. Release builds that provide the key still generate the signed
+`.app.tar.gz` updater payload.
+
 ## Static checks
 
 ```bash
@@ -353,13 +357,13 @@ ironclaw-desktop/
 
    The script writes the keypair to `~/.tauri/ironclaw-updater.key{,.pub}` and refuses to overwrite an existing key.
 
-2. Paste the printed public key into `src-tauri/tauri.conf.json` under `plugins.updater.pubkey`. Commit that change.
+2. Confirm `src-tauri/tauri.conf.json` still contains the matching public key under `plugins.updater.pubkey`.
 
 3. In the GitHub repo settings, add two Actions secrets:
    - `TAURI_SIGNING_PRIVATE_KEY` — contents of `~/.tauri/ironclaw-updater.key` (already base64-encoded by Tauri). Copy with `cat ~/.tauri/ironclaw-updater.key | pbcopy`.
    - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — empty by default (the generator uses no password). If you re-run the generator with a password later, update this secret.
 
-Until the pubkey is committed and both secrets are set, the workflow builds **unsigned** updater artifacts. Builds still succeed; auto-update verification will fail until signing is wired.
+The public key is already committed. Release and local Tauri updater-artifact builds still need the private key secret (`TAURI_SIGNING_PRIVATE_KEY`) so the `.app.tar.gz` updater payload can be signed. Without it, `npm run tauri build` produces the unsigned `.app` and `.dmg` and skips updater artifacts.
 
 ### Cutting a release
 
@@ -410,9 +414,10 @@ Override defaults via env: `IRONCLAW_SSH_ALIAS` + `IRONCLAW_TUNNEL_PORT`.
 
 ### Probing server-blocked endpoints
 
-Our client has stubbed methods for endpoints the gateway doesn't yet expose
-(thread delete, routine create, memory delete, etc.). To check whether any
-have landed upstream:
+Some desktop actions are pre-wired before the gateway exposes the matching
+endpoint (thread delete, routine create, memory delete, etc.). A few of those
+actions already appear in the UI and honestly toast the gateway error until the
+server lands. To check whether any have landed upstream:
 
 ```bash
 bash scripts/probe-blocked-endpoints.sh

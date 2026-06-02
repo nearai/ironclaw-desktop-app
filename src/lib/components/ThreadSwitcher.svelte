@@ -269,7 +269,7 @@
     // (the +page.svelte route reads `?thread=<id>` and applies it after
     // the list loads). selectThread() above primes the in-memory store so
     // the switch is instant when we're already on /chat.
-    void goto(`/?thread=${encodeURIComponent(row.thread.id)}`);
+    void goto(`/chat?thread=${encodeURIComponent(row.thread.id)}`);
   }
 
   function onKeyDown(e: KeyboardEvent) {
@@ -357,7 +357,7 @@
                a load here; the user can navigate to /chat which owns the
                threads lifecycle (init/refresh on send). -->
           <div class="px-5 py-8 text-center text-sm text-text-muted">
-            No conversations yet. Start a new chat from the chat page.
+            No conversations yet. Start one from the chat page.
           </div>
         {:else if flatRows.length === 0}
           <!-- Soft empty state — threads exist but the query matched none. -->

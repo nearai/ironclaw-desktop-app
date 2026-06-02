@@ -87,16 +87,15 @@
 
   let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-  const isDisconnected = $derived(
-    connection.status === 'disconnected' || connection.status === 'idle' || !connection.client
-  );
+  const runnerReady = $derived(connection.client !== null && connection.status === 'connected');
+  const isDisconnected = $derived(!runnerReady);
 
   // Pill defs (label + value) shared between both tabs.
   const CATEGORY_PILLS: Array<{ value: CategoryFilter; label: string }> = [
     { value: 'all', label: 'All' },
-    { value: 'mcp', label: 'MCP' },
-    { value: 'oauth', label: 'OAuth' },
-    { value: 'channel', label: 'Channel' },
+    { value: 'mcp', label: 'Knowledge' },
+    { value: 'oauth', label: 'Accounts' },
+    { value: 'channel', label: 'Team chat' },
     { value: 'other', label: 'Other' }
   ];
 
@@ -257,8 +256,9 @@
   // Auto-load when connection becomes available — handles both cold-start
   // (mount-before-init) and reconnects (mode-switch in /settings).
   $effect(() => {
+    const ready = runnerReady;
     const client = connection.client;
-    if (!client) {
+    if (!ready || !client) {
       installedState = 'idle';
       registryState = 'idle';
       stopRefresh();
@@ -344,6 +344,18 @@
    * `data-extension-card={name}` and `display: contents` so the grid
    * layout is unchanged.
    */
+  function focusCard(name: string): void {
+    void tick().then(() => {
+      if (typeof document === 'undefined') return;
+      focusedName = name;
+      const el = document.querySelector<HTMLElement>(`[data-extension-card="${cssEscape(name)}"]`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      window.setTimeout(() => {
+        if (focusedName === name) focusedName = null;
+      }, 4500);
+    });
+  }
+
   function tryConsumeFocus() {
     if (focusConsumed) return;
     const name = pendingFocusName;
@@ -368,20 +380,17 @@
         // Registry cards don't expand inline — collapse any installed
         // expansion so the visual focus is on the new card.
         expandedName = null;
+        if (pendingSetupForFocus && inRegistry) {
+          const ext = inRegistry;
+          pendingFocusName = null;
+          pendingSetupForFocus = false;
+          void installRegistryAndOpenSetup(ext);
+          return;
+        }
       }
       // Let the each-block paint the card before scrolling. Without the
       // tick, querySelector returns null on first load.
-      void tick().then(() => {
-        if (typeof document === 'undefined') return;
-        focusedName = name;
-        const el = document.querySelector<HTMLElement>(
-          `[data-extension-card="${cssEscape(name)}"]`
-        );
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        window.setTimeout(() => {
-          if (focusedName === name) focusedName = null;
-        }, 4500);
-      });
+      focusCard(name);
       clearFocusParam();
       pendingSetupForFocus = false;
       return;
@@ -520,6 +529,38 @@
     busyNames = next;
   }
 
+  async function installRegistryAndOpenSetup(ext: Extension): Promise<void> {
+    const client = connection.client;
+    if (!client) return;
+    const label = ext.display_name ?? ext.name;
+    setBusy(ext.name, true);
+    try {
+      const res = await client.installExtension(ext.name, ext.category);
+      const [latest] = await Promise.all([loadInstalled(), loadRegistry()]);
+      const updated = latest?.find((item) => item.name === ext.name);
+      if (updated) {
+        activeTab = 'installed';
+        expandedName = updated.name;
+        setupTarget = updated;
+        focusCard(updated.name);
+        toasts.show(`Installed ${label}; opening setup`, 'success');
+      } else if (res.ok) {
+        toasts.show(
+          `Install requested for ${label}; waiting for IronClaw to report it installed before setup can open.`,
+          'info'
+        );
+      } else {
+        toasts.show(`Install request sent for ${label}`, 'info');
+      }
+      clearFocusParam();
+    } catch (err) {
+      toasts.show(`Install failed: ${(err as Error).message}`, 'error');
+    } finally {
+      pendingSetupForFocus = false;
+      setBusy(ext.name, false);
+    }
+  }
+
   async function handleInstall(ext: Extension) {
     const client = connection.client;
     if (!client) return;
@@ -588,7 +629,7 @@
     const label = ext.display_name ?? ext.name;
     const ok = await confirmDialog.ask({
       title: `Remove ${label}?`,
-      body: `This will uninstall ${label} from IronClaw. You can reinstall it from the registry later if it is available.`,
+      body: `Uninstalls ${label}. You can reinstall it from the registry later.`,
       confirmLabel: 'Remove extension',
       cancelLabel: 'Keep extension',
       tone: 'danger'
@@ -685,7 +726,7 @@
     <div>
       <h1 class="text-2xl font-semibold text-text-primary">Extensions</h1>
       <p class="text-text-muted text-sm mt-1">
-        Connect Gmail, Calendar, Slack, Notion, and other workspace context.
+        Connect Gmail, Calendar, Slack, Notion, and more.
         {#if installedState === 'loaded'}
           <span class="text-text-muted/70">·</span>
           <span class="text-text-muted">{installed.length} installed</span>
@@ -846,10 +887,10 @@
         </div>
         <div class="max-w-md text-xs leading-5 text-text-muted">
           {#if pendingSetupForFocus && pendingFocusName}
-            This setup link is queued. Connect a runner or hosted gateway, then return here and the
-            setup drawer will open for {formatExtensionName(pendingFocusName)}.
+            Setup for {formatExtensionName(pendingFocusName)} is queued. Connect a runner or gateway,
+            then return here.
           {:else}
-            Connect a runner before installing or configuring workspace connectors.
+            Connect a runner to install or configure connectors.
           {/if}
         </div>
         <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
@@ -920,12 +961,11 @@
         >
           <div class="text-sm text-text-primary mb-1">No matching extensions</div>
           <div class="text-xs text-text-muted">
-            Adjust the filters or
             <button
               type="button"
               onclick={clearFilters}
               class="text-accent-cyan underline decoration-dotted hover:decoration-solid"
-              >clear them</button
+              >Clear the filters</button
             >
             to see all {installed.length}.
           </div>
@@ -993,9 +1033,9 @@
         <div
           class="surface p-10 flex flex-col items-center justify-center text-center min-h-[280px]"
         >
-          <div class="text-sm text-text-primary mb-1">The registry is empty.</div>
+          <div class="text-sm text-text-primary mb-1">Registry is empty</div>
           <div class="text-xs text-text-muted mb-4">
-            No extensions are available right now. Try reloading the catalog.
+            No extensions available. Reload the catalog.
           </div>
           <button
             type="button"
@@ -1014,7 +1054,7 @@
             {#if debouncedQuery.trim().length > 0}
               No registry entries match «<span class="text-text-primary">{debouncedQuery}</span>».
             {:else}
-              No registry entries match the current filters.
+              No registry entries match the filters
             {/if}
             <button
               type="button"
@@ -1048,7 +1088,9 @@
 </section>
 
 {#if setupTarget}
-  <SetupDrawer extension={setupTarget} onClose={closeSetup} onSaved={handleSetupSaved} />
+  {#key setupTarget.name}
+    <SetupDrawer extension={setupTarget} onClose={closeSetup} onSaved={handleSetupSaved} />
+  {/key}
 {/if}
 
 <style>
@@ -1057,9 +1099,9 @@
   }
 
   :global([data-extension-focused='true'] > *) {
-    border-color: rgba(0, 145, 253, 0.85) !important;
+    border-color: color-mix(in srgb, var(--v2-accent) 85%, transparent) !important;
     box-shadow:
-      0 0 0 1px rgba(0, 145, 253, 0.45),
-      0 0 0 6px rgba(0, 145, 253, 0.12);
+      0 0 0 1px color-mix(in srgb, var(--v2-accent) 45%, transparent),
+      0 0 0 6px color-mix(in srgb, var(--v2-accent) 12%, transparent);
   }
 </style>

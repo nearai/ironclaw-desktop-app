@@ -54,7 +54,7 @@ describe('RebornDeskPanel', () => {
     expect(getByText("You're all caught up")).toBeTruthy();
     // The home surface offers the primary next action rather than dead-ending.
     const startLink = getByText('Start a conversation →');
-    expect(startLink.getAttribute('href')).toBe('/');
+    expect(startLink.getAttribute('href')).toBe('/chat');
   });
 
   it('renders a Needs-you card for a pending gate', () => {
@@ -229,6 +229,6 @@ describe('RebornDeskPanel', () => {
 
     await fireEvent.click(row);
 
-    expect(await findByText('No result detail available.')).toBeTruthy();
+    expect(await findByText('No result detail.')).toBeTruthy();
   });
 });

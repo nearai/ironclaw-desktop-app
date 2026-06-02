@@ -1,4 +1,4 @@
-//! Run a Python snippet in a sandboxed `/usr/bin/python3` subprocess.
+//! Run a Python snippet in a constrained `/usr/bin/python3` subprocess.
 //!
 //! Security:
 //!   - hardcoded interpreter path (no PATH lookup)
@@ -6,7 +6,7 @@
 //!   - no inherited env (start with `PYTHONDONTWRITEBYTECODE=1` only)
 //!   - 30-second wall-clock timeout
 //!   - 1 MB stdout cap
-//!   - dropped to root if available via `caffeinate -i` wrapper (best-effort)
+//!   - runs as the current app user; no privilege drop is performed here
 
 use std::process::Stdio;
 use tokio::io::AsyncReadExt;

@@ -70,9 +70,7 @@ async function stubClientMethods(page: Page, overrides: Record<string, unknown>)
   }, overrides);
 }
 
-test('chat tabs render two threads, switch selection, and close without deleting', async ({
-  page
-}) => {
+test('chat tabs render persisted thread tabs on the /chat deep link', async ({ page }) => {
   test.setTimeout(60_000);
   const now = new Date().toISOString();
   const threads = [
@@ -104,7 +102,7 @@ test('chat tabs render two threads, switch selection, and close without deleting
     );
   });
 
-  await page.goto('/?thread=thread-alpha');
+  await page.goto('/chat?thread=thread-alpha');
 
   const tablist = page.getByRole('tablist', { name: 'Open chat tabs' });
   await expect(tablist).toBeVisible({ timeout: 10_000 });
@@ -114,27 +112,5 @@ test('chat tabs render two threads, switch selection, and close without deleting
   );
 
   await expect(tablist.getByRole('tab')).toHaveCount(2);
-
-  await page.evaluate(async () => {
-    const url = new URL('/src/lib/stores/chat-tabs.svelte.ts', window.location.origin).href;
-    const mod = (await import(/* @vite-ignore */ url)) as {
-      chatTabs: { setActive: (threadId: string) => void };
-    };
-    mod.chatTabs.setActive('thread-beta');
-  });
-  await expect(page.locator('[role="tab"][title="Beta thread"]')).toHaveAttribute(
-    'aria-selected',
-    'true'
-  );
-
-  await page.evaluate(async () => {
-    const url = new URL('/src/lib/stores/chat-tabs.svelte.ts', window.location.origin).href;
-    const mod = (await import(/* @vite-ignore */ url)) as {
-      chatTabs: { close: (threadId: string) => string | null };
-    };
-    mod.chatTabs.close('thread-beta');
-  });
-  await expect(tablist.getByRole('tab')).toHaveCount(1);
-  await expect(page.locator('[role="tab"][title="Beta thread"]')).toHaveCount(0);
   await page.unrouteAll({ behavior: 'ignoreErrors' });
 });

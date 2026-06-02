@@ -42,6 +42,17 @@ test('Desk generated actions can use connected workspace sources without pasted 
   await page.route(/\/api\/v1\/responses$/, async (route) => {
     const body = route.request().postDataJSON() as { input?: string } | null;
     responseInputs.push(body?.input ?? '');
+    if (responseInputs.length > 1) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          output_text:
+            '# Calendar and inbox brief\n\n## Summary\nGmail and Calendar should be reviewed before drafting any external reply.\n\n## Approval Needed\nNo messages have been sent.'
+        })
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -88,4 +99,24 @@ test('Desk generated actions can use connected workspace sources without pasted 
   expect(responseInputs[0]).toContain('Read-only collection request');
   expect(responseInputs[0]).toContain('Do not send');
   expect(responseInputs[0]).not.toContain('tools/gmail');
+
+  await page.getByRole('button', { name: 'Create in Work' }).click();
+  await expect(page).toHaveURL(/\/work\?item=.*&artifact=/);
+  await expect(
+    page.getByRole('heading', { name: 'Prepare the next calendar brief' })
+  ).toBeVisible();
+  await expect(page.getByText('Calendar and inbox brief').first()).toBeVisible();
+  const artifactContent = page.getByTestId('work-artifact-content');
+  await expect(artifactContent).toContainText('No messages have been sent.');
+  await expect
+    .poll(async () => {
+      const detailBox = await page.getByRole('region', { name: 'Work item detail' }).boundingBox();
+      const artifactBox = await artifactContent.boundingBox();
+      if (!detailBox || !artifactBox) return false;
+      return artifactBox.y >= detailBox.y && artifactBox.y < detailBox.y + detailBox.height;
+    })
+    .toBe(true);
+  expect(responseInputs).toHaveLength(2);
+  expect(responseInputs[1]).toContain('Create the deliverable');
+  expect(responseInputs[1]).toContain('Do not return JSON');
 });

@@ -772,10 +772,11 @@
       </svg>
       <div class="text-sm text-text-primary">IronClaw is offline</div>
       <div class="text-xs text-text-muted">
-        Check <a
+        Verify the gateway connection in
+        <a
           href="/settings"
           class="text-accent-cyan underline decoration-dotted hover:decoration-solid">Settings</a
-        > to verify the gateway connection.
+        >.
       </div>
     </div>
   {:else}
@@ -814,10 +815,7 @@
                exposes per-bucket success vs failure, layer two Sparklines
                (one success, one danger) or extend the
                component to accept a `secondary` series. -->
-          <div
-            title="Recent routine runs over the past 24 hours"
-            aria-label="Recent routine runs over the past 24 hours"
-          >
+          <div title="Routine runs, last 24h" aria-label="Routine runs, last 24h">
             <Sparkline
               data={sparkSeries}
               variant="bars"
@@ -951,7 +949,7 @@
             <circle cx="12" cy="12" r="10" />
             <polyline points="12 6 12 12 16 14" />
           </svg>
-          <div class="text-sm text-text-primary">No routines configured yet.</div>
+          <div class="text-sm text-text-primary">No routines configured yet</div>
           <div class="text-xs text-text-muted max-w-sm">
             Create a routine from this page. Older gateways may still require the IronClaw CLI (<code
               class="font-mono">ironclaw routines create</code
@@ -987,7 +985,7 @@
         <!-- Filtered-empty state. Distinct from the no-data state above so the
              user gets an action ("Clear filters") instead of a refresh button. -->
         <div class="flex-1 flex flex-col items-center justify-center gap-3 p-8 text-center">
-          <div class="text-sm text-text-primary">No routines match the current filters.</div>
+          <div class="text-sm text-text-primary">No routines match the filters</div>
           <button
             type="button"
             onclick={clearFilters}

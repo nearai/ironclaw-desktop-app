@@ -44,10 +44,10 @@ describe('agent-ui action registry', () => {
     expect(calls).toEqual(['/knowledge']);
   });
 
-  it('maps the chat surface to the root path', async () => {
+  it('maps the chat surface to the dedicated chat path', async () => {
     const { host, calls } = fakeHost();
     await dispatchAction('navigate', { surface: 'chat' }, host);
-    expect(calls).toEqual(['/']);
+    expect(calls).toEqual(['/chat']);
   });
 
   it('rejects an unknown surface without navigating', async () => {

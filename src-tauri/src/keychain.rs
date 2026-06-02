@@ -341,14 +341,20 @@ pub fn delete_llm_provider_credential(profile_id: &str, provider_id: &str) -> Re
 /// UUID v4 if none exists. Idempotent — callers can invoke on every boot.
 /// Kept global (no profile scoping) — there is one bundled sidecar per
 /// install, and its bearer is an app-level secret, not a per-profile one.
-pub fn get_or_create_local_token() -> Result<String, String> {
-    if let Some(existing) = get_secret(ACCOUNT_LOCAL_TOKEN)? {
-        if !existing.is_empty() {
-            return Ok(existing);
+pub fn get_or_create_local_token(app: &AppHandle) -> Result<String, String> {
+    match get_secret(ACCOUNT_LOCAL_TOKEN) {
+        Ok(Some(existing)) if !existing.is_empty() => return Ok(existing),
+        Ok(_) | Err(_) => {
+            if let Some(existing) = read_token_file(app, ACCOUNT_LOCAL_TOKEN) {
+                return Ok(existing);
+            }
         }
     }
     let fresh = uuid::Uuid::new_v4().to_string();
-    set_secret(ACCOUNT_LOCAL_TOKEN, &fresh)?;
+    write_token_file(app, ACCOUNT_LOCAL_TOKEN, &fresh)?;
+    if let Err(err) = set_secret(ACCOUNT_LOCAL_TOKEN, &fresh) {
+        log::warn!(target: "ironclaw_keychain", "keychain write FAILED [{ACCOUNT_LOCAL_TOKEN}]: {err} — file fallback persisted");
+    }
     Ok(fresh)
 }
 

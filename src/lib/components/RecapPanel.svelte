@@ -68,7 +68,7 @@
               class="w-3 h-3 rounded-full border-2 border-accent-cyan border-t-transparent animate-spin"
               aria-hidden="true"
             ></span>
-            Summarizing the conversation…
+            Summarizing…
           </div>
         {:else if recap.error}
           <div class="text-red-300/90">{recap.error}</div>
@@ -78,7 +78,7 @@
       </div>
 
       <footer class="px-4 py-2 border-t border-border-subtle text-[11px] text-text-muted">
-        A reading aid generated from this thread — your messages are untouched.
+        A reading aid from this thread. Your messages are untouched.
       </footer>
     </div>
   </div>
