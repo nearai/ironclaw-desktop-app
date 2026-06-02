@@ -107,7 +107,7 @@ describe('ChatModelSelector', () => {
     expect((screen.getByLabelText('Chat model') as HTMLInputElement).value).toBe('auto');
   });
 
-  it('shows configured-but-unverified models as runnable first-run candidates', async () => {
+  it('shows configured-but-unverified models as blocked until execution is proven', async () => {
     clientStub.gatewayStatus.mockResolvedValueOnce({
       llm_backend: 'NEAR.AI',
       llm_model: 'z-ai/glm-4.5',
@@ -124,7 +124,18 @@ describe('ChatModelSelector', () => {
     await fireEvent.click(
       await screen.findByRole('button', { name: /Running: NEAR\.AI \/ z-ai\/glm-4\.5/i })
     );
-    expect(screen.getByText(/This model has not completed a live run yet/i)).toBeTruthy();
+    expect(screen.getByText(/has not proven this model can complete a reply/i)).toBeTruthy();
+  });
+
+  it('hides non-NEAR providers for the local sidecar chat selector', async () => {
+    render(ChatModelSelector);
+
+    await fireEvent.click(
+      await screen.findByRole('button', { name: /Running: NEAR\.AI \/ auto/i })
+    );
+
+    expect(screen.getByRole('option', { name: 'NEAR.AI' })).toBeTruthy();
+    expect(screen.queryByRole('option', { name: 'OpenRouter' })).toBeNull();
   });
 
   it('saves a local model override and offers a runner restart', async () => {

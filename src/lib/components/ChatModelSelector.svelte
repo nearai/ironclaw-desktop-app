@@ -9,7 +9,7 @@
   import { updateProfile, type LlmBackend } from '$lib/stores/settings.svelte';
   import { modelExecutionReadiness } from '$lib/util/model-readiness';
 
-  const LOCAL_SIDECAR_PROVIDERS = new Set(['nearai', 'openrouter', 'openai', 'anthropic']);
+  const LOCAL_SIDECAR_PROVIDERS = new Set(['nearai']);
 
   let providers = $state<LlmProvider[]>([]);
   let models = $state<LlmModel[]>([]);
@@ -28,11 +28,17 @@
 
   const activeProfile = $derived(connection.activeProfile);
   const activeProviderId = $derived(
-    activeProfile.llmProviderId ?? activeProfile.llmBackend ?? 'nearai'
+    activeProfile.mode === 'local'
+      ? 'nearai'
+      : (activeProfile.llmProviderId ?? activeProfile.llmBackend ?? 'nearai')
   );
 
   const providerOptions = $derived.by<LlmProvider[]>(() => {
-    if (providers.length > 0) return providers;
+    const availableProviders =
+      activeProfile.mode === 'local'
+        ? providers.filter((provider) => LOCAL_SIDECAR_PROVIDERS.has(provider.id))
+        : providers;
+    if (availableProviders.length > 0) return availableProviders;
     return [
       {
         id: activeProviderId,

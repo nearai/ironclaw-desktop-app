@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { isModelExecutionVerified, modelExecutionReadiness } from './model-readiness';
 
 describe('modelExecutionReadiness', () => {
-  it('allows configured models to send their first verification run', () => {
+  it('blocks configured models until execution is verified', () => {
     const status = {
       llm_backend: 'NEAR.AI',
       llm_model: 'z-ai/glm-4.5',
@@ -14,8 +14,8 @@ describe('modelExecutionReadiness', () => {
     expect(modelExecutionReadiness(status)).toEqual(
       expect.objectContaining({
         verified: false,
-        sendBlocked: false,
-        buttonPrefix: 'Configured (unverified)'
+        sendBlocked: true,
+        buttonPrefix: 'Not ready'
       })
     );
   });
@@ -50,7 +50,7 @@ describe('modelExecutionReadiness', () => {
     expect(readiness.sendBlockReason).toContain('vaulted nearai credential');
   });
 
-  it('does not block the generic first-run verification reason', () => {
+  it('blocks the generic first-run verification reason', () => {
     const readiness = modelExecutionReadiness({
       model_execution_verified: false,
       model_readiness: 'unverified',
@@ -58,7 +58,7 @@ describe('modelExecutionReadiness', () => {
         'Gateway status reports configured provider/model only; execution is verified by a successful WebChat run.'
     });
 
-    expect(readiness.sendBlocked).toBe(false);
-    expect(readiness.sendBlockReason).toBe('');
+    expect(readiness.sendBlocked).toBe(true);
+    expect(readiness.sendBlockReason).toContain('has not proven');
   });
 });

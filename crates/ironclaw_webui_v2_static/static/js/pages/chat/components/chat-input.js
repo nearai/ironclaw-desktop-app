@@ -39,12 +39,13 @@ export function ChatInput({
     useComposerAttachments();
   const readiness = context.modelReadiness || {
     verified: false,
-    sendBlocked: false,
-    label: 'Configured, unverified',
-    buttonPrefix: 'Configured (unverified)',
+    sendBlocked: true,
+    label: 'Execution not verified',
+    buttonPrefix: 'Not ready',
     description:
-      'This model has not completed a live run yet. Send a message to verify execution; any provider failure will appear in the thread.',
-    sendBlockReason: ''
+      'IronClaw has not proven this model can complete a reply. Configure or restart the gateway before sending.',
+    sendBlockReason:
+      'IronClaw has not proven this model can complete a reply. Configure or restart the gateway before sending.'
   };
 
   const autoResize = React.useCallback(() => {
@@ -332,12 +333,13 @@ function ChatModelControl({ context }) {
   const runningModelLabel = modelLabelFor(runningModel);
   const readiness = context.modelReadiness || {
     verified: false,
-    sendBlocked: false,
-    label: 'Configured, unverified',
-    buttonPrefix: 'Configured (unverified)',
+    sendBlocked: true,
+    label: 'Execution not verified',
+    buttonPrefix: 'Not ready',
     description:
-      'This model has not completed a live run yet. Send a message to verify execution; any provider failure will appear in the thread.',
-    sendBlockReason: ''
+      'IronClaw has not proven this model can complete a reply. Configure or restart the gateway before sending.',
+    sendBlockReason:
+      'IronClaw has not proven this model can complete a reply. Configure or restart the gateway before sending.'
   };
   const buttonLabel = `${readiness.buttonPrefix}: ${runningProvider} / ${runningModelLabel}`;
   const dirtySelection =

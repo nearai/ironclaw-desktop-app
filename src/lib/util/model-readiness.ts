@@ -10,13 +10,14 @@ export type ModelExecutionReadiness = {
 
 const UNVERIFIED: ModelExecutionReadiness = {
   verified: false,
-  sendBlocked: false,
+  sendBlocked: true,
   tone: 'warning',
-  label: 'Configured, unverified',
-  buttonPrefix: 'Configured (unverified)',
+  label: 'Execution not verified',
+  buttonPrefix: 'Not ready',
   description:
-    'This model has not completed a live run yet. Send a message to verify execution; any provider failure will appear in the thread.',
-  sendBlockReason: ''
+    'IronClaw has not proven this model can complete a reply. Configure or restart the gateway before sending.',
+  sendBlockReason:
+    'IronClaw has not proven this model can complete a reply. Configure or restart the gateway before sending.'
 };
 
 const BLOCKED: ModelExecutionReadiness = {

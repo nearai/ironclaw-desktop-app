@@ -468,7 +468,7 @@ try {
     waitUntil: 'domcontentloaded'
   });
   await page
-    .getByText('Configured (unverified): NEAR.AI / IronClaw default (auto)', { exact: true })
+    .getByText('Not ready: NEAR.AI / IronClaw default (auto)', { exact: true })
     .waitFor({ timeout: 20_000 });
   const modelControlText = await page.locator('[aria-label="Chat model controls"]').innerText();
   if (modelControlText.includes('OpenRouter') || modelControlText.includes('deepseek/')) {
@@ -486,7 +486,10 @@ try {
       `static chat model picker exposed unconfigured provider:\n${openModelControlText}`
     );
   }
-  await page.getByText(/This model has not completed a live run yet/).waitFor({ timeout: 20_000 });
+  await page
+    .getByText(/IronClaw has not proven this model can complete a reply/)
+    .first()
+    .waitFor({ timeout: 20_000 });
   await page.getByText(/Leave auto to use IronClaw's NEAR\.AI default/).waitFor({
     timeout: 20_000
   });
@@ -497,23 +500,13 @@ try {
   await composer.click();
   await composer.pressSequentially(unverifiedPromptText);
   const unverifiedSendButton = page.locator('button[aria-label="Send message"]').last();
-  if (await unverifiedSendButton.isDisabled()) {
-    throw new Error('static chat disabled Send while model only needed its first verification run');
+  if (!(await unverifiedSendButton.isDisabled())) {
+    throw new Error('static chat allowed Send before model execution was verified');
   }
-  await unverifiedSendButton.click();
-  {
-    const deadline = Date.now() + 20_000;
-    while (chatMessageRequests.length === 0 && Date.now() < deadline) {
-      await wait(100);
-    }
-  }
-  if (chatMessageRequests.length === 0) {
-    throw new Error('static chat did not POST while model only needed its first verification run');
-  }
-  const unverifiedPost = chatMessageRequests.at(-1);
-  if (unverifiedPost?.content !== unverifiedPromptText) {
+  await wait(500);
+  if (chatMessageRequests.length !== 0) {
     throw new Error(
-      `static chat did not post first-run verification prompt: ${JSON.stringify(unverifiedPost)}`
+      `static chat posted before model execution was verified: ${JSON.stringify(chatMessageRequests)}`
     );
   }
   chatMessageRequests.length = 0;
