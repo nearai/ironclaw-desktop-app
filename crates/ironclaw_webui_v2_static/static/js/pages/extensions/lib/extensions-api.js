@@ -29,12 +29,12 @@ const BUNDLED_CONNECTORS = [
     version: 'bundled',
     kind: 'wasm_tool',
     provider: 'google',
-    token_label: 'Google OAuth access token',
+    token_label: 'Google access token',
     default_account_label: 'Work Google',
     description: 'Read, draft, and send Gmail with approval-gated actions.',
     tools: ['gmail.list_messages', 'gmail.get_message', 'gmail.create_draft', 'gmail.send_message'],
     setup_instructions:
-      'Connect a Google account token for Gmail. IronClaw stores the secret through Reborn Product Auth and never sends it through chat.'
+      'This desktop gateway currently exposes manual Product Auth token setup for Gmail. Paste a Google access token with Gmail scopes; IronClaw stores the secret through Reborn Product Auth and never sends it through chat.'
   },
   {
     name: 'google-calendar',
@@ -43,7 +43,7 @@ const BUNDLED_CONNECTORS = [
     version: 'bundled',
     kind: 'wasm_tool',
     provider: 'google',
-    token_label: 'Google OAuth access token',
+    token_label: 'Google access token',
     default_account_label: 'Work Google',
     description: 'Read calendars, find time, and draft or create events with approval.',
     tools: [
@@ -52,7 +52,7 @@ const BUNDLED_CONNECTORS = [
       'google-calendar.create_event'
     ],
     setup_instructions:
-      'Connect a Google account token for Calendar. The same Google account can be reused for Gmail and Calendar.'
+      'This desktop gateway currently exposes manual Product Auth token setup for Calendar. Paste a Google access token with Calendar scopes; the same Google account can be reused for Gmail and Calendar.'
   },
   {
     name: 'notion',
@@ -372,6 +372,8 @@ export function fetchExtensionSetup(name) {
   const status = readStatus()[connector.name];
   const credentialStored = Boolean(status?.credential_ref);
   return Promise.resolve({
+    display_name: connector.display_name,
+    provider: connector.provider,
     secrets: [
       {
         name: 'token',
@@ -392,7 +394,7 @@ export function fetchExtensionSetup(name) {
     onboarding: {
       credential_instructions: connector.setup_instructions,
       credential_next_step:
-        'After saving, ask IronClaw to use this workspace source. The model will still pause before sending or writing externally.'
+        'After saving, ask IronClaw to use this workspace source. The model will still pause before sending or writing externally. One-click OAuth is not exposed by this local gateway yet.'
     },
     source: 'reborn_product_auth'
   });

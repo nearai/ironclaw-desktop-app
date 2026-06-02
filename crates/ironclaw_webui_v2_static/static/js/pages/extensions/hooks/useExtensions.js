@@ -168,6 +168,8 @@ export function useExtensionSetup(name) {
   });
 
   return {
+    displayName: query.data?.display_name || name,
+    provider: query.data?.provider || null,
     secrets: query.data?.secrets || [],
     fields: query.data?.fields || [],
     onboarding: query.data?.onboarding || null,

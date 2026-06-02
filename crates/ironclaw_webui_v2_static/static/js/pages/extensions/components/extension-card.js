@@ -81,7 +81,7 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
               size="sm"
               onClick=${() => onConfigure(ext.name)}
               disabled=${isBusy}
-              >${ext.authenticated ? 'Reconfigure' : 'Configure'}<//
+              >${ext.authenticated ? 'Reconnect token' : 'Connect token'}<//
             >
           `}
           ${state !== 'active' &&

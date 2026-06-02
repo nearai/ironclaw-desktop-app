@@ -9,12 +9,14 @@ import {
 } from '../../../lib/api.js';
 import { formatSize, useComposerAttachments } from '../hooks/useComposerAttachments.js';
 
+const DEFAULT_CHAT_MODEL_LABEL = 'IronClaw default (auto)';
 const MODEL_PRESETS = [
-  { providerId: 'nearai', providerLabel: 'NEAR.AI', modelId: DEFAULT_CHAT_MODEL },
   {
-    providerId: 'openrouter',
-    providerLabel: 'OpenRouter',
-    modelId: 'deepseek/deepseek-chat-v3-0324'
+    providerId: 'nearai',
+    providerLabel: 'NEAR.AI',
+    modelId: DEFAULT_CHAT_MODEL,
+    label: DEFAULT_CHAT_MODEL_LABEL,
+    description: 'Use the NEAR.AI Cloud model selected by IronClaw/Reborn.'
   }
 ];
 
@@ -37,12 +39,12 @@ export function ChatInput({
     useComposerAttachments();
   const readiness = context.modelReadiness || {
     verified: false,
-    sendBlocked: true,
+    sendBlocked: false,
     label: 'Configured, unverified',
     buttonPrefix: 'Configured (unverified)',
-    description: 'Gateway has not verified this model can execute yet.',
-    sendBlockReason:
-      'The selected model has not passed an execution test. Choose a verified model before sending.'
+    description:
+      'This model has not completed a live run yet. Send a message to verify execution; any provider failure will appear in the thread.',
+    sendBlockReason: ''
   };
 
   const autoResize = React.useCallback(() => {
@@ -327,16 +329,17 @@ function ChatModelControl({ context }) {
 
   const runningProvider = providerLabelFor(context.backend || providerLabel);
   const runningModel = context.model || modelId || DEFAULT_CHAT_MODEL;
+  const runningModelLabel = modelLabelFor(runningModel);
   const readiness = context.modelReadiness || {
     verified: false,
-    sendBlocked: true,
+    sendBlocked: false,
     label: 'Configured, unverified',
     buttonPrefix: 'Configured (unverified)',
-    description: 'Gateway has not verified this model can execute yet.',
-    sendBlockReason:
-      'The selected model has not passed an execution test. Choose a verified model before sending.'
+    description:
+      'This model has not completed a live run yet. Send a message to verify execution; any provider failure will appear in the thread.',
+    sendBlockReason: ''
   };
-  const buttonLabel = `${readiness.buttonPrefix}: ${runningProvider} / ${runningModel}`;
+  const buttonLabel = `${readiness.buttonPrefix}: ${runningProvider} / ${runningModelLabel}`;
   const dirtySelection =
     providerId !== savedSelection.providerId ||
     providerLabel !== savedSelection.providerLabel ||
@@ -366,18 +369,6 @@ function ChatModelControl({ context }) {
     }
   }, [providerId, providerLabel, modelId]);
 
-  const selectProvider = React.useCallback(
-    (e) => {
-      const next = e.target.value;
-      setProviderId(next);
-      setProviderLabel(next === 'openrouter' ? 'OpenRouter' : 'NEAR.AI');
-      if (next === 'nearai' && (!modelId || modelId === 'auto')) {
-        setModelId(DEFAULT_CHAT_MODEL);
-      }
-    },
-    [modelId]
-  );
-
   const selectPreset = React.useCallback((preset) => {
     setProviderId(preset.providerId);
     setProviderLabel(preset.providerLabel);
@@ -405,7 +396,7 @@ function ChatModelControl({ context }) {
             <div className="min-w-0">
               <div className="text-sm font-semibold text-[var(--v2-text-strong)]">Chat model</div>
               <div className="mt-0.5 truncate text-xs text-[var(--v2-text-muted)]">
-                ${runningProvider} / ${runningModel}
+                ${runningProvider} / ${runningModelLabel}
               </div>
               <div
                 className=${[
@@ -429,26 +420,28 @@ function ChatModelControl({ context }) {
           </div>
           <label className="block text-[11px] font-semibold uppercase text-[var(--v2-text-faint)]">
             Provider
-            <select
-              value=${providerId}
-              onChange=${selectProvider}
-              className="v2-select mt-1 h-10 w-full rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-sm normal-case text-[var(--v2-text-strong)] outline-none"
+            <div
+              className="mt-1 flex h-10 w-full items-center rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-sm normal-case text-[var(--v2-text-strong)]"
             >
-              <option value="nearai">NEAR.AI</option>
-              <option value="openrouter">OpenRouter</option>
-            </select>
+              NEAR.AI Cloud
+            </div>
           </label>
           <label
             className="mt-3 block text-[11px] font-semibold uppercase text-[var(--v2-text-faint)]"
           >
-            Model
+            Model override
             <input
               aria-label="Chat model"
               value=${modelId}
               onChange=${(e) => setModelId(e.target.value)}
+              placeholder=${DEFAULT_CHAT_MODEL}
               className="mt-1 h-10 w-full rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 font-mono text-sm normal-case text-[var(--v2-text-strong)] outline-none"
             />
           </label>
+          <div className="mt-1 text-xs leading-5 text-[var(--v2-text-muted)]">
+            Leave <span className="font-mono">auto</span> to use IronClaw's NEAR.AI default. Type a
+            specific NEAR.AI model id only when you want an override.
+          </div>
           <div
             className="mt-2 rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs text-[var(--v2-text-muted)]"
           >
@@ -468,7 +461,10 @@ function ChatModelControl({ context }) {
                       ${preset.providerLabel}
                     </span>
                     <span className="block truncate font-mono text-xs text-[var(--v2-text-strong)]">
-                      ${preset.modelId}
+                      ${preset.label || modelLabelFor(preset.modelId)}
+                    </span>
+                    <span className="block truncate text-[11px] text-[var(--v2-text-muted)]">
+                      ${preset.description || preset.modelId}
                     </span>
                   </span>
                   ${providerId === preset.providerId && modelId === preset.modelId
@@ -536,7 +532,12 @@ function providerLabelFor(raw) {
   const value = String(raw || '').trim();
   if (!value) return 'NEAR.AI';
   if (value.toLowerCase() === 'nearai') return 'NEAR.AI';
-  if (value.toLowerCase() === 'openrouter') return 'OpenRouter';
+  return value;
+}
+
+function modelLabelFor(raw) {
+  const value = String(raw || '').trim();
+  if (!value || value === DEFAULT_CHAT_MODEL) return DEFAULT_CHAT_MODEL_LABEL;
   return value;
 }
 

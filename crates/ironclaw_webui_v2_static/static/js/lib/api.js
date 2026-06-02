@@ -551,6 +551,7 @@ const CHAT_MODEL_SELECTION_KEY = 'ironclaw:v2-chat-model-selection';
 const DEFAULT_CHAT_PROVIDER_ID = 'nearai';
 const DEFAULT_CHAT_PROVIDER_LABEL = 'NEAR.AI';
 export const DEFAULT_CHAT_MODEL = 'auto';
+const STATIC_SUPPORTED_CHAT_PROVIDERS = new Set([DEFAULT_CHAT_PROVIDER_ID]);
 
 export function readChatModelSelection() {
   let stored = null;
@@ -559,16 +560,21 @@ export function readChatModelSelection() {
   } catch (_) {
     stored = null;
   }
-  const providerId =
+  const rawProviderId =
     typeof stored?.providerId === 'string' && stored.providerId.trim()
-      ? stored.providerId.trim()
+      ? stored.providerId.trim().toLowerCase()
       : DEFAULT_CHAT_PROVIDER_ID;
+  const providerId = STATIC_SUPPORTED_CHAT_PROVIDERS.has(rawProviderId)
+    ? rawProviderId
+    : DEFAULT_CHAT_PROVIDER_ID;
   const providerLabel =
-    typeof stored?.providerLabel === 'string' && stored.providerLabel.trim()
-      ? stored.providerLabel.trim()
-      : DEFAULT_CHAT_PROVIDER_LABEL;
+    providerId === DEFAULT_CHAT_PROVIDER_ID
+      ? DEFAULT_CHAT_PROVIDER_LABEL
+      : typeof stored?.providerLabel === 'string' && stored.providerLabel.trim()
+        ? stored.providerLabel.trim()
+        : DEFAULT_CHAT_PROVIDER_LABEL;
   const modelId =
-    typeof stored?.modelId === 'string' && stored.modelId.trim()
+    providerId === rawProviderId && typeof stored?.modelId === 'string' && stored.modelId.trim()
       ? stored.modelId.trim()
       : DEFAULT_CHAT_MODEL;
   return { providerId, providerLabel, modelId };
@@ -576,10 +582,23 @@ export function readChatModelSelection() {
 
 export async function saveChatModelSelection({ providerId, providerLabel, modelId } = {}) {
   const current = readChatModelSelection();
+  const requestedProviderId = (providerId || current.providerId || DEFAULT_CHAT_PROVIDER_ID)
+    .trim()
+    .toLowerCase();
+  const cleanProviderId = STATIC_SUPPORTED_CHAT_PROVIDERS.has(requestedProviderId)
+    ? requestedProviderId
+    : DEFAULT_CHAT_PROVIDER_ID;
+  const cleanModelId =
+    cleanProviderId === requestedProviderId
+      ? (modelId || current.modelId || DEFAULT_CHAT_MODEL).trim()
+      : DEFAULT_CHAT_MODEL;
   const next = {
-    providerId: (providerId || current.providerId || DEFAULT_CHAT_PROVIDER_ID).trim(),
-    providerLabel: (providerLabel || current.providerLabel || DEFAULT_CHAT_PROVIDER_LABEL).trim(),
-    modelId: (modelId || current.modelId || DEFAULT_CHAT_MODEL).trim()
+    providerId: cleanProviderId,
+    providerLabel:
+      cleanProviderId === DEFAULT_CHAT_PROVIDER_ID
+        ? DEFAULT_CHAT_PROVIDER_LABEL
+        : (providerLabel || current.providerLabel || DEFAULT_CHAT_PROVIDER_LABEL).trim(),
+    modelId: cleanModelId
   };
   localStorage.setItem(CHAT_MODEL_SELECTION_KEY, JSON.stringify(next));
 
@@ -599,7 +618,7 @@ export async function saveChatModelSelection({ providerId, providerLabel, modelI
           profile?.id === activeProfileId
             ? {
                 ...profile,
-                llmBackend: next.providerId === 'openrouter' ? 'openrouter' : 'nearai',
+                llmBackend: 'nearai',
                 llmProviderId: next.providerId,
                 llmModelId: next.modelId
               }
@@ -611,7 +630,7 @@ export async function saveChatModelSelection({ providerId, providerLabel, modelI
             name: 'Local IronClaw',
             mode: 'local',
             localBaseUrl: DEFAULT_DESKTOP_GATEWAY_ORIGIN,
-            llmBackend: next.providerId === 'openrouter' ? 'openrouter' : 'nearai',
+            llmBackend: 'nearai',
             llmProviderId: next.providerId,
             llmModelId: next.modelId
           }
@@ -624,7 +643,7 @@ export async function saveChatModelSelection({ providerId, providerLabel, modelI
   });
 
   await tauriInvoke('start_sidecar', {
-    backend: next.providerId === 'openrouter' ? 'openrouter' : 'nearai',
+    backend: 'nearai',
     providerId: next.providerId,
     modelId: next.modelId,
     profileId: activeProfileId

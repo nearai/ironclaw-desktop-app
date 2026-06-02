@@ -253,7 +253,7 @@ test('chat exposes the active provider and model selector', async ({ page }) => 
   await expect(page.getByRole('textbox', { name: 'Chat model' })).toHaveValue('auto');
 });
 
-test('chat blocks sends before dispatch when the selected model is unverified', async ({
+test('chat dispatches the first run when the selected model is configured but unverified', async ({
   page
 }) => {
   await mockCompletedOnboarding(page);
@@ -282,22 +282,22 @@ test('chat blocks sends before dispatch when the selected model is unverified', 
 
   await page.goto('/chat');
   await expect(page.getByTestId('reborn-chat-panel')).toBeVisible({ timeout: 10_000 });
-  await expect(
-    page.getByText(
-      /The selected model has not passed an execution test\..*execution is verified by a successful WebChat run\./
-    )
-  ).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText(/The selected model has not passed an execution test/i)).toHaveCount(
+    0
+  );
 
   const composer = page.getByPlaceholder('Message IronClaw…');
-  await composer.fill('do not dispatch into an unverified model');
-  await expect(composer).toHaveValue('do not dispatch into an unverified model');
-  await expect(page.getByRole('button', { name: 'Send' })).toBeDisabled();
+  await expect(composer).toBeEnabled({ timeout: 5000 });
+  await composer.fill('Hello agent');
+  await expect(composer).toHaveValue('Hello agent');
+  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled();
 
   await composer.press('Enter');
-  await page.waitForTimeout(250);
-  expect(messageRequests).toBe(0);
-  await expect(page.getByText('do not dispatch into an unverified model')).toHaveCount(0);
-  await expect(composer).toHaveValue('do not dispatch into an unverified model');
+  await expect.poll(() => messageRequests).toBeGreaterThan(0);
+  await expect(page.getByText('Hello agent', { exact: true })).toBeVisible({
+    timeout: 4000
+  });
+  await expect(page.getByText('Mocked reply').first()).toBeVisible({ timeout: 4000 });
 });
 
 test('risky Reborn chat asks create a durable Work Item before dispatch', async ({ page }) => {

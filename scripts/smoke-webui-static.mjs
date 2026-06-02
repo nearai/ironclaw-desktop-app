@@ -227,6 +227,33 @@ try {
       });
     }
   );
+  await page.route(
+    `${gatewayOrigin}/api/webchat/v2/threads/thread-smoke/events**`,
+    async (route) => {
+      const frames = [
+        `event: accepted\ndata: ${JSON.stringify({
+          type: 'accepted',
+          ack: { run_id: 'run-smoke', thread_id: 'thread-smoke', status: 'accepted' }
+        })}\n\n`,
+        `event: final_reply\ndata: ${JSON.stringify({
+          type: 'final_reply',
+          reply: {
+            turn_run_id: 'run-smoke',
+            text: '# Services agreement\n\n## Scope\n\nPrepared from the uploaded template with export-ready sections.',
+            generated_at: '2026-06-02T08:00:01.000Z'
+          }
+        })}\n\n`
+      ].join('');
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache'
+        },
+        body: frames
+      });
+    }
+  );
   const failedRunMessageRequests = [];
   const failedRunTimelineRequests = [];
   const failedRunStateRequests = [];
@@ -334,6 +361,7 @@ try {
       webchatPath === '/api/webchat/v2/threads' ||
       route.request().url().includes('/threads/thread-smoke/messages') ||
       route.request().url().includes('/threads/thread-smoke/timeline') ||
+      route.request().url().includes('/threads/thread-smoke/events') ||
       route.request().url().includes('/threads/thread-fail/messages') ||
       route.request().url().includes('/threads/thread-fail/timeline') ||
       route.request().url().includes('/threads/thread-fail/runs/run-fail')
@@ -415,39 +443,67 @@ try {
     waitUntil: 'domcontentloaded'
   });
   await page
-    .getByText('Configured (unverified): NEAR.AI / auto', { exact: true })
+    .getByText('Configured (unverified): NEAR.AI / IronClaw default (auto)', { exact: true })
     .waitFor({ timeout: 20_000 });
   const modelControlText = await page.locator('[aria-label="Chat model controls"]').innerText();
+  if (modelControlText.includes('OpenRouter') || modelControlText.includes('deepseek/')) {
+    throw new Error(
+      `static chat model control exposed unconfigured provider:\n${modelControlText}`
+    );
+  }
   if (modelControlText.includes('Running:')) {
     throw new Error(`static chat model control claimed execution readiness:\n${modelControlText}`);
   }
+  await page.locator('[aria-label="Chat model controls"] button').click();
+  const openModelControlText = await page.locator('[aria-label="Chat model controls"]').innerText();
+  if (openModelControlText.includes('OpenRouter') || openModelControlText.includes('deepseek/')) {
+    throw new Error(
+      `static chat model picker exposed unconfigured provider:\n${openModelControlText}`
+    );
+  }
+  await page.getByText(/This model has not completed a live run yet/).waitFor({ timeout: 20_000 });
+  await page.getByText(/Leave auto to use IronClaw's NEAR\.AI default/).waitFor({
+    timeout: 20_000
+  });
+  await page.keyboard.press('Escape');
   const composer = page.locator('textarea').first();
   await composer.waitFor({ timeout: 20_000 });
-  await page
-    .getByText(
-      'The selected model has not passed an execution test. Choose a verified model before sending.',
-      { exact: true }
-    )
-    .waitFor({ timeout: 20_000 });
-  const blockedPromptText = 'This must not post while the model is unverified.';
+  const unverifiedPromptText = 'Hello from an unverified but configured model.';
   await composer.click();
-  await composer.pressSequentially(blockedPromptText);
-  const blockedSendButton = page.locator('button[aria-label="Send message"]').last();
-  if (!(await blockedSendButton.isDisabled())) {
-    throw new Error('static chat enabled Send while model execution readiness was unverified');
+  await composer.pressSequentially(unverifiedPromptText);
+  const unverifiedSendButton = page.locator('button[aria-label="Send message"]').last();
+  if (await unverifiedSendButton.isDisabled()) {
+    throw new Error('static chat disabled Send while model only needed its first verification run');
   }
-  if (chatMessageRequests.length > 0) {
-    throw new Error('static chat posted before model execution readiness was verified');
+  await unverifiedSendButton.click();
+  {
+    const deadline = Date.now() + 20_000;
+    while (chatMessageRequests.length === 0 && Date.now() < deadline) {
+      await wait(100);
+    }
   }
+  if (chatMessageRequests.length === 0) {
+    throw new Error('static chat did not POST while model only needed its first verification run');
+  }
+  const unverifiedPost = chatMessageRequests.at(-1);
+  if (unverifiedPost?.content !== unverifiedPromptText) {
+    throw new Error(
+      `static chat did not post first-run verification prompt: ${JSON.stringify(unverifiedPost)}`
+    );
+  }
+  chatMessageRequests.length = 0;
+  timelineRequests.length = 0;
 
   gatewayStatusPayload = {
     ...gatewayStatusPayload,
     model_execution_verified: true,
     model_readiness: 'GREEN'
   };
-  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.goto(`http://127.0.0.1:${port}/chat`, {
+    waitUntil: 'domcontentloaded'
+  });
   await page
-    .getByText('Verified: NEAR.AI / auto', { exact: true })
+    .getByText('Verified: NEAR.AI / IronClaw default (auto)', { exact: true })
     .waitFor({ timeout: 20_000 });
   const verifiedComposer = page.locator('textarea').first();
   await verifiedComposer.waitFor({ timeout: 20_000 });
@@ -471,11 +527,14 @@ try {
     return button && !button.disabled;
   });
   await sendButton.click();
-  await page.getByText('Draft a services agreement from this attachment.').waitFor({
+  await page.getByText('Draft a services agreement from this attachment.').first().waitFor({
     timeout: 20_000
   });
   try {
-    await page.getByText('Services agreement', { exact: true }).waitFor({ timeout: 20_000 });
+    await page
+      .getByText('Services agreement', { exact: true })
+      .first()
+      .waitFor({ timeout: 20_000 });
   } catch (err) {
     await mkdir('output/playwright', { recursive: true });
     let visibleBody = '<page closed>';
@@ -574,11 +633,14 @@ try {
     }
   }
 
-  async function expectDeepLinkSetup(path, expectedLifecycleSuffix, expectedTitle) {
+  async function expectDeepLinkSetup(path, expectedLifecycleSuffix, expectedTitle, expectedCopy) {
     await page.goto(`http://127.0.0.1:${port}${path}`, {
       waitUntil: 'domcontentloaded'
     });
     await page.getByText(expectedTitle, { exact: true }).waitFor({ timeout: 20_000 });
+    if (expectedCopy) {
+      await page.getByText(expectedCopy).waitFor({ timeout: 20_000 });
+    }
     await page.locator('input[type="password"]').waitFor({ timeout: 20_000 });
     const lifecycleRequest = connectorRequests.find((request) =>
       request.url.endsWith(expectedLifecycleSuffix)
@@ -596,17 +658,20 @@ try {
   await expectDeepLinkSetup(
     '/extensions/installed?focus=tools%2Fgmail&setup=1',
     '/api/webchat/v2/extensions/gmail/setup',
-    'Configure gmail'
+    'Connect Gmail',
+    /manual Product Auth token setup for Gmail/
   );
   await expectDeepLinkSetup(
     '/extensions/installed?focus=tools%2Fgoogle_calendar&setup=1',
     '/api/webchat/v2/extensions/google-calendar/setup',
-    'Configure google-calendar'
+    'Connect Google Calendar',
+    /manual Product Auth token setup for Calendar/
   );
   await expectDeepLinkSetup(
     '/extensions/mcp?focus=mcp-servers%2Fnotion&setup=1',
     '/api/webchat/v2/extensions/notion/setup',
-    'Configure notion'
+    'Connect Notion',
+    /Paste a Notion integration token/
   );
 
   const beforeSlackRequestCount = connectorRequests.length;
@@ -638,7 +703,7 @@ try {
     );
   }
   await page.getByText('auth needed', { exact: true }).first().waitFor({ timeout: 20_000 });
-  await page.getByRole('button', { name: 'Configure' }).first().click();
+  await page.getByRole('button', { name: 'Connect token' }).first().click();
   await page.locator('input[type="password"]').fill('ya29.smoke-token');
   await page.locator('input[type="text"]').fill('Smoke Google');
   await page.getByRole('button', { name: 'Save token' }).click();
@@ -648,9 +713,12 @@ try {
   });
   await page.getByText('runtime blocked', { exact: true }).waitFor({ timeout: 20_000 });
   await page
-    .getByText('Backend can store this credential, but this connector runtime is not wired in this build yet.', {
-      exact: true
-    })
+    .getByText(
+      'Backend can store this credential, but this connector runtime is not wired in this build yet.',
+      {
+        exact: true
+      }
+    )
     .waitFor({ timeout: 20_000 });
   const postSetupText = await page.locator('body').innerText();
   if (postSetupText.includes('Gmail connected') || postSetupText.includes('ready')) {

@@ -4,9 +4,11 @@ import { React, html } from '../../../lib/html.js';
 import { useExtensionSetup, useSetupSubmit } from '../hooks/useExtensions.js';
 
 export function ConfigureModal({ extensionName, onClose, onSaved }) {
-  const { secrets, fields, onboarding, isLoading, error } = useExtensionSetup(extensionName);
+  const { displayName, secrets, fields, onboarding, isLoading, error } =
+    useExtensionSetup(extensionName);
   const [values, setValues] = React.useState({});
   const [fieldValues, setFieldValues] = React.useState({});
+  const title = `Connect ${displayName || extensionName}`;
 
   const submitMutation = useSetupSubmit(extensionName, (res) => {
     if (res.success !== false) {
@@ -26,7 +28,7 @@ export function ConfigureModal({ extensionName, onClose, onSaved }) {
 
   if (isLoading) {
     return html`
-      <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
+      <${ModalShell} onClose=${onClose} title=${title}>
         <div className="space-y-3">
           ${[1, 2].map(
             (i) => html`<div key=${i} className="v2-skeleton h-10 w-full rounded-md" />`
@@ -38,7 +40,7 @@ export function ConfigureModal({ extensionName, onClose, onSaved }) {
 
   if (error) {
     return html`
-      <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
+      <${ModalShell} onClose=${onClose} title=${title}>
         <p className="text-sm text-red-200">Failed to load setup: ${error.message}</p>
       <//>
     `;
@@ -46,14 +48,16 @@ export function ConfigureModal({ extensionName, onClose, onSaved }) {
 
   if (secrets.length === 0 && fields.length === 0) {
     return html`
-      <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
-        <p className="text-sm text-iron-300">No configuration required for this extension.</p>
+      <${ModalShell} onClose=${onClose} title=${title}>
+        <p className="text-sm text-iron-300">
+          No manual setup is available for this connector in this desktop build.
+        </p>
       <//>
     `;
   }
 
   return html`
-    <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
+    <${ModalShell} onClose=${onClose} title=${title}>
       ${onboarding?.credential_instructions &&
       html`
         <p className="mb-4 text-sm leading-6 text-iron-300">

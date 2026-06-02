@@ -10,13 +10,23 @@ export type ModelExecutionReadiness = {
 
 const UNVERIFIED: ModelExecutionReadiness = {
   verified: false,
-  sendBlocked: true,
+  sendBlocked: false,
   tone: 'warning',
   label: 'Configured, unverified',
   buttonPrefix: 'Configured (unverified)',
-  description: 'Gateway has not verified this model can execute yet.',
-  sendBlockReason:
-    'The selected model has not passed an execution test. Choose a verified model before sending.'
+  description:
+    'This model has not completed a live run yet. Send a message to verify execution; any provider failure will appear in the thread.',
+  sendBlockReason: ''
+};
+
+const BLOCKED: ModelExecutionReadiness = {
+  verified: false,
+  sendBlocked: true,
+  tone: 'warning',
+  label: 'Model setup required',
+  buttonPrefix: 'Setup required',
+  description: 'The configured model cannot run until provider setup is fixed.',
+  sendBlockReason: 'The configured model cannot run until provider setup is fixed.'
 };
 
 const VERIFIED: ModelExecutionReadiness = {
@@ -34,9 +44,9 @@ export function modelExecutionReadiness(gatewayStatus: unknown): ModelExecutionR
   const reason = modelExecutionBlockReason(gatewayStatus);
   if (!reason) return UNVERIFIED;
   return {
-    ...UNVERIFIED,
+    ...BLOCKED,
     description: reason,
-    sendBlockReason: `The selected model has not passed an execution test. ${reason}`
+    sendBlockReason: reason
   };
 }
 
@@ -83,20 +93,83 @@ function isGreenReadiness(value: unknown): boolean {
 function modelExecutionBlockReason(gatewayStatus: unknown): string {
   if (!gatewayStatus || typeof gatewayStatus !== 'object') return '';
   const record = gatewayStatus as Record<string, unknown>;
-  return (
+  const readinessValues = [
+    record.model_execution_readiness,
+    record.modelExecutionReadiness,
+    record.model_readiness,
+    record.modelReadiness,
+    record.llm_model_readiness,
+    record.llmModelReadiness,
+    record.llm_readiness,
+    record.llmReadiness,
+    record.execution_readiness,
+    record.executionReadiness,
+    record.readiness
+  ];
+  const category =
+    [
+      record.model_execution_failure_category,
+      record.modelExecutionFailureCategory,
+      ...readinessValues
+    ]
+      .map(blockingToken)
+      .find((value) => value.length > 0) ?? '';
+  const reason =
     [
       record.model_readiness_reason,
       record.modelReadinessReason,
       record.model_execution_failure_summary,
-      record.modelExecutionFailureSummary,
-      record.model_execution_failure_category,
-      record.modelExecutionFailureCategory
+      record.modelExecutionFailureSummary
     ]
       .map(stringValue)
-      .find((value) => value.length > 0) ?? ''
-  );
+      .find(isBlockingText) ?? '';
+
+  if (reason) return reason;
+  if (category) return category.replaceAll('_', ' ');
+  return '';
 }
 
 function stringValue(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function blockingToken(value: unknown): string {
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return isBlockingText(normalized) ? normalized : '';
+  }
+  if (!value || typeof value !== 'object') return '';
+  const record = value as Record<string, unknown>;
+  return (
+    [
+      record.status,
+      record.phase,
+      record.category,
+      record.reason,
+      record.model_execution_failure_category,
+      record.modelExecutionFailureCategory,
+      record.model_execution_readiness,
+      record.modelExecutionReadiness,
+      record.model_readiness,
+      record.modelReadiness,
+      record.execution
+    ]
+      .map(blockingToken)
+      .find((token) => token.length > 0) ?? ''
+  );
+}
+
+function isBlockingText(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === 'unverified' || normalized === 'configured') return false;
+  if (normalized.includes('policy_denied')) return true;
+  if (/(credential|token|api[_ -]?key|session[_ -]?token|auth)/.test(normalized)) {
+    return /(missing|required|unavailable|not[_ -]?configured|no |sign in|authenticate|vaulted)/.test(
+      normalized
+    );
+  }
+  if (/(driver|provider|model).*(unavailable|missing|not[_ -]?available)/.test(normalized)) {
+    return true;
+  }
+  return false;
 }

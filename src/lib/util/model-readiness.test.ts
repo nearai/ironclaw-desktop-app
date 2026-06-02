@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { isModelExecutionVerified, modelExecutionReadiness } from './model-readiness';
 
 describe('modelExecutionReadiness', () => {
-  it('blocks configured models until execution is verified', () => {
+  it('allows configured models to send their first verification run', () => {
     const status = {
       llm_backend: 'NEAR.AI',
       llm_model: 'z-ai/glm-4.5',
@@ -14,7 +14,7 @@ describe('modelExecutionReadiness', () => {
     expect(modelExecutionReadiness(status)).toEqual(
       expect.objectContaining({
         verified: false,
-        sendBlocked: true,
+        sendBlocked: false,
         buttonPrefix: 'Configured (unverified)'
       })
     );
@@ -37,7 +37,7 @@ describe('modelExecutionReadiness', () => {
     expect(isModelExecutionVerified({ model_execution_readiness: 'configured' })).toBe(false);
   });
 
-  it('surfaces actionable backend reasons when model auth is missing', () => {
+  it('blocks only when the backend reports actionable model setup failures', () => {
     const readiness = modelExecutionReadiness({
       model_execution_verified: false,
       model_readiness: 'unverified',
@@ -48,5 +48,17 @@ describe('modelExecutionReadiness', () => {
     expect(readiness.sendBlocked).toBe(true);
     expect(readiness.description).toContain('NEARAI_SESSION_TOKEN');
     expect(readiness.sendBlockReason).toContain('vaulted nearai credential');
+  });
+
+  it('does not block the generic first-run verification reason', () => {
+    const readiness = modelExecutionReadiness({
+      model_execution_verified: false,
+      model_readiness: 'unverified',
+      model_readiness_reason:
+        'Gateway status reports configured provider/model only; execution is verified by a successful WebChat run.'
+    });
+
+    expect(readiness.sendBlocked).toBe(false);
+    expect(readiness.sendBlockReason).toBe('');
   });
 });
