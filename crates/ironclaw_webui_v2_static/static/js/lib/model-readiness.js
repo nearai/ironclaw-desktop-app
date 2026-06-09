@@ -1,13 +1,12 @@
 const UNVERIFIED = {
   verified: false,
-  sendBlocked: true,
+  sendBlocked: false,
   tone: 'warning',
-  label: 'Execution not verified',
-  buttonPrefix: 'Not ready',
+  label: 'Configured, unverified',
+  buttonPrefix: 'Configured',
   description:
-    'IronClaw has not proven this model can complete a reply. Configure or restart the gateway before sending.',
-  sendBlockReason:
-    'IronClaw has not proven this model can complete a reply. Configure or restart the gateway before sending.'
+    'This model has not completed a live run yet. Send a message to verify execution; provider failures will appear in the thread.',
+  sendBlockReason: ''
 };
 
 const BLOCKED = {

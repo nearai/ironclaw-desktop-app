@@ -19,8 +19,8 @@ export function buildRuntimeContext({ gatewayStatus, activeThread }) {
     turnCountLabel: `${turnCount} ${turnCount === 1 ? 'turn' : 'turns'}`,
     engineLabel,
     connectionLabel:
-      typeof connections === 'number' && connections > 0
-        ? `${connections} gateway ${connections === 1 ? 'session' : 'sessions'}`
+      typeof connections === 'number'
+        ? `${connections} live ${connections === 1 ? 'connection' : 'connections'}`
         : null
   };
 }

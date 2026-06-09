@@ -1,9 +1,7 @@
 import { React } from '../lib/html.js';
 import { queryClient } from '../lib/query-client.js';
 import {
-  bootstrapDesktopSession,
   exchangeLoginTicket,
-  isDesktopRuntime,
   logout as logoutRequest,
   readStoredToken,
   storeToken
@@ -127,35 +125,6 @@ export function useAuthSession() {
   const [isExchanging, setIsExchanging] = React.useState(() =>
     Boolean(loginTicket && !readStoredToken())
   );
-  const [isBootstrappingDesktop, setIsBootstrappingDesktop] = React.useState(() =>
-    Boolean(!loginTicket && isDesktopRuntime())
-  );
-
-  React.useEffect(() => {
-    if (loginTicket || !isDesktopRuntime()) {
-      setIsBootstrappingDesktop(false);
-      return undefined;
-    }
-    let cancelled = false;
-    bootstrapDesktopSession()
-      .then((session) => {
-        if (cancelled) return;
-        const nextToken = (session?.token || '').trim();
-        if (nextToken) {
-          storeToken(nextToken);
-          setToken(nextToken);
-          setError('');
-          queryClient.clear();
-        }
-        setIsBootstrappingDesktop(false);
-      })
-      .catch(() => {
-        if (!cancelled) setIsBootstrappingDesktop(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [loginTicket]);
 
   React.useEffect(() => {
     if (!loginTicket || readStoredToken()) {
@@ -207,7 +176,7 @@ export function useAuthSession() {
     profile: null,
     error,
     setError,
-    isChecking: isExchanging || isBootstrappingDesktop,
+    isChecking: isExchanging,
     isAuthenticated: Boolean(token),
     // No v2 profile endpoint exists yet, so the SPA cannot prove
     // admin status — default closed. The fork's `!profile`

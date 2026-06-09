@@ -20,14 +20,14 @@ export function Sidebar({
     <aside
       className="flex h-full w-[260px] shrink-0 flex-col border-r border-[var(--v2-panel-border)] bg-[var(--v2-surface)]"
     >
-      <div className="v2-sidebar-brand flex items-center gap-2.5 px-4 pb-5 pt-9">
+      <div className="flex items-center gap-2.5 px-4 py-5">
         <${Link}
           to="/chat"
           onClick=${onClose}
           className="flex items-center gap-2.5 opacity-90 hover:opacity-100"
           aria-label="IronClaw"
         >
-          <img src="/assets/logo.jpg" alt="IronClaw" className="h-7 w-auto" />
+          <img src="/v2/assets/logo.jpg" alt="IronClaw" className="h-7 w-auto" />
         <//>
       </div>
 

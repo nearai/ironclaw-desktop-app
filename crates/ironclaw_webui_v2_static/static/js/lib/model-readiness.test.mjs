@@ -3,16 +3,16 @@ import test from 'node:test';
 
 import { isModelExecutionVerified, modelExecutionReadiness } from './model-readiness.js';
 
-test('configured provider and model are blocked until execution is verified', () => {
+test('configured provider and model can send until execution is verified', () => {
   const status = {
     llm_backend: 'nearai',
     llm_model: 'z-ai/glm-4.5'
   };
 
   assert.equal(isModelExecutionVerified(status), false);
-  assert.equal(modelExecutionReadiness(status).buttonPrefix, 'Not ready');
-  assert.equal(modelExecutionReadiness(status).sendBlocked, true);
-  assert.match(modelExecutionReadiness(status).sendBlockReason, /has not proven/);
+  assert.equal(modelExecutionReadiness(status).buttonPrefix, 'Configured');
+  assert.equal(modelExecutionReadiness(status).sendBlocked, false);
+  assert.match(modelExecutionReadiness(status).description, /Send a message to verify/);
 });
 
 test('model_execution_verified marks execution verified', () => {
@@ -50,7 +50,7 @@ test('configured readiness text does not mark execution verified', () => {
   );
 });
 
-test('generic first-run verification reason blocks send', () => {
+test('generic first-run verification reason stays advisory', () => {
   const readiness = modelExecutionReadiness({
     model_execution_verified: false,
     model_readiness: 'unverified',
@@ -58,8 +58,9 @@ test('generic first-run verification reason blocks send', () => {
       'Gateway status reports configured provider/model only; execution is verified by a successful WebChat run.'
   });
 
-  assert.equal(readiness.sendBlocked, true);
-  assert.match(readiness.sendBlockReason, /has not proven/);
+  assert.equal(readiness.sendBlocked, false);
+  assert.equal(readiness.sendBlockReason, '');
+  assert.match(readiness.description, /Send a message to verify/);
 });
 
 test('explicit credential failures block send with the backend reason', () => {

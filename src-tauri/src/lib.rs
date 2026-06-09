@@ -34,7 +34,7 @@ mod tts;
 mod windows;
 
 use crashes::CrashEntry;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use settings::AppSettings;
 use sidecar::{BackendConfig, SidecarState, SidecarStatus};
 use tauri::{AppHandle, Manager, RunEvent, State, WindowEvent};
@@ -48,6 +48,23 @@ use tauri_plugin_dialog::DialogExt;
 enum BackendKind {
     Nearai,
     Openrouter,
+}
+
+#[derive(Debug, Deserialize)]
+struct GatewayHttpRequest {
+    method: String,
+    url: String,
+    headers: Vec<(String, String)>,
+    data: Option<Vec<u8>>,
+}
+
+#[derive(Debug, Serialize)]
+struct GatewayHttpResponse {
+    status: u16,
+    status_text: String,
+    url: String,
+    headers: Vec<(String, String)>,
+    data: Vec<u8>,
 }
 
 // ---- Settings -------------------------------------------------------------
@@ -71,6 +88,89 @@ enum BackendKind {
 #[tauri::command]
 fn diag_log(msg: String) {
     log::info!(target: "ironclaw_diag", "{msg}");
+}
+
+#[tauri::command]
+async fn gateway_http_fetch(request: GatewayHttpRequest) -> Result<GatewayHttpResponse, String> {
+    log::info!(
+        target: "ironclaw_gateway",
+        "gateway_http_fetch start method={} url={}",
+        request.method,
+        request.url
+    );
+    let method = reqwest::Method::from_bytes(request.method.as_bytes())
+        .map_err(|e| format!("invalid HTTP method {}: {e}", request.method))?;
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .connect_timeout(std::time::Duration::from_secs(2))
+        .build()
+        .map_err(|e| format!("build HTTP client: {e}"))?;
+
+    let mut builder = client.request(method, &request.url);
+    for (name, value) in request.headers {
+        let lower = name.to_ascii_lowercase();
+        if matches!(lower.as_str(), "host" | "content-length") {
+            continue;
+        }
+        let header_name = match reqwest::header::HeaderName::from_bytes(name.as_bytes()) {
+            Ok(header_name) => header_name,
+            Err(_) => continue,
+        };
+        let header_value = match reqwest::header::HeaderValue::from_str(&value) {
+            Ok(header_value) => header_value,
+            Err(_) => continue,
+        };
+        builder = builder.header(header_name, header_value);
+    }
+    if let Some(data) = request.data {
+        builder = builder.body(data);
+    }
+
+    let response = match builder.send().await {
+        Ok(response) => response,
+        Err(err) => {
+            log::warn!(
+                target: "ironclaw_gateway",
+                "gateway_http_fetch send failed url={}: {}",
+                request.url,
+                err
+            );
+            return Err(format!("gateway HTTP send {}: {err}", request.url));
+        }
+    };
+    let status = response.status();
+    let status_text = status.canonical_reason().unwrap_or("").to_string();
+    let url = response.url().to_string();
+    let headers = response
+        .headers()
+        .iter()
+        .map(|(name, value)| {
+            (
+                name.as_str().to_string(),
+                value.to_str().unwrap_or_default().to_string(),
+            )
+        })
+        .collect::<Vec<_>>();
+    let data = response
+        .bytes()
+        .await
+        .map_err(|e| format!("gateway HTTP body {}: {e}", request.url))?
+        .to_vec();
+
+    log::info!(
+        target: "ironclaw_gateway",
+        "gateway_http_fetch done status={} url={}",
+        status.as_u16(),
+        url
+    );
+
+    Ok(GatewayHttpResponse {
+        status: status.as_u16(),
+        status_text,
+        url,
+        headers,
+        data,
+    })
 }
 
 fn packaged_webview_smoke_enabled() -> bool {
@@ -111,6 +211,13 @@ async fn packaged_smoke_request(app: AppHandle) -> Result<serde_json::Value, Str
     } else {
         None
     };
+    if enabled {
+        log::info!(
+            target: "ironclaw_packaged_smoke",
+            "WebView smoke requested evidence_path={}",
+            evidence_path.as_deref().unwrap_or("")
+        );
+    }
     Ok(serde_json::json!({
         "enabled": enabled,
         "evidence_path": evidence_path,
@@ -137,6 +244,11 @@ async fn packaged_smoke_report(
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let evidence_path = path.to_string_lossy().into_owned();
+    log::info!(
+        target: "ironclaw_packaged_smoke",
+        "WebView smoke report writing evidence_path={}",
+        evidence_path
+    );
     let payload = match report {
         serde_json::Value::Object(mut map) => {
             map.insert(
@@ -1190,6 +1302,7 @@ pub fn run() {
         .manage(tray::TrayIconState::default())
         .invoke_handler(tauri::generate_handler![
             diag_log,
+            gateway_http_fetch,
             packaged_smoke_request,
             packaged_smoke_report,
             get_settings,

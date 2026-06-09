@@ -1,6 +1,7 @@
 import { React } from '../../../lib/html.js';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { gatewayStatus } from '../../../lib/api.js';
+import { listConnectableChannels } from '../../../lib/channel-connect.js';
 import {
   fetchExtensions,
   fetchExtensionRegistry,
@@ -9,9 +10,13 @@ import {
   removeExtension,
   fetchExtensionSetup,
   submitExtensionSetup,
+  startExtensionOauth,
   fetchPairingRequests,
   approvePairingCode
 } from '../lib/extensions-api.js';
+
+const OAUTH_SETUP_REFRESH_MS = 2000;
+const OAUTH_SETUP_TIMEOUT_MS = 10 * 60 * 1000;
 
 export function useExtensions() {
   const queryClient = useQueryClient();
@@ -32,10 +37,16 @@ export function useExtensions() {
     queryFn: fetchExtensionRegistry
   });
 
+  const connectableChannelsQuery = useQuery({
+    queryKey: ['connectable-channels'],
+    queryFn: listConnectableChannels
+  });
+
   const invalidate = React.useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['extensions'] });
     queryClient.invalidateQueries({ queryKey: ['extension-registry'] });
     queryClient.invalidateQueries({ queryKey: ['gateway-status-extensions'] });
+    queryClient.invalidateQueries({ queryKey: ['connectable-channels'] });
   }, [queryClient]);
 
   const [actionResult, setActionResult] = React.useState(null);
@@ -43,18 +54,16 @@ export function useExtensions() {
   const clearResult = React.useCallback(() => setActionResult(null), []);
 
   const installMutation = useMutation({
-    mutationFn: ({ name, kind }) => installExtension(name, kind),
+    mutationFn: ({ packageRef }) => installExtension(packageRef),
     onSuccess: (res, { displayName }) => {
       if (res.success) {
         setActionResult({
           type: 'success',
-          message: res.message || `${displayName || 'Extension'} setup started`
+          message: res.message || res.instructions || `${displayName || 'Extension'} installed`
         });
         if (res.auth_url) {
           window.open(res.auth_url, '_blank', 'noopener,noreferrer');
         }
-      } else if (res.unsupported) {
-        setActionResult({ type: 'error', message: res.message || 'Connector is unsupported' });
       } else {
         setActionResult({ type: 'error', message: res.message || 'Install failed' });
       }
@@ -67,10 +76,13 @@ export function useExtensions() {
   });
 
   const activateMutation = useMutation({
-    mutationFn: ({ name }) => activateExtension(name),
-    onSuccess: (res, { name }) => {
+    mutationFn: ({ packageRef }) => activateExtension(packageRef),
+    onSuccess: (res, { displayName }) => {
       if (res.success) {
-        setActionResult({ type: 'success', message: res.message || `${name} activated` });
+        setActionResult({
+          type: 'success',
+          message: res.message || res.instructions || `${displayName || 'Extension'} activated`
+        });
         if (res.auth_url) {
           window.open(res.auth_url, '_blank', 'noopener,noreferrer');
         }
@@ -79,13 +91,6 @@ export function useExtensions() {
         setActionResult({ type: 'info', message: 'Opening authentication…' });
       } else if (res.awaiting_token) {
         setActionResult({ type: 'info', message: 'Configuration required' });
-      } else if (res.awaiting_lifecycle) {
-        setActionResult({
-          type: 'info',
-          message: res.message || 'Backend lifecycle is not active yet'
-        });
-      } else if (res.unsupported) {
-        setActionResult({ type: 'error', message: res.message || 'Connector is unsupported' });
       } else {
         setActionResult({ type: 'error', message: res.message || 'Activation failed' });
       }
@@ -97,10 +102,10 @@ export function useExtensions() {
   });
 
   const removeMutation = useMutation({
-    mutationFn: ({ name }) => removeExtension(name),
-    onSuccess: (res, { name }) => {
+    mutationFn: ({ packageRef }) => removeExtension(packageRef),
+    onSuccess: (res, { displayName }) => {
       if (res.success) {
-        setActionResult({ type: 'success', message: res.message || `${name} removed` });
+        setActionResult({ type: 'success', message: `${displayName || 'Extension'} removed` });
       } else {
         setActionResult({ type: 'error', message: res.message || 'Remove failed' });
       }
@@ -114,25 +119,19 @@ export function useExtensions() {
   const status = statusQuery.data || {};
   const extensions = extensionsQuery.data?.extensions || [];
   const registry = registryQuery.data?.entries || [];
-
-  const installedNames = new Set(extensions.map((e) => e.name));
+  const connectableChannels = connectableChannelsQuery.data?.channels || [];
 
   const channels = extensions.filter((e) => e.kind === 'wasm_channel');
   const mcpServers = extensions.filter((e) => e.kind === 'mcp_server');
   const tools = extensions.filter((e) => e.kind !== 'wasm_channel' && e.kind !== 'mcp_server');
 
   const channelRegistry = registry.filter(
-    (e) => (e.kind === 'wasm_channel' || e.kind === 'channel') && !installedNames.has(e.name)
+    (e) => (e.kind === 'wasm_channel' || e.kind === 'channel') && !e.installed
   );
-  const mcpRegistry = registry.filter(
-    (e) => e.kind === 'mcp_server' && !installedNames.has(e.name)
-  );
+  const mcpRegistry = registry.filter((e) => e.kind === 'mcp_server' && !e.installed);
   const toolRegistry = registry.filter(
     (e) =>
-      e.kind !== 'mcp_server' &&
-      e.kind !== 'wasm_channel' &&
-      e.kind !== 'channel' &&
-      !installedNames.has(e.name)
+      e.kind !== 'mcp_server' && e.kind !== 'wasm_channel' && e.kind !== 'channel' && !e.installed
   );
 
   const isLoading = extensionsQuery.isLoading || registryQuery.isLoading;
@@ -149,6 +148,7 @@ export function useExtensions() {
     mcpRegistry,
     toolRegistry,
     registry,
+    connectableChannels,
     isLoading,
     isBusy,
     actionResult,
@@ -160,16 +160,14 @@ export function useExtensions() {
   };
 }
 
-export function useExtensionSetup(name) {
+export function useExtensionSetup(packageRef) {
   const query = useQuery({
-    queryKey: ['extension-setup', name],
-    queryFn: () => fetchExtensionSetup(name),
-    enabled: Boolean(name)
+    queryKey: ['extension-setup', packageRef?.id || packageRef],
+    queryFn: () => fetchExtensionSetup(packageRef),
+    enabled: Boolean(packageRef)
   });
 
   return {
-    displayName: query.data?.display_name || name,
-    provider: query.data?.provider || null,
     secrets: query.data?.secrets || [],
     fields: query.data?.fields || [],
     onboarding: query.data?.onboarding || null,
@@ -178,24 +176,101 @@ export function useExtensionSetup(name) {
   };
 }
 
-export function useSetupSubmit(name, onSuccess) {
+export function useSetupSubmit(packageRef, onSuccess) {
   const queryClient = useQueryClient();
+  const packageKey = packageRef?.id || packageRef;
 
   return useMutation({
-    mutationFn: ({ secrets, fields }) => submitExtensionSetup(name, secrets, fields),
+    mutationFn: ({ secrets, fields }) => submitExtensionSetup(packageRef, secrets, fields),
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['extensions'] });
-      queryClient.invalidateQueries({ queryKey: ['extension-setup', name] });
+      queryClient.invalidateQueries({ queryKey: ['extension-setup', packageKey] });
       if (onSuccess) onSuccess(res);
     }
   });
 }
 
-export function usePairing(channel) {
+export function useOauthSetup(packageRef) {
+  const queryClient = useQueryClient();
+  const packageKey = packageRef?.id || packageRef;
+  const watcherRef = React.useRef(null);
+
+  const clearWatcher = React.useCallback(() => {
+    if (watcherRef.current) {
+      window.clearInterval(watcherRef.current);
+      watcherRef.current = null;
+    }
+  }, []);
+
+  const refreshSetupState = React.useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['extensions'] });
+    queryClient.invalidateQueries({ queryKey: ['extension-registry'] });
+    queryClient.invalidateQueries({ queryKey: ['extension-setup', packageKey] });
+  }, [packageKey, queryClient]);
+
+  const setupIsConfigured = React.useCallback(() => {
+    const setup = queryClient.getQueryData(['extension-setup', packageKey]);
+    if (setup?.secrets?.length > 0 && setup.secrets.every((secret) => secret.provided)) {
+      return true;
+    }
+    const extensions = queryClient.getQueryData(['extensions'])?.extensions || [];
+    const extension = extensions.find((item) => item.package_ref?.id === packageKey);
+    const state =
+      extension?.onboarding_state ||
+      extension?.activation_status ||
+      (extension?.active ? 'active' : null);
+    return state === 'active' || state === 'ready';
+  }, [packageKey, queryClient]);
+
+  const watchOauthProgress = React.useCallback(
+    (popup) => {
+      clearWatcher();
+      const startedAt = Date.now();
+      watcherRef.current = window.setInterval(() => {
+        refreshSetupState();
+        if (
+          setupIsConfigured() ||
+          (popup && popup.closed) ||
+          Date.now() - startedAt > OAUTH_SETUP_TIMEOUT_MS
+        ) {
+          clearWatcher();
+          refreshSetupState();
+        }
+      }, OAUTH_SETUP_REFRESH_MS);
+    },
+    [clearWatcher, refreshSetupState, setupIsConfigured]
+  );
+
+  React.useEffect(() => clearWatcher, [clearWatcher]);
+
+  return useMutation({
+    mutationFn: ({ secret, popup }) =>
+      startExtensionOauth(packageRef, secret).then((res) => ({ res, popup })),
+    onSuccess: ({ res, popup }) => {
+      let authPopup = popup;
+      if (res.authorization_url && popup && !popup.closed) {
+        popup.location.href = res.authorization_url;
+      } else if (res.authorization_url) {
+        authPopup = window.open(res.authorization_url, '_blank', 'noopener,noreferrer');
+      } else if (popup && !popup.closed) {
+        popup.close();
+      }
+      refreshSetupState();
+      if (authPopup) watchOauthProgress(authPopup);
+    },
+    onError: (_err, variables) => {
+      clearWatcher();
+      const popup = variables?.popup;
+      if (popup && !popup.closed) popup.close();
+    }
+  });
+}
+
+export function usePairing(channel, options = {}) {
   const query = useQuery({
     queryKey: ['pairing', channel],
     queryFn: () => fetchPairingRequests(channel),
-    enabled: Boolean(channel),
+    enabled: Boolean(channel) && options.enabled !== false,
     refetchInterval: 5000
   });
 
@@ -213,6 +288,8 @@ export function usePairing(channel) {
     requests: query.data?.requests || [],
     isLoading: query.isLoading,
     approve: approveMutation.mutate,
-    isApproving: approveMutation.isPending
+    isApproving: approveMutation.isPending,
+    result: approveMutation.isSuccess ? approveMutation.data : null,
+    error: approveMutation.isError ? approveMutation.error : null
   };
 }

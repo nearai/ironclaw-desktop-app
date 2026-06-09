@@ -1,6 +1,6 @@
 import { html } from '../../../lib/html.js';
 
-export function SuggestionChips({ suggestions, onSelect, disabled = false }) {
+export function SuggestionChips({ suggestions, onSelect }) {
   if (!suggestions || suggestions.length === 0) return null;
 
   return html`
@@ -11,8 +11,7 @@ export function SuggestionChips({ suggestions, onSelect, disabled = false }) {
             <button
               key=${text}
               onClick=${() => onSelect(text)}
-              disabled=${disabled}
-              className="v2-button rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-xs text-iron-100 hover:border-signal/40 hover:text-signal disabled:cursor-not-allowed disabled:opacity-50"
+              className="v2-button rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-xs text-iron-100 hover:border-signal/40 hover:text-signal"
             >
               ${text}
             </button>

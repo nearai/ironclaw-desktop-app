@@ -1,4 +1,4 @@
-import { Navigate, useLocation, useNavigate, useParams } from 'react-router';
+import { Navigate, useLocation, useParams } from 'react-router';
 import { React, html } from '../../lib/html.js';
 import { ActionToast } from './components/action-toast.js';
 import { ChannelsTab } from './components/channels-tab.js';
@@ -7,14 +7,12 @@ import { InstalledTab } from './components/installed-tab.js';
 import { McpTab } from './components/mcp-tab.js';
 import { RegistryTab } from './components/registry-tab.js';
 import { useExtensions } from './hooks/useExtensions.js';
-import { getConnectorBlockedReason, resolveConnectorName } from './lib/extensions-api.js';
 
 export function ExtensionsPage() {
   const { tab = 'installed' } = useParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const [configuring, setConfiguring] = React.useState(null);
-  const [deepLinkNotice, setDeepLinkNotice] = React.useState(null);
+  const handledSetupLinkRef = React.useRef('');
 
   const {
     status,
@@ -25,6 +23,7 @@ export function ExtensionsPage() {
     channelRegistry,
     mcpRegistry,
     toolRegistry,
+    connectableChannels,
     isLoading,
     isBusy,
     actionResult,
@@ -35,42 +34,38 @@ export function ExtensionsPage() {
     invalidate
   } = useExtensions();
 
-  const handleConfigure = React.useCallback((name) => setConfiguring(name), []);
+  const handleConfigure = React.useCallback((extension) => setConfiguring(extension), []);
   const handleCloseModal = React.useCallback(() => setConfiguring(null), []);
   const handleSaved = React.useCallback(() => invalidate(), [invalidate]);
-  const clearNotice = React.useCallback(() => {
-    clearResult();
-    setDeepLinkNotice(null);
-  }, [clearResult]);
+  const handleActivateFromModal = React.useCallback(
+    (extension) => {
+      if (!extension) return;
+      activate(extension);
+      setConfiguring(null);
+    },
+    [activate]
+  );
 
   React.useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const focus = params.get('focus');
-    if (!focus) return;
-
-    try {
-      const resolved = resolveConnectorName(focus);
-      const blockedReason = getConnectorBlockedReason(focus);
-      const wantsSetup = params.get('setup') === '1' || params.get('setup') === 'true';
-      if (wantsSetup && blockedReason) {
-        setConfiguring(null);
-        setDeepLinkNotice({ type: 'error', message: blockedReason });
-      } else if (wantsSetup) {
-        setConfiguring(resolved);
-        setDeepLinkNotice(null);
-      }
-    } catch (err) {
-      setDeepLinkNotice({ type: 'error', message: err.message });
-    }
-
-    params.delete('focus');
-    params.delete('setup');
-    const search = params.toString();
-    navigate(
-      { pathname: location.pathname, search: search ? `?${search}` : '' },
-      { replace: true }
+    if (isLoading || configuring) return;
+    const params = new URLSearchParams(location.search || '');
+    if (params.get('setup') !== '1') return;
+    const setupLinkKey = `${location.pathname}?${location.search}`;
+    if (handledSetupLinkRef.current === setupLinkKey) return;
+    const targetId = canonicalExtensionId(params.get('focus'));
+    if (!targetId) return;
+    const target = extensions.find((extension) =>
+      [extension?.package_ref?.id, extension?.id, extension?.display_name].some(
+        (value) => canonicalExtensionId(value) === targetId
+      )
     );
-  }, [location.pathname, location.search, navigate]);
+    if (!target?.package_ref) return;
+    handledSetupLinkRef.current = setupLinkKey;
+    setConfiguring({
+      packageRef: target.package_ref,
+      displayName: target.display_name || targetId
+    });
+  }, [configuring, extensions, isLoading, location.pathname, location.search]);
 
   if (isLoading) {
     return html`
@@ -108,6 +103,7 @@ export function ExtensionsPage() {
     channels: html`<${ChannelsTab}
       status=${status}
       channels=${channels}
+      connectableChannels=${connectableChannels}
       channelRegistry=${channelRegistry}
       onActivate=${activate}
       onConfigure=${handleConfigure}
@@ -141,7 +137,7 @@ export function ExtensionsPage() {
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="v2-page-entrance flex-1 p-4 sm:p-6">
         <div className="space-y-5">
-          <${ActionToast} result=${actionResult || deepLinkNotice} onDismiss=${clearNotice} />
+          <${ActionToast} result=${actionResult} onDismiss=${clearResult} />
           ${tabContent[tab]}
         </div>
       </div>
@@ -149,11 +145,22 @@ export function ExtensionsPage() {
       ${configuring &&
       html`
         <${ConfigureModal}
-          extensionName=${configuring}
+          extension=${configuring}
+          onActivate=${handleActivateFromModal}
           onClose=${handleCloseModal}
           onSaved=${handleSaved}
         />
       `}
     </div>
   `;
+}
+
+function canonicalExtensionId(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const withoutCatalogPrefix = raw.includes('/') ? raw.split('/').pop() : raw;
+  const normalized = withoutCatalogPrefix.toLowerCase().replaceAll('_', '-');
+  if (normalized === 'google-calendar') return 'google-calendar';
+  if (normalized === 'slack-tool') return 'slack';
+  return normalized;
 }

@@ -36,7 +36,6 @@
 
   /* Controls */
   --v2-select-chevron: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2712%27%20height%3D%2712%27%20viewBox%3D%270%200%2012%2012%27%20fill%3D%27none%27%20stroke%3D%27%235f7183%27%20stroke-width%3D%271.8%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M2.5%204.5%206%208l3.5-3.5%27/%3E%3C/svg%3E");
-  --v2-titlebar-left-safe: 84px;
 
   /* Accent — signal blue */
   --v2-accent:       #2e9de2;
@@ -315,21 +314,6 @@ input:focus, select:focus, textarea:focus {
   opacity: 0.5;
   cursor: not-allowed;
 }
-
-.ironclaw-desktop-shell .v2-sidebar-brand {
-  padding-left: max(1rem, var(--v2-titlebar-left-safe));
-}
-
-.ironclaw-desktop-shell .v2-page-header {
-  padding-left: max(1rem, var(--v2-titlebar-left-safe));
-}
-
-@media (min-width: 768px) {
-  .ironclaw-desktop-shell .v2-page-header {
-    padding-left: 1rem;
-  }
-}
-
 .v2-button-primary {
   background: radial-gradient(ellipse 100% 100% at 50% 130%, #4CA7E6 0%, #2882c8 65%);
   border: 1px solid rgba(76, 167, 230, 0.72);

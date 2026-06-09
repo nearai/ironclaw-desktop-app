@@ -1,27 +1,31 @@
 import {
   cancelRun as cancelRunRequest,
   createThread as createThreadRequest,
-  fetchTimeline,
-  getRunState,
+  fetchRunState,
   resolveGate as resolveGateRequest,
   sendMessage,
   submitManualToken
 } from '../../../lib/api.js';
+import {
+  listConnectableChannels,
+  looksLikeChannelConnectCommand,
+  resolveChannelConnectCommand
+} from '../../../lib/channel-connect.js';
 import { queryClient } from '../../../lib/query-client.js';
 import { React } from '../../../lib/html.js';
 import { useChatEvents } from '../lib/useChatEvents.js';
-import { failureMessageForApiError, failureMessageForRunStatus } from '../lib/failureMessages.js';
-import { messagesFromTimeline, pendingMessagesAfterTimeline } from '../lib/history-messages.js';
+import { failureMessageForRunStatus } from '../lib/failureMessages.js';
+import { addPending, recordAcceptedMessageRef, removePending } from '../lib/pending-messages.js';
 import { useHistory } from './useHistory.js';
 import { useSSE } from './useSSE.js';
 
 const AUTH_TOKEN_FLOW_TIMEOUT_MS = 30000;
+const RUN_STATE_FALLBACK_POLL_MS = 1500;
+const RUN_STATE_FALLBACK_MAX_ATTEMPTS = 20;
 const AUTH_GATE_CREDENTIAL_STORED_ERROR = 'credential_stored_gate_resolution_failed';
-const TIMELINE_POLL_DELAYS_MS = [300, 700, 1200, 2000, 3200, 5000];
-const MISSING_ASSISTANT_REPLY_MESSAGE =
-  'IronClaw accepted this turn, but no assistant result arrived from Reborn yet. The stream or run state did not report a completed reply. Your message and attachments are still preserved in this thread.';
-const SUCCESS_RUN_STATE_STATUSES = new Set(['completed', 'succeeded']);
-const FAILED_RUN_STATE_STATUSES = new Set(['failed', 'cancelled', 'recovery_required']);
+const OAUTH_CALLBACK_CHANNEL = 'ironclaw-product-auth';
+const OAUTH_CALLBACK_STORAGE_KEY = 'ironclaw:product-auth:oauth-complete';
+const OAUTH_CALLBACK_MESSAGE_TYPE = 'ironclaw:product-auth:oauth-complete';
 
 async function withAuthTokenTimeout(task) {
   const controller = new AbortController();
@@ -40,12 +44,96 @@ function credentialStoredGateResolutionError(cause) {
   return error;
 }
 
+function threadNeedsSidebarRefresh(threadId) {
+  const cached = queryClient.getQueryData?.(['threads']);
+  const threads = cached?.threads;
+  if (!Array.isArray(threads)) return true;
+  const thread = threads.find((item) => item.thread_id === threadId || item.id === threadId);
+  return !thread?.title;
+}
+
 function submitResponseResumedTurnGate(response) {
   return response?.continuation?.type === 'turn_gate_resume';
 }
 
+function isPendingOAuthGate(gate) {
+  return gate?.kind === 'auth_required' && gate?.challengeKind === 'oauth_url';
+}
+
+function isOAuthCallbackCompletion(payload) {
+  return payload?.type === OAUTH_CALLBACK_MESSAGE_TYPE && payload?.status === 'completed';
+}
+
+function oauthCompletionMatchesGate(payload, gate, listeningSince) {
+  if (!isOAuthCallbackCompletion(payload)) return false;
+  const continuation = payload?.continuation;
+  if (!continuation || continuation.type !== 'turn_gate_resume') {
+    return Number(payload?.completedAt || 0) >= listeningSince;
+  }
+  if (continuation.turn_run_ref && continuation.turn_run_ref !== gate?.runId) return false;
+  if (continuation.gate_ref && continuation.gate_ref !== gate?.gateRef) return false;
+  return true;
+}
+
+function parseOAuthCallbackStoragePayload(value) {
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeRunStatus(status) {
+  return String(status || '')
+    .trim()
+    .toLowerCase();
+}
+
+function isRunSuccessStatus(status) {
+  return status === 'completed' || status === 'succeeded';
+}
+
+function isRunFailureStatus(status) {
+  return status === 'failed' || status === 'recovery_required' || status === 'cancelled';
+}
+
+function failureCategoryFromRunState(runState) {
+  return (
+    runState?.failure?.category ||
+    runState?.failure_category ||
+    runState?.failureCategory ||
+    runState?.category ||
+    ''
+  );
+}
+
+function failureSummaryFromRunState(runState) {
+  return (
+    runState?.failure?.summary ||
+    runState?.failure_summary ||
+    runState?.failureSummary ||
+    runState?.summary ||
+    ''
+  );
+}
+
+async function resolveConnectAction(content) {
+  if (!looksLikeChannelConnectCommand(content)) return null;
+  try {
+    const channelsResponse = await queryClient.fetchQuery({
+      queryKey: ['connectable-channels'],
+      queryFn: listConnectableChannels
+    });
+    const channels = channelsResponse?.channels || [];
+    return resolveChannelConnectCommand(content, channels);
+  } catch (err) {
+    console.error('Failed to resolve connectable channels:', err);
+    return null;
+  }
+}
+
 // v2 chat hook. Differences from the fork's v1 hook:
-// - No image / attachment plumbing — v2 SendMessage carries `content` only.
 // - No /api/chat/approval — approvals fold into gate/resolve in v2.
 // - resolveGate uses `runId` + `gateRef` from the live event stream, not
 //   a v1-style `requestId`.
@@ -53,14 +141,19 @@ function submitResponseResumedTurnGate(response) {
 export function useChat(threadId) {
   const pendingMessagesRef = React.useRef(new Map());
   const pendingSeqRef = React.useRef(1);
-  const currentThreadIdRef = React.useRef(threadId);
-  const pollingRunsRef = React.useRef(new Set());
   const [cooldownUntil, setCooldownUntil] = React.useState(0);
   const [now, setNow] = React.useState(Date.now());
-  const [activeRun, setActiveRun] = React.useState(null);
+  const [activeRun, setActiveRunState] = React.useState(null);
+  const activeRunRef = React.useRef(activeRun);
+  const setActiveRun = React.useCallback((next) => {
+    const value = typeof next === 'function' ? next(activeRunRef.current) : next;
+    activeRunRef.current = value;
+    setActiveRunState(value);
+  }, []);
+  const [channelConnectAction, setChannelConnectAction] = React.useState(null);
 
   const getPendingMessages = React.useCallback(
-    () => adoptPendingMessagesForThread(pendingMessagesRef.current, threadId || '__new__'),
+    () => pendingMessagesRef.current.get(threadId || '__new__') || [],
     [threadId]
   );
   const setPendingMessages = React.useCallback(
@@ -92,15 +185,25 @@ export function useChat(threadId) {
     inFlight: false
   });
 
+  // Per-thread transient state must not leak across thread switches.
+  // Without this reset, clicking "+ New" while the previous thread is
+  // still processing renders the TypingIndicator on the empty new
+  // thread. The SSE subscription for the new thread will set these
+  // back to non-default values if that thread actually has an active
+  // run / gate. `cooldownUntil` is intentionally not reset — it's a
+  // rate-limit timer that applies across threads.
+  React.useEffect(() => {
+    setIsProcessing(false);
+    setPendingGate(null);
+    setActiveRun(null);
+    setChannelConnectAction(null);
+  }, [threadId]);
+
   const cooldownSeconds = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
   const pendingAuthGateKey =
     pendingGate?.runId && pendingGate?.gateRef
       ? `${pendingGate.runId}\n${pendingGate.gateRef}`
       : null;
-
-  React.useEffect(() => {
-    currentThreadIdRef.current = threadId;
-  }, [threadId]);
 
   React.useEffect(() => {
     if (!cooldownUntil) return;
@@ -118,127 +221,42 @@ export function useChat(threadId) {
     }
   }, [pendingAuthGateKey]);
 
-  const loadTimelineForThread = React.useCallback(
-    async (targetThreadId, { clearPending = false } = {}) => {
-      if (!targetThreadId) return [];
-      const data = await fetchTimeline({
-        threadId: targetThreadId,
-        limit: 50
-      });
-      const records = Array.isArray(data.messages) ? data.messages : data.records || [];
-      const pendingMessages = pendingMessagesRef.current.get(targetThreadId) || [];
-      const renderable = messagesFromTimeline(records, pendingMessages);
-      if (clearPending) {
-        const remainingPending = pendingMessagesAfterTimeline(records, pendingMessages);
-        if (remainingPending.length > 0) {
-          pendingMessagesRef.current.set(targetThreadId, remainingPending);
-        } else {
-          pendingMessagesRef.current.delete(targetThreadId);
-        }
-      }
-      if (currentThreadIdRef.current === targetThreadId || currentThreadIdRef.current == null) {
-        setMessages(renderable);
-      }
-      return records;
-    },
-    [setMessages]
-  );
-
-  const pollTimelineUntilReply = React.useCallback(
-    async (targetThreadId, runId) => {
-      if (!targetThreadId) return;
-      for (const delay of TIMELINE_POLL_DELAYS_MS) {
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        try {
-          const records = await loadTimelineForThread(targetThreadId);
-          const hasAssistantReply = records.some(
-            (record) =>
-              (record.kind === 'assistant' || record.kind === 'assistant_message') &&
-              (!runId || record.turn_run_id === runId)
-          );
-          if (hasAssistantReply) {
-            await loadTimelineForThread(targetThreadId, { clearPending: true });
-            setIsProcessing(false);
-            setActiveRun(null);
-            return;
-          }
-          if (runId) {
-            const terminalRunState = await readTerminalRunState(targetThreadId, runId);
-            if (terminalRunState) {
-              const status = normalizedRunStatus(terminalRunState?.status);
-              if (SUCCESS_RUN_STATE_STATUSES.has(status)) {
-                await loadTimelineForThread(targetThreadId, { clearPending: true });
-                setIsProcessing(false);
-                setActiveRun(null);
-                return;
-              }
-              if (FAILED_RUN_STATE_STATUSES.has(status)) {
-                await loadTimelineForThread(targetThreadId, { clearPending: true });
-                setMessages((prev) => upsertRunStateFailure(prev, runId, terminalRunState));
-                setIsProcessing(false);
-                setActiveRun(null);
-                return;
-              }
-            }
-          }
-        } catch (err) {
-          console.warn('Failed to poll timeline after send:', err);
-        }
-      }
-      try {
-        await loadTimelineForThread(targetThreadId, { clearPending: true });
-      } catch (err) {
-        console.warn('Failed final timeline refresh after send:', err);
-      }
-      if (runId) {
-        try {
-          const runState = await getRunState({ threadId: targetThreadId, runId });
-          const status = normalizedRunStatus(runState?.status);
-          if (SUCCESS_RUN_STATE_STATUSES.has(status)) {
-            await loadTimelineForThread(targetThreadId, { clearPending: true });
-            setIsProcessing(false);
-            setActiveRun(null);
-            return;
-          }
-          if (FAILED_RUN_STATE_STATUSES.has(status)) {
-            setMessages((prev) => upsertRunStateFailure(prev, runId, runState));
-            setIsProcessing(false);
-            setActiveRun(null);
-            return;
-          }
-          setActiveRun({
-            runId,
-            threadId: targetThreadId,
-            status: runState?.status || 'unknown'
-          });
-        } catch (err) {
-          console.warn('Failed to read run state after send:', err);
-        }
-      }
-      setMessages((prev) => upsertMissingAssistantReply(prev, runId || targetThreadId));
-      setIsProcessing(false);
-      setActiveRun(null);
-    },
-    [loadTimelineForThread, setMessages]
-  );
-
-  const startRunPolling = React.useCallback(
-    (targetThreadId, runId) => {
-      if (!targetThreadId) return;
-      const key = `${targetThreadId}\n${runId || 'no-run-id'}`;
-      if (pollingRunsRef.current.has(key)) return;
-      pollingRunsRef.current.add(key);
-      void pollTimelineUntilReply(targetThreadId, runId || null).finally(() => {
-        pollingRunsRef.current.delete(key);
-      });
-    },
-    [pollTimelineUntilReply]
-  );
-
   React.useEffect(() => {
-    if (!threadId || !activeRun?.runId || activeRun.threadId !== threadId) return;
-    startRunPolling(threadId, activeRun.runId);
-  }, [threadId, activeRun?.runId, activeRun?.threadId, startRunPolling]);
+    if (!isPendingOAuthGate(pendingGate)) return;
+    const listeningSince = Date.now();
+
+    const handleCompletion = (payload) => {
+      if (!oauthCompletionMatchesGate(payload, pendingGate, listeningSince)) return;
+      setPendingGate((current) => (isPendingOAuthGate(current) ? null : current));
+      setIsProcessing(true);
+    };
+
+    let channel = null;
+    if (typeof window.BroadcastChannel === 'function') {
+      channel = new window.BroadcastChannel(OAUTH_CALLBACK_CHANNEL);
+      channel.onmessage = (event) => handleCompletion(event.data);
+    }
+
+    const onStorage = (event) => {
+      if (event.key !== OAUTH_CALLBACK_STORAGE_KEY) return;
+      handleCompletion(parseOAuthCallbackStoragePayload(event.newValue));
+    };
+
+    window.addEventListener('storage', onStorage);
+    handleCompletion(
+      parseOAuthCallbackStoragePayload(window.localStorage?.getItem?.(OAUTH_CALLBACK_STORAGE_KEY))
+    );
+    const timer = window.setInterval(() => {
+      handleCompletion(
+        parseOAuthCallbackStoragePayload(window.localStorage?.getItem?.(OAUTH_CALLBACK_STORAGE_KEY))
+      );
+    }, 500);
+    return () => {
+      window.clearInterval(timer);
+      if (channel) channel.close();
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [pendingGate]);
 
   const handleEvent = useChatEvents({
     threadId,
@@ -246,16 +264,17 @@ export function useChat(threadId) {
     setIsProcessing,
     setPendingGate,
     setActiveRun,
+    activeRunRef,
     // Reborn's projection bridge does not yet emit `Text` items for
     // assistant replies, so the SSE stream only delivers `run_status`.
     // On terminal success, refetch the timeline so the assistant
     // message that landed in the thread becomes visible in the UI.
+    // Clear pending optimistic messages first so the real user
+    // message from the server doesn't render alongside its
+    // pre-submit optimistic twin.
     onRunCompleted: () => {
-      if (threadId) {
-        loadTimelineForThread(threadId, { clearPending: true });
-      } else {
-        loadHistory();
-      }
+      setPendingMessages([]);
+      loadHistory();
     }
   });
 
@@ -265,9 +284,114 @@ export function useChat(threadId) {
     enabled: Boolean(threadId)
   });
 
+  React.useEffect(() => {
+    if (
+      !threadId ||
+      !isProcessing ||
+      pendingGate ||
+      !activeRun?.runId ||
+      activeRun.threadId !== threadId
+    ) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+    let timer = null;
+    const controller = new AbortController();
+
+    const appendFailureMessage = (content) => {
+      const messageId = `err-${activeRun.runId || 'unknown'}`;
+      setMessages((prev) => {
+        const existing = prev.findIndex((message) => message.id === messageId);
+        if (existing >= 0) {
+          const next = [...prev];
+          next[existing] = { ...next[existing], content };
+          return next;
+        }
+        return [
+          ...prev,
+          {
+            id: messageId,
+            role: 'error',
+            content,
+            timestamp: new Date().toISOString()
+          }
+        ];
+      });
+    };
+
+    const pollRunState = async () => {
+      attempts += 1;
+      try {
+        const runState = await fetchRunState({
+          threadId,
+          runId: activeRun.runId,
+          signal: controller.signal
+        });
+        if (cancelled) return;
+        const status = normalizeRunStatus(runState?.status);
+        if (isRunSuccessStatus(status)) {
+          setPendingMessages([]);
+          setPendingGate(null);
+          setIsProcessing(false);
+          setActiveRun(null);
+          loadHistory();
+          return;
+        }
+        if (isRunFailureStatus(status)) {
+          appendFailureMessage(
+            failureMessageForRunStatus({
+              status,
+              failureCategory: failureCategoryFromRunState(runState),
+              failureSummary: failureSummaryFromRunState(runState)
+            })
+          );
+          setPendingGate(null);
+          setIsProcessing(false);
+          setActiveRun(null);
+          return;
+        }
+      } catch (err) {
+        if (cancelled || controller.signal.aborted) return;
+        // Keep polling; transient run-state misses are expected while
+        // the backend creates the run record.
+      }
+
+      if (!cancelled && attempts < RUN_STATE_FALLBACK_MAX_ATTEMPTS) {
+        timer = window.setTimeout(pollRunState, RUN_STATE_FALLBACK_POLL_MS);
+      } else if (!cancelled) {
+        appendFailureMessage(
+          'IronClaw accepted this turn, but no assistant result arrived from Reborn yet. Your message and attachments are preserved in this thread.'
+        );
+        setPendingGate(null);
+        setIsProcessing(false);
+        setActiveRun(null);
+      }
+    };
+
+    timer = window.setTimeout(pollRunState, RUN_STATE_FALLBACK_POLL_MS);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [
+    activeRun?.runId,
+    activeRun?.threadId,
+    isProcessing,
+    loadHistory,
+    pendingGate,
+    setActiveRun,
+    setMessages,
+    setPendingMessages,
+    threadId
+  ]);
+
   // Accepts the fork's call shape `{ images, attachments, threadId,
-  // timezone }`. Keep posting inline attachment payloads so Reborn can
-  // persist durable attachment context instead of silently discarding files.
+  // timezone }`. Reborn v2 currently accepts only `content`, so
+  // api.sendMessage appends a durable attachment block to content
+  // instead of posting a JSON field the backend would ignore.
   //
   // v2 send-message requires `thread_id` as a path parameter — the
   // facade refuses to implicitly create a missing thread. When the
@@ -277,7 +401,15 @@ export function useChat(threadId) {
   // hook can route to `/chat/<id>` after the first send.
   const send = React.useCallback(
     async (content, opts = {}) => {
+      const connectable = await resolveConnectAction(content);
+      if (connectable) {
+        setChannelConnectAction(connectable);
+        return { channel_connect_action: connectable };
+      }
+      setChannelConnectAction(null);
+
       const { threadId: targetThreadId, images = [], attachments = [] } = opts;
+      const serializedAttachments = serializeComposerAttachments([...images, ...attachments]);
       let sendThreadId = targetThreadId || threadId;
 
       if (!sendThreadId) {
@@ -300,7 +432,8 @@ export function useChat(threadId) {
           filename: att.filename,
           mime_type: att.mime_type,
           size_label: att.size ? `${att.size} bytes` : ''
-        }))
+        })),
+        isOptimistic: true
       };
       addPending(pendingMessagesRef.current, pendingKey, pendingRecord);
 
@@ -312,6 +445,8 @@ export function useChat(threadId) {
           role: 'user',
           content,
           timestamp: pendingRecord.timestamp,
+          images: pendingRecord.images,
+          attachments: pendingRecord.attachments,
           isOptimistic: true
         }
       ]);
@@ -323,23 +458,35 @@ export function useChat(threadId) {
         const response = await sendMessage({
           threadId: sendThreadId,
           content,
-          attachments: serializeComposerAttachments([...images, ...attachments])
+          attachments: serializedAttachments
         });
-        const responseThreadId = response?.thread_id || sendThreadId;
-        if (responseThreadId !== sendThreadId) {
-          movePending(pendingMessagesRef.current, sendThreadId, responseThreadId);
+        // Refresh the sidebar only while the cached entry is missing
+        // or title-less. Once the first-message title has appeared,
+        // repeated sends do not need to refetch the whole thread list.
+        if (threadNeedsSidebarRefresh(sendThreadId)) {
+          queryClient.invalidateQueries({ queryKey: ['threads'] });
         }
         if (response?.run_id) {
           setActiveRun({
             runId: response.run_id,
-            threadId: responseThreadId,
-            status: response.status || null
+            threadId: response.thread_id || sendThreadId,
+            status: response.status || null,
+            source: 'local'
           });
         }
-        startRunPolling(responseThreadId, response?.run_id || null);
+        const timelineMessageId = recordAcceptedMessageRef(
+          pendingMessagesRef.current,
+          pendingKey,
+          optimisticId,
+          response?.accepted_message_ref
+        );
+        if (timelineMessageId) {
+          setMessages((prev) =>
+            prev.map((m) => (m.id === optimisticId ? { ...m, timelineMessageId } : m))
+          );
+        }
         return response;
       } catch (err) {
-        removePending(pendingMessagesRef.current, pendingKey, optimisticId);
         if (err.status === 429) {
           setCooldownUntil(Date.now() + retryAfterMs(err));
         }
@@ -350,16 +497,26 @@ export function useChat(threadId) {
                   ...m,
                   isOptimistic: false,
                   status: 'error',
-                  error: failureMessageForApiError(err)
+                  error: err.message
                 }
               : m
           )
         );
         setIsProcessing(false);
         throw err;
+      } finally {
+        // Drop the optimistic from the pending ref unconditionally:
+        // on success the confirmed row arrives via /timeline, and on
+        // failure we mark the optimistic with `status: "error"` in
+        // React state above — neither outcome needs the entry to
+        // linger in `pendingMessagesRef`. Pending ids are `pending-N`
+        // while server ids are `msg-<uuid>`, so id-based dedup in
+        // `messagesFromTimeline` cannot reconcile a stale pending
+        // against the server row that supersedes it.
+        removePending(pendingMessagesRef.current, pendingKey, optimisticId);
       }
     },
-    [threadId, setMessages, startRunPolling]
+    [threadId, setMessages]
   );
 
   // v2 resolveGate signature: `(resolution, { always?, credentialRef? })`.
@@ -397,10 +554,14 @@ export function useChat(threadId) {
       if (!pendingGate) {
         throw new Error('auth gate is no longer pending');
       }
-      const { runId, gateRef, provider, accountLabel } = pendingGate;
-      if (!runId || !gateRef || !provider || !accountLabel) {
+      const { runId, gateRef, provider } = pendingGate;
+      if (!runId || !gateRef || !provider) {
         throw new Error('auth gate is missing required credential metadata');
       }
+      // `account_label` is optional on the prompt (gates.js defaults it to
+      // an empty string), so don't gate submission on it — derive a sensible
+      // label when the prompt didn't carry one.
+      const accountLabel = pendingGate.accountLabel || `${provider} credential`;
       const gateKey = `${runId}\n${gateRef}`;
       if (authTokenSubmitRef.current.gateKey !== gateKey) {
         authTokenSubmitRef.current = {
@@ -474,11 +635,10 @@ export function useChat(threadId) {
     async (reason) => {
       const runId = activeRun?.runId;
       if (!runId || !threadId) return;
-      try {
-        await cancelRunRequest({ threadId, runId, reason });
-      } finally {
-        setIsProcessing(false);
-      }
+      setPendingGate(null);
+      setIsProcessing(false);
+      setActiveRun(null);
+      await cancelRunRequest({ threadId, runId, reason });
     },
     [activeRun, threadId]
   );
@@ -518,6 +678,7 @@ export function useChat(threadId) {
     messages,
     isProcessing,
     pendingGate,
+    channelConnectAction,
     activeRun,
     sseStatus,
     historyLoading,
@@ -528,6 +689,7 @@ export function useChat(threadId) {
     submitAuthToken,
     cancelRun,
     loadMore,
+    dismissChannelConnectAction: () => setChannelConnectAction(null),
     // fork-shape compatibility — see comments above
     suggestions: [],
     setSuggestions: noop,
@@ -546,105 +708,7 @@ function serializeComposerAttachments(items) {
       data_base64: item.base64 || '',
       size: item.size || 0
     }))
-    .filter((item) => item.data_base64);
-}
-
-function addPending(store, key, record) {
-  const existing = store.get(key) || [];
-  store.set(key, [...existing, record]);
-}
-
-function removePending(store, key, pendingId) {
-  const next = (store.get(key) || []).filter((r) => r.id !== pendingId);
-  if (next.length > 0) store.set(key, next);
-  else store.delete(key);
-}
-
-function movePending(store, fromKey, toKey) {
-  const existing = store.get(fromKey) || [];
-  if (existing.length === 0) return;
-  const target = store.get(toKey) || [];
-  store.set(toKey, [...target, ...existing]);
-  store.delete(fromKey);
-}
-
-function adoptPendingMessagesForThread(store, key) {
-  const direct = store.get(key) || [];
-  if (direct.length > 0) return direct;
-  if (key === '__new__' || store.size !== 1) return [];
-
-  const [[orphanKey, orphanMessages]] = Array.from(store.entries());
-  if (
-    orphanKey &&
-    orphanKey !== key &&
-    Array.isArray(orphanMessages) &&
-    orphanMessages.some((message) => message?.role === 'user')
-  ) {
-    store.set(key, orphanMessages);
-    store.delete(orphanKey);
-    return orphanMessages;
-  }
-  return [];
-}
-
-function upsertMissingAssistantReply(messages, key) {
-  const id = `missing-assistant-${key || 'unknown'}`;
-  if (messages.some((message) => message.id === id)) return messages;
-  return [
-    ...messages,
-    {
-      id,
-      role: 'error',
-      content: MISSING_ASSISTANT_REPLY_MESSAGE,
-      timestamp: new Date().toISOString()
-    }
-  ];
-}
-
-function upsertRunStateFailure(messages, runId, runState) {
-  const id = `run-failed-${runId || 'unknown'}`;
-  const status = normalizedRunStatus(runState?.status);
-  const failure = runState?.failure || {};
-  const content =
-    status === 'cancelled'
-      ? 'The run was cancelled before producing a reply.'
-      : failureMessageForRunStatus({
-          status,
-          failureCategory: failure.category,
-          failureSummary: failure.summary
-        });
-  const existing = messages.findIndex((message) => message.id === id);
-  const next = {
-    id,
-    role: 'error',
-    content,
-    timestamp: new Date().toISOString()
-  };
-  if (existing >= 0) {
-    const copy = [...messages];
-    copy[existing] = next;
-    return copy;
-  }
-  return [...messages, next];
-}
-
-function normalizedRunStatus(status) {
-  return String(status || '')
-    .trim()
-    .toLowerCase();
-}
-
-async function readTerminalRunState(threadId, runId) {
-  try {
-    const runState = await getRunState({ threadId, runId });
-    const status = normalizedRunStatus(runState?.status);
-    if (SUCCESS_RUN_STATE_STATUSES.has(status) || FAILED_RUN_STATE_STATUSES.has(status)) {
-      return runState;
-    }
-  } catch (err) {
-    console.warn('Failed to read run state while polling timeline:', err);
-  }
-  return null;
+    .filter((item) => item.data_base64 || item.name);
 }
 
 function retryAfterMs(err) {

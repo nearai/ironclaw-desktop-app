@@ -2,7 +2,6 @@ import { Button } from '../../../design-system/button.js';
 import { Icon } from '../../../design-system/icons.js';
 import { html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
-import { gatewayUrl } from '../../../lib/api.js';
 
 const OAUTH_PROVIDER_LABELS = {
   google: 'Google',
@@ -11,11 +10,9 @@ const OAUTH_PROVIDER_LABELS = {
 };
 
 function oauthHref(provider, redirectAfter) {
-  return gatewayUrl(
-    `/auth/login/${encodeURIComponent(provider)}?redirect_after=${encodeURIComponent(
-      redirectAfter
-    )}`
-  );
+  return `/auth/login/${encodeURIComponent(provider)}?redirect_after=${encodeURIComponent(
+    redirectAfter
+  )}`;
 }
 
 export function OAuthProviderButtons({ providers, redirectAfter }) {

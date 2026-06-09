@@ -10,7 +10,9 @@ export function EmptyState({
   initialText,
   resetKey,
   context,
-  statusText
+  statusText,
+  canCancel,
+  onCancel
 }) {
   const t = useT();
   const suggestions = [
@@ -55,6 +57,8 @@ export function EmptyState({
           variant="hero"
           context=${context}
           statusText=${statusText}
+          canCancel=${canCancel}
+          onCancel=${onCancel}
         />
       </div>
 
@@ -65,8 +69,7 @@ export function EmptyState({
               type="button"
               key=${item.title}
               onClick=${() => onSuggestion(item.title)}
-              disabled=${disabled}
-              className="v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-white/10 px-2 py-4 text-left hover:border-signal/35 disabled:cursor-not-allowed disabled:opacity-50"
+              className="v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-white/10 px-2 py-4 text-left hover:border-signal/35"
             >
               <span
                 className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-iron-300 group-hover:border-signal/35 group-hover:text-signal"

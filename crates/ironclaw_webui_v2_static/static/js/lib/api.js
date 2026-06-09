@@ -50,12 +50,12 @@ function normalizeOrigin(value) {
 
 export function gatewayOrigin() {
   if (!inTauri()) return '';
-  const configured =
+  return (
     bootstrappedDesktopGatewayOrigin ||
     normalizeOrigin(window.__IRONCLAW_GATEWAY_ORIGIN__) ||
     normalizeOrigin(localStorage.getItem(DESKTOP_GATEWAY_ORIGIN_KEY)) ||
-    DEFAULT_DESKTOP_GATEWAY_ORIGIN;
-  return configured;
+    DEFAULT_DESKTOP_GATEWAY_ORIGIN
+  );
 }
 
 export function gatewayUrl(path) {
@@ -96,13 +96,18 @@ async function tauriHttpFetch(input, init = {}) {
   }
 
   const mappedHeaders = Array.from(headers.entries()).map(([name, value]) => [name, String(value)]);
+  const accept = headers.get('accept') || headers.get('Accept') || '';
+  if (!accept.includes('text/event-stream')) {
+    return tauriBufferedHttpFetch(request, mappedHeaders, data);
+  }
 
   const rid = await tauriInvoke('plugin:http|fetch', {
     clientConfig: {
       method: request.method,
       url: request.url,
       headers: mappedHeaders,
-      data
+      data,
+      connectTimeout: 10_000
     }
   });
   const abort = () => tauriInvoke('plugin:http|fetch_cancel', { rid }).catch(() => {});
@@ -150,6 +155,28 @@ async function tauriHttpFetch(input, init = {}) {
   Object.defineProperty(response, 'url', { value: url, writable: false });
   Object.defineProperty(response, 'headers', {
     value: new Headers(responseHeaders),
+    writable: false
+  });
+  return response;
+}
+
+async function tauriBufferedHttpFetch(request, mappedHeaders, data) {
+  const value = await tauriInvoke('gateway_http_fetch', {
+    request: {
+      method: request.method,
+      url: request.url,
+      headers: mappedHeaders,
+      data
+    }
+  });
+  const body = value?.data ? new Uint8Array(value.data) : null;
+  const response = new Response(body, {
+    status: value?.status || 500,
+    statusText: value?.status_text || value?.statusText || ''
+  });
+  Object.defineProperty(response, 'url', { value: value?.url || request.url, writable: false });
+  Object.defineProperty(response, 'headers', {
+    value: new Headers(value?.headers || []),
     writable: false
   });
   return response;
@@ -326,20 +353,51 @@ export function listThreads({ limit, cursor } = {}) {
   return apiFetch(url.pathname + url.search);
 }
 
+// --- Automations ---
+
+export function listAutomations({ limit } = {}) {
+  const params = new URLSearchParams();
+  if (limit != null) params.set('limit', String(limit));
+  const query = params.toString();
+  return apiFetch(`${V2_BASE}/automations${query ? `?${query}` : ''}`);
+}
+
 // --- Messages ---
 
 export function sendMessage({ threadId, content, attachments, clientActionId: clientId }) {
   const body = {
     client_action_id: clientId || clientActionId(),
-    content
+    content: contentWithAttachments(content, attachments)
   };
-  if (Array.isArray(attachments) && attachments.length > 0) {
-    body.attachments = attachments;
-  }
   return apiFetch(`${V2_BASE}/threads/${encodeURIComponent(threadId)}/messages`, {
     method: 'POST',
     body: JSON.stringify(body)
   });
+}
+
+function contentWithAttachments(content, attachments) {
+  const base = String(content || '');
+  const safeAttachments = (attachments || []).filter(
+    (attachment) => attachment && (attachment.data_base64 || attachment.name)
+  );
+  if (safeAttachments.length === 0) return base;
+
+  const lines = ['', '<attachments>'];
+  safeAttachments.forEach((attachment, index) => {
+    lines.push(`Attachment ${index + 1}:`);
+    lines.push(`filename: ${String(attachment.name || 'attachment').replace(/\r?\n/g, ' ')}`);
+    lines.push(
+      `mime_type: ${String(attachment.mime_type || 'application/octet-stream').replace(/\r?\n/g, ' ')}`
+    );
+    if (Number.isFinite(Number(attachment.size))) {
+      lines.push(`size: ${Number(attachment.size)}`);
+    }
+    if (attachment.data_base64) {
+      lines.push(`data_base64: ${String(attachment.data_base64).replace(/\s+/g, '')}`);
+    }
+  });
+  lines.push('</attachments>');
+  return `${base.trimEnd()}\n${lines.join('\n')}`.trimStart();
 }
 
 // --- Timeline ---
@@ -352,14 +410,6 @@ export function fetchTimeline({ threadId, limit, cursor } = {}) {
   if (limit != null) url.searchParams.set('limit', String(limit));
   if (cursor) url.searchParams.set('cursor', cursor);
   return apiFetch(url.pathname + url.search);
-}
-
-// --- Run state ---
-
-export function getRunState({ threadId, runId } = {}) {
-  return apiFetch(
-    `${V2_BASE}/threads/${encodeURIComponent(threadId)}/runs/${encodeURIComponent(runId)}`
-  );
 }
 
 // --- Streaming (SSE) ---
@@ -411,6 +461,13 @@ export function cancelRun({ threadId, runId, reason, clientActionId: clientId } 
   );
 }
 
+export function fetchRunState({ threadId, runId, signal } = {}) {
+  return apiFetch(
+    `${V2_BASE}/threads/${encodeURIComponent(threadId)}/runs/${encodeURIComponent(runId)}`,
+    { signal }
+  );
+}
+
 // --- Gate resolution ---
 
 // `resolution` is one of "approved" | "denied" | "credential_provided" | "cancelled".
@@ -444,54 +501,6 @@ export function resolveGate({
 
 // --- Product auth ---
 
-export function setupManualToken({
-  provider,
-  accountLabel,
-  threadId,
-  runId,
-  gateRef,
-  sessionId,
-  invocationId,
-  signal
-} = {}) {
-  const body = {
-    provider,
-    account_label: accountLabel
-  };
-  if (threadId) body.thread_id = threadId;
-  if (runId) body.run_id = runId;
-  if (gateRef) body.gate_ref = gateRef;
-  if (sessionId) body.session_id = sessionId;
-  if (invocationId) body.invocation_id = invocationId;
-  return apiFetch('/api/reborn/product-auth/manual-token/setup', {
-    method: 'POST',
-    signal,
-    body: JSON.stringify(body)
-  });
-}
-
-export function submitManualTokenSecret({
-  interactionId,
-  invocationId,
-  token,
-  threadId,
-  sessionId,
-  signal
-} = {}) {
-  const body = {
-    interaction_id: interactionId,
-    invocation_id: invocationId,
-    token
-  };
-  if (threadId) body.thread_id = threadId;
-  if (sessionId) body.session_id = sessionId;
-  return apiFetch('/api/reborn/product-auth/manual-token/secret-submit', {
-    method: 'POST',
-    signal,
-    body: JSON.stringify(body)
-  });
-}
-
 export function submitManualToken({
   provider,
   accountLabel,
@@ -517,29 +526,11 @@ export function submitManualToken({
 
 // --- Extension setup ---
 
-export function canonicalExtensionName(extensionName) {
-  const raw = String(extensionName || '').trim();
-  const catalogAliases = new Map([
-    ['tools/gmail', 'gmail'],
-    ['tools/google_calendar', 'google-calendar'],
-    ['tools/google-calendar', 'google-calendar'],
-    ['channels/slack', 'slack'],
-    ['tools/slack_tool', 'slack'],
-    ['mcp-servers/notion', 'notion']
-  ]);
-  const mapped = catalogAliases.get(raw) || raw.replace(/_/g, '-');
-  if (!mapped || /[/?#\\]/.test(mapped) || mapped.includes('..')) {
-    throw new Error(`Invalid extension name: ${extensionName}`);
-  }
-  return mapped;
-}
-
 export function setupExtension(extensionName, { action, payload } = {}) {
-  const canonicalName = canonicalExtensionName(extensionName);
   const body = {};
   if (action) body.action = action;
   if (payload !== undefined) body.payload = payload;
-  return apiFetch(`${V2_BASE}/extensions/${encodeURIComponent(canonicalName)}/setup`, {
+  return apiFetch(`${V2_BASE}/extensions/${encodeURIComponent(extensionName)}/setup`, {
     method: 'POST',
     body: JSON.stringify(body)
   });
@@ -554,111 +545,6 @@ export function setupExtension(extensionName, { action, payload } = {}) {
 // HTTP request. When a v2 equivalent lands, replace the stub body
 // with the real wire call.
 
-const CHAT_MODEL_SELECTION_KEY = 'ironclaw:v2-chat-model-selection';
-const DEFAULT_CHAT_PROVIDER_ID = 'nearai';
-const DEFAULT_CHAT_PROVIDER_LABEL = 'NEAR.AI';
-export const DEFAULT_CHAT_MODEL = 'auto';
-const STATIC_SUPPORTED_CHAT_PROVIDERS = new Set([DEFAULT_CHAT_PROVIDER_ID]);
-
-export function readChatModelSelection() {
-  let stored = null;
-  try {
-    stored = JSON.parse(localStorage.getItem(CHAT_MODEL_SELECTION_KEY) || 'null');
-  } catch (_) {
-    stored = null;
-  }
-  const rawProviderId =
-    typeof stored?.providerId === 'string' && stored.providerId.trim()
-      ? stored.providerId.trim().toLowerCase()
-      : DEFAULT_CHAT_PROVIDER_ID;
-  const providerId = STATIC_SUPPORTED_CHAT_PROVIDERS.has(rawProviderId)
-    ? rawProviderId
-    : DEFAULT_CHAT_PROVIDER_ID;
-  const providerLabel =
-    providerId === DEFAULT_CHAT_PROVIDER_ID
-      ? DEFAULT_CHAT_PROVIDER_LABEL
-      : typeof stored?.providerLabel === 'string' && stored.providerLabel.trim()
-        ? stored.providerLabel.trim()
-        : DEFAULT_CHAT_PROVIDER_LABEL;
-  const modelId =
-    providerId === rawProviderId && typeof stored?.modelId === 'string' && stored.modelId.trim()
-      ? stored.modelId.trim()
-      : DEFAULT_CHAT_MODEL;
-  return { providerId, providerLabel, modelId };
-}
-
-export async function saveChatModelSelection({ providerId, providerLabel, modelId } = {}) {
-  const current = readChatModelSelection();
-  const requestedProviderId = (providerId || current.providerId || DEFAULT_CHAT_PROVIDER_ID)
-    .trim()
-    .toLowerCase();
-  const cleanProviderId = STATIC_SUPPORTED_CHAT_PROVIDERS.has(requestedProviderId)
-    ? requestedProviderId
-    : DEFAULT_CHAT_PROVIDER_ID;
-  const cleanModelId =
-    cleanProviderId === requestedProviderId
-      ? (modelId || current.modelId || DEFAULT_CHAT_MODEL).trim()
-      : DEFAULT_CHAT_MODEL;
-  const next = {
-    providerId: cleanProviderId,
-    providerLabel:
-      cleanProviderId === DEFAULT_CHAT_PROVIDER_ID
-        ? DEFAULT_CHAT_PROVIDER_LABEL
-        : (providerLabel || current.providerLabel || DEFAULT_CHAT_PROVIDER_LABEL).trim(),
-    modelId: cleanModelId
-  };
-  localStorage.setItem(CHAT_MODEL_SELECTION_KEY, JSON.stringify(next));
-
-  if (!inTauri()) return next;
-
-  const settings = await tauriInvoke('get_settings').catch(() => null);
-  const profiles = Array.isArray(settings?.profiles) ? settings.profiles : [];
-  const activeProfileId =
-    typeof settings?.activeProfileId === 'string'
-      ? settings.activeProfileId
-      : profiles[0]?.id || 'default';
-  const updatedSettings =
-    settings && typeof settings === 'object' ? { ...settings } : { activeProfileId, profiles: [] };
-  const updatedProfiles =
-    profiles.length > 0
-      ? profiles.map((profile) =>
-          profile?.id === activeProfileId
-            ? {
-                ...profile,
-                llmBackend: 'nearai',
-                llmProviderId: next.providerId,
-                llmModelId: next.modelId
-              }
-            : profile
-        )
-      : [
-          {
-            id: activeProfileId,
-            name: 'Local IronClaw',
-            mode: 'local',
-            localBaseUrl: DEFAULT_DESKTOP_GATEWAY_ORIGIN,
-            llmBackend: 'nearai',
-            llmProviderId: next.providerId,
-            llmModelId: next.modelId
-          }
-        ];
-  updatedSettings.activeProfileId = activeProfileId;
-  updatedSettings.profiles = updatedProfiles;
-
-  await tauriInvoke('save_settings', { settings: updatedSettings }).catch((err) => {
-    console.warn('[ironclaw] saving chat model selection failed', err);
-  });
-
-  await tauriInvoke('start_sidecar', {
-    backend: 'nearai',
-    providerId: next.providerId,
-    modelId: next.modelId,
-    profileId: activeProfileId
-  });
-
-  return next;
-}
-
 export async function gatewayStatus() {
   try {
     return await apiFetch('/api/gateway/status');
@@ -668,13 +554,12 @@ export async function gatewayStatus() {
     }
   }
 
-  const selection = readChatModelSelection();
   return {
     engine_v2_enabled: true,
     restart_enabled: inTauri(),
     total_connections: null,
-    llm_backend: selection.providerLabel,
-    llm_model: selection.modelId,
+    llm_backend: null,
+    llm_model: null,
     todo: true
   };
 }
@@ -857,7 +742,6 @@ class FetchEventStream {
       if (field === 'id') lastEventId = value;
     }
     if (!data) return;
-    const event = { type, data, lastEventId };
-    this.dispatch(type, event);
+    this.dispatch(type, { type, data, lastEventId });
   }
 }

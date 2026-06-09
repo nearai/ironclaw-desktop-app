@@ -1,0 +1,98 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { listAutomations, sendMessage } from './api.js';
+
+test('listAutomations reads through the v2 automations route', async () => {
+  const calls = [];
+  globalThis.sessionStorage = {
+    getItem: () => 'token-1',
+    setItem: () => {},
+    removeItem: () => {}
+  };
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return new Response(JSON.stringify({ automations: [] }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    });
+  };
+
+  const response = await listAutomations({ limit: 50 });
+
+  assert.deepEqual(response, { automations: [] });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/api/webchat/v2/automations?limit=50');
+  assert.equal(calls[0].options.credentials, 'same-origin');
+  assert.equal(calls[0].options.headers.get('Authorization'), 'Bearer token-1');
+});
+
+test('listAutomations propagates api errors from the automations route', async () => {
+  globalThis.sessionStorage = {
+    getItem: () => '',
+    setItem: () => {},
+    removeItem: () => {}
+  };
+  globalThis.fetch = async () =>
+    new Response('temporarily unavailable', {
+      status: 503,
+      statusText: 'Service Unavailable',
+      headers: { 'content-type': 'text/plain' }
+    });
+
+  await assert.rejects(listAutomations({ limit: 50 }), (error) => {
+    assert.equal(error.name, 'ApiError');
+    assert.equal(error.status, 503);
+    assert.equal(error.statusText, 'Service Unavailable');
+    assert.equal(error.body, 'temporarily unavailable');
+    return true;
+  });
+});
+
+test('sendMessage appends composer attachments into accepted content', async () => {
+  const calls = [];
+  globalThis.sessionStorage = {
+    getItem: () => 'token-1',
+    setItem: () => {},
+    removeItem: () => {}
+  };
+  globalThis.fetch = async (path, options) => {
+    calls.push({ path, options });
+    return new Response(
+      JSON.stringify({
+        outcome: 'submitted',
+        thread_id: 'thread-1',
+        run_id: 'run-1'
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      }
+    );
+  };
+
+  await sendMessage({
+    threadId: 'thread-1',
+    content: 'draft from the attachment',
+    attachments: [
+      {
+        name: 'template.pdf',
+        mime_type: 'application/pdf',
+        data_base64: 'dGVtcGxhdGU=',
+        size: 8
+      }
+    ],
+    clientActionId: 'action-1'
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/api/webchat/v2/threads/thread-1/messages');
+  const body = JSON.parse(calls[0].options.body);
+  assert.equal(body.client_action_id, 'action-1');
+  assert.match(body.content, /^draft from the attachment/);
+  assert.match(body.content, /<attachments>/);
+  assert.match(body.content, /filename: template\.pdf/);
+  assert.match(body.content, /mime_type: application\/pdf/);
+  assert.match(body.content, /data_base64: dGVtcGxhdGU=/);
+  assert.equal(Object.hasOwn(body, 'attachments'), false);
+});

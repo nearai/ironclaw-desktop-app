@@ -1,12 +1,94 @@
+/**
+ * @typedef {{
+ *   message_id?: string | number;
+ *   kind?: string;
+ *   content?: string | null;
+ *   sequence?: number;
+ *   status?: string | null;
+ *   turn_run_id?: string | null;
+ *   actor_id?: string | null;
+ *   received_at?: string | null;
+ *   created_at?: string | null;
+ * }} TimelineRecord
+ *
+ * @typedef {{
+ *   id?: string;
+ *   role?: string;
+ *   content?: string | null;
+ *   timestamp?: string | null;
+ *   isOptimistic?: boolean;
+ *   timelineMessageId?: string | number | null;
+ *   attachments?: AttachmentChip[];
+ *   [key: string]: unknown;
+ * }} PendingMessage
+ *
+ * @typedef {{
+ *   filename?: string;
+ *   mime_type?: string;
+ *   data_base64?: string;
+ *   size_label?: string;
+ * }} AttachmentChip
+ *
+ * @typedef {{
+ *   content: string;
+ *   attachments: AttachmentChip[];
+ * }} ParsedContent
+ *
+ * @typedef {{
+ *   invocation_id?: string;
+ *   status?: string;
+ *   title?: string;
+ *   capability_id?: string;
+ *   subtitle?: string | null;
+ *   input_summary?: string | null;
+ *   output_preview?: string | null;
+ *   output_summary?: string | null;
+ *   result_ref?: string | null;
+ *   updated_at?: string | null;
+ *   truncated?: boolean;
+ *   output_bytes?: number | null;
+ *   output_kind?: string | null;
+ *   turn_run_id?: string | null;
+ * }} CapabilityPreview
+ *
+ * @typedef {{
+ *   invocationId: string;
+ *   callId: string;
+ *   toolName: string;
+ *   toolStatus: string;
+ *   toolDetail: string | null;
+ *   toolParameters: string | null;
+ *   toolResultPreview: string | null;
+ *   toolError: string | null;
+ *   toolDurationMs: number | null;
+ *   updatedAt: string | null;
+ *   resultRef: string | null;
+ *   truncated: boolean;
+ *   outputBytes: number | null;
+ *   outputKind: string | null;
+ *   turnRunId: string | null;
+ * }} ToolCard
+ *
+ * @typedef {{
+ *   invocation_id?: string;
+ *   status?: string;
+ *   capability_id?: string;
+ *   error_kind?: string | null;
+ *   updated_at?: string | null;
+ *   output_bytes?: number | null;
+ *   turn_run_id?: string | null;
+ * }} CapabilityActivity
+ */
+
 // Map v2 `ThreadMessageRecord[]` from RebornTimelineResponse into
 // the message shape the UI components render. Kept narrow: the v2
-// timeline contract stores browser attachments in a durable transcript
-// block. Parse that block back into the message shape the UI already renders
-// so users see a normal attachment chip rather than raw base64 prose.
+// timeline contract stores browser attachments as a durable transcript block
+// in `content` until the native v2 request grows a first-class attachment
+// field. Parse that block back into chips while preserving turn grouping.
 
 /**
- * @param {Array<Record<string, any>>} records
- * @param {Array<Record<string, any>>} pendingMessages
+ * @param {TimelineRecord[]} records
+ * @param {PendingMessage[]} pendingMessages
  */
 export function messagesFromTimeline(records, pendingMessages = []) {
   const seen = new Set();
@@ -41,79 +123,108 @@ export function messagesFromTimeline(records, pendingMessages = []) {
     const id = `msg-${record.message_id}`;
     if (seen.has(id)) continue;
     seen.add(id);
+    const role = roleForRecord(record);
     const rendered = parseDurableAttachmentBlock(record.content || '');
     messages.push({
       id,
-      role: roleForRecord(record),
+      role,
       content: rendered.content,
       attachments: rendered.attachments,
       timestamp: timestampForRecord(record),
       kind: record.kind,
       status: record.status,
+      isFinalReply: isFinalAssistantRecord(record),
       sequence: record.sequence,
       turnRunId: record.turn_run_id || null
     });
   }
 
+  // Pending rows are dropped from the ref by the caller as soon as
+  // `sendMessage` returns (server has accepted the message and the
+  // confirmed row will arrive via timeline). The id-based guard
+  // remains as defense-in-depth. Content-based user dedupe covers the
+  // short handoff gap where Reborn has accepted the turn but the caller
+  // has not yet attached the server timeline id to the optimistic bubble.
   for (const pending of pendingMessages) {
     if (seen.has(pending.id)) continue;
+    const message = pendingMessageForRender(pending);
+    if (message.timelineMessageId && seen.has(`msg-${message.timelineMessageId}`)) {
+      continue;
+    }
     if (
-      pending.role === 'user' &&
-      timelineUserContents.has(normalizeComparableContent(pending.content))
+      !message.timelineMessageId &&
+      message.role === 'user' &&
+      timelineUserContents.has(normalizeComparableContent(message.content))
     ) {
       continue;
     }
-    messages.push(pending);
+    messages.push(message);
   }
 
   return messages;
 }
 
 /**
- * Keep optimistic user bubbles until the real timeline contains the same
- * user text. Reborn can surface the assistant row before the user row during
- * projection/timeline catch-up, and clearing all pending rows there makes the
- * sent prompt visually disappear.
+ * Return pending messages that have not been confirmed by the timeline yet.
+ * The hook uses this after a timeline refresh so stale optimistic user bubbles
+ * do not duplicate the server-confirmed turn.
  *
- * @param {Array<Record<string, any>>} records
- * @param {Array<Record<string, any>>} pendingMessages
+ * @param {TimelineRecord[]} records
+ * @param {PendingMessage[]} pendingMessages
  */
 export function pendingMessagesAfterTimeline(records, pendingMessages = []) {
   const timelineUserContents = timelineUserContentSet(records);
+  const timelineIds = new Set(
+    (records || [])
+      .filter((record) => record && record.message_id != null)
+      .map((record) => `msg-${record.message_id}`)
+  );
+
   return (pendingMessages || []).filter((pending) => {
-    if (pending.role !== 'user' || !pending.content) return true;
-    return !timelineUserContents.has(normalizeComparableContent(pending.content));
+    const message = pendingMessageForRender(pending);
+    if (message.timelineMessageId && timelineIds.has(`msg-${message.timelineMessageId}`)) {
+      return false;
+    }
+    if (
+      !message.timelineMessageId &&
+      message.role === 'user' &&
+      timelineUserContents.has(normalizeComparableContent(message.content))
+    ) {
+      return false;
+    }
+    return true;
   });
 }
 
-/** @param {Array<Record<string, any>>} records */
+/**
+ * @param {TimelineRecord[]} records
+ */
 function timelineUserContentSet(records) {
   const contents = new Set();
   for (const record of records || []) {
-    if (roleForRecord(record) === 'user' && record.content) {
-      contents.add(normalizeComparableContent(record.content));
-    }
+    if (roleForRecord(record) !== 'user') continue;
+    contents.add(normalizeComparableContent(record.content));
   }
   return contents;
 }
 
-/** @param {string | null | undefined} content */
+/**
+ * @param {string | null | undefined} content
+ */
 function normalizeComparableContent(content) {
   return parseDurableAttachmentBlock(content || '').content.trim();
 }
 
 /**
  * @param {string | null | undefined} rawContent
- * @returns {{ content: string, attachments: Array<{ filename?: string, mime_type?: string, data_base64?: string, size_label?: string }> }}
+ * @returns {ParsedContent}
  */
 function parseDurableAttachmentBlock(rawContent) {
   const raw = String(rawContent || '');
   const blockMatch = raw.match(/\n{0,2}<attachments>\n([\s\S]*?)\n<\/attachments>\s*$/);
-  if (!blockMatch) {
-    return { content: raw, attachments: [] };
-  }
+  if (!blockMatch) return { content: raw, attachments: [] };
 
-  const content = raw.slice(0, blockMatch.index).trimEnd();
+  /** @type {AttachmentChip[]} */
   const attachments = [];
   const chunks = blockMatch[1]
     .split(/\nAttachment\s+\d+:\n/g)
@@ -121,7 +232,7 @@ function parseDurableAttachmentBlock(rawContent) {
     .filter(Boolean);
 
   for (const chunk of chunks) {
-    /** @type {{ filename?: string, mime_type?: string, data_base64?: string, size_label?: string }} */
+    /** @type {AttachmentChip} */
     const attachment = {};
     for (const line of chunk.split('\n')) {
       const splitAt = line.indexOf(':');
@@ -134,27 +245,66 @@ function parseDurableAttachmentBlock(rawContent) {
         attachment.data_base64 = value;
         attachment.size_label = sizeLabelForBase64(value);
       }
+      if (key === 'size' && value && !attachment.size_label) {
+        attachment.size_label = sizeLabelForBytes(Number(value));
+      }
     }
     if (attachment.filename || attachment.mime_type || attachment.data_base64) {
       attachments.push(attachment);
     }
   }
 
-  return { content, attachments };
+  return {
+    content: raw.slice(0, blockMatch.index).trimEnd(),
+    attachments
+  };
 }
 
-/** @param {string | null | undefined} value */
+/**
+ * @param {string | null | undefined} value
+ */
 function sizeLabelForBase64(value) {
   const clean = String(value || '').replace(/\s+/g, '');
   if (!clean) return '';
   const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
   const bytes = Math.max(0, Math.floor((clean.length * 3) / 4) - padding);
+  return sizeLabelForBytes(bytes);
+}
+
+/**
+ * @param {number} bytes
+ */
+function sizeLabelForBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
   if (bytes < 1024) return `${bytes} bytes`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-/** @param {Record<string, any>} record */
+/**
+ * @param {PendingMessage} pending
+ */
+function pendingMessageForRender(pending) {
+  return {
+    ...pending,
+    role: pending.role || 'user',
+    isOptimistic: pending.isOptimistic !== false
+  };
+}
+
+/**
+ * @param {TimelineRecord} record
+ */
+function isFinalAssistantRecord(record) {
+  return (
+    (record.kind === 'assistant' || record.kind === 'assistant_message') &&
+    record.status === 'finalized'
+  );
+}
+
+/**
+ * @param {TimelineRecord} record
+ */
 function roleForRecord(record) {
   switch (record.kind) {
     case 'user':
@@ -171,7 +321,9 @@ function roleForRecord(record) {
   }
 }
 
-/** @param {Record<string, any>} record */
+/**
+ * @param {TimelineRecord} record
+ */
 function timestampForRecord(record) {
   // ThreadMessageRecord has no top-level timestamp; surfaces use
   // the sequence ordering for now. Browsers render the wall-clock
@@ -179,9 +331,13 @@ function timestampForRecord(record) {
   return record.received_at || record.created_at || null;
 }
 
-/** @param {Record<string, any>} record */
+/**
+ * @param {TimelineRecord} record
+ * @returns {ToolCard | null}
+ */
 function toolCardFromPreviewRecord(record) {
   if (!record.content) return null;
+  /** @type {CapabilityPreview | null} */
   let envelope;
   try {
     envelope = JSON.parse(record.content);
@@ -196,12 +352,16 @@ function toolCardFromPreviewRecord(record) {
 // Map a `CapabilityDisplayPreviewEnvelope` (timeline) or
 // `CapabilityDisplayPreviewView` (SSE) into the field set
 // `ToolActivityCard` destructures.
-/** @param {Record<string, any>} preview */
+/**
+ * @param {CapabilityPreview} preview
+ * @returns {ToolCard}
+ */
 export function toolCardFromPreview(preview) {
   const failed = preview.status === 'failed' || preview.status === 'killed';
+  const invocationId = preview.invocation_id || '';
   return {
-    invocationId: preview.invocation_id,
-    callId: preview.invocation_id,
+    invocationId,
+    callId: invocationId,
     toolName: preview.title || preview.capability_id || 'tool',
     toolStatus: toolStatusFromActivityStatus(preview.status),
     toolDetail: preview.subtitle || null,
@@ -218,7 +378,8 @@ export function toolCardFromPreview(preview) {
     resultRef: preview.result_ref || null,
     truncated: Boolean(preview.truncated),
     outputBytes: preview.output_bytes ?? null,
-    outputKind: preview.output_kind || null
+    outputKind: preview.output_kind || null,
+    turnRunId: preview.turn_run_id || null
   };
 }
 
@@ -226,11 +387,13 @@ export function toolCardFromPreview(preview) {
 // card shape. Activity frames carry only metadata — no title, no
 // parameters, no output — so the resulting card is intentionally
 // sparse and is meant to be enriched by the next preview frame.
-/** @param {Record<string, any>} activity */
+/**
+ * @param {CapabilityActivity} activity
+ */
 export function toolCardFromActivity(activity) {
   return {
-    invocationId: activity.invocation_id,
-    callId: activity.invocation_id,
+    invocationId: activity.invocation_id || '',
+    callId: activity.invocation_id || '',
     toolName: activity.capability_id || 'tool',
     toolStatus: toolStatusFromActivityStatus(activity.status),
     toolDetail: null,
@@ -242,16 +405,21 @@ export function toolCardFromActivity(activity) {
     resultRef: null,
     truncated: false,
     outputBytes: activity.output_bytes ?? null,
-    outputKind: null
+    outputKind: null,
+    turnRunId: activity.turn_run_id || null
   };
 }
 
-/** @param {string} status */
+/**
+ * @param {string | null | undefined} status
+ */
 export function isTerminalToolStatus(status) {
   return status === 'success' || status === 'error';
 }
 
-/** @param {string} status */
+/**
+ * @param {string | null | undefined} status
+ */
 function toolStatusFromActivityStatus(status) {
   switch (status) {
     case 'completed':

@@ -47,7 +47,7 @@ export function PageHeader({ threadsState, onToggleSidebar }) {
   return html`
     <header
       className=${cn(
-        'v2-page-header flex h-14 shrink-0 items-center gap-3 px-4',
+        'flex h-14 shrink-0 items-center gap-3 px-4',
         'border-b border-[var(--v2-panel-border)]',
         'bg-[color-mix(in_srgb,var(--v2-canvas-strong)_88%,transparent)] backdrop-blur-xl'
       )}

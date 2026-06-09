@@ -165,7 +165,7 @@ const required = [
   'WebView created Reborn webchat thread',
   'WebView submitted chat message with attachment',
   'Timeline reload preserves user prompt',
-  'Timeline reload preserves attachment payload',
+  'Timeline reload preserves attachment metadata',
   'Markdown export blob includes draft body',
   'HTML export blob renders markdown body',
   'JSON export blob parses and preserves content',

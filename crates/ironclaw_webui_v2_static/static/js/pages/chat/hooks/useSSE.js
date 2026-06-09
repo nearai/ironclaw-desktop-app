@@ -50,7 +50,6 @@ export function useSSE({ threadId, onEvent, enabled }) {
     let es = null;
     let reconnectTimer = null;
     let reconnectAttempts = 0;
-    let hasOpened = false;
     const maxReconnectDelay = 30_000;
 
     function connect() {
@@ -66,14 +65,13 @@ export function useSSE({ threadId, onEvent, enabled }) {
       });
 
       es.onopen = () => {
-        hasOpened = true;
         reconnectAttempts = 0;
         setStatus('connected');
       };
 
       es.onerror = () => {
         if (es) es.close();
-        setStatus(hasOpened ? 'reconnecting' : 'disconnected');
+        setStatus('disconnected');
         reconnectAttempts++;
         const delay = Math.min(1000 * 2 ** reconnectAttempts, maxReconnectDelay);
         reconnectTimer = setTimeout(connect, delay);

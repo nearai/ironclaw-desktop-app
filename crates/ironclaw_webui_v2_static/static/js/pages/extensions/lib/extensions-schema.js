@@ -9,6 +9,8 @@ export const KIND_LABELS = {
   wasm_tool: 'WASM Tool',
   wasm_channel: 'Channel',
   mcp_server: 'MCP Server',
+  first_party: 'First-party',
+  system: 'System',
   channel_relay: 'Relay'
 };
 
@@ -18,9 +20,6 @@ export const STATE_TONES = {
   pairing_required: 'warning',
   pairing: 'warning',
   auth_required: 'warning',
-  credential_stored: 'warning',
-  runtime_blocked: 'danger',
-  unsupported: 'danger',
   setup_required: 'muted',
   failed: 'danger',
   installed: 'muted'
@@ -32,9 +31,6 @@ export const STATE_LABELS = {
   pairing_required: 'pairing',
   pairing: 'pairing',
   auth_required: 'auth needed',
-  credential_stored: 'auth saved',
-  runtime_blocked: 'runtime blocked',
-  unsupported: 'blocked',
   setup_required: 'setup needed',
   failed: 'failed',
   installed: 'installed'

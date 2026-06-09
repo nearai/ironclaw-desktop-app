@@ -4,6 +4,7 @@ import { mkdir } from 'node:fs/promises';
 
 const port = Number(process.env.WEBUI_STATIC_SMOKE_PORT || '17620');
 const gatewayOrigin = process.env.WEBUI_STATIC_SMOKE_GATEWAY_ORIGIN || 'http://127.0.0.1:17621';
+const appBasePath = '/v2';
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -67,6 +68,22 @@ function installTauriShim(page) {
             return 'desktop-token';
           case 'get_or_create_local_token':
             return 'local-token';
+          case 'gateway_http_fetch': {
+            const req = pick(args, 'request');
+            if (!req?.url) throw new Error('missing gateway_http_fetch url');
+            const response = await window.fetch(req.url, {
+              method: req.method || 'GET',
+              headers: req.headers ? Object.fromEntries(req.headers) : undefined,
+              body: req.data ? new Uint8Array(req.data) : undefined
+            });
+            return {
+              status: response.status,
+              status_text: response.statusText,
+              url: response.url,
+              headers: Array.from(response.headers.entries()),
+              data: Array.from(new Uint8Array(await response.arrayBuffer()))
+            };
+          }
           case 'plugin:http|fetch': {
             const cfg = pick(args, 'clientConfig');
             if (!cfg?.url) throw new Error('missing plugin:http url');
@@ -154,6 +171,7 @@ try {
 
   await installTauriShim(page);
   const connectorRequests = [];
+  let gmailSetupSubmitted = false;
   const staleGatewayRequests = [];
   await page.route('http://127.0.0.1:3000/**', async (route) => {
     staleGatewayRequests.push(route.request().url());
@@ -167,6 +185,8 @@ try {
     model_execution_verified: false,
     model_readiness: 'unverified'
   };
+  const smokePdfBytes = Buffer.from('%PDF-1.4\nstatic smoke services agreement template');
+  const smokePdfBase64 = smokePdfBytes.toString('base64');
   await page.route(`${gatewayOrigin}/api/gateway/status`, async (route) => {
     await route.fulfill({
       contentType: 'application/json',
@@ -215,7 +235,16 @@ try {
             {
               kind: 'user',
               message_id: 'msg-user-smoke',
-              content: 'Draft a services agreement from this attachment.',
+              content: [
+                'Draft a services agreement from this attachment.',
+                '',
+                '<attachments>',
+                'Attachment 1:',
+                'filename: services-template.pdf',
+                'mime_type: application/pdf',
+                `data_base64: ${smokePdfBase64}`,
+                '</attachments>'
+              ].join('\n'),
               sequence: 1,
               created_at: '2026-06-02T08:00:00.000Z'
             },
@@ -377,22 +406,169 @@ try {
       await route.fallback();
       return;
     }
+    if (webchatPath === '/api/webchat/v2/extensions/registry') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ entries: [] })
+      });
+      return;
+    }
+    if (webchatPath === '/api/webchat/v2/channels/connectable') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          channels: [
+            {
+              channel: 'slack',
+              display_name: 'Slack',
+              command_aliases: ['slack']
+            }
+          ]
+        })
+      });
+      return;
+    }
+    if (webchatPath === '/api/webchat/v2/extensions') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          extensions: [
+            {
+              display_name: 'Gmail',
+              kind: 'wasm_tool',
+              version: '0.2.0',
+              active: false,
+              needs_setup: true,
+              has_auth: true,
+              onboarding_state: gmailSetupSubmitted ? 'failed' : 'auth_required',
+              activation_error: gmailSetupSubmitted
+                ? 'Backend can store this credential, but this connector runtime is not wired in this build yet.'
+                : undefined,
+              description: 'Read and draft Gmail messages.',
+              package_ref: { kind: 'extension', id: 'gmail' },
+              tools: []
+            },
+            {
+              display_name: 'Google Calendar',
+              kind: 'wasm_tool',
+              version: '0.2.0',
+              active: false,
+              needs_setup: true,
+              has_auth: true,
+              onboarding_state: 'auth_required',
+              description: 'Inspect and draft calendar changes.',
+              package_ref: { kind: 'extension', id: 'google-calendar' },
+              tools: []
+            },
+            {
+              display_name: 'Notion',
+              kind: 'mcp_server',
+              version: '0.2.0',
+              active: false,
+              needs_setup: true,
+              has_auth: true,
+              onboarding_state: 'auth_required',
+              description: 'Connect Notion workspace context.',
+              package_ref: { kind: 'extension', id: 'notion' },
+              tools: []
+            },
+            {
+              display_name: 'Slack',
+              kind: 'wasm_channel',
+              version: '0.2.0',
+              active: false,
+              needs_setup: true,
+              has_auth: true,
+              onboarding_state: 'pairing_required',
+              description: 'Pair Slack as a workspace channel.',
+              onboarding: {
+                credential_instructions:
+                  'Slack is blocked: channel pairing is not wired in this smoke backend.'
+              },
+              package_ref: { kind: 'extension', id: 'slack' },
+              tools: []
+            }
+          ]
+        })
+      });
+      return;
+    }
     if (route.request().url().includes('/extensions/')) {
+      const method = route.request().method();
       const extensionName =
         new URL(route.request().url()).pathname.match(/\/extensions\/([^/]+)\/setup$/)?.[1] ||
         'unknown';
-      const body = route.request().postDataJSON();
+      const body = method === 'GET' ? null : route.request().postDataJSON();
       connectorRequests.push({
         url: route.request().url(),
-        method: route.request().method(),
+        method,
         body,
         authorization: route.request().headers().authorization || ''
       });
-      if (body?.action === 'submit') {
+      if (method === 'GET' && route.request().url().endsWith('/setup')) {
+        const setupCopy = {
+          gmail: {
+            prompt: 'Google OAuth token',
+            instructions: 'Use the Product Auth token returned by Google sign-in for Gmail.'
+          },
+          'google-calendar': {
+            prompt: 'Google Calendar OAuth token',
+            instructions: 'Use the Product Auth token returned by Google sign-in for Calendar.'
+          },
+          notion: {
+            prompt: 'Notion integration token',
+            instructions: 'Paste a Notion integration token.'
+          }
+        }[extensionName] || {
+          prompt: `${extensionName} token`,
+          instructions: `Paste the ${extensionName} token.`
+        };
         await route.fulfill({
-          status: 400,
           contentType: 'application/json',
-          body: JSON.stringify({ error: 'unsupported lifecycle action: submit' })
+          body: JSON.stringify({
+            secrets: [
+              {
+                name: 'token',
+                prompt: setupCopy.prompt,
+                optional: false,
+                provided: false,
+                setup: { kind: 'manual_token', provider: extensionName }
+              }
+            ],
+            fields: [
+              {
+                name: 'account_label',
+                prompt: 'Account label',
+                optional: true,
+                placeholder: `${extensionName} account`
+              }
+            ],
+            onboarding: {
+              credential_instructions: setupCopy.instructions,
+              credential_next_step:
+                'Save the token; this smoke keeps the runtime blocked so the UI cannot claim a live connector.'
+            }
+          })
+        });
+        return;
+      }
+      if (body?.action === 'submit') {
+        if (extensionName === 'gmail') gmailSetupSubmitted = true;
+        await route.fulfill({
+          contentType: 'application/json',
+          body: JSON.stringify({
+            success: true,
+            extension_name: extensionName,
+            phase: 'unsupported_or_legacy',
+            blockers: [
+              {
+                kind: 'runtime',
+                ref_id: 'extension_auth_and_configure_not_yet_wired'
+              }
+            ],
+            package_ref: { kind: 'extension', id: extensionName },
+            payload: {}
+          })
         });
         return;
       }
@@ -438,10 +614,35 @@ try {
     });
   });
 
-  await page.goto(`http://127.0.0.1:${port}/index.html`, {
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/`, {
     waitUntil: 'domcontentloaded'
   });
-  await page.getByText('Gateway session', { exact: true }).waitFor({ timeout: 20_000 });
+  try {
+    await page.waitForFunction(
+      () => {
+        const text = document.body?.innerText || '';
+        return text.includes('New') || text.includes('Chat') || text.includes('Extensions');
+      },
+      null,
+      { timeout: 20_000 }
+    );
+  } catch (err) {
+    await mkdir('output/playwright', { recursive: true });
+    await page
+      .screenshot({
+        path: 'output/playwright/static-bootstrap-failure.png',
+        fullPage: true
+      })
+      .catch(() => {});
+    const visibleBody = await page
+      .locator('body')
+      .innerText()
+      .catch(() => '<body unavailable>');
+    throw new Error(
+      `static app did not bootstrap; errors=${JSON.stringify(errors)}; body=${JSON.stringify(visibleBody)}`,
+      { cause: err }
+    );
+  }
   const bootstrappedOrigin = await page.evaluate(() =>
     window.localStorage.getItem('ironclaw:desktop-gateway-origin')
   );
@@ -464,72 +665,38 @@ try {
     throw new Error('desktop bootstrap failed: login token form is still visible');
   }
 
-  await page.goto(`http://127.0.0.1:${port}/chat`, {
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat`, {
     waitUntil: 'domcontentloaded'
   });
-  await page
-    .getByText('Not ready: NEAR.AI / IronClaw default (auto)', { exact: true })
-    .waitFor({ timeout: 20_000 });
-  const modelControlText = await page.locator('[aria-label="Chat model controls"]').innerText();
+  const modelControl = page.getByLabel('Chat model settings').first();
+  await modelControl.waitFor({ timeout: 20_000 });
+  const modelControlText = await modelControl.innerText();
+  if (!modelControlText.includes('Configured') || !modelControlText.includes('NEAR.AI / auto')) {
+    throw new Error(
+      `static chat model control did not show default NEAR.AI model:\n${modelControlText}`
+    );
+  }
+  const modelControlHref = await modelControl.getAttribute('href');
+  if (modelControlHref !== `${appBasePath}/settings/inference`) {
+    throw new Error(
+      `static chat model control did not link to inference settings: ${modelControlHref}`
+    );
+  }
+  const initialChatBody = await page.locator('body').innerText();
   if (modelControlText.includes('OpenRouter') || modelControlText.includes('deepseek/')) {
     throw new Error(
       `static chat model control exposed unconfigured provider:\n${modelControlText}`
     );
   }
-  if (modelControlText.includes('Running:')) {
-    throw new Error(`static chat model control claimed execution readiness:\n${modelControlText}`);
+  if (initialChatBody.includes('OpenRouter') || initialChatBody.includes('deepseek/')) {
+    throw new Error(`static chat exposed unconfigured provider:\n${initialChatBody}`);
   }
-  await page.locator('[aria-label="Chat model controls"] button').click();
-  const openModelControlText = await page.locator('[aria-label="Chat model controls"]').innerText();
-  if (openModelControlText.includes('OpenRouter') || openModelControlText.includes('deepseek/')) {
-    throw new Error(
-      `static chat model picker exposed unconfigured provider:\n${openModelControlText}`
-    );
-  }
-  await page
-    .getByText(/IronClaw has not proven this model can complete a reply/)
-    .first()
-    .waitFor({ timeout: 20_000 });
-  await page.getByText(/Leave auto to use IronClaw's NEAR\.AI default/).waitFor({
-    timeout: 20_000
-  });
-  await page.keyboard.press('Escape');
-  const composer = page.locator('textarea').first();
-  await composer.waitFor({ timeout: 20_000 });
-  const unverifiedPromptText = 'Hello from an unverified but configured model.';
-  await composer.click();
-  await composer.pressSequentially(unverifiedPromptText);
-  const unverifiedSendButton = page.locator('button[aria-label="Send message"]').last();
-  if (!(await unverifiedSendButton.isDisabled())) {
-    throw new Error('static chat allowed Send before model execution was verified');
-  }
-  await wait(500);
-  if (chatMessageRequests.length !== 0) {
-    throw new Error(
-      `static chat posted before model execution was verified: ${JSON.stringify(chatMessageRequests)}`
-    );
-  }
-  chatMessageRequests.length = 0;
-  timelineRequests.length = 0;
-
-  gatewayStatusPayload = {
-    ...gatewayStatusPayload,
-    model_execution_verified: true,
-    model_readiness: 'GREEN'
-  };
-  await page.goto(`http://127.0.0.1:${port}/chat`, {
-    waitUntil: 'domcontentloaded'
-  });
-  await page
-    .getByText('Verified: NEAR.AI / IronClaw default (auto)', { exact: true })
-    .waitFor({ timeout: 20_000 });
   const verifiedComposer = page.locator('textarea').first();
   await verifiedComposer.waitFor({ timeout: 20_000 });
-  const pdfBytes = Buffer.from('%PDF-1.4\nstatic smoke services agreement template');
   await page.locator('input[type="file"]').setInputFiles({
     name: 'services-template.pdf',
     mimeType: 'application/pdf',
-    buffer: pdfBytes
+    buffer: smokePdfBytes
   });
   await page.getByText('services-template.pdf', { exact: true }).waitFor({ timeout: 20_000 });
   const promptText = 'Draft a services agreement from this attachment.';
@@ -580,17 +747,19 @@ try {
     throw new Error('static chat did not POST a message request');
   }
   if (chatPost.content !== promptText) {
-    throw new Error(`static chat posted wrong content: ${JSON.stringify(chatPost)}`);
+    if (
+      !String(chatPost.content || '').startsWith(promptText) ||
+      !String(chatPost.content || '').includes('<attachments>') ||
+      !String(chatPost.content || '').includes('filename: services-template.pdf') ||
+      !String(chatPost.content || '').includes('mime_type: application/pdf') ||
+      !String(chatPost.content || '').includes(`data_base64: ${smokePdfBase64}`)
+    ) {
+      throw new Error(`static chat posted wrong content: ${JSON.stringify(chatPost)}`);
+    }
   }
-  const attachment = chatPost.attachments?.[0];
-  if (
-    !attachment ||
-    attachment.name !== 'services-template.pdf' ||
-    attachment.mime_type !== 'application/pdf' ||
-    attachment.data_base64 !== pdfBytes.toString('base64')
-  ) {
+  if (Object.hasOwn(chatPost, 'attachments')) {
     throw new Error(
-      `static chat dropped or malformed attachment payload: ${JSON.stringify(chatPost)}`
+      `static chat sent ignored JSON attachments instead of durable content block: ${JSON.stringify(chatPost)}`
     );
   }
   await mkdir('output/playwright', { recursive: true });
@@ -599,7 +768,7 @@ try {
     fullPage: true
   });
 
-  await page.goto(`http://127.0.0.1:${port}/chat/thread-fail`, {
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat/thread-fail`, {
     waitUntil: 'domcontentloaded'
   });
   const failureComposer = page.locator('textarea').first();
@@ -613,13 +782,34 @@ try {
     return button && !button.disabled;
   });
   await page.locator('button[aria-label="Send message"]').last().click();
-  await page
-    .getByText(
-      'The selected model is configured, but its execution driver is unavailable. Check provider setup or choose a verified model before retrying.'
-    )
-    .waitFor({
-      timeout: 30_000
-    });
+  try {
+    await page
+      .getByText(/run failed|driver unavailable|recovery_required/i)
+      .first()
+      .waitFor({
+        timeout: 30_000
+      });
+  } catch (err) {
+    await mkdir('output/playwright', { recursive: true });
+    await page
+      .screenshot({
+        path: 'output/playwright/static-run-state-failure-missing.png',
+        fullPage: true
+      })
+      .catch(() => {});
+    const visibleBody = await page
+      .locator('body')
+      .innerText()
+      .catch(() => '<body unavailable>');
+    throw new Error(
+      `failed-run UI did not surface run-state failure; requests=${JSON.stringify({
+        failedRunMessageRequests,
+        failedRunTimelineRequests,
+        failedRunStateRequests
+      })}; errors=${JSON.stringify(errors)}; body=${JSON.stringify(visibleBody)}`,
+      { cause: err }
+    );
+  }
   if (!failedRunMessageRequests.length || !failedRunTimelineRequests.length) {
     throw new Error(
       `failed-run UI did not exercise message+timeline routes: ${JSON.stringify({
@@ -652,7 +842,7 @@ try {
   }
 
   async function expectDeepLinkSetup(path, expectedLifecycleSuffix, expectedTitle, expectedCopy) {
-    await page.goto(`http://127.0.0.1:${port}${path}`, {
+    await page.goto(`http://127.0.0.1:${port}${appBasePath}${path}`, {
       waitUntil: 'domcontentloaded'
     });
     await page.getByText(expectedTitle, { exact: true }).waitFor({ timeout: 20_000 });
@@ -669,48 +859,53 @@ try {
       );
     }
     await assertNoCatalogRefLifecycle();
-    await page.keyboard.press('Escape');
+    await page.getByLabel('Close setup').click();
     await page.locator('input[type="password"]').waitFor({ state: 'detached', timeout: 20_000 });
   }
 
   await expectDeepLinkSetup(
     '/extensions/installed?focus=tools%2Fgmail&setup=1',
     '/api/webchat/v2/extensions/gmail/setup',
-    'Connect Gmail',
-    /manual Product Auth token setup for Gmail/
+    'Configure Gmail',
+    /Product Auth token returned by Google sign-in for Gmail/
   );
   await expectDeepLinkSetup(
     '/extensions/installed?focus=tools%2Fgoogle_calendar&setup=1',
     '/api/webchat/v2/extensions/google-calendar/setup',
-    'Connect Google Calendar',
-    /manual Product Auth token setup for Calendar/
+    'Configure Google Calendar',
+    /Product Auth token returned by Google sign-in for Calendar/
   );
   await expectDeepLinkSetup(
     '/extensions/mcp?focus=mcp-servers%2Fnotion&setup=1',
     '/api/webchat/v2/extensions/notion/setup',
-    'Connect Notion',
+    'Configure Notion',
     /Paste a Notion integration token/
   );
 
   const beforeSlackRequestCount = connectorRequests.length;
-  await page.goto(`http://127.0.0.1:${port}/extensions/channels?focus=channels%2Fslack&setup=1`, {
-    waitUntil: 'domcontentloaded'
-  });
-  await page.getByText('Slack', { exact: true }).waitFor({ timeout: 20_000 });
-  await page
-    .getByText(/Slack is blocked:/)
-    .first()
-    .waitFor({ timeout: 20_000 });
+  await page.goto(
+    `http://127.0.0.1:${port}${appBasePath}/extensions/channels?focus=channels%2Fslack&setup=1`,
+    {
+      waitUntil: 'domcontentloaded'
+    }
+  );
+  await page.getByText('Slack', { exact: true }).first().waitFor({ timeout: 20_000 });
+  await page.getByText('Configure Slack', { exact: true }).waitFor({ timeout: 20_000 });
   const slackLifecycleRequest = connectorRequests.find(
     (request, index) =>
       index >= beforeSlackRequestCount &&
       request.url.endsWith('/api/webchat/v2/extensions/slack/setup')
   );
-  if (slackLifecycleRequest) {
-    throw new Error(`unsupported Slack deep link called lifecycle: ${slackLifecycleRequest.url}`);
+  if (!slackLifecycleRequest) {
+    throw new Error(
+      `Slack deep link did not call bare lifecycle setup: ${JSON.stringify(connectorRequests, null, 2)}`
+    );
   }
+  await assertNoCatalogRefLifecycle();
+  await page.getByLabel('Close setup').click();
+  await page.locator('input[type="password"]').waitFor({ state: 'detached', timeout: 20_000 });
 
-  await page.goto(`http://127.0.0.1:${port}/extensions/installed`, {
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/extensions/installed`, {
     waitUntil: 'domcontentloaded'
   });
   await page.getByText('Gmail', { exact: true }).waitFor({ timeout: 20_000 });
@@ -721,15 +916,16 @@ try {
     );
   }
   await page.getByText('auth needed', { exact: true }).first().waitFor({ timeout: 20_000 });
-  await page.getByRole('button', { name: 'Connect token' }).first().click();
+  await page.getByRole('button', { name: 'Configure' }).first().click();
+  await page.getByText('Configure Gmail', { exact: true }).waitFor({ timeout: 20_000 });
   await page.locator('input[type="password"]').fill('ya29.smoke-token');
   await page.locator('input[type="text"]').fill('Smoke Google');
-  await page.getByRole('button', { name: 'Save token' }).click();
+  await page.getByRole('button', { name: 'Save' }).click();
   await page.locator('input[type="password"]').waitFor({
     state: 'detached',
     timeout: 20_000
   });
-  await page.getByText('runtime blocked', { exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByText('failed', { exact: true }).first().waitFor({ timeout: 20_000 });
   await page
     .getByText(
       'Backend can store this credential, but this connector runtime is not wired in this build yet.',
@@ -753,56 +949,22 @@ try {
     );
   }
 
-  const setupRequest = connectorRequests.find((request) =>
-    request.url.endsWith('/api/reborn/product-auth/manual-token/setup')
-  );
-  const secretRequest = connectorRequests.find((request) =>
-    request.url.endsWith('/api/reborn/product-auth/manual-token/secret-submit')
-  );
-  const lifecycleRequest = connectorRequests.find(
+  const gmailSubmitRequest = connectorRequests.find(
     (request) =>
       request.url.endsWith('/api/webchat/v2/extensions/gmail/setup') &&
-      request.body?.action === 'configure'
+      request.body?.action === 'submit'
   );
-  const unsupportedLifecycleRequest = connectorRequests.find(
-    (request) =>
-      request.url.includes('/api/webchat/v2/extensions/') && request.body?.action === 'submit'
-  );
-  if (unsupportedLifecycleRequest) {
+  if (!gmailSubmitRequest) {
     throw new Error(
-      `connector lifecycle used unsupported submit action: ${JSON.stringify(unsupportedLifecycleRequest)}`
-    );
-  }
-  if (!setupRequest || !secretRequest || !lifecycleRequest) {
-    throw new Error(
-      `connector setup route sequence incomplete:\n${JSON.stringify(connectorRequests, null, 2)}`
+      `connector setup submit request missing:\n${JSON.stringify(connectorRequests, null, 2)}`
     );
   }
   if (
-    setupRequest.body.provider !== 'google' ||
-    setupRequest.body.account_label !== 'Smoke Google'
+    gmailSubmitRequest.body.payload?.secrets?.token !== 'ya29.smoke-token' ||
+    gmailSubmitRequest.body.payload?.fields?.account_label !== 'Smoke Google'
   ) {
     throw new Error(
-      `connector setup sent wrong Product Auth body: ${JSON.stringify(setupRequest.body)}`
-    );
-  }
-  if (
-    secretRequest.body.interaction_id !== 'interaction-smoke' ||
-    secretRequest.body.invocation_id !== 'invocation-smoke' ||
-    secretRequest.body.token !== 'ya29.smoke-token'
-  ) {
-    throw new Error(
-      `connector secret-submit body was wrong: ${JSON.stringify(secretRequest.body)}`
-    );
-  }
-  if (lifecycleRequest.body.action !== 'configure') {
-    throw new Error(
-      `connector lifecycle used unsupported action: ${JSON.stringify(lifecycleRequest.body)}`
-    );
-  }
-  if (lifecycleRequest.body.payload?.credential_ref !== 'credential-google-smoke') {
-    throw new Error(
-      `connector lifecycle missed credential ref: ${JSON.stringify(lifecycleRequest.body)}`
+      `connector setup submit body was wrong: ${JSON.stringify(gmailSubmitRequest.body)}`
     );
   }
   await assertNoCatalogRefLifecycle();

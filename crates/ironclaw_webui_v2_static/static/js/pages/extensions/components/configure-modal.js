@@ -1,16 +1,23 @@
 import { Button } from '../../../design-system/button.js';
 import { Icon } from '../../../design-system/icons.js';
 import { React, html } from '../../../lib/html.js';
-import { useExtensionSetup, useSetupSubmit } from '../hooks/useExtensions.js';
+import { useExtensionSetup, useOauthSetup, useSetupSubmit } from '../hooks/useExtensions.js';
+import { setupReadyForActivation } from '../lib/extension-actions.js';
 
-export function ConfigureModal({ extensionName, onClose, onSaved }) {
-  const { displayName, secrets, fields, onboarding, isLoading, error } =
-    useExtensionSetup(extensionName);
+export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
+  const extensionName = extension?.displayName || extension?.packageRef?.id || 'Extension';
+  const {
+    secrets = [],
+    fields = [],
+    onboarding,
+    isLoading,
+    error
+  } = useExtensionSetup(extension?.packageRef);
   const [values, setValues] = React.useState({});
   const [fieldValues, setFieldValues] = React.useState({});
-  const title = `Connect ${displayName || extensionName}`;
+  const oauthMutation = useOauthSetup(extension?.packageRef);
 
-  const submitMutation = useSetupSubmit(extensionName, (res) => {
+  const submitMutation = useSetupSubmit(extension?.packageRef, (res) => {
     if (res.success !== false) {
       if (onSaved) onSaved(res);
       onClose();
@@ -25,10 +32,23 @@ export function ConfigureModal({ extensionName, onClose, onSaved }) {
     }
     submitMutation.mutate({ secrets: secretPayload, fields: fieldValues });
   }, [values, fieldValues, submitMutation]);
+  const handleOauth = React.useCallback(
+    (secret) => {
+      const popup = window.open('about:blank', '_blank', 'width=600,height=600');
+      if (popup) popup.opener = null;
+      oauthMutation.mutate({ secret, popup });
+    },
+    [oauthMutation]
+  );
+  const manualSecrets = secrets.filter(
+    (secret) => (secret.setup?.kind || 'manual_token') === 'manual_token'
+  );
+  const canSave = manualSecrets.length > 0 || fields.length > 0;
+  const canActivate = setupReadyForActivation({ secrets, fields });
 
   if (isLoading) {
     return html`
-      <${ModalShell} onClose=${onClose} title=${title}>
+      <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
         <div className="space-y-3">
           ${[1, 2].map(
             (i) => html`<div key=${i} className="v2-skeleton h-10 w-full rounded-md" />`
@@ -40,7 +60,7 @@ export function ConfigureModal({ extensionName, onClose, onSaved }) {
 
   if (error) {
     return html`
-      <${ModalShell} onClose=${onClose} title=${title}>
+      <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
         <p className="text-sm text-red-200">Failed to load setup: ${error.message}</p>
       <//>
     `;
@@ -48,16 +68,14 @@ export function ConfigureModal({ extensionName, onClose, onSaved }) {
 
   if (secrets.length === 0 && fields.length === 0) {
     return html`
-      <${ModalShell} onClose=${onClose} title=${title}>
-        <p className="text-sm text-iron-300">
-          No manual setup is available for this connector in this desktop build.
-        </p>
+      <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
+        <p className="text-sm text-iron-300">No configuration required for this extension.</p>
       <//>
     `;
   }
 
   return html`
-    <${ModalShell} onClose=${onClose} title=${title}>
+    <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
       ${onboarding?.credential_instructions &&
       html`
         <p className="mb-4 text-sm leading-6 text-iron-300">
@@ -86,25 +104,50 @@ export function ConfigureModal({ extensionName, onClose, onSaved }) {
                 ${secret.optional &&
                 html` <span className="font-mono text-[10px] text-iron-700">optional</span> `}
                 ${secret.provided &&
-                html` <span className="font-mono text-[10px] text-mint">stored</span> `}
+                html` <span className="font-mono text-[10px] text-mint">configured</span> `}
               </label>
-              <input
-                type="password"
-                placeholder=${secret.provided
-                  ? 'Token stored. Paste a new token to replace it.'
-                  : 'Paste token'}
-                value=${values[secret.name] || ''}
-                onChange=${(e) =>
-                  setValues((prev) => ({
-                    ...prev,
-                    [secret.name]: e.target.value
-                  }))}
-                onKeyDown=${(e) => e.key === 'Enter' && handleSubmit()}
-                className="h-10 w-full rounded-md border border-white/12 bg-white/[0.04] px-3 text-sm text-iron-100 outline-none placeholder:text-iron-700 focus:border-signal/45"
-              />
-              ${secret.auto_generate &&
-              !secret.provided &&
-              html` <p className="mt-1 text-xs text-iron-700">Auto-generated if left blank</p> `}
+              ${(secret.setup?.kind || 'manual_token') === 'oauth'
+                ? html`
+                    <div
+                      className="flex items-center justify-between gap-3 rounded-md border border-white/12 bg-white/[0.04] px-3 py-2"
+                    >
+                      <span className="text-xs text-iron-300">
+                        ${secret.provided
+                          ? 'Authorization is configured.'
+                          : 'Authorize this provider in a browser popup.'}
+                      </span>
+                      <${Button}
+                        variant=${secret.provided ? 'secondary' : 'primary'}
+                        onClick=${() => handleOauth(secret)}
+                        disabled=${oauthMutation.isPending}
+                      >
+                        ${oauthMutation.isPending
+                          ? 'Opening...'
+                          : secret.provided
+                            ? 'Reconnect'
+                            : 'Authorize'}
+                      <//>
+                    </div>
+                  `
+                : html`
+                    <input
+                      type="password"
+                      placeholder=${secret.provided ? '••••••• (leave blank to keep)' : ''}
+                      value=${values[secret.name] || ''}
+                      onChange=${(e) =>
+                        setValues((prev) => ({
+                          ...prev,
+                          [secret.name]: e.target.value
+                        }))}
+                      onKeyDown=${(e) => e.key === 'Enter' && handleSubmit()}
+                      className="h-10 w-full rounded-md border border-white/12 bg-white/[0.04] px-3 text-sm text-iron-100 outline-none placeholder:text-iron-700 focus:border-signal/45"
+                    />
+                    ${secret.auto_generate &&
+                    !secret.provided &&
+                    html`
+                      <p className="mt-1 text-xs text-iron-700">Auto-generated if left blank</p>
+                    `}
+                  `}
             </div>
           `
         )}
@@ -145,12 +188,31 @@ export function ConfigureModal({ extensionName, onClose, onSaved }) {
           ${submitMutation.error.message}
         </div>
       `}
+      ${oauthMutation.error &&
+      html`
+        <div
+          className="mt-4 rounded-md border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+        >
+          ${oauthMutation.error.message}
+        </div>
+      `}
 
       <div className="mt-6 flex items-center justify-end gap-3">
         <${Button} variant="ghost" onClick=${onClose}>Cancel<//>
-        <${Button} variant="primary" onClick=${handleSubmit} disabled=${submitMutation.isPending}>
-          ${submitMutation.isPending ? 'Saving…' : 'Save token'}
-        <//>
+        ${canActivate &&
+        html`
+          <${Button} variant="primary" onClick=${() => onActivate?.(extension)}> Activate <//>
+        `}
+        ${canSave &&
+        html`
+          <${Button}
+            variant=${canActivate ? 'secondary' : 'primary'}
+            onClick=${handleSubmit}
+            disabled=${submitMutation.isPending}
+          >
+            ${submitMutation.isPending ? 'Saving…' : 'Save'}
+          <//>
+        `}
       </div>
     <//>
   `;
@@ -180,6 +242,7 @@ function ModalShell({ onClose, title, children }) {
           <h3 className="text-lg font-semibold text-white">${title}</h3>
           <button
             onClick=${onClose}
+            aria-label="Close setup"
             className="grid h-8 w-8 place-items-center rounded-md text-iron-300 hover:bg-white/[0.06] hover:text-white"
           >
             <${Icon} name="close" className="h-4 w-4" />

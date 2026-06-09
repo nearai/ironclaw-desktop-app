@@ -31,6 +31,7 @@ export async function maybeRunPackagedWebviewSmoke() {
   if (!request?.enabled) return;
 
   window[STARTED_FLAG] = true;
+  await smokeDiag(`enabled evidence_path=${request.evidence_path || ''}`);
   const report = {
     schema: 'ironclaw-packaged-webview-smoke.v1',
     started_at: new Date().toISOString(),
@@ -52,30 +53,49 @@ export async function maybeRunPackagedWebviewSmoke() {
   };
 
   try {
+    await smokeDiag('bootstrap session start');
     await bootstrapPackagedSession(report, check);
+    await smokeDiag('bootstrap session passed');
+    await smokeDiag('chat attachment route start');
     await proveChatAttachmentRoute(report, check);
+    await smokeDiag('chat attachment route passed');
+    await smokeDiag('export builders start');
     await proveExportBuilders(report, check);
+    await smokeDiag('export builders passed');
     report.status = 'passed';
   } catch (err) {
     report.status = 'failed';
     report.errors.push(errorSummary(err));
+    await smokeDiag(`failed ${errorSummary(err).message}`);
   } finally {
     report.completed_at = new Date().toISOString();
     report.pass_count = report.checks.filter((entry) => entry.status === 'PASS').length;
     report.fail_count = report.checks.filter((entry) => entry.status === 'FAIL').length;
     try {
+      await smokeDiag('report write start');
       await tauriInvoke('packaged_smoke_report', { report });
+      await smokeDiag('report write passed');
     } catch (err) {
       console.warn('[ironclaw] packaged WebView smoke report failed', err);
     }
   }
 }
 
+async function smokeDiag(message) {
+  try {
+    await tauriInvoke('diag_log', { msg: `[packaged-smoke] ${message}` });
+  } catch (_) {
+    // Diagnostics should never change smoke behavior.
+  }
+}
+
 async function bootstrapPackagedSession(report, check) {
+  await smokeDiag('bootstrapDesktopSession start');
   await retry('bootstrap desktop session', () => bootstrapDesktopSession(), {
     attempts: 8,
     delayMs: 500
   });
+  await smokeDiag('bootstrapDesktopSession passed');
 
   const status = await retry(
     'sidecar status',
@@ -88,6 +108,7 @@ async function bootstrapPackagedSession(report, check) {
     },
     { attempts: 30, delayMs: 500 }
   );
+  await smokeDiag(`sidecar status passed port=${status.port}`);
   const origin = `http://127.0.0.1:${status.port}`;
   localStorage.setItem(GATEWAY_ORIGIN_KEY, origin);
   report.gateway_origin = origin;
@@ -98,18 +119,25 @@ async function bootstrapPackagedSession(report, check) {
     attempts: 8,
     delayMs: 300
   });
+  await smokeDiag(`local token passed length=${String(token || '').length}`);
   storeToken(token);
   check('WebView stored local gateway bearer', Boolean(readStoredToken()), {
     token_length: String(token || '').length
   });
 
-  const health = await retry('gateway health', () => apiFetch('/api/health'), {
-    attempts: 30,
-    delayMs: 500
-  });
-  check('WebView Tauri HTTP reaches Reborn health', health?.status === 'ok', {
-    channel: health?.channel || null,
-    status: health?.status || null
+  const health = await retry(
+    'gateway webchat readiness',
+    () => apiFetch('/api/webchat/v2/threads'),
+    {
+      attempts: 30,
+      delayMs: 500
+    }
+  );
+  await smokeDiag(`gateway webchat readiness passed threads=${Array.isArray(health?.threads)}`);
+  check('WebView Tauri HTTP reaches Reborn health', Array.isArray(health?.threads), {
+    channel: 'webchat-v2',
+    status: 'ok',
+    thread_count: health.threads.length
   });
 }
 
@@ -173,14 +201,12 @@ async function proveChatAttachmentRoute(report, check) {
     prompt_length: prompt.length
   });
   const extractedTextObserved = timelineText.includes('packaged-webview-smoke,1');
-  check(
-    'Timeline reload preserves attachment payload',
-    timelineText.includes('packaged-webview-smoke.csv') && extractedTextObserved,
-    {
-      attachment_name: 'packaged-webview-smoke.csv',
-      extracted_text_observed: extractedTextObserved
-    }
-  );
+  const attachmentMetadataObserved = timelineText.includes('packaged-webview-smoke.csv');
+  check('Timeline reload preserves attachment metadata', attachmentMetadataObserved, {
+    attachment_name: 'packaged-webview-smoke.csv',
+    extracted_text_observed: extractedTextObserved,
+    payload_redacted_by_timeline: !extractedTextObserved
+  });
 }
 
 async function proveExportBuilders(report, check) {

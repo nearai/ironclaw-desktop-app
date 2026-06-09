@@ -4,6 +4,7 @@ import { App } from './app/app.js';
 import { html } from './lib/html.js';
 import { queryClient } from './lib/query-client.js';
 import { I18nProvider } from './lib/i18n.js';
+import { bootstrapDesktopSession, storeToken } from './lib/api.js';
 import { maybeRunPackagedWebviewSmoke } from './lib/packaged-smoke.js';
 import './i18n/en.js';
 import './i18n/es.js';
@@ -17,14 +18,29 @@ import './i18n/uk.js';
 import './i18n/zh-CN.js';
 import './i18n/ko.js';
 
-createRoot(document.getElementById('v2-root')).render(html`
-  <${I18nProvider}>
-    <${QueryClientProvider} client=${queryClient}>
-      <${App} />
-    <//>
-  <//>
-`);
-
-setTimeout(() => {
+async function boot() {
   maybeRunPackagedWebviewSmoke();
-}, 0);
+
+  try {
+    const desktopSession = await bootstrapDesktopSession();
+    if (desktopSession?.token) {
+      storeToken(desktopSession.token);
+    }
+  } catch (err) {
+    console.warn('[ironclaw] desktop bootstrap failed; falling back to browser auth', err);
+  }
+
+  createRoot(document.getElementById('v2-root')).render(html`
+    <${I18nProvider}>
+      <${QueryClientProvider} client=${queryClient}>
+        <${App} />
+      <//>
+    <//>
+  `);
+
+  setTimeout(() => {
+    maybeRunPackagedWebviewSmoke();
+  }, 0);
+}
+
+boot();

@@ -1,9 +1,9 @@
-import { html } from '../../../lib/html.js';
+import { React, html } from '../../../lib/html.js';
 import { MarkdownRenderer } from './markdown-renderer.js';
 import { ToolActivity } from './tool-activity.js';
 import { Icon } from '../../../design-system/icons.js';
+import { toast } from '../../../lib/toast.js';
 import {
-  copyWorkProduct,
   downloadDocx,
   downloadHtml,
   downloadJson,
@@ -11,12 +11,52 @@ import {
   downloadPdf
 } from '../lib/work-product-export.js';
 
+/* User keeps a tinted bubble; assistant is borderless (document-like);
+   system / error stay as centered tinted notices. Reasoning ("thinking")
+   renders as a collapsible disclosure (see ThinkingDisclosure). */
 const ROLE_STYLES = {
-  user: 'ml-auto bg-signal/10 text-iron-100 border-signal/25',
-  assistant: 'mr-auto bg-iron-800/58 text-iron-100 border-white/10',
-  system: 'mx-auto bg-copper/10 text-copper border-copper/20 text-center',
-  error: 'mx-auto bg-red-500/10 text-red-200 border-red-400/20 text-center'
+  user: 'ml-auto rounded-[18px] border border-signal/25 bg-signal/10 px-4 py-3 text-iron-100',
+  assistant: 'mr-auto px-1 text-iron-100',
+  system:
+    'mx-auto rounded-[18px] border border-copper/20 bg-copper/10 px-4 py-3 text-center text-copper',
+  error:
+    'mx-auto rounded-[18px] border border-red-400/20 bg-red-500/10 px-4 py-3 text-center text-red-200'
 };
+
+function formatTimestamp(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+/* Collapsible provider-reasoning summary. Collapsed by default so the
+   thread stays clean; expands to the full reasoning markdown. Data comes
+   from the `thinking` projection item (PR #4230). */
+function ThinkingDisclosure({ content }) {
+  const [open, setOpen] = React.useState(false);
+  if (!content) return null;
+  return html`
+    <div className="flex flex-col items-start">
+      <button
+        type="button"
+        onClick=${() => setOpen((v) => !v)}
+        aria-expanded=${open ? 'true' : 'false'}
+        className="v2-button inline-flex items-center gap-1.5 border-0 bg-transparent px-1 py-1 text-xs font-medium text-iron-400 hover:text-iron-200"
+      >
+        <${Icon} name="spark" className="h-3.5 w-3.5" />
+        <span>${open ? 'Hide reasoning' : 'Reasoning'}</span>
+        <${Icon} name="chevron" className=${['h-3 w-3', open ? 'rotate-180' : ''].join(' ')} />
+      </button>
+      ${open &&
+      html`
+        <div className="mt-1 border-l-2 border-white/10 pl-3 text-iron-300">
+          <${MarkdownRenderer} content=${content} className="text-[13px]" />
+        </div>
+      `}
+    </div>
+  `;
+}
 
 export function MessageBubble({ message, onRetry }) {
   const {
@@ -28,10 +68,27 @@ export function MessageBubble({ message, onRetry }) {
     isOptimistic,
     status,
     error,
-    toolCalls
+    toolCalls,
+    timestamp
   } = message;
   const isUser = role === 'user';
-  const isAssistant = role === 'assistant';
+  const [copied, setCopied] = React.useState(false);
+  // All hooks must run before the role-based early returns below.
+  // A message can change role in place across renders (e.g. an
+  // optimistic bubble upgrading, or a streaming role shift), so
+  // declaring `copy` after the early returns made the hook count
+  // jump between renders and crashed the thread with "Rendered more
+  // hooks than during the previous render". Keep every hook here.
+  const copy = React.useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(typeof content === 'string' ? content : '');
+      setCopied(true);
+      toast('Copied to clipboard', { tone: 'success' });
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      // clipboard unavailable — no-op
+    }
+  }, [content]);
 
   if (role === 'tool_activity' || (toolCalls && toolCalls.length > 0)) {
     const activity =
@@ -42,6 +99,10 @@ export function MessageBubble({ message, onRetry }) {
           }
         : message;
     return html`<${ToolActivity} activity=${activity} />`;
+  }
+
+  if (role === 'thinking') {
+    return html`<${ThinkingDisclosure} content=${content} />`;
   }
 
   if (role === 'image') {
@@ -73,19 +134,19 @@ export function MessageBubble({ message, onRetry }) {
     `;
   }
 
+  const timeLabel = formatTimestamp(timestamp);
+  const showActions = (role === 'assistant' || role === 'user') && !isOptimistic;
+
   return html`
-    <div className=${['flex', isUser ? 'justify-end' : 'justify-start'].join(' ')}>
-      <div
-        className=${[
-          'flex min-w-0 max-w-[85%] flex-col gap-1',
-          isAssistant ? 'reborn-msg--assistant' : ''
-        ].join(' ')}
-        data-message-role=${role}
-        data-message-content=${content || ''}
-      >
+    <div
+      className=${['group flex flex-col', isUser ? 'items-end' : 'items-start'].join(' ')}
+      data-message-role=${role}
+      data-message-content=${typeof content === 'string' ? content : ''}
+    >
+      <div className="flex min-w-0 max-w-[85%] flex-col gap-1">
         <div
           className=${[
-            'rounded-[18px] border px-4 py-3 text-sm leading-6',
+            'text-sm leading-6',
             ROLE_STYLES[role] || ROLE_STYLES.assistant,
             isOptimistic ? 'opacity-70' : ''
           ].join(' ')}
@@ -97,16 +158,6 @@ export function MessageBubble({ message, onRetry }) {
           html`
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-red-300">
               <span>${error}</span>
-              ${onRetry &&
-              html`
-                <button
-                  type="button"
-                  onClick=${() => onRetry(message)}
-                  className="rounded-md border border-red-300/30 px-2 py-1 text-red-100 hover:bg-red-500/10"
-                >
-                  Retry
-                </button>
-              `}
             </div>
           `}
           ${images &&
@@ -145,120 +196,138 @@ export function MessageBubble({ message, onRetry }) {
             </div>
           `}
         </div>
-        ${isAssistant && html`<${AssistantActions} content=${content || ''} />`}
+
+        ${(showActions || status === 'error' || timeLabel) &&
+        html`
+          <div
+            className=${[
+              'flex items-center gap-1.5 px-1 text-iron-400 opacity-0 group-hover:opacity-100 focus-within:opacity-100',
+              isUser ? 'justify-end' : 'justify-start'
+            ].join(' ')}
+          >
+            ${showActions &&
+            html`
+              <button
+                type="button"
+                onClick=${copy}
+                aria-label="Copy message"
+                className="v2-button inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-1 text-[11px] hover:text-iron-100"
+              >
+                <${Icon} name=${copied ? 'check' : 'copy'} className="h-3.5 w-3.5" />
+                ${copied ? 'Copied' : 'Copy'}
+              </button>
+              ${role === 'assistant' &&
+              html`<${AssistantExportActions} content=${content || ''} />`}
+            `}
+            ${status === 'error' &&
+            onRetry &&
+            html`
+              <button
+                type="button"
+                onClick=${() => onRetry(message)}
+                aria-label="Retry message"
+                className="v2-button inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-1 text-[11px] text-red-300 hover:text-red-200"
+              >
+                <${Icon} name="retry" className="h-3.5 w-3.5" />
+                Retry
+              </button>
+            `}
+            ${timeLabel &&
+            html`<span className="font-mono text-[10px] text-iron-500">${timeLabel}</span>`}
+          </div>
+        `}
       </div>
     </div>
   `;
 }
 
-function AssistantActions({ content }) {
+function AssistantExportActions({ content }) {
   const title = titleFromMarkdown(content) || 'Assistant response';
   return html`
-    <div className="flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-iron-300">
-      <button
-        type="button"
-        className=${actionClass()}
-        onClick=${() => copyWorkProduct(content)}
-        aria-label="Copy Assistant response"
-      >
-        Copy
-      </button>
-      <button
-        type="button"
-        className=${actionClass('primary')}
-        onClick=${() => saveToWork(title, content)}
-        aria-label="Save Assistant response to Work"
-      >
-        Save
-      </button>
-      <button
-        type="button"
-        className=${actionClass()}
-        onClick=${() => downloadMarkdown(content)}
-        aria-label="Export Assistant response as Markdown"
-      >
-        MD
-      </button>
-      <button
-        type="button"
-        className=${actionClass()}
-        onClick=${() => downloadHtml(content)}
-        aria-label="Export Assistant response as HTML"
-      >
-        HTML
-      </button>
-      <button
-        type="button"
-        className=${actionClass()}
-        onClick=${() => downloadPdf(content)}
-        aria-label="Export Assistant response as PDF"
-      >
-        PDF
-      </button>
-      <button
-        type="button"
-        className=${actionClass()}
-        onClick=${() => downloadDocx(content)}
-        aria-label="Export Assistant response as DOCX"
-      >
-        DOCX
-      </button>
-      <button
-        type="button"
-        className=${actionClass()}
-        onClick=${() => downloadJson({ role: 'assistant', content })}
-        aria-label="Export Assistant response as JSON"
-      >
-        JSON
-      </button>
-      <button
-        type="button"
-        className=${actionClass()}
-        onClick=${() => exportThread('markdown')}
-        aria-label="Export IronClaw chat thread as Markdown"
-      >
-        Thread MD
-      </button>
-      <button
-        type="button"
-        className=${actionClass()}
-        onClick=${() => exportThread('json')}
-        aria-label="Export IronClaw chat thread as JSON"
-      >
-        Thread JSON
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick=${() => saveToWork(title, content)}
+      className=${actionClass('primary')}
+      aria-label="Save assistant response to Work"
+    >
+      Save
+    </button>
+    <button
+      type="button"
+      onClick=${() => downloadMarkdown(content)}
+      className=${actionClass()}
+      aria-label="Export assistant response as Markdown"
+    >
+      MD
+    </button>
+    <button
+      type="button"
+      onClick=${() => downloadHtml(content)}
+      className=${actionClass()}
+      aria-label="Export assistant response as HTML"
+    >
+      HTML
+    </button>
+    <button
+      type="button"
+      onClick=${() => downloadPdf(content)}
+      className=${actionClass()}
+      aria-label="Export assistant response as PDF"
+    >
+      PDF
+    </button>
+    <button
+      type="button"
+      onClick=${() => downloadDocx(content)}
+      className=${actionClass()}
+      aria-label="Export assistant response as DOCX"
+    >
+      DOCX
+    </button>
+    <button
+      type="button"
+      onClick=${() => downloadJson({ role: 'assistant', content })}
+      className=${actionClass()}
+      aria-label="Export assistant response as JSON"
+    >
+      JSON
+    </button>
+    <button
+      type="button"
+      onClick=${() => exportThread('markdown')}
+      className=${actionClass()}
+      aria-label="Export IronClaw chat thread as Markdown"
+    >
+      Thread MD
+    </button>
+    <button
+      type="button"
+      onClick=${() => exportThread('json')}
+      className=${actionClass()}
+      aria-label="Export IronClaw chat thread as JSON"
+    >
+      Thread JSON
+    </button>
   `;
 }
 
 function actionClass(tone = 'default') {
   return [
-    'rounded-md border px-2 py-1 font-semibold transition',
+    'v2-button inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px]',
     tone === 'primary'
-      ? 'border-signal/40 bg-signal/10 text-signal hover:bg-signal/15'
-      : 'border-white/10 bg-white/[0.035] text-iron-200 hover:border-signal/35 hover:text-white'
+      ? 'border border-signal/35 bg-signal/10 text-signal hover:bg-signal/15'
+      : 'border-0 bg-transparent hover:text-iron-100'
   ].join(' ');
-}
-
-async function copyText(content) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(content);
-    return;
-  }
-  const textarea = document.createElement('textarea');
-  textarea.value = content;
-  textarea.setAttribute('readonly', 'true');
-  textarea.style.position = 'fixed';
-  textarea.style.left = '-9999px';
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand('copy');
-  document.body.removeChild(textarea);
 }
 
 function saveToWork(title, content) {
   const key = 'ironclaw-static-work-products';
-  const existing = JSON.parse(localStorage.getItem(key) || '[]');
+  let existing = [];
+  try {
+    existing = JSON.parse(localStorage.getItem(key) || '[]');
+  } catch {
+    existing = [];
+  }
   existing.push({
     id: `work-${Date.now()}`,
     title,
@@ -267,6 +336,7 @@ function saveToWork(title, content) {
     created_at: new Date().toISOString()
   });
   localStorage.setItem(key, JSON.stringify(existing));
+  toast('Saved to Work', { tone: 'success' });
 }
 
 function exportThread(format) {
@@ -289,8 +359,7 @@ function exportThread(format) {
 }
 
 function exportContent(filename, type, content) {
-  const blob =
-    content instanceof Uint8Array ? new Blob([content], { type }) : new Blob([content], { type });
+  const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -308,136 +377,6 @@ function titleFromMarkdown(markdown) {
   return (line || 'Assistant response').replace(/^#+\s*/, '').trim();
 }
 
-function markdownToHtml(title, markdown) {
-  const lines = String(markdown || '').split(/\r?\n/);
-  const body = [];
-  let inList = false;
-  let inTable = false;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/^\s*\|.*\|\s*$/.test(line) && /^\s*\|[\s:-]+\|/.test(lines[i + 1] || '')) {
-      if (inList) {
-        body.push('</ul>');
-        inList = false;
-      }
-      body.push('<table>');
-      body.push(tableRow(line, 'th'));
-      i++;
-      inTable = true;
-      continue;
-    }
-    if (inTable && /^\s*\|.*\|\s*$/.test(line)) {
-      body.push(tableRow(line, 'td'));
-      continue;
-    }
-    if (inTable) {
-      body.push('</table>');
-      inTable = false;
-    }
-    if (/^#\s+/.test(line)) body.push(`<h1>${escapeHtml(line.replace(/^#\s+/, ''))}</h1>`);
-    else if (/^##\s+/.test(line)) body.push(`<h2>${escapeHtml(line.replace(/^##\s+/, ''))}</h2>`);
-    else if (/^\s*-\s+/.test(line)) {
-      if (!inList) {
-        body.push('<ul>');
-        inList = true;
-      }
-      body.push(`<li>${escapeHtml(line.replace(/^\s*-\s+/, ''))}</li>`);
-    } else if (line.trim()) {
-      if (inList) {
-        body.push('</ul>');
-        inList = false;
-      }
-      body.push(`<p>${escapeHtml(line)}</p>`);
-    }
-  }
-  if (inList) body.push('</ul>');
-  if (inTable) body.push('</table>');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body>${body.join('\n')}</body></html>`;
-}
-
-function tableRow(line, cellTag) {
-  const cells = line
-    .trim()
-    .replace(/^\|/, '')
-    .replace(/\|$/, '')
-    .split('|')
-    .map((cell) => `<${cellTag}>${escapeHtml(cell.trim())}</${cellTag}>`)
-    .join('');
-  return `<tr>${cells}</tr>`;
-}
-
-function markdownToPdf(title, markdown) {
-  const lines = [title.toUpperCase(), ...plainLines(markdown)];
-  const pageChunks = [];
-  for (let i = 0; i < lines.length; i += 36) pageChunks.push(lines.slice(i, i + 36));
-  const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
-  ];
-  const pageObjectNumbers = [];
-  for (const chunk of pageChunks) {
-    const pageObjectNumber = objects.length + 1;
-    const contentObjectNumber = pageObjectNumber + 1;
-    const text = chunk
-      .map((line, index) => `BT /F1 12 Tf 72 ${740 - index * 18} Td (${escapePdf(line)}) Tj ET`)
-      .join('\n');
-    pageObjectNumbers.push(pageObjectNumber);
-    objects.push(
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObjectNumber} 0 R >>`
-    );
-    objects.push(`<< /Length ${text.length} >> stream\n${text}\nendstream`);
-  }
-  objects[1] = `<< /Type /Pages /Kids [${pageObjectNumbers
-    .map((number) => `${number} 0 R`)
-    .join(' ')}] /Count ${pageObjectNumbers.length} >>`;
-  let pdf = '%PDF-1.4\n';
-  const offsets = [0];
-  for (let i = 0; i < objects.length; i++) {
-    offsets.push(pdf.length);
-    pdf += `${i + 1} 0 obj\n${objects[i]}\nendobj\n`;
-  }
-  const xref = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (const offset of offsets.slice(1)) pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
-  pdf += `trailer << /Root 1 0 R /Size ${objects.length + 1} >>\nstartxref\n${xref}\n%%EOF`;
-  return new TextEncoder().encode(pdf);
-}
-
-function markdownToDocx(title, markdown) {
-  const xml = `<?xml version="1.0" encoding="UTF-8"?><w:document><w:body>${[
-    title,
-    ...plainLines(markdown)
-  ]
-    .map((line) => `<w:p><w:r><w:t xml:space="preserve">${escapeHtml(line)}</w:t></w:r></w:p>`)
-    .join('')}</w:body></w:document>`;
-  return new TextEncoder().encode(`PK\nword/document.xml\n${xml}`);
-}
-
-function plainLines(markdown) {
-  return String(markdown || '')
-    .split(/\r?\n/)
-    .map((line) =>
-      line
-        .replace(/^#+\s*/, '')
-        .replace(/^\s*-\s*/, '- ')
-        .trim()
-    )
-    .filter(Boolean);
-}
-
 function capitalize(value) {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
-}
-
-function escapePdf(value) {
-  return String(value).replaceAll('\\', '\\\\').replaceAll('(', '\\(').replaceAll(')', '\\)');
 }

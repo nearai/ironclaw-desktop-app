@@ -1,6 +1,6 @@
 import { React } from '../../../lib/html.js';
 import { fetchTimeline } from '../../../lib/api.js';
-import { messagesFromTimeline, pendingMessagesAfterTimeline } from '../lib/history-messages.js';
+import { messagesFromTimeline } from '../lib/history-messages.js';
 
 const PAGE_SIZE = 50;
 
@@ -34,16 +34,12 @@ export function useHistory(threadId, options = {}) {
           cursor
         });
 
-        const records = Array.isArray(data.messages) ? data.messages : data.records || [];
         const pendingMessages = cursor ? [] : getPendingMessages?.() || [];
-        const renderable = messagesFromTimeline(records, pendingMessages);
-        const remainingPending = cursor
-          ? pendingMessages
-          : pendingMessagesAfterTimeline(records, pendingMessages);
+        const renderable = messagesFromTimeline(data.messages || [], pendingMessages);
 
         // RebornTimelineResponse.next_cursor === null means we reached
         // the start of the thread.
-        if (!cursor) setPendingMessages?.(remainingPending);
+        if (!cursor) setPendingMessages?.([]);
 
         setState((prev) => {
           const merged = cursor ? mergePage(renderable, prev.messages) : renderable;
