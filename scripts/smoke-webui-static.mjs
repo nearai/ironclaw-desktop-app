@@ -242,7 +242,8 @@ try {
                 'Attachment 1:',
                 'filename: services-template.pdf',
                 'mime_type: application/pdf',
-                `data_base64: ${smokePdfBase64}`,
+                'extraction_status: unsupported_binary',
+                'extracted_text: IronClaw could not extract this binary format yet.',
                 '</attachments>'
               ].join('\n'),
               sequence: 1,
@@ -746,21 +747,21 @@ try {
   if (!chatPost) {
     throw new Error('static chat did not POST a message request');
   }
-  if (chatPost.content !== promptText) {
-    if (
-      !String(chatPost.content || '').startsWith(promptText) ||
-      !String(chatPost.content || '').includes('<attachments>') ||
-      !String(chatPost.content || '').includes('filename: services-template.pdf') ||
-      !String(chatPost.content || '').includes('mime_type: application/pdf') ||
-      !String(chatPost.content || '').includes(`data_base64: ${smokePdfBase64}`)
-    ) {
-      throw new Error(`static chat posted wrong content: ${JSON.stringify(chatPost)}`);
-    }
+  if (chatPost.content !== promptText || String(chatPost.content || '').includes('data_base64')) {
+    throw new Error(`static chat posted attachment data in content: ${JSON.stringify(chatPost)}`);
   }
-  if (Object.hasOwn(chatPost, 'attachments')) {
+  if (!Array.isArray(chatPost.attachments) || chatPost.attachments.length !== 1) {
     throw new Error(
-      `static chat sent ignored JSON attachments instead of durable content block: ${JSON.stringify(chatPost)}`
+      `static chat did not send JSON attachments: ${JSON.stringify(chatPost)}`
     );
+  }
+  const postedAttachment = chatPost.attachments[0];
+  if (
+    postedAttachment.filename !== 'services-template.pdf' ||
+    postedAttachment.mime_type !== 'application/pdf' ||
+    postedAttachment.base64 !== smokePdfBase64
+  ) {
+    throw new Error(`static chat posted wrong attachment payload: ${JSON.stringify(chatPost)}`);
   }
   await mkdir('output/playwright', { recursive: true });
   await page.screenshot({

@@ -3,6 +3,7 @@ import {
   bootstrapDesktopSession,
   createThread,
   fetchTimeline,
+  gatewayStatus as fetchGatewayStatus,
   readStoredToken,
   sendMessage,
   storeToken,
@@ -56,9 +57,18 @@ export async function maybeRunPackagedWebviewSmoke() {
     await smokeDiag('bootstrap session start');
     await bootstrapPackagedSession(report, check);
     await smokeDiag('bootstrap session passed');
-    await smokeDiag('chat attachment route start');
-    await proveChatAttachmentRoute(report, check);
-    await smokeDiag('chat attachment route passed');
+    if (report.model_credentials_blocked) {
+      await smokeDiag('chat attachment route skipped because model credentials are unavailable');
+      check('WebView surfaced model credential blocker before chat send', true, {
+        llm_backend: report.gateway_status?.llm_backend || null,
+        llm_model: report.gateway_status?.llm_model || null,
+        reason: report.gateway_status?.model_execution_failure_summary || null
+      });
+    } else {
+      await smokeDiag('chat attachment route start');
+      await proveChatAttachmentRoute(report, check);
+      await smokeDiag('chat attachment route passed');
+    }
     await smokeDiag('export builders start');
     await proveExportBuilders(report, check);
     await smokeDiag('export builders passed');
@@ -138,6 +148,24 @@ async function bootstrapPackagedSession(report, check) {
     channel: 'webchat-v2',
     status: 'ok',
     thread_count: health.threads.length
+  });
+
+  const gatewayStatus = await retry(
+    'gateway model readiness status',
+    () => fetchGatewayStatus(),
+    {
+      attempts: 8,
+      delayMs: 300
+    }
+  );
+  report.gateway_status = sanitizeRouteResponse(gatewayStatus);
+  report.model_credentials_blocked =
+    gatewayStatus?.model_execution_failure_category === 'model_credentials_unavailable';
+  check('WebView reads gateway model readiness', Boolean(gatewayStatus?.llm_backend), {
+    llm_backend: gatewayStatus?.llm_backend || null,
+    llm_model: gatewayStatus?.llm_model || null,
+    model_readiness: gatewayStatus?.model_readiness || null,
+    model_execution_failure_category: gatewayStatus?.model_execution_failure_category || null
   });
 }
 
@@ -272,7 +300,7 @@ async function proveExportBuilders(report, check) {
   );
 }
 
-async function retry(label, fn, { attempts, delayMs }) {
+async function retry(label, fn, { attempts = 5, delayMs = 250 } = {}) {
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {

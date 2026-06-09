@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { listAutomations, sendMessage } from './api.js';
+import { gatewayStatus, listAutomations, sendMessage } from './api.js';
 
 test('listAutomations reads through the v2 automations route', async () => {
   const calls = [];
@@ -49,7 +49,7 @@ test('listAutomations propagates api errors from the automations route', async (
   });
 });
 
-test('sendMessage appends composer attachments into accepted content', async () => {
+test('sendMessage sends composer attachments as Reborn attachment payloads', async () => {
   const calls = [];
   globalThis.sessionStorage = {
     getItem: () => 'token-1',
@@ -89,10 +89,74 @@ test('sendMessage appends composer attachments into accepted content', async () 
   assert.equal(calls[0].path, '/api/webchat/v2/threads/thread-1/messages');
   const body = JSON.parse(calls[0].options.body);
   assert.equal(body.client_action_id, 'action-1');
-  assert.match(body.content, /^draft from the attachment/);
-  assert.match(body.content, /<attachments>/);
-  assert.match(body.content, /filename: template\.pdf/);
-  assert.match(body.content, /mime_type: application\/pdf/);
-  assert.match(body.content, /data_base64: dGVtcGxhdGU=/);
-  assert.equal(Object.hasOwn(body, 'attachments'), false);
+  assert.equal(body.content, 'draft from the attachment');
+  assert.deepEqual(body.attachments, [
+    {
+      filename: 'template.pdf',
+      mime_type: 'application/pdf',
+      base64: 'dGVtcGxhdGU='
+    }
+  ]);
+});
+
+test('gatewayStatus falls back to desktop model auth readiness when status route is absent', async () => {
+  const originalWindow = globalThis.window;
+  const originalLocalStorage = globalThis.localStorage;
+  const originalSessionStorage = globalThis.sessionStorage;
+  const encoder = new TextEncoder();
+  const calls = [];
+
+  const storage = {
+    getItem: () => '',
+    setItem: () => {},
+    removeItem: () => {}
+  };
+  globalThis.localStorage = storage;
+  globalThis.sessionStorage = storage;
+  globalThis.window = {
+    __TAURI_INTERNALS__: {
+      invoke: async (command, args = {}) => {
+        calls.push({ command, args });
+        if (command === 'gateway_http_fetch') {
+          return {
+            status: 404,
+            status_text: 'Not Found',
+            url: args.request.url,
+            headers: [['content-type', 'text/plain']],
+            data: Array.from(encoder.encode('Not Found'))
+          };
+        }
+        if (command === 'get_settings') {
+          return {
+            activeProfileId: 'default',
+            profiles: [
+              {
+                id: 'default',
+                llmProviderId: 'nearai',
+                llmBackend: 'nearai',
+                llmModelId: 'auto'
+              }
+            ]
+          };
+        }
+        if (command === 'has_llm_provider_credential') return false;
+        throw new Error(`unexpected command ${command}`);
+      }
+    }
+  };
+
+  try {
+    const status = await gatewayStatus();
+
+    assert.equal(status.llm_backend, 'nearai');
+    assert.equal(status.llm_model, 'auto');
+    assert.equal(status.model_readiness, 'blocked');
+    assert.equal(status.model_execution_failure_category, 'model_credentials_unavailable');
+    assert.match(status.model_execution_failure_summary, /NEAR\.AI/);
+    assert.ok(calls.some((call) => call.command === 'has_llm_provider_credential'));
+  } finally {
+    globalThis.window = originalWindow;
+    globalThis.localStorage = originalLocalStorage;
+    globalThis.sessionStorage = originalSessionStorage;
+  }
 });

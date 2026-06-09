@@ -91,12 +91,16 @@ fn diag_log(msg: String) {
 }
 
 #[tauri::command]
-async fn gateway_http_fetch(request: GatewayHttpRequest) -> Result<GatewayHttpResponse, String> {
+async fn gateway_http_fetch(
+    app: AppHandle,
+    request: GatewayHttpRequest,
+) -> Result<GatewayHttpResponse, String> {
+    let request_url = request.url.clone();
     log::info!(
         target: "ironclaw_gateway",
         "gateway_http_fetch start method={} url={}",
         request.method,
-        request.url
+        request_url
     );
     let method = reqwest::Method::from_bytes(request.method.as_bytes())
         .map_err(|e| format!("invalid HTTP method {}: {e}", request.method))?;
@@ -106,7 +110,7 @@ async fn gateway_http_fetch(request: GatewayHttpRequest) -> Result<GatewayHttpRe
         .build()
         .map_err(|e| format!("build HTTP client: {e}"))?;
 
-    let mut builder = client.request(method, &request.url);
+    let mut builder = client.request(method, &request_url);
     for (name, value) in request.headers {
         let lower = name.to_ascii_lowercase();
         if matches!(lower.as_str(), "host" | "content-length") {
@@ -132,16 +136,16 @@ async fn gateway_http_fetch(request: GatewayHttpRequest) -> Result<GatewayHttpRe
             log::warn!(
                 target: "ironclaw_gateway",
                 "gateway_http_fetch send failed url={}: {}",
-                request.url,
+                request_url,
                 err
             );
-            return Err(format!("gateway HTTP send {}: {err}", request.url));
+            return Err(format!("gateway HTTP send {}: {err}", request_url));
         }
     };
     let status = response.status();
     let status_text = status.canonical_reason().unwrap_or("").to_string();
     let url = response.url().to_string();
-    let headers = response
+    let mut headers = response
         .headers()
         .iter()
         .map(|(name, value)| {
@@ -151,11 +155,30 @@ async fn gateway_http_fetch(request: GatewayHttpRequest) -> Result<GatewayHttpRe
             )
         })
         .collect::<Vec<_>>();
-    let data = response
+    let mut data = response
         .bytes()
         .await
-        .map_err(|e| format!("gateway HTTP body {}: {e}", request.url))?
+        .map_err(|e| format!("gateway HTTP body {}: {e}", request_url))?
         .to_vec();
+    let mut augmented_body = false;
+    if status.is_success() && is_gateway_status_url(&request_url) {
+        match augment_gateway_status(&app, &data) {
+            Ok(augmented) => {
+                augmented_body = augmented != data;
+                data = augmented;
+            }
+            Err(err) => {
+                log::warn!(
+                    target: "ironclaw_gateway",
+                    "gateway status augmentation failed: {err}"
+                );
+            }
+        }
+    }
+    if augmented_body {
+        headers.retain(|(name, _)| !name.eq_ignore_ascii_case("content-length"));
+        headers.push(("content-length".into(), data.len().to_string()));
+    }
 
     log::info!(
         target: "ironclaw_gateway",
@@ -171,6 +194,63 @@ async fn gateway_http_fetch(request: GatewayHttpRequest) -> Result<GatewayHttpRe
         headers,
         data,
     })
+}
+
+fn is_gateway_status_url(raw: &str) -> bool {
+    if let Ok(url) = reqwest::Url::parse(raw) {
+        return url.path() == "/api/gateway/status";
+    }
+    raw.split('?').next().unwrap_or(raw) == "/api/gateway/status"
+}
+
+fn augment_gateway_status(app: &AppHandle, data: &[u8]) -> Result<Vec<u8>, String> {
+    let mut status = serde_json::from_slice::<serde_json::Value>(data)
+        .map_err(|e| format!("parse gateway status: {e}"))?;
+    let Some(reason) = desktop_model_auth_blocker(app) else {
+        return Ok(data.to_vec());
+    };
+    let Some(object) = status.as_object_mut() else {
+        return Ok(data.to_vec());
+    };
+
+    object.insert("model_execution_verified".into(), false.into());
+    object.insert("model_readiness".into(), "blocked".into());
+    object.insert("model_execution_readiness".into(), "blocked".into());
+    object.insert(
+        "model_execution_failure_category".into(),
+        "model_credentials_unavailable".into(),
+    );
+    object.insert(
+        "model_execution_failure_summary".into(),
+        reason.clone().into(),
+    );
+    object.insert("model_readiness_reason".into(), reason.into());
+
+    serde_json::to_vec(&status).map_err(|e| format!("serialize gateway status: {e}"))
+}
+
+fn desktop_model_auth_blocker(app: &AppHandle) -> Option<String> {
+    let settings = settings::load(app).ok()?;
+    let selection = sidecar_boot_selection_from_settings(&settings);
+    let provider = selection
+        .provider_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|provider| !provider.is_empty())
+        .unwrap_or("nearai");
+
+    match provider {
+        "nearai" if !nearai_auth_configured_for_selection(&selection) => Some(
+            "NEAR.AI is selected, but no NEARAI_SESSION_TOKEN, NEARAI_API_KEY, or vaulted nearai credential is available in this desktop install. Sign in or add a NEAR.AI API key in Settings before sending."
+                .into(),
+        ),
+        _ => None,
+    }
+}
+
+fn nearai_auth_configured_for_selection(selection: &SidecarBootSelection) -> bool {
+    nearai_session_token_for_profile(&selection.profile_id).is_some()
+        || env_secret("NEARAI_API_KEY").is_some()
 }
 
 fn packaged_webview_smoke_enabled() -> bool {
@@ -514,6 +594,35 @@ async fn get_llm_provider_credential(
     provider_id: String,
 ) -> Result<Option<String>, String> {
     keychain::get_llm_provider_credential(&profile_id, &provider_id)
+}
+
+#[tauri::command]
+async fn has_llm_provider_credential(
+    _app: AppHandle,
+    profile_id: String,
+    provider_id: String,
+) -> Result<bool, String> {
+    let provider_id = provider_id.trim();
+    let keychain_credential = if provider_id == "openrouter" {
+        keychain::get_openrouter_key(&profile_id)?
+    } else {
+        keychain::get_llm_provider_credential(&profile_id, provider_id)?
+    };
+    let keychain_configured = keychain_credential
+        .as_deref()
+        .map(str::trim)
+        .map(|value| !value.is_empty())
+        .unwrap_or(false);
+    let env_configured = match provider_id {
+        "nearai" => {
+            env_secret("NEARAI_SESSION_TOKEN").is_some() || env_secret("NEARAI_API_KEY").is_some()
+        }
+        "openrouter" => env_secret("OPENROUTER_API_KEY").is_some(),
+        "openai" => env_secret("OPENAI_API_KEY").is_some(),
+        "anthropic" => env_secret("ANTHROPIC_API_KEY").is_some(),
+        _ => false,
+    };
+    Ok(keychain_configured || env_configured)
 }
 
 #[tauri::command]
@@ -1317,6 +1426,7 @@ pub fn run() {
             set_openrouter_key,
             delete_openrouter_key,
             get_llm_provider_credential,
+            has_llm_provider_credential,
             set_llm_provider_credential,
             delete_llm_provider_credential,
             get_or_create_local_token,

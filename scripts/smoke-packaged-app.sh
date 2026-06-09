@@ -162,10 +162,7 @@ const required = [
   'sidecar status exposes runtime port',
   'WebView stored local gateway bearer',
   'WebView Tauri HTTP reaches Reborn health',
-  'WebView created Reborn webchat thread',
-  'WebView submitted chat message with attachment',
-  'Timeline reload preserves user prompt',
-  'Timeline reload preserves attachment metadata',
+  'WebView reads gateway model readiness',
   'Markdown export blob includes draft body',
   'HTML export blob renders markdown body',
   'JSON export blob parses and preserves content',
@@ -174,7 +171,19 @@ const required = [
 ];
 const checks = Array.isArray(report.checks) ? report.checks : [];
 const byName = new Map(checks.map((check) => [check.name, check]));
-const missing = required.filter((name) => byName.get(name)?.status !== 'PASS');
+const chatRequired = [
+  'WebView created Reborn webchat thread',
+  'WebView submitted chat message with attachment',
+  'Timeline reload preserves user prompt',
+  'Timeline reload preserves attachment metadata',
+];
+const blockerRequired = ['WebView surfaced model credential blocker before chat send'];
+const hasChatProof = chatRequired.every((name) => byName.get(name)?.status === 'PASS');
+const hasAuthBlockerProof = blockerRequired.every((name) => byName.get(name)?.status === 'PASS');
+const missing = [
+  ...required.filter((name) => byName.get(name)?.status !== 'PASS'),
+  ...(hasChatProof || hasAuthBlockerProof ? [] : ['chat route proof or explicit model credential blocker']),
+];
 if (report.status !== 'passed' || missing.length > 0) {
   console.error(JSON.stringify({
     status: report.status,
@@ -189,6 +198,7 @@ console.log(JSON.stringify({
   pass_count: report.pass_count,
   thread_id: report.thread_id,
   gateway_origin: report.gateway_origin,
+  model_credentials_blocked: report.model_credentials_blocked === true,
 }, null, 2));
 NODE
 }

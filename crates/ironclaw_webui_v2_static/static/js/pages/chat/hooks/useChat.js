@@ -389,9 +389,9 @@ export function useChat(threadId) {
   ]);
 
   // Accepts the fork's call shape `{ images, attachments, threadId,
-  // timezone }`. Reborn v2 currently accepts only `content`, so
-  // api.sendMessage appends a durable attachment block to content
-  // instead of posting a JSON field the backend would ignore.
+  // timezone }`. Reborn v2 accepts attachments as a first-class
+  // `attachments` field; never inline base64 into `content`, or the
+  // content validator will reject ordinary PDF/DOCX/XLSX workflows.
   //
   // v2 send-message requires `thread_id` as a path parameter — the
   // facade refuses to implicitly create a missing thread. When the

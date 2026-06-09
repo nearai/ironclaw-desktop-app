@@ -12,6 +12,7 @@ import {
   providerDefaultModel,
   providerMissingReason
 } from '../lib/llm-providers.js';
+import { modelExecutionReadiness } from '../../../lib/model-readiness.js';
 
 // The v2 `/llm/providers` snapshot is the single source of truth: a unified
 // provider list (built-in + operator-defined) already annotated with the active
@@ -42,6 +43,7 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
   const selectedModel = snapshot.active?.model || gatewayStatus?.llm_model || '';
   const builtinProviders = allProviders.filter((provider) => provider.builtin);
   const customProviders = allProviders.filter((provider) => !provider.builtin);
+  const runtimeReadiness = modelExecutionReadiness(gatewayStatus);
   const providers = [...allProviders].sort((a, b) => {
     if (a.id === activeProviderId) return -1;
     if (b.id === activeProviderId) return 1;
@@ -110,7 +112,7 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
     builtinOverrides,
     activeProviderId,
     selectedModel,
-    hasActiveProvider,
+    hasActiveProvider: hasActiveProvider && runtimeReadiness.sendBlocked !== true,
     isLoading: providersQuery.isLoading,
     error: providersQuery.error,
     setActiveProvider: (provider) => setActiveMutation.mutateAsync(provider),

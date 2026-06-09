@@ -1,4 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { appScopedPath } from '../../../lib/app-path.js';
+import { gatewayOrigin, isDesktopRuntime } from '../../../lib/api.js';
 import { React } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import {
@@ -16,6 +18,19 @@ function walletLoginChannelName() {
       ? window.crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `nearai-wallet-login:${suffix}`;
+}
+
+export function providerLoginOrigin() {
+  if (isDesktopRuntime()) {
+    const origin = gatewayOrigin();
+    if (origin) return origin;
+  }
+
+  return window.location.origin;
+}
+
+export function walletLoginUrl(channelName) {
+  return appScopedPath(`/wallet/connect?channel=${encodeURIComponent(channelName)}`);
 }
 
 // Isolated popup that connects a NEAR wallet and signs the NEAR AI login
@@ -104,7 +119,7 @@ export function useProviderLogin({ onSuccess } = {}) {
       try {
         const { auth_url: authUrl } = await startNearaiLogin({
           provider,
-          origin: window.location.origin
+          origin: providerLoginOrigin()
         });
         window.open(authUrl, '_blank', 'noopener');
         if (await pollUntilActive('nearai', NEARAI_POLL_DEADLINE_MS)) {
@@ -131,7 +146,7 @@ export function useProviderLogin({ onSuccess } = {}) {
     try {
       const channelName = walletLoginChannelName();
       const popup = window.open(
-        `/v2/wallet/connect?channel=${encodeURIComponent(channelName)}`,
+        walletLoginUrl(channelName),
         '_blank',
         'noopener,noreferrer,width=460,height=640'
       );

@@ -367,37 +367,29 @@ export function listAutomations({ limit } = {}) {
 export function sendMessage({ threadId, content, attachments, clientActionId: clientId }) {
   const body = {
     client_action_id: clientId || clientActionId(),
-    content: contentWithAttachments(content, attachments)
+    content: String(content || '')
   };
+  const normalizedAttachments = normalizeAttachmentPayloads(attachments);
+  if (normalizedAttachments.length > 0) {
+    body.attachments = normalizedAttachments;
+  }
   return apiFetch(`${V2_BASE}/threads/${encodeURIComponent(threadId)}/messages`, {
     method: 'POST',
     body: JSON.stringify(body)
   });
 }
 
-function contentWithAttachments(content, attachments) {
-  const base = String(content || '');
-  const safeAttachments = (attachments || []).filter(
-    (attachment) => attachment && (attachment.data_base64 || attachment.name)
-  );
-  if (safeAttachments.length === 0) return base;
-
-  const lines = ['', '<attachments>'];
-  safeAttachments.forEach((attachment, index) => {
-    lines.push(`Attachment ${index + 1}:`);
-    lines.push(`filename: ${String(attachment.name || 'attachment').replace(/\r?\n/g, ' ')}`);
-    lines.push(
-      `mime_type: ${String(attachment.mime_type || 'application/octet-stream').replace(/\r?\n/g, ' ')}`
-    );
-    if (Number.isFinite(Number(attachment.size))) {
-      lines.push(`size: ${Number(attachment.size)}`);
-    }
-    if (attachment.data_base64) {
-      lines.push(`data_base64: ${String(attachment.data_base64).replace(/\s+/g, '')}`);
-    }
-  });
-  lines.push('</attachments>');
-  return `${base.trimEnd()}\n${lines.join('\n')}`.trimStart();
+export function normalizeAttachmentPayloads(attachments) {
+  return (attachments || [])
+    .map((attachment) => ({
+      filename: String(attachment?.filename || attachment?.name || 'attachment').replace(
+        /\r?\n/g,
+        ' '
+      ),
+      mime_type: String(attachment?.mime_type || 'application/octet-stream').replace(/\r?\n/g, ' '),
+      base64: String(attachment?.base64 || attachment?.data_base64 || '').replace(/\s+/g, '')
+    }))
+    .filter((attachment) => attachment.base64 && attachment.filename);
 }
 
 // --- Timeline ---
@@ -554,7 +546,11 @@ export async function gatewayStatus() {
     }
   }
 
-  return {
+  return desktopGatewayStatusFallback();
+}
+
+async function desktopGatewayStatusFallback() {
+  const fallback = {
     engine_v2_enabled: true,
     restart_enabled: inTauri(),
     total_connections: null,
@@ -562,6 +558,51 @@ export async function gatewayStatus() {
     llm_model: null,
     todo: true
   };
+  if (!inTauri()) return fallback;
+
+  let settings = null;
+  try {
+    settings = await tauriInvoke('get_settings');
+  } catch (_) {
+    settings = null;
+  }
+
+  const { activeId, profile } = activeProfileFromSettings(settings);
+  const providerId = String(profile?.llmProviderId || profile?.llmBackend || 'nearai').trim();
+  const modelId = String(profile?.llmModelId || (providerId === 'nearai' ? 'auto' : '')).trim();
+  fallback.llm_backend = providerId || 'nearai';
+  fallback.llm_model = modelId || 'auto';
+  fallback.model_execution_verified = false;
+  fallback.model_readiness = 'unverified';
+  fallback.model_readiness_reason =
+    'Gateway status route is unavailable; desktop inferred provider/model from local settings.';
+
+  const credentialProviderIds = new Set(['nearai', 'openrouter', 'openai', 'anthropic']);
+  if (!credentialProviderIds.has(fallback.llm_backend)) return fallback;
+
+  let hasCredential = false;
+  try {
+    hasCredential = Boolean(
+      await tauriInvoke('has_llm_provider_credential', {
+        profileId: activeId,
+        providerId: fallback.llm_backend
+      })
+    );
+  } catch (_) {
+    hasCredential = false;
+  }
+
+  if (!hasCredential) {
+    const displayName = fallback.llm_backend === 'nearai' ? 'NEAR.AI' : fallback.llm_backend;
+    const reason = `${displayName} is selected, but no credential is available in this desktop install. Sign in or add an API key in Settings before sending.`;
+    fallback.model_readiness = 'blocked';
+    fallback.model_execution_readiness = 'blocked';
+    fallback.model_execution_failure_category = 'model_credentials_unavailable';
+    fallback.model_execution_failure_summary = reason;
+    fallback.model_readiness_reason = reason;
+  }
+
+  return fallback;
 }
 
 // --- v2 auth surface ---
