@@ -69,6 +69,8 @@ struct GatewayHttpResponse {
     data: Vec<u8>,
 }
 
+const GATEWAY_HTTP_MAX_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
+
 // ---- Settings -------------------------------------------------------------
 
 // =============================================================================
@@ -119,26 +121,10 @@ async fn gateway_http_fetch(
     }
     let method = reqwest::Method::from_bytes(request.method.as_bytes())
         .map_err(|e| format!("invalid HTTP method {}: {e}", request.method))?;
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(8))
-        .connect_timeout(std::time::Duration::from_secs(2))
-        .build()
-        .map_err(|e| format!("build HTTP client: {e}"))?;
+    let client = build_gateway_http_client()?;
 
     let mut builder = client.request(method, &request_url);
-    for (name, value) in request.headers {
-        let lower = name.to_ascii_lowercase();
-        if matches!(lower.as_str(), "host" | "content-length") {
-            continue;
-        }
-        let header_name = match reqwest::header::HeaderName::from_bytes(name.as_bytes()) {
-            Ok(header_name) => header_name,
-            Err(_) => continue,
-        };
-        let header_value = match reqwest::header::HeaderValue::from_str(&value) {
-            Ok(header_value) => header_value,
-            Err(_) => continue,
-        };
+    for (header_name, header_value) in filtered_gateway_request_headers(request.headers) {
         builder = builder.header(header_name, header_value);
     }
     if let Some(data) = request.data {
@@ -170,11 +156,12 @@ async fn gateway_http_fetch(
             )
         })
         .collect::<Vec<_>>();
-    let data = response
-        .bytes()
-        .await
-        .map_err(|e| format!("gateway HTTP body {}: {e}", request_url))?
-        .to_vec();
+    let data = read_gateway_response_body_with_limit(
+        response,
+        GATEWAY_HTTP_MAX_RESPONSE_BYTES,
+        &request_url,
+    )
+    .await?;
 
     log::info!(
         target: "ironclaw_gateway",
@@ -190,6 +177,82 @@ async fn gateway_http_fetch(
         headers,
         data,
     })
+}
+
+fn build_gateway_http_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        // Trust boundary: the WebView supplies both URL and Authorization
+        // header. Never follow a server-provided Location with that bearer.
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(8))
+        .connect_timeout(std::time::Duration::from_secs(2))
+        .build()
+        .map_err(|e| format!("build HTTP client: {e}"))
+}
+
+fn gateway_request_header_allowed(name: &str) -> bool {
+    !matches!(
+        name.to_ascii_lowercase().as_str(),
+        "host"
+            | "content-length"
+            | "cookie"
+            | "cookie2"
+            | "forwarded"
+            | "proxy-authenticate"
+            | "proxy-authorization"
+            | "proxy-connection"
+            | "x-forwarded-for"
+            | "x-forwarded-host"
+            | "x-forwarded-proto"
+            | "x-real-ip"
+    )
+}
+
+fn filtered_gateway_request_headers(
+    headers: Vec<(String, String)>,
+) -> Vec<(reqwest::header::HeaderName, reqwest::header::HeaderValue)> {
+    headers
+        .into_iter()
+        .filter(|(name, _)| gateway_request_header_allowed(name))
+        .filter_map(|(name, value)| {
+            let header_name = reqwest::header::HeaderName::from_bytes(name.as_bytes()).ok()?;
+            let header_value = reqwest::header::HeaderValue::from_str(&value).ok()?;
+            Some((header_name, header_value))
+        })
+        .collect()
+}
+
+async fn read_gateway_response_body_with_limit(
+    mut response: reqwest::Response,
+    max_bytes: usize,
+    request_url: &str,
+) -> Result<Vec<u8>, String> {
+    if let Some(content_length) = response.content_length() {
+        if content_length > max_bytes as u64 {
+            return Err(format!(
+                "gateway HTTP body {request_url}: response too large ({content_length} > {max_bytes} bytes)"
+            ));
+        }
+    }
+
+    let mut data = Vec::new();
+    while let Some(chunk) = response
+        .chunk()
+        .await
+        .map_err(|e| format!("gateway HTTP body {request_url}: {e}"))?
+    {
+        let next_len = data
+            .len()
+            .checked_add(chunk.len())
+            .ok_or_else(|| format!("gateway HTTP body {request_url}: response too large"))?;
+        if next_len > max_bytes {
+            return Err(format!(
+                "gateway HTTP body {request_url}: response too large (>{max_bytes} bytes)"
+            ));
+        }
+        data.extend_from_slice(&chunk);
+    }
+    Ok(data)
 }
 
 /// True if `host` is a loopback name/address. The bundled sidecar always binds
@@ -220,7 +283,9 @@ fn url_host_port(url: &reqwest::Url) -> Option<String> {
 /// miss — no settings, no profiles, or an unparseable base URL.
 fn active_profile_gateway_origin(app: &AppHandle) -> Option<String> {
     let settings = settings::load(app).ok()?;
-    let profiles = settings.get("profiles").and_then(|value| value.as_array())?;
+    let profiles = settings
+        .get("profiles")
+        .and_then(|value| value.as_array())?;
     let active_profile_id = settings
         .get("activeProfileId")
         .and_then(|value| value.as_str())
@@ -282,7 +347,13 @@ fn is_allowed_gateway_url(app: &AppHandle, raw: &str) -> bool {
 
 #[cfg(test)]
 mod gateway_ssrf_tests {
-    use crate::gateway_url_allowed_against;
+    use crate::{
+        build_gateway_http_client, filtered_gateway_request_headers, gateway_url_allowed_against,
+        read_gateway_response_body_with_limit,
+    };
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
 
     #[test]
     fn loopback_allowed_regardless_of_origin() {
@@ -307,7 +378,10 @@ mod gateway_ssrf_tests {
             Some("gateway.example.test:3100")
         ));
         // No configured origin at all → only loopback would pass.
-        assert!(!gateway_url_allowed_against("http://evil.example.com/", None));
+        assert!(!gateway_url_allowed_against(
+            "http://evil.example.com/",
+            None
+        ));
     }
 
     #[test]
@@ -321,6 +395,97 @@ mod gateway_ssrf_tests {
             "file://gateway.example.test/etc/passwd",
             Some("gateway.example.test:3100")
         ));
+    }
+
+    #[test]
+    fn strips_cookie_proxy_and_forwarding_headers() {
+        let headers = filtered_gateway_request_headers(vec![
+            ("Authorization".into(), "Bearer local-token".into()),
+            ("Cookie".into(), "sid=secret".into()),
+            ("Proxy-Authorization".into(), "Basic secret".into()),
+            ("X-Forwarded-For".into(), "10.0.0.7".into()),
+            ("Forwarded".into(), "for=10.0.0.7".into()),
+            ("Content-Length".into(), "999".into()),
+            ("Accept".into(), "application/json".into()),
+        ]);
+        let names = headers
+            .iter()
+            .map(|(name, _)| name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["authorization", "accept"]);
+    }
+
+    #[tokio::test]
+    async fn gateway_client_does_not_follow_redirects() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buf = [0u8; 1024];
+            let _ = stream.read(&mut buf);
+            stream
+                .write_all(
+                    b"HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:9/leak\r\nContent-Length: 0\r\n\r\n",
+                )
+                .unwrap();
+        });
+
+        let client = build_gateway_http_client().unwrap();
+        let response = client
+            .get(format!("http://{addr}/redirect"))
+            .header("Authorization", "Bearer must-not-leak")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::FOUND);
+        assert_eq!(response.url().as_str(), format!("http://{addr}/redirect"));
+        handle.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn body_reader_rejects_large_content_length() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buf = [0u8; 1024];
+            let _ = stream.read(&mut buf);
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\n")
+                .unwrap();
+        });
+
+        let response = reqwest::get(format!("http://{addr}/oversize"))
+            .await
+            .unwrap();
+        let err = read_gateway_response_body_with_limit(response, 8, "http://test/oversize")
+            .await
+            .unwrap_err();
+        assert!(err.contains("response too large"));
+        handle.join().unwrap();
+    }
+
+    #[tokio::test]
+    async fn body_reader_rejects_chunked_body_over_limit() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut buf = [0u8; 1024];
+            let _ = stream.read(&mut buf);
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n5\r\nworld\r\n0\r\n\r\n")
+                .unwrap();
+        });
+
+        let response = reqwest::get(format!("http://{addr}/chunked"))
+            .await
+            .unwrap();
+        let err = read_gateway_response_body_with_limit(response, 8, "http://test/chunked")
+            .await
+            .unwrap_err();
+        assert!(err.contains("response too large"));
+        handle.join().unwrap();
     }
 }
 
