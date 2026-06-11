@@ -18,7 +18,7 @@ function chatInputSourceForTest() {
     }
     lines.push(line.replace('export function ChatInput', 'function ChatInput'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { ChatInput };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { ChatInput, formatProviderLabel };`;
 }
 
 function findComponent(node, component) {
@@ -153,4 +153,28 @@ test('ChatInput cancel button resets cancelling state after rejection', async ()
     { index: 2, value: true },
     { index: 2, value: false }
   ]);
+});
+
+test('formatProviderLabel maps known provider ids to readable names', () => {
+  const vmContext = {
+    React: {},
+    globalThis: {}
+  };
+  vm.runInNewContext(chatInputSourceForTest(), vmContext);
+  const { formatProviderLabel } = vmContext.globalThis.__testExports;
+  assert.equal(formatProviderLabel('nearai'), 'NEAR.AI');
+  assert.equal(formatProviderLabel('openai_codex'), 'OpenAI Codex');
+  assert.equal(formatProviderLabel('openrouter'), 'OpenRouter');
+  assert.equal(formatProviderLabel('anthropic'), 'Anthropic');
+});
+
+test('formatProviderLabel uses custom display name and humanizes unknown ids', () => {
+  const vmContext = {
+    React: {},
+    globalThis: {}
+  };
+  vm.runInNewContext(chatInputSourceForTest(), vmContext);
+  const { formatProviderLabel } = vmContext.globalThis.__testExports;
+  assert.equal(formatProviderLabel('openai_codex', 'My Custom Provider'), 'My Custom Provider');
+  assert.equal(formatProviderLabel('my_custom-provider'), 'My Custom Provider');
 });

@@ -615,7 +615,7 @@ async function desktopGatewayStatusFallback() {
   }
 
   if (!hasCredential) {
-    const displayName = fallback.llm_backend === 'nearai' ? 'NEAR.AI' : fallback.llm_backend;
+    const displayName = providerDisplayLabel(fallback.llm_backend);
     const reason = `${displayName} is selected, but no credential is available in this desktop install. Sign in or add an API key in Settings before sending.`;
     fallback.model_readiness = 'blocked';
     fallback.model_execution_readiness = 'blocked';
@@ -625,6 +625,29 @@ async function desktopGatewayStatusFallback() {
   }
 
   return fallback;
+}
+
+function providerDisplayLabel(providerId) {
+  const raw = String(providerId || 'nearai').trim();
+  const normalized = raw.toLowerCase().replace(/[\s]+/g, '').replace(/[_-]+/g, '_');
+  if (normalized === 'nearai') return 'NEAR.AI';
+  if (normalized === 'openai') return 'OpenAI';
+  if (normalized === 'openai_codex') return 'OpenAI Codex';
+  if (normalized === 'openrouter') return 'OpenRouter';
+  if (normalized === 'anthropic') return 'Anthropic';
+  if (normalized === 'google' || normalized === 'googleai') return 'Google';
+  if (normalized === 'glm' || normalized === 'glm4' || normalized.startsWith('glm-')) return 'GLM';
+  if (normalized === 'z_ai' || normalized === 'zai') return 'Z.AI';
+  return (
+    raw
+      .trim()
+      .toLowerCase()
+      .replace(/[-_]+/g, ' ')
+      .split(' ')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ') || 'NEAR.AI'
+  );
 }
 
 // --- v2 auth surface ---

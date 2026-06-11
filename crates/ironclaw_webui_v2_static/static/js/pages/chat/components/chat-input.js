@@ -317,7 +317,15 @@ export function ChatInput({
     staleTime: 60_000
   }).data;
   const activeSelection = providersSnapshot?.active || null;
-  const providerLabel = formatProviderLabel(activeSelection?.provider_id || context.backend);
+  const providerNameFromSnapshot =
+    (providersSnapshot?.providers || []).find(
+      (provider) => provider.id === activeSelection?.provider_id
+    )?.name || '';
+  const providerLabel = formatProviderLabel(
+    activeSelection?.provider_id,
+    providerNameFromSnapshot || activeSelection?.name,
+    context.backend
+  );
   const modelLabel = String(activeSelection?.model || context.model || 'auto');
   // Calm chip: "Provider · model" with a status dot; the readiness phrase
   // lives in the tooltip and (when blocking) the banner — not shouted inline.
@@ -548,10 +556,28 @@ export function ChatInput({
   `;
 }
 
-function formatProviderLabel(value) {
-  const raw = String(value || 'nearai').trim();
-  const normalized = raw.toLowerCase().replace(/[\s._-]+/g, '');
+function formatProviderLabel(providerId, providerName, fallbackId = 'nearai') {
+  if (providerName && providerName.trim()) return providerName.trim();
+  const raw = String(providerId || fallbackId || 'nearai').trim();
+  const normalized = raw.toLowerCase().replace(/[\s]+/g, '').replace(/[_-]+/g, '_');
+
   if (normalized === 'nearai') return 'NEAR.AI';
   if (normalized === 'openai') return 'OpenAI';
-  return raw || 'NEAR.AI';
+  if (normalized === 'openai_codex') return 'OpenAI Codex';
+  if (normalized === 'openrouter') return 'OpenRouter';
+  if (normalized === 'anthropic') return 'Anthropic';
+  if (normalized === 'google' || normalized === 'googleai') return 'Google';
+  if (normalized === 'z_ai' || normalized === 'zai') return 'Z.AI';
+  if (normalized === 'glm' || normalized === 'glm4' || normalized.startsWith('glm-')) return 'GLM';
+
+  const humanized = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[-_]+/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+
+  return humanized || 'NEAR.AI';
 }
