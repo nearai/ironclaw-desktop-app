@@ -19,14 +19,15 @@ import { classifyRisk } from '../lib/approval-risk.js';
 
 export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
   const t = useT();
-  const { toolName, description, parameters, allowAlways } = gate;
+  const { toolName, headline, body, parameters, allowAlways } = gate;
+  const description = gate.description || body || '';
+  const displayName = toolName || headline || t('approval.thisTool');
   const [always, setAlways] = React.useState(false);
 
   const risk = React.useMemo(
-    () => classifyRisk(toolName, description, parameters),
-    [toolName, description, parameters]
+    () => classifyRisk(toolName || headline, description, parameters),
+    [toolName, headline, description, parameters]
   );
-  const toolLabel = toolName || t('approval.thisTool');
 
   const onPrimary = React.useCallback(() => {
     if (always && allowAlways) {
@@ -53,7 +54,7 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
           className="ml-auto"
         />
       </div>
-      <div className="mb-1 font-mono text-sm font-medium text-iron-100">${toolName}</div>
+      <div className="mb-1 font-mono text-sm font-medium text-iron-100">${displayName}</div>
       ${description && html`<div className="mb-3 text-sm text-iron-200">${description}</div>`}
       ${parameters &&
       html`<pre
@@ -70,7 +71,7 @@ ${parameters}</pre
             onChange=${(event) => setAlways(event.currentTarget.checked)}
             className="h-3.5 w-3.5 accent-[var(--v2-accent)]"
           />
-          ${t('approval.alwaysAllowToolLabel', { tool: toolLabel })}
+          ${t('approval.alwaysAllowToolLabel', { tool: displayName })}
         </label>
       `}
 

@@ -1,5 +1,5 @@
 import { React } from '../../../lib/html.js';
-import { gateFromEvent } from './gates.js';
+import { gateFromEvent, gateFromProjection } from './gates.js';
 import {
   isTerminalToolStatus,
   toolCardFromActivity,
@@ -386,16 +386,8 @@ function applyProjectionItems({
       // if no run is active yet — a later projection_update will
       // re-surface it once a run_status arrives.
       if (activeRunId && promptRunIdRef?.current === activeRunId) {
-        setPendingGate(
-          (current) =>
-            current || {
-              kind: 'gate',
-              runId: activeRunId,
-              gateRef: item.gate.gate_ref,
-              headline: item.gate.headline,
-              body: ''
-            }
-        );
+        const pending = gateFromProjection(activeRunId, item.gate);
+        if (pending) setPendingGate((current) => current || pending);
         setIsProcessing(false);
       }
     }

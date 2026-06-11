@@ -9,10 +9,15 @@ export function gateFromEvent(eventType, prompt) {
   if (eventType === 'gate') {
     return {
       kind: 'gate',
+      requestId: prompt.request_id || prompt.gate_ref || null,
       runId: prompt.turn_run_id,
       gateRef: prompt.gate_ref,
       headline: prompt.headline,
-      body: prompt.body
+      body: prompt.body,
+      toolName: prompt.tool_name || prompt.toolName || '',
+      description: prompt.description || prompt.body || '',
+      parameters: formatGateParameters(prompt.parameters),
+      allowAlways: Boolean(prompt.allow_always ?? prompt.allowAlways)
     };
   }
 
@@ -43,4 +48,30 @@ export function gateFromEvent(eventType, prompt) {
   }
 
   return null;
+}
+
+export function gateFromProjection(activeRunId, gate) {
+  if (!activeRunId || !gate) return null;
+  return {
+    kind: 'gate',
+    requestId: gate.request_id || gate.gate_ref || null,
+    runId: activeRunId,
+    gateRef: gate.gate_ref,
+    headline: gate.headline || '',
+    body: gate.body || '',
+    toolName: gate.tool_name || gate.toolName || '',
+    description: gate.description || gate.body || '',
+    parameters: formatGateParameters(gate.parameters),
+    allowAlways: Boolean(gate.allow_always ?? gate.allowAlways)
+  };
+}
+
+export function formatGateParameters(parameters) {
+  if (parameters === undefined || parameters === null || parameters === '') return '';
+  if (typeof parameters === 'string') return parameters;
+  try {
+    return JSON.stringify(parameters, null, 2);
+  } catch {
+    return String(parameters);
+  }
 }

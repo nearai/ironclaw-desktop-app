@@ -8,6 +8,7 @@ import {
   toolCardFromActivity,
   toolCardFromPreview
 } from './history-messages.js';
+import { gateFromProjection } from './gates.js';
 import { upsertRunFailureMessage } from './message-upsert.js';
 
 function useChatEventsSourceForTest() {
@@ -28,7 +29,10 @@ function useChatEventsSourceForTest() {
   return `${lines.join('\n')}\nglobalThis.__testExports = { useChatEvents };`;
 }
 
-function createUseChatEventsHarness({ gateFromEvent = () => null } = {}) {
+function createUseChatEventsHarness({
+  gateFromEvent = () => null,
+  gateFromProjection: gateFromProjectionOverride = gateFromProjection
+} = {}) {
   let messages = [];
   let pendingGate = null;
   let isProcessing = false;
@@ -47,7 +51,8 @@ function createUseChatEventsHarness({ gateFromEvent = () => null } = {}) {
     globalThis: {},
     isTerminalToolStatus,
     toolCardFromActivity,
-    toolCardFromPreview
+    toolCardFromPreview,
+    gateFromProjection: gateFromProjectionOverride
   };
 
   vm.runInNewContext(useChatEventsSourceForTest(), context);
@@ -237,10 +242,15 @@ test('useChatEvents: cleared non-auth gates are not restored by later projection
   });
   assert.deepEqual(plain(harness.pendingGate), {
     kind: 'gate',
+    requestId: 'gate:resource',
     runId,
     gateRef: 'gate:resource',
     headline: 'Resource unavailable',
-    body: ''
+    body: '',
+    toolName: '',
+    description: '',
+    parameters: '',
+    allowAlways: false
   });
 
   harness.handleEvent({
