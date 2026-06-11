@@ -6,6 +6,7 @@ import { Icon } from '../../../design-system/icons.js';
 import { toast } from '../../../lib/toast.js';
 import { saveBlob } from '../../../lib/save-file.js';
 import {
+  copyWorkProduct,
   downloadDocx,
   downloadHtml,
   downloadJson,
@@ -90,12 +91,12 @@ export function MessageBubble({ message, messages = [], onRetry }) {
   // hooks than during the previous render". Keep every hook here.
   const copy = React.useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(typeof content === 'string' ? content : '');
+      await copyWorkProduct(typeof content === 'string' ? content : '');
       setCopied(true);
       toast('Copied to clipboard', { tone: 'success' });
       setTimeout(() => setCopied(false), 1400);
     } catch {
-      // clipboard unavailable — no-op
+      toast('Copy failed', { tone: 'error' });
     }
   }, [content]);
 
@@ -213,12 +214,7 @@ export function MessageBubble({ message, messages = [], onRetry }) {
 
         ${(showActions || status === 'error' || timeLabel) &&
         html`
-          <div
-            className=${[
-              'flex items-center gap-1.5 px-1 text-iron-400 opacity-0 group-hover:opacity-100 focus-within:opacity-100',
-              isUser ? 'justify-end' : 'justify-start'
-            ].join(' ')}
-          >
+          <div className=${messageActionRowClass(role, isUser)}>
             ${showActions &&
             html`
               <button
@@ -264,7 +260,7 @@ function AssistantExportActions({ content, messages }) {
       className=${actionClass('primary')}
       aria-label="Save assistant response to Work"
     >
-      Save
+      Save to Work
     </button>
     <button
       type="button"
@@ -338,6 +334,18 @@ function AssistantExportActions({ content, messages }) {
       Thread JSON
     </button>
   `;
+}
+
+function messageActionRowClass(role, isUser) {
+  const visibility =
+    role === 'assistant'
+      ? 'opacity-100'
+      : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100';
+  return [
+    'flex max-w-full flex-wrap items-center gap-1.5 px-1 text-iron-400',
+    visibility,
+    isUser ? 'justify-end' : 'justify-start'
+  ].join(' ');
 }
 
 function actionClass(tone = 'default') {

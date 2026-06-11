@@ -18,7 +18,7 @@ function messageBubbleSourceForTest() {
     }
     lines.push(line.replace('export function MessageBubble', 'function MessageBubble'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, messageActionRowClass };`;
 }
 
 function findComponentByName(node, name) {
@@ -45,12 +45,8 @@ function componentPropsByName(node, name) {
   return props;
 }
 
-test('assistant export actions receive the full thread messages', () => {
-  const messages = [
-    { id: 'u1', role: 'user', content: 'Please draft an agreement.' },
-    { id: 'a1', role: 'assistant', content: 'Draft ready.' }
-  ];
-  const context = {
+function createMessageBubbleContext(overrides = {}) {
+  return {
     React: {
       useCallback: (fn) => fn,
       useState: (initial) => [initial, () => {}]
@@ -68,11 +64,21 @@ test('assistant export actions receive the full thread messages', () => {
     downloadJson: () => {},
     downloadMarkdown: () => {},
     downloadPdf: () => {},
+    copyWorkProduct: () => Promise.resolve(),
     buildThreadJsonExport: () => '{}',
     buildThreadMarkdownExport: () => '# export',
     navigator: { clipboard: { writeText: () => Promise.resolve() } },
-    setTimeout: () => {}
+    setTimeout: () => {},
+    ...overrides
   };
+}
+
+test('assistant export actions receive the full thread messages', () => {
+  const messages = [
+    { id: 'u1', role: 'user', content: 'Please draft an agreement.' },
+    { id: 'a1', role: 'assistant', content: 'Draft ready.' }
+  ];
+  const context = createMessageBubbleContext();
 
   vm.runInNewContext(messageBubbleSourceForTest(), context);
   const tree = context.globalThis.__testExports.MessageBubble({
@@ -84,4 +90,27 @@ test('assistant export actions receive the full thread messages', () => {
 
   assert.equal(props.content, 'Draft ready.');
   assert.equal(props.messages, messages);
+});
+
+test('assistant work-product actions are visible without hover and can wrap', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const actionClass = context.globalThis.__testExports.messageActionRowClass('assistant', false);
+
+  assert.match(actionClass, /\bopacity-100\b/);
+  assert.doesNotMatch(actionClass, /\bopacity-0\b/);
+  assert.match(actionClass, /\bflex-wrap\b/);
+  assert.match(actionClass, /\bmax-w-full\b/);
+});
+
+test('user action row remains quiet until hover or focus', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const actionClass = context.globalThis.__testExports.messageActionRowClass('user', true);
+
+  assert.match(actionClass, /\bopacity-0\b/);
+  assert.match(actionClass, /\bgroup-hover:opacity-100\b/);
+  assert.match(actionClass, /\bfocus-within:opacity-100\b/);
 });
