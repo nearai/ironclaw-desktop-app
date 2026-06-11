@@ -16,6 +16,7 @@
     "test:e2e": "npm run smoke:webui-static",
     "test:e2e:legacy": "playwright test --config playwright.config.ts",
     "test:e2e:legacy:ui": "playwright test --config playwright.config.ts --ui",
+    "smoke:gate-enforcement": "node scripts/smoke-gate-enforcement.mjs",
     "smoke:packaged": "bash scripts/smoke-packaged-app.sh",
     "smoke:webui-static": "node scripts/smoke-webui-static.mjs",
     "verify:static-frontend": "node scripts/verify-static-frontend-contract.mjs",
