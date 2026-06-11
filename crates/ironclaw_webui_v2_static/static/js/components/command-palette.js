@@ -1,54 +1,78 @@
 import { React, html } from '../lib/html.js';
 import { useNavigate } from 'react-router';
 import { Icon } from '../design-system/icons.js';
+import { primaryRoutes } from '../app/routes.js';
+
+const COMMAND_ROUTE_LABELS = {
+  chat: 'Go to Chat',
+  automations: 'Go to Automations',
+  extensions: 'Go to Extensions',
+  settings: 'Go to Settings'
+};
+
+export function visibleCommandRoutes({ isAdmin = false } = {}) {
+  return primaryRoutes.filter(
+    (route) => !route.hidden && COMMAND_ROUTE_LABELS[route.id] && (isAdmin || route.id !== 'admin')
+  );
+}
+
+export function buildCommandPaletteActions({
+  navigate,
+  onNewChat,
+  onToggleTheme,
+  isAdmin = false
+}) {
+  const navigation = visibleCommandRoutes({ isAdmin }).map((route) => ({
+    id: `go-${route.id}`,
+    label: COMMAND_ROUTE_LABELS[route.id],
+    icon:
+      {
+        chat: 'chat',
+        automations: 'calendar',
+        extensions: 'plug',
+        settings: 'settings'
+      }[route.id] || 'bolt',
+    group: 'Navigate',
+    run: () => navigate(route.path)
+  }));
+
+  return [
+    {
+      id: 'new-chat',
+      label: 'New chat',
+      icon: 'plus',
+      group: 'Actions',
+      run: () => onNewChat?.()
+    },
+    ...navigation,
+    {
+      id: 'toggle-theme',
+      label: 'Toggle theme',
+      icon: 'moon',
+      group: 'Actions',
+      run: () => onToggleTheme?.()
+    }
+  ];
+}
 
 /* ⌘K / Ctrl+K launcher: jump to a thread, start a new chat, navigate to a
-   section, or toggle the theme. Pure frontend — drives existing routes and
-   thread state, no new backend. */
-export function CommandPalette({ open, onClose, threadsState, onNewChat, onToggleTheme }) {
+   section, or toggle the theme. Pure frontend: drives existing routes and
+   thread state without executing work. */
+export function CommandPalette({
+  open,
+  onClose,
+  threadsState,
+  onNewChat,
+  onToggleTheme,
+  isAdmin = false
+}) {
   const navigate = useNavigate();
   const [query, setQuery] = React.useState('');
   const [active, setActive] = React.useState(0);
   const inputRef = React.useRef(null);
 
   const commands = React.useMemo(() => {
-    const actions = [
-      {
-        id: 'new-chat',
-        label: 'New chat',
-        icon: 'plus',
-        group: 'Actions',
-        run: () => onNewChat?.()
-      },
-      {
-        id: 'go-chat',
-        label: 'Go to Chat',
-        icon: 'chat',
-        group: 'Navigate',
-        run: () => navigate('/chat')
-      },
-      {
-        id: 'go-extensions',
-        label: 'Go to Extensions',
-        icon: 'plug',
-        group: 'Navigate',
-        run: () => navigate('/extensions')
-      },
-      {
-        id: 'go-settings',
-        label: 'Go to Settings',
-        icon: 'settings',
-        group: 'Navigate',
-        run: () => navigate('/settings')
-      },
-      {
-        id: 'toggle-theme',
-        label: 'Toggle theme',
-        icon: 'moon',
-        group: 'Actions',
-        run: () => onToggleTheme?.()
-      }
-    ];
+    const actions = buildCommandPaletteActions({ navigate, onNewChat, onToggleTheme, isAdmin });
     const threads = (threadsState?.threads || []).map((thread) => ({
       id: `thread-${thread.id}`,
       label: thread.title || `Thread ${thread.id.slice(0, 8)}`,
@@ -57,7 +81,7 @@ export function CommandPalette({ open, onClose, threadsState, onNewChat, onToggl
       run: () => navigate(`/chat/${thread.id}`)
     }));
     return [...actions, ...threads];
-  }, [threadsState, navigate, onNewChat, onToggleTheme]);
+  }, [threadsState, navigate, onNewChat, onToggleTheme, isAdmin]);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();

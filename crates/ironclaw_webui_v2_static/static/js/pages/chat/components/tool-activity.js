@@ -12,9 +12,10 @@ const DOT_STYLE = {
 
 const STATUS_WORD = { success: 'ok', error: 'err', running: 'run' };
 
-/* Runs longer than this collapse into a single summary line. Runs of this
-   length or shorter render each call as its own row. */
-export const TOOL_RUN_COLLAPSE_AFTER = 2;
+/* Tool chatter should never become the product. Every run collapses into a
+   human summary by default; failures expand themselves so the reason stays
+   visible. */
+export const TOOL_RUN_COLLAPSE_AFTER = 0;
 
 export function ToolActivity({ activity }) {
   if (activity.toolCalls && activity.toolCalls.length > 0) {

@@ -14,6 +14,7 @@ import {
   fetchPairingRequests,
   approvePairingCode
 } from '../lib/extensions-api.js';
+import { isGoogleConnector } from '../lib/extension-actions.js';
 
 const OAUTH_SETUP_REFRESH_MS = 2000;
 const OAUTH_SETUP_TIMEOUT_MS = 10 * 60 * 1000;
@@ -345,9 +346,17 @@ export function useConnectExtension() {
           setPhase(key, 'authorizing');
           const res = await startExtensionOauth(ref, pendingOauth);
           if (!res?.authorization_url) {
-            setPhase(key, 'error', {
-              message: res?.message || 'Authorization is unavailable — use a token instead.'
-            });
+            if (isGoogleConnector(entry)) {
+              setPhase(key, 'blocked-google-client-id', {
+                message:
+                  res?.message ||
+                  'Google sign-in needs a Desktop app client ID before browser authorization can start.'
+              });
+            } else {
+              setPhase(key, 'error', {
+                message: res?.message || 'Authorization is unavailable — use a token instead.'
+              });
+            }
             return;
           }
           await openExternalUrl(res.authorization_url);
@@ -368,6 +377,13 @@ export function useConnectExtension() {
             return;
           }
         } else if (pendingManual) {
+          if (isGoogleConnector(entry)) {
+            setPhase(key, 'blocked-google-client-id', {
+              message:
+                'Google sign-in needs a Desktop app client ID in Settings before Gmail or Calendar can connect.'
+            });
+            return;
+          }
           // Honest stop: this connector only takes a pasted token.
           setPhase(key, 'needs-token');
           return;

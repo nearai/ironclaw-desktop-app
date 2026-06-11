@@ -18,7 +18,7 @@ function chatInputSourceForTest() {
     }
     lines.push(line.replace('export function ChatInput', 'function ChatInput'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { ChatInput, formatProviderLabel, normalizeModelEntries, modelForProvider, visibleLlmSnapshot };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { ChatInput, attachmentStatusLabel, formatProviderLabel, normalizeModelEntries, modelForProvider, visibleLlmSnapshot };`;
 }
 
 function findComponent(node, component) {
@@ -246,4 +246,28 @@ test('visibleLlmSnapshot keeps chat model UI on NEAR AI Cloud', () => {
     ['nearai']
   );
   assert.equal(snapshot.active, null);
+});
+
+test('attachmentStatusLabel describes what the model can actually read', () => {
+  const vmContext = {
+    React: {},
+    globalThis: {}
+  };
+  vm.runInNewContext(chatInputSourceForTest(), vmContext);
+  const { attachmentStatusLabel } = vmContext.globalThis.__testExports;
+  const t = (key, vars = {}) => `${key}${vars.chars ? `:${vars.chars}` : ''}`;
+
+  assert.equal(
+    attachmentStatusLabel({ extraction: 'extracted', extractedChars: 2400 }, t),
+    'chat.attachmentExtracted:2.4k'
+  );
+  assert.equal(
+    attachmentStatusLabel({ extraction: 'raw', modelReadable: true }, t),
+    'Model can read this file'
+  );
+  assert.equal(
+    attachmentStatusLabel({ extraction: 'raw', modelReadable: false }, t),
+    'chat.attachmentMetadataOnly'
+  );
+  assert.equal(attachmentStatusLabel({ extraction: 'no-text' }, t), 'chat.attachmentNoText');
 });

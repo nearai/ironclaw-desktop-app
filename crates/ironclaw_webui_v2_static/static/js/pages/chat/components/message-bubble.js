@@ -3,6 +3,7 @@ import { MarkdownRenderer } from './markdown-renderer.js';
 import { ToolActivity } from './tool-activity.js';
 import { AttachmentPreviewModal } from './attachment-preview.js';
 import { Icon } from '../../../design-system/icons.js';
+import { Popover } from '../../../design-system/popover.js';
 import { toast } from '../../../lib/toast.js';
 import { saveBlob } from '../../../lib/save-file.js';
 import {
@@ -35,6 +36,29 @@ function formatTimestamp(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+function messageContentForDisplay({ role, content, attachments }) {
+  const text = content == null ? '' : String(content);
+  if (text.trim()) return text;
+  if (role === 'user' && Array.isArray(attachments) && attachments.length > 0) {
+    return attachments.length === 1
+      ? 'Sent 1 attachment'
+      : `Sent ${attachments.length} attachments`;
+  }
+  return text;
+}
+
+function attachmentEvidenceLabel(att = {}) {
+  const status = String(att.extraction_status || '');
+  if (att.extractedText || att.embedded_text) {
+    return status === 'extracted_text_truncated'
+      ? 'Model-read text retained, truncated'
+      : 'Model-read text retained';
+  }
+  if (status === 'content_omitted_message_budget') return 'Sent as file metadata';
+  if (status === 'extracted_text_truncated') return 'Preview text truncated';
+  return 'Attachment sent';
 }
 
 /* Collapsible provider-reasoning summary. Collapsed by default so the
@@ -146,6 +170,7 @@ export function MessageBubble({ message, messages = [], onRetry }) {
 
   const timeLabel = formatTimestamp(timestamp);
   const showActions = (role === 'assistant' || role === 'user') && !isOptimistic;
+  const displayContent = messageContentForDisplay({ role, content, attachments });
 
   return html`
     <div className=${['group flex flex-col', isUser ? 'items-end' : 'items-start'].join(' ')}>
@@ -158,8 +183,8 @@ export function MessageBubble({ message, messages = [], onRetry }) {
           ].join(' ')}
         >
           ${role === 'assistant' || role === 'system' || role === 'error'
-            ? html`<${MarkdownRenderer} content=${content} />`
-            : html`<div className="whitespace-pre-wrap">${content}</div>`}
+            ? html`<${MarkdownRenderer} content=${displayContent} />`
+            : html`<div className="whitespace-pre-wrap">${displayContent}</div>`}
           ${status === 'error' &&
           html`
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-red-300">
@@ -185,24 +210,34 @@ export function MessageBubble({ message, messages = [], onRetry }) {
           attachments.length > 0 &&
           html`
             <div className="mt-2 flex flex-col gap-1.5">
-              ${attachments.map(
-                (att, i) => html`
+              ${attachments.map((att, i) => {
+                const evidenceLabel = attachmentEvidenceLabel(att);
+                return html`
                   <button
                     key=${i}
                     type="button"
                     onClick=${() => setAttachmentPreview(att)}
                     aria-label=${`Preview ${att.filename || 'attachment'}`}
-                    className="flex items-center gap-2 rounded-md border border-iron-700 bg-iron-900/50 px-3 py-2 text-left text-xs hover:border-signal/40"
+                    className="flex min-w-0 items-center gap-2 rounded-[10px] border border-iron-700 bg-iron-900/50 px-3 py-2 text-left text-xs hover:border-signal/40"
                   >
                     <${Icon} name="file" className="h-3.5 w-3.5 text-signal" />
-                    <span className="truncate">${att.filename || 'attachment'}</span>
-                    <span className="ml-auto shrink-0 text-iron-200"
-                      >${att.mime_type} ${att.size_label ? ' / ' + att.size_label : ''}</span
-                    >
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-iron-100"
+                        >${att.filename || 'attachment'}</span
+                      >
+                      <span className="block truncate text-[11px] text-iron-400"
+                        >${evidenceLabel}</span
+                      >
+                    </span>
+                    <span className="shrink-0 text-right text-[11px] text-iron-300">
+                      <span className="block">${att.mime_type || 'file'}</span>
+                      ${att.size_label && html`<span className="block">${att.size_label}</span>`}
+                    </span>
+                    <span className="shrink-0 text-[11px] font-medium text-signal">Preview</span>
                     <${Icon} name="chevron" className="h-3 w-3 shrink-0 -rotate-90 text-iron-300" />
                   </button>
-                `
-              )}
+                `;
+              })}
             </div>
             <${AttachmentPreviewModal}
               open=${Boolean(attachmentPreview)}
@@ -252,7 +287,59 @@ export function MessageBubble({ message, messages = [], onRetry }) {
 }
 
 function AssistantExportActions({ content, messages }) {
+  const [menuOpen, setMenuOpen] = React.useState(false);
   const title = titleFromMarkdown(content) || 'Assistant response';
+  const exportOptions = [
+    {
+      id: 'md',
+      label: 'Markdown',
+      description: 'Plain-text draft',
+      action: async () => downloadMarkdown(content)
+    },
+    {
+      id: 'html',
+      label: 'HTML',
+      description: 'Browser-ready document',
+      action: async () => downloadHtml(content)
+    },
+    {
+      id: 'pdf',
+      label: 'PDF',
+      description: 'Readable PDF',
+      action: async () => downloadPdf(content)
+    },
+    {
+      id: 'docx',
+      label: 'DOCX',
+      description: 'Word document',
+      action: async () => downloadDocx(content)
+    },
+    {
+      id: 'json',
+      label: 'JSON',
+      description: 'Structured response',
+      action: async () => downloadJson({ role: 'assistant', content })
+    },
+    {
+      id: 'thread-md',
+      label: 'Thread MD',
+      description: 'Whole conversation',
+      action: async () => exportThread('markdown', messages)
+    },
+    {
+      id: 'thread-json',
+      label: 'Thread JSON',
+      description: 'Whole conversation data',
+      action: async () => exportThread('json', messages)
+    }
+  ];
+
+  const runExport = async (option) => {
+    const saved = await option.action();
+    if (saved) toast(`Saved ${String(saved).split('/').pop()}`, { tone: 'success' });
+    setMenuOpen(false);
+  };
+
   return html`
     <button
       type="button"
@@ -262,77 +349,57 @@ function AssistantExportActions({ content, messages }) {
     >
       Save to Work
     </button>
-    <button
-      type="button"
-      onClick=${async () => {
-        const saved = await downloadMarkdown(content);
-        if (saved) toast(`Saved ${saved.split('/').pop()}`, { tone: 'success' });
-      }}
-      className=${actionClass()}
-      aria-label="Export assistant response as Markdown"
+    <${Popover}
+      open=${menuOpen}
+      onClose=${() => setMenuOpen(false)}
+      align="start"
+      side="top"
+      className="w-[min(22rem,calc(100vw-2rem))] max-w-none p-2"
+      trigger=${html`
+        <button
+          type="button"
+          onClick=${() => setMenuOpen((value) => !value)}
+          className=${actionClass()}
+          aria-label="Export assistant response"
+          aria-expanded=${menuOpen ? 'true' : 'false'}
+        >
+          <${Icon} name="download" className="h-3.5 w-3.5" />
+          Export
+          <${Icon}
+            name="chevron"
+            className=${['h-3 w-3', menuOpen ? 'rotate-180' : ''].join(' ')}
+          />
+        </button>
+      `}
     >
-      MD
-    </button>
-    <button
-      type="button"
-      onClick=${async () => {
-        const saved = await downloadHtml(content);
-        if (saved) toast(`Saved ${saved.split('/').pop()}`, { tone: 'success' });
-      }}
-      className=${actionClass()}
-      aria-label="Export assistant response as HTML"
-    >
-      HTML
-    </button>
-    <button
-      type="button"
-      onClick=${async () => {
-        const saved = await downloadPdf(content);
-        if (saved) toast(`Saved ${saved.split('/').pop()}`, { tone: 'success' });
-      }}
-      className=${actionClass()}
-      aria-label="Export assistant response as PDF"
-    >
-      PDF
-    </button>
-    <button
-      type="button"
-      onClick=${async () => {
-        const saved = await downloadDocx(content);
-        if (saved) toast(`Saved ${saved.split('/').pop()}`, { tone: 'success' });
-      }}
-      className=${actionClass()}
-      aria-label="Export assistant response as DOCX"
-    >
-      DOCX
-    </button>
-    <button
-      type="button"
-      onClick=${async () => {
-        const saved = await downloadJson({ role: 'assistant', content });
-        if (saved) toast(`Saved ${saved.split('/').pop()}`, { tone: 'success' });
-      }}
-      className=${actionClass()}
-      aria-label="Export assistant response as JSON"
-    >
-      JSON
-    </button>
-    <button
-      type="button"
-      onClick=${() => exportThread('markdown', messages)}
-      className=${actionClass()}
-      aria-label="Export IronClaw chat thread as Markdown"
-    >
-      Thread MD
-    </button>
-    <button
-      type="button"
-      onClick=${() => exportThread('json', messages)}
-      className=${actionClass()}
-      aria-label="Export IronClaw chat thread as JSON"
-    >
-      Thread JSON
-    </button>
+      <div
+        className="mb-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-iron-400"
+      >
+        Download work product
+      </div>
+      <div className="grid gap-1">
+        ${exportOptions.map(
+          (option) => html`
+            <button
+              key=${option.id}
+              type="button"
+              onClick=${() => runExport(option)}
+              className="flex w-full min-w-0 items-center gap-2 rounded-[8px] px-2 py-2 text-left text-sm text-iron-100 hover:bg-white/5"
+            >
+              <${Icon}
+                name=${option.id.includes('thread') ? 'chat' : 'file'}
+                className="h-4 w-4 shrink-0 text-signal"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium">${option.label}</span>
+                <span className="block truncate text-xs text-iron-400">${option.description}</span>
+              </span>
+              <${Icon} name="download" className="h-3.5 w-3.5 shrink-0 text-iron-400" />
+            </button>
+          `
+        )}
+      </div>
+    <//>
   `;
 }
 
@@ -381,11 +448,10 @@ function exportThread(format, messages = []) {
     typeof document === 'undefined' ? 'IronClaw chat' : document.title || 'IronClaw chat';
   if (format === 'json') {
     const content = buildThreadJsonExport(messages, { title });
-    exportContent('ironclaw-chat-thread.json', 'application/json;charset=utf-8', content);
-    return;
+    return exportContent('ironclaw-chat-thread.json', 'application/json;charset=utf-8', content);
   }
   const markdown = buildThreadMarkdownExport(messages, { title });
-  exportContent('ironclaw-chat-thread.md', 'text/markdown;charset=utf-8', markdown);
+  return exportContent('ironclaw-chat-thread.md', 'text/markdown;charset=utf-8', markdown);
 }
 
 function exportContent(filename, type, content) {

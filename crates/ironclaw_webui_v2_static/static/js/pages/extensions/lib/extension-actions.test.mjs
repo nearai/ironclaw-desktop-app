@@ -2,6 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  GOOGLE_OAUTH_SETTINGS_PATH,
+  connectorFamily,
+  connectorKey,
+  connectorSetupGuidance,
+  isGoogleConnector,
   primaryExtensionAction,
   registryConnectButtonState,
   setupReadyForActivation
@@ -84,6 +89,53 @@ test('registryConnectButtonState makes manual-token setup actionable', () => {
     action: 'manual_setup',
     variant: 'secondary'
   });
+});
+
+test('connector helpers identify catalog refs without leaking slash-prefixed lifecycle names', () => {
+  assert.equal(connectorKey({ package_ref: { id: 'tools/google_calendar' } }), 'google-calendar');
+  assert.equal(connectorKey({ packageRef: { id: 'channels/slack_tool' } }), 'slack');
+  assert.equal(connectorFamily({ package_ref: { id: 'mcp-servers/notion' } }), 'notion');
+  assert.equal(isGoogleConnector({ package_ref: { id: 'tools/gmail' } }), true);
+  assert.equal(isGoogleConnector({ package_ref: { id: 'mcp-servers/notion' } }), false);
+});
+
+test('Google connector guidance points blocked users to the settings client-id target', () => {
+  const guidance = connectorSetupGuidance(
+    { package_ref: { id: 'tools/gmail' } },
+    { connectPhase: { phase: 'blocked-google-client-id' } }
+  );
+
+  assert.equal(guidance.title, 'Needs Google sign-in setup');
+  assert.equal(guidance.href, GOOGLE_OAUTH_SETTINGS_PATH);
+  assert.match(guidance.body, /Desktop app client ID/);
+  assert.deepEqual(
+    registryConnectButtonState(
+      { phase: 'blocked-google-client-id' },
+      { package_ref: { id: 'tools/google_calendar' } }
+    ),
+    {
+      label: 'Open Google setup',
+      disabled: false,
+      action: 'google_settings',
+      variant: 'secondary',
+      href: GOOGLE_OAUTH_SETTINGS_PATH
+    }
+  );
+});
+
+test('connectorSetupGuidance gives honest connector-specific setup copy', () => {
+  assert.match(
+    connectorSetupGuidance({ package_ref: { id: 'mcp-servers/notion' } })?.body,
+    /opens Notion/
+  );
+  assert.match(
+    connectorSetupGuidance({ package_ref: { id: 'channels/slack' } })?.body,
+    /workspace install|pairing/
+  );
+  assert.match(
+    connectorSetupGuidance({ package_ref: { id: 'workspace' } })?.body,
+    /local folder|gateway/
+  );
 });
 
 test('registryConnectButtonState keeps running and connected phases disabled', () => {

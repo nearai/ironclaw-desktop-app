@@ -68,15 +68,39 @@ export function GoogleOauthCard() {
   const dirty = clientId.trim() !== savedId;
 
   return html`
-    <${Card} padding="none" className="p-4 sm:p-5">
-      <h3
-        className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-      >
-        ${t('googleOauth.title')}
-      </h3>
+    <${Card} id=${'google-oauth'} padding="none" className="scroll-mt-6 p-4 sm:p-5">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <h3
+          className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+        >
+          ${t('googleOauth.title')}
+        </h3>
+        <span
+          className=${[
+            'rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em]',
+            savedId
+              ? 'border-[color-mix(in_srgb,var(--v2-positive-text)_34%,var(--v2-panel-border))] text-[var(--v2-positive-text)]'
+              : 'border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] text-[var(--v2-warning-text)]'
+          ].join(' ')}
+        >
+          ${savedId ? 'ready' : 'needs client ID'}
+        </span>
+      </div>
       <p className="mb-3 text-sm leading-relaxed text-[var(--v2-text-muted)]">
         ${t('googleOauth.desc')}
       </p>
+      <div
+        className=${[
+          'mb-3 rounded-[10px] border px-3 py-2 text-xs leading-5',
+          savedId
+            ? 'border-[color-mix(in_srgb,var(--v2-positive-text)_24%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]'
+            : 'border-[color-mix(in_srgb,var(--v2-warning-text)_28%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] text-[var(--v2-warning-text)]'
+        ].join(' ')}
+      >
+        ${savedId
+          ? 'Gmail and Calendar can now open browser sign-in from the Extensions registry.'
+          : 'Google connectors are blocked until a Desktop app client ID is saved here. Hosted Google OAuth is not available from this gateway yet.'}
+      </div>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           type="text"

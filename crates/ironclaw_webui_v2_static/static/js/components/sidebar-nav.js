@@ -18,7 +18,7 @@ const ROUTE_ICONS = {
   admin: 'shield'
 };
 
-const navRoutes = primaryRoutes.filter((r) => r.id !== 'chat' && !r.hidden);
+const navRoutes = primaryRoutes.filter((r) => !r.hidden);
 
 function NavItem({ route, label, onNavigate }) {
   return html`

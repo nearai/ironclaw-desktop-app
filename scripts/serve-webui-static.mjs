@@ -75,7 +75,16 @@ async function proxyGateway(req, res, rawUrl) {
       res.end();
       return;
     }
-    Readable.fromWeb(upstream.body).pipe(res);
+    const upstreamStream = Readable.fromWeb(upstream.body);
+    upstreamStream.on("error", (err) => {
+      if (!res.destroyed) {
+        res.destroy(err);
+      }
+    });
+    res.on("close", () => {
+      upstreamStream.destroy();
+    });
+    upstreamStream.pipe(res);
   } catch (err) {
     if (rawUrl.pathname === "/auth/providers") {
       send(res, 200, JSON.stringify({ providers: [] }), {

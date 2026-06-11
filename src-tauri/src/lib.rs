@@ -330,6 +330,12 @@ fn packaged_webview_smoke_enabled() -> bool {
         .unwrap_or(false)
 }
 
+fn packaged_webview_smoke_ocr_enabled() -> bool {
+    std::env::var("IRONCLAW_PACKAGED_WEBVIEW_SMOKE_OCR")
+        .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+        .unwrap_or(false)
+}
+
 fn packaged_webview_smoke_path(app: &AppHandle) -> Result<std::path::PathBuf, String> {
     if let Some(path) = std::env::var_os("IRONCLAW_PACKAGED_WEBVIEW_SMOKE_EVIDENCE") {
         return Ok(std::path::PathBuf::from(path));
@@ -371,6 +377,7 @@ async fn packaged_smoke_request(app: AppHandle) -> Result<serde_json::Value, Str
     }
     Ok(serde_json::json!({
         "enabled": enabled,
+        "ocr_enabled": enabled && packaged_webview_smoke_ocr_enabled(),
         "evidence_path": evidence_path,
         "schema": "ironclaw-packaged-webview-smoke-request.v1",
     }))

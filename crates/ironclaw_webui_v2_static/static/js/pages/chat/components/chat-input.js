@@ -27,7 +27,9 @@ function attachmentStatusLabel(att, t) {
     case 'raw':
       // Raw binary the backend cannot inline: the model never sees it.
       // Text-ish raw payloads embed fine and need no caveat.
-      return att.modelReadable === false ? t('chat.attachmentMetadataOnly') : '';
+      return att.modelReadable === false
+        ? t('chat.attachmentMetadataOnly')
+        : 'Model can read this file';
     default:
       return '';
   }
@@ -505,40 +507,56 @@ export function ChatInput({
                 </div>
               `
             )}
-            ${attachments.map(
-              (att, i) => html`
+            ${attachments.map((att, i) => {
+              const statusLabel = attachmentStatusLabel(att, t);
+              const warning =
+                att.extraction === 'no-text' ||
+                (att.extraction === 'raw' && att.modelReadable === false);
+              return html`
                 <div
                   key=${i}
-                  className="flex max-w-full items-center gap-2 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-2 py-1 text-xs text-[var(--v2-text)]"
+                  className=${`flex max-w-full items-center gap-2 rounded-[10px] border px-3 py-2 text-xs text-[var(--v2-text)] ${
+                    warning
+                      ? 'border-[color-mix(in_srgb,var(--v2-warning-text)_42%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)]'
+                      : 'border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)]'
+                  }`}
                 >
                   <button
                     type="button"
                     onClick=${() => setAttachmentPreview(att)}
-                    aria-label=${`Preview ${att.filename}`}
-                    className="flex min-w-0 items-center gap-2 hover:text-[var(--v2-text-strong)]"
+                    aria-label=${`Preview ${att.filename}${statusLabel ? `: ${statusLabel}` : ''}`}
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-[var(--v2-text-strong)]"
                   >
                     <${Icon}
                       name="file"
                       className="h-3.5 w-3.5 shrink-0 text-[var(--v2-accent-text)]"
                     />
-                    <span className="truncate">${att.filename}</span>
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">${att.filename}</span>
+                      <span
+                        className=${`block truncate text-[11px] ${
+                          warning
+                            ? 'text-[var(--v2-warning-text)]'
+                            : att.extraction === 'extracted' ||
+                                (att.extraction === 'raw' && att.modelReadable !== false)
+                              ? 'text-[var(--v2-positive-text)]'
+                              : 'text-[var(--v2-text-muted)]'
+                        }`}
+                      >
+                        ${statusLabel || 'Ready to send'}
+                      </span>
+                    </span>
                   </button>
                   <span className="shrink-0 text-[var(--v2-text-muted)]"
                     >${formatSize(att.size)}</span
                   >
-                  ${attachmentStatusLabel(att, t) &&
-                  html`<span
-                    className=${`shrink-0 ${
-                      att.extraction === 'no-text'
-                        ? 'text-[var(--v2-danger-text)]'
-                        : att.extraction === 'raw' && att.modelReadable === false
-                          ? 'text-[var(--v2-warning-text)]'
-                          : att.extraction === 'extracted'
-                            ? 'text-[var(--v2-positive-text)]'
-                            : 'text-[var(--v2-text-faint)]'
-                    }`}
-                    >${attachmentStatusLabel(att, t)}</span
-                  >`}
+                  <button
+                    type="button"
+                    onClick=${() => setAttachmentPreview(att)}
+                    className="shrink-0 font-medium text-[var(--v2-accent-text)] hover:underline"
+                  >
+                    Preview
+                  </button>
                   <button
                     onClick=${() => removeAttachment(i)}
                     className="ml-1 text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]"
@@ -547,8 +565,8 @@ export function ChatInput({
                     <${Icon} name="close" className="h-3.5 w-3.5" />
                   </button>
                 </div>
-              `
-            )}
+              `;
+            })}
           </div>
         `}
         ${rejections.length > 0 &&

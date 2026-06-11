@@ -506,7 +506,8 @@ if (( WEBVIEW_SMOKE == 1 )); then
 fi
 info "launching for ${WAIT_SECONDS}s liveness window"
 
-LAUNCH_ENV=(RUST_LOG="${RUST_LOG:-info}" IRONCLAW_PACKAGED_SMOKE=1)
+SMOKE_RUST_LOG_DEFAULT='ironclaw_desktop_lib=info,ironclaw_diag=info,ironclaw_packaged_smoke=info,ironclaw_gateway=info,ironclaw_sidecar=info,warn'
+LAUNCH_ENV=(RUST_LOG="${RUST_LOG:-${SMOKE_RUST_LOG_DEFAULT}}" IRONCLAW_PACKAGED_SMOKE=1)
 if (( WEBVIEW_SMOKE == 1 )); then
   LAUNCH_ENV+=(
     IRONCLAW_PACKAGED_WEBVIEW_SMOKE=1

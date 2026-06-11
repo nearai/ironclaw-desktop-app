@@ -7,6 +7,10 @@ function packageId(entry) {
   return entry.package_ref?.id || '';
 }
 
+export function projectedConnectPhase(entry) {
+  return entry?.connectPhase || entry?.connect_phase || null;
+}
+
 export function RegistryTab({
   toolRegistry,
   channelRegistry,
@@ -79,7 +83,7 @@ export function RegistryTab({
                     entry=${entry}
                     onConnect=${connect}
                     onManualSetup=${openManualSetup}
-                    connectPhase=${connectState[packageId(entry)]}
+                    connectPhase=${connectState[packageId(entry)] || projectedConnectPhase(entry)}
                     onInstall=${onInstall}
                     isBusy=${isBusy}
                   />

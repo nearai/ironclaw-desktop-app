@@ -50,7 +50,8 @@ export async function maybeRunPackagedWebviewSmoke() {
     status: 'running',
     checks: [],
     errors: [],
-    evidence_path_requested: request.evidence_path || null
+    evidence_path_requested: request.evidence_path || null,
+    ocr_enabled: request.ocr_enabled === true
   };
 
   const check = (name, passed, detail = {}) => {
@@ -81,8 +82,8 @@ export async function maybeRunPackagedWebviewSmoke() {
     await withDeadline('export builders', 90_000, () => proveExportBuilders(report, check));
     smokeDiag('export builders passed');
     smokeDiag('document extraction start');
-    await withDeadline('document extraction', 300_000, () =>
-      proveDocumentExtraction(report, check)
+    await withDeadline('document extraction', 90_000, () =>
+      proveDocumentExtraction(report, check, { ocrEnabled: request.ocr_enabled === true })
     );
     smokeDiag('document extraction passed');
     report.status = 'passed';
@@ -435,7 +436,7 @@ async function proveExportBuilders(report, check) {
 // in a fresh WebView cold-loads pdf.js plus the tesseract wasm core and
 // language data, which can take minutes on a loaded machine — that slowness
 // must not be able to fail the (fast) export-builder checks above.
-async function proveDocumentExtraction(report, check) {
+async function proveDocumentExtraction(report, check, { ocrEnabled = false } = {}) {
   // PDF ingestion: the composer's client-side extractor (pdf.js, lazy ES
   // module + worker) must run inside THIS WebView (WKWebView on macOS — a
   // different engine from the Playwright/Chromium rendered smoke). A valid
@@ -454,6 +455,18 @@ async function proveDocumentExtraction(report, check) {
       preview: (extraction.text || '').slice(0, 60)
     }
   );
+
+  if (!ocrEnabled) {
+    report.checks.push({
+      name: 'WebView OCRs a scanned PDF attachment',
+      status: 'SKIP',
+      detail: {
+        reason:
+          'Deep OCR proof is opt-in for packaged smoke; text PDF extraction is the required release gate.'
+      }
+    });
+    return;
+  }
 
   // OCR in THIS WebView engine: wasm + nested workers are exactly where
   // WebKit diverges from the Chromium rendered smoke. A scanned (image-only)

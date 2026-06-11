@@ -3,7 +3,11 @@ import { Badge } from '../../../design-system/badge.js';
 import { Button } from '../../../design-system/button.js';
 import { Icon } from '../../../design-system/icons.js';
 import { KIND_LABELS, STATE_TONES, STATE_LABELS } from '../lib/extensions-schema.js';
-import { primaryExtensionAction, registryConnectButtonState } from '../lib/extension-actions.js';
+import {
+  connectorSetupGuidance,
+  primaryExtensionAction,
+  registryConnectButtonState
+} from '../lib/extension-actions.js';
 
 /* Card layout (Option B): self-contained bordered card. Capabilities collapse
    behind a count disclosure; secondary actions (Configure / Setup / Remove)
@@ -98,6 +102,35 @@ function ChipGrid({ items }) {
   `;
 }
 
+function ConnectorGuidance({ guidance, fallback }) {
+  const body = fallback || guidance?.body;
+  if (!body && !guidance?.title) return null;
+
+  return html`
+    <div
+      className="mt-2 rounded-md border border-white/12 bg-white/[0.04] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
+    >
+      ${guidance?.title &&
+      html`
+        <div className="mb-0.5 font-semibold text-[var(--v2-text-strong)]">${guidance.title}</div>
+      `}
+      ${body && html`<div>${body}</div>`}
+      ${guidance?.href &&
+      html`
+        <${Button}
+          as="a"
+          href=${guidance.href}
+          variant="ghost"
+          size="sm"
+          className="mt-2 h-auto px-0 py-0 text-[var(--v2-accent-text)] hover:bg-transparent hover:underline"
+        >
+          ${guidance.actionLabel || 'Open setup'}
+        <//>
+      `}
+    </div>
+  `;
+}
+
 export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }) {
   const state =
     ext.onboarding_state || ext.activation_status || (ext.active ? 'active' : 'installed');
@@ -114,6 +147,7 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
     (setupState
       ? ext.onboarding?.credential_instructions || ext.onboarding?.credential_next_step
       : ext.onboarding?.credential_next_step || ext.onboarding?.credential_instructions) || null;
+  const guidance = connectorSetupGuidance(ext, { state });
 
   const configurePayload = { packageRef: ext.package_ref, displayName };
 
@@ -205,14 +239,7 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
           ${ext.activation_error}
         </div>
       `}
-      ${onboardingHint &&
-      html`
-        <div
-          className="mt-2 rounded-md border border-white/12 bg-white/[0.04] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
-        >
-          ${onboardingHint}
-        </div>
-      `}
+      <${ConnectorGuidance} guidance=${guidance} fallback=${onboardingHint} />
 
       <div className=${FOOTER}>
         ${tools.length > 0
@@ -254,7 +281,8 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
   const canInstall = Boolean(entry.package_ref);
   const keywords = entry.keywords || [];
   const [kwOpen, setKwOpen] = React.useState(false);
-  const connectButton = registryConnectButtonState(connectPhase);
+  const connectButton = registryConnectButtonState(connectPhase, entry);
+  const guidance = connectorSetupGuidance(entry, { connectPhase });
   const runConnectAction = () => {
     if (connectButton.action === 'manual_setup' && onManualSetup) {
       onManualSetup(entry);
@@ -293,6 +321,12 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
           ${connectPhase.message}
         </div>
       `}
+      <${ConnectorGuidance}
+        guidance=${guidance}
+        fallback=${connectPhase?.phase === 'blocked-google-client-id'
+          ? connectPhase?.message
+          : null}
+      />
 
       <div className=${FOOTER}>
         ${keywords.length > 0
@@ -314,6 +348,20 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
           : html`<span className="font-mono text-[11px] text-[var(--v2-text-faint)]"></span>`}
         <span className="flex-1"></span>
         ${canInstall &&
+        connectButton.href &&
+        html`
+          <${Button}
+            as="a"
+            href=${connectButton.href}
+            variant=${connectButton.variant}
+            size="sm"
+            aria-disabled=${isBusy || connectButton.disabled ? 'true' : 'false'}
+          >
+            ${connectButton.label}
+          <//>
+        `}
+        ${canInstall &&
+        !connectButton.href &&
         html`
           <${Button}
             variant=${connectButton.variant}

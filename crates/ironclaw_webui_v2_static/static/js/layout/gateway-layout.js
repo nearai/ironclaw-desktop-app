@@ -50,7 +50,7 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
-  // v2 has no DELETE thread endpoint, so the sidebar renders no
+  // The current thread contract has no delete endpoint, so the sidebar renders no
   // delete affordance (SidebarThreads conditionally renders the
   // trash button on `onDelete`).
 
@@ -119,6 +119,7 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
         threadsState=${threadsState}
         onNewChat=${sidebar.newChat}
         onToggleTheme=${toggleTheme}
+        isAdmin=${isAdmin}
       />
       <${ToastViewport} />
     </div>

@@ -1,6 +1,7 @@
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
+import { createServer } from 'node:http';
 
 const port = Number(process.env.WEBUI_STATIC_SMOKE_PORT || '17620');
 const gatewayOrigin = process.env.WEBUI_STATIC_SMOKE_GATEWAY_ORIGIN || 'http://127.0.0.1:17621';
@@ -90,6 +91,52 @@ async function waitForServer() {
     await wait(250);
   }
   throw new Error('static WebUI server did not start');
+}
+
+async function startProxyProbeGateway() {
+  const origin = new URL(gatewayOrigin);
+  const server = createServer((req, res) => {
+    const path = new URL(req.url || '/', gatewayOrigin).pathname;
+    if (path.endsWith('/events')) {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive'
+      });
+      res.write(': ok\n\n');
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ ok: true, providers: [] }));
+  });
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(Number(origin.port), origin.hostname, resolve);
+  });
+  return server;
+}
+
+async function assertProxySurvivesAbortedSse() {
+  const controller = new AbortController();
+  const response = await fetch(
+    `http://127.0.0.1:${port}/api/webchat/v2/threads/proxy-abort/events?token=smoke`,
+    {
+      headers: { Accept: 'text/event-stream' },
+      signal: controller.signal
+    }
+  );
+  if (!response.ok || !response.body) {
+    throw new Error(`SSE proxy probe failed to open: ${response.status}`);
+  }
+  const reader = response.body.getReader();
+  await reader.read();
+  controller.abort();
+  await reader.cancel().catch(() => {});
+  await wait(250);
+  const health = await fetch(`http://127.0.0.1:${port}/auth/providers`);
+  if (!health.ok) {
+    throw new Error(`static server died after aborted SSE proxy: ${health.status}`);
+  }
 }
 
 function installTauriShim(page) {
@@ -224,8 +271,12 @@ server.stderr.on('data', (chunk) => {
   serverOutput += chunk.toString();
 });
 
+let proxyProbeGateway = null;
+
 try {
   await waitForServer();
+  proxyProbeGateway = await startProxyProbeGateway();
+  await assertProxySurvivesAbortedSse();
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
   const errors = [];
@@ -1259,5 +1310,6 @@ try {
   console.error(serverOutput);
   throw err;
 } finally {
+  proxyProbeGateway?.close();
   server.kill();
 }

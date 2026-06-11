@@ -30,7 +30,7 @@ function setupContext(overrides = {}) {
   const stateSnapshots = [];
   const calls = [];
   const invalidations = [];
-  const ref = { id: 'notion' };
+  const ref = overrides.ref || { id: 'notion' };
 
   const context = {
     Date: {
@@ -76,6 +76,12 @@ function setupContext(overrides = {}) {
       return overrides.installResult || { success: true };
     },
     isDesktopRuntime: () => true,
+    isGoogleConnector:
+      overrides.isGoogleConnector ||
+      ((entry) => {
+        const id = String(entry?.package_ref?.id || entry?.id || '');
+        return ['tools/gmail', 'tools/google_calendar', 'gmail', 'google-calendar'].includes(id);
+      }),
     listConnectableChannels: () => {},
     openExternalUrl: async (url) => {
       calls.push(['openExternalUrl', url]);
@@ -170,6 +176,33 @@ test('useConnectExtension stops honestly when OAuth setup returns no authorizati
   assert.ok(!calls.some((call) => call[0] === 'openExternalUrl'));
 });
 
+test('useConnectExtension marks Google no-auth-url as blocked by client-id setup', async () => {
+  const { calls, context, ref, stateSnapshots } = setupContext({
+    ref: { id: 'tools/gmail' },
+    setupQueue: [
+      {
+        secrets: [{ name: 'oauth', provided: false, setup: { kind: 'oauth' } }]
+      }
+    ],
+    oauthResult: { success: false, message: 'No hosted Google OAuth client is configured.' }
+  });
+
+  const hook = context.globalThis.__testExports.useConnectExtension();
+  await hook.connect({ package_ref: ref });
+
+  assert.deepEqual(phasesFor(stateSnapshots, 'tools/gmail'), [
+    'installing',
+    'authorizing',
+    'blocked-google-client-id'
+  ]);
+  assert.equal(
+    stateSnapshots.at(-1)['tools/gmail'].message,
+    'No hosted Google OAuth client is configured.'
+  );
+  assert.ok(!calls.some((call) => call[0] === 'activate'));
+  assert.ok(!calls.some((call) => call[0] === 'openExternalUrl'));
+});
+
 test('useConnectExtension stops at needs-token for manual setup instead of pretending connect worked', async () => {
   const { calls, context, ref, stateSnapshots } = setupContext({
     setupQueue: [
@@ -183,6 +216,28 @@ test('useConnectExtension stops at needs-token for manual setup instead of prete
   await hook.connect({ package_ref: ref });
 
   assert.deepEqual(phasesFor(stateSnapshots), ['installing', 'needs-token']);
+  assert.ok(!calls.some((call) => call[0] === 'activate'));
+  assert.ok(!calls.some((call) => call[0] === 'startOauth'));
+});
+
+test('useConnectExtension routes Google manual setup to client-id blocked state', async () => {
+  const { calls, context, ref, stateSnapshots } = setupContext({
+    ref: { id: 'tools/google_calendar' },
+    setupQueue: [
+      {
+        secrets: [{ name: 'client_id', provided: false, setup: { kind: 'manual_token' } }]
+      }
+    ]
+  });
+
+  const hook = context.globalThis.__testExports.useConnectExtension();
+  await hook.connect({ package_ref: ref });
+
+  assert.deepEqual(phasesFor(stateSnapshots, 'tools/google_calendar'), [
+    'installing',
+    'blocked-google-client-id'
+  ]);
+  assert.match(stateSnapshots.at(-1)['tools/google_calendar'].message, /client ID/);
   assert.ok(!calls.some((call) => call[0] === 'activate'));
   assert.ok(!calls.some((call) => call[0] === 'startOauth'));
 });
