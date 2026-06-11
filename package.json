@@ -9,6 +9,7 @@
     "build:updater-manifest": "node scripts/build-updater-manifest.mjs",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check:release-readiness": "bash scripts/check-release-readiness.sh",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "vitest run",
     "test:static": "find crates/ironclaw_webui_v2_static/static/js -name '*.test.mjs' -print0 | xargs -0 node --test",

@@ -18,8 +18,8 @@ fi
 
 NEW_VER="$1"
 
-# Basic semver sanity check: major.minor.patch with optional pre-release.
-if [[ ! "${NEW_VER}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+# Basic semver sanity check: major.minor.patch with optional pre-release/build metadata.
+if [[ ! "${NEW_VER}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
   echo "ERROR: '${NEW_VER}' does not look like a semver version (e.g. 0.1.3, 1.0.0-beta.1)." >&2
   exit 1
 fi

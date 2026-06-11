@@ -322,7 +322,13 @@ The public key is already committed. Release and local Tauri updater-artifact bu
 
 ### Cutting a release
 
-1. Bump the version across all three files at once:
+1. Run the release readiness preflight. It hard-fails if `TAURI_SIGNING_PRIVATE_KEY` is absent or the three version files disagree:
+
+   ```bash
+   npm run check:release-readiness
+   ```
+
+2. Bump the version across all three files at once:
 
    ```bash
    bash scripts/bump-version.sh 0.1.3
@@ -330,9 +336,9 @@ The public key is already committed. Release and local Tauri updater-artifact bu
 
    This updates `package.json`, `src-tauri/tauri.conf.json`, and `src-tauri/Cargo.toml`. All three must agree.
 
-2. Update `CHANGELOG.md` with what changed.
+3. Update `CHANGELOG.md` with what changed.
 
-3. Commit + tag:
+4. Commit + tag:
 
    ```bash
    git commit -am "v0.1.3"
@@ -340,9 +346,9 @@ The public key is already committed. Release and local Tauri updater-artifact bu
    git push && git push --tags
    ```
 
-4. The `release` workflow (`.github/workflows/release.yml`) builds both arches (`aarch64-apple-darwin` and `x86_64-apple-darwin`), signs the updater artifacts when secrets are present, and creates a GitHub release with the `.dmg`, arch-suffixed `.app.tar.gz`, `.app.tar.gz.sig`, and `latest.json` files attached.
+5. The `release` workflow (`.github/workflows/release.yml`) builds both arches (`aarch64-apple-darwin` and `x86_64-apple-darwin`), signs the updater artifacts when secrets are present, and creates a GitHub release with the `.dmg`, arch-suffixed `.app.tar.gz`, `.app.tar.gz.sig`, and `latest.json` files attached.
 
-5. The workflow generates `latest.json` with `scripts/build-updater-manifest.mjs`. The app polls `https://github.com/nearai/ironclaw-desktop-app/releases/latest/download/latest.json` on startup; if either updater signature is missing, manifest generation fails instead of publishing a broken update.
+6. The workflow generates `latest.json` with `scripts/build-updater-manifest.mjs`. The app polls `https://github.com/nearai/ironclaw-desktop-app/releases/latest/download/latest.json` on startup; if either updater signature is missing, manifest generation fails instead of publishing a broken update.
 
 ### Sanity-checking a release locally before tagging
 

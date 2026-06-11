@@ -36,7 +36,7 @@ if [[ "${2:-}" == "--yes" ]]; then
   AUTO_YES=1
 fi
 
-if [[ ! "${NEW_VER}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+if [[ ! "${NEW_VER}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]; then
   echo "ERROR: '${NEW_VER}' is not a semver." >&2
   exit 2
 fi
@@ -86,6 +86,9 @@ if git rev-parse "v${NEW_VER}" >/dev/null 2>&1; then
 fi
 info "tag v${NEW_VER} is free"
 
+info "release readiness preflight..."
+bash "${SCRIPT_DIR}/check-release-readiness.sh"
+
 # ---- 2) Gates -------------------------------------------------------------
 
 info "svelte-check..."
@@ -113,6 +116,7 @@ info "release gates green"
 
 info "bumping to v${NEW_VER}..."
 bash "${SCRIPT_DIR}/bump-version.sh" "${NEW_VER}"
+bash "${SCRIPT_DIR}/check-release-readiness.sh" --expected-version "${NEW_VER}"
 
 # ---- 4) Diff --------------------------------------------------------------
 
