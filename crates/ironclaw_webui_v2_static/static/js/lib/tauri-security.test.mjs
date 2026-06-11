@@ -11,6 +11,11 @@ function readWorkspaceJson(pathFromStaticJs) {
 const conf = readWorkspaceJson('src-tauri/tauri.conf.json');
 const caps = readWorkspaceJson('src-tauri/capabilities/default.json');
 const csp = conf.app.security.csp;
+const expectedSidecars = [
+  'binaries/ironclaw-reborn',
+  'binaries/ironclaw',
+  'binaries/sandbox_daemon'
+];
 
 function directive(name) {
   const entry = csp
@@ -28,14 +33,16 @@ function permission(identifier) {
 
 test('static shipped UI owns the native security guard', () => {
   assert.equal(conf.build.frontendDist, '../crates/ironclaw_webui_v2_static/static');
+  assert.deepEqual(directive('default-src'), ["'self'", 'tauri:']);
   assert.ok(csp.includes("frame-src 'none'"));
   assert.ok(csp.includes("object-src 'none'"));
   assert.ok(csp.includes("base-uri 'self'"));
 });
 
-test('CSP rejects broad eval and insecure HTTP wildcards', () => {
+test('CSP rejects broad eval, remote scripts, and insecure HTTP wildcards', () => {
   assert.ok(!csp.includes("'unsafe-eval'"));
   assert.ok(!csp.match(/(^|\s)http:\/\/\*(?=[:/\s;]|$)/));
+  assert.ok(!directive('script-src').some((source) => source.startsWith('https://')));
   assert.deepEqual(directive('img-src'), [
     "'self'",
     'data:',
@@ -53,6 +60,24 @@ test('CSP rejects broad eval and insecure HTTP wildcards', () => {
     'http://127.0.0.1:*',
     'http://localhost:*'
   ]);
+  assert.deepEqual(directive('worker-src'), [
+    "'self'",
+    'blob:',
+    'tauri:',
+    'http://127.0.0.1:*',
+    'http://localhost:*'
+  ]);
+  assert.deepEqual(directive('connect-src'), [
+    "'self'",
+    'tauri:',
+    'ipc:',
+    'http://127.0.0.1:*',
+    'http://localhost:*',
+    'https://*',
+    'ws://127.0.0.1:*',
+    'ws://localhost:*',
+    'wss://*'
+  ]);
 });
 
 test('Tauri capability manifest only allows loopback HTTP and HTTPS', () => {
@@ -65,13 +90,35 @@ test('Tauri capability manifest only allows loopback HTTP and HTTPS', () => {
 });
 
 test('shell execute/kill capability stays pinned to the IronClaw sidecars', () => {
+  const shellSidecars = expectedSidecars.filter((name) => name !== 'binaries/sandbox_daemon');
   for (const identifier of ['shell:allow-execute', 'shell:allow-kill']) {
     const shell = permission(identifier);
     assert.ok(shell, `missing ${identifier}`);
-    assert.deepEqual(shell.allow, [
-      { name: 'binaries/ironclaw-reborn', sidecar: true, args: true },
-      { name: 'binaries/ironclaw', sidecar: true, args: true }
-    ]);
+    assert.deepEqual(
+      shell.allow.map((entry) => entry.name),
+      shellSidecars
+    );
+    for (const entry of shell.allow) {
+      assert.equal(entry.sidecar, true);
+      assert.equal(entry.args, true);
+      assert.ok(!entry.name.startsWith('/'), `${identifier} must not allow absolute paths`);
+      assert.ok(
+        !/(^|\/)(node|npm|npx|python|python3|ruby|bash|sh|zsh)$/.test(entry.name),
+        `${identifier} must not allow interpreter execution`
+      );
+    }
+  }
+});
+
+test('bundled external binaries stay explicit and do not grant interpreter paths', () => {
+  assert.deepEqual(conf.bundle.externalBin, expectedSidecars);
+  for (const name of conf.bundle.externalBin) {
+    assert.ok(name.startsWith('binaries/'), `externalBin must be bundled: ${name}`);
+    assert.ok(!name.startsWith('/'), `externalBin must not be absolute: ${name}`);
+    assert.ok(
+      !/(^|\/)(node|npm|npx|python|python3|ruby|bash|sh|zsh)$/.test(name),
+      `externalBin must not bundle an interpreter: ${name}`
+    );
   }
 });
 
