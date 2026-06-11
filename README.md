@@ -71,6 +71,22 @@ App-wide controls:
 - **Cmd+,** — Settings (macOS convention).
 - The **menu-bar tray** gives you Show/Hide, Restart sidecar, Open Settings, and Quit even when the window is hidden.
 
+### What changed in the latest shipped pass
+
+- Home screen is always the **Chat** surface; setup no longer traps users in provider admin by default.
+- **NEAR AI Cloud** remains the default desktop path with one-click continuity from onboarding into chat.
+- **Provider/model management** is now a dedicated workflow in **Settings → Inference** to keep chat execution clear and fast.
+- **Extension setup** uses safer lifecycle calls (`install`, `activate`, `configure`) with honest state on failure.
+- File attach + work-product export now routes through durable thread/message persistence so exports and outputs can be re-opened reliably.
+
+### Updated visual pass
+
+![Welcome flow](docs/screenshots/github-page-onboarding.png)
+
+![Chat + attachment workflow](docs/screenshots/github-page-chat.png)
+
+![Model/configuration management](docs/screenshots/github-page-settings.png)
+
 For the wiring underneath all this, see [`ARCHITECTURE.md`](ARCHITECTURE.md). For how to contribute a change, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 The shipped desktop UI is the static Reborn WebUI under
