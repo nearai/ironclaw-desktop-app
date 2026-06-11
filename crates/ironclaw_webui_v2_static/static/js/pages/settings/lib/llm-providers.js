@@ -1,4 +1,5 @@
 export const API_KEY_UNCHANGED = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
+export const DESKTOP_PRIMARY_LLM_PROVIDER_ID = 'nearai';
 
 export const ADAPTER_OPTIONS = [
   { value: 'open_ai_completions', label: 'OpenAI Compatible' },
@@ -31,6 +32,16 @@ export function parseBuiltinOverrides(value) {
   } catch (_) {
     return {};
   }
+}
+
+export function isDesktopVisibleLlmProvider(providerOrId) {
+  const id = typeof providerOrId === 'string' ? providerOrId : providerOrId?.id;
+  return String(id || '').toLowerCase() === DESKTOP_PRIMARY_LLM_PROVIDER_ID;
+}
+
+export function filterDesktopVisibleLlmProviders(providers) {
+  if (!Array.isArray(providers)) return [];
+  return providers.filter(isDesktopVisibleLlmProvider);
 }
 
 export function providerEffectiveBaseUrl(provider, overrides) {

@@ -269,7 +269,7 @@ try {
       {
         id: 'openrouter',
         name: 'OpenRouter',
-        description: 'Bring your own OpenRouter API key.',
+        description: 'Diagnostic fixture that must stay hidden in Desktop.',
         adapter: 'open_ai_completions',
         base_url: 'https://openrouter.ai/api/v1',
         default_model: 'z-ai/glm-4.5',
@@ -837,13 +837,15 @@ try {
   // The model control is a popover trigger now: opening it must render the
   // model panel with a working manage link into inference settings.
   await modelControl.click();
-  const manageLink = page.getByText('Manage providers in Settings', { exact: true });
+  const manageLink = page.getByText('Manage NEAR AI Cloud in Settings', { exact: true });
   await manageLink.waitFor({ timeout: 10_000 });
+  const modelPopoverBody = await page.locator('body').innerText();
+  if (modelPopoverBody.includes('OpenRouter') || modelPopoverBody.includes('deepseek/')) {
+    throw new Error(`static model popover exposed hidden provider:\n${modelPopoverBody}`);
+  }
   const manageHref = await manageLink.getAttribute('href');
   if (manageHref !== `${appBasePath}/settings/inference`) {
-    throw new Error(
-      `model popover manage link did not target inference settings: ${manageHref}`
-    );
+    throw new Error(`model popover manage link did not target inference settings: ${manageHref}`);
   }
   await page.keyboard.press('Escape');
   const initialChatBody = await page.locator('body').innerText();
@@ -932,9 +934,7 @@ try {
   }
   for (const scenario of smokeAttachmentScenarios) {
     if (!postedContent.includes(`filename: ${scenario.name}`)) {
-      throw new Error(
-        `static chat manifest missing ${scenario.name}: ${JSON.stringify(chatPost)}`
-      );
+      throw new Error(`static chat manifest missing ${scenario.name}: ${JSON.stringify(chatPost)}`);
     }
   }
   if (
@@ -1008,7 +1008,12 @@ try {
   }
   // Embedded document text is for the model, never for the transcript —
   // parseDurableAttachmentBlock must strip it from the rendered bubble.
-  for (const embed of ['INVOICE 7741', 'Preserve indemnity clause', 'extraction_status:', 'decoy.pdf']) {
+  for (const embed of [
+    'INVOICE 7741',
+    'Preserve indemnity clause',
+    'extraction_status:',
+    'decoy.pdf'
+  ]) {
     if (visibleChatBody.includes(embed)) {
       throw new Error(`embedded attachment text leaked into the visible transcript: ${embed}`);
     }

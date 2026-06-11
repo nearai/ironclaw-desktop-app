@@ -23,8 +23,8 @@ export function InferenceTab({
     return html`<${SettingsSkeleton} />`;
   }
 
-  const backend = settings.llm_backend || gatewayStatus?.llm_backend || 'nearai';
-  const model = settings.selected_model || gatewayStatus?.llm_model || '';
+  const backend = 'NEAR AI Cloud';
+  const model = settings.selected_model || 'auto';
   const readiness = modelExecutionReadiness(gatewayStatus);
   const sections = filterSettingsSections(INFERENCE_FIELDS, settings, searchQuery, t);
   const showProviderSummary = matchesSearch(searchQuery, [
@@ -38,13 +38,10 @@ export function InferenceTab({
   const showProviderManagement = matchesSearch(searchQuery, [
     t('llm.providers'),
     t('llm.providersDesc'),
-    t('llm.addProvider'),
     'llm',
-    'provider',
-    'openai',
-    'anthropic',
-    'ollama',
-    'near'
+    'model',
+    'near',
+    'near ai cloud'
   ]);
 
   if (!showProviderSummary && !showProviderManagement && sections.length === 0) {

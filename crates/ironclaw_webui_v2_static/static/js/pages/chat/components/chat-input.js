@@ -11,6 +11,7 @@ import {
   listLlmProviderModels,
   setActiveLlm
 } from '../../settings/lib/settings-api.js';
+import { filterDesktopVisibleLlmProviders } from '../../settings/lib/llm-providers.js';
 
 // One short status per chip: what actually happens to this file when sent.
 function attachmentStatusLabel(att, t) {
@@ -39,6 +40,18 @@ function modelSettingsPath() {
   return '/settings/inference';
 }
 
+function visibleLlmSnapshot(snapshot = {}) {
+  const providers = filterDesktopVisibleLlmProviders(
+    Array.isArray(snapshot.providers) ? snapshot.providers : []
+  );
+  const rawActive = snapshot.active || null;
+  const active =
+    rawActive && providers.some((provider) => provider.id === rawActive.provider_id)
+      ? rawActive
+      : null;
+  return { providers, active };
+}
+
 // Compact model switcher anchored to the composer chip. Models come from the
 // backend's live list for the ACTIVE provider; applying goes through the same
 // set-active route Settings uses, so the snapshot stays the single source of
@@ -52,8 +65,7 @@ function ModelPopover({ open, onClose, t }) {
     enabled: open
   });
   const snapshot = providersQuery.data || {};
-  const providers = Array.isArray(snapshot.providers) ? snapshot.providers : [];
-  const active = snapshot.active || null;
+  const { providers, active } = visibleLlmSnapshot(snapshot);
   const activeProvider = providers.find((provider) => provider.id === active?.provider_id) || null;
   const [selectedProviderId, setSelectedProviderId] = React.useState('');
   const [models, setModels] = React.useState(null);
@@ -64,7 +76,11 @@ function ModelPopover({ open, onClose, t }) {
 
   React.useEffect(() => {
     if (!open) return;
-    setSelectedProviderId((current) => current || active?.provider_id || providers[0]?.id || '');
+    setSelectedProviderId((current) =>
+      providers.some((provider) => provider.id === current)
+        ? current
+        : active?.provider_id || providers[0]?.id || ''
+    );
   }, [open, active?.provider_id, providers.length]);
 
   const selectedProvider =
@@ -416,17 +432,20 @@ export function ChatInput({
     queryFn: fetchLlmProviders,
     staleTime: 60_000
   }).data;
-  const activeSelection = providersSnapshot?.active || null;
+  const visibleProvidersSnapshot = visibleLlmSnapshot(providersSnapshot || {});
+  const activeSelection = visibleProvidersSnapshot.active;
   const providerNameFromSnapshot =
-    (providersSnapshot?.providers || []).find(
+    visibleProvidersSnapshot.providers.find(
       (provider) => provider.id === activeSelection?.provider_id
     )?.name || '';
   const providerLabel = formatProviderLabel(
     activeSelection?.provider_id,
     providerNameFromSnapshot || activeSelection?.name,
-    context.backend
+    'nearai'
   );
-  const modelLabel = String(activeSelection?.model || context.model || 'auto');
+  const modelLabel = String(
+    activeSelection?.model || (providersSnapshot ? 'auto' : context.model || 'auto')
+  );
   // Calm chip: "Provider · model" with a status dot; the readiness phrase
   // lives in the tooltip and (when blocking) the banner — not shouted inline.
   const modelControlLabel = `${providerLabel} · ${modelLabel}`;

@@ -308,6 +308,10 @@ test('ProviderManagement groups filtered providers through the render caller', (
     cardProps.map((props) => props.activeProviderId),
     ['nearai', 'nearai', 'nearai']
   );
+  assert.ok(
+    !collectScalars(rendered).includes('llm.addProvider'),
+    'normal desktop provider management must not expose custom provider creation'
+  );
 });
 
 test('ProviderManagement hides empty buckets after search filtering', () => {

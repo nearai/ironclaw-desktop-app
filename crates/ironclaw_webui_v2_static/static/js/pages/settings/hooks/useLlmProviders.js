@@ -8,6 +8,7 @@ import {
   upsertLlmProvider
 } from '../lib/settings-api.js';
 import {
+  filterDesktopVisibleLlmProviders,
   isProviderConfigured,
   providerDefaultModel,
   providerMissingReason
@@ -128,20 +129,26 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
 export function deriveProviderSnapshot(snapshot = {}) {
   const builtinOverrides = {};
   // Map the wire view onto the field names the components/helpers expect.
-  const allProviders = (Array.isArray(snapshot.providers) ? snapshot.providers : []).map(
+  const rawProviders = (Array.isArray(snapshot.providers) ? snapshot.providers : []).map(
     (provider) => ({
       ...provider,
       name: provider.name || provider.description || provider.id,
       has_api_key: provider.api_key_set === true
     })
   );
+  const allProviders = filterDesktopVisibleLlmProviders(rawProviders);
   // Provider activation must come from the Reborn LLM provider snapshot. The
   // gateway status route always exposes a default backend/model for diagnostics;
   // treating that as an activated provider skips onboarding and lets first-run
-  // users send messages into a guaranteed credential failure.
-  const hasActiveProvider = Boolean(snapshot.active?.provider_id);
-  const activeProviderId = snapshot.active?.provider_id || '';
-  const selectedModel = snapshot.active?.model || '';
+  // users send messages into a guaranteed credential failure. Desktop also
+  // presents NEAR AI Cloud as the normal model path, so stale/non-NEAR active
+  // snapshots from generic Reborn provider support are hidden until an
+  // advanced-provider mode exists.
+  const rawActiveProviderId = snapshot.active?.provider_id || '';
+  const activeProvider = allProviders.find((provider) => provider.id === rawActiveProviderId);
+  const hasActiveProvider = Boolean(activeProvider);
+  const activeProviderId = hasActiveProvider ? rawActiveProviderId : '';
+  const selectedModel = hasActiveProvider ? snapshot.active?.model || '' : '';
   return {
     allProviders,
     builtinProviders: allProviders.filter((provider) => provider.builtin),

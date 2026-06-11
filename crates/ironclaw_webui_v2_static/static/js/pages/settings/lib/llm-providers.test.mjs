@@ -3,7 +3,9 @@ import test from 'node:test';
 
 import {
   API_KEY_UNCHANGED,
+  filterDesktopVisibleLlmProviders,
   groupProvidersByStatus,
+  isDesktopVisibleLlmProvider,
   providerAcceptsApiKey,
   providerStatus
 } from './llm-providers.js';
@@ -171,4 +173,24 @@ test('groupProvidersByStatus returns empty arrays for missing buckets, not undef
 test('groupProvidersByStatus treats non-array input as empty', () => {
   const groups = groupProvidersByStatus(null, {}, null);
   assert.deepEqual(groups, { active: [], ready: [], setup: [] });
+});
+
+test('filterDesktopVisibleLlmProviders keeps only NEAR AI Cloud for normal desktop UI', () => {
+  const providers = [
+    builtinReady('nearai', { adapter: 'nearai' }),
+    builtinReady('openrouter'),
+    builtinReady('anthropic')
+  ];
+
+  assert.deepEqual(
+    filterDesktopVisibleLlmProviders(providers).map((provider) => provider.id),
+    ['nearai']
+  );
+});
+
+test('isDesktopVisibleLlmProvider accepts provider objects and ids', () => {
+  assert.equal(isDesktopVisibleLlmProvider({ id: 'nearai' }), true);
+  assert.equal(isDesktopVisibleLlmProvider('nearai'), true);
+  assert.equal(isDesktopVisibleLlmProvider({ id: 'openai' }), false);
+  assert.equal(isDesktopVisibleLlmProvider(null), false);
 });

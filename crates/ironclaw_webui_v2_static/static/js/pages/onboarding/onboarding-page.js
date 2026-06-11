@@ -14,41 +14,15 @@ import { isProviderConfigured } from '../settings/lib/llm-providers.js';
 import { setActiveLlm, testLlmProviderConnection } from '../settings/lib/settings-api.js';
 import { ProviderLogo } from './provider-logos.js';
 
-// First-run "choose your provider" list. Curated providers are surfaced in this
-// order; everything else stays reachable via Settings → Inference. `auth` is the
-// editorial signal for how a row authenticates (browser login vs device code vs
-// API key) — the day the backend exposes a credential-kind discriminator on the
-// provider view, this list can key off that instead.
+// First-run model setup. The desktop product contract is NEAR AI Cloud by
+// default; generic Reborn provider support stays hidden until an explicit
+// advanced-provider mode exists.
 const FEATURED = [
   {
     id: 'nearai',
     auth: 'nearai',
     nameKey: 'onboarding.providerNearai',
     descKey: 'onboarding.providerNearaiDesc'
-  },
-  {
-    id: 'openai_codex',
-    auth: 'codex',
-    nameKey: 'onboarding.providerCodex',
-    descKey: 'onboarding.providerCodexDesc'
-  },
-  {
-    id: 'openai',
-    auth: 'key',
-    nameKey: 'onboarding.providerOpenai',
-    descKey: 'onboarding.providerOpenaiDesc'
-  },
-  {
-    id: 'anthropic',
-    auth: 'key',
-    nameKey: 'onboarding.providerAnthropic',
-    descKey: 'onboarding.providerAnthropicDesc'
-  },
-  {
-    id: 'ollama',
-    auth: 'key',
-    nameKey: 'onboarding.providerOllama',
-    descKey: 'onboarding.providerOllamaDesc'
   }
 ];
 
@@ -58,8 +32,7 @@ const FEATURED = [
 function FeaturedProviderRow({ entry, provider, configured, isBusy, login, t, onUse, onSetUp }) {
   const name = t(entry.nameKey);
 
-  // Login-based providers (NEAR AI, Codex) show their sign-in actions.
-  // Desktop: GitHub/Google sign-in runs in a dedicated app window (the
+  // Desktop: NEAR AI sign-in runs in a dedicated app window (the
   // server only accepts private.near.ai callbacks; the window captures the
   // token from that navigation). Wallet and API key remain as fallbacks.
   let actions;
@@ -210,9 +183,8 @@ export function OnboardingPage() {
     provider: state.providers.find((provider) => provider.id === entry.id)
   })).filter((row) => row.provider);
 
-  // NEAR AI + Codex login share the same backend flows as the Inference tab; on
-  // success here we head straight to chat (the snapshot refresh swaps in the
-  // now-active provider).
+  // NEAR AI login shares the same backend flow as the Inference tab; on success
+  // here we head straight to chat.
   const navigateToChat = React.useCallback(() => navigate('/chat'), [navigate]);
   const login = useProviderLogin({ onSuccess: navigateToChat });
 
@@ -255,8 +227,8 @@ export function OnboardingPage() {
     };
   }, [state.isLoading, state.providers, state.activeProviderId, navigate, queryClient]);
 
-  // Make an already-configured provider (env key present, local Ollama, etc.)
-  // the active selection and head to chat without opening the dialog.
+  // Make an already-configured NEAR AI provider the active selection and head to
+  // chat without opening the dialog.
   const handleUse = React.useCallback(
     async (provider) => {
       const model = provider.active_model || provider.default_model || '';

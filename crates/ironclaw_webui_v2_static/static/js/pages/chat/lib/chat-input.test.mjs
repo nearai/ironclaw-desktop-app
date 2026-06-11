@@ -18,7 +18,7 @@ function chatInputSourceForTest() {
     }
     lines.push(line.replace('export function ChatInput', 'function ChatInput'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { ChatInput, formatProviderLabel, normalizeModelEntries, modelForProvider };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { ChatInput, formatProviderLabel, normalizeModelEntries, modelForProvider, visibleLlmSnapshot };`;
 }
 
 function findComponent(node, component) {
@@ -95,6 +95,8 @@ function renderChatInput({ onCancel, setCalls = [] } = {}) {
     useQueryClient: () => ({ invalidateQueries: () => {} }),
     listLlmProviderModels: async () => ({ models: [] }),
     fetchLlmProviders: async () => ({ providers: [], active: null }),
+    filterDesktopVisibleLlmProviders: (providers) =>
+      Array.isArray(providers) ? providers.filter((provider) => provider.id === 'nearai') : [],
     setActiveLlm: async () => ({}),
     gatewayStatus: () => ({}),
     window: { requestAnimationFrame: (fn) => fn() }
@@ -219,4 +221,29 @@ test('modelForProvider prefers active snapshot over provider defaults', () => {
     ),
     'gpt-4.1'
   );
+});
+
+test('visibleLlmSnapshot keeps chat model UI on NEAR AI Cloud', () => {
+  const vmContext = {
+    React: {},
+    filterDesktopVisibleLlmProviders: (providers) =>
+      Array.isArray(providers) ? providers.filter((provider) => provider.id === 'nearai') : [],
+    globalThis: {}
+  };
+  vm.runInNewContext(chatInputSourceForTest(), vmContext);
+  const { visibleLlmSnapshot } = vmContext.globalThis.__testExports;
+
+  const snapshot = visibleLlmSnapshot({
+    providers: [
+      { id: 'nearai', name: 'NEAR AI Cloud' },
+      { id: 'openrouter', name: 'OpenRouter' }
+    ],
+    active: { provider_id: 'openrouter', model: 'z-ai/glm-4.5' }
+  });
+
+  assert.deepEqual(
+    snapshot.providers.map((provider) => provider.id),
+    ['nearai']
+  );
+  assert.equal(snapshot.active, null);
 });

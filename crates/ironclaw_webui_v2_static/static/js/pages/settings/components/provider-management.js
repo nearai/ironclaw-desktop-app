@@ -1,8 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Button } from '../../../design-system/button.js';
 import { Card } from '../../../design-system/card.js';
 import { ConfirmDialog } from '../../../design-system/confirm-dialog.js';
-import { Icon } from '../../../design-system/icons.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { SettingsSearchEmpty } from './settings-search-empty.js';
@@ -67,7 +65,7 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
 
   return html`
     <${Card} className="p-4 sm:p-6">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mb-4">
         <div>
           <h3
             className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
@@ -76,16 +74,6 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
           </h3>
           <p className="mt-1 text-sm text-[var(--v2-text-muted)]">${t('llm.providersDesc')}</p>
         </div>
-        <${Button}
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="gap-2"
-          onClick=${() => actions.openDialog(null)}
-        >
-          <${Icon} name="plus" className="h-3.5 w-3.5" />
-          ${t('llm.addProvider')}
-        <//>
       </div>
 
       ${actions.message &&
