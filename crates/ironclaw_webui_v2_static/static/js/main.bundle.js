@@ -1911,7 +1911,7 @@ ${u}
                 <${A} name=${g?"check":"copy"} className="h-3.5 w-3.5" />
                 ${g?"Copied":"Copy"}
               </button>
-              ${s==="assistant"&&c`<${eM} content=${n||""} />`}
+              ${s==="assistant"&&c`<${eM} content=${n||""} messages=${t} />`}
             `}
             ${u==="error"&&a&&c`
               <button

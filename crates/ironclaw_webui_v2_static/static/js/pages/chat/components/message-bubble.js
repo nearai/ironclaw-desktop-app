@@ -231,7 +231,7 @@ export function MessageBubble({ message, messages = [], onRetry }) {
                 ${copied ? 'Copied' : 'Copy'}
               </button>
               ${role === 'assistant' &&
-              html`<${AssistantExportActions} content=${content || ''} />`}
+              html`<${AssistantExportActions} content=${content || ''} messages=${messages} />`}
             `}
             ${status === 'error' &&
             onRetry &&
