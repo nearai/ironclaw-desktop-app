@@ -21,6 +21,7 @@
  */
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
+import { openExternalUrl } from '../../../lib/api.js';
 import { Button } from '../../../design-system/button.js';
 import { Icon } from '../../../design-system/icons.js';
 import { AuthGateShell } from './auth-gate-shell.js';
@@ -46,9 +47,11 @@ export function AuthOauthCard({ gate, onCancel }) {
     // custom protocol handlers (javascript:, tel:, ms-msdt:, slack:) are
     // never opened even if a future code path writes an unexpected scheme.
     if (!hasHttpsAuthorizationUrl) return;
-    // Must be called synchronously in a click handler to be treated as a
-    // user-gesture popup by the browser (not blocked by popup blockers).
-    window.open(gate.authorizationUrl, '_blank', 'noopener,noreferrer');
+    // Desktop: route to the SYSTEM browser — window.open in WKWebView spawns
+    // a cookie-less child webview where the user has no Google session and
+    // OAuth cannot complete. openExternalUrl falls back to window.open when
+    // hosted, keeping the user-gesture popup semantics there.
+    openExternalUrl(gate.authorizationUrl);
     setOpened(true);
   }, [gate.authorizationUrl, hasHttpsAuthorizationUrl]);
 

@@ -27,13 +27,13 @@ the shipped app works.
 ## Source Of Truth
 
 - Reborn source repo:
-  `/Users/abhishekvaidyanathan/Documents/Playground/ironclaw`
+  `/path/to/ironclaw`
 - Reborn branch to compare:
   `origin/reborn-integration`
 - Reborn static source:
   `crates/ironclaw_webui_v2_static/static`
 - Desktop packaged copy:
-  `/Users/abhishekvaidyanathan/openclaw-knowledge/ironclaw-desktop/crates/ironclaw_webui_v2_static/static`
+  `crates/ironclaw_webui_v2_static/static`
 
 ## Safe Sync Procedure
 
@@ -45,11 +45,11 @@ must either be upstreamed to Reborn first or intentionally reconciled.
 Use a clean Reborn worktree for comparison:
 
 ```bash
-git -C /Users/abhishekvaidyanathan/Documents/Playground/ironclaw fetch origin reborn-integration
-git -C /Users/abhishekvaidyanathan/Documents/Playground/ironclaw worktree add --detach /tmp/ironclaw-reborn-integration-clean origin/reborn-integration
+git -C /path/to/ironclaw fetch origin reborn-integration
+git -C /path/to/ironclaw worktree add --detach /tmp/ironclaw-reborn-integration-clean origin/reborn-integration
 diff -qr -x main.bundle.js -x tailwind.generated.css -x vendor \
   /tmp/ironclaw-reborn-integration-clean/crates/ironclaw_webui_v2_static/static \
-  /Users/abhishekvaidyanathan/openclaw-knowledge/ironclaw-desktop/crates/ironclaw_webui_v2_static/static
+  crates/ironclaw_webui_v2_static/static
 ```
 
 After any static sync or reconciliation:

@@ -15,7 +15,15 @@ import { queryClient } from '../../../lib/query-client.js';
 import { React } from '../../../lib/html.js';
 import { useChatEvents } from '../lib/useChatEvents.js';
 import { failureMessageForRunStatus } from '../lib/failureMessages.js';
-import { addPending, recordAcceptedMessageRef, removePending } from '../lib/pending-messages.js';
+import { buildDurableAttachmentBlock } from '../lib/history-messages.js';
+import {
+  addPending,
+  loadPending,
+  pendingMessageId,
+  recordAcceptedMessageRef,
+  removePending,
+  replacePending
+} from '../lib/pending-messages.js';
 import { useHistory } from './useHistory.js';
 import { useSSE } from './useSSE.js';
 
@@ -140,7 +148,6 @@ async function resolveConnectAction(content) {
 // - cancelRun is a first-class action and posts to the v2 cancel route.
 export function useChat(threadId) {
   const pendingMessagesRef = React.useRef(new Map());
-  const pendingSeqRef = React.useRef(1);
   const [cooldownUntil, setCooldownUntil] = React.useState(0);
   const [now, setNow] = React.useState(Date.now());
   const [activeRun, setActiveRunState] = React.useState(null);
@@ -152,18 +159,18 @@ export function useChat(threadId) {
   }, []);
   const [channelConnectAction, setChannelConnectAction] = React.useState(null);
 
-  const getPendingMessages = React.useCallback(
-    () => pendingMessagesRef.current.get(threadId || '__new__') || [],
-    [threadId]
-  );
+  const getPendingMessages = React.useCallback(() => {
+    const key = threadId || '__new__';
+    const memory = pendingMessagesRef.current.get(key);
+    if (memory?.length) return memory;
+    const persisted = loadPending(key);
+    if (persisted.length > 0) pendingMessagesRef.current.set(key, persisted);
+    return persisted;
+  }, [threadId]);
   const setPendingMessages = React.useCallback(
     (messages) => {
       const key = threadId || '__new__';
-      if (messages.length > 0) {
-        pendingMessagesRef.current.set(key, messages);
-      } else {
-        pendingMessagesRef.current.delete(key);
-      }
+      replacePending(pendingMessagesRef.current, key, messages);
     },
     [threadId]
   );
@@ -269,11 +276,11 @@ export function useChat(threadId) {
     // assistant replies, so the SSE stream only delivers `run_status`.
     // On terminal success, refetch the timeline so the assistant
     // message that landed in the thread becomes visible in the UI.
-    // Clear pending optimistic messages first so the real user
-    // message from the server doesn't render alongside its
-    // pre-submit optimistic twin.
+    // Pending rows are NOT cleared here: loadHistory reconciles them via
+    // pendingMessagesAfterTimeline, which clears exactly the confirmed
+    // ones. A blanket wipe would durably delete a second in-flight turn
+    // whose projection hasn't landed yet.
     onRunCompleted: () => {
-      setPendingMessages([]);
       loadHistory();
     }
   });
@@ -332,7 +339,8 @@ export function useChat(threadId) {
         if (cancelled) return;
         const status = normalizeRunStatus(runState?.status);
         if (isRunSuccessStatus(status)) {
-          setPendingMessages([]);
+          // loadHistory reconciles pending rows against the timeline;
+          // no blanket wipe (see onRunCompleted).
           setPendingGate(null);
           setIsProcessing(false);
           setActiveRun(null);
@@ -384,7 +392,6 @@ export function useChat(threadId) {
     pendingGate,
     setActiveRun,
     setMessages,
-    setPendingMessages,
     threadId
   ]);
 
@@ -410,6 +417,19 @@ export function useChat(threadId) {
 
       const { threadId: targetThreadId, images = [], attachments = [] } = opts;
       const serializedAttachments = serializeComposerAttachments([...images, ...attachments]);
+      // Reborn's timeline projection echoes `content` but NOT the first-class
+      // `attachments` field, and the sidecar never feeds attachment bytes to
+      // the model either. The durable block therefore carries BOTH the chip
+      // metadata (parsed back on reload, stripped from view) and the text
+      // content itself for text payloads — the only channel the model can
+      // actually read. contentBytes keeps the embed inside the backend's
+      // 64 KiB content ceiling.
+      const durableAttachmentBlock = buildDurableAttachmentBlock(serializedAttachments, {
+        contentBytes: new TextEncoder().encode(content).length
+      });
+      const contentForReborn = durableAttachmentBlock
+        ? `${content}${durableAttachmentBlock}`
+        : content;
       let sendThreadId = targetThreadId || threadId;
 
       if (!sendThreadId) {
@@ -422,17 +442,27 @@ export function useChat(threadId) {
       }
 
       const pendingKey = sendThreadId;
+      // Image payloads stay out of the durable queue, but their metadata
+      // rides in `attachments` so a reload still shows that the turn
+      // carried an image, not just bare prompt text.
       const pendingRecord = {
-        id: `pending-${pendingSeqRef.current++}`,
+        id: pendingMessageId(),
         role: 'user',
         content,
         timestamp: new Date().toISOString(),
         images: images.map((img) => img.dataUrl).filter(Boolean),
-        attachments: attachments.map((att) => ({
-          filename: att.filename,
-          mime_type: att.mime_type,
-          size_label: att.size ? `${att.size} bytes` : ''
-        })),
+        attachments: [
+          ...images.map((img) => ({
+            filename: img.filename || 'image',
+            mime_type: img.mime_type || 'image/*',
+            size_label: img.size ? `${img.size} bytes` : ''
+          })),
+          ...attachments.map((att) => ({
+            filename: att.filename,
+            mime_type: att.mime_type,
+            size_label: att.size ? `${att.size} bytes` : ''
+          }))
+        ],
         isOptimistic: true
       };
       addPending(pendingMessagesRef.current, pendingKey, pendingRecord);
@@ -457,7 +487,7 @@ export function useChat(threadId) {
       try {
         const response = await sendMessage({
           threadId: sendThreadId,
-          content,
+          content: contentForReborn,
           attachments: serializedAttachments
         });
         // Refresh the sidebar only while the cached entry is missing
@@ -502,18 +532,9 @@ export function useChat(threadId) {
               : m
           )
         );
+        removePending(pendingMessagesRef.current, pendingKey, optimisticId);
         setIsProcessing(false);
         throw err;
-      } finally {
-        // Drop the optimistic from the pending ref unconditionally:
-        // on success the confirmed row arrives via /timeline, and on
-        // failure we mark the optimistic with `status: "error"` in
-        // React state above — neither outcome needs the entry to
-        // linger in `pendingMessagesRef`. Pending ids are `pending-N`
-        // while server ids are `msg-<uuid>`, so id-based dedup in
-        // `messagesFromTimeline` cannot reconcile a stale pending
-        // against the server row that supersedes it.
-        removePending(pendingMessagesRef.current, pendingKey, optimisticId);
       }
     },
     [threadId, setMessages]
@@ -701,14 +722,19 @@ export function useChat(threadId) {
 }
 
 function serializeComposerAttachments(items) {
-  return (items || [])
-    .map((item) => ({
-      name: item.filename || 'attachment',
-      mime_type: item.mime_type || 'application/octet-stream',
-      data_base64: item.base64 || '',
-      size: item.size || 0
-    }))
-    .filter((item) => item.data_base64 || item.name);
+  return (
+    (items || [])
+      .map((item) => ({
+        name: item.filename || 'attachment',
+        mime_type: item.mime_type || 'application/octet-stream',
+        data_base64: item.base64 || '',
+        size: item.size || 0
+      }))
+      // Chips without a payload (extraction failed / still extracting) must
+      // not reach the wire — an empty data_base64 would be a silent no-op
+      // attachment, the exact failure mode this composer is built to avoid.
+      .filter((item) => item.data_base64)
+  );
 }
 
 function retryAfterMs(err) {

@@ -42,3 +42,5 @@ output/
 # Codex parallel-dispatch worktrees (see scripts/codex-dispatch.sh)
 .codex-worktrees/
 .claude-worktrees/
+
+.review/

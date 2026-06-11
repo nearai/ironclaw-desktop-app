@@ -1,4 +1,5 @@
 import { renderMarkdown } from '../../../lib/markdown.js';
+import { saveBlob } from '../../../lib/save-file.js';
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
@@ -20,23 +21,23 @@ export async function copyWorkProduct(content) {
 }
 
 export function downloadMarkdown(content, filename = 'assistant-response.md') {
-  downloadBlob(filename, buildMarkdownBlob(content));
+  return downloadBlob(filename, buildMarkdownBlob(content));
 }
 
 export function downloadHtml(content, filename = 'assistant-response.html') {
-  downloadBlob(filename, buildHtmlBlob(content));
+  return downloadBlob(filename, buildHtmlBlob(content));
 }
 
 export function downloadJson(message, filename = 'assistant-response.json') {
-  downloadBlob(filename, buildJsonBlob(message));
+  return downloadBlob(filename, buildJsonBlob(message));
 }
 
 export function downloadDocx(content, filename = 'assistant-response.docx') {
-  downloadBlob(filename, buildDocxBlob(content));
+  return downloadBlob(filename, buildDocxBlob(content));
 }
 
 export function downloadPdf(content, filename = 'assistant-response.pdf') {
-  downloadBlob(filename, buildPdfBlob(content));
+  return downloadBlob(filename, buildPdfBlob(content));
 }
 
 export function buildMarkdownBlob(content) {
@@ -90,7 +91,7 @@ export function buildDocxBlob(content) {
 
 export function buildPdfBlob(content) {
   const lines = linesForPdf(String(content || ''));
-  const stream = [
+  const streamText = [
     'BT',
     '/F1 14 Tf',
     '72 760 Td',
@@ -99,37 +100,107 @@ export function buildPdfBlob(content) {
     ),
     'ET'
   ].join('\n');
+  // The content stream is emitted as WinAnsi single-byte so the base-14
+  // Helvetica renders it AND one character is exactly one byte. The PDF
+  // structure (xref offsets, startxref, /Length) is measured in BYTES, never
+  // in JS string .length — a UTF-16 code-unit count would diverge from the
+  // UTF-8 bytes a Blob writes and corrupt every offset for non-ASCII text.
+  const streamBytes = encodeWinAnsi(streamText);
   const objects = [
-    '<< /Type /Catalog /Pages 2 0 R >>',
-    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
-    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
-    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
-    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`
+    encodeWinAnsi('<< /Type /Catalog /Pages 2 0 R >>'),
+    encodeWinAnsi('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'),
+    encodeWinAnsi(
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>'
+    ),
+    encodeWinAnsi(
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'
+    ),
+    concatBytes([
+      encodeWinAnsi(`<< /Length ${streamBytes.length} >>\nstream\n`),
+      streamBytes,
+      encodeWinAnsi('\nendstream')
+    ])
   ];
-  let pdf = '%PDF-1.4\n';
-  const offsets = [0];
+  const chunks = [];
+  let length = 0;
+  const push = (bytes) => {
+    chunks.push(bytes);
+    length += bytes.length;
+  };
+  push(encodeWinAnsi('%PDF-1.4\n'));
+  const offsets = [];
   for (let index = 0; index < objects.length; index += 1) {
-    offsets.push(pdf.length);
-    pdf += `${index + 1} 0 obj\n${objects[index]}\nendobj\n`;
+    offsets.push(length);
+    push(encodeWinAnsi(`${index + 1} 0 obj\n`));
+    push(objects[index]);
+    push(encodeWinAnsi('\nendobj\n'));
   }
-  const xref = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  for (const offset of offsets.slice(1)) {
-    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  const xref = length;
+  push(encodeWinAnsi(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`));
+  for (const offset of offsets) {
+    push(encodeWinAnsi(`${String(offset).padStart(10, '0')} 00000 n \n`));
   }
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return new Blob([pdf], { type: 'application/pdf' });
+  push(
+    encodeWinAnsi(
+      `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`
+    )
+  );
+  return new Blob([concatBytes(chunks)], { type: 'application/pdf' });
+}
+
+// cp1252 high range (0x80-0x9F) for the typographic codepoints routine in LLM
+// output — em/en dash, curly quotes, ellipsis, bullet — so they survive into
+// the PDF instead of degrading. Latin-1 (0xA0-0xFF) maps to itself.
+const WINANSI_HIGH = {
+  0x20ac: 0x80,
+  0x201a: 0x82,
+  0x0192: 0x83,
+  0x201e: 0x84,
+  0x2026: 0x85,
+  0x2020: 0x86,
+  0x2021: 0x87,
+  0x02c6: 0x88,
+  0x2030: 0x89,
+  0x0160: 0x8a,
+  0x2039: 0x8b,
+  0x0152: 0x8c,
+  0x017d: 0x8e,
+  0x2018: 0x91,
+  0x2019: 0x92,
+  0x201c: 0x93,
+  0x201d: 0x94,
+  0x2022: 0x95,
+  0x2013: 0x96,
+  0x2014: 0x97,
+  0x02dc: 0x98,
+  0x2122: 0x99,
+  0x0161: 0x9a,
+  0x203a: 0x9b,
+  0x0153: 0x9c,
+  0x017e: 0x9e,
+  0x0178: 0x9f
+};
+
+function encodeWinAnsi(text) {
+  const str = String(text || '');
+  const out = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i += 1) {
+    const code = str.charCodeAt(i);
+    if (code <= 0x7f || (code >= 0xa0 && code <= 0xff)) {
+      out[i] = code;
+    } else if (WINANSI_HIGH[code] !== undefined) {
+      out[i] = WINANSI_HIGH[code];
+    } else {
+      out[i] = 0x3f; // unmappable (CJK, emoji) -> '?'
+    }
+  }
+  return out;
 }
 
 function downloadBlob(filename, blob) {
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  // Desktop: native save dialog via Rust (blob-anchor downloads are a silent
+  // no-op in WKWebView). Hosted: classic anchor. Returns saved path | null.
+  return saveBlob(blob, filename);
 }
 
 function documentXmlFromMarkdown(content) {
@@ -231,11 +302,16 @@ function stripMarkdown(value) {
 }
 
 function escapeXml(value) {
-  return String(value || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+  return (
+    String(value || '')
+      // XML 1.0 forbids C0 control chars except tab/newline/carriage-return;
+      // a stray control byte in content otherwise yields an unopenable .docx.
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+  );
 }
 
 function escapePdfText(value) {

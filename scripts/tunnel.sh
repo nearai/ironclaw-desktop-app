@@ -13,7 +13,7 @@
 #   restart [host] [port]   close + open
 #
 # Defaults (overridable via env):
-#   host  = ${IRONCLAW_SSH_ALIAS:-ironclaw-nearai}
+#   host  = ${IRONCLAW_SSH_ALIAS:-your-ssh-host}
 #   port  = ${IRONCLAW_TUNNEL_PORT:-18789}
 #
 # Usage:
@@ -25,7 +25,7 @@
 
 set -uo pipefail
 
-DEFAULT_HOST="${IRONCLAW_SSH_ALIAS:-ironclaw-nearai}"
+DEFAULT_HOST="${IRONCLAW_SSH_ALIAS:-your-ssh-host}"
 DEFAULT_PORT="${IRONCLAW_TUNNEL_PORT:-18789}"
 
 # Colors (disabled when stdout is not a tty).

@@ -51,6 +51,36 @@ async function prepareVendor() {
       path.join(repoRoot, "node_modules", "marked", "lib", "marked.umd.js"),
       path.join(vendorRoot, "marked.umd.js"),
     ),
+    // pdf.js powers the composer's client-side PDF text extraction (the
+    // bundled Reborn sidecar has no binary extractors). Lazy-imported as an
+    // ES module only when a PDF is attached; the worker rides alongside.
+    copyFile(
+      path.join(repoRoot, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.min.mjs"),
+      path.join(vendorRoot, "pdf.min.mjs"),
+    ),
+    copyFile(
+      path.join(repoRoot, "node_modules", "pdfjs-dist", "legacy", "build", "pdf.worker.min.mjs"),
+      path.join(vendorRoot, "pdf.worker.min.mjs"),
+    ),
+    // tesseract.js powers OCR for scanned PDFs (static/ocr is NOT wiped like
+    // vendor/ — eng.traineddata lives there committed; these three stay in
+    // sync with the installed package).
+    copyFile(
+      path.join(repoRoot, "node_modules", "tesseract.js", "dist", "tesseract.esm.min.js"),
+      path.join(staticRoot, "ocr", "tesseract.esm.min.js"),
+    ),
+    copyFile(
+      path.join(repoRoot, "node_modules", "tesseract.js", "dist", "worker.min.js"),
+      path.join(staticRoot, "ocr", "worker.min.js"),
+    ),
+    copyFile(
+      path.join(repoRoot, "node_modules", "tesseract.js-core", "tesseract-core-simd-lstm.wasm.js"),
+      path.join(staticRoot, "ocr", "tesseract-core-simd-lstm.wasm.js"),
+    ),
+    copyFile(
+      path.join(repoRoot, "node_modules", "tesseract.js-core", "tesseract-core-simd-lstm.wasm"),
+      path.join(staticRoot, "ocr", "tesseract-core-simd-lstm.wasm"),
+    ),
   ]);
 }
 

@@ -14,9 +14,10 @@ function getInitialTheme() {
     if (current === 'light' || current === 'dark') return current;
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (stored === 'light' || stored === 'dark') return stored;
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    // Dark is the product default; light is an explicit, persisted opt-in.
+    return 'dark';
   } catch (_) {
-    return 'light';
+    return 'dark';
   }
 }
 

@@ -10,6 +10,74 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function dummyAttachmentScenario(name, mimeType, content, options = {}) {
+  const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content, 'utf8');
+  return {
+    name,
+    mimeType,
+    buffer,
+    base64: buffer.toString('base64'),
+    size: buffer.byteLength,
+    // When set, the composer's client-side extractor must transform this
+    // payload into inline text containing the marker (mime becomes
+    // text/plain). Unset scenarios must pass through byte-identical.
+    expectExtractedText: options.expectExtractedText || null
+  };
+}
+
+// A structurally valid single-page PDF (correct xref offsets) that pdf.js can
+// parse — proves the composer's real extraction path in the rendered run.
+function buildMinimalPdfBuffer(text) {
+  const escaped = text.replace(/[\\()]/g, (ch) => `\\${ch}`);
+  const stream = `BT /F1 18 Tf 72 720 Td (${escaped}) Tj ET`;
+  const objects = [
+    '<</Type/Catalog/Pages 2 0 R>>',
+    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>',
+    `<</Length ${stream.length}>>\nstream\n${stream}\nendstream`,
+    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>'
+  ];
+  let body = '%PDF-1.4\n';
+  const offsets = [];
+  objects.forEach((object, index) => {
+    offsets.push(body.length);
+    body += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefStart = body.length;
+  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const objectOffset of offsets) {
+    xref += `${String(objectOffset).padStart(10, '0')} 00000 n \n`;
+  }
+  const trailer = `trailer<</Size ${objects.length + 1}/Root 1 0 R>>\nstartxref\n${xrefStart}\n%%EOF`;
+  return Buffer.from(body + xref + trailer, 'latin1');
+}
+
+function attachmentTranscriptBlock(scenarios) {
+  // Mirrors what the real backend echoes back since the embed change: chip
+  // metadata plus a length-prefixed fenced text section per attachment. The
+  // reload render must parse chips out of this and strip every fenced body
+  // (including manifest-look-alike lines inside it) from the transcript.
+  return [
+    '<attachments ic="1">',
+    ...scenarios.flatMap((scenario, index) => {
+      const embedded = `INVOICE 7741 Preserve indemnity clause from ${scenario.name}\nfilename: decoy.pdf\nAttachment 99:\n---`;
+      return [
+        `Attachment ${index + 1}:`,
+        `filename: ${scenario.name}`,
+        `mime_type: ${scenario.mimeType}`,
+        `size: ${scenario.size}`,
+        'extraction_status: extracted_text',
+        `extracted_text_chars: ${embedded.length}`,
+        'extracted_text:',
+        '---',
+        embedded,
+        '---'
+      ];
+    }),
+    '</attachments>'
+  ].join('\n');
+}
+
 async function waitForServer() {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
@@ -185,8 +253,69 @@ try {
     model_execution_verified: false,
     model_readiness: 'unverified'
   };
-  const smokePdfBytes = Buffer.from('%PDF-1.4\nstatic smoke services agreement template');
-  const smokePdfBase64 = smokePdfBytes.toString('base64');
+  let llmProvidersPayload = {
+    providers: [
+      {
+        id: 'nearai',
+        name: 'NEAR.AI',
+        description: 'IronClaw Cloud model routing through NEAR AI.',
+        adapter: 'nearai',
+        default_model: 'auto',
+        builtin: true,
+        api_key_required: false,
+        accepts_api_key: true,
+        api_key_set: false
+      },
+      {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        description: 'Bring your own OpenRouter API key.',
+        adapter: 'open_ai_completions',
+        base_url: 'https://openrouter.ai/api/v1',
+        default_model: 'z-ai/glm-4.5',
+        builtin: true,
+        api_key_required: true,
+        api_key_set: false
+      }
+    ],
+    active: null
+  };
+  const smokeAttachmentScenarios = [
+    dummyAttachmentScenario(
+      'services-template.pdf',
+      'application/pdf',
+      '%PDF-1.4\nstatic smoke services agreement template\n%%EOF\n'
+    ),
+    dummyAttachmentScenario(
+      'redline-instructions.md',
+      'text/markdown',
+      '# Redline instructions\n\n- Preserve indemnity clause\n- Flag payment terms\n'
+    ),
+    dummyAttachmentScenario(
+      'invoice-payload.json',
+      'application/json',
+      JSON.stringify({ invoice: 'INV-4242', amount: 1200, currency: 'USD' }, null, 2)
+    ),
+    dummyAttachmentScenario(
+      'scope-summary.html',
+      'text/html',
+      '<!doctype html><h1>Scope Summary</h1><p>Export-ready HTML source.</p>'
+    ),
+    dummyAttachmentScenario(
+      'acme-invoice.pdf',
+      'application/pdf',
+      buildMinimalPdfBuffer('INVOICE 7741 TOTAL 432.50 VENDOR ACME'),
+      { expectExtractedText: 'INVOICE 7741' }
+    )
+  ];
+  // A corrupt OOXML package (zip magic, no central directory) must be
+  // REJECTED with an honest notice and never shipped as an unreadable blob —
+  // the extraction hardening's contract.
+  const corruptDocxScenario = dummyAttachmentScenario(
+    'board-minutes.docx',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    Buffer.from('PK\u0003\u0004dummy docx package bytes for static smoke', 'binary')
+  );
   await page.route(`${gatewayOrigin}/api/gateway/status`, async (route) => {
     await route.fulfill({
       contentType: 'application/json',
@@ -238,13 +367,7 @@ try {
               content: [
                 'Draft a services agreement from this attachment.',
                 '',
-                '<attachments>',
-                'Attachment 1:',
-                'filename: services-template.pdf',
-                'mime_type: application/pdf',
-                'extraction_status: unsupported_binary',
-                'extracted_text: IronClaw could not extract this binary format yet.',
-                '</attachments>'
+                attachmentTranscriptBlock(smokeAttachmentScenarios)
               ].join('\n'),
               sequence: 1,
               created_at: '2026-06-02T08:00:00.000Z'
@@ -411,6 +534,13 @@ try {
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({ entries: [] })
+      });
+      return;
+    }
+    if (webchatPath === '/api/webchat/v2/llm/providers') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(llmProvidersPayload)
       });
       return;
     }
@@ -622,7 +752,12 @@ try {
     await page.waitForFunction(
       () => {
         const text = document.body?.innerText || '';
-        return text.includes('New') || text.includes('Chat') || text.includes('Extensions');
+        return (
+          text.includes('Welcome to IronClaw') ||
+          text.includes('New') ||
+          text.includes('Chat') ||
+          text.includes('Extensions')
+        );
       },
       null,
       { timeout: 20_000 }
@@ -669,20 +804,48 @@ try {
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat`, {
     waitUntil: 'domcontentloaded'
   });
+  await page.getByText('Welcome to IronClaw', { exact: true }).waitFor({ timeout: 20_000 });
+  const firstRunUrl = new URL(page.url());
+  if (!firstRunUrl.pathname.endsWith('/welcome')) {
+    throw new Error(`static first-run gate did not redirect chat to welcome: ${page.url()}`);
+  }
+
+  llmProvidersPayload = {
+    ...llmProvidersPayload,
+    active: {
+      provider_id: 'nearai',
+      model: 'auto'
+    }
+  };
+
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat`, {
+    waitUntil: 'domcontentloaded'
+  });
   const modelControl = page.getByLabel('Chat model settings').first();
   await modelControl.waitFor({ timeout: 20_000 });
   const modelControlText = await modelControl.innerText();
-  if (!modelControlText.includes('Configured') || !modelControlText.includes('NEAR.AI / auto')) {
+  if (!modelControlText.includes('NEAR.AI · auto')) {
     throw new Error(
       `static chat model control did not show default NEAR.AI model:\n${modelControlText}`
     );
   }
-  const modelControlHref = await modelControl.getAttribute('href');
-  if (modelControlHref !== `${appBasePath}/settings/inference`) {
+  // Readiness moved off the chip into the tooltip — keep it honest there.
+  const modelControlTitle = await modelControl.getAttribute('title');
+  if (!modelControlTitle || !modelControlTitle.length) {
+    throw new Error('model chip lost its readiness tooltip');
+  }
+  // The model control is a popover trigger now: opening it must render the
+  // model panel with a working manage link into inference settings.
+  await modelControl.click();
+  const manageLink = page.getByText('Manage providers in Settings', { exact: true });
+  await manageLink.waitFor({ timeout: 10_000 });
+  const manageHref = await manageLink.getAttribute('href');
+  if (manageHref !== `${appBasePath}/settings/inference`) {
     throw new Error(
-      `static chat model control did not link to inference settings: ${modelControlHref}`
+      `model popover manage link did not target inference settings: ${manageHref}`
     );
   }
+  await page.keyboard.press('Escape');
   const initialChatBody = await page.locator('body').innerText();
   if (modelControlText.includes('OpenRouter') || modelControlText.includes('deepseek/')) {
     throw new Error(
@@ -694,12 +857,21 @@ try {
   }
   const verifiedComposer = page.locator('textarea').first();
   await verifiedComposer.waitFor({ timeout: 20_000 });
-  await page.locator('input[type="file"]').setInputFiles({
-    name: 'services-template.pdf',
-    mimeType: 'application/pdf',
-    buffer: smokePdfBytes
-  });
-  await page.getByText('services-template.pdf', { exact: true }).waitFor({ timeout: 20_000 });
+  await page.locator('input[type="file"]').setInputFiles(
+    [...smokeAttachmentScenarios, corruptDocxScenario].map((scenario) => ({
+      name: scenario.name,
+      mimeType: scenario.mimeType,
+      buffer: scenario.buffer
+    }))
+  );
+  for (const scenario of smokeAttachmentScenarios) {
+    await page.getByText(scenario.name, { exact: true }).waitFor({ timeout: 20_000 });
+  }
+  // The corrupt docx surfaces an honest rejection notice instead of a chip
+  // that pretends it will be readable.
+  await page
+    .getByText('could not be opened — the file looks corrupted or incomplete', { exact: false })
+    .waitFor({ timeout: 20_000 });
   const promptText = 'Draft a services agreement from this attachment.';
   await verifiedComposer.click();
   await verifiedComposer.pressSequentially(promptText);
@@ -747,21 +919,120 @@ try {
   if (!chatPost) {
     throw new Error('static chat did not POST a message request');
   }
-  if (chatPost.content !== promptText || String(chatPost.content || '').includes('data_base64')) {
+  // Content leads with the prompt, then carries a base64-free durable
+  // attachment manifest so the Reborn timeline preserves chips on reload.
+  const postedContent = String(chatPost.content || '');
+  if (!postedContent.startsWith(promptText) || postedContent.includes('data_base64')) {
     throw new Error(`static chat posted attachment data in content: ${JSON.stringify(chatPost)}`);
   }
-  if (!Array.isArray(chatPost.attachments) || chatPost.attachments.length !== 1) {
+  if (!postedContent.includes('<attachments ic="1">')) {
     throw new Error(
-      `static chat did not send JSON attachments: ${JSON.stringify(chatPost)}`
+      `static chat did not append a durable attachment manifest: ${JSON.stringify(chatPost)}`
     );
   }
-  const postedAttachment = chatPost.attachments[0];
+  for (const scenario of smokeAttachmentScenarios) {
+    if (!postedContent.includes(`filename: ${scenario.name}`)) {
+      throw new Error(
+        `static chat manifest missing ${scenario.name}: ${JSON.stringify(chatPost)}`
+      );
+    }
+  }
   if (
-    postedAttachment.filename !== 'services-template.pdf' ||
-    postedAttachment.mime_type !== 'application/pdf' ||
-    postedAttachment.base64 !== smokePdfBase64
+    chatPost.attachments.some(
+      (attachment) =>
+        attachment.filename === corruptDocxScenario.name ||
+        attachment.name === corruptDocxScenario.name
+    )
   ) {
-    throw new Error(`static chat posted wrong attachment payload: ${JSON.stringify(chatPost)}`);
+    throw new Error('corrupt docx was shipped instead of rejected');
+  }
+  if (
+    !Array.isArray(chatPost.attachments) ||
+    chatPost.attachments.length !== smokeAttachmentScenarios.length
+  ) {
+    throw new Error(`static chat did not send JSON attachments: ${JSON.stringify(chatPost)}`);
+  }
+  for (const scenario of smokeAttachmentScenarios) {
+    const postedAttachment = chatPost.attachments.find(
+      (attachment) => attachment.filename === scenario.name || attachment.name === scenario.name
+    );
+    if (!postedAttachment) {
+      throw new Error(
+        `static chat did not post attachment ${scenario.name}: ${JSON.stringify(chatPost)}`
+      );
+    }
+    if (scenario.expectExtractedText) {
+      // The composer's client-side extractor must have replaced the binary
+      // payload with inline text the sidecar can feed the model.
+      const decoded = Buffer.from(postedAttachment.base64 || '', 'base64').toString('utf8');
+      if (
+        postedAttachment.mime_type !== 'text/plain' ||
+        !decoded.includes(scenario.expectExtractedText)
+      ) {
+        throw new Error(
+          `static chat did not extract text from ${scenario.name}: mime=${postedAttachment.mime_type} decoded=${decoded.slice(0, 120)}`
+        );
+      }
+    } else if (
+      postedAttachment.mime_type !== scenario.mimeType ||
+      postedAttachment.base64 !== scenario.base64
+    ) {
+      throw new Error(
+        `static chat posted wrong attachment payload for ${scenario.name}: ${JSON.stringify(chatPost)}`
+      );
+    }
+  }
+  // The durable block must also EMBED text content — the bundled sidecar
+  // never feeds attachment bytes to the model, so message content is the
+  // only channel the model can actually read a document through.
+  if (!postedContent.includes('extraction_status: extracted_text')) {
+    throw new Error(
+      `static chat did not embed extracted text sections in content: ${postedContent.slice(0, 400)}`
+    );
+  }
+  const expectedEmbeds = [
+    'INVOICE 7741', // extracted from acme-invoice.pdf client-side
+    'Preserve indemnity clause', // text/markdown raw payload
+    'INV-4242' // application/json raw payload
+  ];
+  for (const embed of expectedEmbeds) {
+    if (!postedContent.includes(embed)) {
+      throw new Error(`static chat content missing embedded document text: ${embed}`);
+    }
+  }
+  const visibleChatBody = await page.locator('body').innerText();
+  for (const scenario of smokeAttachmentScenarios) {
+    if (!visibleChatBody.includes(scenario.name)) {
+      throw new Error(`static chat reload did not render attachment metadata: ${scenario.name}`);
+    }
+  }
+  // Embedded document text is for the model, never for the transcript —
+  // parseDurableAttachmentBlock must strip it from the rendered bubble.
+  for (const embed of ['INVOICE 7741', 'Preserve indemnity clause', 'extraction_status:', 'decoy.pdf']) {
+    if (visibleChatBody.includes(embed)) {
+      throw new Error(`embedded attachment text leaked into the visible transcript: ${embed}`);
+    }
+  }
+
+  // Chip click opens the document preview with the captured embedded text;
+  // Escape closes it and the text leaves the transcript again.
+  const previewChip = page.locator('button[aria-label^="Preview "]').first();
+  await previewChip.click();
+  const previewText = page.locator('[data-testid="attachment-preview-text"]');
+  await previewText.waitFor({ state: 'visible', timeout: 5000 });
+  const previewContent = await previewText.innerText();
+  if (!previewContent.includes('INVOICE 7741')) {
+    throw new Error(
+      `attachment preview did not show the embedded text: ${previewContent.slice(0, 120)}`
+    );
+  }
+  await page.keyboard.press('Escape');
+  await page
+    .locator('[data-testid="attachment-preview-text"]')
+    .waitFor({ state: 'detached', timeout: 5000 });
+  const bodyAfterPreview = await page.locator('body').innerText();
+  if (bodyAfterPreview.includes('INVOICE 7741')) {
+    throw new Error('preview text remained in the transcript after closing the modal');
   }
   await mkdir('output/playwright', { recursive: true });
   await page.screenshot({

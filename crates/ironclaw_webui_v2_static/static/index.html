@@ -25,18 +25,15 @@
     <script nonce="__IRONCLAW_CSP_NONCE__">
       (() => {
         try {
+          // Dark is the product default; light is an explicit opt-in via the
+          // sidebar toggle (persisted), not an OS-derived guess.
           const stored = localStorage.getItem("ironclaw:v2-theme");
-          const theme =
-            stored === "light" || stored === "dark"
-              ? stored
-              : matchMedia("(prefers-color-scheme: dark)").matches
-              ? "dark"
-              : "light";
+          const theme = stored === "light" ? "light" : "dark";
           document.documentElement.dataset.theme = theme;
           window.__IRONCLAW_INITIAL_THEME__ = theme;
         } catch (_) {
-          document.documentElement.dataset.theme = "light";
-          window.__IRONCLAW_INITIAL_THEME__ = "light";
+          document.documentElement.dataset.theme = "dark";
+          window.__IRONCLAW_INITIAL_THEME__ = "dark";
         }
       })();
     </script>
@@ -56,7 +53,11 @@
         };
         const hostedV2 =
           location.pathname === "/v2" || location.pathname.startsWith("/v2/");
-        const asset = (path) => (hostedV2 ? `/v2/${path}` : path);
+        // Root-absolute, always: this document is served for EVERY app route
+        // (deep links like /settings/inference included), so relative asset
+        // URLs would resolve against the route path and 404 — a blank window
+        // on any reload that isn't at "/".
+        const asset = (path) => (hostedV2 ? `/v2/${path}` : `/${path}`);
         const loadStyle = (href) => {
           const link = document.createElement("link");
           link.rel = "stylesheet";

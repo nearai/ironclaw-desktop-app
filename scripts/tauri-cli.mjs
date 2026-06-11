@@ -11,6 +11,20 @@ function hasArg(name, shortName) {
 }
 
 const isBuild = args[0] === 'build';
+
+// Tauri embeds frontendDist into the binary at COMPILE time, but cargo's
+// rerun-if-changed tracking misses edits nested inside the static tree —
+// a JS-only change can ship a binary with STALE embedded assets. Touch the
+// crate root so every `tauri build` re-embeds the current assets.
+if (isBuild) {
+  const { utimesSync } = await import('node:fs');
+  const now = new Date();
+  try {
+    utimesSync(new URL('../src-tauri/src/main.rs', import.meta.url), now, now);
+  } catch {
+    // Missing file would fail the build anyway; nothing to do here.
+  }
+}
 const hasSigningKey = Boolean((process.env.TAURI_SIGNING_PRIVATE_KEY || '').trim());
 const alreadyOverridesConfig = hasArg('--config', '-c');
 

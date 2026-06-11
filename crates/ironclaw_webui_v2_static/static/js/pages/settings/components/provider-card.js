@@ -2,8 +2,88 @@ import { Button } from '../../../design-system/button.js';
 import { Badge } from '../../../design-system/badge.js';
 import { Card } from '../../../design-system/card.js';
 import { Icon } from '../../../design-system/icons.js';
+import { Select } from '../../../design-system/input.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
+
+// Inline model switcher on the ACTIVE provider card: the backend's live
+// model list in a select, applied through the same set-active route the
+// chat popover uses. Loads lazily on first expand.
+function ActiveModelPicker({ provider, currentModel, onListModels, onApplyModel, t }) {
+  const [models, setModels] = React.useState(null);
+  const [choice, setChoice] = React.useState(currentModel || '');
+  const [busy, setBusy] = React.useState(false);
+  const [failed, setFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    if (models !== null || typeof onListModels !== 'function') return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const result = await onListModels({
+          provider_id: provider.id,
+          adapter: provider.adapter || provider.id
+        });
+        if (cancelled) return;
+        setModels(result?.ok && Array.isArray(result.models) ? result.models : []);
+        setFailed(!result?.ok);
+      } catch (_) {
+        if (!cancelled) {
+          setModels([]);
+          setFailed(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [models, onListModels, provider]);
+
+  if (models === null) {
+    return html`<div className="mt-3 text-xs text-[var(--v2-text-faint)]">
+      ${t('common.loading')}
+    </div>`;
+  }
+  if (models.length === 0) {
+    return failed
+      ? html`<div className="mt-3 text-xs text-[var(--v2-warning-text)]">
+          ${t('chat.modelPopoverError')}
+        </div>`
+      : null;
+  }
+
+  const apply = async () => {
+    if (!choice || busy || typeof onApplyModel !== 'function') return;
+    setBusy(true);
+    try {
+      await onApplyModel(provider, choice);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return html`
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <${Select}
+        value=${models.includes(choice) ? choice : ''}
+        onChange=${(event) => setChoice(event.target.value)}
+        className="h-8 max-w-[22rem] flex-1 text-xs"
+      >
+        <option value="" disabled>${t('llm.pickModel')}</option>
+        ${models.map((entry) => html`<option key=${entry} value=${entry}>${entry}</option>`)}
+      <//>
+      <${Button}
+        type="button"
+        variant="primary"
+        size="sm"
+        disabled=${busy || !choice || choice === currentModel}
+        onClick=${apply}
+      >
+        ${busy ? t('llm.applying') : t('llm.applyModel')}
+      <//>
+    </div>
+  `;
+}
 import {
   adapterLabel,
   isProviderConfigured,
@@ -25,6 +105,8 @@ export function ProviderCard({
   onNearaiLogin,
   onNearaiWallet,
   onCodexLogin,
+  onListModels,
+  onApplyModel,
   loginBusy
 }) {
   const t = useT();
@@ -79,6 +161,12 @@ export function ProviderCard({
           <//>
         `
       : null;
+  // Desktop builds hide GitHub/Google: NEAR's server only accepts hosted
+  // (private.near.ai) callbacks, so browser SSO cannot complete locally.
+  // API key + wallet are the working desktop paths.
+  // Desktop SSO runs in a dedicated app window (token captured from the
+  // allowlisted callback navigation) — the buttons work everywhere now.
+  const showBrowserSso = true;
   const loginActions =
     !isActive && provider.id === 'nearai'
       ? html`
@@ -92,24 +180,27 @@ export function ProviderCard({
           >
             ${t('onboarding.nearWallet')}
           <//>
-          <${Button}
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled=${loginBusy}
-            onClick=${() => onNearaiLogin('github')}
-          >
-            GitHub
-          <//>
-          <${Button}
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled=${loginBusy}
-            onClick=${() => onNearaiLogin('google')}
-          >
-            Google
-          <//>
+          ${showBrowserSso &&
+          html`
+            <${Button}
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled=${loginBusy}
+              onClick=${() => onNearaiLogin('github')}
+            >
+              GitHub
+            <//>
+            <${Button}
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled=${loginBusy}
+              onClick=${() => onNearaiLogin('google')}
+            >
+              Google
+            <//>
+          `}
         `
       : !isActive && provider.id === 'openai_codex'
         ? html`
@@ -251,6 +342,15 @@ export function ProviderCard({
               <div className="mt-1 truncate font-mono">${model || t('llm.none')}</div>
             </div>
           </div>
+          ${isActive &&
+          provider.can_list_models !== false &&
+          html`<${ActiveModelPicker}
+            provider=${provider}
+            currentModel=${model}
+            onListModels=${onListModels}
+            onApplyModel=${onApplyModel}
+            t=${t}
+          />`}
 
           <div
             className="mt-4 flex flex-wrap justify-end gap-2 border-t border-[var(--v2-panel-border)] pt-3"

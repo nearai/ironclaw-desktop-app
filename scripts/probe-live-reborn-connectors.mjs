@@ -107,6 +107,8 @@ async function main() {
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
   const sidecarLog = [];
+  const contractViolations = [];
+  const upstreamDefects = [];
   const evidence = {
     generated_at: new Date().toISOString(),
     binary: sidecar,
@@ -128,10 +130,20 @@ async function main() {
     },
   };
 
+  // Hermetic env: ambient LLM credentials/endpoints (developer shells, CI,
+  // agent harnesses exporting ANTHROPIC_BASE_URL and friends) must not leak
+  // into the probe sidecar — Reborn's env fallback would try to resolve that
+  // provider at boot and exit before any connector route is reachable.
+  const inheritedEnv = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([key]) => !/^(ANTHROPIC_|OPENAI_|OPENROUTER_|NEARAI_|LLM_)/.test(key),
+    ),
+  );
+
   const child = spawn(sidecar, ['serve', '--host', '127.0.0.1', '--port', String(port)], {
     cwd: repoRoot,
     env: {
-      ...process.env,
+      ...inheritedEnv,
       HOME: homeDir,
       XDG_CACHE_HOME: path.join(homeDir, '.cache'),
       XDG_CONFIG_HOME: path.join(homeDir, '.config'),
@@ -186,10 +198,19 @@ async function main() {
         throw new Error(`sidecar exited early with code ${child.exitCode}`);
       }
       try {
-        const response = await fetch(`${origin}/api/health`);
+        // The current Reborn sidecar has no /api/health route; an authed
+        // 200 from the webchat threads listing proves routing + bearer auth
+        // are actually serving, which is the readiness this probe needs.
+        const response = await fetch(`${origin}/api/webchat/v2/threads`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         if (response.ok) {
           healthy = true;
-          evidence.health = { status: response.status, ok: true };
+          evidence.health = {
+            route: '/api/webchat/v2/threads',
+            status: response.status,
+            ok: true,
+          };
           break;
         }
       } catch (_) {
@@ -209,72 +230,104 @@ async function main() {
       payload: { catalog_ref: 'tools/gmail' },
     });
 
+    // Drive the exact route sequence the rendered UI uses
+    // (extensions-api.js): GET /setup discovery -> POST /install with the
+    // registry's object package_ref -> POST /setup/oauth/start with the
+    // discovery's fresh invocation_id -> GET /extensions truth check ->
+    // manual-token product auth fallback -> POST /activate.
     const connectors = [
-      {
-        name: 'gmail',
-        provider: 'google',
-        accountLabel: 'Smoke Google',
-        catalogRef: 'tools/gmail',
-        dummyToken: 'ya29.smoke-google-live-probe',
-      },
-      {
-        name: 'google-calendar',
-        provider: 'google',
-        accountLabel: 'Smoke Google Calendar',
-        catalogRef: 'tools/google_calendar',
-        dummyToken: 'ya29.smoke-calendar-live-probe',
-      },
-      {
-        name: 'notion',
-        provider: 'notion',
-        accountLabel: 'Smoke Notion',
-        catalogRef: 'mcp-servers/notion',
-        dummyToken: 'secret_notion_live_probe',
-      },
+      { name: 'gmail', provider: 'google', accountLabel: 'Smoke Google', dummyToken: 'ya29.smoke-google-live-probe' },
+      { name: 'google-calendar', provider: 'google', accountLabel: 'Smoke Google Calendar', dummyToken: 'ya29.smoke-calendar-live-probe' },
+      { name: 'notion', provider: 'notion', accountLabel: 'Smoke Notion', dummyToken: 'secret_notion_live_probe' },
     ];
 
     for (const connector of connectors) {
-      await request(`${connector.name} lifecycle begin`, 'POST', `/api/webchat/v2/extensions/${connector.name}/setup`, {
-        action: 'begin',
-        payload: { catalog_ref: connector.catalogRef },
+      const discovery = await request(
+        `${connector.name} setup discovery`,
+        'GET',
+        `/api/webchat/v2/extensions/${connector.name}/setup`,
+      );
+      if (!discovery.response.ok) {
+        contractViolations.push(`${connector.name}: GET /setup discovery failed (${discovery.response.status})`);
+        continue;
+      }
+      const secret = (discovery.body?.secrets || [])[0];
+
+      const install = await request(`${connector.name} install`, 'POST', '/api/webchat/v2/extensions/install', {
+        package_ref: { kind: 'extension', id: connector.name },
       });
+      if (!install.response.ok) {
+        contractViolations.push(`${connector.name}: install failed (${install.response.status})`);
+      }
+
+      // OAuth start must either hand back a flow (2xx) or refuse with the
+      // honest retryable 503 the UI can render as a blocked state. Anything
+      // else is a contract violation.
+      const oauth = await request(
+        `${connector.name} oauth start`,
+        'POST',
+        `/api/webchat/v2/extensions/${connector.name}/setup/oauth/start`,
+        {
+          provider: secret?.provider || connector.provider,
+          account_label: secret?.setup?.account_label || `${connector.provider} credential`,
+          scopes: secret?.setup?.scopes || [],
+          expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+          invocation_id: secret?.setup?.invocation_id,
+        },
+      );
+      const oauthHonestlyBlocked =
+        oauth.response.status === 503 && oauth.body?.code === 'backend_unavailable';
+      if (!oauth.response.ok && !oauthHonestlyBlocked) {
+        contractViolations.push(
+          `${connector.name}: oauth/start neither succeeded nor blocked honestly (${oauth.response.status} ${JSON.stringify(oauth.body)})`,
+        );
+      }
+
+      const preAuthList = await request(`${connector.name} pre-auth truth`, 'GET', '/api/webchat/v2/extensions');
+      const preAuthEntry = (preAuthList.body?.extensions || []).find(
+        (ext) => ext?.package_ref?.id === connector.name,
+      );
+      if (preAuthEntry?.authenticated === true) {
+        contractViolations.push(
+          `${connector.name}: backend claims authenticated:true before any credential exists`,
+        );
+      }
 
       const setup = await request(`${connector.name} product auth setup`, 'POST', '/api/reborn/product-auth/manual-token/setup', {
         provider: connector.provider,
         account_label: connector.accountLabel,
       });
-
       const interactionId = setup.body?.interaction_id;
       const invocationId = setup.body?.invocation_id;
-      const secret = interactionId && invocationId
-        ? await request(`${connector.name} product auth secret-submit`, 'POST', '/api/reborn/product-auth/manual-token/secret-submit', {
+      if (interactionId && invocationId) {
+        await request(`${connector.name} product auth secret-submit`, 'POST', '/api/reborn/product-auth/manual-token/secret-submit', {
           interaction_id: interactionId,
           invocation_id: invocationId,
           token: connector.dummyToken,
-        })
-        : null;
+        });
+      } else {
+        contractViolations.push(`${connector.name}: manual-token setup returned no interaction/invocation id`);
+      }
 
-      const credentialRef = secret?.body?.credential_ref || `credential-${connector.name}-probe`;
-      await request(`${connector.name} lifecycle configure`, 'POST', `/api/webchat/v2/extensions/${connector.name}/setup`, {
-        action: 'configure',
-        payload: {
-          catalog_ref: connector.catalogRef,
-          provider: connector.provider,
-          account_label: connector.accountLabel,
-          credential_ref: credentialRef,
-        },
-      });
-
-      await request(`${connector.name} lifecycle activate`, 'POST', `/api/webchat/v2/extensions/${connector.name}/setup`, {
-        action: 'activate',
-        payload: { catalog_ref: connector.catalogRef },
-      });
+      // Known upstream defect probe: /activate without a verified credential
+      // currently succeeds and flips `authenticated` to true. The desktop UI
+      // never offers Activate in auth_required state (extension-actions.js),
+      // so this documents backend truthfulness rather than failing the run.
+      const activate = await request(`${connector.name} activate pre-auth (upstream truth)`, 'POST', `/api/webchat/v2/extensions/${connector.name}/activate`);
+      if (activate.response.ok) {
+        const postList = await request(`${connector.name} post-activate truth`, 'GET', '/api/webchat/v2/extensions');
+        const postEntry = (postList.body?.extensions || []).find(
+          (ext) => ext?.package_ref?.id === connector.name,
+        );
+        if (postEntry?.authenticated === true) {
+          upstreamDefects.push(
+            `${connector.name}: POST /activate without credentials succeeded and reported authenticated:true`,
+          );
+        }
+      }
     }
 
-    await request('slack blocked lifecycle truth', 'POST', '/api/webchat/v2/extensions/slack/setup', {
-      action: 'begin',
-      payload: { catalog_ref: 'channels/slack' },
-    });
+    await request('slack setup truth', 'GET', '/api/webchat/v2/extensions/slack/setup');
   } finally {
     await stopSidecar();
     evidence.sidecar_exit_code = child.exitCode;
@@ -284,25 +337,20 @@ async function main() {
       (probe.label.includes('unauthenticated') && probe.status === 401) ||
       (probe.label.includes('slash-prefixed') && probe.status === 400)
     );
-    const runtimeBlockedConfigures = evidence.probes.filter((probe) =>
-      probe.label.includes('lifecycle configure') &&
-      probe.response?.phase === 'unsupported_or_legacy'
-    );
-    const activationRejections = evidence.probes.filter((probe) =>
-      probe.label.includes('lifecycle activate') &&
-      probe.status === 400
-    );
-    const slackBlocked = evidence.probes.some((probe) =>
-      probe.label.includes('slack') &&
-      probe.response?.phase === 'unsupported_or_legacy'
-    );
+    const oauthOutcomes = evidence.probes
+      .filter((probe) => probe.label.includes('oauth start'))
+      .map((probe) => ({
+        label: probe.label,
+        status: probe.status,
+        honest_blocked: probe.status === 503,
+      }));
     evidence.summary = {
       total: evidence.probes.length,
       ok: evidence.probes.filter((probe) => probe.ok).length,
       expected_security_rejections: expectedSecurityRejections.length,
-      runtime_blocked_configures: runtimeBlockedConfigures.length,
-      activation_rejections: activationRejections.length,
-      slack_blocked: slackBlocked,
+      oauth_outcomes: oauthOutcomes,
+      contract_violations: contractViolations,
+      upstream_defects: upstreamDefects,
       failed_or_blocked: evidence.probes.filter((probe) => !probe.ok).length,
       failed_or_blocked_labels: evidence.probes.filter((probe) => !probe.ok).map((probe) => ({
         label: probe.label,
@@ -336,6 +384,16 @@ async function main() {
   });
   if (unexpected.length) {
     throw new Error(`Live connector probe found unexpected permissive routing: ${JSON.stringify(unexpected)}`);
+  }
+  if (evidence.summary.contract_violations.length) {
+    throw new Error(
+      `Live connector probe found product-contract violations:\n${evidence.summary.contract_violations.join('\n')}`,
+    );
+  }
+  if (evidence.summary.upstream_defects.length) {
+    console.warn(
+      `KNOWN UPSTREAM DEFECTS (not failing the probe; UI guards these states):\n${evidence.summary.upstream_defects.join('\n')}`,
+    );
   }
 }
 

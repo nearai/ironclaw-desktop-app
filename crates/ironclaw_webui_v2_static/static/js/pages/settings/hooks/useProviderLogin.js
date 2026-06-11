@@ -1,13 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { appScopedPath } from '../../../lib/app-path.js';
-import { gatewayOrigin, isDesktopRuntime } from '../../../lib/api.js';
+import { gatewayOrigin, isDesktopRuntime, openExternalUrl, tauriInvoke } from '../../../lib/api.js';
 import { React } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import {
   completeNearaiWalletLogin,
   fetchLlmProviders,
+  setActiveLlm,
   startCodexLogin,
-  startNearaiLogin
+  startNearaiLogin,
+  testLlmProviderConnection,
+  upsertLlmProvider
 } from '../lib/settings-api.js';
 
 const WALLET_LOGIN_TIMEOUT_MS = 300_000;
@@ -77,12 +80,39 @@ const POLL_INTERVAL_MS = 2000;
 
 // Poll the LLM snapshot until `providerId` becomes the active provider, or the
 // deadline passes. Returns true on success.
+//
+// Self-healing: the backend is expected to activate the provider after the
+// browser callback lands, but if it only stored the session, we verify the
+// credential actually works (test-connection) and flip the selection
+// ourselves. Verification runs every few ticks — it is a real network call
+// against the provider.
+const ACTIVATE_PROBE_EVERY_TICKS = 3;
+
 async function pollUntilActive(providerId, deadlineMs) {
   const deadline = Date.now() + deadlineMs;
+  let tick = 0;
   while (Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    tick += 1;
     const snapshot = await fetchLlmProviders().catch(() => null);
     if (snapshot?.active?.provider_id === providerId) {
+      return true;
+    }
+    if (tick % ACTIVATE_PROBE_EVERY_TICKS !== 0) continue;
+    const provider = snapshot?.providers?.find((entry) => entry?.id === providerId);
+    if (!provider) continue;
+    const probe = await testLlmProviderConnection({
+      provider_id: providerId,
+      adapter: provider.adapter || providerId,
+      model: provider.active_model || provider.default_model || 'auto'
+    }).catch(() => null);
+    if (!probe?.ok) continue;
+    await setActiveLlm({
+      provider_id: providerId,
+      model: provider.active_model || provider.default_model || 'auto'
+    }).catch(() => {});
+    const confirmed = await fetchLlmProviders().catch(() => null);
+    if (confirmed?.active?.provider_id === providerId) {
       return true;
     }
   }
@@ -117,18 +147,47 @@ export function useProviderLogin({ onSuccess } = {}) {
       setNearaiError('');
       setNearaiBusy(true);
       try {
+        if (isDesktopRuntime()) {
+          // private.near.ai only accepts its own origin as frontend_callback,
+          // so the desktop signs in inside a dedicated app window: the Rust
+          // command captures ?token= from the allowlisted callback navigation
+          // (cancelling it so the token never reaches the remote SPA),
+          // validates against /v1/users/me, and vaults it. The upsert below
+          // hot-swaps the LIVE sidecar — no restart, no key paste.
+          const token = await tauriInvoke('nearai_browser_login', { provider });
+          const snapshot = await fetchLlmProviders().catch(() => null);
+          const nearai = (snapshot?.providers || []).find((item) => item.id === 'nearai') || {};
+          await upsertLlmProvider({
+            id: 'nearai',
+            name: nearai.name || 'NEAR AI',
+            adapter: nearai.adapter || 'nearai',
+            base_url: nearai.base_url || '',
+            api_key: token
+          });
+          if (await pollUntilActive('nearai', NEARAI_POLL_DEADLINE_MS)) {
+            await finishActive();
+            return;
+          }
+          setNearaiError(t('onboarding.nearaiTimeout'));
+          return;
+        }
         const { auth_url: authUrl } = await startNearaiLogin({
           provider,
           origin: providerLoginOrigin()
         });
-        window.open(authUrl, '_blank', 'noopener');
+        const opened = await openExternalUrl(authUrl);
+        if (!opened) {
+          setNearaiError(t('onboarding.nearaiFailed'));
+          return;
+        }
         if (await pollUntilActive('nearai', NEARAI_POLL_DEADLINE_MS)) {
           await finishActive();
           return;
         }
         setNearaiError(t('onboarding.nearaiTimeout'));
-      } catch (_err) {
-        setNearaiError(t('onboarding.nearaiFailed'));
+      } catch (err) {
+        const message = String(err?.message || err || '');
+        setNearaiError(message || t('onboarding.nearaiFailed'));
       } finally {
         setNearaiBusy(false);
       }
@@ -178,7 +237,7 @@ export function useProviderLogin({ onSuccess } = {}) {
     try {
       const { user_code: userCode, verification_uri: verificationUri } = await startCodexLogin();
       setCodexCode({ userCode, verificationUri });
-      window.open(verificationUri, '_blank', 'noopener');
+      await openExternalUrl(verificationUri);
       if (await pollUntilActive('openai_codex', CODEX_POLL_DEADLINE_MS)) {
         await finishActive();
         return;

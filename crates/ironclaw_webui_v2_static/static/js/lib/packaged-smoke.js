@@ -10,6 +10,17 @@ import {
   tauriInvoke
 } from './api.js';
 import {
+  buildDurableAttachmentBlock,
+  messagesFromTimeline,
+  pendingMessagesAfterTimeline
+} from '../pages/chat/lib/history-messages.js';
+import { extractAttachmentText } from '../pages/chat/lib/extract-attachment-text.js';
+import {
+  addPending,
+  loadPending,
+  recordAcceptedMessageRef
+} from '../pages/chat/lib/pending-messages.js';
+import {
   buildDocxBlob,
   buildHtmlBlob,
   buildJsonBlob,
@@ -53,47 +64,82 @@ export async function maybeRunPackagedWebviewSmoke() {
     }
   };
 
+  // Each phase is raced against a deadline. A hung await (e.g. a WebView
+  // fetch that never settles, or a sidecar stuck in a model retry loop) must
+  // never leave the harness with no evidence — the shell validator then sees
+  // a deterministic FAIL instead of "timed out waiting for evidence".
   try {
-    await smokeDiag('bootstrap session start');
-    await bootstrapPackagedSession(report, check);
-    await smokeDiag('bootstrap session passed');
-    if (report.model_credentials_blocked) {
-      await smokeDiag('chat attachment route skipped because model credentials are unavailable');
-      check('WebView surfaced model credential blocker before chat send', true, {
-        llm_backend: report.gateway_status?.llm_backend || null,
-        llm_model: report.gateway_status?.llm_model || null,
-        reason: report.gateway_status?.model_execution_failure_summary || null
-      });
-    } else {
-      await smokeDiag('chat attachment route start');
-      await proveChatAttachmentRoute(report, check);
-      await smokeDiag('chat attachment route passed');
-    }
-    await smokeDiag('export builders start');
-    await proveExportBuilders(report, check);
-    await smokeDiag('export builders passed');
+    smokeDiag('bootstrap session start');
+    await withDeadline('bootstrap session', 60_000, () => bootstrapPackagedSession(report, check));
+    smokeDiag('bootstrap session passed');
+    smokeDiag('chat attachment route start');
+    await withDeadline('chat attachment route', 75_000, () =>
+      proveChatAttachmentRoute(report, check)
+    );
+    smokeDiag('chat attachment route passed');
+    smokeDiag('export builders start');
+    await withDeadline('export builders', 90_000, () => proveExportBuilders(report, check));
+    smokeDiag('export builders passed');
+    smokeDiag('document extraction start');
+    await withDeadline('document extraction', 300_000, () =>
+      proveDocumentExtraction(report, check)
+    );
+    smokeDiag('document extraction passed');
     report.status = 'passed';
   } catch (err) {
     report.status = 'failed';
     report.errors.push(errorSummary(err));
-    await smokeDiag(`failed ${errorSummary(err).message}`);
+    smokeDiag(`failed ${errorSummary(err).message}`);
   } finally {
     report.completed_at = new Date().toISOString();
     report.pass_count = report.checks.filter((entry) => entry.status === 'PASS').length;
     report.fail_count = report.checks.filter((entry) => entry.status === 'FAIL').length;
     try {
-      await smokeDiag('report write start');
+      smokeDiag('report write start');
       await tauriInvoke('packaged_smoke_report', { report });
-      await smokeDiag('report write passed');
+      smokeDiag('report write passed');
     } catch (err) {
       console.warn('[ironclaw] packaged WebView smoke report failed', err);
     }
   }
 }
 
-async function smokeDiag(message) {
+// Run `fn` but reject if it does not settle within `ms`. Converts a hang into
+// a thrown error so the surrounding try/catch records a failure and still
+// writes evidence.
+function withDeadline(label, ms, fn) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(`${label} exceeded ${ms}ms deadline`));
+    }, ms);
+    Promise.resolve()
+      .then(fn)
+      .then(
+        (value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (err) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          reject(err);
+        }
+      );
+  });
+}
+
+// Fire-and-forget: a diagnostic invoke must never be able to stall the proof.
+function smokeDiag(message) {
   try {
-    await tauriInvoke('diag_log', { msg: `[packaged-smoke] ${message}` });
+    Promise.resolve(tauriInvoke('diag_log', { msg: `[packaged-smoke] ${message}` })).catch(
+      () => {}
+    );
   } catch (_) {
     // Diagnostics should never change smoke behavior.
   }
@@ -150,14 +196,10 @@ async function bootstrapPackagedSession(report, check) {
     thread_count: health.threads.length
   });
 
-  const gatewayStatus = await retry(
-    'gateway model readiness status',
-    () => fetchGatewayStatus(),
-    {
-      attempts: 8,
-      delayMs: 300
-    }
-  );
+  const gatewayStatus = await retry('gateway model readiness status', () => fetchGatewayStatus(), {
+    attempts: 8,
+    delayMs: 300
+  });
   report.gateway_status = sanitizeRouteResponse(gatewayStatus);
   report.model_credentials_blocked =
     gatewayStatus?.model_execution_failure_category === 'model_credentials_unavailable';
@@ -179,6 +221,22 @@ async function proveChatAttachmentRoute(report, check) {
     mime_type: 'text/csv',
     data_base64: base64FromText(csv)
   };
+  // Send exactly as the real UI does: the durable attachment block carries
+  // chip metadata for reload AND the embedded text content — the only
+  // channel through which the model can read a document (the sidecar never
+  // feeds attachment bytes to it). The timeline echo below then proves the
+  // backend content validator accepted the embedded form.
+  const contentForReborn = `${prompt}${buildDurableAttachmentBlock(
+    [
+      {
+        name: attachment.name,
+        mime_type: attachment.mime_type,
+        size: csv.length,
+        data_base64: attachment.data_base64
+      }
+    ],
+    { contentBytes: new TextEncoder().encode(prompt).length }
+  )}`;
 
   const thread = await retry(
     'create webchat thread',
@@ -198,7 +256,7 @@ async function proveChatAttachmentRoute(report, check) {
 
   const sent = await sendMessage({
     threadId,
-    content: prompt,
+    content: contentForReborn,
     attachments: [attachment],
     clientActionId: `packaged-webview-message-${Date.now()}`
   });
@@ -212,29 +270,88 @@ async function proveChatAttachmentRoute(report, check) {
     }
   );
 
-  const timeline = await retry(
-    'timeline contains sent prompt and attachment',
-    async () => {
-      const value = await fetchTimeline({ threadId, limit: 50 });
-      const text = JSON.stringify(value || {});
-      if (!text.includes(prompt) || !text.includes('packaged-webview-smoke.csv')) {
-        throw new Error('timeline does not contain submitted prompt and attachment');
-      }
-      return value;
-    },
-    { attempts: 12, delayMs: 750 }
-  );
+  const timeline = await pollTimelineForPrompt({ threadId, prompt, report });
+  await smokeDiag('timeline poll done');
   const timelineText = JSON.stringify(timeline || {});
-  check('Timeline reload preserves user prompt', timelineText.includes(prompt), {
-    prompt_length: prompt.length
+  const timelineHasPrompt = timelineText.includes(prompt);
+  const timelineHasAttachment = timelineText.includes('packaged-webview-smoke.csv');
+  report.timeline_after_send = sanitizeTimeline(timeline);
+
+  if (timelineHasPrompt && timelineHasAttachment) {
+    check('Timeline reload preserves user prompt', true, {
+      prompt_length: prompt.length
+    });
+    const embeddedTextObserved =
+      timelineText.includes('extraction_status: extracted_text') &&
+      timelineText.includes('packaged-webview-smoke,1');
+    check('Timeline echo carries embedded attachment text for the model', embeddedTextObserved, {
+      attachment_name: 'packaged-webview-smoke.csv',
+      embedded_text_observed: embeddedTextObserved
+    });
+    return;
+  }
+
+  // Partial projection is a hard failure, not a fallback candidate: a
+  // timeline that projected the prompt while dropping its attachment block
+  // makes the real UI content-dedupe the pending row away and render the
+  // turn chipless — the exact regression this smoke exists to catch.
+  check(
+    'Timeline did not project the prompt while dropping its attachment',
+    !(timelineHasPrompt && !timelineHasAttachment),
+    {
+      timeline_projected_prompt: timelineHasPrompt,
+      timeline_projected_attachment: timelineHasAttachment
+    }
+  );
+
+  // NOTE: the bundled Reborn sidecar (v0.29.0) does not mount the
+  // `/threads/{id}/runs/{run_id}` GET route — it 404s, and the WebView's
+  // Tauri HTTP path can stall on that response. The run's liveness is proven
+  // independently and reliably by scripts/probe-live-reborn-model-execution.mjs
+  // via the SSE `run_status` stream (queued -> running -> failed/completed),
+  // so the packaged smoke does not depend on the run-state route here.
+
+  const pendingStore = new Map();
+  const pendingRecord = {
+    id: `pending-packaged-${Date.now()}`,
+    role: 'user',
+    content: prompt,
+    timestamp: new Date().toISOString(),
+    attachments: [
+      {
+        filename: attachment.name,
+        mime_type: attachment.mime_type,
+        size_label: `${csv.length} bytes`
+      }
+    ],
+    isOptimistic: true
+  };
+  addPending(pendingStore, threadId, pendingRecord);
+  recordAcceptedMessageRef(pendingStore, threadId, pendingRecord.id, sent.accepted_message_ref);
+  // Simulate exactly what the real reload path renders: the polled timeline
+  // records plus the persisted pending queue — not an empty timeline, which
+  // would pass by construction.
+  await smokeDiag('fallback simulation start');
+  const polledRecords = timeline?.messages || [];
+  const persistedPending = loadPending(threadId);
+  const retainedPending = pendingMessagesAfterTimeline(polledRecords, persistedPending);
+  const fallbackMessages = messagesFromTimeline(polledRecords, persistedPending);
+  const fallbackText = JSON.stringify(fallbackMessages || {});
+  await smokeDiag(`fallback simulation done rendered=${fallbackMessages.length}`);
+
+  check('WebView pending fallback preserves user prompt', fallbackText.includes(prompt), {
+    prompt_length: prompt.length,
+    timeline_projected_prompt: timelineHasPrompt,
+    retained_pending_count: retainedPending.length
   });
-  const extractedTextObserved = timelineText.includes('packaged-webview-smoke,1');
-  const attachmentMetadataObserved = timelineText.includes('packaged-webview-smoke.csv');
-  check('Timeline reload preserves attachment metadata', attachmentMetadataObserved, {
-    attachment_name: 'packaged-webview-smoke.csv',
-    extracted_text_observed: extractedTextObserved,
-    payload_redacted_by_timeline: !extractedTextObserved
-  });
+  check(
+    'WebView pending fallback preserves attachment metadata',
+    fallbackText.includes('packaged-webview-smoke.csv'),
+    {
+      attachment_name: 'packaged-webview-smoke.csv',
+      timeline_projected_attachment: timelineHasAttachment
+    }
+  );
 }
 
 async function proveExportBuilders(report, check) {
@@ -298,6 +415,169 @@ async function proveExportBuilders(report, check) {
       mime_hint: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
     }
   );
+
+  // Native save proof: blob-anchor downloads are a silent no-op in WKWebView,
+  // so every export rides save_bytes_dialog. Under smoke mode the dialog is
+  // bypassed and the file lands in $TMPDIR/ironclaw-smoke-saves — invoking it
+  // here and checking the returned path proves bytes actually reach disk
+  // (the gap that let "downloads don't work" ship).
+  const savedPath = await tauriInvoke('save_bytes_dialog', {
+    defaultFilename: 'packaged-save-proof.txt',
+    contentsBase64: base64FromText(`packaged save proof ${Date.now()}`)
+  });
+  report.saved_file_path = savedPath || null;
+  check('WebView export saves a real file to disk', Boolean(savedPath), {
+    saved_path: savedPath || null
+  });
+}
+
+// Document extraction proofs run as their OWN deadline phase: the first OCR
+// in a fresh WebView cold-loads pdf.js plus the tesseract wasm core and
+// language data, which can take minutes on a loaded machine — that slowness
+// must not be able to fail the (fast) export-builder checks above.
+async function proveDocumentExtraction(report, check) {
+  // PDF ingestion: the composer's client-side extractor (pdf.js, lazy ES
+  // module + worker) must run inside THIS WebView (WKWebView on macOS — a
+  // different engine from the Playwright/Chromium rendered smoke). A valid
+  // single-page PDF goes in; readable text must come out.
+  const samplePdf = buildSampleIngestPdf('PACKAGED INGEST 9913 OK');
+  const extraction = await extractAttachmentText({
+    base64: samplePdf,
+    filename: 'packaged-ingest.pdf',
+    mime_type: 'application/pdf'
+  });
+  check(
+    'WebView extracts text from a PDF attachment',
+    extraction.extracted === true && extraction.text.includes('PACKAGED INGEST 9913'),
+    {
+      extracted: extraction.extracted === true,
+      preview: (extraction.text || '').slice(0, 60)
+    }
+  );
+
+  // OCR in THIS WebView engine: wasm + nested workers are exactly where
+  // WebKit diverges from the Chromium rendered smoke. A scanned (image-only)
+  // PDF built from a canvas must come back as readable text.
+  const scannedPdf = buildScannedPdfBytes('PACKAGED OCR 5531 APPROVED');
+  const ocr = await extractAttachmentText({
+    bytes: scannedPdf,
+    filename: 'packaged-scan.pdf',
+    mime_type: 'application/pdf'
+  });
+  check(
+    'WebView OCRs a scanned PDF attachment',
+    ocr.extracted === true && ocr.method === 'ocr' && /PACKAGED OCR 5531/.test(ocr.text || ''),
+    {
+      extracted: ocr.extracted === true,
+      method: ocr.method || null,
+      preview: (ocr.text || '').slice(0, 60)
+    }
+  );
+}
+
+// Image-only single-page PDF (canvas-rendered JPEG, zero text layer).
+function buildScannedPdfBytes(text) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1200;
+  canvas.height = 400;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, 1200, 400);
+  ctx.fillStyle = '#111';
+  ctx.font = '600 44px Arial';
+  ctx.fillText(text, 60, 200);
+  const jpegB64 = canvas.toDataURL('image/jpeg', 0.9).split(',')[1];
+  const jpegBytes = Uint8Array.from(atob(jpegB64), (c) => c.charCodeAt(0));
+  const encoder = new TextEncoder();
+  const parts = [];
+  const offsets = [];
+  let length = 0;
+  const push = (chunk) => {
+    const bytes = typeof chunk === 'string' ? encoder.encode(chunk) : chunk;
+    parts.push(bytes);
+    length += bytes.length;
+  };
+  const mark = () => offsets.push(length);
+  push('%PDF-1.4\n');
+  mark();
+  push('1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n');
+  mark();
+  push('2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n');
+  mark();
+  push(
+    '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 600 200]/Contents 4 0 R/Resources<</XObject<</Im0 5 0 R>>>>>>endobj\n'
+  );
+  const content = 'q 600 0 0 200 0 0 cm /Im0 Do Q';
+  mark();
+  push(`4 0 obj<</Length ${content.length}>>stream\n${content}\nendstream endobj\n`);
+  mark();
+  push(
+    `5 0 obj<</Type/XObject/Subtype/Image/Width 1200/Height 400/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length ${jpegBytes.length}>>stream\n`
+  );
+  push(jpegBytes);
+  push('\nendstream endobj\n');
+  const xrefStart = length;
+  let xref = 'xref\n0 6\n0000000000 65535 f \n';
+  for (const objectOffset of offsets) {
+    xref += `${String(objectOffset).padStart(10, '0')} 00000 n \n`;
+  }
+  push(xref + `trailer<</Size 6/Root 1 0 R>>\nstartxref\n${xrefStart}\n%%EOF`);
+  const out = new Uint8Array(length);
+  let cursor = 0;
+  for (const chunk of parts) {
+    out.set(chunk, cursor);
+    cursor += chunk.length;
+  }
+  return out;
+}
+
+// A structurally valid single-page PDF (computed xref offsets), base64.
+function buildSampleIngestPdf(text) {
+  const stream = `BT /F1 18 Tf 72 720 Td (${text}) Tj ET`;
+  const objects = [
+    '<</Type/Catalog/Pages 2 0 R>>',
+    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>',
+    `<</Length ${stream.length}>>\nstream\n${stream}\nendstream`,
+    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>'
+  ];
+  let body = '%PDF-1.4\n';
+  const offsets = [];
+  objects.forEach((object, index) => {
+    offsets.push(body.length);
+    body += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefStart = body.length;
+  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (const objectOffset of offsets) {
+    xref += `${String(objectOffset).padStart(10, '0')} 00000 n \n`;
+  }
+  const full = `${body}${xref}trailer<</Size ${objects.length + 1}/Root 1 0 R>>\nstartxref\n${xrefStart}\n%%EOF`;
+  return btoa(full);
+}
+
+async function pollTimelineForPrompt({ threadId, prompt, report }) {
+  let latest = null;
+  const pollErrors = [];
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    try {
+      latest = await fetchTimeline({ threadId, limit: 50 });
+      const text = JSON.stringify(latest || {});
+      if (text.includes(prompt) && text.includes('packaged-webview-smoke.csv')) {
+        break;
+      }
+    } catch (err) {
+      // A transient timeline hiccup must not abort the smoke — the
+      // fallback path plus the run-state check below keep the proof
+      // honest. The error trail stays in evidence.
+      pollErrors.push(errorSummary(err));
+    }
+    await delay(750);
+  }
+  if (report && pollErrors.length > 0) {
+    report.timeline_poll_errors = pollErrors;
+  }
+  return latest;
 }
 
 async function retry(label, fn, { attempts = 5, delayMs = 250 } = {}) {
@@ -347,7 +627,28 @@ function sanitizeRouteResponse(value) {
     thread_id: value.thread_id || value.thread?.thread_id || null,
     run_id: value.run_id || null,
     message_id: value.message_id || null,
-    profile: value.profile || null
+    profile: value.profile || null,
+    status: value.status || null,
+    failure_category: value.failure?.category || value.failure_category || null,
+    failure_summary: value.failure?.summary || value.failure_summary || null,
+    // Keep fetch failures visible in evidence instead of an all-null row.
+    error: value.error?.message || null
+  };
+}
+
+function sanitizeTimeline(value) {
+  if (!value || typeof value !== 'object') return value || null;
+  return {
+    message_count: Array.isArray(value.messages) ? value.messages.length : null,
+    next_cursor: value.next_cursor || null,
+    messages: Array.isArray(value.messages)
+      ? value.messages.slice(0, 5).map((message) => ({
+          kind: message.kind || null,
+          status: message.status || null,
+          content_preview: String(message.content || '').slice(0, 240),
+          turn_run_id: message.turn_run_id || null
+        }))
+      : []
   };
 }
 

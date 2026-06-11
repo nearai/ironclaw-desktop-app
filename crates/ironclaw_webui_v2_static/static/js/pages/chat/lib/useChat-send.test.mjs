@@ -3,12 +3,19 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 
-import { messagesFromTimeline } from './history-messages.js';
+import { messagesFromTimeline, buildDurableAttachmentBlock } from './history-messages.js';
 import {
   looksLikeChannelConnectCommand,
   resolveChannelConnectCommand
 } from '../../../lib/channel-connect.js';
-import { addPending, recordAcceptedMessageRef, removePending } from './pending-messages.js';
+import {
+  addPending,
+  loadPending,
+  pendingMessageId,
+  recordAcceptedMessageRef,
+  removePending,
+  replacePending
+} from './pending-messages.js';
 
 function useChatSourceForTest() {
   const source = readFileSync(new URL('../hooks/useChat.js', import.meta.url), 'utf8');
@@ -59,12 +66,16 @@ test('useChat.send: accepted ref reconciles pending message on timeline reload',
 
   const context = {
     AbortController,
+    TextEncoder,
     Date,
     Error,
     Map,
     Math,
     React: createReactStub(),
     addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
     cancelRunRequest: async () => {},
     clearTimeout,
     createThreadRequest: async () => {
@@ -83,6 +94,7 @@ test('useChat.send: accepted ref reconciles pending message on timeline reload',
     },
     recordAcceptedMessageRef,
     removePending,
+    replacePending,
     resolveChannelConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async () => ({
@@ -133,7 +145,9 @@ test('useChat.send: accepted ref reconciles pending message on timeline reload',
   await chat.send('check my calendar');
 
   assert.equal(renderedMessages.length, 1);
-  assert.equal(renderedMessages[0].id, 'pending-1');
+  // Ids are collision-proof (random suffix) so restored localStorage rows
+  // from a prior session can never share an id with a new send.
+  assert.match(renderedMessages[0].id, /^pending-/);
   assert.equal(renderedMessages[0].role, 'user');
   assert.equal(renderedMessages[0].content, 'check my calendar');
   assert.equal(renderedMessages[0].isOptimistic, true);
@@ -151,15 +165,51 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
   const threadId = 'thread-1';
   let renderedMessages = [];
   let sentArgs = null;
+  const attachmentScenarios = [
+    {
+      filename: 'services-template.pdf',
+      mime_type: 'application/pdf',
+      base64: 'JVBERi0xLjQK',
+      size: 9
+    },
+    {
+      filename: 'redline-instructions.md',
+      mime_type: 'text/markdown',
+      base64: 'IyBSZWRsaW5lCg==',
+      size: 11
+    },
+    {
+      filename: 'invoice-payload.json',
+      mime_type: 'application/json',
+      base64: 'eyJpbnZvaWNlIjoiSU5WLTEifQ==',
+      size: 19
+    },
+    {
+      filename: 'scope-summary.html',
+      mime_type: 'text/html',
+      base64: 'PCFkb2N0eXBlIGh0bWw+',
+      size: 15
+    },
+    {
+      filename: 'board-minutes.docx',
+      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      base64: 'UEsDBGRvY3g=',
+      size: 8
+    }
+  ];
 
   const context = {
     AbortController,
+    TextEncoder,
     Date,
     Error,
     Map,
     Math,
     React: createReactStub(),
     addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
     cancelRunRequest: async () => {},
     clearTimeout,
     createThreadRequest: async () => {
@@ -178,6 +228,7 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
     },
     recordAcceptedMessageRef,
     removePending,
+    replacePending,
     resolveChannelConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async (args) => {
@@ -210,33 +261,45 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
 
   const chat = context.globalThis.__testExports.useChat(threadId);
   await chat.send('draft from the template', {
-    attachments: [
-      {
-        filename: 'template.pdf',
-        mime_type: 'application/pdf',
-        base64: 'dGVtcGxhdGU=',
-        size: 8
-      }
-    ]
+    attachments: attachmentScenarios
   });
 
   assert.equal(sentArgs.threadId, threadId);
-  assert.equal(sentArgs.content, 'draft from the template');
-  assert.deepEqual(JSON.parse(JSON.stringify(sentArgs.attachments)), [
-    {
-      name: 'template.pdf',
-      mime_type: 'application/pdf',
-      data_base64: 'dGVtcGxhdGU=',
-      size: 8
-    }
-  ]);
-  assert.deepEqual(JSON.parse(JSON.stringify(renderedMessages[0].attachments)), [
-    {
-      filename: 'template.pdf',
-      mime_type: 'application/pdf',
-      size_label: '8 bytes'
-    }
-  ]);
+  // The content sent to Reborn leads with the user's prompt, then carries a
+  // durable attachment manifest so the timeline preserves chips across reloads.
+  assert.ok(sentArgs.content.startsWith('draft from the template'));
+  assert.ok(sentArgs.content.includes('<attachments ic="1">'));
+  for (const attachment of attachmentScenarios) {
+    assert.ok(
+      sentArgs.content.includes(`filename: ${attachment.filename}`),
+      `sent content should manifest ${attachment.filename}`
+    );
+  }
+  // The manifest must never inline base64 payloads (content validator rejects
+  // them); the bytes ride only in the first-class attachments field.
+  assert.equal(sentArgs.content.includes('data_base64'), false);
+  for (const attachment of attachmentScenarios) {
+    assert.equal(sentArgs.content.includes(attachment.base64), false);
+  }
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(sentArgs.attachments)),
+    attachmentScenarios.map((attachment) => ({
+      name: attachment.filename,
+      mime_type: attachment.mime_type,
+      data_base64: attachment.base64,
+      size: attachment.size
+    }))
+  );
+  // The optimistic bubble shows the bare prompt (no manifest) plus chips.
+  assert.equal(renderedMessages[0].content, 'draft from the template');
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(renderedMessages[0].attachments)),
+    attachmentScenarios.map((attachment) => ({
+      filename: attachment.filename,
+      mime_type: attachment.mime_type,
+      size_label: `${attachment.size} bytes`
+    }))
+  );
 });
 
 test('useChat.cancelRun clears local state before cancel request resolves', async () => {
@@ -247,6 +310,7 @@ test('useChat.cancelRun clears local state before cancel request resolves', asyn
 
   const context = {
     AbortController,
+    TextEncoder,
     Date,
     Error,
     Map,
@@ -262,6 +326,9 @@ test('useChat.cancelRun clears local state before cancel request resolves', asyn
       setCalls: stateUpdates
     }),
     addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
     cancelRunRequest: async (request) => {
       cancelRequest = request;
       return new Promise((resolve) => {
@@ -283,6 +350,7 @@ test('useChat.cancelRun clears local state before cancel request resolves', asyn
     },
     recordAcceptedMessageRef,
     removePending,
+    replacePending,
     resolveChannelConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async () => {
@@ -328,6 +396,7 @@ test('useChat.cancelRun completion does not clear a newer run', async () => {
 
   const context = {
     AbortController,
+    TextEncoder,
     Date,
     Error,
     Map,
@@ -340,6 +409,9 @@ test('useChat.cancelRun completion does not clear a newer run', async () => {
       setCalls: stateUpdates
     }),
     addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
     cancelRunRequest: async () =>
       new Promise((resolve) => {
         resolveCancelRequest = resolve;
@@ -361,6 +433,7 @@ test('useChat.cancelRun completion does not clear a newer run', async () => {
     },
     recordAcceptedMessageRef,
     removePending,
+    replacePending,
     resolveChannelConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async () => ({
@@ -410,12 +483,16 @@ test('useChat.send: channel connect requests return an action without submitting
 
   const context = {
     AbortController,
+    TextEncoder,
     Date,
     Error,
     Map,
     Math,
     React: createReactStub(),
     addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
     cancelRunRequest: async () => {},
     clearTimeout,
     createThreadRequest: async () => {
@@ -444,6 +521,7 @@ test('useChat.send: channel connect requests return an action without submitting
     },
     recordAcceptedMessageRef,
     removePending,
+    replacePending,
     resolveChannelConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async () => {
@@ -482,12 +560,16 @@ test('useChat.send: unmatched channel connect requests submit the prompt', async
 
   const context = {
     AbortController,
+    TextEncoder,
     Date,
     Error,
     Map,
     Math,
     React: createReactStub(),
     addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
     cancelRunRequest: async () => {},
     clearTimeout,
     createThreadRequest: async () => {
@@ -516,6 +598,7 @@ test('useChat.send: unmatched channel connect requests submit the prompt', async
     },
     recordAcceptedMessageRef,
     removePending,
+    replacePending,
     resolveChannelConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async ({ content, threadId }) => {
@@ -560,12 +643,16 @@ test('useChat.send: connectable channel fetch failures submit the prompt', async
 
   const context = {
     AbortController,
+    TextEncoder,
     Date,
     Error,
     Map,
     Math,
     React: createReactStub(),
     addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
     cancelRunRequest: async () => {},
     clearTimeout,
     console: {
@@ -586,6 +673,7 @@ test('useChat.send: connectable channel fetch failures submit the prompt', async
     },
     recordAcceptedMessageRef,
     removePending,
+    replacePending,
     resolveChannelConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async ({ content, threadId }) => {

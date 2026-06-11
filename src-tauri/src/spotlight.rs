@@ -8,11 +8,13 @@
 //! Format (deliberately plain so the indexer treats it as
 //! body-searchable text):
 //!
-//!     IronClaw thread: <title>
-//!     <created_at>
-//!     <updated_at>
-//!     <message1.author>: <message1.content>
-//!     ...
+//! ```text
+//! IronClaw thread: <title>
+//! <created_at>
+//! <updated_at>
+//! <message1.author>: <message1.content>
+//! ...
+//! ```
 //!
 //! Quota: keep last 50 messages per thread; cap each at 4 KB.
 

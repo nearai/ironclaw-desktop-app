@@ -24,7 +24,9 @@ mod crashes;
 mod fs_mount;
 mod ironhub;
 mod keychain;
+mod nearai_login;
 mod notes_export;
+mod ocr_assets;
 mod sandbox_exec;
 mod settings;
 mod sidecar;
@@ -42,12 +44,12 @@ use tauri_plugin_dialog::DialogExt;
 
 /// Tagged backend kind passed from the frontend to `start_sidecar`. Mirrors
 /// the JS `LlmBackend` type but kept narrow so the IPC payload stays
-/// explicit at the boundary.
+/// explicit at the boundary. NEAR.AI Cloud is the product path; advanced
+/// bring-your-own-key providers go through `provider_id` instead.
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
 enum BackendKind {
     Nearai,
-    Openrouter,
 }
 
 #[derive(Debug, Deserialize)]
@@ -102,6 +104,19 @@ async fn gateway_http_fetch(
         request.method,
         request_url
     );
+    // SSRF guard: this command fetches an arbitrary caller-supplied URL with
+    // caller-supplied headers (which carry the gateway bearer token). Restrict
+    // it to loopback (the bundled sidecar) or the active profile's configured
+    // gateway origin so a hostile WebView payload can't pivot it into a
+    // credential-exfil / internal-network probe primitive. Fails closed.
+    if !is_allowed_gateway_url(&app, &request_url) {
+        log::warn!(
+            target: "ironclaw_gateway",
+            "gateway_http_fetch rejected non-allowlisted url={}",
+            request_url
+        );
+        return Err(format!("gateway URL not allowed: {request_url}"));
+    }
     let method = reqwest::Method::from_bytes(request.method.as_bytes())
         .map_err(|e| format!("invalid HTTP method {}: {e}", request.method))?;
     let client = reqwest::Client::builder()
@@ -145,7 +160,7 @@ async fn gateway_http_fetch(
     let status = response.status();
     let status_text = status.canonical_reason().unwrap_or("").to_string();
     let url = response.url().to_string();
-    let mut headers = response
+    let headers = response
         .headers()
         .iter()
         .map(|(name, value)| {
@@ -155,30 +170,11 @@ async fn gateway_http_fetch(
             )
         })
         .collect::<Vec<_>>();
-    let mut data = response
+    let data = response
         .bytes()
         .await
         .map_err(|e| format!("gateway HTTP body {}: {e}", request_url))?
         .to_vec();
-    let mut augmented_body = false;
-    if status.is_success() && is_gateway_status_url(&request_url) {
-        match augment_gateway_status(&app, &data) {
-            Ok(augmented) => {
-                augmented_body = augmented != data;
-                data = augmented;
-            }
-            Err(err) => {
-                log::warn!(
-                    target: "ironclaw_gateway",
-                    "gateway status augmentation failed: {err}"
-                );
-            }
-        }
-    }
-    if augmented_body {
-        headers.retain(|(name, _)| !name.eq_ignore_ascii_case("content-length"));
-        headers.push(("content-length".into(), data.len().to_string()));
-    }
 
     log::info!(
         target: "ironclaw_gateway",
@@ -196,61 +192,136 @@ async fn gateway_http_fetch(
     })
 }
 
-fn is_gateway_status_url(raw: &str) -> bool {
-    if let Ok(url) = reqwest::Url::parse(raw) {
-        return url.path() == "/api/gateway/status";
+/// True if `host` is a loopback name/address. The bundled sidecar always binds
+/// here, so loopback is allowed unconditionally regardless of stored settings.
+fn host_is_loopback(host: &str) -> bool {
+    if matches!(host, "localhost" | "127.0.0.1" | "::1" | "[::1]") {
+        return true;
     }
-    raw.split('?').next().unwrap_or(raw) == "/api/gateway/status"
+    let bare = host.trim_start_matches('[').trim_end_matches(']');
+    bare.parse::<std::net::IpAddr>()
+        .map(|ip| ip.is_loopback())
+        .unwrap_or(false)
 }
 
-fn augment_gateway_status(app: &AppHandle, data: &[u8]) -> Result<Vec<u8>, String> {
-    let mut status = serde_json::from_slice::<serde_json::Value>(data)
-        .map_err(|e| format!("parse gateway status: {e}"))?;
-    let Some(reason) = desktop_model_auth_blocker(app) else {
-        return Ok(data.to_vec());
-    };
-    let Some(object) = status.as_object_mut() else {
-        return Ok(data.to_vec());
-    };
-
-    object.insert("model_execution_verified".into(), false.into());
-    object.insert("model_readiness".into(), "blocked".into());
-    object.insert("model_execution_readiness".into(), "blocked".into());
-    object.insert(
-        "model_execution_failure_category".into(),
-        "model_credentials_unavailable".into(),
-    );
-    object.insert(
-        "model_execution_failure_summary".into(),
-        reason.clone().into(),
-    );
-    object.insert("model_readiness_reason".into(), reason.into());
-
-    serde_json::to_vec(&status).map_err(|e| format!("serialize gateway status: {e}"))
+/// `host[:port]` (lowercased host) for a parsed URL, the comparison key used to
+/// match a request against the active profile's configured gateway origin.
+fn url_host_port(url: &reqwest::Url) -> Option<String> {
+    let host = url.host_str()?.to_ascii_lowercase();
+    match url.port_or_known_default() {
+        Some(port) => Some(format!("{host}:{port}")),
+        None => Some(host),
+    }
 }
 
-fn desktop_model_auth_blocker(app: &AppHandle) -> Option<String> {
+/// The active profile's configured gateway `host:port`, read from the opaque
+/// settings blob (the same `profiles[]` / `activeProfileId` shape the JS schema
+/// owns and `sidecar_boot_selection_from_settings` consumes). `None` on any
+/// miss — no settings, no profiles, or an unparseable base URL.
+fn active_profile_gateway_origin(app: &AppHandle) -> Option<String> {
     let settings = settings::load(app).ok()?;
-    let selection = sidecar_boot_selection_from_settings(&settings);
-    let provider = selection
-        .provider_id
-        .as_deref()
+    let profiles = settings.get("profiles").and_then(|value| value.as_array())?;
+    let active_profile_id = settings
+        .get("activeProfileId")
+        .and_then(|value| value.as_str())
         .map(str::trim)
-        .filter(|provider| !provider.is_empty())
-        .unwrap_or("nearai");
+        .filter(|value| !value.is_empty());
+    let profile = active_profile_id
+        .and_then(|id| {
+            profiles.iter().find(|profile| {
+                profile
+                    .get("id")
+                    .and_then(|value| value.as_str())
+                    .map(|candidate| candidate == id)
+                    .unwrap_or(false)
+            })
+        })
+        .or_else(|| profiles.first())?;
 
-    match provider {
-        "nearai" if !nearai_auth_configured_for_selection(&selection) => Some(
-            "NEAR.AI is selected, but no NEARAI_SESSION_TOKEN, NEARAI_API_KEY, or vaulted nearai credential is available in this desktop install. Sign in or add a NEAR.AI API key in Settings before sending."
-                .into(),
-        ),
-        _ => None,
-    }
+    let base_field = match profile.get("mode").and_then(|value| value.as_str()) {
+        Some("local") => "localBaseUrl",
+        _ => "remoteBaseUrl",
+    };
+    let base = profile.get(base_field).and_then(|value| value.as_str())?;
+    let base_url = reqwest::Url::parse(base.trim()).ok()?;
+    url_host_port(&base_url)
 }
 
-fn nearai_auth_configured_for_selection(selection: &SidecarBootSelection) -> bool {
-    nearai_session_token_for_profile(&selection.profile_id).is_some()
-        || env_secret("NEARAI_API_KEY").is_some()
+/// Pure SSRF-allowlist decision: permits `raw` only when the scheme is
+/// `http`/`https` AND the host is loopback (the bundled sidecar — always
+/// allowed) OR its `host:port` matches `allowed_origin` (the active profile's
+/// configured gateway origin). Fails closed on any parse failure / miss.
+/// Split out from `is_allowed_gateway_url` so the policy is unit-testable
+/// without an `AppHandle`.
+fn gateway_url_allowed_against(raw: &str, allowed_origin: Option<&str>) -> bool {
+    let Ok(url) = reqwest::Url::parse(raw) else {
+        return false;
+    };
+    if !matches!(url.scheme(), "http" | "https") {
+        return false;
+    }
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    if host_is_loopback(host) {
+        return true;
+    }
+    let Some(target) = url_host_port(&url) else {
+        return false;
+    };
+    allowed_origin == Some(target.as_str())
+}
+
+/// SSRF allowlist for `gateway_http_fetch`. Loopback (the bundled sidecar) is
+/// always allowed; everything else must match the active profile's configured
+/// gateway origin. See `gateway_url_allowed_against` for the policy.
+fn is_allowed_gateway_url(app: &AppHandle, raw: &str) -> bool {
+    let allowed_origin = active_profile_gateway_origin(app);
+    gateway_url_allowed_against(raw, allowed_origin.as_deref())
+}
+
+#[cfg(test)]
+mod gateway_ssrf_tests {
+    use crate::gateway_url_allowed_against;
+
+    #[test]
+    fn loopback_allowed_regardless_of_origin() {
+        assert!(gateway_url_allowed_against(
+            "http://127.0.0.1:3100/api/gateway/status",
+            None
+        ));
+        assert!(gateway_url_allowed_against("http://localhost:3100/", None));
+        assert!(gateway_url_allowed_against("http://[::1]:3100/", None));
+    }
+
+    #[test]
+    fn external_hosts_rejected() {
+        // Cloud-metadata SSRF target and an arbitrary external host: both
+        // rejected, even when an unrelated origin is configured.
+        assert!(!gateway_url_allowed_against(
+            "http://169.254.169.254/",
+            Some("gateway.example.test:3100")
+        ));
+        assert!(!gateway_url_allowed_against(
+            "http://evil.example.com/",
+            Some("gateway.example.test:3100")
+        ));
+        // No configured origin at all → only loopback would pass.
+        assert!(!gateway_url_allowed_against("http://evil.example.com/", None));
+    }
+
+    #[test]
+    fn configured_origin_allowed_non_http_scheme_rejected() {
+        assert!(gateway_url_allowed_against(
+            "https://gateway.example.test:3100/api/gateway/status",
+            Some("gateway.example.test:3100")
+        ));
+        // Scheme outside http/https is rejected even for an allowed host.
+        assert!(!gateway_url_allowed_against(
+            "file://gateway.example.test/etc/passwd",
+            Some("gateway.example.test:3100")
+        ));
+    }
 }
 
 fn packaged_webview_smoke_enabled() -> bool {
@@ -557,33 +628,47 @@ async fn install_ironhub_skill_local(
     ironhub::install_skill_local(state, slug).await
 }
 
-// ---- OpenRouter-key Keychain (per-profile, local mode) -------------------
+// ---- OCR asset loopback server --------------------------------------------
 
+/// Port of the loopback server that feeds tesseract's worker its assets.
+/// WKWebView workers cannot fetch tauri:// URLs, so OCR assets ride plain
+/// localhost HTTP. Started lazily on first request.
 #[tauri::command]
-async fn get_openrouter_key(_app: AppHandle, profile_id: String) -> Result<Option<String>, String> {
-    keychain::get_openrouter_key(&profile_id)
-}
-
-#[tauri::command]
-async fn set_openrouter_key(
-    _app: AppHandle,
-    profile_id: String,
-    key: String,
-) -> Result<(), String> {
-    keychain::set_openrouter_key(&profile_id, &key)
-}
-
-#[tauri::command]
-async fn delete_openrouter_key(_app: AppHandle, profile_id: String) -> Result<(), String> {
-    keychain::delete_openrouter_key(&profile_id)
+async fn ocr_assets_port(app: AppHandle) -> Result<u16, String> {
+    let mut roots: Vec<std::path::PathBuf> = Vec::new();
+    if let Ok(resources) = app.path().resource_dir() {
+        // bundle.resources flattens `../crates/.../static/ocr/*` under
+        // `_up_/crates/.../static/ocr` inside Contents/Resources.
+        roots.push(
+            resources
+                .join("_up_")
+                .join("crates")
+                .join("ironclaw_webui_v2_static")
+                .join("static")
+                .join("ocr"),
+        );
+        roots.push(resources.join("ocr"));
+    }
+    // Dev fallback: repo checkout layout relative to the executable.
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(target_dir) = exe.ancestors().nth(3) {
+            roots.push(
+                target_dir
+                    .join("..")
+                    .join("crates")
+                    .join("ironclaw_webui_v2_static")
+                    .join("static")
+                    .join("ocr"),
+            );
+        }
+    }
+    ocr_assets::ensure_started(roots)
 }
 
 // ---- Per-provider LLM credentials (LLM picker) ---------------------------
 //
-// Sister surface to `*_openrouter_key` but keyed on the provider id from
-// the gateway's catalog. Used by the LlmProviderPicker for providers
-// that aren't NEAR.AI (session-token) or OpenRouter (which keeps its own
-// dedicated slot for backward compatibility with the old radio).
+// Keyed on the provider id from the gateway's catalog. Used by the
+// LlmProviderPicker for providers that aren't NEAR.AI (session-token).
 //
 // Slot format: `llm-<provider-id>:<profile-id>` (see keychain.rs).
 
@@ -603,11 +688,7 @@ async fn has_llm_provider_credential(
     provider_id: String,
 ) -> Result<bool, String> {
     let provider_id = provider_id.trim();
-    let keychain_credential = if provider_id == "openrouter" {
-        keychain::get_openrouter_key(&profile_id)?
-    } else {
-        keychain::get_llm_provider_credential(&profile_id, provider_id)?
-    };
+    let keychain_credential = keychain::get_llm_provider_credential(&profile_id, provider_id)?;
     let keychain_configured = keychain_credential
         .as_deref()
         .map(str::trim)
@@ -617,7 +698,6 @@ async fn has_llm_provider_credential(
         "nearai" => {
             env_secret("NEARAI_SESSION_TOKEN").is_some() || env_secret("NEARAI_API_KEY").is_some()
         }
-        "openrouter" => env_secret("OPENROUTER_API_KEY").is_some(),
         "openai" => env_secret("OPENAI_API_KEY").is_some(),
         "anthropic" => env_secret("ANTHROPIC_API_KEY").is_some(),
         _ => false,
@@ -660,23 +740,19 @@ async fn start_sidecar(
     model_id: Option<String>,
     profile_id: String,
 ) -> Result<u16, String> {
-    // Default to NEAR.AI Cloud — IronClaw's built-in inference path. The
-    // frontend may pass `backend: "openrouter"` to opt into the advanced
-    // path (bring-your-own-key). NEAR.AI needs no Keychain read at spawn;
-    // IronClaw handles auth via its own onboard/login flow.
+    // Default to NEAR.AI Cloud — IronClaw's built-in inference path and the
+    // product default. NEAR.AI needs no Keychain read at spawn; IronClaw
+    // handles auth via its own onboard/login flow.
     //
-    // `profile_id` scopes the OpenRouter key lookup so each profile keeps
-    // its own credentials. The local-gateway bearer is global — there is
-    // one bundled sidecar per app install regardless of how many profiles
-    // are configured.
+    // The local-gateway bearer is global — there is one bundled sidecar per
+    // app install regardless of how many profiles are configured.
     //
     // `provider_id` is the richer field from the new LlmProviderPicker.
     // When present (and non-empty) it wins over the binary `backend`
     // enum; when absent we fall through to `backend`. This v1 wires
-    // four providers explicitly: nearai, openrouter, openai, anthropic
-    // (per the prompt's scoped-down option). Other ids fall through to
-    // an "unsupported provider" error so misconfiguration surfaces
-    // loudly rather than silently spawning NEAR.AI.
+    // three providers explicitly: nearai, openai, anthropic. Other ids
+    // fall through to an "unsupported provider" error so misconfiguration
+    // surfaces loudly rather than silently spawning NEAR.AI.
     let provider = provider_id
         .as_deref()
         .map(|s| s.trim())
@@ -687,17 +763,6 @@ async fn start_sidecar(
             session_token: nearai_session_token_for_profile(&profile_id),
             api_key: env_secret("NEARAI_API_KEY"),
         },
-        Some("openrouter") => {
-            let api_key = keychain::get_openrouter_key(&profile_id)?
-                .filter(|s| !s.is_empty())
-                .ok_or_else(|| {
-                    "Set your OpenRouter API key in Settings before starting local mode".to_string()
-                })?;
-            BackendConfig::Openrouter {
-                api_key,
-                model: clean_model_id(model_id.as_deref()),
-            }
-        }
         Some("openai") => {
             let api_key = keychain::get_llm_provider_credential(&profile_id, "openai")?
                 .filter(|s| !s.is_empty())
@@ -723,28 +788,17 @@ async fn start_sidecar(
         Some(other) => {
             return Err(format!(
                 "LLM provider \"{other}\" is not yet wired in the desktop sidecar. \
-                 Supported providers: nearai, openrouter, openai, anthropic."
+                 Supported providers: nearai, openai, anthropic."
             ));
         }
-        None => match backend.unwrap_or(BackendKind::Nearai) {
-            BackendKind::Nearai => BackendConfig::Nearai {
+        None => {
+            let BackendKind::Nearai = backend.unwrap_or(BackendKind::Nearai);
+            BackendConfig::Nearai {
                 model: clean_model_id(model_id.as_deref()),
                 session_token: nearai_session_token_for_profile(&profile_id),
                 api_key: env_secret("NEARAI_API_KEY"),
-            },
-            BackendKind::Openrouter => {
-                let api_key = keychain::get_openrouter_key(&profile_id)?
-                    .filter(|s| !s.is_empty())
-                    .ok_or_else(|| {
-                        "Set your OpenRouter API key in Settings before starting local mode"
-                            .to_string()
-                    })?;
-                BackendConfig::Openrouter {
-                    api_key,
-                    model: clean_model_id(model_id.as_deref()),
-                }
             }
-        },
+        }
     };
     let gateway_token = keychain::get_or_create_local_token(&app)?;
     sidecar::spawn(app, state, backend_cfg, gateway_token).await
@@ -829,7 +883,6 @@ fn sidecar_boot_selection_from_settings(settings: &AppSettings) -> SidecarBootSe
         .and_then(|value| value.as_str())
         .map(str::trim)
     {
-        Some("openrouter") => Some(BackendKind::Openrouter),
         Some("nearai") => Some(BackendKind::Nearai),
         _ => None,
     };
@@ -868,17 +921,6 @@ fn backend_config_for_selection(selection: &SidecarBootSelection) -> Result<Back
             session_token: nearai_session_token_for_profile(&selection.profile_id),
             api_key: env_secret("NEARAI_API_KEY"),
         }),
-        Some("openrouter") => {
-            let api_key = keychain::get_openrouter_key(&selection.profile_id)?
-                .filter(|s| !s.is_empty())
-                .ok_or_else(|| {
-                    "Set your OpenRouter API key in Settings before starting local mode".to_string()
-                })?;
-            Ok(BackendConfig::Openrouter {
-                api_key,
-                model: selection.model_id.clone(),
-            })
-        }
         Some("openai") => {
             let api_key = keychain::get_llm_provider_credential(&selection.profile_id, "openai")?
                 .filter(|s| !s.is_empty())
@@ -905,27 +947,16 @@ fn backend_config_for_selection(selection: &SidecarBootSelection) -> Result<Back
         }
         Some(other) => Err(format!(
             "LLM provider \"{other}\" is not yet wired in the desktop sidecar. \
-             Supported providers: nearai, openrouter, openai, anthropic."
+             Supported providers: nearai, openai, anthropic."
         )),
-        None => match selection.backend.unwrap_or(BackendKind::Nearai) {
-            BackendKind::Nearai => Ok(BackendConfig::Nearai {
+        None => {
+            let BackendKind::Nearai = selection.backend.unwrap_or(BackendKind::Nearai);
+            Ok(BackendConfig::Nearai {
                 model: selection.model_id.clone(),
                 session_token: nearai_session_token_for_profile(&selection.profile_id),
                 api_key: env_secret("NEARAI_API_KEY"),
-            }),
-            BackendKind::Openrouter => {
-                let api_key = keychain::get_openrouter_key(&selection.profile_id)?
-                    .filter(|s| !s.is_empty())
-                    .ok_or_else(|| {
-                        "Set your OpenRouter API key in Settings before starting local mode"
-                            .to_string()
-                    })?;
-                Ok(BackendConfig::Openrouter {
-                    api_key,
-                    model: selection.model_id.clone(),
-                })
-            }
-        },
+            })
+        }
     }
 }
 
@@ -1104,6 +1135,119 @@ async fn save_text_dialog(
     // thing here.
     let path_buf = path.into_path().map_err(|e| format!("resolve path: {e}"))?;
     std::fs::write(&path_buf, contents.as_bytes())
+        .map_err(|e| format!("write {}: {e}", path_buf.display()))?;
+    Ok(Some(path_buf.to_string_lossy().into_owned()))
+}
+
+/// Dependency-free standard base64 decode (with or without padding).
+/// Tauri's IPC is JSON, so binary payloads cross as base64 strings; a JSON
+/// number-array would be ~4x the size for multi-MB documents.
+fn decode_base64_payload(input: &str) -> Result<Vec<u8>, String> {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut reverse = [255u8; 256];
+    for (i, &c) in TABLE.iter().enumerate() {
+        reverse[c as usize] = i as u8;
+    }
+    let mut out = Vec::with_capacity(input.len() / 4 * 3);
+    let mut acc: u32 = 0;
+    let mut bits = 0u8;
+    for &byte in input.as_bytes() {
+        if byte == b'=' || byte == b'\n' || byte == b'\r' {
+            continue;
+        }
+        let value = reverse[byte as usize];
+        if value == 255 {
+            return Err(format!("invalid base64 byte 0x{byte:02x}"));
+        }
+        acc = (acc << 6) | u32::from(value);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((acc >> bits) as u8);
+        }
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod base64_payload_tests {
+    use super::decode_base64_payload;
+
+    #[test]
+    fn decodes_padded_and_unpadded() {
+        assert_eq!(decode_base64_payload("aGVsbG8=").unwrap(), b"hello");
+        assert_eq!(decode_base64_payload("aGVsbG8").unwrap(), b"hello");
+        assert_eq!(decode_base64_payload("").unwrap(), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn round_trips_binary() {
+        let bytes: Vec<u8> = (0u16..=255).map(|b| b as u8).collect();
+        const TABLE: &[u8; 64] =
+            b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut encoded = String::new();
+        for chunk in bytes.chunks(3) {
+            let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+            let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+            encoded.push(TABLE[(n >> 18) as usize & 63] as char);
+            encoded.push(TABLE[(n >> 12) as usize & 63] as char);
+            encoded.push(if chunk.len() > 1 { TABLE[(n >> 6) as usize & 63] as char } else { '=' });
+            encoded.push(if chunk.len() > 2 { TABLE[n as usize & 63] as char } else { '=' });
+        }
+        assert_eq!(decode_base64_payload(&encoded).unwrap(), bytes);
+    }
+
+    #[test]
+    fn rejects_invalid_bytes() {
+        assert!(decode_base64_payload("a!b").is_err());
+    }
+}
+
+/// Binary twin of `save_text_dialog` — the route every export/download in the
+/// WebView must take on desktop, because blob-URL anchor downloads are a
+/// silent no-op in WKWebView (the gap that shipped "downloads don't work").
+///
+/// Under the packaged WebView smoke the dialog is bypassed and the file lands
+/// in `$TMPDIR/ironclaw-smoke-saves/` — that seam lets the gauntlet prove a
+/// real file reaches disk instead of only testing blob construction.
+///
+/// Returns the saved path on success, or `None` if the user cancelled.
+#[tauri::command]
+async fn save_bytes_dialog(
+    app: AppHandle,
+    default_filename: String,
+    contents_base64: String,
+) -> Result<Option<String>, String> {
+    let bytes = decode_base64_payload(&contents_base64)?;
+
+    if packaged_webview_smoke_enabled() {
+        let dir = std::env::temp_dir().join("ironclaw-smoke-saves");
+        std::fs::create_dir_all(&dir).map_err(|e| format!("smoke save dir: {e}"))?;
+        // Take only the final path component so a caller-supplied `../` or an
+        // absolute path can't escape the smoke-save directory.
+        let file_name = std::path::Path::new(&default_filename)
+            .file_name()
+            .ok_or_else(|| format!("invalid filename: {default_filename}"))?;
+        let path = dir.join(file_name);
+        std::fs::write(&path, &bytes).map_err(|e| format!("write {}: {e}", path.display()))?;
+        return Ok(Some(path.to_string_lossy().into_owned()));
+    }
+
+    let dialog = app.dialog().clone();
+    let chosen = tauri::async_runtime::spawn_blocking(move || {
+        dialog
+            .file()
+            .set_file_name(&default_filename)
+            .blocking_save_file()
+    })
+    .await
+    .map_err(|e| format!("dialog task: {e}"))?;
+
+    let Some(path) = chosen else {
+        return Ok(None);
+    };
+    let path_buf = path.into_path().map_err(|e| format!("resolve path: {e}"))?;
+    std::fs::write(&path_buf, &bytes)
         .map_err(|e| format!("write {}: {e}", path_buf.display()))?;
     Ok(Some(path_buf.to_string_lossy().into_owned()))
 }
@@ -1422,9 +1566,8 @@ pub fn run() {
             get_token_source,
             diagnostic_report,
             build_provenance,
-            get_openrouter_key,
-            set_openrouter_key,
-            delete_openrouter_key,
+            ocr_assets_port,
+            nearai_login::nearai_browser_login,
             get_llm_provider_credential,
             has_llm_provider_credential,
             set_llm_provider_credential,
@@ -1442,6 +1585,7 @@ pub fn run() {
             local_data_dir,
             reveal_in_finder,
             save_text_dialog,
+            save_bytes_dialog,
             export_settings_dialog,
             open_text_dialog,
             update_tray_status,
@@ -1584,8 +1728,21 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application");
+        .build(tauri::generate_context!());
+
+    let app = match app {
+        Ok(app) => app,
+        Err(err) => {
+            // CONTRIBUTING bans `expect` in non-test `run`. A build failure is
+            // unrecoverable (no app to run), so log it and return instead of
+            // panicking — the process exits cleanly with the cause in the log.
+            log::error!(
+                target: "ironclaw_window",
+                "failed to build tauri application: {err}"
+            );
+            return;
+        }
+    };
 
     // RunEvent::ExitRequested fires before the app actually exits. We kill
     // the sidecar there so we never leak a zombie child after the window

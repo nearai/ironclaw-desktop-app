@@ -138,7 +138,7 @@ if ask "Tag v${NEW_VER} and push?"; then
   git push origin main
   git push origin "v${NEW_VER}"
   info "tagged + pushed. release workflow should start at:"
-  info "  https://github.com/abbyshekit/ironclaw-desktop/actions"
+  info "  https://github.com/nearai/ironclaw-desktop-app/actions"
 else
   warn "skipped tag/push. Commit is local - run:"
   warn "  git tag v${NEW_VER}"

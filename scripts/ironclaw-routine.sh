@@ -28,26 +28,40 @@
 # (e.g. `delete <name> -y`) since this wrapper has no interactive TTY.
 #
 # Env:
-#   IRONCLAW_SSH_ALIAS   SSH host alias (default: abby)
-#   IRONCLAW_BIN         server binary (default: auto-detected from systemd)
+#   IRONCLAW_SSH_ALIAS   SSH host alias (default: your-ssh-host)
+#   IRONCLAW_BIN         path to the ironclaw binary on the server
+#                        (default: "ironclaw", i.e. resolved from $PATH)
+#   IRONCLAW_RUN_USER    server account that owns the routines store
+#                        (default: the SSH login user; set this if the CLI
+#                        runs under a different service account)
 
 set -euo pipefail
 
-SSH_ALIAS="${IRONCLAW_SSH_ALIAS:-abby}"
+SSH_ALIAS="${IRONCLAW_SSH_ALIAS:-your-ssh-host}"
 
 if [[ $# -lt 1 ]]; then
   sed -n '2,40p' "$0"
   exit 2
 fi
 
-# Resolve the binary from the running unit so version bumps don't break us.
-REMOTE_BIN="${IRONCLAW_BIN:-}"
-resolve_bin='BIN="'"${REMOTE_BIN}"'"; if [ -z "$BIN" ]; then BIN=$(systemctl show ironclaw -p ExecStart 2>/dev/null | grep -oE "/opt/ironclaw[^ ;]*ironclaw[^ ;]*" | head -1); fi; [ -n "$BIN" ] || { echo "could not resolve ironclaw binary" >&2; exit 3; }'
+# Resolve the binary. Defaults to whatever `ironclaw` is on the server's PATH;
+# override IRONCLAW_BIN to point at a specific install path.
+REMOTE_BIN="${IRONCLAW_BIN:-ironclaw}"
+resolve_bin='BIN="'"${REMOTE_BIN}"'"; command -v "$BIN" >/dev/null 2>&1 || [ -x "$BIN" ] || { echo "could not resolve ironclaw binary: $BIN" >&2; exit 3; }'
 
-# Forward all args to `ironclaw routines <args>` as the openclaw user.
+# Optionally run the CLI under a dedicated service account.
+RUN_USER="${IRONCLAW_RUN_USER:-}"
+
+# Forward all args to `ironclaw routines <args>`.
 # Args are passed through SSH as a single quoted string; callers must quote
 # their own --prompt / --schedule values (as in the examples above).
 printf -v ARGS '%q ' "$@"
 
+if [[ -n "${RUN_USER}" ]]; then
+  RUN_CMD="sudo -u $(printf '%q' "${RUN_USER}") \"\$BIN\" routines ${ARGS}"
+else
+  RUN_CMD="\"\$BIN\" routines ${ARGS}"
+fi
+
 # shellcheck disable=SC2029
-ssh -o ConnectTimeout=15 "${SSH_ALIAS}" "${resolve_bin}; sudo -u openclaw \"\$BIN\" routines ${ARGS}"
+ssh -o ConnectTimeout=15 "${SSH_ALIAS}" "${resolve_bin}; ${RUN_CMD}"

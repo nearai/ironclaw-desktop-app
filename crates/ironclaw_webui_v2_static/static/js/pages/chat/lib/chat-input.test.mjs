@@ -48,7 +48,9 @@ function componentProps(node, component) {
 function renderChatInput({ onCancel, setCalls = [] } = {}) {
   const components = {
     Button() {},
-    Icon() {}
+    Icon() {},
+    Popover() {},
+    AttachmentPreviewModal() {}
   };
   let stateIndex = 0;
   const context = {
@@ -79,12 +81,22 @@ function renderChatInput({ onCancel, setCalls = [] } = {}) {
     useComposerAttachments: () => ({
       images: [],
       attachments: [],
+      rejections: [],
       addFiles: () => {},
       removeImage: () => {},
       removeAttachment: () => {},
+      dismissRejections: () => {},
       clearAttachments: () => {}
     }),
     useT: () => (key) => key,
+    // ModelPopover dependencies — inert here; popover stays closed in
+    // these cancel-button scenarios.
+    useQuery: () => ({ data: null, isLoading: false }),
+    useQueryClient: () => ({ invalidateQueries: () => {} }),
+    listLlmProviderModels: async () => ({ models: [] }),
+    fetchLlmProviders: async () => ({ providers: [], active: null }),
+    setActiveLlm: async () => ({}),
+    gatewayStatus: () => ({}),
     window: { requestAnimationFrame: (fn) => fn() }
   };
 

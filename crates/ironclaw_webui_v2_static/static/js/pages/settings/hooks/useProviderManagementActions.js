@@ -14,6 +14,7 @@ export function useProviderManagementActions({ settings, gatewayStatus, searchQu
   const [dialogProvider, setDialogProvider] = React.useState(null);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [message, setMessage] = React.useState(null);
+  const [confirmRequest, setConfirmRequest] = React.useState(null);
   const messageTimerRef = React.useRef(null);
 
   const showMessage = React.useCallback((tone, text) => {
@@ -81,14 +82,22 @@ export function useProviderManagementActions({ settings, gatewayStatus, searchQu
   );
 
   const handleDelete = React.useCallback(
-    async (provider) => {
-      if (!window.confirm(t('llm.confirmDelete', { id: provider.id }))) return;
-      try {
-        await providerState.deleteCustomProvider(provider);
-        showMessage('success', t('llm.providerDeleted'));
-      } catch (err) {
-        showMessage('error', err.message);
-      }
+    (provider) => {
+      setConfirmRequest({
+        message: t('llm.confirmDelete', { id: provider.id }),
+        title: t('llm.deleteTitle'),
+        confirmLabel: t('llm.deleteConfirm'),
+        tone: 'danger',
+        onConfirm: async () => {
+          try {
+            await providerState.deleteCustomProvider(provider);
+            showMessage('success', t('llm.providerDeleted'));
+          } catch (err) {
+            showMessage('error', err.message);
+            throw err; // keep the dialog open with the failure visible
+          }
+        }
+      });
     },
     [providerState, showMessage, t]
   );
@@ -98,6 +107,8 @@ export function useProviderManagementActions({ settings, gatewayStatus, searchQu
     dialogProvider,
     isDialogOpen,
     message,
+    confirmRequest,
+    dismissConfirm: () => setConfirmRequest(null),
     filteredProviders: providerState.providers.filter((provider) =>
       matchesProvider(provider, searchQuery)
     ),

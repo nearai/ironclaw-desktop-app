@@ -7,7 +7,6 @@ import {
   formatProjectRelativeTime,
   healthTone
 } from '../lib/projects-presenters.js';
-import { ProjectWidgets } from './project-widgets.js';
 import { ProjectMissionsColumn } from './project-missions-column.js';
 import { ProjectActivityColumn } from './project-activity-column.js';
 import { ProjectInspectorRail } from './project-inspector-rail.js';
@@ -109,8 +108,6 @@ export function ProjectWorkspaceShell({
             </div>
           </div>
         <//>
-
-        <${ProjectWidgets} widgets=${widgets} projectId=${project.id} />
 
         <div className="grid gap-5 2xl:grid-cols-2">
           <${ProjectMissionsColumn}

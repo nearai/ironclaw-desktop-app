@@ -1,5 +1,6 @@
 import { Button } from '../../../design-system/button.js';
 import { Icon } from '../../../design-system/icons.js';
+import { isDesktopRuntime } from '../../../lib/api.js';
 import { React, html } from '../../../lib/html.js';
 import { useExtensionSetup, useOauthSetup, useSetupSubmit } from '../hooks/useExtensions.js';
 import { setupReadyForActivation } from '../lib/extension-actions.js';
@@ -16,6 +17,20 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
   const [values, setValues] = React.useState({});
   const [fieldValues, setFieldValues] = React.useState({});
   const oauthMutation = useOauthSetup(extension?.packageRef);
+
+  // setup_url comes from third-party registry metadata. Bind it to an href
+  // only when it parses as an https: URL — target=_blank rel=noopener does
+  // NOT neutralize a javascript:/data: scheme, so a non-https value is
+  // rendered as inert text instead (mirrors auth-oauth-card.js).
+  const httpsSetupUrl = React.useMemo(() => {
+    const raw = onboarding?.setup_url;
+    if (!raw) return null;
+    try {
+      return new URL(raw).protocol === 'https:' ? raw : null;
+    } catch {
+      return null;
+    }
+  }, [onboarding?.setup_url]);
 
   const submitMutation = useSetupSubmit(extension?.packageRef, (res) => {
     if (res.success !== false) {
@@ -34,7 +49,13 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
   }, [values, fieldValues, submitMutation]);
   const handleOauth = React.useCallback(
     (secret) => {
-      const popup = window.open('about:blank', '_blank', 'width=600,height=600');
+      // Desktop: the mutation routes the auth URL to the SYSTEM browser
+      // (openExternalUrl) — a child webview would have no cookies/passkeys
+      // and just flash dead. Hosted keeps the classic pre-opened popup so
+      // the navigation stays inside the user gesture.
+      const popup = isDesktopRuntime()
+        ? null
+        : window.open('about:blank', '_blank', 'width=600,height=600');
       if (popup) popup.opener = null;
       oauthMutation.mutate({ secret, popup });
     },
@@ -82,10 +103,10 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
           ${onboarding.credential_instructions}
         </p>
       `}
-      ${onboarding?.setup_url &&
+      ${httpsSetupUrl &&
       html`
         <a
-          href=${onboarding.setup_url}
+          href=${httpsSetupUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-signal hover:underline"
@@ -93,6 +114,17 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
           Get credentials
           <${Icon} name="bolt" className="h-3.5 w-3.5" />
         </a>
+      `}
+      ${onboarding?.setup_url &&
+      !httpsSetupUrl &&
+      html`
+        <span
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-iron-700"
+          title=${onboarding.setup_url}
+        >
+          Get credentials
+          <${Icon} name="bolt" className="h-3.5 w-3.5" />
+        </span>
       `}
 
       <div className="space-y-4">

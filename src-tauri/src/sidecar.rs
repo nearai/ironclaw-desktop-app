@@ -32,8 +32,9 @@ const HEALTH_POLL_TIMEOUT: Duration = Duration::from_secs(15);
 /// Mirrors the JS `llmProviderId` but kept local so `sidecar::spawn` is
 /// independent of the on-disk settings shape.
 ///
-/// v1 only wires four provider env blocks (per the LlmProviderPicker
-/// scope-down). New providers should add a variant + a `match` arm in
+/// v1 only wires three provider env blocks — NEAR.AI Cloud, OpenAI, and
+/// Anthropic (per the LlmProviderPicker scope-down). New providers should
+/// add a variant + a `match` arm in
 /// the per-backend env section below. TODO(sidecar.rs): wire the other
 /// 20+ providers from the gateway's catalog — bedrock, google, vertex,
 /// ollama, groq, mistral, cohere, fireworks, together, etc.
@@ -48,11 +49,6 @@ pub enum BackendConfig {
         model: Option<String>,
         session_token: Option<String>,
         api_key: Option<String>,
-    },
-    /// OpenRouter (openai-compatible). Requires a non-empty API key.
-    Openrouter {
-        api_key: String,
-        model: Option<String>,
     },
     /// OpenAI native API. Requires a non-empty API key.
     OpenAi {
@@ -94,16 +90,9 @@ pub async fn spawn(
 ) -> Result<u16, String> {
     // Per-backend validation. NEAR.AI needs no upfront secret — IronClaw
     // handles auth via its own onboard/login flow on first connect. The
-    // other three v1 providers all require a non-empty API key.
+    // other v1 providers all require a non-empty API key.
     match &backend {
         BackendConfig::Nearai { .. } => {}
-        BackendConfig::Openrouter { api_key, .. } => {
-            if api_key.trim().is_empty() {
-                return Err(
-                    "Set your OpenRouter API key in Settings before starting local mode".into(),
-                );
-            }
-        }
         BackendConfig::OpenAi { api_key, .. } => {
             if api_key.trim().is_empty() {
                 return Err(
@@ -146,10 +135,52 @@ pub async fn spawn(
         ("GATEWAY_ENABLED".into(), "true".into()),
         ("CLI_ENABLED".into(), "false".into()),
     ];
+    // One-click Google/Gmail OAuth. The old IRONCLAW_OAUTH_EXCHANGE_URL /
+    // CALLBACK_URL relay vars were removed: the Reborn binary never reads
+    // them (zero string hits — a legacy-lineage concept), which is exactly
+    // why connector setup fell back to "paste access token". The binary's
+    // resolve_google_oauth_config wants GOOGLE_CLIENT_ID (+ optional
+    // GOOGLE_CLIENT_SECRET / GOOGLE_ALLOWED_HD) and a redirect URI on the
+    // sidecar's own loopback callback route; with those set, gates and
+    // extension setup emit a real accounts.google.com authorization URL.
+    // Without a client id, manual token paste remains the honest fallback.
+    //
+    // The client id comes from SETTINGS first (`googleOauthClientId` — a GUI
+    // app launched from the Dock never sees shell env), then the env vars as
+    // a developer convenience. Client IDs are public identifiers, safe in
+    // settings.json; the optional client secret stays env-only.
+    let settings_client_id = crate::settings::load(&app)
+        .ok()
+        .and_then(|settings| {
+            settings
+                .get("googleOauthClientId")
+                .and_then(|value| value.as_str())
+                .map(|value| value.trim().to_string())
+        })
+        .filter(|value| !value.is_empty());
+    let env_client_id = std::env::var("IRONCLAW_GOOGLE_CLIENT_ID")
+        .or_else(|_| std::env::var("GOOGLE_CLIENT_ID"))
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    if let Some(client_id) = settings_client_id.or(env_client_id) {
+        envs.push(("GOOGLE_CLIENT_ID".into(), client_id));
+        envs.push((
+            "GOOGLE_OAUTH_REDIRECT_URI".into(),
+            format!("http://127.0.0.1:{port}/api/reborn/product-auth/oauth/google/callback"),
+        ));
+        for passthrough in ["GOOGLE_CLIENT_SECRET", "GOOGLE_ALLOWED_HD"] {
+            if let Ok(value) = std::env::var(passthrough) {
+                if !value.trim().is_empty() {
+                    envs.push((passthrough.into(), value.trim().to_string()));
+                }
+            }
+        }
+    }
 
     // Per-backend env. NEAR.AI Cloud uses IronClaw's native `nearai`
-    // backend; OpenRouter, OpenAI, and Anthropic each get their own env
-    // block matching the gateway's catalog entries.
+    // backend; OpenAI and Anthropic each get their own env block matching
+    // the gateway's catalog entries.
     match &backend {
         BackendConfig::Nearai {
             model,
@@ -182,17 +213,9 @@ pub async fn spawn(
                     if auth_configured {
                         "NEAR.AI credential is configured; execution readiness still depends on a successful WebChat run."
                     } else {
-                        "NEAR.AI is selected, but no NEARAI_SESSION_TOKEN, NEARAI_API_KEY, or vaulted nearai credential is available in this desktop build."
+                        "NEAR.AI Cloud is selected; execution readiness will be verified by the first WebChat run."
                     }
                     .into(),
-                ),
-                (
-                    "IRONCLAW_OAUTH_EXCHANGE_URL".into(),
-                    "https://ironclaw-oauth.up.railway.app".into(),
-                ),
-                (
-                    "IRONCLAW_OAUTH_CALLBACK_URL".into(),
-                    "https://ironclaw-oauth.up.railway.app".into(),
                 ),
             ]);
             if let Some(token) = session_token {
@@ -204,20 +227,9 @@ pub async fn spawn(
             if !auth_configured {
                 log::warn!(
                     target: "ironclaw_sidecar",
-                    "NEAR.AI selected without session/API credential; starting sidecar with model=auto and execution unverified"
+                    "NEAR.AI Cloud selected without a local session/API credential; starting sidecar with model=auto and execution unverified"
                 );
             }
-        }
-        BackendConfig::Openrouter { api_key, model } => {
-            envs.extend([
-                ("LLM_BACKEND".into(), "openai_compatible".into()),
-                ("LLM_BASE_URL".into(), "https://openrouter.ai/api/v1".into()),
-                (
-                    "LLM_MODEL".into(),
-                    selected_model(model, "deepseek/deepseek-chat-v3-0324"),
-                ),
-                ("OPENROUTER_API_KEY".into(), api_key.clone()),
-            ]);
         }
         BackendConfig::OpenAi { api_key, model } => {
             envs.extend([
@@ -245,6 +257,8 @@ pub async fn spawn(
         .shell()
         .sidecar("ironclaw-reborn")
         .map_err(|e| sidecar_missing_error(e.to_string()))?
+        .env_clear()
+        .envs(inherited_sidecar_env())
         .envs(envs)
         .current_dir(&cwd)
         .args(["serve", "--host", "127.0.0.1", "--port", port_arg.as_str()]);
@@ -379,6 +393,29 @@ fn pick_free_port() -> Result<u16, String> {
     Err(format!(
         "no free port in {PORT_MIN}-{PORT_MAX} range for local sidecar"
     ))
+}
+
+/// Curated environment inherited by the sidecar. The child gets a cleared
+/// env plus this allowlist, with the desktop-managed block layered on top.
+/// Ambient LLM provider variables (ANTHROPIC_*, OPENAI_*, OPENROUTER_*,
+/// NEARAI_*, LLM_*) are deliberately excluded: Reborn's env fallback would
+/// otherwise try to resolve a provider from a stray endpoint variable —
+/// `ANTHROPIC_BASE_URL` without a key aborts the sidecar at boot — or
+/// silently activate a provider the desktop never configured. The desktop
+/// re-injects the NEAR.AI credentials it vetted via the backend env block.
+fn inherited_sidecar_env() -> Vec<(String, String)> {
+    const EXACT: [&str; 11] = [
+        "HOME", "PATH", "TMPDIR", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "RUST_LOG",
+        "RUST_BACKTRACE", "SSL_CERT_FILE",
+    ];
+    std::env::vars()
+        .filter(|(key, _)| {
+            EXACT.contains(&key.as_str())
+                || key.starts_with("LC_")
+                || key.starts_with("XDG_")
+                || key.starts_with("IRONCLAW_")
+        })
+        .collect()
 }
 
 fn ensure_data_dir(app: &AppHandle) -> Result<PathBuf, String> {

@@ -12,7 +12,6 @@ import {
   providerDefaultModel,
   providerMissingReason
 } from '../lib/llm-providers.js';
-import { modelExecutionReadiness } from '../../../lib/model-readiness.js';
 
 // The v2 `/llm/providers` snapshot is the single source of truth: a unified
 // provider list (built-in + operator-defined) already annotated with the active
@@ -24,26 +23,24 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
   const providersQuery = useQuery({
     queryKey: ['llm-providers'],
     queryFn: fetchLlmProviders,
-    staleTime: 60_000
+    staleTime: 60_000,
+    // Ride out local sidecar boot (HTTP bind can lag the WebView by a few
+    // seconds): connection-refused fails in milliseconds and the layout's
+    // onboarding gate must not see a settled error for a booting backend.
+    retry: 4
   });
 
   const snapshot = providersQuery.data || { providers: [], active: null };
-  const builtinOverrides = {};
-  // Map the wire view onto the field names the components/helpers expect.
-  const allProviders = (snapshot.providers || []).map((provider) => ({
-    ...provider,
-    name: provider.description,
-    has_api_key: provider.api_key_set === true
-  }));
-  // Whether the backend has a usable active provider. Prefer the persisted
-  // operator snapshot, but also honor runtime/env-configured LLMs surfaced by
-  // gateway status so first-run onboarding does not mask an already-live model.
-  const hasActiveProvider = Boolean(snapshot.active?.provider_id || gatewayStatus?.llm_backend);
-  const activeProviderId = snapshot.active?.provider_id || gatewayStatus?.llm_backend || 'nearai';
-  const selectedModel = snapshot.active?.model || gatewayStatus?.llm_model || '';
-  const builtinProviders = allProviders.filter((provider) => provider.builtin);
-  const customProviders = allProviders.filter((provider) => !provider.builtin);
-  const runtimeReadiness = modelExecutionReadiness(gatewayStatus);
+  const providerSnapshot = deriveProviderSnapshot(snapshot);
+  const {
+    allProviders,
+    activeProviderId,
+    selectedModel,
+    builtinProviders,
+    customProviders,
+    hasActiveProvider
+  } = providerSnapshot;
+  const builtinOverrides = providerSnapshot.builtinOverrides;
   const providers = [...allProviders].sort((a, b) => {
     if (a.id === activeProviderId) return -1;
     if (b.id === activeProviderId) return 1;
@@ -112,7 +109,7 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
     builtinOverrides,
     activeProviderId,
     selectedModel,
-    hasActiveProvider: hasActiveProvider && runtimeReadiness.sendBlocked !== true,
+    hasActiveProvider,
     isLoading: providersQuery.isLoading,
     error: providersQuery.error,
     setActiveProvider: (provider) => setActiveMutation.mutateAsync(provider),
@@ -125,5 +122,33 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
       setActiveMutation.isPending ||
       saveProviderMutation.isPending ||
       deleteCustomMutation.isPending
+  };
+}
+
+export function deriveProviderSnapshot(snapshot = {}) {
+  const builtinOverrides = {};
+  // Map the wire view onto the field names the components/helpers expect.
+  const allProviders = (Array.isArray(snapshot.providers) ? snapshot.providers : []).map(
+    (provider) => ({
+      ...provider,
+      name: provider.name || provider.description || provider.id,
+      has_api_key: provider.api_key_set === true
+    })
+  );
+  // Provider activation must come from the Reborn LLM provider snapshot. The
+  // gateway status route always exposes a default backend/model for diagnostics;
+  // treating that as an activated provider skips onboarding and lets first-run
+  // users send messages into a guaranteed credential failure.
+  const hasActiveProvider = Boolean(snapshot.active?.provider_id);
+  const activeProviderId = snapshot.active?.provider_id || '';
+  const selectedModel = snapshot.active?.model || '';
+  return {
+    allProviders,
+    builtinProviders: allProviders.filter((provider) => provider.builtin),
+    customProviders: allProviders.filter((provider) => !provider.builtin),
+    builtinOverrides,
+    hasActiveProvider,
+    activeProviderId,
+    selectedModel
   };
 }

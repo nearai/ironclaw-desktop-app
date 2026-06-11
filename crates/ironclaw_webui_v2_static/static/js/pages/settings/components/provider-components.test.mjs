@@ -162,11 +162,20 @@ function renderProviderManagement({ providers, activeProviderId = 'nearai', sear
     Icon: 'Icon',
     ProviderCard,
     ProviderDialog: 'ProviderDialog',
+    ConfirmDialog: 'ConfirmDialog',
     ProviderLoginStatus: 'ProviderLoginStatus',
     SettingsSearchEmpty: 'SettingsSearchEmpty',
     globalThis: {},
     groupProvidersByStatus,
     html,
+    React: {
+      useCallback: (fn) => fn,
+      useEffect: () => {},
+      useState: (v) => [v, () => {}],
+      useRef: (v) => ({ current: v })
+    },
+    setActiveLlm: async () => {},
+    useQueryClient: () => ({ invalidateQueries: async () => {} }),
     useProviderManagementActions: useProviderManagementActionsStub({
       providers,
       activeProviderId
@@ -228,6 +237,9 @@ function createReactStateStub(state) {
 function createProviderCardHarness() {
   const state = {};
   const context = {
+    ActiveModelPickerStub: null,
+    Select: 'Select',
+    isDesktopRuntime: () => false,
     Badge: 'Badge',
     Button: 'Button',
     Card: 'Card',

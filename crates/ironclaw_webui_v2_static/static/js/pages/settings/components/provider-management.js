@@ -1,7 +1,9 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '../../../design-system/button.js';
 import { Card } from '../../../design-system/card.js';
+import { ConfirmDialog } from '../../../design-system/confirm-dialog.js';
 import { Icon } from '../../../design-system/icons.js';
-import { html } from '../../../lib/html.js';
+import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { SettingsSearchEmpty } from './settings-search-empty.js';
 import { ProviderCard } from './provider-card.js';
@@ -10,6 +12,7 @@ import { ProviderLoginStatus } from './provider-login-status.js';
 import { useProviderManagementActions } from '../hooks/useProviderManagementActions.js';
 import { useProviderLogin } from '../hooks/useProviderLogin.js';
 import { groupProvidersByStatus } from '../lib/llm-providers.js';
+import { setActiveLlm } from '../lib/settings-api.js';
 
 const GROUP_ORDER = [
   { key: 'active', labelKey: 'llm.groupActive', dotClass: 'bg-[var(--v2-positive-text)]' },
@@ -41,6 +44,16 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
   // refresh re-renders the now-active card in place (no navigation here).
   const login = useProviderLogin();
   const loginBusy = login.nearaiBusy || login.codexBusy;
+  const queryClient = useQueryClient();
+  // Apply a model on the ACTIVE provider via the same set-active route the
+  // chat popover uses; the snapshot invalidation re-renders every consumer.
+  const applyModel = React.useCallback(
+    async (provider, model) => {
+      await setActiveLlm({ provider_id: provider.id, model });
+      await queryClient.invalidateQueries({ queryKey: ['llm-providers'] });
+    },
+    [queryClient]
+  );
 
   if (searchQuery && actions.filteredProviders.length === 0) {
     return html`<${SettingsSearchEmpty} query=${searchQuery} />`;
@@ -132,6 +145,8 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
                                 onNearaiLogin=${login.startNearai}
                                 onNearaiWallet=${login.startNearaiWallet}
                                 onCodexLogin=${login.startCodex}
+                                onListModels=${state.listModels}
+                                onApplyModel=${applyModel}
                                 loginBusy=${loginBusy}
                               />
                             `
@@ -154,6 +169,7 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
         onTest=${state.testConnection}
         onListModels=${state.listModels}
       />
+      <${ConfirmDialog} request=${actions.confirmRequest} onClose=${actions.dismissConfirm} />
     <//>
   `;
 }

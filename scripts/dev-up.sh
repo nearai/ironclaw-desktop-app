@@ -24,7 +24,7 @@
 #
 # Env:
 #   IRONCLAW_TUNNEL_HOST   ssh alias to forward through. Default:
-#                          "ironclaw-nearai".
+#                          "your-ssh-host".
 #   IRONCLAW_TUNNEL_PORT   Local port. Default: 18789.
 #   IRONCLAW_GATEWAY_URL   Override the URL we curl-probe. Default:
 #                          "http://127.0.0.1:${IRONCLAW_TUNNEL_PORT}".
@@ -40,7 +40,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
-TUNNEL_HOST="${IRONCLAW_TUNNEL_HOST:-ironclaw-nearai}"
+TUNNEL_HOST="${IRONCLAW_TUNNEL_HOST:-your-ssh-host}"
 TUNNEL_PORT="${IRONCLAW_TUNNEL_PORT:-18789}"
 GATEWAY_URL="${IRONCLAW_GATEWAY_URL:-http://127.0.0.1:${TUNNEL_PORT}}"
 PROFILE_ID="default"

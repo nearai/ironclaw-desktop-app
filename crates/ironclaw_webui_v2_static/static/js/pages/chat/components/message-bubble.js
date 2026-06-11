@@ -1,8 +1,10 @@
 import { React, html } from '../../../lib/html.js';
 import { MarkdownRenderer } from './markdown-renderer.js';
 import { ToolActivity } from './tool-activity.js';
+import { AttachmentPreviewModal } from './attachment-preview.js';
 import { Icon } from '../../../design-system/icons.js';
 import { toast } from '../../../lib/toast.js';
+import { saveBlob } from '../../../lib/save-file.js';
 import {
   downloadDocx,
   downloadHtml,
@@ -11,12 +13,15 @@ import {
   downloadPdf
 } from '../lib/work-product-export.js';
 
-/* User keeps a tinted bubble; assistant is borderless (document-like);
-   system / error stay as centered tinted notices. Reasoning ("thinking")
-   renders as a collapsible disclosure (see ThinkingDisclosure). */
+/* Bicolor attribution (DESIGN.md): signal blue is the user's hand, gold is
+   the agent's. The user keeps a blue-tinted bubble; the assistant stays
+   borderless (document-like) but carries a quiet gold left hairline so a run
+   of agent turns reads as one gold column without becoming a card.
+   system / error stay as centered tinted notices. */
 const ROLE_STYLES = {
   user: 'ml-auto rounded-[18px] border border-signal/25 bg-signal/10 px-4 py-3 text-iron-100',
-  assistant: 'mr-auto px-1 text-iron-100',
+  assistant:
+    'mr-auto border-l-2 border-[color-mix(in_srgb,var(--v2-gold)_45%,transparent)] pl-3 text-iron-100',
   system:
     'mx-auto rounded-[18px] border border-copper/20 bg-copper/10 px-4 py-3 text-center text-copper',
   error:
@@ -73,6 +78,9 @@ export function MessageBubble({ message, onRetry }) {
   } = message;
   const isUser = role === 'user';
   const [copied, setCopied] = React.useState(false);
+  // Hook order: declared with the other hooks, before every role-based
+  // early return below (see the crash note on `copy`).
+  const [attachmentPreview, setAttachmentPreview] = React.useState(null);
   // All hooks must run before the role-based early returns below.
   // A message can change role in place across renders (e.g. an
   // optimistic bubble upgrading, or a streaming role shift), so
@@ -181,19 +189,28 @@ export function MessageBubble({ message, onRetry }) {
             <div className="mt-2 flex flex-col gap-1.5">
               ${attachments.map(
                 (att, i) => html`
-                  <div
+                  <button
                     key=${i}
-                    className="flex items-center gap-2 rounded-md border border-iron-700 bg-iron-900/50 px-3 py-2 text-xs"
+                    type="button"
+                    onClick=${() => setAttachmentPreview(att)}
+                    aria-label=${`Preview ${att.filename || 'attachment'}`}
+                    className="flex items-center gap-2 rounded-md border border-iron-700 bg-iron-900/50 px-3 py-2 text-left text-xs hover:border-signal/40"
                   >
                     <${Icon} name="file" className="h-3.5 w-3.5 text-signal" />
                     <span className="truncate">${att.filename || 'attachment'}</span>
                     <span className="ml-auto shrink-0 text-iron-200"
                       >${att.mime_type} ${att.size_label ? ' / ' + att.size_label : ''}</span
                     >
-                  </div>
+                    <${Icon} name="chevron" className="h-3 w-3 shrink-0 -rotate-90 text-iron-300" />
+                  </button>
                 `
               )}
             </div>
+            <${AttachmentPreviewModal}
+              open=${Boolean(attachmentPreview)}
+              onClose=${() => setAttachmentPreview(null)}
+              attachment=${attachmentPreview}
+            />
           `}
         </div>
 
@@ -254,7 +271,10 @@ function AssistantExportActions({ content }) {
     </button>
     <button
       type="button"
-      onClick=${() => downloadMarkdown(content)}
+      onClick=${async () => {
+        const saved = await downloadMarkdown(content);
+        if (saved) toast(`Saved ${saved.split('/').pop()}`, { tone: 'success' });
+      }}
       className=${actionClass()}
       aria-label="Export assistant response as Markdown"
     >
@@ -262,7 +282,10 @@ function AssistantExportActions({ content }) {
     </button>
     <button
       type="button"
-      onClick=${() => downloadHtml(content)}
+      onClick=${async () => {
+        const saved = await downloadHtml(content);
+        if (saved) toast(`Saved ${saved.split('/').pop()}`, { tone: 'success' });
+      }}
       className=${actionClass()}
       aria-label="Export assistant response as HTML"
     >
@@ -270,7 +293,10 @@ function AssistantExportActions({ content }) {
     </button>
     <button
       type="button"
-      onClick=${() => downloadPdf(content)}
+      onClick=${async () => {
+        const saved = await downloadPdf(content);
+        if (saved) toast(`Saved ${saved.split('/').pop()}`, { tone: 'success' });
+      }}
       className=${actionClass()}
       aria-label="Export assistant response as PDF"
     >
@@ -278,7 +304,10 @@ function AssistantExportActions({ content }) {
     </button>
     <button
       type="button"
-      onClick=${() => downloadDocx(content)}
+      onClick=${async () => {
+        const saved = await downloadDocx(content);
+        if (saved) toast(`Saved ${saved.split('/').pop()}`, { tone: 'success' });
+      }}
       className=${actionClass()}
       aria-label="Export assistant response as DOCX"
     >
@@ -286,7 +315,10 @@ function AssistantExportActions({ content }) {
     </button>
     <button
       type="button"
-      onClick=${() => downloadJson({ role: 'assistant', content })}
+      onClick=${async () => {
+        const saved = await downloadJson({ role: 'assistant', content });
+        if (saved) toast(`Saved ${saved.split('/').pop()}`, { tone: 'success' });
+      }}
       className=${actionClass()}
       aria-label="Export assistant response as JSON"
     >
@@ -359,15 +391,8 @@ function exportThread(format) {
 }
 
 function exportContent(filename, type, content) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  // Native save on desktop (anchor downloads are dead in WKWebView).
+  return saveBlob(new Blob([content], { type }), filename);
 }
 
 function titleFromMarkdown(markdown) {

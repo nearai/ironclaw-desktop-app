@@ -15,7 +15,7 @@
   import { open as shellOpen } from '@tauri-apps/plugin-shell';
   import { toasts } from '$lib/stores/toasts.svelte';
 
-  const ISSUE_URL = 'https://github.com/abbyshekit/ironclaw-desktop/issues/new';
+  const ISSUE_URL = 'https://github.com/nearai/ironclaw-desktop-app/issues/new';
 
   let messageOpen = $state(true);
   let stackOpen = $state(false);

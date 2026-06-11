@@ -1,6 +1,6 @@
 import { React } from '../../../lib/html.js';
 import { fetchTimeline } from '../../../lib/api.js';
-import { messagesFromTimeline } from '../lib/history-messages.js';
+import { messagesFromTimeline, pendingMessagesAfterTimeline } from '../lib/history-messages.js';
 
 const PAGE_SIZE = 50;
 
@@ -37,9 +37,14 @@ export function useHistory(threadId, options = {}) {
         const pendingMessages = cursor ? [] : getPendingMessages?.() || [];
         const renderable = messagesFromTimeline(data.messages || [], pendingMessages);
 
-        // RebornTimelineResponse.next_cursor === null means we reached
-        // the start of the thread.
-        if (!cursor) setPendingMessages?.([]);
+        // RebornTimelineResponse.next_cursor === null means we reached the
+        // start of the thread. Do not clear optimistic accepted user rows just
+        // because timeline was empty: Reborn can accept the turn, then fail at
+        // model auth before projecting the user record. Keep pending rows until
+        // timeline actually confirms them.
+        if (!cursor) {
+          setPendingMessages?.(pendingMessagesAfterTimeline(data.messages || [], pendingMessages));
+        }
 
         setState((prev) => {
           const merged = cursor ? mergePage(renderable, prev.messages) : renderable;

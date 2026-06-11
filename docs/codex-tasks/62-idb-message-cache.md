@@ -158,7 +158,7 @@ hint.
    - All operations no-op when `indexedDB` is undefined (assert no
      throw).
 3. Manual: launch the bundled app, open a thread with messages, close
-   the app, kill the SSH tunnel (`ssh -O exit ironclaw-nearai`),
+   the app, kill the SSH tunnel (`ssh -O exit your-ssh-host`),
    reopen the app, navigate to the same thread. Messages render
    from cache; status bar shows disconnected. Re-open the tunnel;
    the gateway fetch hydrates over the cache.

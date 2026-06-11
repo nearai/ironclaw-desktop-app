@@ -49,8 +49,8 @@
     })();
   });
 
-  const REPO_URL = 'https://github.com/abbyshekit/ironclaw-desktop';
-  const ISSUES_URL = 'https://github.com/abbyshekit/ironclaw-desktop/issues/new';
+  const REPO_URL = 'https://github.com/nearai/ironclaw-desktop-app';
+  const ISSUES_URL = 'https://github.com/nearai/ironclaw-desktop-app/issues/new';
 
   // -- Gateway info ----------------------------------------------------------
   // Fetched once each time the dialog transitions from closed → open so the
@@ -611,7 +611,7 @@
         class="px-5 py-3 border-t border-border-subtle text-[11px] text-text-muted/80 leading-relaxed"
       >
         Tauri v2, Svelte 5, Tailwind. Markdown via marked + DOMPurify. Auth via macOS Keychain. ©
-        2026 Abhishek Vaidyanathan.
+        2026 Abhishek Vaidyanathan &amp; NEAR AI.
       </footer>
     </div>
   </div>

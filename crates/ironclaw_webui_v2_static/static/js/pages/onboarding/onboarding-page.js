@@ -1,6 +1,7 @@
 import { useNavigate, useOutletContext } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { React, html } from '../../lib/html.js';
+import { isDesktopRuntime } from '../../lib/api.js';
 import { useT } from '../../lib/i18n.js';
 import { Badge } from '../../design-system/badge.js';
 import { Button } from '../../design-system/button.js';
@@ -10,7 +11,7 @@ import { ProviderLoginStatus } from '../settings/components/provider-login-statu
 import { useProviderManagementActions } from '../settings/hooks/useProviderManagementActions.js';
 import { useProviderLogin } from '../settings/hooks/useProviderLogin.js';
 import { isProviderConfigured } from '../settings/lib/llm-providers.js';
-import { setActiveLlm } from '../settings/lib/settings-api.js';
+import { setActiveLlm, testLlmProviderConnection } from '../settings/lib/settings-api.js';
 import { ProviderLogo } from './provider-logos.js';
 
 // First-run "choose your provider" list. Curated providers are surfaced in this
@@ -57,40 +58,82 @@ const FEATURED = [
 function FeaturedProviderRow({ entry, provider, configured, isBusy, login, t, onUse, onSetUp }) {
   const name = t(entry.nameKey);
 
-  // Login-based providers (NEAR AI, Codex) always show their sign-in actions —
-  // never a "Use" button. The session/OAuth login is the only way to activate
-  // them, so a separate "Use" would be a dead end.
+  // Login-based providers (NEAR AI, Codex) show their sign-in actions.
+  // Desktop: GitHub/Google sign-in runs in a dedicated app window (the
+  // server only accepts private.near.ai callbacks; the window captures the
+  // token from that navigation). Wallet and API key remain as fallbacks.
   let actions;
   if (entry.auth === 'nearai') {
-    actions = html`
-      <${Button}
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled=${login.nearaiBusy}
-        onClick=${login.startNearaiWallet}
-      >
-        ${t('onboarding.nearWallet')}
-      <//>
-      <${Button}
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled=${login.nearaiBusy}
-        onClick=${() => login.startNearai('github')}
-      >
-        GitHub
-      <//>
-      <${Button}
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled=${login.nearaiBusy}
-        onClick=${() => login.startNearai('google')}
-      >
-        Google
-      <//>
-    `;
+    if (isDesktopRuntime()) {
+      actions = html`
+        <${Button}
+          type="button"
+          variant="primary"
+          size="sm"
+          disabled=${login.nearaiBusy}
+          onClick=${() => login.startNearai('github')}
+        >
+          ${t('onboarding.signInGithub')}
+        <//>
+        <${Button}
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled=${login.nearaiBusy}
+          onClick=${() => login.startNearai('google')}
+        >
+          Google
+        <//>
+        <${Button}
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled=${login.nearaiBusy}
+          onClick=${login.startNearaiWallet}
+        >
+          ${t('onboarding.nearWallet')}
+        <//>
+        <${Button}
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled=${isBusy}
+          onClick=${() => onSetUp(provider)}
+        >
+          ${t('onboarding.useApiKey')}
+        <//>
+      `;
+    } else {
+      actions = html`
+        <${Button}
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled=${login.nearaiBusy}
+          onClick=${login.startNearaiWallet}
+        >
+          ${t('onboarding.nearWallet')}
+        <//>
+        <${Button}
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled=${login.nearaiBusy}
+          onClick=${() => login.startNearai('github')}
+        >
+          GitHub
+        <//>
+        <${Button}
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled=${login.nearaiBusy}
+          onClick=${() => login.startNearai('google')}
+        >
+          Google
+        <//>
+      `;
+    }
   } else if (entry.auth === 'codex') {
     actions = html`
       <${Button}
@@ -138,7 +181,9 @@ function FeaturedProviderRow({ entry, provider, configured, isBusy, login, t, on
             html`<${Badge} tone="positive" label=${t('onboarding.ready')} size="sm" />`}
           </div>
           <div className="mt-0.5 truncate text-xs text-[var(--v2-text-muted)]">
-            ${t(entry.descKey)}
+            ${entry.auth === 'nearai' && isDesktopRuntime()
+              ? t('onboarding.providerNearaiDescDesktop')
+              : t(entry.descKey)}
           </div>
         </div>
       </div>
@@ -170,6 +215,45 @@ export function OnboardingPage() {
   // now-active provider).
   const navigateToChat = React.useCallback(() => navigate('/chat'), [navigate]);
   const login = useProviderLogin({ onSuccess: navigateToChat });
+
+  // Resume an existing NEAR AI session instead of demanding a fresh sign-in.
+  // A returning user (or a machine that signed in via the CLI) already holds
+  // a working session the sidecar loaded — verify it with a real connection
+  // test, activate it, and go straight to chat. Sign-in stays the path for
+  // genuinely new machines.
+  const [resumingSession, setResumingSession] = React.useState(false);
+  const resumeAttemptedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (resumeAttemptedRef.current || state.isLoading) return;
+    const nearai = state.providers.find((provider) => provider.id === 'nearai');
+    if (!nearai || state.activeProviderId) return;
+    resumeAttemptedRef.current = true;
+    let cancelled = false;
+    (async () => {
+      setResumingSession(true);
+      try {
+        const probe = await testLlmProviderConnection({
+          provider_id: 'nearai',
+          adapter: nearai.adapter || 'nearai',
+          model: nearai.active_model || nearai.default_model || 'auto'
+        });
+        if (cancelled || !probe?.ok) return;
+        await setActiveLlm({
+          provider_id: 'nearai',
+          model: nearai.active_model || nearai.default_model || 'auto'
+        });
+        await queryClient.invalidateQueries({ queryKey: ['llm-providers'] });
+        if (!cancelled) navigate('/chat');
+      } catch (_) {
+        // No working session — the sign-in buttons below are the path.
+      } finally {
+        if (!cancelled) setResumingSession(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [state.isLoading, state.providers, state.activeProviderId, navigate, queryClient]);
 
   // Make an already-configured provider (env key present, local Ollama, etc.)
   // the active selection and head to chat without opening the dialog.
@@ -215,6 +299,10 @@ export function OnboardingPage() {
             ${t('onboarding.title')}
           </h1>
           <p className="mt-2 text-sm text-[var(--v2-text-muted)]">${t('onboarding.subtitle')}</p>
+          ${resumingSession &&
+          html`<p className="mt-3 text-sm font-medium text-[var(--v2-accent-text)]">
+            ${t('onboarding.resumingSession')}
+          </p>`}
         </div>
 
         <div className="flex flex-col gap-3">

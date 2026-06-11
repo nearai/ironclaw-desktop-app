@@ -627,7 +627,7 @@ End-to-end, when you're ready to ship a new version:
 5. **Verify** in the GitHub release UI that both DMGs are attached
    and `latest.json` (Tauri auto-generates this) is present. The
    updater endpoint in `tauri.conf.json` points at
-   `https://github.com/abbyshekit/ironclaw-desktop/releases/latest/download/latest.json`.
+   `https://github.com/nearai/ironclaw-desktop-app/releases/latest/download/latest.json`.
 
 ### First-time release setup (signing keypair)
 
@@ -663,9 +663,10 @@ etc.). To find ones that have shipped upstream:
 bash scripts/probe-blocked-endpoints.sh
 ```
 
-Reads SSH alias `ironclaw-nearai` to discover the live gateway token.
-Yellow `WARN` lines mean an endpoint started responding — time to
-wire UI for it. Always exits 0 (discovery tool, not a CI gate).
+Reads your configured SSH alias (`IRONCLAW_SSH_ALIAS`) to discover the
+live gateway token. Yellow `WARN` lines mean an endpoint started
+responding — time to wire UI for it. Always exits 0 (discovery tool,
+not a CI gate).
 
 ---
 

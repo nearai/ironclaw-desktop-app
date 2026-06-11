@@ -51,13 +51,36 @@ describe('CSP hardening directives are present', () => {
 });
 
 describe('script-src is pinned (XSS surface)', () => {
-  // `'unsafe-inline'` is required by SvelteKit's inline hydration start
-  // script AND the dev-only IPC shim in app.html (which is itself
-  // production-gated — see the dev-shim test below). It is NOT a remote
-  // script host and NOT `unsafe-eval`. Pin the exact value so adding a
-  // remote origin or eval fails here.
-  it('is exactly self + unsafe-inline + tauri:', () => {
-    expect(directive('script-src')).toBe("'self' 'unsafe-inline' tauri:");
+  // `'unsafe-inline'` is required by SvelteKit's inline hydration start script
+  // AND the dev-only IPC shim in app.html (production-gated — see the dev-shim
+  // test below). `'wasm-unsafe-eval'` is the WASM-only eval that tesseract.js
+  // (fully-offline OCR) requires — it is NOT the general `'unsafe-eval'`, which
+  // stays absent (asserted above). The loopback http origins are the bundled
+  // sidecar that serves the static UI over 127.0.0.1; they are NOT remote
+  // script hosts. Pin the exact value so adding a remote origin, a bare http
+  // wildcard, or real unsafe-eval fails here.
+  it('is exactly self + unsafe-inline + wasm-unsafe-eval + tauri: + loopback', () => {
+    expect(directive('script-src')).toBe(
+      "'self' 'unsafe-inline' 'wasm-unsafe-eval' tauri: http://127.0.0.1:* http://localhost:*"
+    );
+  });
+  it('never widens script-src to a remote host or bare http wildcard', () => {
+    const script = directive('script-src');
+    expect(script).not.toMatch(/(^|\s)http:\/\/\*/);
+    expect(script).not.toContain('https://');
+  });
+});
+
+describe('worker-src stays loopback/blob-scoped (OCR + pdf.js workers)', () => {
+  // tesseract OCR and pdf.js spawn workers from blob: URLs and the
+  // sidecar-served bundle. Keep them pinned to self/blob/tauri + loopback,
+  // never a remote or bare-http wildcard.
+  const worker = directive('worker-src');
+  it('allows self/blob/tauri + loopback only', () => {
+    expect(worker).toBe("'self' blob: tauri: http://127.0.0.1:* http://localhost:*");
+  });
+  it('does not allow a bare insecure-http wildcard', () => {
+    expect(worker).not.toMatch(/(^|\s)http:\/\/\*/);
   });
 });
 

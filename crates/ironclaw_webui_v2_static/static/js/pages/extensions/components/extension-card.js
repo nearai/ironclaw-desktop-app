@@ -248,7 +248,7 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
   `;
 }
 
-export function RegistryCard({ entry, onInstall, isBusy }) {
+export function RegistryCard({ entry, onInstall, isBusy, onConnect, connectPhase }) {
   const kindLabel = KIND_LABELS[entry.kind] || entry.kind;
   const displayName = entry.display_name || packageId(entry);
   const canInstall = Boolean(entry.package_ref);
@@ -295,13 +295,25 @@ export function RegistryCard({ entry, onInstall, isBusy }) {
         ${canInstall &&
         html`
           <${Button}
-            variant="outline"
+            variant=${connectPhase?.phase === 'connected' ? 'secondary' : 'primary'}
             size="sm"
-            onClick=${() => onInstall({ packageRef: entry.package_ref, displayName })}
-            disabled=${isBusy}
+            onClick=${() =>
+              onConnect
+                ? onConnect(entry)
+                : onInstall({ packageRef: entry.package_ref, displayName })}
+            disabled=${isBusy ||
+            ['installing', 'authorizing', 'waiting', 'activating'].includes(connectPhase?.phase) ||
+            connectPhase?.phase === 'connected'}
           >
-            <${Icon} name="plus" className="mr-1.5 h-3.5 w-3.5" />
-            Install
+            ${connectPhase?.phase === 'installing' && 'Connecting…'}
+            ${connectPhase?.phase === 'authorizing' && 'Connecting…'}
+            ${connectPhase?.phase === 'waiting' && 'Finish in your browser…'}
+            ${connectPhase?.phase === 'activating' && 'Turning on…'}
+            ${connectPhase?.phase === 'connected' && 'Connected'}
+            ${!connectPhase?.phase || connectPhase?.phase === 'error'
+              ? html`<${Icon} name="plus" className="mr-1.5 h-3.5 w-3.5" /> Connect`
+              : null}
+            ${connectPhase?.phase === 'needs-token' && 'Enter token in Installed tab'}
           <//>
         `}
       </div>

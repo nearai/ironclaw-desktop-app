@@ -1,18 +1,18 @@
 # IronClaw Desktop
 
-[![Latest release](https://img.shields.io/github/v/release/abbyshekit/ironclaw-desktop?label=release&color=4ca7e6)](https://github.com/abbyshekit/ironclaw-desktop/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/nearai/ironclaw-desktop-app?label=release&color=4ca7e6)](https://github.com/nearai/ironclaw-desktop-app/releases/latest)
 
 A native macOS client for [IronClaw](https://github.com/nearai/ironclaw) — the Rust knowledge agent from NEAR AI. Tauri v2 shell, packaging the Reborn static WebUI from `crates/ironclaw_webui_v2_static/static`. Dark, fast, ~5MB binary footprint (excluding bundled sidecar).
 
 ## Download
 
-Latest macOS DMG: https://github.com/abbyshekit/ironclaw-desktop/releases/latest
+Latest macOS DMG: https://github.com/nearai/ironclaw-desktop-app/releases/latest
 
 Apple Silicon and Intel both shipped. Unsigned-by-Apple (the updater signature is for in-app update verification, separate from Apple notarization which is a future TODO).
 
 ## Why
 
-IronClaw ships with a TUI and a web UI served by its own gateway. This app gives it a polished native shell with macOS conventions: Cmd+K palette, Keychain-backed credentials, native notifications, menu-bar status, sidecar lifecycle managed for you.
+IronClaw ships with a TUI and a web UI served by its own gateway. This app gives it a polished native shell with macOS conventions: Keychain-backed credentials, native notifications, menu-bar status, and sidecar lifecycle managed for you.
 
 ## 5-minute dev bring-up
 
@@ -59,68 +59,60 @@ security delete-generic-password \
 
 ## Quick tour
 
-Every surface is one chord away. Memorize these seven and you have the app:
+The shipped app exposes four top-level surfaces in the sidebar:
 
-- **Cmd+K** — command palette. Fuzzy search across navigation, threads, skills, routines, docs, and one-shot actions.
-- **Cmd+Shift+F** — global search across surfaces (knowledge, skills, routines, threads).
-- **Cmd+T** — quick thread switcher. Biased toward the last ten threads you opened.
-- **Cmd+Shift+N** — quick capture. Drop a thought into a dedicated "Quick captures" thread without leaving the current surface.
-- **Cmd+Shift+P** — workspace presets. Save and restore active path, current thread, panel widths, sidebar collapse, tray badge, status bar visibility.
-- **Cmd+/** — toggle the bottom status bar (gateway / profile / sidecar state).
+- **Chat** — streaming conversations with the agent. Markdown rendering, code-block copy, file/PDF attachments with client-side text extraction (and OCR for scanned PDFs), retry on failure.
+- **Automations** — scheduled and triggered agent runs.
+- **Extensions** — install/activate MCP servers, channel integrations, and the extension registry.
+- **Settings** — per-profile gateway config, Keychain-backed tokens, inference (LLM provider) selection, language.
+
+App-wide controls:
+
 - **Cmd+,** — Settings (macOS convention).
-
-Top-level routes:
-
-| Chord | Surface                                 |
-| ----- | --------------------------------------- |
-| Cmd+1 | Chat                                    |
-| Cmd+2 | Knowledge                               |
-| Cmd+3 | Skills                                  |
-| Cmd+4 | Routines                                |
-| Cmd+5 | Jobs                                    |
-| Cmd+6 | Logs                                    |
-| Cmd+7 | Extensions                              |
-| Cmd+8 | Admin _(gated on `adminMode`)_          |
-| Cmd+9 | Missions _(gated on `engineV2Enabled`)_ |
-
-The menu-bar tray gives you Show/Hide, Restart sidecar, Open Settings, Quit even when the window is hidden.
+- The **menu-bar tray** gives you Show/Hide, Restart sidecar, Open Settings, and Quit even when the window is hidden.
 
 For the wiring underneath all this, see [`ARCHITECTURE.md`](ARCHITECTURE.md). For how to contribute a change, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-The shipped desktop UI is the static Reborn WebUI, not the legacy SvelteKit
-tree. See [`docs/STATIC_WEBUI_SYNC.md`](docs/STATIC_WEBUI_SYNC.md) before
+The shipped desktop UI is the static Reborn WebUI under
+`crates/ironclaw_webui_v2_static/static`, not the legacy SvelteKit tree under
+`src/`. See [`docs/STATIC_WEBUI_SYNC.md`](docs/STATIC_WEBUI_SYNC.md) before
 syncing with Reborn or claiming a Svelte test proves packaged-app behavior.
+
+Third-party licenses: see [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md).
 
 ## Workflows
 
 The flows below cover the main ways people use the app. Pick the one that matches your setup.
 
-### First-run chief-of-staff setup
+### First-run setup
 
-On a fresh install, onboarding only decides how IronClaw connects: local sidecar or hosted gateway.
-After a successful connect, or after choosing **Set up later**, the app lands on `/dashboard`.
+On first launch, onboarding asks one thing: **which AI provider to use.** Pick one and you land on the **Chat** surface — the app's home. You can add or switch providers anytime in **Settings -> Inference**.
 
-The dashboard shows **Get Started**, a three-step tracker scoped to the active profile:
+![First run -- choose an AI provider](docs/screenshots/onboarding.png)
 
-1. Runner connected — live connection state from the active profile.
-2. Workspace packs — Google Workspace, Notion, and Slack readiness via Extensions.
-3. Mission launcher — first-run missions that run in approval mode.
+- **NEAR AI** (recommended) -- free during private preview. Sign in with GitHub or a NEAR Wallet, or paste an API key.
+- **ChatGPT** -- sign in to use an existing ChatGPT Plus/Pro subscription.
+- **OpenAI** / **Anthropic** -- bring your own API key.
+- **Local Ollama** -- run open models locally, no key needed.
 
-Connector-gated missions stay disabled until their required pack is ready. For example, Morning
-Brief, Meeting Prep, Inbox Triage, and Draft Replies require Google Workspace; Update Notion CRM
-requires Notion; Slack Catch-up requires Slack. Disabled mission cards state the missing pack and
-link to `/extensions?focus=<extension>` so setup can be finished in Extensions.
+OAuth-based sign-ins open in your system browser, not an embedded webview. The token is stored in the macOS Keychain (with an owner-only `chmod 0600` file fallback if a Keychain prompt can't complete), and is never written into `settings.json` or your exports.
 
-### 1. Connecting to a remote IronClaw
+Once a provider is set, Chat is ready -- ask anything, or drop in a document that needs work:
 
-The common case: IronClaw already runs on a server you control (baremetal3, abby, a teammate's machine). The app is a thin client that talks to that gateway over HTTP.
+![Chat](docs/screenshots/chat.png)
 
-![Onboarding step 1 — Welcome](docs/screenshots/01-onboarding-welcome.png)
+Manage providers -- switch the active one, add a custom OpenAI-compatible or Ollama endpoint -- in **Settings -> Inference**:
 
-1. **Forward the gateway port over SSH.** IronClaw binds to `127.0.0.1` on the server, so you need a tunnel. The bundled helper handles it (see [SSH tunnel helper](#ssh-tunnel-helper) below):
+![Settings -- Inference](docs/screenshots/settings-inference.png)
+
+### Connecting to a remote IronClaw gateway (advanced)
+
+By default the app runs the bundled local sidecar. To instead point a profile at an IronClaw gateway running on a server you control (a VPS, a baremetal box, a teammate's machine), forward its loopback port over SSH and set the profile's Base URL + token.
+
+1. **Forward the gateway port.** IronClaw binds to `127.0.0.1` on the server, so you need a tunnel. The bundled helper handles it (see [SSH tunnel helper](#ssh-tunnel-helper) below):
 
    ```bash
-   bash scripts/tunnel.sh open       # opens default tunnel to ironclaw-nearai:18789
+   bash scripts/tunnel.sh open       # opens the default tunnel to your configured gateway host
    ```
 
    Or roll your own:
@@ -129,97 +121,53 @@ The common case: IronClaw already runs on a server you control (baremetal3, abby
    ssh -L 18789:127.0.0.1:3100 user@your-server
    ```
 
-2. **Launch the app**, pick **Connect to hosted** on the welcome screen, then enter the local end of the tunnel as the Base URL and paste your gateway token.
+2. **Set the profile's Base URL** to the local end of the tunnel and paste your gateway token. The same Keychain storage and `settings.json`/export exclusions described above apply, so you only paste once per profile.
 
-   ![Onboarding step 2 — Remote config](docs/screenshots/02-onboarding-remote-config.png)
-
-   The token is stored on this machine in the macOS Keychain. If a Keychain prompt can't complete (a known macOS hang), IronClaw falls back to an owner-only `chmod 0600` file in its data directory so you're never locked out — Settings shows which store is active. The token is never written into `settings.json` or your exports, so you only paste once per profile.
-
-3. **Step 3 runs a health check** against the URL you entered. If it fails, you'll see a "Failed to fetch" panel with **Try again** / **Finish anyway**. Pick **Finish anyway** if you know the tunnel isn't open yet — you can re-test from Settings later.
-
-   ![Onboarding step 3 — Health check](docs/screenshots/04-onboarding-step3.png)
-
-Once connected, onboarding routes to `/dashboard` so Get Started can guide connector setup and the
-first approval-mode mission. Cmd+1 still opens Chat.
-
-### 2. Running the bundled local sidecar
-
-For users without a remote IronClaw. The `.app` ships a ~120MB IronClaw binary inside `Contents/Resources/binaries/` (universal — both Apple Silicon and Intel slices). The app spawns + manages it for you.
-
-1. **Launch the app**, pick **Run on this Mac** on the welcome screen.
-
-2. **Step 2 sets the inference backend.** NEAR.AI Cloud is recommended — it's free during private preview, no API key needed. You'll OAuth into your NEAR account once the sidecar starts. OpenRouter is the advanced alternative (paste a key, picks any model on OpenRouter).
-
-   ![Onboarding step 2 — Local config](docs/screenshots/03-onboarding-local-config.png)
-
-3. **Step 3 spawns the sidecar.** First spawn takes ~3 seconds (binary unpack, libSQL DB init). The app polls `http://127.0.0.1:<port>` until it answers, then opens `/dashboard`.
-
-4. **Sign in to NEAR.AI Cloud.** IronClaw opens its web UI in your browser on first inference request — OAuth flow lives there, not in the desktop app. Once you approve, the sidecar caches the token and the desktop client keeps talking to it normally.
-
-The sidecar PID and port are tracked by the app — quitting the app stops the sidecar cleanly. If the sidecar dies unexpectedly, the tray icon flips to "disconnected" and a notification fires (controllable in Settings → Notifications).
-
-### 3. Switching profiles
+### Switching profiles
 
 For users with multiple IronClaw instances (e.g. work + personal, prod + staging).
 
-- The **sidebar profile chip** at the top opens a picker. Each profile has its own connection settings, its own Keychain entry, and its own active thread/draft state.
-- **Cmd+click any profile** in the picker to open it in a new window — both windows poll independently, both show separate tray status, and tokens stay scoped to the profile they were entered for.
-- **New profile**: sidebar chip → "+ New profile". The dialog asks for name, mode (Local/Remote), URL, and token. Save and the new profile shows in the chip menu.
+- The **sidebar profile chip** opens a picker. Each profile has its own connection settings, its own Keychain entry, and its own active thread/draft state.
+- **Cmd+click any profile** in the picker to open it in a new window -- both windows poll independently, both show separate tray status, and tokens stay scoped to the profile they were entered for.
+- **New profile**: sidebar chip -> "+ New profile". The dialog asks for name, mode (Local/Remote), URL, and token.
 
-> TODO: capture sidebar profile chip screenshot once Tauri shell is running. The chip lives at the top of the left rail; the open-state dropdown shows all profiles with mode badges + last-seen indicator. [Screenshot: Sidebar profile chip open with two profiles]
+### Chat with attachments
 
-### 4. Slash commands + templates
+Chat is the primary surface. Beyond plain conversation:
 
-The chat composer treats `/` as a special prefix.
-
-- `/skill-name` — invoke a bundled skill directly. Autocompletes against installed skills (the 30+ that ship + anything you've added). Hit Tab to accept; the skill runs against the current thread.
-- `/template-name` — expand a saved prompt template into the composer. Templates are JSON files in the workspace, edited via Settings → Templates (or `Cmd+Shift+T`).
-- **`Cmd+Shift+T`** opens the templates modal directly — search, preview, insert.
-
-> TODO: capture slash-autocomplete and templates modal once Tauri shell is running. The slash menu pops above the composer with a fuzzy-matched list; templates modal is a centered dialog with split-pane preview. [Screenshot: Slash autocomplete dropdown]
-
-### 5. Cross-surface global search
-
-**`Cmd+Shift+F`** opens the global search. One input, six sources: **knowledge**, **threads**, **skills**, **routines**, **jobs**, **extensions**.
-
-- **Filter pills** above the results let you scope to one source.
-- **Number-key shortcuts** (1-6) toggle pills without leaving the keyboard.
-- **Enter** jumps to the highlighted result; **Cmd+Enter** opens it in a new pane.
-
-> TODO: capture global search with results spanning multiple surfaces once Tauri shell is running. Should show: filter pills along the top, mixed-source results grouped by type, keyboard-focus indicator on the first result. [Screenshot: Cmd+Shift+F global search]
-
-### 6. Engine v2 (advanced)
-
-Engine v2 is the next-generation execution surface — multi-step missions with planner, executor, and verifier roles. It's gated off by default while it bakes.
-
-To enable: **Settings → Advanced → "Show Engine v2 surface"**. After flipping the toggle, `Cmd+9` reveals the Missions tab.
-
-> TODO: capture Settings → Advanced panel with the Engine v2 toggle once Tauri shell is running. [Screenshot: Settings Advanced — Engine v2 toggle]
+- **Attachments** — drop a file or PDF onto the composer. The app extracts text client-side and inlines it into the message so the model can read it. Scanned/image-only PDFs fall back to in-browser OCR (tesseract.js). Office formats (`.docx`, `.xlsx`, `.xls`) are supported.
+- **Markdown rendering** — responses render as markdown with syntax-highlighted, copyable code blocks.
+- **Retry** — re-run the last turn on a failed or unsatisfying response.
 
 ## What's inside
 
-The sidebar nav, in order: **Today → Desk → Streams → Chat → Canvas →
-Knowledge → Memory → Skills → Routines → Jobs → Logs → Extensions → Settings**
-(Admin and Missions appear above Settings when their gates are on). Today is
-the named home — post-onboarding and the "already onboarded" guard both land
-there.
+The shipped static WebUI exposes four sidebar surfaces:
 
-- **Today** (`/dashboard`, Cmd+0) — the home surface: a tile grid of live + scheduled widgets (open loops, morning brief, mission launcher). Where the app opens after onboarding.
-- **The Desk** (`/desk`) — the proactive chief-of-staff action inbox: a priority-sorted feed of cards led by the "Needs you" approval gates the agent paused on.
-- **Streams** (`/streams`) — the cross-surface activity feed of what the agent has done and is doing.
-- **Chat** (`/`, Cmd+1) — streaming conversations with markdown rendering, code-block copy, retry on failure, draft persistence per thread
-- **Canvas** (`/canvas`) — a spatial research board: drop nodes, connect them, ask sub-agents on a node
-- **Knowledge** (`/knowledge`, Cmd+2) — browse the workspace doc tree, FTS search, read + write (edit existing, create new)
-- **Memory** (`/memory`, Cmd+M) — a flat card list of what the agent has accumulated, distinct from Knowledge's on-disk tree
-- **Skills** (`/skills`, Cmd+3) — list + filter the 30+ bundled skills, view metadata (trust, source, usage hint); **IronHub** (`/skills/ironhub`, reached from Skills) browses + installs more
-- **Routines** (`/routines`, Cmd+4) — view scheduled jobs, toggle on/off, trigger manually, inspect run history
-- **Jobs** (`/jobs`, Cmd+5) — the background queue: inspect in-progress / pending / completed agent jobs
-- **Logs** (`/logs`, Cmd+6) — live-tail the gateway via SSE, filter by level + grep, virtualized for 5K+ entries
-- **Extensions** (`/extensions`, Cmd+7) — install/activate MCP servers, OAuth providers, channel integrations
-- **Settings** (`/settings`, Cmd+,) — per-profile gateway configs, Keychain-backed tokens, local sidecar lifecycle
-- **Mini-mode** (`/mini`, Cmd+Shift+M) — a compact always-on-top floating chat window in its own Tauri window, outside the sidebar
-- **Cmd+K palette** — fuzzy-search across navigation, threads, skills, routines, docs
-- **Signed auto-updater** — releases ship signed `.app.tar.gz` + `.sig` artifacts; the in-app updater verifies the signature against the pubkey baked into the binary before installing. Cadence configurable (off / launch only / launch + 1 h / launch + 6 h) under Settings → Advanced. Apple notarization (the Gatekeeper-facing signature) is a separate, pending TODO.
+- **Chat** (`/chat`) — the home surface. Streaming conversations with markdown rendering, code-block copy, retry on failure, and file/PDF/Office attachments with client-side text extraction + OCR.
+- **Automations** (`/automations`) — scheduled and triggered agent runs.
+- **Extensions** (`/extensions`) — install/activate MCP servers, channel integrations, and the extension registry (Installed / Channels / MCP / Registry tabs).
+- **Settings** (`/settings`, Cmd+,) — per-profile gateway config, Keychain-backed tokens, inference (LLM provider) selection, and language. Local sidecar lifecycle when running the bundled binary.
+
+Plus, outside the sidebar:
+
+- **Signed auto-updater** — releases ship signed `.app.tar.gz` + `.sig` artifacts; the in-app updater verifies the signature against the pubkey baked into the binary before installing. Apple notarization (the Gatekeeper-facing signature) is a separate, pending TODO.
+- **Menu-bar tray** — Show/Hide, Restart sidecar, Open Settings, Quit, even when the window is hidden.
+
+### Planned / not yet shipped
+
+The route table registers several additional surfaces that are **hidden from
+navigation** in the shipped app because their page-level API libs are still
+stubs against gateway endpoints that haven't landed. They are not part of the
+shipped experience and are documented here only so contributors aren't
+surprised to find them in the source:
+
+- **Workspace**, **Projects**, **Jobs**, **Routines**, **Missions** — hidden under the "Work" section.
+- **Admin** — hidden under the "System" section.
+
+These carry `hidden: true` in
+`crates/ironclaw_webui_v2_static/static/js/app/routes.js`. The flag is removed
+per route once its `lib/*-api.js` calls real `/api/webchat/v2/*` endpoints.
+Do not document them as available features.
 
 ## Connection modes
 
@@ -394,7 +342,7 @@ The public key is already committed. Release and local Tauri updater-artifact bu
 
 4. The `release` workflow (`.github/workflows/release.yml`) builds both arches (`aarch64-apple-darwin` and `x86_64-apple-darwin`), signs the updater artifacts when secrets are present, and creates a GitHub release with the `.dmg`, `.app.tar.gz`, and `.app.tar.gz.sig` files attached.
 
-5. Tauri auto-generates the `latest.json` updater manifest and attaches it to the release. The app polls `https://github.com/abbyshekit/ironclaw-desktop/releases/latest/download/latest.json` on startup.
+5. Tauri auto-generates the `latest.json` updater manifest and attaches it to the release. The app polls `https://github.com/nearai/ironclaw-desktop-app/releases/latest/download/latest.json` on startup.
 
 ### Sanity-checking a release locally before tagging
 
@@ -411,7 +359,7 @@ gateway port forwarded locally. The bundled helper handles open/close/
 status for you:
 
 ```
-bash scripts/tunnel.sh open       # opens default tunnel to ironclaw-nearai:18789
+bash scripts/tunnel.sh open       # opens default tunnel to your configured gateway host
 bash scripts/tunnel.sh status     # reports state + gateway health
 bash scripts/tunnel.sh close      # kills the tunnel
 bash scripts/tunnel.sh restart    # close + open
@@ -431,9 +379,9 @@ bash scripts/probe-blocked-endpoints.sh
 ```
 
 Yellow ⚠ lines indicate the gateway started responding — time to wire UI.
-The script reads SSH alias `ironclaw-nearai` and resolves the gateway token
-from the live IronClaw process env. Always exits 0 (it's a discovery tool,
-not a CI gate).
+The script reads your configured SSH alias (`IRONCLAW_SSH_ALIAS`) and resolves
+the gateway token from the live IronClaw process env. Always exits 0 (it's a
+discovery tool, not a CI gate).
 
 ## Bundle analysis
 
@@ -519,7 +467,7 @@ shake, drop the import) before raising the budget.
 | macOS warns **"App can't be opened because it is from an unidentified developer"** | The DMG is unsigned. Right-click the `.app` in Finder → **Open** → confirm in the dialog. macOS remembers the exception per binary, so subsequent launches work normally. Or strip the quarantine attribute: `xattr -d com.apple.quarantine /Applications/IronClaw.app`.                                                                     |
 | Local sidecar fails to spawn on launch                                             | Most often a NEAR.AI Cloud sign-in problem — open the IronClaw web UI (button in **Settings → Local sidecar**) and re-authenticate. If you're on the OpenRouter backend, check the OpenRouter key is set under **Settings → Profile → LLM backend**. Logs live at `~/Library/Application Support/com.openclaw.ironclaw-desktop/sidecar.log`. |
 | Tray icon missing from the menu bar                                                | **Settings → Advanced → "Show in menu bar"**. The toggle is on by default; if it ever flips off it usually means a startup crash before tray init. Restart the app, then re-toggle.                                                                                                                                                          |
-| **Cmd+K** (or any other chord) doesn't open the palette                            | The shortcut only fires when the app window has focus. Cmd+Tab into IronClaw first, then try again. The tray "Show window" item brings it forward even when hidden.                                                                                                                                                                          |
+| **Cmd+,** (or any other shortcut) does nothing                                     | A shortcut only fires when the app window has focus. Cmd+Tab into IronClaw first, then try again. The tray "Show window" item brings it forward even when hidden.                                                                                                                                                                            |
 | Sidecar dies repeatedly with "port already in use"                                 | Another IronClaw process is bound to the local port. Open Activity Monitor, kill stray `ironclaw` processes, then **Settings → Local sidecar → Restart**. If the conflict is with a different service, change the local port in **Settings → Local sidecar → Port**.                                                                         |
 | Updater banner says "signature verification failed"                                | Means the release wasn't signed with the pubkey wired into your build. Either update to a release built after signing landed, or download the new DMG manually from the GitHub Releases page.                                                                                                                                                |
 

@@ -19,6 +19,9 @@ jobs:
       - run: npm run verify:static-frontend
       - run: npm run smoke:webui-static
       - run: npm run test
+      # The static product UI (crates/.../static/js) ships ~28 node:test suites
+      # that vitest does not pick up; run them so a regression there fails CI.
+      - run: npm run test:static
       - run: npm run build
       - name: Check bundle size budget
         run: SKIP_BUILD=1 bash scripts/check-bundle-size.sh

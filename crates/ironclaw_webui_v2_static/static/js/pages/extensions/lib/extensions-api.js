@@ -19,7 +19,7 @@ export function installExtension(packageRef) {
 }
 export function activateExtension(packageRef) {
   return apiFetch(
-    `/api/webchat/v2/extensions/${encodeURIComponent(packageId(packageRef))}/activate`,
+    `/api/webchat/v2/extensions/${encodeURIComponent(canonicalExtensionName(packageRef))}/activate`,
     {
       method: 'POST'
     }
@@ -27,17 +27,19 @@ export function activateExtension(packageRef) {
 }
 export function removeExtension(packageRef) {
   return apiFetch(
-    `/api/webchat/v2/extensions/${encodeURIComponent(packageId(packageRef))}/remove`,
+    `/api/webchat/v2/extensions/${encodeURIComponent(canonicalExtensionName(packageRef))}/remove`,
     {
       method: 'POST'
     }
   );
 }
 export function fetchExtensionSetup(packageRef) {
-  return apiFetch(`/api/webchat/v2/extensions/${encodeURIComponent(packageId(packageRef))}/setup`);
+  return apiFetch(
+    `/api/webchat/v2/extensions/${encodeURIComponent(canonicalExtensionName(packageRef))}/setup`
+  );
 }
 export function submitExtensionSetup(packageRef, secrets, fields) {
-  return setupExtension(packageId(packageRef), {
+  return setupExtension(canonicalExtensionName(packageRef), {
     action: 'submit',
     payload: { secrets, fields }
   });
@@ -46,7 +48,7 @@ export function startExtensionOauth(packageRef, secret) {
   const setup = secret?.setup || {};
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   return apiFetch(
-    `/api/webchat/v2/extensions/${encodeURIComponent(packageId(packageRef))}/setup/oauth/start`,
+    `/api/webchat/v2/extensions/${encodeURIComponent(canonicalExtensionName(packageRef))}/setup/oauth/start`,
     {
       method: 'POST',
       body: JSON.stringify({
@@ -75,4 +77,15 @@ function packageId(packageRef) {
     throw new Error('Extension package_ref is required');
   }
   return id;
+}
+
+export function canonicalExtensionName(packageRef) {
+  const id = packageId(packageRef).trim();
+  const catalogName = id.includes('/') ? id.split('/').filter(Boolean).pop() : id;
+  if (!catalogName) {
+    throw new Error('Extension package_ref is required');
+  }
+  const normalized = catalogName.replaceAll('_', '-');
+  if (normalized === 'slack-tool') return 'slack';
+  return normalized;
 }

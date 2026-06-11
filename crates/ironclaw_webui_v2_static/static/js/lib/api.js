@@ -37,6 +37,27 @@ export async function tauriInvoke(command, args = {}) {
   return invoke(command, args);
 }
 
+// Open a URL in the user's REAL browser. Inside the packaged WebView,
+// `window.open` spawns a Tauri child webview (or nothing) with none of the
+// user's cookies or passkeys — OAuth sign-in pages are unusable there. The
+// shell plugin hands the URL to the system browser instead.
+export async function openExternalUrl(url) {
+  if (inTauri()) {
+    try {
+      await tauriInvoke('plugin:shell|open', { path: url });
+      return true;
+    } catch (_) {
+      // Fall through to window.open so hosted/dev still works.
+    }
+  }
+  try {
+    const popup = window.open(url, '_blank', 'noopener');
+    return Boolean(popup);
+  } catch (_) {
+    return false;
+  }
+}
+
 function normalizeOrigin(value) {
   const trimmed = (value || '').trim().replace(/\/+$/, '');
   if (!trimmed) return '';
@@ -528,14 +549,12 @@ export function setupExtension(extensionName, { action, payload } = {}) {
   });
 }
 
-// --- TODO stubs for v1-shaped helpers brought-back code still imports ---
+// --- Gateway status ---
 //
-// Issue #3886 Hard Non-Goal: the browser must not call legacy
-// gateway routes without a v2 counterpart. The functions below
-// preserve the fork's import surface so the admin/settings/extensions
-// pages render, but they return empty/null data without sending any
-// HTTP request. When a v2 equivalent lands, replace the stub body
-// with the real wire call.
+// Queries the real `/api/gateway/status` route via `apiFetch`. When that
+// route is absent (404) the desktop build derives readiness from local
+// settings + vaulted credentials instead of failing the page. Any other
+// HTTP error propagates so callers can surface it.
 
 export async function gatewayStatus() {
   try {
@@ -577,7 +596,10 @@ async function desktopGatewayStatusFallback() {
   fallback.model_readiness_reason =
     'Gateway status route is unavailable; desktop inferred provider/model from local settings.';
 
-  const credentialProviderIds = new Set(['nearai', 'openrouter', 'openai', 'anthropic']);
+  // NEAR.AI is IronClaw's built-in cloud path. A missing vaulted NEAR token
+  // must not block first-run send; the first WebChat run is the verification
+  // surface and can surface any provider-side auth failure in the thread.
+  const credentialProviderIds = new Set(['openai', 'anthropic']);
   if (!credentialProviderIds.has(fallback.llm_backend)) return fallback;
 
   let hasCredential = false;

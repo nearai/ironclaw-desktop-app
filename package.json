@@ -1,6 +1,6 @@
 {
   "name": "ironclaw-desktop",
-  "version": "0.4.157",
+  "version": "0.4.158",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,6 +10,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "test": "vitest run",
+    "test:static": "find crates/ironclaw_webui_v2_static/static/js -name '*.test.mjs' -print0 | xargs -0 node --test",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run smoke:webui-static",
@@ -26,7 +27,7 @@
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged",
-    "pre-push": "npm run check && npm run verify:static-frontend && npm run smoke:webui-static && npm run test"
+    "pre-push": "npm run check && npm run verify:static-frontend && npm run smoke:webui-static && npm run test && npm run test:static"
   },
   "lint-staged": {
     "*.{svelte,ts,js}": [
@@ -49,6 +50,7 @@
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
     "lint-staged": "^17.0.5",
+    "pdfjs-dist": "^4.10.38",
     "postcss": "^8.5.1",
     "prettier": "^3.8.3",
     "prettier-plugin-svelte": "^4.0.1",
@@ -56,6 +58,7 @@
     "svelte": "^5.19.0",
     "svelte-check": "^4.1.4",
     "tailwindcss": "^3.4.17",
+    "tesseract.js": "^7.0.0",
     "tslib": "^2.8.1",
     "typescript": "^5.7.3",
     "vite": "^6.0.7",

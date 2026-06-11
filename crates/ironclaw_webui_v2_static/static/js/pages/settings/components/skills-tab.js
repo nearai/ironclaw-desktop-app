@@ -1,5 +1,6 @@
 import { React, html } from '../../../lib/html.js';
 import { Card } from '../../../design-system/card.js';
+import { ConfirmDialog } from '../../../design-system/confirm-dialog.js';
 import { useT } from '../../../lib/i18n.js';
 import { useSkills } from '../hooks/useSkills.js';
 import { matchesSearch } from '../lib/settings-search.js';
@@ -12,22 +13,26 @@ export function SkillsTab({ searchQuery = '' }) {
   const { skills, query, installSkill, removeSkill, isInstalling, isRemoving } = useSkills();
   const [actionError, setActionError] = React.useState('');
   const [actionResult, setActionResult] = React.useState('');
+  const [confirmRemove, setConfirmRemove] = React.useState(null);
 
   const handleRemove = React.useCallback(
-    async (name) => {
-      if (!window.confirm(t('skills.confirmRemove', { name }))) return;
-      setActionError('');
-      setActionResult('');
-      try {
-        const response = await removeSkill(name);
-        if (!response?.success) {
-          setActionError(response?.message || t('skills.removeFailed'));
-          return;
+    (name) => {
+      setConfirmRemove({
+        message: t('skills.confirmRemove', { name }),
+        title: t('skills.removeTitle'),
+        confirmLabel: t('skills.removeConfirm'),
+        tone: 'danger',
+        onConfirm: async () => {
+          setActionError('');
+          setActionResult('');
+          const response = await removeSkill(name);
+          if (!response?.success) {
+            // Throw so the dialog stays open and shows the reason inline.
+            throw new Error(response?.message || t('skills.removeFailed'));
+          }
+          setActionResult(response.message || t('skills.removed', { name }));
         }
-        setActionResult(response.message || t('skills.removed', { name }));
-      } catch (err) {
-        setActionError(err.message || t('skills.removeFailed'));
-      }
+      });
     },
     [removeSkill, t]
   );
@@ -129,6 +134,7 @@ export function SkillsTab({ searchQuery = '' }) {
           `
         )}
       <//>
+      <${ConfirmDialog} request=${confirmRemove} onClose=${() => setConfirmRemove(null)} />
     </div>
   `;
 }

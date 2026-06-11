@@ -27,10 +27,15 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
   // screen so the user picks one before hitting a dead chat. Settings stays
   // reachable so they can configure there too; /welcome itself is exempt to
   // avoid a redirect loop. Defaults are not treated as "configured" — the gate
-  // keys off the honest `hasActiveProvider` (a persisted selection).
+  // keys off the honest `hasActiveProvider` (a persisted selection). A FAILED
+  // providers fetch is not evidence of "no provider": during sidecar boot the
+  // route refuses connections for a few seconds, and bouncing a configured
+  // install to onboarding on that race is a false state claim. Errors render
+  // the connection banner below instead.
   const location = useLocation();
   const llmProviders = useLlmProviders({ settings: {}, gatewayStatus: status });
-  const needsOnboarding = !llmProviders.isLoading && !llmProviders.hasActiveProvider;
+  const needsOnboarding =
+    !llmProviders.isLoading && !llmProviders.error && !llmProviders.hasActiveProvider;
   const onboardingExempt =
     location.pathname === '/welcome' || location.pathname.startsWith('/settings');
 
@@ -85,7 +90,7 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <${PageHeader} threadsState=${threadsState} onToggleSidebar=${sidebar.toggle} />
         <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          ${statusQuery.error &&
+          ${(statusQuery.error || llmProviders.error) &&
           html`
             <div
               className=${cn(
@@ -94,7 +99,7 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
                 'bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]'
               )}
             >
-              ${statusQuery.error.message || t('error.gatewayConnection')}
+              ${(statusQuery.error || llmProviders.error).message || t('error.gatewayConnection')}
             </div>
           `}
           <${Outlet}

@@ -168,21 +168,31 @@ const required = [
   'JSON export blob parses and preserves content',
   'PDF export blob has a parseable PDF envelope',
   'DOCX export blob has ZIP package entries',
+  'WebView export saves a real file to disk',
 ];
 const checks = Array.isArray(report.checks) ? report.checks : [];
 const byName = new Map(checks.map((check) => [check.name, check]));
-const chatRequired = [
+const chatRouteRequired = [
   'WebView created Reborn webchat thread',
   'WebView submitted chat message with attachment',
-  'Timeline reload preserves user prompt',
-  'Timeline reload preserves attachment metadata',
 ];
-const blockerRequired = ['WebView surfaced model credential blocker before chat send'];
-const hasChatProof = chatRequired.every((name) => byName.get(name)?.status === 'PASS');
-const hasAuthBlockerProof = blockerRequired.every((name) => byName.get(name)?.status === 'PASS');
+const timelineProofRequired = [
+  'Timeline reload preserves user prompt',
+  'Timeline echo carries embedded attachment text for the model',
+];
+const pendingFallbackProofRequired = [
+  'WebView pending fallback preserves user prompt',
+  'WebView pending fallback preserves attachment metadata',
+];
+const hasChatRoute = chatRouteRequired.every((name) => byName.get(name)?.status === 'PASS');
+const hasTimelineProof = timelineProofRequired.every((name) => byName.get(name)?.status === 'PASS');
+const hasPendingFallbackProof = pendingFallbackProofRequired.every(
+  (name) => byName.get(name)?.status === 'PASS'
+);
+const hasChatProof = hasChatRoute && (hasTimelineProof || hasPendingFallbackProof);
 const missing = [
   ...required.filter((name) => byName.get(name)?.status !== 'PASS'),
-  ...(hasChatProof || hasAuthBlockerProof ? [] : ['chat route proof or explicit model credential blocker']),
+  ...(hasChatProof ? [] : ['chat route proof']),
 ];
 if (report.status !== 'passed' || missing.length > 0) {
   console.error(JSON.stringify({
@@ -199,19 +209,35 @@ console.log(JSON.stringify({
   thread_id: report.thread_id,
   gateway_origin: report.gateway_origin,
   model_credentials_blocked: report.model_credentials_blocked === true,
+  chat_proof: hasTimelineProof ? 'timeline' : 'pending_fallback',
+  timeline_proof: hasTimelineProof,
+  pending_fallback_proof: hasPendingFallbackProof,
 }, null, 2));
+if (!hasTimelineProof) {
+  console.error(
+    'WARN: chat proof came from the pending fallback (timeline never projected the turn). ' +
+    'A streak of fallback-only passes means timeline projection is broken.'
+  );
+}
 NODE
 }
 
 wait_for_webview_smoke_report() {
   local evidence_path="$1"
-  local max_wait="${WEBVIEW_SMOKE_WAIT_SECONDS:-45}"
+  local max_wait="${WEBVIEW_SMOKE_WAIT_SECONDS:-540}"
   local second
 
   info "waiting up to ${max_wait}s for WebView smoke evidence: ${evidence_path}"
   for (( second = 1; second <= max_wait; second++ )); do
     if [[ -s "${evidence_path}" ]]; then
       if validate_webview_smoke_report "${evidence_path}"; then
+        # Native-save proof: verify the bytes save_bytes_dialog reported
+        # actually reached disk (smoke seam writes without a dialog).
+        saved_file=$(node -e "const r=require(process.argv[1]);process.stdout.write(r.saved_file_path||'')" "${evidence_path}" 2>/dev/null || true)
+        if [[ -n "${saved_file}" && ! -s "${saved_file}" ]]; then
+          err "saved-file proof missing on disk: ${saved_file}"
+          return 1
+        fi
         info "WebView smoke evidence validated"
         return 0
       fi

@@ -3,6 +3,19 @@
    All component-level visual styling lives in JS design-system files.
    ════════════════════════════════════════════════════════════════════ */
 
+/* ── Type foundation ─────────────────────────────────────────────────
+   The whole scale was designed for Inter Variable, but no font ever
+   shipped — every install silently fell back to system fonts. Self-host
+   it (46 KB, variable 100–900). Relative URL so it resolves under both
+   the packaged root and the hosted /v2 prefix. */
+@font-face {
+  font-family: "Inter Variable";
+  src: url("../fonts/inter-variable.woff2") format("woff2-variations");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ── Light theme ─────────────────────────────────────────────────── */
 :root {
   color-scheme: light;
@@ -37,11 +50,16 @@
   /* Controls */
   --v2-select-chevron: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2712%27%20height%3D%2712%27%20viewBox%3D%270%200%2012%2012%27%20fill%3D%27none%27%20stroke%3D%27%235f7183%27%20stroke-width%3D%271.8%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M2.5%204.5%206%208l3.5-3.5%27/%3E%3C/svg%3E");
 
-  /* Accent — signal blue */
-  --v2-accent:       #2e9de2;
-  --v2-accent-strong:#1678bd;
-  --v2-accent-soft:  rgba(76, 167, 230, 0.12);
-  --v2-accent-text:  #146fae;
+  /* Accent — signal blue (DESIGN.md: the user's hand) */
+  --v2-accent:       #0091fd;
+  --v2-accent-strong:#0077d4;
+  --v2-accent-soft:  rgba(0, 145, 253, 0.12);
+  --v2-accent-text:  #0a6ecb;
+
+  /* The agent's hand (DESIGN.md): gold — generated work, proposals */
+  --v2-gold:      #b07a00;
+  --v2-gold-soft: rgba(251, 191, 36, 0.16);
+  --v2-gold-text: #8a6100;
 
   /* Semantic colours */
   --v2-positive-soft: rgba(32, 210, 154, 0.13);
@@ -56,39 +74,45 @@
   background: var(--v2-canvas);
 }
 
-/* ── Dark theme ─────────────────────────────────────────────────── */
+/* ── Dark theme (default) — deep navy, signal blue, agent gold ───── */
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --v2-canvas:        var(--bg-canvas, #111114);
-  --v2-canvas-strong: #0d0d10;
-  --v2-surface:       var(--bg-surface, #1b1b1f);
-  --v2-surface-soft:  var(--bg-surface-subtle, rgba(255, 255, 255, 0.03));
-  --v2-surface-muted: rgba(255, 255, 255, 0.07);
+  --v2-canvas:        var(--bg-canvas, #0a0f1c);
+  --v2-canvas-strong: #070b15;
+  --v2-surface:       var(--bg-surface, #101828);
+  --v2-surface-soft:  var(--bg-surface-subtle, rgba(148, 180, 255, 0.045));
+  --v2-surface-muted: rgba(148, 180, 255, 0.09);
 
-  /* Card tokens in dark: transparent border + drop shadow */
-  --v2-card-bg:     #1b1b1f;
-  --v2-card-border: rgba(255, 255, 255, 0);
-  --v2-card-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  /* Card tokens in dark: hairline navy border + deep shadow */
+  --v2-card-bg:     #101828;
+  --v2-card-border: rgba(148, 180, 255, 0.09);
+  --v2-card-shadow: 0 12px 32px rgba(2, 6, 16, 0.45);
 
-  --v2-panel-border: rgba(255, 255, 255, 0.1);
+  --v2-panel-border: rgba(148, 180, 255, 0.11);
 
-  --v2-rail:     #151519;
-  --v2-input-bg: #151519;
+  --v2-rail:     #0c1322;
+  --v2-input-bg: #0c1322;
 
-  --v2-text:        rgba(255, 255, 255, 0.82);
-  --v2-text-strong: var(--text-primary, #ffffff);
-  --v2-text-muted:  var(--text-secondary, rgba(255, 255, 255, 0.6));
-  --v2-text-faint:  var(--text-tertiary, rgba(255, 255, 255, 0.45));
-  --v2-inverse:     var(--text-inverse, #111111);
-  --v2-ink:         var(--accent-primary, #4ca7e6);
+  --v2-text:        rgba(232, 240, 252, 0.86);
+  --v2-text-strong: var(--text-primary, #f4f8ff);
+  --v2-text-muted:  var(--text-secondary, rgba(196, 211, 235, 0.62));
+  --v2-text-faint:  var(--text-tertiary, rgba(196, 211, 235, 0.42));
+  --v2-inverse:     var(--text-inverse, #0a0f1c);
+  --v2-ink:         var(--accent-primary, #0091fd);
 
   --v2-select-chevron: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2712%27%20height%3D%2712%27%20viewBox%3D%270%200%2012%2012%27%20fill%3D%27none%27%20stroke%3D%27%23ffffff%27%20stroke-opacity%3D%270.55%27%20stroke-width%3D%271.8%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M2.5%204.5%206%208l3.5-3.5%27/%3E%3C/svg%3E");
 
-  --v2-accent:        var(--accent-primary,        #4ca7e6);
-  --v2-accent-strong: var(--accent-primary-strong, #2882c8);
-  --v2-accent-soft:   rgba(76, 167, 230, 0.14);
-  --v2-accent-text:   var(--text-brand,            #8fc8f2);
+  /* The user's hand (DESIGN.md): signal blue #0091fd */
+  --v2-accent:        var(--accent-primary,        #0091fd);
+  --v2-accent-strong: var(--accent-primary-strong, #0077d4);
+  --v2-accent-soft:   rgba(0, 145, 253, 0.16);
+  --v2-accent-text:   var(--text-brand,            #5fb8ff);
+
+  /* The agent's hand (DESIGN.md): gold — generated work, proposals */
+  --v2-gold:      #fbbf24;
+  --v2-gold-soft: rgba(251, 191, 36, 0.14);
+  --v2-gold-text: #fbbf24;
 
   --v2-positive-soft: rgba(32, 210, 154, 0.13);
   --v2-positive-text: var(--text-positive, #20d29a);
@@ -96,8 +120,8 @@
   --v2-warning-text:  var(--accent-warning, #f5c15b);
   --v2-danger-soft:   rgba(255, 100, 128, 0.13);
   --v2-danger-text:   var(--text-danger, #ff6480);
-  --v2-info-soft:     rgba(76, 167, 230, 0.14);
-  --v2-info-text:     var(--accent-primary-soft, #8fc8f2);
+  --v2-info-soft:     rgba(0, 145, 253, 0.15);
+  --v2-info-text:     var(--accent-primary-soft, #5fb8ff);
 }
 
 :root[data-theme="light"] {
@@ -126,6 +150,17 @@ body {
   letter-spacing: 0;
   background: var(--v2-canvas);
   color: var(--v2-text);
+  font-family:
+    "Inter Variable",
+    -apple-system,
+    BlinkMacSystemFont,
+    "SF Pro Text",
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
+  /* DESIGN.md: numbers use tabular figures by default. */
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Font inheritance for form elements */
@@ -315,12 +350,12 @@ input:focus, select:focus, textarea:focus {
   cursor: not-allowed;
 }
 .v2-button-primary {
-  background: radial-gradient(ellipse 100% 100% at 50% 130%, #4CA7E6 0%, #2882c8 65%);
-  border: 1px solid rgba(76, 167, 230, 0.72);
+  background: var(--v2-accent);
+  border: 1px solid transparent;
   color: #ffffff;
 }
 .v2-button-primary:hover {
-  background: radial-gradient(ellipse 200% 220% at 50% 110%, #5BBAF5 0%, #2882c8 60%);
+  background: var(--v2-accent-strong);
 }
 
 /* Page-level animation wrapper */
@@ -338,10 +373,22 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* ── Motion policy ───────────────────────────────────────────────── */
-/* The v2 UI is intended to be fully static: no CSS transitions/animations. */
+/* Calm by default: no transitions, no decorative motion. The ONLY motion
+   allowed is the small set that carries meaning — a breathing dot that says
+   "live/running" and a slow skeleton pulse that says "loading" — and even
+   those yield to prefers-reduced-motion. No shimmer, no bounce, no slides. */
 *, *::before, *::after {
   animation: none !important;
   transition: none !important;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .v2-breathing-dot {
+    animation: v2-breathe 2.4s ease-in-out infinite !important;
+  }
+  .v2-skeleton {
+    animation: v2-skeleton-shimmer 1.8s ease-in-out infinite !important;
+  }
 }
 
 /* ── Markdown body ───────────────────────────────────────────────── */

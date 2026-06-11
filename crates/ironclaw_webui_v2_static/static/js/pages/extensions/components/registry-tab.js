@@ -1,6 +1,7 @@
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { RegistryCard } from './extension-card.js';
+import { useConnectExtension } from '../hooks/useExtensions.js';
 
 function packageId(entry) {
   return entry.package_ref?.id || '';
@@ -8,6 +9,7 @@ function packageId(entry) {
 
 export function RegistryTab({ toolRegistry, channelRegistry, mcpRegistry, onInstall, isBusy }) {
   const t = useT();
+  const { connect, connectState } = useConnectExtension();
   const allAvailable = [...toolRegistry, ...channelRegistry, ...mcpRegistry];
   const [filter, setFilter] = React.useState('');
 
@@ -58,6 +60,8 @@ export function RegistryTab({ toolRegistry, channelRegistry, mcpRegistry, onInst
                   <${RegistryCard}
                     key=${packageId(entry)}
                     entry=${entry}
+                    onConnect=${connect}
+                    connectPhase=${connectState[packageId(entry)]}
                     onInstall=${onInstall}
                     isBusy=${isBusy}
                   />

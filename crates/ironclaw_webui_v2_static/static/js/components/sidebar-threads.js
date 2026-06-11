@@ -1,5 +1,6 @@
 import { React, html } from '../lib/html.js';
 import { Icon } from '../design-system/icons.js';
+import { ConfirmDialog } from '../design-system/confirm-dialog.js';
 import { THREAD_STATE, useThreadStates } from '../lib/thread-state.js';
 import {
   byActivityDesc,
@@ -44,14 +45,20 @@ function ThreadItem({ thread, isActive, presentation, onSelect, onDelete }) {
   const activityIso = threadActivityIso(thread);
   const timeLabel = formatThreadActivityLabel(activityIso);
   const timeTitle = formatThreadActivityTooltip(activityIso);
+  const [confirmDelete, setConfirmDelete] = React.useState(null);
 
   const handleDelete = React.useCallback(
     (event) => {
       event.preventDefault();
       event.stopPropagation();
-      if (!window.confirm('Delete this chat?')) return;
-      Promise.resolve(onDelete?.(thread.id)).catch((err) => {
-        window.alert(err?.message || 'Unable to delete chat');
+      // Failure surfaces inline in the dialog (no native window.alert): the
+      // onConfirm promise rejecting keeps the dialog open with the error.
+      setConfirmDelete({
+        message: 'Delete this chat? This cannot be undone.',
+        title: 'Delete chat',
+        confirmLabel: 'Delete',
+        tone: 'danger',
+        onConfirm: () => Promise.resolve(onDelete?.(thread.id))
       });
     },
     [onDelete, thread.id]
@@ -110,6 +117,7 @@ function ThreadItem({ thread, isActive, presentation, onSelect, onDelete }) {
       >
         <${Icon} name="trash" className="h-3.5 w-3.5" strokeWidth=${2} />
       </button>`}
+      <${ConfirmDialog} request=${confirmDelete} onClose=${() => setConfirmDelete(null)} />
     </div>
   `;
 }

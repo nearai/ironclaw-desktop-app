@@ -1,6 +1,6 @@
 import { React } from '../../../lib/html.js';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { gatewayStatus } from '../../../lib/api.js';
+import { gatewayStatus, isDesktopRuntime, openExternalUrl } from '../../../lib/api.js';
 import { listConnectableChannels } from '../../../lib/channel-connect.js';
 import {
   fetchExtensions,
@@ -62,7 +62,7 @@ export function useExtensions() {
           message: res.message || res.instructions || `${displayName || 'Extension'} installed`
         });
         if (res.auth_url) {
-          window.open(res.auth_url, '_blank', 'noopener,noreferrer');
+          openExternalUrl(res.auth_url);
         }
       } else {
         setActionResult({ type: 'error', message: res.message || 'Install failed' });
@@ -84,10 +84,10 @@ export function useExtensions() {
           message: res.message || res.instructions || `${displayName || 'Extension'} activated`
         });
         if (res.auth_url) {
-          window.open(res.auth_url, '_blank', 'noopener,noreferrer');
+          openExternalUrl(res.auth_url);
         }
       } else if (res.auth_url) {
-        window.open(res.auth_url, '_blank', 'noopener,noreferrer');
+        openExternalUrl(res.auth_url);
         setActionResult({ type: 'info', message: 'Opening authentication…' });
       } else if (res.awaiting_token) {
         setActionResult({ type: 'info', message: 'Configuration required' });
@@ -228,12 +228,18 @@ export function useOauthSetup(packageRef) {
       const startedAt = Date.now();
       watcherRef.current = window.setInterval(() => {
         refreshSetupState();
+        const configured = setupIsConfigured();
         if (
-          setupIsConfigured() ||
+          configured ||
           (popup && popup.closed) ||
           Date.now() - startedAt > OAUTH_SETUP_TIMEOUT_MS
         ) {
           clearWatcher();
+          // Claude-parity: once the browser consent lands, finish the job —
+          // activate so the tools publish without a manual third step.
+          if (configured) {
+            Promise.resolve(activateExtension(packageRef)).catch(() => {});
+          }
           refreshSetupState();
         }
       }, OAUTH_SETUP_REFRESH_MS);
@@ -247,8 +253,16 @@ export function useOauthSetup(packageRef) {
     mutationFn: ({ secret, popup }) =>
       startExtensionOauth(packageRef, secret).then((res) => ({ res, popup })),
     onSuccess: ({ res, popup }) => {
+      // Provider OAuth pages (Google especially) refuse embedded webviews,
+      // and in the packaged desktop a popup IS a Tauri child webview with
+      // none of the user's cookies. Route the URL to the system browser
+      // there; the placeholder popup only ever serves the hosted build.
       let authPopup = popup;
-      if (res.authorization_url && popup && !popup.closed) {
+      if (res.authorization_url && isDesktopRuntime()) {
+        if (popup && !popup.closed) popup.close();
+        authPopup = null;
+        openExternalUrl(res.authorization_url);
+      } else if (res.authorization_url && popup && !popup.closed) {
         popup.location.href = res.authorization_url;
       } else if (res.authorization_url) {
         authPopup = window.open(res.authorization_url, '_blank', 'noopener,noreferrer');
@@ -256,7 +270,10 @@ export function useOauthSetup(packageRef) {
         popup.close();
       }
       refreshSetupState();
-      if (authPopup) watchOauthProgress(authPopup);
+      // With the system browser we have no window handle — poll backend
+      // state alone; watchOauthProgress already treats the popup as
+      // optional input for its closed-check.
+      if (res.authorization_url) watchOauthProgress(authPopup);
     },
     onError: (_err, variables) => {
       clearWatcher();
@@ -292,4 +309,81 @@ export function usePairing(channel, options = {}) {
     result: approveMutation.isSuccess ? approveMutation.data : null,
     error: approveMutation.isError ? approveMutation.error : null
   };
+}
+
+// One-click connect — the Claude experience: a single action that chains
+// install -> read setup -> (DCR/OAuth: system-browser consent + poll) ->
+// activate. Manual-token connectors stop at 'needs-token' so the caller can
+// open the token form instead — never a fake Connect.
+export function useConnectExtension() {
+  const queryClient = useQueryClient();
+  const [connectState, setConnectState] = React.useState({});
+
+  const setPhase = React.useCallback((key, phase, extra = {}) => {
+    setConnectState((prev) => ({ ...prev, [key]: { phase, ...extra } }));
+  }, []);
+
+  const connect = React.useCallback(
+    async (entry) => {
+      const ref = entry?.package_ref;
+      const key = ref?.id || String(ref || '');
+      if (!key) return;
+      try {
+        setPhase(key, 'installing');
+        await installExtension(ref);
+
+        const setup = await fetchExtensionSetup(ref).catch(() => null);
+        const secrets = setup?.secrets || [];
+        const pendingOauth = secrets.find(
+          (secret) => (secret.setup?.kind || '') === 'oauth' && !secret.provided
+        );
+        const pendingManual = secrets.find(
+          (secret) => (secret.setup?.kind || 'manual_token') !== 'oauth' && !secret.provided
+        );
+
+        if (pendingOauth) {
+          setPhase(key, 'authorizing');
+          const res = await startExtensionOauth(ref, pendingOauth);
+          if (!res?.authorization_url) {
+            setPhase(key, 'error', {
+              message: res?.message || 'Authorization is unavailable — use a token instead.'
+            });
+            return;
+          }
+          await openExternalUrl(res.authorization_url);
+          setPhase(key, 'waiting');
+          const deadline = Date.now() + OAUTH_SETUP_TIMEOUT_MS;
+          let provided = false;
+          while (Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, OAUTH_SETUP_REFRESH_MS));
+            const current = await fetchExtensionSetup(ref).catch(() => null);
+            const currentSecrets = current?.secrets || [];
+            if (currentSecrets.length > 0 && currentSecrets.every((s) => s.provided)) {
+              provided = true;
+              break;
+            }
+          }
+          if (!provided) {
+            setPhase(key, 'error', { message: 'Authorization timed out — try again.' });
+            return;
+          }
+        } else if (pendingManual) {
+          // Honest stop: this connector only takes a pasted token.
+          setPhase(key, 'needs-token');
+          return;
+        }
+
+        setPhase(key, 'activating');
+        await activateExtension(ref);
+        queryClient.invalidateQueries({ queryKey: ['extensions'] });
+        queryClient.invalidateQueries({ queryKey: ['extension-registry'] });
+        setPhase(key, 'connected');
+      } catch (err) {
+        setPhase(key, 'error', { message: String(err?.message || err) });
+      }
+    },
+    [queryClient, setPhase]
+  );
+
+  return { connect, connectState };
 }

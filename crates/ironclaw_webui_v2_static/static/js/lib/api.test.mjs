@@ -99,7 +99,7 @@ test('sendMessage sends composer attachments as Reborn attachment payloads', asy
   ]);
 });
 
-test('gatewayStatus falls back to desktop model auth readiness when status route is absent', async () => {
+test('gatewayStatus fallback keeps default NEAR.AI sendable while execution is unverified', async () => {
   const originalWindow = globalThis.window;
   const originalLocalStorage = globalThis.localStorage;
   const originalSessionStorage = globalThis.sessionStorage;
@@ -150,9 +150,71 @@ test('gatewayStatus falls back to desktop model auth readiness when status route
 
     assert.equal(status.llm_backend, 'nearai');
     assert.equal(status.llm_model, 'auto');
+    assert.equal(status.model_readiness, 'unverified');
+    assert.equal(status.model_execution_failure_category, undefined);
+    assert.equal(status.model_execution_failure_summary, undefined);
+    assert.ok(!calls.some((call) => call.command === 'has_llm_provider_credential'));
+  } finally {
+    globalThis.window = originalWindow;
+    globalThis.localStorage = originalLocalStorage;
+    globalThis.sessionStorage = originalSessionStorage;
+  }
+});
+
+test('gatewayStatus fallback blocks BYO-key providers when desktop credentials are missing', async () => {
+  const originalWindow = globalThis.window;
+  const originalLocalStorage = globalThis.localStorage;
+  const originalSessionStorage = globalThis.sessionStorage;
+  const encoder = new TextEncoder();
+  const calls = [];
+
+  const storage = {
+    getItem: () => '',
+    setItem: () => {},
+    removeItem: () => {}
+  };
+  globalThis.localStorage = storage;
+  globalThis.sessionStorage = storage;
+  globalThis.window = {
+    __TAURI_INTERNALS__: {
+      invoke: async (command, args = {}) => {
+        calls.push({ command, args });
+        if (command === 'gateway_http_fetch') {
+          return {
+            status: 404,
+            status_text: 'Not Found',
+            url: args.request.url,
+            headers: [['content-type', 'text/plain']],
+            data: Array.from(encoder.encode('Not Found'))
+          };
+        }
+        if (command === 'get_settings') {
+          return {
+            activeProfileId: 'default',
+            profiles: [
+              {
+                id: 'default',
+                llmProviderId: 'openai',
+                llmBackend: 'openai',
+                llmModelId: 'gpt-4o'
+              }
+            ]
+          };
+        }
+        if (command === 'has_llm_provider_credential') return false;
+        throw new Error(`unexpected command ${command}`);
+      }
+    }
+  };
+
+  try {
+    const status = await gatewayStatus();
+
+    assert.equal(status.llm_backend, 'openai');
+    assert.equal(status.llm_model, 'gpt-4o');
     assert.equal(status.model_readiness, 'blocked');
     assert.equal(status.model_execution_failure_category, 'model_credentials_unavailable');
-    assert.match(status.model_execution_failure_summary, /NEAR\.AI/);
+    assert.match(status.model_execution_failure_summary, /openai/);
     assert.ok(calls.some((call) => call.command === 'has_llm_provider_credential'));
   } finally {
     globalThis.window = originalWindow;

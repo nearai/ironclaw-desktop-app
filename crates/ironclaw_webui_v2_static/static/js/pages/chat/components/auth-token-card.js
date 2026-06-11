@@ -52,6 +52,10 @@ export function AuthTokenCard({ gate, onSubmit, onCancel }) {
       body=${gate?.body || ''}
       pillHint=${t('authGate.pillEnterToken')}
     >
+      ${String(gate?.provider || '').toLowerCase() === 'google' &&
+      html`<p className="mb-3 text-xs leading-relaxed text-[var(--v2-text-muted)]">
+        ${t('authGate.googleHint')}
+      </p>`}
       <form onSubmit=${submit}>
         <div className="mb-3">
           <${Input}

@@ -5,6 +5,7 @@ import { useT } from '../../../lib/i18n.js';
 import { INFERENCE_FIELDS } from '../lib/settings-schema.js';
 import { filterSettingsSections, matchesSearch } from '../lib/settings-search.js';
 import { ProviderManagement } from './provider-management.js';
+import { GoogleOauthCard } from './google-oauth-card.js';
 import { SettingsGroup } from './settings-field.js';
 import { SettingsSearchEmpty } from './settings-search-empty.js';
 import { modelExecutionReadiness } from '../../../lib/model-readiness.js';
@@ -94,6 +95,7 @@ export function InferenceTab({
           searchQuery=${searchQuery}
         />
       `}
+      <${GoogleOauthCard} />
       ${sections.map(
         (section) => html`
           <${SettingsGroup}

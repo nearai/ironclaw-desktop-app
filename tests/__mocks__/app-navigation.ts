@@ -3,10 +3,8 @@
 // caller's `void goto(...)` is a fire-and-forget. We expose no-op
 // async functions so the wiring resolves cleanly.
 
-export const goto = async (
-  _url: string | URL,
-  _opts?: Record<string, unknown>
-): Promise<void> => undefined;
+export const goto = async (_url: string | URL, _opts?: Record<string, unknown>): Promise<void> =>
+  undefined;
 
 export const invalidate = async (_url?: string | URL): Promise<void> => undefined;
 export const invalidateAll = async (): Promise<void> => undefined;

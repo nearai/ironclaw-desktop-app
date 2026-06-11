@@ -98,7 +98,6 @@ fn write_token_file(app: &AppHandle, account: &str, value: &str) -> Result<(), S
 }
 
 const ACCOUNT_GATEWAY_PREFIX: &str = "gateway-token";
-const ACCOUNT_OPENROUTER_PREFIX: &str = "openrouter-key";
 const ACCOUNT_LOCAL_TOKEN: &str = "local-gateway-token";
 /// Prefix for per-LLM-provider credentials stored by the desktop's
 /// LlmProviderPicker. Combined with the provider id and profile id this
@@ -276,28 +275,11 @@ pub fn delete(app: &AppHandle, profile_id: &str) -> Result<(), String> {
     delete_secret(&account)
 }
 
-// ---- OpenRouter API key ---------------------------------------------------
-
-pub fn get_openrouter_key(profile_id: &str) -> Result<Option<String>, String> {
-    promote_legacy_if_needed(ACCOUNT_OPENROUTER_PREFIX, profile_id)?;
-    get_secret(&account_for(ACCOUNT_OPENROUTER_PREFIX, profile_id))
-}
-
-pub fn set_openrouter_key(profile_id: &str, key: &str) -> Result<(), String> {
-    set_secret(&account_for(ACCOUNT_OPENROUTER_PREFIX, profile_id), key)
-}
-
-pub fn delete_openrouter_key(profile_id: &str) -> Result<(), String> {
-    delete_secret(&account_for(ACCOUNT_OPENROUTER_PREFIX, profile_id))
-}
-
 // ---- Per-provider LLM credentials (LlmProviderPicker) --------------------
 //
 // The picker stores each provider's API key / token in its own slot so
 // the user can switch between providers without losing their other
-// configured credentials. The OpenRouter case still flows through the
-// dedicated `*_openrouter_key` helpers above so the legacy
-// `openrouter-key:<profile>` slot continues to work.
+// configured credentials.
 
 fn llm_account_for(provider_id: &str, profile_id: &str) -> String {
     // Sanitize the provider id defensively: keyring entries treat the
