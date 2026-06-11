@@ -1151,14 +1151,24 @@ fn decode_base64_payload(input: &str) -> Result<Vec<u8>, String> {
     let mut out = Vec::with_capacity(input.len() / 4 * 3);
     let mut acc: u32 = 0;
     let mut bits = 0u8;
+    let mut saw_padding = false;
+    let mut significant_len = 0usize;
     for &byte in input.as_bytes() {
-        if byte == b'=' || byte == b'\n' || byte == b'\r' {
+        if byte.is_ascii_whitespace() {
             continue;
+        }
+        if byte == b'=' {
+            saw_padding = true;
+            continue;
+        }
+        if saw_padding {
+            return Err("invalid base64 data after padding".into());
         }
         let value = reverse[byte as usize];
         if value == 255 {
             return Err(format!("invalid base64 byte 0x{byte:02x}"));
         }
+        significant_len += 1;
         acc = (acc << 6) | u32::from(value);
         bits += 6;
         if bits >= 8 {
@@ -1166,18 +1176,41 @@ fn decode_base64_payload(input: &str) -> Result<Vec<u8>, String> {
             out.push((acc >> bits) as u8);
         }
     }
+    if significant_len % 4 == 1 {
+        return Err("invalid base64 length".into());
+    }
     Ok(out)
+}
+
+fn smoke_save_filename(default_filename: &str) -> Result<std::ffi::OsString, String> {
+    let trimmed = default_filename.trim();
+    if trimmed.is_empty() || trimmed.ends_with('/') || trimmed.ends_with('\\') {
+        return Err(format!("invalid filename: {default_filename}"));
+    }
+    let file_name = std::path::Path::new(default_filename)
+        .file_name()
+        .ok_or_else(|| format!("invalid filename: {default_filename}"))?;
+    let display = file_name.to_string_lossy();
+    if display.trim().is_empty()
+        || matches!(display.as_ref(), "." | "..")
+        || display.contains('/')
+        || display.contains('\\')
+    {
+        return Err(format!("invalid filename: {default_filename}"));
+    }
+    Ok(file_name.to_os_string())
 }
 
 #[cfg(test)]
 mod base64_payload_tests {
-    use super::decode_base64_payload;
+    use super::{decode_base64_payload, smoke_save_filename};
 
     #[test]
     fn decodes_padded_and_unpadded() {
         assert_eq!(decode_base64_payload("aGVsbG8=").unwrap(), b"hello");
         assert_eq!(decode_base64_payload("aGVsbG8").unwrap(), b"hello");
         assert_eq!(decode_base64_payload("").unwrap(), Vec::<u8>::new());
+        assert_eq!(decode_base64_payload(" aGk= \n").unwrap(), b"hi");
     }
 
     #[test]
@@ -1187,12 +1220,24 @@ mod base64_payload_tests {
             b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         let mut encoded = String::new();
         for chunk in bytes.chunks(3) {
-            let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
+            let b = [
+                chunk[0],
+                *chunk.get(1).unwrap_or(&0),
+                *chunk.get(2).unwrap_or(&0),
+            ];
             let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
             encoded.push(TABLE[(n >> 18) as usize & 63] as char);
             encoded.push(TABLE[(n >> 12) as usize & 63] as char);
-            encoded.push(if chunk.len() > 1 { TABLE[(n >> 6) as usize & 63] as char } else { '=' });
-            encoded.push(if chunk.len() > 2 { TABLE[n as usize & 63] as char } else { '=' });
+            encoded.push(if chunk.len() > 1 {
+                TABLE[(n >> 6) as usize & 63] as char
+            } else {
+                '='
+            });
+            encoded.push(if chunk.len() > 2 {
+                TABLE[n as usize & 63] as char
+            } else {
+                '='
+            });
         }
         assert_eq!(decode_base64_payload(&encoded).unwrap(), bytes);
     }
@@ -1200,6 +1245,34 @@ mod base64_payload_tests {
     #[test]
     fn rejects_invalid_bytes() {
         assert!(decode_base64_payload("a!b").is_err());
+        assert!(decode_base64_payload("a").is_err());
+        assert!(decode_base64_payload("aG=k").is_err());
+    }
+
+    #[test]
+    fn smoke_save_filename_strips_traversal_to_final_component() {
+        assert_eq!(
+            smoke_save_filename("../nested/report.pdf")
+                .unwrap()
+                .to_string_lossy(),
+            "report.pdf"
+        );
+        assert_eq!(
+            smoke_save_filename("/tmp/ironclaw/export.docx")
+                .unwrap()
+                .to_string_lossy(),
+            "export.docx"
+        );
+    }
+
+    #[test]
+    fn smoke_save_filename_rejects_empty_dot_and_separator_components() {
+        for invalid in ["", ".", "..", "../", "/tmp/", "nested\\escape.pdf"] {
+            assert!(
+                smoke_save_filename(invalid).is_err(),
+                "expected {invalid:?} to be rejected"
+            );
+        }
     }
 }
 
@@ -1225,9 +1298,7 @@ async fn save_bytes_dialog(
         std::fs::create_dir_all(&dir).map_err(|e| format!("smoke save dir: {e}"))?;
         // Take only the final path component so a caller-supplied `../` or an
         // absolute path can't escape the smoke-save directory.
-        let file_name = std::path::Path::new(&default_filename)
-            .file_name()
-            .ok_or_else(|| format!("invalid filename: {default_filename}"))?;
+        let file_name = smoke_save_filename(&default_filename)?;
         let path = dir.join(file_name);
         std::fs::write(&path, &bytes).map_err(|e| format!("write {}: {e}", path.display()))?;
         return Ok(Some(path.to_string_lossy().into_owned()));
@@ -1247,8 +1318,7 @@ async fn save_bytes_dialog(
         return Ok(None);
     };
     let path_buf = path.into_path().map_err(|e| format!("resolve path: {e}"))?;
-    std::fs::write(&path_buf, &bytes)
-        .map_err(|e| format!("write {}: {e}", path_buf.display()))?;
+    std::fs::write(&path_buf, &bytes).map_err(|e| format!("write {}: {e}", path_buf.display()))?;
     Ok(Some(path_buf.to_string_lossy().into_owned()))
 }
 
