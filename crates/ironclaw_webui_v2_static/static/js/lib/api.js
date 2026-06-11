@@ -732,7 +732,7 @@ export async function logout() {
   }
 }
 
-class FetchEventStream {
+export class FetchEventStream {
   constructor(url, token) {
     this.url = url;
     this.token = token;
