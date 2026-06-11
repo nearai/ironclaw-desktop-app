@@ -6,6 +6,7 @@ import {
   toolCardFromPreview
 } from './history-messages.js';
 import { failureMessageForRunStatus } from './failureMessages.js';
+import { upsertRunFailureMessage } from './message-upsert.js';
 
 // Handler factory for v2 `WebChatV2EventFrame` events.
 //
@@ -304,32 +305,15 @@ function applyProjectionItems({
           // (SSE reconnect with `last-event-id`, or repeated updates
           // carrying the same terminal status) collapse to one
           // bubble instead of stacking.
-          const messageId = `err-${runId || 'unknown'}`;
-          setMessages((prev) => {
-            const existing = prev.findIndex((m) => m.id === messageId);
-            const content = failureMessageForRunStatus({
+          upsertRunFailureMessage(setMessages, {
+            runId,
+            content: failureMessageForRunStatus({
               status,
               failureCategory,
               failureSummary
-            });
-            if (existing >= 0) {
-              if (!failureSummary || prev[existing].content === content) return prev;
-              const next = [...prev];
-              next[existing] = {
-                ...next[existing],
-                content
-              };
-              return next;
-            }
-            return [
-              ...prev,
-              {
-                id: messageId,
-                role: 'error',
-                content,
-                timestamp: new Date().toISOString()
-              }
-            ];
+            }),
+            source: 'run_status',
+            timestamp: new Date().toISOString()
           });
         }
       } else if (!PROMPT_RUN_STATUSES.has(status)) {

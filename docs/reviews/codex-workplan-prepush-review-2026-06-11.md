@@ -49,6 +49,22 @@ Fix:
 - Packaged smoke PDF fixtures use the same byte-safe path where they write binary chunks.
 - `git diff --check` is clean after regenerating `main.bundle.js`.
 
+## Additional Thermonuclear Pass — 2026-06-11 (Current)
+
+Follow-up review on the final push tranche (`DEBT-1`/`DEBT-2` and related helpers):
+
+- Structural check:
+  - Refactored failure-message merge into `message-upsert.js` (single responsibility).
+  - Split export payload construction into `thread-export.js` (single responsibility).
+  - Message rendering no longer depends on DOM scraping for export.
+- Maintainability signal:
+  - No file in this tranche crosses the 1k-line threshold.
+  - No new ad-hoc conditionals in shared routing/state files; behavior moved into pure helpers.
+- NEAR.AI/reborn routing truth:
+  - Canonical lifecycle guard remains in `lifecycle extension calls use canonical bare names in route paths`.
+  - Tests continue to assert slash-prefixed refs remain catalog refs.
+- Risk introduced: none blocking.
+
 ## NEAR.AI / Reborn Review Result
 
 Confirmed in code and tests:
@@ -75,7 +91,7 @@ Still not claimed:
 Final post-change commands:
 
 - `npm run verify:static-frontend` — pass.
-- `npm run test:static` — 199/199 pass.
+- `npm run test:static` — 206/206 pass.
 - `npm run smoke:webui-static` — pass.
 - `npm run check` — 0 errors, 0 warnings.
 - `npm run test` — 161 files / 1294 tests pass.

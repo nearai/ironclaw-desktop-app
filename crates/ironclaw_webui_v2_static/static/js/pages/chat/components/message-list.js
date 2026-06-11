@@ -73,6 +73,7 @@ export function MessageList({
               : html`<${MessageBubble}
                   key=${item.id}
                   message=${item.message}
+                  messages=${messages}
                   onRetry=${onRetryMessage}
                 />`
           )}

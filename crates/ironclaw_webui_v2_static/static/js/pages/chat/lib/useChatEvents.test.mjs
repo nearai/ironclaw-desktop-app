@@ -8,6 +8,7 @@ import {
   toolCardFromActivity,
   toolCardFromPreview
 } from './history-messages.js';
+import { upsertRunFailureMessage } from './message-upsert.js';
 
 function useChatEventsSourceForTest() {
   const source = readFileSync(new URL('./useChatEvents.js', import.meta.url), 'utf8');
@@ -41,6 +42,7 @@ function createUseChatEventsHarness({ gateFromEvent = () => null } = {}) {
       useRef: (value) => ({ current: value })
     },
     failureMessageForRunStatus: () => 'run failed',
+    upsertRunFailureMessage,
     gateFromEvent,
     globalThis: {},
     isTerminalToolStatus,

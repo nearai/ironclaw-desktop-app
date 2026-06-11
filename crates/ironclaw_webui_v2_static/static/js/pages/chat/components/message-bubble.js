@@ -12,6 +12,7 @@ import {
   downloadMarkdown,
   downloadPdf
 } from '../lib/work-product-export.js';
+import { buildThreadJsonExport, buildThreadMarkdownExport } from '../lib/thread-export.js';
 
 /* Bicolor attribution (DESIGN.md): signal blue is the user's hand, gold is
    the agent's. The user keeps a blue-tinted bubble; the assistant stays
@@ -63,7 +64,7 @@ function ThinkingDisclosure({ content }) {
   `;
 }
 
-export function MessageBubble({ message, onRetry }) {
+export function MessageBubble({ message, messages = [], onRetry }) {
   const {
     role,
     content,
@@ -146,11 +147,7 @@ export function MessageBubble({ message, onRetry }) {
   const showActions = (role === 'assistant' || role === 'user') && !isOptimistic;
 
   return html`
-    <div
-      className=${['group flex flex-col', isUser ? 'items-end' : 'items-start'].join(' ')}
-      data-message-role=${role}
-      data-message-content=${typeof content === 'string' ? content : ''}
-    >
+    <div className=${['group flex flex-col', isUser ? 'items-end' : 'items-start'].join(' ')}>
       <div className="flex min-w-0 max-w-[85%] flex-col gap-1">
         <div
           className=${[
@@ -258,7 +255,7 @@ export function MessageBubble({ message, onRetry }) {
   `;
 }
 
-function AssistantExportActions({ content }) {
+function AssistantExportActions({ content, messages }) {
   const title = titleFromMarkdown(content) || 'Assistant response';
   return html`
     <button
@@ -326,7 +323,7 @@ function AssistantExportActions({ content }) {
     </button>
     <button
       type="button"
-      onClick=${() => exportThread('markdown')}
+      onClick=${() => exportThread('markdown', messages)}
       className=${actionClass()}
       aria-label="Export IronClaw chat thread as Markdown"
     >
@@ -334,7 +331,7 @@ function AssistantExportActions({ content }) {
     </button>
     <button
       type="button"
-      onClick=${() => exportThread('json')}
+      onClick=${() => exportThread('json', messages)}
       className=${actionClass()}
       aria-label="Export IronClaw chat thread as JSON"
     >
@@ -371,22 +368,15 @@ function saveToWork(title, content) {
   toast('Saved to Work', { tone: 'success' });
 }
 
-function exportThread(format) {
-  const messages = Array.from(document.querySelectorAll('[data-message-role]')).map((node) => ({
-    role: node.getAttribute('data-message-role') || 'assistant',
-    content: node.getAttribute('data-message-content') || ''
-  }));
+function exportThread(format, messages = []) {
+  const title =
+    typeof document === 'undefined' ? 'IronClaw chat' : document.title || 'IronClaw chat';
   if (format === 'json') {
-    exportContent(
-      'ironclaw-chat-thread.json',
-      'application/json;charset=utf-8',
-      JSON.stringify({ thread: { title: document.title || 'IronClaw chat' }, messages }, null, 2)
-    );
+    const content = buildThreadJsonExport(messages, { title });
+    exportContent('ironclaw-chat-thread.json', 'application/json;charset=utf-8', content);
     return;
   }
-  const markdown = messages
-    .map((message) => `## ${capitalize(message.role)}\n\n${message.content}`)
-    .join('\n\n');
+  const markdown = buildThreadMarkdownExport(messages, { title });
   exportContent('ironclaw-chat-thread.md', 'text/markdown;charset=utf-8', markdown);
 }
 
@@ -400,8 +390,4 @@ function titleFromMarkdown(markdown) {
     .split(/\r?\n/)
     .find((candidate) => candidate.trim());
   return (line || 'Assistant response').replace(/^#+\s*/, '').trim();
-}
-
-function capitalize(value) {
-  return value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
 }

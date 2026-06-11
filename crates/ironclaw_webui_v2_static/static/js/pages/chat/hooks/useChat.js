@@ -16,6 +16,7 @@ import { React } from '../../../lib/html.js';
 import { useChatEvents } from '../lib/useChatEvents.js';
 import { failureMessageForRunStatus } from '../lib/failureMessages.js';
 import { buildDurableAttachmentBlock } from '../lib/history-messages.js';
+import { upsertRunFailureMessage } from '../lib/message-upsert.js';
 import {
   addPending,
   loadPending,
@@ -308,23 +309,11 @@ export function useChat(threadId) {
     const controller = new AbortController();
 
     const appendFailureMessage = (content) => {
-      const messageId = `err-${activeRun.runId || 'unknown'}`;
-      setMessages((prev) => {
-        const existing = prev.findIndex((message) => message.id === messageId);
-        if (existing >= 0) {
-          const next = [...prev];
-          next[existing] = { ...next[existing], content };
-          return next;
-        }
-        return [
-          ...prev,
-          {
-            id: messageId,
-            role: 'error',
-            content,
-            timestamp: new Date().toISOString()
-          }
-        ];
+      upsertRunFailureMessage(setMessages, {
+        runId: activeRun.runId,
+        content,
+        source: 'fallback',
+        timestamp: new Date().toISOString()
       });
     };
 
