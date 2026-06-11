@@ -517,11 +517,14 @@ function buildScannedPdfBytes(text) {
   push(jpegBytes);
   push('\nendstream endobj\n');
   const xrefStart = length;
-  let xref = 'xref\n0 6\n0000000000 65535 f \n';
+  const pdfXrefEol = new Uint8Array([32, 10]);
+  push('xref\n0 6\n0000000000 65535 f');
+  push(pdfXrefEol);
   for (const objectOffset of offsets) {
-    xref += `${String(objectOffset).padStart(10, '0')} 00000 n \n`;
+    push(`${String(objectOffset).padStart(10, '0')} 00000 n`);
+    push(pdfXrefEol);
   }
-  push(xref + `trailer<</Size 6/Root 1 0 R>>\nstartxref\n${xrefStart}\n%%EOF`);
+  push(`trailer<</Size 6/Root 1 0 R>>\nstartxref\n${xrefStart}\n%%EOF`);
   const out = new Uint8Array(length);
   let cursor = 0;
   for (const chunk of parts) {
@@ -548,9 +551,10 @@ function buildSampleIngestPdf(text) {
     body += `${index + 1} 0 obj\n${object}\nendobj\n`;
   });
   const xrefStart = body.length;
-  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  const pdfXrefEol = String.fromCharCode.apply(null, new Uint8Array([32, 10]));
+  let xref = `xref\n0 ${objects.length + 1}\n0000000000 65535 f${pdfXrefEol}`;
   for (const objectOffset of offsets) {
-    xref += `${String(objectOffset).padStart(10, '0')} 00000 n \n`;
+    xref += `${String(objectOffset).padStart(10, '0')} 00000 n${pdfXrefEol}`;
   }
   const full = `${body}${xref}trailer<</Size ${objects.length + 1}/Root 1 0 R>>\nstartxref\n${xrefStart}\n%%EOF`;
   return btoa(full);

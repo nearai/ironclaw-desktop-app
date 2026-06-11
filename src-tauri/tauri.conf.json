@@ -30,7 +30,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' tauri:; connect-src 'self' tauri: ipc: http://127.0.0.1:* http://localhost:* https://* ws://127.0.0.1:* ws://localhost:* wss://*; img-src 'self' data: blob: tauri: http://* https://*; style-src 'self' 'unsafe-inline' tauri:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' tauri: http://127.0.0.1:* http://localhost:*; worker-src 'self' blob: tauri: http://127.0.0.1:* http://localhost:*; font-src 'self' data: tauri:; media-src 'self' data: blob: tauri:; frame-src 'none'; object-src 'none'; base-uri 'self';"
+      "csp": "default-src 'self' tauri:; connect-src 'self' tauri: ipc: http://127.0.0.1:* http://localhost:* https://* ws://127.0.0.1:* ws://localhost:* wss://*; img-src 'self' data: blob: tauri: http://127.0.0.1:* http://localhost:* https://*; style-src 'self' 'unsafe-inline' tauri:; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' tauri: http://127.0.0.1:* http://localhost:*; worker-src 'self' blob: tauri: http://127.0.0.1:* http://localhost:*; font-src 'self' data: tauri:; media-src 'self' data: blob: tauri:; frame-src 'none'; object-src 'none'; base-uri 'self';"
     }
   },
   "plugins": {

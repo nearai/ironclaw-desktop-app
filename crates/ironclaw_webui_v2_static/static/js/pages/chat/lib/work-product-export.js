@@ -136,9 +136,12 @@ export function buildPdfBlob(content) {
     push(encodeWinAnsi('\nendobj\n'));
   }
   const xref = length;
-  push(encodeWinAnsi(`xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`));
+  const pdfXrefEol = new Uint8Array([32, 10]);
+  push(encodeWinAnsi(`xref\n0 ${objects.length + 1}\n0000000000 65535 f`));
+  push(pdfXrefEol);
   for (const offset of offsets) {
-    push(encodeWinAnsi(`${String(offset).padStart(10, '0')} 00000 n \n`));
+    push(encodeWinAnsi(`${String(offset).padStart(10, '0')} 00000 n`));
+    push(pdfXrefEol);
   }
   push(
     encodeWinAnsi(

@@ -23,3 +23,20 @@ test('classifyRisk: write-like tool name is danger', () => {
     key: 'tool.riskWrite'
   });
 });
+
+test('classifyRisk: legacy approval action kinds are danger when they name the tool', () => {
+  for (const toolName of [
+    'send_email',
+    'execute_trade',
+    'git_push',
+    'create_pr',
+    'export_file',
+    'publish_post',
+    'reply_to_customer'
+  ]) {
+    assert.deepEqual(classifyRisk(toolName, 'Legacy approval action', '{}'), {
+      tone: 'danger',
+      key: 'tool.riskWrite'
+    });
+  }
+});

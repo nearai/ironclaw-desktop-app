@@ -1,4 +1,5 @@
-const WRITE_RE = /(write|edit|delete|remove|patch|create|move|rename|chmod|rm\b)/;
+const WRITE_RE =
+  /(write|edit|delete|remove|patch|create|move|rename|chmod|rm\b|send|trade|push|export|publish|post|reply|email|(^|[_-])pr($|[_-]))/;
 const EXEC_RE = /(bash|shell|exec|run|command|terminal|spawn|process)/;
 const NETWORK_RE = /(curl|http|fetch|web|network|request|api|gh\b|git|download|upload|browse)/;
 
