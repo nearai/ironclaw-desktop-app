@@ -27,6 +27,10 @@ export function registerPack(lang, translations) {
   packs[lang] = translations;
 }
 
+export function getRegisteredPacks() {
+  return { ...packs };
+}
+
 function translate(lang, key, params = {}) {
   const text = packs[lang]?.[key] || packs['en']?.[key] || key;
   if (!params || typeof text !== 'string') return text;
