@@ -17,6 +17,13 @@ import { Badge } from '../../../design-system/badge.js';
 import { Icon } from '../../../design-system/icons.js';
 import { classifyRisk } from '../lib/approval-risk.js';
 
+function isEditableTarget(target) {
+  const tag = String(target?.tagName || '').toLowerCase();
+  if (tag === 'textarea' || tag === 'select') return true;
+  if (tag !== 'input') return false;
+  return !['button', 'checkbox', 'radio', 'submit'].includes(String(target?.type || ''));
+}
+
 export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
   const t = useT();
   const { toolName, headline, body, parameters, allowAlways } = gate;
@@ -37,8 +44,28 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
     }
   }, [always, allowAlways, onAlways, onApprove]);
 
+  React.useEffect(() => {
+    const onKeyDown = (event) => {
+      if (isEditableTarget(event.target)) return;
+      const key = String(event.key || '').toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && key === 'enter') {
+        event.preventDefault();
+        onPrimary();
+      } else if (key === 'escape') {
+        event.preventDefault();
+        onDeny?.();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onDeny, onPrimary]);
+
   return html`
-    <div className="mx-auto max-w-lg rounded-xl border border-copper/30 bg-copper/10 p-4">
+    <div
+      role="group"
+      aria-label=${t('approval.title')}
+      className="mx-auto max-w-lg rounded-xl border border-copper/35 bg-copper/10 p-4 shadow-[0_1px_0_rgba(255,255,255,0.04)]"
+    >
       <div className="mb-3 flex items-center gap-2">
         <span
           className="grid h-8 w-8 place-items-center rounded-md border border-copper/25 bg-copper/10 text-copper"
@@ -54,14 +81,37 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
           className="ml-auto"
         />
       </div>
-      <div className="mb-1 font-mono text-sm font-medium text-iron-100">${displayName}</div>
-      ${description && html`<div className="mb-3 text-sm text-iron-200">${description}</div>`}
+
+      <div className="mb-3 rounded-lg border border-copper/25 bg-iron-950/50 p-3">
+        <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-copper">
+          <${Icon} name="shield" className="h-3.5 w-3.5" />
+          ${t('approval.nothingSentYet')}
+        </div>
+        <dl className="grid gap-2 text-xs">
+          <div className="grid gap-1">
+            <dt className="font-semibold uppercase tracking-wide text-iron-400">
+              ${t('approval.touchesLabel')}
+            </dt>
+            <dd className="font-mono text-sm font-medium text-iron-100">${displayName}</dd>
+          </div>
+          <div className="grid gap-1">
+            <dt className="font-semibold uppercase tracking-wide text-iron-400">
+              ${t('approval.whatLeavesMachineLabel')}
+            </dt>
+            <dd className="text-sm text-iron-200">${description || t('approval.notSpecified')}</dd>
+          </div>
+        </dl>
+      </div>
+
       ${parameters &&
-      html`<pre
-        className="mb-3 overflow-x-auto rounded-md bg-iron-950 p-2 font-mono text-xs text-iron-100"
-      >
+      html`<div className="mb-3">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-iron-400">
+          ${t('approval.parametersLabel')}
+        </div>
+        <pre className="overflow-x-auto rounded-md bg-iron-950 p-2 font-mono text-xs text-iron-100">
 ${parameters}</pre
-      >`}
+        >
+      </div>`}
       ${allowAlways &&
       html`
         <label className="mb-3 flex items-center gap-2 text-xs text-iron-200">
@@ -81,6 +131,7 @@ ${parameters}</pre
         <//>
         <${Button} variant="secondary" onClick=${() => onDeny?.()}> ${t('approval.deny')} <//>
       </div>
+      <div className="mt-3 text-xs text-iron-400">${t('approval.shortcutHint')}</div>
     </div>
   `;
 }

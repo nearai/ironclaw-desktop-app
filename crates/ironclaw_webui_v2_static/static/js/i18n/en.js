@@ -165,6 +165,12 @@ registerPack('en', {
   'approval.approveAndAlways': 'Approve & always allow',
   'approval.alwaysAllowToolLabel': 'Always allow {tool} without asking',
   'approval.thisTool': 'this tool',
+  'approval.nothingSentYet': 'Nothing has been sent yet.',
+  'approval.touchesLabel': 'Touches',
+  'approval.whatLeavesMachineLabel': 'What leaves the machine',
+  'approval.notSpecified': 'Not specified by the tool.',
+  'approval.parametersLabel': 'Parameters',
+  'approval.shortcutHint': 'Cmd/Ctrl+Enter approve / Esc deny',
   // Chat — tool activity
   'tool.tabDetails': 'Details',
   'tool.tabParameters': 'Parameters',
