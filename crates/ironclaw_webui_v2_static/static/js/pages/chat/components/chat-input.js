@@ -51,26 +51,54 @@ function ModelPopover({ open, onClose, t }) {
     staleTime: 60_000,
     enabled: open
   });
-  const active = providersQuery.data?.active || null;
-  const activeProvider = (providersQuery.data?.providers || []).find(
-    (provider) => provider.id === active?.provider_id
-  );
-
+  const snapshot = providersQuery.data || {};
+  const providers = Array.isArray(snapshot.providers) ? snapshot.providers : [];
+  const active = snapshot.active || null;
+  const activeProvider = providers.find((provider) => provider.id === active?.provider_id) || null;
+  const [selectedProviderId, setSelectedProviderId] = React.useState('');
   const [models, setModels] = React.useState(null);
   const [loadError, setLoadError] = React.useState(false);
   const [applying, setApplying] = React.useState('');
+  const [selectedModel, setSelectedModel] = React.useState('');
+  const [manualModel, setManualModel] = React.useState('');
+
   React.useEffect(() => {
-    if (!open || !activeProvider || models !== null) return;
+    if (!open) return;
+    setSelectedProviderId((current) => current || active?.provider_id || providers[0]?.id || '');
+  }, [open, active?.provider_id, providers.length]);
+
+  const selectedProvider =
+    providers.find((provider) => provider.id === selectedProviderId) ||
+    activeProvider ||
+    providers[0] ||
+    null;
+  const currentProviderModel = modelForProvider(selectedProvider, active);
+
+  React.useEffect(() => {
+    if (!open) return;
+    setModels(null);
+    setLoadError(false);
+    setSelectedModel(currentProviderModel);
+    setManualModel(currentProviderModel === 'auto' ? '' : currentProviderModel);
+  }, [open, selectedProvider?.id, currentProviderModel]);
+
+  React.useEffect(() => {
+    if (!open || !selectedProvider || models !== null) return;
     let cancelled = false;
     (async () => {
       try {
         const result = await listLlmProviderModels({
-          provider_id: activeProvider.id,
-          adapter: activeProvider.adapter || activeProvider.id
+          provider_id: selectedProvider.id,
+          adapter: selectedProvider.adapter || selectedProvider.id
         });
         if (!cancelled) {
-          setModels(result?.ok && Array.isArray(result.models) ? result.models : []);
+          const normalized = result?.ok ? normalizeModelEntries(result.models) : [];
+          setModels(normalized);
           setLoadError(!result?.ok);
+          setSelectedModel((current) =>
+            normalized.includes(current) ? current : normalized[0] || currentProviderModel
+          );
+          setManualModel((current) => current || currentProviderModel || normalized[0] || '');
         }
       } catch (_) {
         if (!cancelled) {
@@ -82,14 +110,17 @@ function ModelPopover({ open, onClose, t }) {
     return () => {
       cancelled = true;
     };
-  }, [open, activeProvider, models]);
+  }, [open, selectedProvider, models, currentProviderModel]);
 
-  const apply = async (model) => {
-    if (!activeProvider || applying) return;
-    setApplying(model);
+  const apply = async () => {
+    if (!selectedProvider || applying) return;
+    const model = (selectedModel || manualModel || currentProviderModel || 'auto').trim();
+    if (!model) return;
+    setApplying(`${selectedProvider.id}:${model}`);
     try {
-      await setActiveLlm({ provider_id: activeProvider.id, model });
+      await setActiveLlm({ provider_id: selectedProvider.id, model });
       await queryClient.invalidateQueries({ queryKey: ['llm-providers'] });
+      await queryClient.invalidateQueries({ queryKey: ['gateway-status'] });
       onClose();
     } catch (_) {
       setLoadError(true);
@@ -98,16 +129,63 @@ function ModelPopover({ open, onClose, t }) {
     }
   };
 
+  const applyModel = (selectedModel || manualModel || currentProviderModel || 'auto').trim();
+  const isCurrentSelection =
+    selectedProvider?.id === active?.provider_id && applyModel === String(active?.model || 'auto');
+  const canApply = Boolean(selectedProvider && applyModel && !applying && !isCurrentSelection);
+
   return html`
-    <div className="p-2">
+    <div className="w-[min(28rem,calc(100vw-2rem))] p-2">
       <div className="px-2 pb-2 pt-1">
         <div
           className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
         >
-          ${t('chat.modelPopoverTitle')}
+          ${t('chat.modelPopoverProvider')}
         </div>
         <div className="mt-0.5 truncate text-sm font-medium text-[var(--v2-text-strong)]">
-          ${activeProvider?.name || activeProvider?.id || t('chat.modelPopoverNoProvider')}
+          ${selectedProvider
+            ? formatProviderLabel(selectedProvider.id, selectedProvider.name)
+            : t('chat.modelPopoverNoProvider')}
+        </div>
+      </div>
+      <div className="mb-2 grid max-h-32 gap-1 overflow-y-auto">
+        ${providers.length === 0 &&
+        html`<div className="px-2 py-2 text-sm text-[var(--v2-text-muted)]">
+          ${providersQuery.isLoading ? t('common.loading') : t('chat.modelPopoverNoProvider')}
+        </div>`}
+        ${providers.map((provider) => {
+          const isSelected = provider.id === selectedProvider?.id;
+          const isActive = provider.id === active?.provider_id;
+          return html`
+            <button
+              key=${provider.id}
+              type="button"
+              onClick=${() => setSelectedProviderId(provider.id)}
+              className=${`flex min-w-0 items-center justify-between gap-2 rounded-[8px] px-2 py-1.5 text-left text-sm ${
+                isSelected
+                  ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
+                  : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]'
+              }`}
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-medium"
+                  >${formatProviderLabel(provider.id, provider.name)}</span
+                >
+                <span className="block truncate font-mono text-[11px] opacity-70"
+                  >${provider.id}</span
+                >
+              </span>
+              ${isActive &&
+              html`<span className="shrink-0 text-[11px] font-semibold">${t('llm.active')}</span>`}
+            </button>
+          `;
+        })}
+      </div>
+      <div className="border-t border-[var(--v2-panel-border)] px-2 pb-2 pt-2">
+        <div
+          className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+        >
+          ${t('chat.modelPopoverTitle')}
         </div>
       </div>
       <div className="max-h-64 overflow-y-auto">
@@ -121,13 +199,16 @@ function ModelPopover({ open, onClose, t }) {
           ${loadError ? t('chat.modelPopoverError') : t('chat.modelPopoverEmpty')}
         </div>`}
         ${(models || []).map((model) => {
-          const isCurrent = model === active?.model;
+          const isCurrent = model === selectedModel;
           return html`
             <button
               key=${model}
               type="button"
               disabled=${Boolean(applying)}
-              onClick=${() => apply(model)}
+              onClick=${() => {
+                setSelectedModel(model);
+                setManualModel(model);
+              }}
               className=${`flex w-full items-center justify-between gap-2 rounded-[6px] px-2 py-1.5 text-left text-sm ${
                 isCurrent
                   ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
@@ -135,22 +216,41 @@ function ModelPopover({ open, onClose, t }) {
               }`}
             >
               <span className="truncate">${model}</span>
-              ${applying === model
-                ? html`<span className="shrink-0 text-xs text-[var(--v2-text-faint)]">…</span>`
-                : isCurrent
-                  ? html`<${Icon} name="check" className="h-3.5 w-3.5 shrink-0" />`
-                  : null}
+              ${isCurrent ? html`<${Icon} name="check" className="h-3.5 w-3.5 shrink-0" />` : null}
             </button>
           `;
         })}
       </div>
+      <div className="mt-2 px-2">
+        <input
+          type="text"
+          value=${manualModel}
+          onChange=${(event) => {
+            setManualModel(event.target.value);
+            setSelectedModel(event.target.value);
+          }}
+          placeholder=${t('chat.modelPopoverManualPlaceholder')}
+          className="h-9 w-full rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 font-mono text-xs text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--v2-accent)_28%,transparent)]"
+        />
+      </div>
       <div className="mt-1 border-t border-[var(--v2-panel-border)] px-2 pb-1 pt-2">
-        <a
-          href=${modelSettingsPath()}
-          className="text-xs font-medium text-[var(--v2-accent-text)] hover:underline"
-        >
-          ${t('chat.modelPopoverManage')}
-        </a>
+        <div className="flex items-center justify-between gap-3">
+          <a
+            href=${modelSettingsPath()}
+            className="text-xs font-medium text-[var(--v2-accent-text)] hover:underline"
+          >
+            ${t('chat.modelPopoverManage')}
+          </a>
+          <${Button}
+            type="button"
+            variant="primary"
+            size="sm"
+            disabled=${!canApply}
+            onClick=${apply}
+          >
+            ${applying ? t('llm.applying') : t('llm.applyModel')}
+          <//>
+        </div>
       </div>
     </div>
   `;
@@ -580,4 +680,20 @@ function formatProviderLabel(providerId, providerName, fallbackId = 'nearai') {
     .join(' ');
 
   return humanized || 'NEAR.AI';
+}
+
+function normalizeModelEntries(models) {
+  if (!Array.isArray(models)) return [];
+  return models
+    .map((model) =>
+      typeof model === 'string' ? model : model?.id || model?.model || model?.name || ''
+    )
+    .map((model) => String(model).trim())
+    .filter(Boolean);
+}
+
+function modelForProvider(provider, active) {
+  if (!provider) return '';
+  if (provider.id === active?.provider_id) return String(active?.model || 'auto');
+  return String(provider.active_model || provider.default_model || provider.model || '').trim();
 }

@@ -18,7 +18,7 @@ function chatInputSourceForTest() {
     }
     lines.push(line.replace('export function ChatInput', 'function ChatInput'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { ChatInput, formatProviderLabel };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { ChatInput, formatProviderLabel, normalizeModelEntries, modelForProvider };`;
 }
 
 function findComponent(node, component) {
@@ -177,4 +177,46 @@ test('formatProviderLabel uses custom display name and humanizes unknown ids', (
   const { formatProviderLabel } = vmContext.globalThis.__testExports;
   assert.equal(formatProviderLabel('openai_codex', 'My Custom Provider'), 'My Custom Provider');
   assert.equal(formatProviderLabel('my_custom-provider'), 'My Custom Provider');
+});
+
+test('normalizeModelEntries accepts string and object model snapshots', () => {
+  const vmContext = {
+    React: {},
+    globalThis: {}
+  };
+  vm.runInNewContext(chatInputSourceForTest(), vmContext);
+  const { normalizeModelEntries } = vmContext.globalThis.__testExports;
+  assert.deepEqual(
+    normalizeModelEntries([
+      'glm-4.5',
+      { id: 'gpt-4.1' },
+      { model: 'claude-sonnet' },
+      { name: 'qwen' },
+      {}
+    ]),
+    ['glm-4.5', 'gpt-4.1', 'claude-sonnet', 'qwen']
+  );
+});
+
+test('modelForProvider prefers active snapshot over provider defaults', () => {
+  const vmContext = {
+    React: {},
+    globalThis: {}
+  };
+  vm.runInNewContext(chatInputSourceForTest(), vmContext);
+  const { modelForProvider } = vmContext.globalThis.__testExports;
+  assert.equal(
+    modelForProvider(
+      { id: 'nearai', default_model: 'auto' },
+      { provider_id: 'nearai', model: 'glm-4.5' }
+    ),
+    'glm-4.5'
+  );
+  assert.equal(
+    modelForProvider(
+      { id: 'openai', default_model: 'gpt-4.1' },
+      { provider_id: 'nearai', model: 'glm-4.5' }
+    ),
+    'gpt-4.1'
+  );
 });
