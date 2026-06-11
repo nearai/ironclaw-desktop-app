@@ -4,6 +4,7 @@
 # This intentionally checks the cheap "do not ship broken releases" facts before
 # expensive build/notarization work starts:
 #   - updater signing key is present (unless explicitly allowed for a local dry-run)
+#   - Apple Developer ID certificate + notarization credentials are present when required
 #   - package.json, tauri.conf.json, and Cargo.toml all use the same version
 #   - optional expected version matches all three files
 
@@ -13,6 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${IRONCLAW_RELEASE_REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 
 ALLOW_MISSING_SIGNING_KEY=0
+REQUIRE_APPLE_SIGNING=0
 EXPECTED_VERSION=""
 
 usage() {
@@ -22,6 +24,7 @@ Usage: bash scripts/check-release-readiness.sh [options]
 Options:
   --expected-version <semver>       Require all version files to equal this version
   --allow-missing-signing-key       Permit a local dry-run without TAURI_SIGNING_PRIVATE_KEY
+  --require-apple-signing           Require Developer ID certificate + notarization env
   --help                           Show this help
 EOF
 }
@@ -35,6 +38,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --allow-missing-signing-key)
       ALLOW_MISSING_SIGNING_KEY=1
+      shift
+      ;;
+    --require-apple-signing)
+      REQUIRE_APPLE_SIGNING=1
       shift
       ;;
     --help|-h)
@@ -102,6 +109,24 @@ if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
   fi
 fi
 
+if [[ "$REQUIRE_APPLE_SIGNING" -eq 1 ]]; then
+  missing=0
+  for env_name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_API_KEY APPLE_API_ISSUER; do
+    if [[ -z "${!env_name:-}" ]]; then
+      err "$env_name is required for Developer ID signing/notarization"
+      missing=1
+    fi
+  done
+  if [[ -z "${APPLE_API_KEY_PATH:-}" && -z "${APPLE_API_KEY_P8:-}" ]]; then
+    err "APPLE_API_KEY_PATH or APPLE_API_KEY_P8 is required for notarization"
+    missing=1
+  fi
+  if [[ "$missing" -ne 0 ]]; then
+    err "Provision the GitHub Actions Apple signing secrets before cutting a public release."
+    exit 1
+  fi
+fi
+
 package_version="$(read_json_version "$PKG_JSON")"
 tauri_version="$(read_json_version "$TAURI_JSON")"
 cargo_version="$(read_cargo_version "$CARGO_TOML")"
@@ -135,5 +160,9 @@ fi
 if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
   info "OK: versions aligned at ${package_version}; updater signing key absent for local dry-run"
 else
-  info "OK: versions aligned at ${package_version}; updater signing key present"
+  message="OK: versions aligned at ${package_version}; updater signing key present"
+  if [[ "$REQUIRE_APPLE_SIGNING" -eq 1 ]]; then
+    message="${message}; Apple signing/notarization env present"
+  fi
+  info "$message"
 fi

@@ -8,8 +8,14 @@ function readWorkspaceJson(pathFromStaticJs) {
   return JSON.parse(readFileSync(fileURLToPath(url), 'utf8'));
 }
 
+function readWorkspaceText(pathFromStaticJs) {
+  const url = new URL(`../../../../../${pathFromStaticJs}`, import.meta.url);
+  return readFileSync(fileURLToPath(url), 'utf8');
+}
+
 const conf = readWorkspaceJson('src-tauri/tauri.conf.json');
 const caps = readWorkspaceJson('src-tauri/capabilities/default.json');
+const entitlements = readWorkspaceText('src-tauri/Entitlements.plist');
 const csp = conf.app.security.csp;
 const expectedSidecars = [
   'binaries/ironclaw-reborn',
@@ -83,10 +89,11 @@ test('CSP rejects broad eval, remote scripts, and insecure HTTP wildcards', () =
 test('Tauri capability manifest only allows loopback HTTP and HTTPS', () => {
   const http = permission('http:default');
   assert.ok(http, 'missing http:default permission');
-  assert.deepEqual(
-    http.allow.map((entry) => entry.url).sort(),
-    ['http://127.0.0.1:*', 'http://localhost:*', 'https://**']
-  );
+  assert.deepEqual(http.allow.map((entry) => entry.url).sort(), [
+    'http://127.0.0.1:*',
+    'http://localhost:*',
+    'https://**'
+  ]);
 });
 
 test('shell execute/kill capability stays pinned to the IronClaw sidecars', () => {
@@ -122,11 +129,25 @@ test('bundled external binaries stay explicit and do not grant interpreter paths
   }
 });
 
+test('macOS release signing keeps hardened runtime and minimal entitlements', () => {
+  assert.equal(conf.bundle.macOS.hardenedRuntime, true);
+  assert.equal(conf.bundle.macOS.entitlements, './Entitlements.plist');
+  for (const denied of [
+    'com.apple.security.cs.allow-unsigned-executable-memory',
+    'com.apple.security.cs.disable-library-validation',
+    'com.apple.security.cs.allow-jit',
+    'com.apple.security.app-sandbox'
+  ]) {
+    assert.ok(!entitlements.includes(denied), `entitlements must not grant ${denied}`);
+  }
+});
+
 test('shell open cannot launch arbitrary insecure HTTP URLs', () => {
   const open = permission('shell:allow-open');
   assert.ok(open, 'missing shell:allow-open');
-  assert.deepEqual(
-    open.allow.map((entry) => entry.url).sort(),
-    ['http://127.0.0.1:*/', 'http://localhost:*/', 'https://**']
-  );
+  assert.deepEqual(open.allow.map((entry) => entry.url).sort(), [
+    'http://127.0.0.1:*/',
+    'http://localhost:*/',
+    'https://**'
+  ]);
 });

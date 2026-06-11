@@ -8,7 +8,7 @@ A native macOS client for [IronClaw](https://github.com/nearai/ironclaw) — the
 
 Latest macOS DMG: https://github.com/nearai/ironclaw-desktop-app/releases/latest
 
-Apple Silicon and Intel both shipped. Unsigned-by-Apple (the updater signature is for in-app update verification, separate from Apple notarization which is a future TODO).
+Apple Silicon and Intel builds are produced by CI. Public release CI is wired for Developer ID signing and notarization once the Apple secrets in [`docs/RELEASE-SIGNING.md`](docs/RELEASE-SIGNING.md) are provisioned; local development builds remain unsigned-by-Apple.
 
 ## Why
 
@@ -150,7 +150,7 @@ The shipped static WebUI exposes four sidebar surfaces:
 
 Plus, outside the sidebar:
 
-- **Signed auto-updater** — releases ship signed `.app.tar.gz` + `.sig` artifacts; the in-app updater verifies the signature against the pubkey baked into the binary before installing. Apple notarization (the Gatekeeper-facing signature) is a separate, pending TODO.
+- **Signed auto-updater** — releases ship signed `.app.tar.gz` + `.sig` artifacts; the in-app updater verifies the signature against the pubkey baked into the binary before installing. Public releases also require Developer ID signing and notarization; see [`docs/RELEASE-SIGNING.md`](docs/RELEASE-SIGNING.md).
 - **Menu-bar tray** — Show/Hide, Restart sidecar, Open Settings, Quit, even when the window is hidden.
 
 ### Planned / not yet shipped
@@ -320,12 +320,14 @@ ironclaw-desktop/
 
 The public key is already committed. Release and local Tauri updater-artifact builds still need the private key secret (`TAURI_SIGNING_PRIVATE_KEY`) so the `.app.tar.gz` updater payload can be signed. Without it, `npm run tauri build` produces the unsigned `.app` and `.dmg` and skips updater artifacts.
 
+Developer ID signing and notarization use a separate Apple certificate and App Store Connect API key. Provision those secrets from [`docs/RELEASE-SIGNING.md`](docs/RELEASE-SIGNING.md) before cutting a public release.
+
 ### Cutting a release
 
-1. Run the release readiness preflight. It hard-fails if `TAURI_SIGNING_PRIVATE_KEY` is absent or the three version files disagree:
+1. Run the release readiness preflight. It hard-fails if updater signing, Apple signing/notarization, or the three version files are not ready:
 
    ```bash
-   npm run check:release-readiness
+   bash scripts/check-release-readiness.sh --require-apple-signing
    ```
 
 2. Bump the version across all three files at once:
@@ -470,7 +472,7 @@ shake, drop the import) before raising the budget.
 | Symptom                                                                            | Fix                                                                                                                                                                                                                                                                                                                                          |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Status bar shows **Disconnected** even though the server is up                     | Check the SSH tunnel is still alive (`bash scripts/tunnel.sh status`). If the gateway port shifted, re-enter the URL under **Settings → Profile → Base URL**. Re-paste the token under **Settings → Profile → Gateway token** to refresh the Keychain entry.                                                                                 |
-| macOS warns **"App can't be opened because it is from an unidentified developer"** | The DMG is unsigned. Right-click the `.app` in Finder → **Open** → confirm in the dialog. macOS remembers the exception per binary, so subsequent launches work normally. Or strip the quarantine attribute: `xattr -d com.apple.quarantine /Applications/IronClaw.app`.                                                                     |
+| macOS warns **"App can't be opened because it is from an unidentified developer"** | You are running a local/development DMG that was not Developer-ID signed and notarized. Right-click the `.app` in Finder → **Open** → confirm in the dialog. macOS remembers the exception per binary, so subsequent launches work normally. Or strip the quarantine attribute: `xattr -d com.apple.quarantine /Applications/IronClaw.app`.  |
 | Local sidecar fails to spawn on launch                                             | Most often a NEAR.AI Cloud sign-in problem — open the IronClaw web UI (button in **Settings → Local sidecar**) and re-authenticate. If you're on the OpenRouter backend, check the OpenRouter key is set under **Settings → Profile → LLM backend**. Logs live at `~/Library/Application Support/com.openclaw.ironclaw-desktop/sidecar.log`. |
 | Tray icon missing from the menu bar                                                | **Settings → Advanced → "Show in menu bar"**. The toggle is on by default; if it ever flips off it usually means a startup crash before tray init. Restart the app, then re-toggle.                                                                                                                                                          |
 | **Cmd+,** (or any other shortcut) does nothing                                     | A shortcut only fires when the app window has focus. Cmd+Tab into IronClaw first, then try again. The tray "Show window" item brings it forward even when hidden.                                                                                                                                                                            |

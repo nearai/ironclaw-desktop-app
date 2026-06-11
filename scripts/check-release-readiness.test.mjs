@@ -40,11 +40,22 @@ function envFor(repoRoot, extras = {}) {
     IRONCLAW_RELEASE_REPO_ROOT: repoRoot,
     ...extras
   };
-  if (extras.TAURI_SIGNING_PRIVATE_KEY === undefined) {
-    delete env.TAURI_SIGNING_PRIVATE_KEY;
+  for (const [name, value] of Object.entries(extras)) {
+    if (value === undefined) {
+      delete env[name];
+    }
   }
   return env;
 }
+
+const appleSigningEnv = {
+  TAURI_SIGNING_PRIVATE_KEY: 'signed-test-key',
+  APPLE_CERTIFICATE: 'base64-p12',
+  APPLE_CERTIFICATE_PASSWORD: 'cert-password',
+  APPLE_API_KEY: 'ABC123DEFG',
+  APPLE_API_ISSUER: '00000000-0000-0000-0000-000000000000',
+  APPLE_API_KEY_P8: '-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----'
+};
 
 test('passes when signing key is present and all versions match', async () => {
   await withFixture({}, async (dir) => {
@@ -90,5 +101,44 @@ test('allows explicit local dry-run without a signing key', async () => {
 
     assert.match(stderr, /allowed only for a local dry-run/);
     assert.match(stdout, /versions aligned at 1\.2\.3/);
+  });
+});
+
+test('requires Apple signing and notarization credentials when requested', async () => {
+  await withFixture({}, async (dir) => {
+    const { stdout } = await execFileAsync('bash', [scriptPath, '--require-apple-signing'], {
+      env: envFor(dir, appleSigningEnv)
+    });
+
+    assert.match(stdout, /Apple signing\/notarization env present/);
+  });
+});
+
+test('accepts APPLE_API_KEY_PATH instead of inline APPLE_API_KEY_P8', async () => {
+  await withFixture({}, async (dir) => {
+    const { stdout } = await execFileAsync('bash', [scriptPath, '--require-apple-signing'], {
+      env: envFor(dir, {
+        ...appleSigningEnv,
+        APPLE_API_KEY_P8: undefined,
+        APPLE_API_KEY_PATH: '/tmp/AuthKey_ABC123DEFG.p8'
+      })
+    });
+
+    assert.match(stdout, /Apple signing\/notarization env present/);
+  });
+});
+
+test('fails Apple signing preflight when certificate or notarization env is absent', async () => {
+  await withFixture({}, async (dir) => {
+    await assert.rejects(
+      execFileAsync('bash', [scriptPath, '--require-apple-signing'], {
+        env: envFor(dir, {
+          ...appleSigningEnv,
+          APPLE_CERTIFICATE: undefined,
+          APPLE_API_KEY_P8: undefined
+        })
+      }),
+      /APPLE_CERTIFICATE is required/
+    );
   });
 });
