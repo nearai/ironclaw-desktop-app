@@ -7,7 +7,14 @@ function packageId(entry) {
   return entry.package_ref?.id || '';
 }
 
-export function RegistryTab({ toolRegistry, channelRegistry, mcpRegistry, onInstall, isBusy }) {
+export function RegistryTab({
+  toolRegistry,
+  channelRegistry,
+  mcpRegistry,
+  onInstall,
+  onConfigure,
+  isBusy
+}) {
   const t = useT();
   const { connect, connectState } = useConnectExtension();
   const allAvailable = [...toolRegistry, ...channelRegistry, ...mcpRegistry];
@@ -21,6 +28,16 @@ export function RegistryTab({ toolRegistry, channelRegistry, mcpRegistry, onInst
           (e.keywords || []).some((kw) => kw.toLowerCase().includes(filter.toLowerCase()))
       )
     : allAvailable;
+  const openManualSetup = React.useCallback(
+    (entry) => {
+      if (!entry?.package_ref || !onConfigure) return;
+      onConfigure({
+        packageRef: entry.package_ref,
+        displayName: entry.display_name || packageId(entry)
+      });
+    },
+    [onConfigure]
+  );
 
   if (allAvailable.length === 0) {
     return html`
@@ -61,6 +78,7 @@ export function RegistryTab({ toolRegistry, channelRegistry, mcpRegistry, onInst
                     key=${packageId(entry)}
                     entry=${entry}
                     onConnect=${connect}
+                    onManualSetup=${openManualSetup}
                     connectPhase=${connectState[packageId(entry)]}
                     onInstall=${onInstall}
                     isBusy=${isBusy}

@@ -3,7 +3,7 @@ import { Badge } from '../../../design-system/badge.js';
 import { Button } from '../../../design-system/button.js';
 import { Icon } from '../../../design-system/icons.js';
 import { KIND_LABELS, STATE_TONES, STATE_LABELS } from '../lib/extensions-schema.js';
-import { primaryExtensionAction } from '../lib/extension-actions.js';
+import { primaryExtensionAction, registryConnectButtonState } from '../lib/extension-actions.js';
 
 /* Card layout (Option B): self-contained bordered card. Capabilities collapse
    behind a count disclosure; secondary actions (Configure / Setup / Remove)
@@ -248,12 +248,24 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
   `;
 }
 
-export function RegistryCard({ entry, onInstall, isBusy, onConnect, connectPhase }) {
+export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetup, connectPhase }) {
   const kindLabel = KIND_LABELS[entry.kind] || entry.kind;
   const displayName = entry.display_name || packageId(entry);
   const canInstall = Boolean(entry.package_ref);
   const keywords = entry.keywords || [];
   const [kwOpen, setKwOpen] = React.useState(false);
+  const connectButton = registryConnectButtonState(connectPhase);
+  const runConnectAction = () => {
+    if (connectButton.action === 'manual_setup' && onManualSetup) {
+      onManualSetup(entry);
+      return;
+    }
+    if (onConnect) {
+      onConnect(entry);
+      return;
+    }
+    onInstall({ packageRef: entry.package_ref, displayName });
+  };
 
   return html`
     <div className=${CARD}>
@@ -272,6 +284,15 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, connectPhase
       </div>
 
       ${entry.description && html`<p className=${DESC}>${entry.description}</p>`}
+      ${connectPhase?.phase === 'error' &&
+      connectPhase?.message &&
+      html`
+        <div
+          className="mt-2 rounded-[10px] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-1.5 text-xs text-[var(--v2-danger-text)]"
+        >
+          ${connectPhase.message}
+        </div>
+      `}
 
       <div className=${FOOTER}>
         ${keywords.length > 0
@@ -295,25 +316,14 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, connectPhase
         ${canInstall &&
         html`
           <${Button}
-            variant=${connectPhase?.phase === 'connected' ? 'secondary' : 'primary'}
+            variant=${connectButton.variant}
             size="sm"
-            onClick=${() =>
-              onConnect
-                ? onConnect(entry)
-                : onInstall({ packageRef: entry.package_ref, displayName })}
-            disabled=${isBusy ||
-            ['installing', 'authorizing', 'waiting', 'activating'].includes(connectPhase?.phase) ||
-            connectPhase?.phase === 'connected'}
+            onClick=${runConnectAction}
+            disabled=${isBusy || connectButton.disabled}
           >
-            ${connectPhase?.phase === 'installing' && 'Connecting…'}
-            ${connectPhase?.phase === 'authorizing' && 'Connecting…'}
-            ${connectPhase?.phase === 'waiting' && 'Finish in your browser…'}
-            ${connectPhase?.phase === 'activating' && 'Turning on…'}
-            ${connectPhase?.phase === 'connected' && 'Connected'}
-            ${!connectPhase?.phase || connectPhase?.phase === 'error'
-              ? html`<${Icon} name="plus" className="mr-1.5 h-3.5 w-3.5" /> Connect`
-              : null}
-            ${connectPhase?.phase === 'needs-token' && 'Enter token in Installed tab'}
+            ${connectButton.action === 'connect' &&
+            html`<${Icon} name="plus" className="mr-1.5 h-3.5 w-3.5" />`}
+            ${connectButton.label}
           <//>
         `}
       </div>

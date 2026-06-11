@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { primaryExtensionAction, setupReadyForActivation } from './extension-actions.js';
+import {
+  primaryExtensionAction,
+  registryConnectButtonState,
+  setupReadyForActivation
+} from './extension-actions.js';
 
 const notionRef = { kind: 'extension', id: 'notion' };
 
@@ -71,4 +75,34 @@ test('setupReadyForActivation waits until all setup secrets are provided', () =>
     }),
     false
   );
+});
+
+test('registryConnectButtonState makes manual-token setup actionable', () => {
+  assert.deepEqual(registryConnectButtonState({ phase: 'needs-token' }), {
+    label: 'Open setup',
+    disabled: false,
+    action: 'manual_setup',
+    variant: 'secondary'
+  });
+});
+
+test('registryConnectButtonState keeps running and connected phases disabled', () => {
+  assert.deepEqual(registryConnectButtonState({ phase: 'waiting' }), {
+    label: 'Finish in your browser...',
+    disabled: true,
+    action: 'wait',
+    variant: 'primary'
+  });
+  assert.deepEqual(registryConnectButtonState({ phase: 'connected' }), {
+    label: 'Connected',
+    disabled: true,
+    action: 'none',
+    variant: 'secondary'
+  });
+  assert.deepEqual(registryConnectButtonState({ phase: 'error' }), {
+    label: 'Retry connect',
+    disabled: false,
+    action: 'connect',
+    variant: 'primary'
+  });
 });

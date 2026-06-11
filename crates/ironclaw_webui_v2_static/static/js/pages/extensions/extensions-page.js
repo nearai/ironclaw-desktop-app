@@ -125,6 +125,7 @@ export function ExtensionsPage() {
       channelRegistry=${channelRegistry}
       mcpRegistry=${mcpRegistry}
       onInstall=${install}
+      onConfigure=${handleConfigure}
       isBusy=${isBusy}
     />`
   };
