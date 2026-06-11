@@ -40,7 +40,7 @@ export function fetchExtensionSetup(packageRef) {
 }
 export function submitExtensionSetup(packageRef, secrets, fields) {
   return setupExtension(canonicalExtensionName(packageRef), {
-    action: 'submit',
+    action: 'configure',
     payload: { secrets, fields }
   });
 }

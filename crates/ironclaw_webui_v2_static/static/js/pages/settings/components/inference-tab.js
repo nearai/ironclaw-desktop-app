@@ -1,4 +1,4 @@
-import { html } from '../../../lib/html.js';
+import { React, html } from '../../../lib/html.js';
 import { Badge } from '../../../design-system/badge.js';
 import { Card } from '../../../design-system/card.js';
 import { useT } from '../../../lib/i18n.js';
@@ -19,12 +19,8 @@ export function InferenceTab({
   searchQuery = ''
 }) {
   const t = useT();
-  if (isLoading) {
-    return html`<${SettingsSkeleton} />`;
-  }
-
   const backend = 'NEAR AI Cloud';
-  const model = settings.selected_model || 'auto';
+  const model = gatewayStatus?.llm_model || settings.selected_model || 'NEAR AI Cloud default';
   const readiness = modelExecutionReadiness(gatewayStatus);
   const sections = filterSettingsSections(INFERENCE_FIELDS, settings, searchQuery, t);
   const showProviderSummary = matchesSearch(searchQuery, [
@@ -43,6 +39,16 @@ export function InferenceTab({
     'near',
     'near ai cloud'
   ]);
+  const [advancedOpen, setAdvancedOpen] = React.useState(
+    Boolean(searchQuery && showProviderManagement)
+  );
+  React.useEffect(() => {
+    if (searchQuery && showProviderManagement) setAdvancedOpen(true);
+  }, [searchQuery, showProviderManagement]);
+
+  if (isLoading) {
+    return html`<${SettingsSkeleton} />`;
+  }
 
   if (!showProviderSummary && !showProviderManagement && sections.length === 0) {
     return html`<${SettingsSearchEmpty} query=${searchQuery} />`;
@@ -86,11 +92,38 @@ export function InferenceTab({
       `}
       ${showProviderManagement &&
       html`
-        <${ProviderManagement}
-          settings=${settings}
-          gatewayStatus=${gatewayStatus}
-          searchQuery=${searchQuery}
-        />
+        <section
+          className="rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)]"
+        >
+          <button
+            type="button"
+            aria-expanded=${advancedOpen ? 'true' : 'false'}
+            onClick=${() => setAdvancedOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left sm:px-5"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-[var(--v2-text-strong)]">
+                Advanced NEAR AI Cloud setup
+              </span>
+              <span className="mt-0.5 block text-sm text-[var(--v2-text-muted)]">
+                Sign-in, API key fallback, model list, and connection repair.
+              </span>
+            </span>
+            <span className="shrink-0 text-xs font-semibold text-[var(--v2-accent-text)]">
+              ${advancedOpen ? 'Hide' : 'Show'}
+            </span>
+          </button>
+          ${advancedOpen &&
+          html`
+            <div className="border-t border-[var(--v2-panel-border)] p-3 sm:p-4">
+              <${ProviderManagement}
+                settings=${settings}
+                gatewayStatus=${gatewayStatus}
+                searchQuery=${searchQuery}
+              />
+            </div>
+          `}
+        </section>
       `}
       <${GoogleOauthCard} />
       ${sections.map(

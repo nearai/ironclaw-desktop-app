@@ -290,7 +290,7 @@ try {
 
   await installTauriShim(page);
   const connectorRequests = [];
-  let gmailSetupSubmitted = false;
+  let gmailSetupConfigured = false;
   const staleGatewayRequests = [];
   await page.route('http://127.0.0.1:3000/**', async (route) => {
     staleGatewayRequests.push(route.request().url());
@@ -622,8 +622,8 @@ try {
               active: false,
               needs_setup: true,
               has_auth: true,
-              onboarding_state: gmailSetupSubmitted ? 'failed' : 'auth_required',
-              activation_error: gmailSetupSubmitted
+              onboarding_state: gmailSetupConfigured ? 'failed' : 'auth_required',
+              activation_error: gmailSetupConfigured
                 ? 'Backend can store this credential, but this connector runtime is not wired in this build yet.'
                 : undefined,
               description: 'Read and draft Gmail messages.',
@@ -735,26 +735,18 @@ try {
         return;
       }
       if (body?.action === 'submit') {
-        if (extensionName === 'gmail') gmailSetupSubmitted = true;
         await route.fulfill({
+          status: 400,
           contentType: 'application/json',
           body: JSON.stringify({
-            success: true,
-            extension_name: extensionName,
-            phase: 'unsupported_or_legacy',
-            blockers: [
-              {
-                kind: 'runtime',
-                ref_id: 'extension_auth_and_configure_not_yet_wired'
-              }
-            ],
-            package_ref: { kind: 'extension', id: extensionName },
-            payload: {}
+            code: 'invalid_request',
+            message: 'Reborn lifecycle setup uses action "configure", not "submit".'
           })
         });
         return;
       }
       if (body?.action === 'configure') {
+        if (extensionName === 'gmail') gmailSetupConfigured = true;
         await route.fulfill({
           contentType: 'application/json',
           body: JSON.stringify({
@@ -855,10 +847,14 @@ try {
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat`, {
     waitUntil: 'domcontentloaded'
   });
-  await page.getByText('Welcome to IronClaw', { exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByLabel('Chat model settings').first().waitFor({ timeout: 20_000 });
   const firstRunUrl = new URL(page.url());
-  if (!firstRunUrl.pathname.endsWith('/welcome')) {
-    throw new Error(`static first-run gate did not redirect chat to welcome: ${page.url()}`);
+  if (!firstRunUrl.pathname.endsWith('/chat')) {
+    throw new Error(`static chat front door did not stay on chat: ${page.url()}`);
+  }
+  const firstRunBody = await page.locator('body').innerText();
+  if (!firstRunBody.includes('Connect NEAR AI Cloud in Settings before sending.')) {
+    throw new Error(`static chat did not render honest setup-required copy:\n${firstRunBody}`);
   }
 
   llmProvidersPayload = {
@@ -1277,22 +1273,22 @@ try {
     );
   }
 
-  const gmailSubmitRequest = connectorRequests.find(
+  const gmailConfigureRequest = connectorRequests.find(
     (request) =>
       request.url.endsWith('/api/webchat/v2/extensions/gmail/setup') &&
-      request.body?.action === 'submit'
+      request.body?.action === 'configure'
   );
-  if (!gmailSubmitRequest) {
+  if (!gmailConfigureRequest) {
     throw new Error(
-      `connector setup submit request missing:\n${JSON.stringify(connectorRequests, null, 2)}`
+      `connector setup configure request missing:\n${JSON.stringify(connectorRequests, null, 2)}`
     );
   }
   if (
-    gmailSubmitRequest.body.payload?.secrets?.token !== 'ya29.smoke-token' ||
-    gmailSubmitRequest.body.payload?.fields?.account_label !== 'Smoke Google'
+    gmailConfigureRequest.body.payload?.secrets?.token !== 'ya29.smoke-token' ||
+    gmailConfigureRequest.body.payload?.fields?.account_label !== 'Smoke Google'
   ) {
     throw new Error(
-      `connector setup submit body was wrong: ${JSON.stringify(gmailSubmitRequest.body)}`
+      `connector setup configure body was wrong: ${JSON.stringify(gmailConfigureRequest.body)}`
     );
   }
   await assertNoCatalogRefLifecycle();

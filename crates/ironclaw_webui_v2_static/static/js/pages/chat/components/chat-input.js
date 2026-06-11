@@ -189,9 +189,6 @@ function ModelPopover({ open, onClose, t }) {
                 <span className="block truncate font-medium"
                   >${formatProviderLabel(provider.id, provider.name)}</span
                 >
-                <span className="block truncate font-mono text-[11px] opacity-70"
-                  >${provider.id}</span
-                >
               </span>
               ${isActive &&
               html`<span className="shrink-0 text-[11px] font-semibold">${t('llm.active')}</span>`}
@@ -303,13 +300,66 @@ export function ChatInput({
     clearAttachments
   } = useComposerAttachments();
   const extracting = attachments.some((att) => att.extraction === 'extracting');
-  const readiness = context.modelReadiness || {
+  const baseReadiness = context.modelReadiness || {
     verified: false,
     sendBlocked: false,
     label: 'Configured, unverified',
     description: '',
     sendBlockReason: ''
   };
+  // Prefer the live providers snapshot (single source of truth, refreshed on
+  // every apply) over the boot-time gateway fallback for the chip label.
+  const providersQuery = useQuery({
+    queryKey: ['llm-providers'],
+    queryFn: fetchLlmProviders,
+    staleTime: 60_000
+  });
+  const providersSnapshot = providersQuery.data;
+  const visibleProvidersSnapshot = visibleLlmSnapshot(providersSnapshot || {});
+  const activeSelection = visibleProvidersSnapshot.active;
+  const cloudProvider = visibleProvidersSnapshot.providers[0] || null;
+  const providerSnapshotPending = !providersSnapshot && providersQuery.isLoading;
+  const providerSnapshotFailed = !providersSnapshot && providersQuery.error;
+  const providerSetupRequired = Boolean(providersSnapshot && !activeSelection);
+  const providerSetupUnknown = Boolean(providerSnapshotPending || providerSnapshotFailed);
+  const cloudBlockReason = providerSetupFailedMessage(providerSnapshotFailed);
+  const readiness =
+    providerSetupRequired || providerSetupUnknown
+      ? {
+          ...baseReadiness,
+          verified: false,
+          sendBlocked: true,
+          tone: 'warning',
+          label: providerSetupUnknown ? 'Checking NEAR AI Cloud' : 'NEAR AI Cloud setup required',
+          description: cloudBlockReason,
+          sendBlockReason: cloudBlockReason
+        }
+      : baseReadiness;
+  const providerNameFromSnapshot =
+    visibleProvidersSnapshot.providers.find(
+      (provider) => provider.id === activeSelection?.provider_id
+    )?.name || '';
+  const providerLabel = formatProviderLabel(
+    activeSelection?.provider_id || cloudProvider?.id,
+    providerNameFromSnapshot || activeSelection?.name || cloudProvider?.name,
+    'nearai'
+  );
+  const fallbackModel = String(
+    cloudProvider?.active_model || cloudProvider?.default_model || context.model || 'auto'
+  );
+  const modelLabel = String(
+    activeSelection?.model ||
+      (providerSetupRequired ? 'Not connected' : providerSetupUnknown ? 'Checking' : fallbackModel)
+  );
+  // Calm chip: "Provider · model" with a status dot; the readiness phrase
+  // lives in the tooltip and (when blocking) the banner — not shouted inline.
+  const modelControlLabel = `${providerLabel} · ${modelLabel}`;
+  const readinessDotClass =
+    readiness.tone === 'positive'
+      ? 'bg-[var(--v2-positive-text)]'
+      : readiness.sendBlocked
+        ? 'bg-[var(--v2-danger-text)]'
+        : 'bg-[var(--v2-warning-text)]';
 
   const autoResize = React.useCallback(() => {
     const el = textareaRef.current;
@@ -427,36 +477,6 @@ export function ChatInput({
 
   const hasPayload = text.trim() || images.length > 0 || attachments.length > 0;
   const placeholder = isHero ? t('chat.heroPlaceholder') : t('chat.followUpPlaceholder');
-  // Prefer the live providers snapshot (single source of truth, refreshed on
-  // every apply) over the boot-time gateway fallback for the chip label.
-  const providersSnapshot = useQuery({
-    queryKey: ['llm-providers'],
-    queryFn: fetchLlmProviders,
-    staleTime: 60_000
-  }).data;
-  const visibleProvidersSnapshot = visibleLlmSnapshot(providersSnapshot || {});
-  const activeSelection = visibleProvidersSnapshot.active;
-  const providerNameFromSnapshot =
-    visibleProvidersSnapshot.providers.find(
-      (provider) => provider.id === activeSelection?.provider_id
-    )?.name || '';
-  const providerLabel = formatProviderLabel(
-    activeSelection?.provider_id,
-    providerNameFromSnapshot || activeSelection?.name,
-    'nearai'
-  );
-  const modelLabel = String(
-    activeSelection?.model || (providersSnapshot ? 'auto' : context.model || 'auto')
-  );
-  // Calm chip: "Provider · model" with a status dot; the readiness phrase
-  // lives in the tooltip and (when blocking) the banner — not shouted inline.
-  const modelControlLabel = `${providerLabel} · ${modelLabel}`;
-  const readinessDotClass =
-    readiness.tone === 'positive'
-      ? 'bg-[var(--v2-positive-text)]'
-      : readiness.sendBlocked
-        ? 'bg-[var(--v2-danger-text)]'
-        : 'bg-[var(--v2-warning-text)]';
   const [modelMenuOpen, setModelMenuOpen] = React.useState(false);
   const shellClass = isHero ? 'w-full' : 'px-4 py-3 sm:px-5 lg:px-8';
   const composerClass = [
@@ -693,12 +713,19 @@ export function ChatInput({
   `;
 }
 
+function providerSetupFailedMessage(failed) {
+  if (failed) {
+    return 'Could not confirm NEAR AI Cloud. Wait for the local gateway or open Settings.';
+  }
+  return 'Connect NEAR AI Cloud in Settings before sending.';
+}
+
 function formatProviderLabel(providerId, providerName, fallbackId = 'nearai') {
   if (providerName && providerName.trim()) return providerName.trim();
   const raw = String(providerId || fallbackId || 'nearai').trim();
   const normalized = raw.toLowerCase().replace(/[\s]+/g, '').replace(/[_-]+/g, '_');
 
-  if (normalized === 'nearai') return 'NEAR.AI';
+  if (normalized === 'nearai') return 'NEAR AI Cloud';
   if (normalized === 'openai') return 'OpenAI';
   if (normalized === 'openai_codex') return 'OpenAI Codex';
   if (normalized === 'openrouter') return 'OpenRouter';

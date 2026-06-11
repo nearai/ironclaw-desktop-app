@@ -14,6 +14,7 @@ import {
   downloadMarkdown,
   downloadPdf
 } from '../lib/work-product-export.js';
+import { openSavedWorkProduct, saveAssistantResponseToWork } from '../lib/work-product-save.js';
 import { buildThreadJsonExport, buildThreadMarkdownExport } from '../lib/thread-export.js';
 
 /* Bicolor attribution (DESIGN.md): signal blue is the user's hand, gold is
@@ -425,22 +426,17 @@ function actionClass(tone = 'default') {
 }
 
 function saveToWork(title, content) {
-  const key = 'ironclaw-static-work-products';
-  let existing = [];
   try {
-    existing = JSON.parse(localStorage.getItem(key) || '[]');
+    const saved = saveAssistantResponseToWork({ title, content });
+    if (!saved) {
+      toast('Nothing to save', { tone: 'error' });
+      return;
+    }
+    toast('Saved to Work', { tone: 'success' });
+    openSavedWorkProduct(saved);
   } catch {
-    existing = [];
+    toast('Could not save work product', { tone: 'error' });
   }
-  existing.push({
-    id: `work-${Date.now()}`,
-    title,
-    content,
-    content_format: 'markdown',
-    created_at: new Date().toISOString()
-  });
-  localStorage.setItem(key, JSON.stringify(existing));
-  toast('Saved to Work', { tone: 'success' });
 }
 
 function exportThread(format, messages = []) {

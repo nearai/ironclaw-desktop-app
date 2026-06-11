@@ -66,6 +66,8 @@ function createMessageBubbleContext(overrides = {}) {
     downloadMarkdown: () => {},
     downloadPdf: () => {},
     copyWorkProduct: () => Promise.resolve(),
+    saveAssistantResponseToWork: () => ({ href: '/work?item=work-1&artifact=artifact-1' }),
+    openSavedWorkProduct: () => true,
     buildThreadJsonExport: () => '{}',
     buildThreadMarkdownExport: () => '# export',
     navigator: { clipboard: { writeText: () => Promise.resolve() } },

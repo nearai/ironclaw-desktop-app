@@ -6,7 +6,7 @@ import { primaryRoutes } from '../app/routes.js';
 const COMMAND_ROUTE_LABELS = {
   chat: 'Go to Chat',
   automations: 'Go to Automations',
-  extensions: 'Go to Extensions',
+  extensions: 'Go to Connections',
   settings: 'Go to Settings'
 };
 

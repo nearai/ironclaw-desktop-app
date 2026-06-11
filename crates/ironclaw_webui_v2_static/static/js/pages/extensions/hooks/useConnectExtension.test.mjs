@@ -267,6 +267,37 @@ test('useConnectExtension times out OAuth polling without activating', async () 
   assert.ok(!calls.some((call) => call[0] === 'activate'));
 });
 
+test('useConnectExtension does not show connected when activation is rejected', async () => {
+  const pendingOauth = {
+    name: 'notion_oauth',
+    provided: false,
+    setup: { kind: 'oauth' }
+  };
+  const { calls, context, ref, stateSnapshots } = setupContext({
+    activateResult: {
+      success: false,
+      message: 'Connector runtime is not wired in this build yet.'
+    },
+    setupQueue: [{ secrets: [pendingOauth] }, { secrets: [{ ...pendingOauth, provided: true }] }]
+  });
+
+  const hook = context.globalThis.__testExports.useConnectExtension();
+  await hook.connect({ package_ref: ref });
+
+  assert.deepEqual(phasesFor(stateSnapshots), [
+    'installing',
+    'authorizing',
+    'waiting',
+    'activating',
+    'error'
+  ]);
+  assert.equal(
+    stateSnapshots.at(-1).notion.message,
+    'Connector runtime is not wired in this build yet.'
+  );
+  assert.ok(calls.some((call) => call[0] === 'activate'));
+});
+
 test('useConnectExtension surfaces thrown connector errors in the connect phase state', async () => {
   const { calls, context, ref, stateSnapshots } = setupContext({
     installError: new Error('gateway offline')

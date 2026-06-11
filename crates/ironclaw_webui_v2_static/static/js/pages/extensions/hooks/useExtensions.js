@@ -19,6 +19,23 @@ import { isGoogleConnector } from '../lib/extension-actions.js';
 const OAUTH_SETUP_REFRESH_MS = 2000;
 const OAUTH_SETUP_TIMEOUT_MS = 10 * 60 * 1000;
 
+function activationProvedConnected(res) {
+  if (!res || typeof res !== 'object') return false;
+  if (res.success === false) return false;
+  const phase = String(res.phase || res.activation_status || res.status || '').toLowerCase();
+  if (['active', 'ready', 'connected'].includes(phase)) return true;
+  return res.success === true || res.active === true || res.activated === true;
+}
+
+function activationFailureMessage(res) {
+  return (
+    res?.message ||
+    res?.instructions ||
+    res?.error ||
+    'Activation did not complete; the gateway did not confirm this connector is connected.'
+  );
+}
+
 export function useExtensions() {
   const queryClient = useQueryClient();
 
@@ -390,7 +407,11 @@ export function useConnectExtension() {
         }
 
         setPhase(key, 'activating');
-        await activateExtension(ref);
+        const activation = await activateExtension(ref);
+        if (!activationProvedConnected(activation)) {
+          setPhase(key, 'error', { message: activationFailureMessage(activation) });
+          return;
+        }
         queryClient.invalidateQueries({ queryKey: ['extensions'] });
         queryClient.invalidateQueries({ queryKey: ['extension-registry'] });
         setPhase(key, 'connected');

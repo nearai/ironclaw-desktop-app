@@ -102,7 +102,7 @@ test('lifecycle extension calls use canonical bare names in route paths', async 
     false
   );
   assert.deepEqual(JSON.parse(calls[1].options.body), {
-    action: 'submit',
+    action: 'configure',
     payload: {
       secrets: { token: 'ya29.smoke-token' },
       fields: { account_label: 'Smoke Google' }

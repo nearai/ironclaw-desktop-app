@@ -9,13 +9,13 @@ function visibleRouteIds() {
 
 test('desktop primary information architecture stays simple for normal users', () => {
   assert.equal(defaultRoute, '/chat');
-  assert.deepEqual(visibleRouteIds(), ['chat', 'automations', 'extensions', 'settings']);
+  assert.deepEqual(visibleRouteIds(), ['chat', 'extensions', 'settings']);
 });
 
 test('backend-blocked and specialist routes stay deep-link only', () => {
   const hiddenIds = new Set(primaryRoutes.filter((route) => route.hidden).map((route) => route.id));
 
-  for (const id of ['workspace', 'projects', 'jobs', 'routines', 'missions', 'admin']) {
+  for (const id of ['workspace', 'projects', 'jobs', 'routines', 'automations', 'missions', 'admin']) {
     assert.equal(hiddenIds.has(id), true, `${id} should not appear in primary navigation`);
   }
 });

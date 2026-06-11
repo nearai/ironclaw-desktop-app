@@ -45,7 +45,36 @@ function componentProps(node, component) {
   return props;
 }
 
-function renderChatInput({ onCancel, setCalls = [] } = {}) {
+function collectScalars(node) {
+  const scalars = [];
+  const visit = (value) => {
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (!value || typeof value !== 'object') {
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        scalars.push(value);
+      }
+      return;
+    }
+    if (Array.isArray(value.values)) {
+      for (const child of value.values) visit(child);
+    }
+  };
+  visit(node);
+  return scalars;
+}
+
+function renderChatInput({
+  onCancel,
+  onSend = async () => {},
+  setCalls = [],
+  disabled = true,
+  canCancel = true,
+  queryResult = { data: null, isLoading: false },
+  runtimeContext = {}
+} = {}) {
   const components = {
     Button() {},
     Icon() {},
@@ -91,7 +120,7 @@ function renderChatInput({ onCancel, setCalls = [] } = {}) {
     useT: () => (key) => key,
     // ModelPopover dependencies — inert here; popover stays closed in
     // these cancel-button scenarios.
-    useQuery: () => ({ data: null, isLoading: false }),
+    useQuery: () => queryResult,
     useQueryClient: () => ({ invalidateQueries: () => {} }),
     listLlmProviderModels: async () => ({ models: [] }),
     fetchLlmProviders: async () => ({ providers: [], active: null }),
@@ -104,10 +133,11 @@ function renderChatInput({ onCancel, setCalls = [] } = {}) {
 
   vm.runInNewContext(chatInputSourceForTest(), context);
   const tree = context.globalThis.__testExports.ChatInput({
-    onSend: async () => {},
+    onSend,
     onCancel,
-    disabled: true,
-    canCancel: true
+    disabled,
+    canCancel,
+    context: runtimeContext
   });
   return { tree, components };
 }
@@ -164,10 +194,39 @@ test('formatProviderLabel maps known provider ids to readable names', () => {
   };
   vm.runInNewContext(chatInputSourceForTest(), vmContext);
   const { formatProviderLabel } = vmContext.globalThis.__testExports;
-  assert.equal(formatProviderLabel('nearai'), 'NEAR.AI');
+  assert.equal(formatProviderLabel('nearai'), 'NEAR AI Cloud');
   assert.equal(formatProviderLabel('openai_codex'), 'OpenAI Codex');
   assert.equal(formatProviderLabel('openrouter'), 'OpenRouter');
   assert.equal(formatProviderLabel('anthropic'), 'Anthropic');
+});
+
+test('ChatInput blocks send when NEAR AI Cloud is not active', async () => {
+  const sendCalls = [];
+  const { tree, components } = renderChatInput({
+    disabled: false,
+    canCancel: false,
+    onSend: async () => {
+      sendCalls.push('send');
+    },
+    queryResult: {
+      data: {
+        providers: [{ id: 'nearai', name: 'NEAR AI Cloud', default_model: 'z-ai/glm-4.5' }],
+        active: null
+      },
+      isLoading: false
+    }
+  });
+
+  const sendButton = findComponent(tree, components.Button);
+  const props = componentProps(sendButton, components.Button);
+  const scalars = collectScalars(tree);
+
+  assert.equal(props.disabled, true);
+  assert.ok(scalars.includes('NEAR AI Cloud · Not connected'));
+  assert.ok(scalars.includes('Connect NEAR AI Cloud in Settings before sending.'));
+
+  await props.onClick();
+  assert.deepEqual(sendCalls, []);
 });
 
 test('formatProviderLabel uses custom display name and humanizes unknown ids', () => {

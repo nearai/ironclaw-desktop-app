@@ -22,7 +22,7 @@ registerPack('en', {
   'nav.routines': 'Routines',
   'nav.automations': 'Automations',
   'nav.missions': 'Missions',
-  'nav.extensions': 'Extensions',
+  'nav.extensions': 'Connections',
   'nav.settings': 'Settings',
   'nav.admin': 'Admin',
   'nav.logs': 'Logs',
@@ -751,7 +751,7 @@ registerPack('en', {
   'lang.current': 'Current language',
 
   // Settings — inference summary card
-  'inference.provider': 'LLM provider',
+  'inference.provider': 'Model path',
   'inference.backend': 'Backend',
   'inference.model': 'Model',
   'inference.active': 'active',
