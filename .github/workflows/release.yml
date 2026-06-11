@@ -32,6 +32,10 @@ jobs:
 
       - run: npm ci
 
+      - name: Resolve package version
+        id: package-version
+        run: echo "version=$(node -p 'require(\"./package.json\").version')" >> "$GITHUB_OUTPUT"
+
       - name: Build Tauri bundle (aarch64)
         run: npm run tauri build -- --target aarch64-apple-darwin
         env:
@@ -48,16 +52,37 @@ jobs:
 
       - name: Collect artifacts
         run: |
+          set -euo pipefail
           mkdir -p release-artifacts
           cp src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg release-artifacts/ || true
           cp src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg release-artifacts/ || true
+
           # Updater artifacts (signed when keys are configured)
-          cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz release-artifacts/ || true
-          cp src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz release-artifacts/ || true
-          # Detached signatures (only present when TAURI_SIGNING_PRIVATE_KEY is set)
-          cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig release-artifacts/ || true
-          cp src-tauri/target/x86_64-apple-darwin/release/bundle/macos/*.app.tar.gz.sig release-artifacts/ || true
+          cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/IronClaw.app.tar.gz \
+            "release-artifacts/IronClaw_${{ steps.package-version.outputs.version }}_aarch64.app.tar.gz"
+          cp src-tauri/target/aarch64-apple-darwin/release/bundle/macos/IronClaw.app.tar.gz.sig \
+            "release-artifacts/IronClaw_${{ steps.package-version.outputs.version }}_aarch64.app.tar.gz.sig"
+          cp src-tauri/target/x86_64-apple-darwin/release/bundle/macos/IronClaw.app.tar.gz \
+            "release-artifacts/IronClaw_${{ steps.package-version.outputs.version }}_x86_64.app.tar.gz"
+          cp src-tauri/target/x86_64-apple-darwin/release/bundle/macos/IronClaw.app.tar.gz.sig \
+            "release-artifacts/IronClaw_${{ steps.package-version.outputs.version }}_x86_64.app.tar.gz.sig"
+
           ls -la release-artifacts/
+
+      - name: Generate updater manifest
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+          else
+            release_tag="v${{ steps.package-version.outputs.version }}"
+          fi
+          node scripts/build-updater-manifest.mjs \
+            --artifacts release-artifacts \
+            --repo "${GITHUB_REPOSITORY}" \
+            --tag "${release_tag}" \
+            --version "${{ steps.package-version.outputs.version }}"
+          cat release-artifacts/latest.json
 
       - name: Create GitHub release
         if: startsWith(github.ref, 'refs/tags/')

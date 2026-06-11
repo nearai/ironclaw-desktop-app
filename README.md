@@ -340,9 +340,9 @@ The public key is already committed. Release and local Tauri updater-artifact bu
    git push && git push --tags
    ```
 
-4. The `release` workflow (`.github/workflows/release.yml`) builds both arches (`aarch64-apple-darwin` and `x86_64-apple-darwin`), signs the updater artifacts when secrets are present, and creates a GitHub release with the `.dmg`, `.app.tar.gz`, and `.app.tar.gz.sig` files attached.
+4. The `release` workflow (`.github/workflows/release.yml`) builds both arches (`aarch64-apple-darwin` and `x86_64-apple-darwin`), signs the updater artifacts when secrets are present, and creates a GitHub release with the `.dmg`, arch-suffixed `.app.tar.gz`, `.app.tar.gz.sig`, and `latest.json` files attached.
 
-5. Tauri auto-generates the `latest.json` updater manifest and attaches it to the release. The app polls `https://github.com/nearai/ironclaw-desktop-app/releases/latest/download/latest.json` on startup.
+5. The workflow generates `latest.json` with `scripts/build-updater-manifest.mjs`. The app polls `https://github.com/nearai/ironclaw-desktop-app/releases/latest/download/latest.json` on startup; if either updater signature is missing, manifest generation fails instead of publishing a broken update.
 
 ### Sanity-checking a release locally before tagging
 
