@@ -43,4 +43,7 @@ output/
 .codex-worktrees/
 .claude-worktrees/
 
+# Release CI mirrors the upstream IronClaw checkout here for Reborn sidecar builds.
+.deps/
+
 .review/

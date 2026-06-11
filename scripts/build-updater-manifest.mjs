@@ -7,6 +7,7 @@ const PLATFORM_BY_ARCH = {
   aarch64: 'darwin-aarch64',
   x86_64: 'darwin-x86_64'
 };
+const UNIVERSAL_ARCH = 'universal';
 const DEFAULT_REPO = 'nearai/ironclaw-desktop-app';
 
 const scriptPath = fileURLToPath(import.meta.url);
@@ -103,6 +104,7 @@ function normalizeRepo(repo) {
 }
 
 function inferArch(fileName) {
+  if (/(^|[_-])universal([_.-]|$)/.test(fileName)) return UNIVERSAL_ARCH;
   if (/(^|[_-])aarch64([_.-]|$)/.test(fileName)) return 'aarch64';
   if (/(^|[_-])x86_64([_.-]|$)/.test(fileName)) return 'x86_64';
   return null;
@@ -150,19 +152,55 @@ export async function buildUpdaterManifest({
   const resolvedTag = normalizeTag(tag || envReleaseTag(), resolvedVersion);
   const artifactNames = await readdir(artifactsDir);
   const archivesByArch = new Map(REQUIRED_ARCHES.map((arch) => [arch, []]));
+  const universalArchives = [];
 
   for (const artifactName of artifactNames) {
     if (!artifactName.endsWith('.app.tar.gz')) continue;
     const arch = inferArch(artifactName);
     if (!arch) {
       throw new Error(
-        `Updater archive ${artifactName} is ambiguous. Rename it with _aarch64 or _x86_64 before generating latest.json.`
+        `Updater archive ${artifactName} is ambiguous. Rename it with _aarch64, _x86_64, or _universal before generating latest.json.`
       );
     }
-    archivesByArch.get(arch)?.push(artifactName);
+    if (arch === UNIVERSAL_ARCH) {
+      universalArchives.push(artifactName);
+    } else {
+      archivesByArch.get(arch)?.push(artifactName);
+    }
   }
 
   const platforms = {};
+  if (universalArchives.length > 1) {
+    throw new Error(`Multiple universal updater archives found: ${universalArchives.join(', ')}`);
+  }
+  if (universalArchives.length === 1) {
+    const perArchArchives = [...archivesByArch.values()].flat();
+    if (perArchArchives.length > 0) {
+      throw new Error(
+        `Mixed universal and per-arch updater archives found: ${[
+          universalArchives[0],
+          ...perArchArchives
+        ].join(', ')}. Clean release-artifacts before generating latest.json.`
+      );
+    }
+    const platform = await signedPlatform(
+      artifactsDir,
+      resolvedRepo,
+      resolvedTag,
+      universalArchives[0],
+      allowMissingSignature
+    );
+    for (const arch of REQUIRED_ARCHES) {
+      platforms[PLATFORM_BY_ARCH[arch]] = platform;
+    }
+    return {
+      version: resolvedVersion,
+      notes: notes ?? `IronClaw Desktop ${resolvedVersion}`,
+      pub_date: pubDate,
+      platforms
+    };
+  }
+
   for (const arch of REQUIRED_ARCHES) {
     const archives = archivesByArch.get(arch) || [];
     if (archives.length === 0) {

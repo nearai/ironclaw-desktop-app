@@ -23,7 +23,7 @@ Set these repository secrets before pushing a `v*` tag or running the `release` 
 | `APPLE_SIGNING_IDENTITY`             | Optional. Explicit `Developer ID Application: ...` identity. Tauri can infer it from `APPLE_CERTIFICATE`. |
 | `APPLE_PROVIDER_SHORT_NAME`          | Optional. Required only when the Apple account has multiple provider teams.                               |
 
-The release workflow writes `APPLE_API_KEY_P8` to a temporary `AuthKey_<key id>.p8` file and exposes `APPLE_API_KEY_PATH` for Tauri before both per-arch builds.
+The release workflow writes `APPLE_API_KEY_P8` to a temporary `AuthKey_<key id>.p8` file and exposes `APPLE_API_KEY_PATH` for Tauri before the universal macOS build.
 
 ## Local Preflight
 
@@ -63,12 +63,17 @@ codesign --verify --deep --strict --verbose=2 IronClaw.app
 spctl -a -vvv --type exec IronClaw.app
 xcrun stapler validate IronClaw.app
 xcrun stapler validate IronClaw_*.dmg
+lipo -archs IronClaw.app/Contents/MacOS/ironclaw-desktop
+lipo -archs IronClaw.app/Contents/MacOS/ironclaw
+lipo -archs IronClaw.app/Contents/MacOS/ironclaw-reborn
+lipo -archs IronClaw.app/Contents/MacOS/sandbox_daemon
 ```
 
 Expected public-release result:
 
 - `spctl` reports an accepted Developer ID signature.
 - `stapler validate` succeeds for the `.app` and `.dmg`.
-- `release-artifacts/latest.json` contains `darwin-aarch64` and `darwin-x86_64` entries with non-empty updater signatures.
+- `lipo -archs` reports `arm64` and `x86_64` for the app binary and all bundled sidecars.
+- `release-artifacts/latest.json` contains `darwin-aarch64` and `darwin-x86_64` entries with non-empty updater signatures. For a universal release, both entries intentionally point at the same `_universal.app.tar.gz` archive.
 
 Without the Apple secrets, local builds still produce unsigned development bundles. That is acceptable for development only and must not be promoted as a public release.

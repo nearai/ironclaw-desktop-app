@@ -8,7 +8,7 @@ A native macOS client for [IronClaw](https://github.com/nearai/ironclaw) — the
 
 Latest macOS DMG: https://github.com/nearai/ironclaw-desktop-app/releases/latest
 
-Apple Silicon and Intel builds are produced by CI. Public release CI is wired for Developer ID signing and notarization once the Apple secrets in [`docs/RELEASE-SIGNING.md`](docs/RELEASE-SIGNING.md) are provisioned; local development builds remain unsigned-by-Apple.
+CI produces a universal macOS build that runs on Apple Silicon and Intel. Public release CI is wired for Developer ID signing and notarization once the Apple secrets in [`docs/RELEASE-SIGNING.md`](docs/RELEASE-SIGNING.md) are provisioned; local development builds remain unsigned-by-Apple.
 
 ## Why
 
@@ -212,7 +212,7 @@ The codebase has NOT been mass-formatted; prettier only touches files as you cha
 ## Build
 
 ```bash
-# Unsigned .app + .dmg for Apple Silicon
+# Unsigned .app + .dmg for the current Mac
 npm run tauri build
 
 # Output: src-tauri/target/release/bundle/{macos,dmg}/
@@ -221,6 +221,17 @@ npm run tauri build
 Local builds automatically skip updater artifacts when `TAURI_SIGNING_PRIVATE_KEY`
 is not set. Release builds that provide the key still generate the signed
 `.app.tar.gz` updater payload.
+
+To exercise the public-release universal target locally, first ensure all three
+sidecars exist for both macOS arches, then prepare the universal externalBin
+files Tauri expects:
+
+```bash
+bash src-tauri/binaries/download.sh
+IRONCLAW_REPO_DIR=/path/to/nearai/ironclaw npm run build:reborn-sidecars
+npm run prepare:universal-sidecars
+npm run tauri build -- --target universal-apple-darwin
+```
 
 ## Static checks
 
@@ -348,9 +359,9 @@ Developer ID signing and notarization use a separate Apple certificate and App S
    git push && git push --tags
    ```
 
-5. The `release` workflow (`.github/workflows/release.yml`) builds both arches (`aarch64-apple-darwin` and `x86_64-apple-darwin`), signs the updater artifacts when secrets are present, and creates a GitHub release with the `.dmg`, arch-suffixed `.app.tar.gz`, `.app.tar.gz.sig`, and `latest.json` files attached.
+5. The `release` workflow (`.github/workflows/release.yml`) checks out the matching IronClaw Reborn source, builds the missing `ironclaw-reborn` sidecar slices, combines all sidecars for `universal-apple-darwin`, signs the updater artifacts when secrets are present, and creates a GitHub release with the universal `.dmg`, universal `.app.tar.gz`, `.app.tar.gz.sig`, and `latest.json` files attached.
 
-6. The workflow generates `latest.json` with `scripts/build-updater-manifest.mjs`. The app polls `https://github.com/nearai/ironclaw-desktop-app/releases/latest/download/latest.json` on startup; if either updater signature is missing, manifest generation fails instead of publishing a broken update.
+6. The workflow generates `latest.json` with `scripts/build-updater-manifest.mjs`. The app polls `https://github.com/nearai/ironclaw-desktop-app/releases/latest/download/latest.json` on startup; if the updater signature is missing, manifest generation fails instead of publishing a broken update. For universal releases, both `darwin-aarch64` and `darwin-x86_64` entries point at the same universal updater archive.
 
 ### Sanity-checking a release locally before tagging
 

@@ -71,6 +71,63 @@ test('refuses archives that were copied without an architecture suffix', async (
   });
 });
 
+test('maps a universal updater archive to both macOS updater platforms', async () => {
+  await withArtifacts(async (dir) => {
+    await addArtifact(dir, 'IronClaw_1.2.3_universal.app.tar.gz', 'sig-universal\n');
+
+    const manifest = await buildUpdaterManifest({
+      artifactsDir: dir,
+      repo: 'nearai/ironclaw-desktop-app',
+      tag: 'v1.2.3',
+      version: '1.2.3',
+      pubDate: '2026-06-11T12:00:00.000Z'
+    });
+
+    const expectedPlatform = {
+      signature: 'sig-universal',
+      url: 'https://github.com/nearai/ironclaw-desktop-app/releases/download/v1.2.3/IronClaw_1.2.3_universal.app.tar.gz'
+    };
+    assert.deepEqual(manifest.platforms['darwin-aarch64'], expectedPlatform);
+    assert.deepEqual(manifest.platforms['darwin-x86_64'], expectedPlatform);
+  });
+});
+
+test('refuses multiple universal updater archives', async () => {
+  await withArtifacts(async (dir) => {
+    await addArtifact(dir, 'IronClaw_1.2.3_universal.app.tar.gz', 'sig-one\n');
+    await addArtifact(dir, 'IronClaw_1.2.3_2_universal.app.tar.gz', 'sig-two\n');
+
+    await assert.rejects(
+      buildUpdaterManifest({
+        artifactsDir: dir,
+        repo: 'nearai/ironclaw-desktop-app',
+        tag: 'v1.2.3',
+        version: '1.2.3',
+        pubDate: '2026-06-11T12:00:00.000Z'
+      }),
+      /Multiple universal updater archives/
+    );
+  });
+});
+
+test('refuses mixed universal and per-arch updater archives', async () => {
+  await withArtifacts(async (dir) => {
+    await addArtifact(dir, 'IronClaw_1.2.3_universal.app.tar.gz', 'sig-universal\n');
+    await addArtifact(dir, 'IronClaw_1.2.3_aarch64.app.tar.gz', 'sig-aarch64\n');
+
+    await assert.rejects(
+      buildUpdaterManifest({
+        artifactsDir: dir,
+        repo: 'nearai/ironclaw-desktop-app',
+        tag: 'v1.2.3',
+        version: '1.2.3',
+        pubDate: '2026-06-11T12:00:00.000Z'
+      }),
+      /Mixed universal and per-arch updater archives/
+    );
+  });
+});
+
 test('requires detached updater signatures by default', async () => {
   await withArtifacts(async (dir) => {
     await addArtifact(dir, 'IronClaw_1.2.3_aarch64.app.tar.gz', 'sig-aarch64\n');

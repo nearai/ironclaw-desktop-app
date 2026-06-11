@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "build:reborn-sidecars": "bash scripts/build-reborn-sidecars.sh",
     "build:updater-manifest": "node scripts/build-updater-manifest.mjs",
     "preview": "vite preview",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
@@ -22,6 +23,7 @@
     "smoke:packaged": "bash scripts/smoke-packaged-app.sh",
     "smoke:webui-static": "node scripts/smoke-webui-static.mjs",
     "verify:static-frontend": "node scripts/verify-static-frontend-contract.mjs",
+    "prepare:universal-sidecars": "bash scripts/prepare-universal-sidecars.sh",
     "prepare:webui-static": "node scripts/prepare-webui-static.mjs",
     "dev:webui-static": "node scripts/serve-webui-static.mjs",
     "tauri": "node scripts/tauri-cli.mjs",
