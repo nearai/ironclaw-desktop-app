@@ -214,3 +214,60 @@ Escalate connector proof from route-canonicalization to false-positive defense: 
 - Do not loosen `activationProvedConnected` back to accepting `success: true` alone.
 - Do not hide backend false positives by filtering probe output.
 - Do not claim live connector success until rendered UI clicks and captured Reborn requests prove account-level readiness.
+
+## Handoff: Phase 5 - First-Run Surface Polish And Mobile Access Regression
+
+Status: YELLOW
+Owner lane: Static UI / Design-hostile QA
+
+### Goal
+
+Escalate design review from "copy is honest" to "the first screen feels like a credible desktop product and the setup controls are immediately reachable." The hostile finding was that first-run looked like a generic dark panel on empty space, and mobile pushed the actual sign-in controls below proof-point content.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/onboarding/onboarding-page.js`: first-run now leads with `IronClaw Desktop`, uses NEAR AI Cloud as the access step, adds structured trust rows, introduces an explicit gateway status callout, and renders disabled gateway-blocked auth actions as secondary controls instead of a fake-primary button.
+- `crates/ironclaw_webui_v2_static/static/js/pages/onboarding/onboarding-page.js`: mobile order now shows the NEAR AI Cloud access panel before trust rows so GitHub/Google/Wallet/API-key controls are visible in the first viewport.
+- `crates/ironclaw_webui_v2_static/static/js/i18n/en.js`: tightened first-run copy around agentic chief-of-staff value and NEAR AI Cloud access.
+- `scripts/smoke-webui-static.mjs`: gateway-unavailable welcome smoke now asserts all four auth controls are present, disabled, and inside the first viewport on both mobile and desktop.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js`: regenerated static bundle for the desktop shell.
+
+### Verified
+
+- Browser visual QA at `http://127.0.0.1:1420/v2/welcome` desktop 1440x920: page title `IronClaw`, no console errors/warnings, no horizontal overflow, disabled auth controls visible in first viewport.
+- Browser visual QA at `http://127.0.0.1:1420/v2/welcome` mobile 390x844: no console errors/warnings, no horizontal overflow, all four auth controls visible in the first viewport after the reorder.
+- `npm run smoke:webui-static`: passed with the new first-viewport auth-control assertion.
+- `npm run test:static`: passed 294/294.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, Reborn gateway healthy on port 3000, sidecar terminated cleanly.
+
+### Evidence
+
+- Browser rendered desktop copy includes `IronClaw Desktop`, `Connect NEAR AI Cloud`, and `Checking local gateway`; auth controls are disabled and in view.
+- Browser rendered mobile auth-control positions after the fix: GitHub top 512/bottom 552, Google/Wallet top 560/bottom 592, API key top 600/bottom 632 inside an 844px viewport.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-075236.log`.
+
+### Still RED
+
+- This pass improves first-run design and regression coverage only. It does not prove live connector OAuth/read-only account use.
+- Live model-quality work-product generation still requires active NEAR AI Cloud credentials.
+
+### Risks
+
+- Only English copy was tightened in this pass; non-English locales still follow the existing missing-key baseline and may retain older phrasing.
+- The visual polish is first-run focused. Chat, Connections, Settings, and Work surfaces still need the same rendered hostile pass once live gateway fixtures are available.
+
+### Next Agent Should Start Here
+
+1. Continue the design-hostile pass on authenticated/fixture-backed chat, Connections, Settings, and Work routes.
+2. Add screenshot-backed regression checks for chat model picker, attachment composer, connector setup drawer, and work-product export menus.
+3. Pair backend connector readiness fixes with rendered route proof so the app can show real connected states without lying.
+
+### Do Not Touch
+
+- Do not move first-run auth controls below trust/proof content on mobile.
+- Do not style disabled gateway-blocked auth actions as bright primary actions.
+- Do not replace the product headline with provider/debug terminology.

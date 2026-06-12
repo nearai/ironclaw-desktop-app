@@ -340,9 +340,9 @@ registerPack('en', {
   'llm.providers': 'NEAR AI Cloud',
   'llm.providersDesc':
     'IronClaw routes model access through NEAR AI Cloud. No third-party API keys are required for normal use.',
-  'onboarding.title': 'Connect NEAR AI Cloud',
+  'onboarding.title': 'IronClaw Desktop',
   'onboarding.subtitle':
-    'One sign-in gives IronClaw model access through our infra. Connectors and risky actions stay visible before the assistant uses them.',
+    'An agentic chief of staff for documents, connectors, approvals, and the work you need finished.',
   'onboarding.setUp': 'Set up',
   'onboarding.signIn': 'Sign in',
   'onboarding.nearWallet': 'NEAR Wallet',
@@ -361,8 +361,8 @@ registerPack('en', {
   'onboarding.useApiKeyShort': 'API key',
   'onboarding.providerNearaiDescDesktop':
     'Sign in once; IronClaw routes models through NEAR AI Cloud.',
-  'onboarding.accessLabel': 'Access',
-  'onboarding.accessTitle': 'Start with NEAR AI Cloud',
+  'onboarding.accessLabel': 'Secure access',
+  'onboarding.accessTitle': 'Connect NEAR AI Cloud',
   'onboarding.firstRun': 'First run',
   'onboarding.promiseModelsTitle': 'Models route through NEAR AI Cloud',
   'onboarding.promiseModelsBody': 'No third-party provider key is part of normal desktop setup.',

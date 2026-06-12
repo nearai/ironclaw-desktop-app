@@ -416,13 +416,27 @@ async function assertGatewayUnavailableWelcome(browser) {
         const text = document.body?.innerText || '';
         const buttons = Array.from(document.querySelectorAll('button')).map((button) => ({
           text: (button.innerText || button.getAttribute('aria-label') || '').trim(),
-          disabled: button.disabled
+          disabled: button.disabled,
+          rect: (() => {
+            const rect = button.getBoundingClientRect();
+            return {
+              bottom: Math.round(rect.bottom),
+              top: Math.round(rect.top)
+            };
+          })()
         }));
         const authButtons = buttons.filter((button) =>
           /Sign in with GitHub|Use Google|Use NEAR Wallet|Use API key/i.test(button.text)
         );
+        const authControlsInFirstViewport =
+          authButtons.length >= 4 &&
+          authButtons.every(
+            (button) =>
+              button.rect.top >= 0 && button.rect.bottom <= document.documentElement.clientHeight
+          );
         return {
           authButtonCount: authButtons.length,
+          authControlsInFirstViewport,
           allAuthButtonsDisabled:
             authButtons.length >= 4 && authButtons.every((button) => button.disabled),
           hasRawGatewayText: /fetch failed|Gateway proxy failed|ECONNREFUSED|Failed to fetch/i.test(
@@ -436,6 +450,15 @@ async function assertGatewayUnavailableWelcome(browser) {
       if (!result.allAuthButtonsDisabled) {
         throw new Error(
           `gateway-unavailable ${viewport.label} welcome left auth controls actionable:\n${JSON.stringify(
+            result,
+            null,
+            2
+          )}`
+        );
+      }
+      if (!result.authControlsInFirstViewport) {
+        throw new Error(
+          `gateway-unavailable ${viewport.label} welcome pushed auth controls below the first viewport:\n${JSON.stringify(
             result,
             null,
             2

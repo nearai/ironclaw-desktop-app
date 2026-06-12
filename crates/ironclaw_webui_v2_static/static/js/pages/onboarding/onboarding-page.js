@@ -165,9 +165,11 @@ function FeaturedProviderRow({ entry, provider, configured, isBusy, login, t, on
 
 function TrustRow({ icon, title, body }) {
   return html`
-    <div className="grid grid-cols-[auto_1fr] gap-3">
+    <div
+      className="grid grid-cols-[auto_1fr] gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[color-mix(in_srgb,var(--v2-surface-soft)_58%,transparent)] p-3"
+    >
       <span
-        className="mt-0.5 grid h-7 w-7 place-items-center rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+        className="mt-0.5 grid h-8 w-8 place-items-center rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
       >
         <${Icon} name=${icon} className="h-3.5 w-3.5" />
       </span>
@@ -227,6 +229,12 @@ export function OnboardingPage() {
   );
   const providerAccessBlocked = providerSnapshotPending || providerSnapshotUnavailable;
   const showFallbackAccess = providerAccessBlocked;
+  const primaryAuthVariant = providerAccessBlocked ? 'secondary' : 'primary';
+  const accessStatusTitle = providerSnapshotPending
+    ? 'Checking local gateway'
+    : providerSnapshotUnavailable
+      ? 'Gateway not available'
+      : 'Ready to sign in';
 
   // NEAR AI login shares the same backend flow as the Inference tab; on success
   // here we head straight to chat.
@@ -308,20 +316,25 @@ export function OnboardingPage() {
   );
 
   return html`
-    <div className="h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto bg-[var(--v2-canvas)]">
       <div
-        className="mx-auto grid min-h-full max-w-6xl gap-6 p-5 sm:p-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center"
+        className="mx-auto grid min-h-full max-w-6xl gap-8 px-5 py-6 sm:px-8 sm:py-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center"
       >
         <div className="max-w-2xl">
+          <div
+            className="mb-4 inline-flex h-7 items-center rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-[11px] font-semibold text-[var(--v2-text-muted)]"
+          >
+            NEAR AI Cloud native
+          </div>
           <h1
-            className="max-w-[14ch] text-[30px] font-semibold leading-[1.08] tracking-[-0.01em] text-[var(--v2-text-strong)] sm:text-[34px]"
+            className="max-w-[16ch] text-[32px] font-semibold leading-[1.06] text-[var(--v2-text-strong)] sm:text-[40px]"
           >
             ${t('onboarding.title')}
           </h1>
           <p className="mt-4 max-w-[58ch] text-base leading-7 text-[var(--v2-text-muted)]">
             ${t('onboarding.subtitle')}
           </p>
-          <div className="mt-8 grid gap-5">
+          <div className="mt-8 hidden gap-3 lg:grid">
             <${TrustRow}
               icon="spark"
               title=${t('onboarding.promiseModelsTitle')}
@@ -341,12 +354,10 @@ export function OnboardingPage() {
         </div>
 
         <div className="grid gap-4">
-          <${Card} radius="lg" className="p-4 sm:p-5">
+          <${Card} radius="lg" className="p-5 sm:p-6">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <div
-                  className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-                >
+                <div className="text-[11px] font-semibold uppercase text-[var(--v2-accent-text)]">
                   ${t('onboarding.accessLabel')}
                 </div>
                 <h2 className="mt-1 text-lg font-semibold text-[var(--v2-text-strong)]">
@@ -359,17 +370,39 @@ export function OnboardingPage() {
               ${showFallbackAccess
                 ? html`
                     <div className="grid gap-3">
+                      <div
+                        className="grid grid-cols-[auto_1fr] gap-3 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_30%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-3"
+                      >
+                        <span
+                          className="grid h-8 w-8 place-items-center rounded-[8px] border border-[color-mix(in_srgb,var(--v2-warning-text)_28%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-warning-text)_12%,transparent)] text-[var(--v2-warning-text)]"
+                        >
+                          <${Icon} name="pulse" className="h-3.5 w-3.5" />
+                        </span>
+                        <span>
+                          <span
+                            className="block text-sm font-semibold text-[var(--v2-text-strong)]"
+                          >
+                            ${accessStatusTitle}
+                          </span>
+                          <span
+                            className="mt-0.5 block text-sm leading-6 text-[var(--v2-text-muted)]"
+                          >
+                            ${providerSnapshotPending
+                              ? 'Checking the local gateway for NEAR AI Cloud access.'
+                              : providerSnapshotUnavailable
+                                ? 'IronClaw cannot reach the local gateway yet. Start or retry the gateway, then sign in with NEAR AI Cloud.'
+                                : t('onboarding.providerNearaiDescDesktop')}
+                          </span>
+                        </span>
+                      </div>
                       <p className="text-sm leading-6 text-[var(--v2-text-muted)]">
-                        ${providerSnapshotPending
-                          ? 'Checking the local gateway for NEAR AI Cloud access.'
-                          : providerSnapshotUnavailable
-                            ? 'IronClaw cannot reach the local gateway yet. Start or retry the gateway, then sign in with NEAR AI Cloud.'
-                            : t('onboarding.providerNearaiDescDesktop')}
+                        Finish the access step once the gateway is reachable. IronClaw will keep
+                        model routing on NEAR AI Cloud.
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         <${Button}
                           type="button"
-                          variant="primary"
+                          variant=${primaryAuthVariant}
                           size="md"
                           fullWidth=${true}
                           className="col-span-2"
@@ -441,6 +474,24 @@ export function OnboardingPage() {
             >
               ${t('nav.settings')}
             </button>
+          </div>
+
+          <div className="grid gap-3 lg:hidden">
+            <${TrustRow}
+              icon="spark"
+              title=${t('onboarding.promiseModelsTitle')}
+              body=${t('onboarding.promiseModelsBody')}
+            />
+            <${TrustRow}
+              icon="lock"
+              title=${t('onboarding.promiseApprovalsTitle')}
+              body=${t('onboarding.promiseApprovalsBody')}
+            />
+            <${TrustRow}
+              icon="file"
+              title=${t('onboarding.promiseFilesTitle')}
+              body=${t('onboarding.promiseFilesBody')}
+            />
           </div>
         </div>
       </div>
