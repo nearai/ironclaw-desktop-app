@@ -382,3 +382,61 @@ Close the hostile-design RED found during the in-app Browser pass: gateway-offli
 
 - Do not reintroduce a first-run `Settings` button unless the target route is reachable in the same auth/gateway state.
 - Do not make disabled or unreachable setup controls look primary/actionable.
+
+## Handoff: Phase 8 - Chat Transcript Safe Zone And Jump Control
+
+Status: YELLOW
+Owner lane: Static UI / Chat Layout / Design-hostile QA
+
+### Goal
+
+Close the next rendered chat-design defect: after the work-product artifact fix, the composer and `Jump to latest` control could still visually cover the lower transcript area in the services-agreement smoke screenshot. The goal was to give the transcript a real safe zone and pin the jump control to the transcript/composer boundary instead of floating over message content.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/components/message-list.js`: added explicit scroll/content/jump class helpers, bottom padding for the message viewport, and stable rendered geometry test ids.
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/components/message-list.js`: moved `Jump to latest` to the transcript/composer boundary with `bottom-0 translate-y-1/2`.
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/components/chat-input.js`: added `data-testid="chat-composer"` to the composer shell for rendered geometry checks.
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/message-list.test.mjs`: added unit coverage for transcript bottom safe space, boundary jump positioning, and stable smoke-test hooks.
+- `scripts/smoke-webui-static.mjs`: rendered work-product smoke now asserts the transcript viewport does not overlap the composer, bottom padding is at least 96px, and the jump control stays pinned to the transcript/composer boundary.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js` and `crates/ironclaw_webui_v2_static/static/styles/tailwind.generated.css`: regenerated static artifacts for the desktop shell.
+
+### Verified
+
+- Focused tests: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/message-list.test.mjs crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/message-bubble.test.mjs crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/chat-input.test.mjs` passed 18/18.
+- `npm run smoke:webui-static`: passed; rendered chat smoke now includes the transcript/composer geometry assertions.
+- Screenshot inspected: `output/playwright/static-work-product-attachment-chat.png` shows the work-product artifact with visible actions and the jump pill at the composer boundary instead of over the agreement panel.
+- `npm run test:static`: passed 297/297.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, Reborn gateway healthy on port 3000, sidecar terminated cleanly.
+
+### Evidence
+
+- Rendered screenshot artifact: `output/playwright/static-work-product-attachment-chat.png`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-082137.log`.
+- The smoke's geometry check reads `[data-testid="chat-message-scroll"]`, `[data-testid="chat-composer"]`, and `[data-testid="chat-jump-to-latest"]` from the rendered browser and fails if the composer overlaps the transcript viewport or if jump drifts back into message content.
+
+### Still RED
+
+- The jump control still slightly overlaps the top edge of the composer by design; a deeper chat redesign could move it into a dedicated composer toolbar, but it no longer sits over the work-product artifact or attachment text.
+- Live connector OAuth/read-only account use still needs active account evidence.
+- Live NEAR AI Cloud model-quality output from real documents still needs credentials and human/product-quality inspection.
+- Authenticated Settings and Connections still need a fresh design-hostile pass with live or fixture-backed gateway state.
+
+### Risks
+
+- This fixes the chat transcript/composer safe zone but not the broader chat information architecture. Long attachment stacks can still dominate the viewport; a later pass should consider collapsing large attachment groups after send.
+
+### Next Agent Should Start Here
+
+1. Run a design-hostile pass on large attachment stacks and consider a compact sent-attachments treatment.
+2. Run authenticated/fixture-backed design QA on Connections and Settings.
+3. Prove connector OAuth/readiness with active accounts or record exact backend blockers.
+
+### Do Not Touch
+
+- Do not remove the rendered geometry smoke hooks without replacing them with stronger browser-visible proof.
+- Do not collapse transcript bottom padding back to generic `py-6`.

@@ -1304,6 +1304,53 @@ try {
   if (!workProductText.includes('Services agreement') || !workProductText.includes('Scope')) {
     throw new Error(`static chat work product panel lost document content: ${workProductText}`);
   }
+  const chatLayout = await page.evaluate(() => {
+    const rectFor = (el) => {
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      return {
+        bottom: rect.bottom,
+        height: rect.height,
+        top: rect.top
+      };
+    };
+    const scroll = document.querySelector('[data-testid="chat-message-scroll"]');
+    const composer = document.querySelector('[data-testid="chat-composer"]');
+    const jump = document.querySelector('[data-testid="chat-jump-to-latest"]');
+    const scrollStyle = scroll ? getComputedStyle(scroll) : null;
+    return {
+      scroll: rectFor(scroll),
+      composer: rectFor(composer),
+      jump: rectFor(jump),
+      scrollPaddingBottom: scrollStyle ? Number.parseFloat(scrollStyle.paddingBottom || '0') : 0
+    };
+  });
+  if (!chatLayout.scroll || !chatLayout.composer) {
+    throw new Error(`static chat layout hooks missing: ${JSON.stringify(chatLayout)}`);
+  }
+  if (chatLayout.scroll.bottom > chatLayout.composer.top + 1) {
+    throw new Error(
+      `static chat composer overlaps the transcript viewport: ${JSON.stringify(chatLayout)}`
+    );
+  }
+  if (chatLayout.scrollPaddingBottom < 96) {
+    throw new Error(
+      `static chat transcript lacks bottom safe space for composer/jump controls: ${JSON.stringify(
+        chatLayout
+      )}`
+    );
+  }
+  if (
+    chatLayout.jump &&
+    (chatLayout.jump.top < chatLayout.scroll.bottom - 40 ||
+      chatLayout.jump.bottom > chatLayout.composer.top + 40)
+  ) {
+    throw new Error(
+      `static chat jump-to-latest is not pinned to the transcript/composer boundary: ${JSON.stringify(
+        chatLayout
+      )}`
+    );
+  }
   const chatPost = chatMessageRequests.at(-1);
   if (!chatPost) {
     throw new Error('static chat did not POST a message request');

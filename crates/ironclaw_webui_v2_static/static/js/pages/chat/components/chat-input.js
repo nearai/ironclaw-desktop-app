@@ -545,6 +545,7 @@ export function ChatInput({
     <div className=${shellClass}>
       <div
         className=${composerClass}
+        data-testid="chat-composer"
         onDrop=${onDrop}
         onDragOver=${onDragOver}
         onDragLeave=${onDragLeave}
