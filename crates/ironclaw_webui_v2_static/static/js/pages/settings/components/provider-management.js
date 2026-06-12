@@ -9,7 +9,7 @@ import { ProviderDialog } from './provider-dialog.js';
 import { ProviderLoginStatus } from './provider-login-status.js';
 import { useProviderManagementActions } from '../hooks/useProviderManagementActions.js';
 import { useProviderLogin } from '../hooks/useProviderLogin.js';
-import { groupProvidersByStatus } from '../lib/llm-providers.js';
+import { filterDesktopVisibleLlmProviders, groupProvidersByStatus } from '../lib/llm-providers.js';
 import { setActiveLlm } from '../lib/settings-api.js';
 
 const GROUP_ORDER = [
@@ -93,16 +93,18 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
     [queryClient]
   );
 
-  if (searchQuery && actions.filteredProviders.length === 0) {
+  const visibleProviders = filterDesktopVisibleLlmProviders(actions.filteredProviders);
+
+  if (searchQuery && visibleProviders.length === 0) {
     return html`<${SettingsSearchEmpty} query=${searchQuery} />`;
   }
 
   const groups = groupProvidersByStatus(
-    actions.filteredProviders,
+    visibleProviders,
     state.builtinOverrides,
     state.activeProviderId
   );
-  const hasProviderRows = actions.filteredProviders.length > 0;
+  const hasProviderRows = visibleProviders.length > 0;
   const activeProvider = groups.active[0] || null;
 
   return html`
@@ -213,7 +215,7 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
       <${ProviderDialog}
         open=${actions.isDialogOpen}
         provider=${actions.dialogProvider}
-        allProviderIds=${actions.allProviderIds}
+        allProviderIds=${visibleProviders.map((provider) => provider.id)}
         builtinOverrides=${state.builtinOverrides}
         onClose=${actions.closeDialog}
         onSave=${actions.handleSave}

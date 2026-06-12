@@ -746,3 +746,65 @@ Escalate from token cleanup to product readability. The installed connector card
 - Do not bring back fake `No capabilities` filler on user-facing connector cards.
 - Do not weaken the no-legacy Connections design contract.
 - Do not change connector readiness semantics without rendered route/request evidence.
+
+## Handoff: Phase 14 - NEAR-Only Product Surface and GitHub Page Cleanup
+
+Status: YELLOW
+Owner lane: Static UI / Settings / Chat Model Surface / Product Docs / Design-hostile QA
+
+### Goal
+
+Escalate from Connections polish to the user-visible promise mismatch: normal desktop UI and public GitHub screenshots must not imply that IronClaw is a generic ChatGPT/OpenAI/Anthropic/OpenRouter provider manager. The normal product path is NEAR AI Cloud, with broader Reborn provider plumbing hidden until an explicit advanced mode exists.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/settings/components/provider-management.js`: added a defensive render-boundary NEAR AI Cloud filter before provider grouping, row rendering, and setup-dialog ID validation. This prevents hidden providers from leaking even if a caller hands the component a broader Reborn provider snapshot.
+- `crates/ironclaw_webui_v2_static/static/js/pages/settings/components/provider-components.test.mjs`: changed the provider-management test contract from "renders OpenAI/Anthropic rows" to "hides non-NEAR providers at the render boundary" and added a search test proving hidden provider queries do not reveal hidden rows.
+- `README.md`: rewrote the GitHub-facing setup/tour copy around NEAR AI Cloud, Connections, and focused model selection; removed ChatGPT/OpenAI/Anthropic/Ollama/OpenRouter as normal desktop setup paths.
+- `docs/screenshots/*.png`: replaced stale GitHub/README screenshots that showed ChatGPT/Anthropic/OpenAI/provider soup with fresh current captures for NEAR-only onboarding, chat attachment/work-product flow, and NEAR-only AI setup.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js`: regenerated static artifacts for the desktop shell.
+
+### Verified
+
+- Focused provider/chat tests: `node --test ...provider-components.test.mjs ...llm-providers.test.mjs ...useLlmProviders.test.mjs ...chat-input.test.mjs` passed 36/36.
+- `npm run prepare:webui-static && npm run smoke:webui-static`: passed; the smoke fixture deliberately includes `OpenRouter`, and the rendered Settings/chat gauntlet fails if OpenRouter/deepseek/Anthropic leak into the normal product surface.
+- README onboarding capture: `output/playwright/static-readme-onboarding.png` was rendered against a mock payload that included hidden OpenRouter data and failed on hidden-provider or blocked-gateway copy; final capture shows NEAR AI Cloud actions only.
+- Rendered screenshot inspected: `output/playwright/static-settings-active-model.png` shows Settings -> AI setup with NEAR AI Cloud as the only visible model path.
+- Rendered screenshot inspected: `output/playwright/static-work-product-attachment-chat-collapsed.png` shows chat preserving attachments, output, and export affordances with a NEAR AI Cloud model chip.
+- `npm run test:static`: passed 301/301.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, Reborn gateway healthy on port 3000, sidecar terminated cleanly.
+
+### Evidence
+
+- README screenshots now point at refreshed files under `docs/screenshots/`.
+- Rendered onboarding proof: `output/playwright/static-readme-onboarding.png`.
+- Rendered AI setup proof: `output/playwright/static-settings-active-model.png`.
+- Rendered chat/work-product proof: `output/playwright/static-work-product-attachment-chat-collapsed.png`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-094454.log`.
+
+### Still RED
+
+- Live NEAR AI Cloud OAuth/session and real model execution still need active account evidence; this pass proves the UI hides other provider paths and stays honest under fixture evidence.
+- Google/Notion/Slack live connector OAuth remains backend/account dependent; UI shows setup/blocked states rather than claiming connected.
+- The product still needs a deeper visual direction pass beyond cleanup: onboarding is clearer, but Settings remains dense and Connections needs a guided setup journey.
+
+### Risks
+
+- Hidden provider plumbing still exists in Reborn-compatible code and tests because the backend supports it. The desktop product boundary is enforced in normal UI, not deleted from lower-level helpers.
+- README screenshots are 1400 x 950 fresh static captures instead of the older 2560 x 1720 assets. This is acceptable for GitHub rendering and removes misleading stale product imagery.
+
+### Next Agent Should Start Here
+
+1. Continue design-hostile QA on Settings density: reduce nested card feeling, make Google sign-in setup read as a guided path, and keep all blocked states honest.
+2. Run live NEAR AI Cloud sign-in/model execution with credentials and document whether the UI reaches an active provider snapshot or an exact HTTP/auth blocker.
+3. Convert repeated connector blockers into a guided setup flow for Google, Notion, Slack, and workspace files.
+
+### Do Not Touch
+
+- Do not reintroduce ChatGPT/OpenAI/Anthropic/OpenRouter/Ollama as normal desktop onboarding, chat model, Settings, README, or screenshot paths.
+- Do not weaken the OpenRouter hidden-provider assertions in `scripts/smoke-webui-static.mjs`.
+- Do not claim connector or model readiness without rendered request evidence or live account evidence.

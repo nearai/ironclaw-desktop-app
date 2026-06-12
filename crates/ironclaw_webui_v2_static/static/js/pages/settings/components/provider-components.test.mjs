@@ -177,6 +177,8 @@ function renderProviderManagement({ providers, activeProviderId = 'nearai', sear
     ConfirmDialog: 'ConfirmDialog',
     ProviderLoginStatus: 'ProviderLoginStatus',
     SettingsSearchEmpty: 'SettingsSearchEmpty',
+    filterDesktopVisibleLlmProviders: (providers) =>
+      Array.isArray(providers) ? providers.filter((provider) => provider.id === 'nearai') : [],
     globalThis: {},
     groupProvidersByStatus,
     html,
@@ -298,7 +300,7 @@ function firstButtonProps(rendered) {
   return componentProps(findComponentNodes(rendered, 'Button')[0], 'Button');
 }
 
-test('ProviderManagement groups filtered providers through the render caller', () => {
+test('ProviderManagement hides non-NEAR providers at the render boundary', () => {
   const { rendered, cardProps } = renderProviderManagement({
     providers: [
       builtinProvider('nearai', { adapter: 'nearai' }),
@@ -310,19 +312,15 @@ test('ProviderManagement groups filtered providers through the render caller', (
     ]
   });
 
-  assert.deepEqual(groupLabels(rendered), PROVIDER_GROUP_LABELS);
-  assert.deepEqual(deepValuesAfter(rendered, 'data-provider-status='), [
-    'active',
-    'ready',
-    'setup'
-  ]);
+  assert.deepEqual(groupLabels(rendered), ['llm.groupActive']);
+  assert.deepEqual(deepValuesAfter(rendered, 'data-provider-status='), ['active']);
   assert.deepEqual(
     cardProps.map((props) => props.provider.id),
-    ['nearai', 'openai', 'anthropic']
+    ['nearai']
   );
   assert.deepEqual(
     cardProps.map((props) => props.activeProviderId),
-    ['nearai', 'nearai', 'nearai']
+    ['nearai']
   );
   assert.ok(
     !cardProps.some((props) => 'onListModels' in props || 'onApplyModel' in props),
@@ -332,6 +330,9 @@ test('ProviderManagement groups filtered providers through the render caller', (
     !collectScalars(rendered).includes('llm.addProvider'),
     'normal desktop provider management must not expose custom provider creation'
   );
+  const bodyText = collectScalars(rendered).join('\n') + collectTemplateText(rendered);
+  assert.match(bodyText, /nearai|NEAR AI/i);
+  assert.doesNotMatch(bodyText, /openai|anthropic|OpenRouter|Claude/i);
 });
 
 test('ProviderManagement exposes active NEAR model selection before provider rows', () => {
@@ -364,17 +365,15 @@ test('ProviderManagement exposes active NEAR model selection before provider row
   assert.equal(componentProps(pickerNodes[0], 'ActiveModelPicker').currentModel, 'llama');
 });
 
-test('ProviderManagement hides empty buckets after search filtering', () => {
+test('ProviderManagement search does not reveal hidden providers', () => {
   const { rendered, cardProps } = renderProviderManagement({
     providers: [builtinProvider('openai')],
     searchQuery: 'open'
   });
 
-  assert.deepEqual(groupLabels(rendered), ['llm.groupReady']);
-  assert.deepEqual(
-    cardProps.map((props) => props.provider.id),
-    ['openai']
-  );
+  assert.deepEqual(groupLabels(rendered), []);
+  assert.deepEqual(cardProps, []);
+  assert.ok(findComponentNodes(rendered, 'SettingsSearchEmpty').length > 0);
 });
 
 test('ProviderManagement keeps synthetic offline NEAR fallback out of ready bucket', () => {

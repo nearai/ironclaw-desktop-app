@@ -63,8 +63,8 @@ The shipped app exposes four top-level surfaces in the sidebar:
 
 - **Chat** — streaming conversations with the agent. Markdown rendering, code-block copy, file/PDF attachments with client-side text extraction (and OCR for scanned PDFs), retry on failure.
 - **Automations** — scheduled and triggered agent runs.
-- **Extensions** — install/activate MCP servers, channel integrations, and the extension registry.
-- **Settings** — per-profile gateway config, Keychain-backed tokens, inference (LLM provider) selection, language.
+- **Connections** — install, configure, and inspect workspace apps such as Gmail, Google Calendar, Notion, Slack, MCP servers, and channel integrations.
+- **Settings** — per-profile gateway config, Keychain-backed tokens, NEAR AI Cloud model selection, language.
 
 App-wide controls:
 
@@ -73,9 +73,9 @@ App-wide controls:
 
 ### What changed in the latest shipped pass
 
-- Home screen is always the **Chat** surface; setup no longer traps users in provider admin by default.
-- **NEAR AI Cloud** remains the default desktop path with one-click continuity from onboarding into chat.
-- **Provider/model management** is now a dedicated workflow in **Settings → Inference** to keep chat execution clear and fast.
+- Home screen is always the **Chat** surface; setup no longer traps users in configuration screens by default.
+- **NEAR AI Cloud** is the normal desktop model path with one-click continuity from onboarding into chat.
+- **Model management** is now a focused NEAR AI Cloud workflow in **Settings → Inference** to keep chat execution clear and fast.
 - **Extension setup** uses safer lifecycle calls (`install`, `activate`, `configure`) with honest state on failure.
 - File attach + work-product export now routes through durable thread/message persistence so exports and outputs can be re-opened reliably.
 
@@ -102,22 +102,21 @@ The flows below cover the main ways people use the app. Pick the one that matche
 
 ### First-run setup
 
-On first launch, onboarding asks one thing: **which AI provider to use.** Pick one and you land on the **Chat** surface — the app's home. You can add or switch providers anytime in **Settings -> Inference**.
+On first launch, onboarding asks one thing: **connect NEAR AI Cloud.** Sign in once and you land on the **Chat** surface — the app's home. Normal desktop use does not require third-party model-provider keys.
 
-![First run -- choose an AI provider](docs/screenshots/onboarding.png)
+![First run -- connect NEAR AI Cloud](docs/screenshots/onboarding.png)
 
-- **NEAR AI** (recommended) -- free during private preview. Sign in with GitHub or a NEAR Wallet, or paste an API key.
-- **ChatGPT** -- sign in to use an existing ChatGPT Plus/Pro subscription.
-- **OpenAI** / **Anthropic** -- bring your own API key.
-- **Local Ollama** -- run open models locally, no key needed.
+- **GitHub / Google** — browser sign-in through the NEAR AI Cloud gateway.
+- **NEAR Wallet** — wallet-based continuity when enabled by the gateway.
+- **NEAR API key** — fallback setup for development and managed environments.
 
-OAuth-based sign-ins open in your system browser, not an embedded webview. The token is stored in the macOS Keychain (with an owner-only `chmod 0600` file fallback if a Keychain prompt can't complete), and is never written into `settings.json` or your exports.
+OAuth-based sign-ins open in your system browser, not an embedded webview. Tokens are stored in the macOS Keychain (with an owner-only `chmod 0600` file fallback if a Keychain prompt can't complete), and are never written into `settings.json` or your exports.
 
-Once a provider is set, Chat is ready -- ask anything, or drop in a document that needs work:
+Once NEAR AI Cloud is connected, Chat is ready -- ask anything, or drop in a document that needs work:
 
 ![Chat](docs/screenshots/chat.png)
 
-Manage providers -- switch the active one, add a custom OpenAI-compatible or Ollama endpoint -- in **Settings -> Inference**:
+Choose the active NEAR AI Cloud model in **Settings -> Inference**:
 
 ![Settings -- Inference](docs/screenshots/settings-inference.png)
 
@@ -161,8 +160,8 @@ The shipped static WebUI exposes four sidebar surfaces:
 
 - **Chat** (`/chat`) — the home surface. Streaming conversations with markdown rendering, code-block copy, retry on failure, and file/PDF/Office attachments with client-side text extraction + OCR.
 - **Automations** (`/automations`) — scheduled and triggered agent runs.
-- **Extensions** (`/extensions`) — install/activate MCP servers, channel integrations, and the extension registry (Installed / Channels / MCP / Registry tabs).
-- **Settings** (`/settings`, Cmd+,) — per-profile gateway config, Keychain-backed tokens, inference (LLM provider) selection, and language. Local sidecar lifecycle when running the bundled binary.
+- **Connections** (`/extensions`) — install, configure, and inspect workspace apps, MCP servers, and channel integrations.
+- **Settings** (`/settings`, Cmd+,) — per-profile gateway config, Keychain-backed tokens, NEAR AI Cloud model selection, and language. Local sidecar lifecycle when running the bundled binary.
 
 Plus, outside the sidebar:
 
@@ -188,7 +187,7 @@ Do not document them as available features.
 ## Connection modes
 
 - **Remote** — point the app at any IronClaw gateway (Caddy-fronted prod, SSH tunnel, etc.)
-- **Local** — spawn the bundled IronClaw binary as a sidecar. NEAR.AI Cloud by default (no API key needed, OAuth handled by IronClaw). OpenRouter available as an advanced backend.
+- **Local** — spawn the bundled IronClaw binary as a sidecar. NEAR AI Cloud is the default desktop model path; generic provider plumbing is intentionally hidden from the normal product surface.
 
 ## Prerequisites
 
@@ -500,7 +499,7 @@ shake, drop the import) before raising the budget.
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Status bar shows **Disconnected** even though the server is up                     | Check the SSH tunnel is still alive (`bash scripts/tunnel.sh status`). If the gateway port shifted, re-enter the URL under **Settings → Profile → Base URL**. Re-paste the token under **Settings → Profile → Gateway token** to refresh the Keychain entry.                                                                                 |
 | macOS warns **"App can't be opened because it is from an unidentified developer"** | You are running a local/development DMG that was not Developer-ID signed and notarized. Right-click the `.app` in Finder → **Open** → confirm in the dialog. macOS remembers the exception per binary, so subsequent launches work normally. Or strip the quarantine attribute: `xattr -d com.apple.quarantine /Applications/IronClaw.app`.  |
-| Local sidecar fails to spawn on launch                                             | Most often a NEAR.AI Cloud sign-in problem — open the IronClaw web UI (button in **Settings → Local sidecar**) and re-authenticate. If you're on the OpenRouter backend, check the OpenRouter key is set under **Settings → Profile → LLM backend**. Logs live at `~/Library/Application Support/com.openclaw.ironclaw-desktop/sidecar.log`. |
+| Local sidecar fails to spawn on launch                                             | Most often a gateway or NEAR AI Cloud sign-in problem — restart the sidecar from the tray or Settings, then reconnect NEAR AI Cloud. Logs live at `~/Library/Application Support/com.openclaw.ironclaw-desktop/sidecar.log`. |
 | Tray icon missing from the menu bar                                                | **Settings → Advanced → "Show in menu bar"**. The toggle is on by default; if it ever flips off it usually means a startup crash before tray init. Restart the app, then re-toggle.                                                                                                                                                          |
 | **Cmd+,** (or any other shortcut) does nothing                                     | A shortcut only fires when the app window has focus. Cmd+Tab into IronClaw first, then try again. The tray "Show window" item brings it forward even when hidden.                                                                                                                                                                            |
 | Sidecar dies repeatedly with "port already in use"                                 | Another IronClaw process is bound to the local port. Open Activity Monitor, kill stray `ironclaw` processes, then **Settings → Local sidecar → Restart**. If the conflict is with a different service, change the local port in **Settings → Local sidecar → Port**.                                                                         |
