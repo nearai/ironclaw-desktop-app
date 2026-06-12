@@ -264,13 +264,13 @@ function createProviderCardHarness() {
         selectedModel: 'active-model',
         builtinOverrides: {},
         isBusy: false,
-      onUse: () => {},
-      onConfigure: () => {},
-      onDelete: () => {},
-      onNearaiLogin: () => {},
-      onNearaiWallet: () => {},
-      loginBusy: false,
-      ...props
+        onUse: () => {},
+        onConfigure: () => {},
+        onDelete: () => {},
+        onNearaiLogin: () => {},
+        onNearaiWallet: () => {},
+        loginBusy: false,
+        ...props
       })
   };
 }
@@ -321,6 +321,27 @@ test('ProviderManagement hides empty buckets after search filtering', () => {
   assert.deepEqual(
     cardProps.map((props) => props.provider.id),
     ['openai']
+  );
+});
+
+test('ProviderManagement keeps synthetic offline NEAR fallback out of ready bucket', () => {
+  const { rendered, cardProps } = renderProviderManagement({
+    activeProviderId: '',
+    providers: [
+      builtinProvider('nearai', {
+        adapter: 'nearai',
+        api_key_required: false,
+        has_api_key: false,
+        synthetic_unavailable: true
+      })
+    ]
+  });
+
+  assert.deepEqual(groupLabels(rendered), ['llm.groupSetup']);
+  assert.deepEqual(deepValuesAfter(rendered, 'data-provider-status='), ['setup']);
+  assert.deepEqual(
+    cardProps.map((props) => props.provider.id),
+    ['nearai']
   );
 });
 
@@ -418,18 +439,17 @@ test('ProviderCard renders login actions instead of generic use for login provid
   let labels = collectScalars(rendered);
   let templateText = collectTemplateText(rendered);
   assert.ok(labels.includes('onboarding.nearWallet'));
-  assert.ok(labels.includes('llm.addApiKey'));
+  assert.ok(labels.includes('llm.useNearApiKey'));
   assert.ok(templateText.includes('GitHub'));
   assert.ok(templateText.includes('Google'));
   assert.ok(!labels.includes('llm.use'));
   const addKeyButton = findComponentNodes(rendered, 'Button').find((node) => {
     const scalars = collectScalars(node);
-    return scalars.includes('llm.addApiKey') && !scalars.includes('onboarding.nearWallet');
+    return scalars.includes('llm.useNearApiKey') && !scalars.includes('onboarding.nearWallet');
   });
   assert.ok(addKeyButton, 'expected NEAR API key action');
   componentProps(addKeyButton, 'Button').onClick();
   assert.deepEqual(calls, [['configure', 'nearai']]);
-
 });
 
 test('ProviderCard renders generic use action for NEAR when an API key is configured', () => {

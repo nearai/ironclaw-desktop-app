@@ -163,6 +163,7 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'llm.fetchModels',
   'llm.fetchingModels',
   'llm.fieldsRequired',
+  'llm.gatewayUnavailable',
   'llm.groupActive',
   'llm.groupReady',
   'llm.groupSetup',
@@ -190,6 +191,7 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'llm.testConnection',
   'llm.testing',
   'llm.use',
+  'llm.useNearApiKey',
   'login.oauthDivider',
   'login.oauthProvider',
   'nav.automations',
@@ -332,7 +334,7 @@ test('every advertised language has a registered pack', () => {
 
 test('i18n baseline is sorted, unique, and references real English keys', () => {
   const englishKeys = Object.keys(packs.en || {}).sort();
-  assert.equal(englishKeys.length, 790);
+  assert.equal(englishKeys.length, 792);
   assert.deepEqual(BASELINE_MISSING_KEYS, sortedUnique(BASELINE_MISSING_KEYS));
 
   const unknownBaselineKeys = BASELINE_MISSING_KEYS.filter((key) => !packs.en?.[key]);

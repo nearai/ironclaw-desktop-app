@@ -2,10 +2,20 @@ const UNVERIFIED = {
   verified: false,
   sendBlocked: false,
   tone: 'warning',
-  label: 'Ready to verify',
-  buttonPrefix: 'Ready',
+  label: 'Verification pending',
+  buttonPrefix: 'Pending',
   description: 'IronClaw will verify NEAR AI Cloud on the next successful chat run.',
   sendBlockReason: ''
+};
+
+const CHECKING_GATEWAY = {
+  verified: false,
+  sendBlocked: true,
+  tone: 'warning',
+  label: 'Checking gateway',
+  buttonPrefix: 'Checking',
+  description: 'IronClaw is checking the local gateway before it can run model work.',
+  sendBlockReason: 'IronClaw is checking the local gateway before it can run model work.'
 };
 
 const BLOCKED = {
@@ -29,6 +39,7 @@ const VERIFIED = {
 };
 
 export function modelExecutionReadiness(gatewayStatus) {
+  if (!gatewayStatus || typeof gatewayStatus !== 'object') return CHECKING_GATEWAY;
   if (isModelExecutionVerified(gatewayStatus)) return VERIFIED;
   const reason = modelExecutionBlockReason(gatewayStatus);
   if (!reason) return UNVERIFIED;

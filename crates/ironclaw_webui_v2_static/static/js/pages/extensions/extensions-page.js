@@ -23,6 +23,7 @@ export function ExtensionsPage() {
     channelRegistry,
     mcpRegistry,
     toolRegistry,
+    loadError,
     connectableChannels,
     isLoading,
     isBusy,
@@ -105,6 +106,7 @@ export function ExtensionsPage() {
       channels=${channels}
       connectableChannels=${connectableChannels}
       channelRegistry=${channelRegistry}
+      loadError=${loadError}
       onActivate=${activate}
       onConfigure=${handleConfigure}
       onRemove=${remove}
@@ -114,6 +116,7 @@ export function ExtensionsPage() {
     mcp: html`<${McpTab}
       mcpServers=${mcpServers}
       mcpRegistry=${mcpRegistry}
+      loadError=${loadError}
       onActivate=${activate}
       onConfigure=${handleConfigure}
       onRemove=${remove}
@@ -124,6 +127,7 @@ export function ExtensionsPage() {
       toolRegistry=${toolRegistry}
       channelRegistry=${channelRegistry}
       mcpRegistry=${mcpRegistry}
+      loadError=${loadError}
       onInstall=${install}
       onConfigure=${handleConfigure}
       isBusy=${isBusy}

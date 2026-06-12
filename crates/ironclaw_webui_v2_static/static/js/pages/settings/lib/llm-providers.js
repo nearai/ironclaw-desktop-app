@@ -65,6 +65,7 @@ export function providerAcceptsApiKey(provider) {
 }
 
 export function isProviderConfigured(provider, overrides) {
+  if (provider?.synthetic_unavailable) return false;
   const override = provider.builtin ? overrides[provider.id] || {} : {};
   const needsKey = provider.builtin
     ? provider.api_key_required !== false
@@ -96,6 +97,7 @@ export function groupProvidersByStatus(providers, overrides, activeProviderId) {
 }
 
 export function providerMissingReason(provider, overrides) {
+  if (provider?.synthetic_unavailable) return 'gateway';
   const override = provider.builtin ? overrides[provider.id] || {} : {};
   const needsKey = provider.builtin
     ? provider.api_key_required !== false

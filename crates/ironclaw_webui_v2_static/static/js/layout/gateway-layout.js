@@ -1,4 +1,4 @@
-import { Link, Outlet } from 'react-router';
+import { Link, Outlet, useLocation } from 'react-router';
 import { useInterfaceTheme } from '../design-system/theme.js';
 import { Button } from '../design-system/button.js';
 import { useGatewayStatus } from '../hooks/useGatewayStatus.js';
@@ -14,11 +14,25 @@ import { ToastViewport } from '../components/toast-viewport.js';
 import { React } from '../lib/html.js';
 import { cn } from '../utils/cn.js';
 
-function GatewayReadinessNotice({ gatewayError, providerError, onRetry }) {
+function readinessDetailForPath(pathname, { gatewayError }) {
+  if (!gatewayError) {
+    return 'NEAR AI Cloud setup could not be confirmed yet. You can keep browsing, then retry or open setup.';
+  }
+  if (pathname.startsWith('/settings')) {
+    return 'Gateway-backed setup is unavailable until the local gateway responds. You can review settings, then retry.';
+  }
+  if (pathname.startsWith('/extensions')) {
+    return 'Connection setup is unavailable until the local gateway responds. Existing catalog guidance remains visible.';
+  }
+  if (pathname.startsWith('/chat')) {
+    return 'The local gateway is still starting or is unreachable. Chat is paused until IronClaw can reach it.';
+  }
+  return 'The local gateway is still starting or is unreachable. Some live actions are paused until IronClaw can reach it.';
+}
+
+function GatewayReadinessNotice({ gatewayError, providerError, pathname, onRetry }) {
   if (!gatewayError && !providerError) return null;
-  const detail = gatewayError
-    ? 'The local gateway is still starting or is unreachable. Chat is paused until IronClaw can reach it.'
-    : 'NEAR AI Cloud setup could not be confirmed yet. You can keep browsing, then retry or open setup.';
+  const detail = readinessDetailForPath(pathname || '', { gatewayError });
 
   return html`
     <div
@@ -47,6 +61,7 @@ function GatewayReadinessNotice({ gatewayError, providerError, onRetry }) {
 
 export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
   const t = useT();
+  const location = useLocation();
   const { theme, toggleTheme } = useInterfaceTheme();
   const statusQuery = useGatewayStatus(token);
   const threadsState = useThreads();
@@ -110,6 +125,7 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
           <${GatewayReadinessNotice}
             gatewayError=${statusQuery.error}
             providerError=${llmProviders.error}
+            pathname=${location.pathname}
             onRetry=${() => {
               statusQuery.refetch?.();
               llmProviders.refresh?.();

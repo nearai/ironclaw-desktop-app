@@ -132,7 +132,7 @@ registerPack('en', {
   'googleOauth.restarting': 'Restarting the engine…',
   'googleOauth.applied': 'Applied — Google connects now open your browser.',
   'authGate.googleHint':
-    'Prefer your browser? Add a Google client ID under Settings → Inference → Google sign-in.',
+    'Prefer your browser? Add a Google client ID under Settings -> AI setup -> Google sign-in.',
   'chat.previewRenderingPages': 'Rendering pages {done}/{total}…',
   'chat.previewRenderFailed': 'Could not render pages — showing nothing instead of guessing.',
   'chat.previewMorePages': 'Showing the first {shown} of {total} pages.',
@@ -247,13 +247,13 @@ registerPack('en', {
   'error.loadFailed': 'Failed to load {what}: {message}',
 
   // Extensions tabs
-  'extensions.installed': 'Installed',
-  'extensions.channels': 'Channels',
-  'extensions.mcp': 'MCP Servers',
-  'extensions.registry': 'Registry',
+  'extensions.installed': 'My apps',
+  'extensions.channels': 'Messaging',
+  'extensions.mcp': 'Knowledge',
+  'extensions.registry': 'Browse',
 
   // Settings tabs
-  'settings.inference': 'Inference',
+  'settings.inference': 'AI setup',
   'settings.agent': 'Agent',
   'settings.channels': 'Channels',
   'settings.networking': 'Networking',
@@ -380,13 +380,15 @@ registerPack('en', {
   'llm.applying': 'Applying…',
   // Settings — LLM providers (progressive disclosure)
   'llm.groupActive': 'Active',
-  'llm.groupReady': 'Ready to use',
+  'llm.groupReady': 'Available',
   'llm.groupSetup': 'Needs setup',
   'llm.expandDetails': 'Show details',
   'llm.collapseDetails': 'Hide details',
-  'llm.missingApiKey': 'Missing API key',
+  'llm.missingApiKey': 'Sign in or use NEAR API key',
+  'llm.gatewayUnavailable': 'Gateway unavailable',
   'llm.missingBaseUrl': 'Missing base URL',
   'llm.addApiKey': 'Add API key',
+  'llm.useNearApiKey': 'Use NEAR API key',
 
   // Settings — inference groups
   'settings.group.embeddings': 'Embeddings',
@@ -715,18 +717,18 @@ registerPack('en', {
     'Search saved routines, inspect their schedule or trigger, and run or pause them without leaving v2.',
 
   // Extensions page
-  'ext.installed': 'Installed',
-  'ext.channels': 'Channels',
-  'ext.mcp': 'MCP',
-  'ext.registry': 'Registry',
+  'ext.installed': 'My apps',
+  'ext.channels': 'Messaging',
+  'ext.mcp': 'Knowledge',
+  'ext.registry': 'Browse',
 
   // Extensions — registry
-  'ext.registry.searchPlaceholder': 'Search extensions…',
-  'ext.registry.emptyTitle': 'Registry is empty',
+  'ext.registry.searchPlaceholder': 'Search apps...',
+  'ext.registry.emptyTitle': 'No apps available yet',
   'ext.registry.emptyDesc':
-    'All available extensions are already installed, or no registry is configured.',
-  'ext.registry.availableTitle': 'Available extensions',
-  'ext.registry.noMatch': 'No extensions match the filter.',
+    'IronClaw cannot reach the app catalog, or every available app is already connected.',
+  'ext.registry.availableTitle': 'Available apps',
+  'ext.registry.noMatch': 'No apps match the filter.',
 
   // Chat — history
   'chat.history.loading': 'Loading...',

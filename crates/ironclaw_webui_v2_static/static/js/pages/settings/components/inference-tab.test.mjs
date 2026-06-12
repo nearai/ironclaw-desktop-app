@@ -90,7 +90,7 @@ function renderInferenceTab({ searchQuery = '' } = {}) {
     },
     modelExecutionReadiness: () => ({
       description: 'Gateway has not verified execution yet.',
-      label: 'Ready to verify',
+      label: 'Verification pending',
       tone: 'warning'
     }),
     useT: () => (key) => key

@@ -116,11 +116,13 @@ export function ProviderCard({
   const missing = providerMissingReason(provider, builtinOverrides);
   const acceptsApiKey = providerAcceptsApiKey(provider);
   const missingLabel =
-    missing === 'api_key'
-      ? t('llm.missingApiKey')
-      : missing === 'base_url'
-        ? t('llm.missingBaseUrl')
-        : t('llm.notConfigured');
+    missing === 'gateway'
+      ? t('llm.gatewayUnavailable')
+      : missing === 'api_key'
+        ? t('llm.missingApiKey')
+        : missing === 'base_url'
+          ? t('llm.missingBaseUrl')
+          : t('llm.notConfigured');
 
   const [expanded, setExpanded] = React.useState(isActive);
   const toggle = React.useCallback(() => setExpanded((v) => !v), []);
@@ -143,7 +145,7 @@ export function ProviderCard({
   const hasApiKey = provider.api_key_set === true || provider.has_api_key === true;
   const configureLabel = provider.builtin
     ? provider.id === 'nearai' && acceptsApiKey && !hasApiKey
-      ? t('llm.addApiKey')
+      ? t('llm.useNearApiKey')
       : t('llm.configure')
     : t('common.edit');
   const apiKeyAction =
@@ -228,7 +230,11 @@ export function ProviderCard({
           disabled=${isBusy}
           onClick=${() => onConfigure(provider)}
         >
-          ${missing === 'api_key' ? t('llm.addApiKey') : t('llm.configure')}
+          ${missing === 'gateway'
+            ? t('common.retry')
+            : missing === 'api_key'
+              ? t('llm.useNearApiKey')
+              : t('llm.configure')}
         <//>
       `
     : null;
@@ -253,7 +259,9 @@ export function ProviderCard({
             : ''
       ].join(' ')}
     >
-      <div className="flex w-full items-stretch hover:bg-[var(--v2-surface-soft)]">
+      <div
+        className="flex w-full flex-col hover:bg-[var(--v2-surface-soft)] sm:flex-row sm:items-stretch"
+      >
         <button
           type="button"
           aria-expanded=${expanded ? 'true' : 'false'}
@@ -286,7 +294,9 @@ export function ProviderCard({
           </span>
           <span className="hidden min-w-0 max-w-[280px] truncate sm:block">${inlineMeta}</span>
         </button>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 py-3 pr-4 sm:pr-5">
+        <div
+          className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-[var(--v2-panel-border)] px-4 py-3 sm:border-t-0 sm:pl-0 sm:pr-5"
+        >
           ${primaryAction}
           <button
             type="button"

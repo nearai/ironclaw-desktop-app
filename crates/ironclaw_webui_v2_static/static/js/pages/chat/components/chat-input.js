@@ -350,7 +350,7 @@ export function ChatInput({
   const baseReadiness = context.modelReadiness || {
     verified: false,
     sendBlocked: false,
-    label: 'Ready to verify',
+    label: 'Verification pending',
     description: '',
     sendBlockReason: ''
   };

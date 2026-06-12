@@ -99,6 +99,7 @@ export function EmptyState({
   ];
   const setupBlocked =
     context?.sendBlocked === true || providerSetupRequired || providerSetupFailed;
+  const suggestionsBlocked = Boolean(setupBlocked || disabled);
   const briefRows = [
     providerSetupChecking
       ? {
@@ -259,8 +260,14 @@ export function EmptyState({
                 <button
                   type="button"
                   key=${item.title}
+                  disabled=${suggestionsBlocked}
                   onClick=${() => prefill(item.prompt)}
-                  className="v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-3 text-left hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))]"
+                  className=${[
+                    'v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-3 text-left',
+                    suggestionsBlocked
+                      ? 'cursor-not-allowed opacity-60'
+                      : 'hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))]'
+                  ].join(' ')}
                 >
                   <span
                     className="grid h-8 w-8 place-items-center rounded-[8px] border border-[var(--v2-panel-border)] text-[var(--v2-text-muted)] group-hover:border-[var(--v2-accent)] group-hover:text-[var(--v2-accent-text)]"
@@ -276,7 +283,7 @@ export function EmptyState({
                     </span>
                   </span>
                   <span className="text-xs font-medium text-[var(--v2-text-faint)]">
-                    ${t('chat.suggestionUse')}
+                    ${suggestionsBlocked ? 'Setup first' : t('chat.suggestionUse')}
                   </span>
                 </button>
               `

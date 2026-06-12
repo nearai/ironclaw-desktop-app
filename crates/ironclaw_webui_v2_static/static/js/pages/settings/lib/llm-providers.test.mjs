@@ -74,6 +74,22 @@ test("providerStatus returns 'setup' when a required base URL is missing", () =>
   assert.equal(providerStatus(builtinNeedsBaseUrl('openai'), {}, 'nearai'), 'setup');
 });
 
+test("providerStatus returns 'setup' for synthetic unavailable fallback providers", () => {
+  assert.equal(
+    providerStatus(
+      builtinReady('nearai', {
+        adapter: 'nearai',
+        api_key_required: false,
+        has_api_key: false,
+        synthetic_unavailable: true
+      }),
+      {},
+      ''
+    ),
+    'setup'
+  );
+});
+
 test('providerAcceptsApiKey supports dual-auth NEAR providers', () => {
   const nearai = builtinReady('nearai', {
     adapter: 'nearai',

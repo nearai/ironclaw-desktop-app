@@ -42,22 +42,30 @@ export function useExtensions() {
   const statusQuery = useQuery({
     queryKey: ['gateway-status-extensions'],
     queryFn: gatewayStatus,
-    staleTime: 10_000
+    staleTime: 10_000,
+    retry: 1,
+    retryDelay: 600
   });
 
   const extensionsQuery = useQuery({
     queryKey: ['extensions'],
-    queryFn: fetchExtensions
+    queryFn: fetchExtensions,
+    retry: 1,
+    retryDelay: 600
   });
 
   const registryQuery = useQuery({
     queryKey: ['extension-registry'],
-    queryFn: fetchExtensionRegistry
+    queryFn: fetchExtensionRegistry,
+    retry: 1,
+    retryDelay: 600
   });
 
   const connectableChannelsQuery = useQuery({
     queryKey: ['connectable-channels'],
-    queryFn: listConnectableChannels
+    queryFn: listConnectableChannels,
+    retry: 1,
+    retryDelay: 600
   });
 
   const invalidate = React.useCallback(() => {
@@ -152,7 +160,13 @@ export function useExtensions() {
       e.kind !== 'mcp_server' && e.kind !== 'wasm_channel' && e.kind !== 'channel' && !e.installed
   );
 
-  const isLoading = extensionsQuery.isLoading || registryQuery.isLoading;
+  const loadError =
+    extensionsQuery.error ||
+    registryQuery.error ||
+    connectableChannelsQuery.error ||
+    statusQuery.error ||
+    null;
+  const isLoading = (extensionsQuery.isLoading || registryQuery.isLoading) && !loadError;
   const isBusy =
     installMutation.isPending || activateMutation.isPending || removeMutation.isPending;
 
@@ -166,6 +180,7 @@ export function useExtensions() {
     mcpRegistry,
     toolRegistry,
     registry,
+    loadError,
     connectableChannels,
     isLoading,
     isBusy,

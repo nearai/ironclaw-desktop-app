@@ -62,6 +62,7 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
     state.builtinOverrides,
     state.activeProviderId
   );
+  const hasProviderRows = actions.filteredProviders.length > 0;
 
   return html`
     <${Card} className="p-4 sm:p-6">
@@ -93,12 +94,28 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
 
       <${ProviderLoginStatus} login=${login} />
 
-      ${state.isLoading
+      ${state.error &&
+      html`
+        <div
+          className="mb-4 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_36%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-sm text-[var(--v2-warning-text)]"
+          role="status"
+        >
+          IronClaw cannot reach the local gateway yet. Choose a NEAR AI Cloud sign-in path; the app
+          will verify the connection when the gateway is back.
+        </div>
+      `}
+      ${state.isLoading && !hasProviderRows
         ? html`<div className="text-sm text-[var(--v2-text-muted)]">${t('common.loading')}</div>`
-        : state.error
-          ? html`<div className="text-sm text-red-200">
-              ${t('error.loadFailed', { what: t('llm.providers'), message: state.error.message })}
-            </div>`
+        : state.error && !hasProviderRows
+          ? html`
+              <div
+                className="rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_36%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-sm leading-6 text-[var(--v2-warning-text)]"
+                role="status"
+              >
+                IronClaw cannot reach NEAR AI Cloud yet. Start the local gateway, then retry from
+                this setup panel.
+              </div>
+            `
           : html`
               <div className="space-y-1">
                 ${GROUP_ORDER.flatMap((group) => {

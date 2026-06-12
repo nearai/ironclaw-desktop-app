@@ -10,7 +10,7 @@ test('configured provider and model can send until execution is verified', () =>
   };
 
   assert.equal(isModelExecutionVerified(status), false);
-  assert.equal(modelExecutionReadiness(status).buttonPrefix, 'Ready');
+  assert.equal(modelExecutionReadiness(status).buttonPrefix, 'Pending');
   assert.equal(modelExecutionReadiness(status).sendBlocked, false);
   assert.match(modelExecutionReadiness(status).description, /next successful chat run/);
 });

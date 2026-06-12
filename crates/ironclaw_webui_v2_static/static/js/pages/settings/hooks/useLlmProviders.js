@@ -14,6 +14,27 @@ import {
   providerMissingReason
 } from '../lib/llm-providers.js';
 
+function fallbackNearaiSnapshot() {
+  return {
+    providers: [
+      {
+        id: 'nearai',
+        name: 'NEAR AI Cloud',
+        description: 'Model access through NEAR AI Cloud.',
+        adapter: 'nearai',
+        default_model: 'auto',
+        builtin: true,
+        synthetic_unavailable: true,
+        api_key_required: false,
+        accepts_api_key: true,
+        base_url_required: false,
+        api_key_set: false
+      }
+    ],
+    active: null
+  };
+}
+
 // The v2 `/llm/providers` snapshot is the single source of truth: a unified
 // provider list (built-in + operator-defined) already annotated with the active
 // selection, `builtin`, and `api_key_set`. Overrides are no longer a separate
@@ -28,10 +49,11 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
     // Ride out local sidecar boot (HTTP bind can lag the WebView by a few
     // seconds): connection-refused fails in milliseconds and the layout's
     // onboarding gate must not see a settled error for a booting backend.
-    retry: 4
+    retry: 1,
+    retryDelay: 600
   });
 
-  const snapshot = providersQuery.data || { providers: [], active: null };
+  const snapshot = providersQuery.data || fallbackNearaiSnapshot();
   const providerSnapshot = deriveProviderSnapshot(snapshot);
   const {
     allProviders,
@@ -111,7 +133,8 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
     activeProviderId,
     selectedModel,
     hasActiveProvider,
-    isLoading: providersQuery.isLoading,
+    isLoading: providersQuery.isLoading && !providers.length,
+    isChecking: providersQuery.isLoading,
     error: providersQuery.error,
     setActiveProvider: (provider) => setActiveMutation.mutateAsync(provider),
     saveCustomProvider: (payload) => saveProviderMutation.mutateAsync(payload),

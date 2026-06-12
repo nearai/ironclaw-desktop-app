@@ -8,6 +8,7 @@ function packageId(item) {
 export function McpTab({
   mcpServers,
   mcpRegistry,
+  loadError,
   onActivate,
   onConfigure,
   onRemove,
@@ -17,11 +18,17 @@ export function McpTab({
   if (mcpServers.length === 0 && mcpRegistry.length === 0) {
     return html`
       <div className="v2-panel rounded-[18px] p-6 sm:p-8">
-        <h3 className="text-lg font-semibold text-white">No MCP servers</h3>
+        <h3 className="text-lg font-semibold text-white">No knowledge apps connected</h3>
         <p className="mt-2 max-w-md text-sm leading-6 text-iron-300">
-          MCP servers extend the agent with additional tool capabilities over the Model Context
-          Protocol. Install them from the registry.
+          Connect Notion or another knowledge source from Browse so IronClaw can search team context
+          before drafting or deciding.
         </p>
+        ${loadError &&
+        html`
+          <p className="mt-3 text-sm leading-6 text-[var(--v2-warning-text)]" role="status">
+            The local gateway is unavailable, so app setup cannot start yet.
+          </p>
+        `}
       </div>
     `;
   }
@@ -32,7 +39,7 @@ export function McpTab({
       html`
         <div className="v2-panel rounded-[18px] p-5 sm:p-6">
           <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            Installed MCP servers
+            Connected knowledge apps
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             ${mcpServers.map(
@@ -54,7 +61,7 @@ export function McpTab({
       html`
         <div className="v2-panel rounded-[18px] p-5 sm:p-6">
           <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            Available MCP servers
+            Available knowledge apps
           </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             ${mcpRegistry.map(
