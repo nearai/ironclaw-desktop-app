@@ -254,6 +254,101 @@ function installTauriShim(page) {
   );
 }
 
+async function assertGatewayUnavailableWelcome(browser) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const staleGatewayRequests = [];
+  try {
+    await installTauriShim(page);
+    await page.route('http://127.0.0.1:3000/**', async (route) => {
+      staleGatewayRequests.push(route.request().url());
+      await route.abort();
+    });
+    await page.route(`${gatewayOrigin}/api/gateway/status`, async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          engine_v2_enabled: true,
+          restart_enabled: true,
+          llm_backend: 'nearai',
+          llm_model: 'auto',
+          model_execution_verified: false,
+          model_readiness: 'unverified'
+        })
+      });
+    });
+    await page.route(`${gatewayOrigin}/api/webchat/v2/llm/providers`, async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ providers: [], active: null })
+      });
+    });
+
+    for (const viewport of [
+      { width: 390, height: 844, label: 'mobile' },
+      { width: 1400, height: 950, label: 'desktop' }
+    ]) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto(`http://127.0.0.1:${port}${appBasePath}/welcome`, {
+        waitUntil: 'domcontentloaded'
+      });
+      await page
+        .getByText(
+          'IronClaw cannot reach the local gateway yet. Start or retry the gateway, then sign in with NEAR AI Cloud.',
+          { exact: true }
+        )
+        .waitFor({ timeout: 20_000 });
+      const result = await page.evaluate(() => {
+        const text = document.body?.innerText || '';
+        const buttons = Array.from(document.querySelectorAll('button')).map((button) => ({
+          text: (button.innerText || button.getAttribute('aria-label') || '').trim(),
+          disabled: button.disabled
+        }));
+        const authButtons = buttons.filter((button) =>
+          /Sign in with GitHub|Use Google|Use NEAR Wallet|Use API key/i.test(button.text)
+        );
+        return {
+          authButtonCount: authButtons.length,
+          allAuthButtonsDisabled:
+            authButtons.length >= 4 && authButtons.every((button) => button.disabled),
+          hasRawGatewayText: /fetch failed|Gateway proxy failed|ECONNREFUSED|Failed to fetch/i.test(
+            text
+          ),
+          hasProviderLeak: /OpenRouter|Anthropic|Claude|ChatGPT|Qwen|GLM/i.test(text),
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+          body: text
+        };
+      });
+      if (!result.allAuthButtonsDisabled) {
+        throw new Error(
+          `gateway-unavailable ${viewport.label} welcome left auth controls actionable:\n${JSON.stringify(
+            result,
+            null,
+            2
+          )}`
+        );
+      }
+      if (result.hasRawGatewayText || result.hasProviderLeak || result.overflow) {
+        throw new Error(
+          `gateway-unavailable ${viewport.label} welcome failed product-truth checks:\n${JSON.stringify(
+            result,
+            null,
+            2
+          )}`
+        );
+      }
+    }
+    if (staleGatewayRequests.length > 0) {
+      throw new Error(
+        `gateway-unavailable welcome requested stale :3000 origin: ${staleGatewayRequests.join(
+          ', '
+        )}`
+      );
+    }
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 const server = spawn('node', ['scripts/serve-webui-static.mjs'], {
   env: {
     ...process.env,
@@ -278,6 +373,7 @@ try {
   proxyProbeGateway = await startProxyProbeGateway();
   await assertProxySurvivesAbortedSse();
   const browser = await chromium.launch({ headless: true });
+  await assertGatewayUnavailableWelcome(browser);
   const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
   const errors = [];
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
@@ -847,6 +943,46 @@ try {
   const bodyText = await page.locator('body').innerText();
   if (bodyText.includes('Gateway token')) {
     throw new Error('desktop bootstrap failed: login token form is still visible');
+  }
+
+  const beforeEmptyCatalogRequestCount = connectorRequests.length;
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/extensions/registry`, {
+    waitUntil: 'domcontentloaded'
+  });
+  await page.getByText('Catalog unavailable', { exact: true }).waitFor({ timeout: 20_000 });
+  await page
+    .getByText('This gateway did not expose installable app catalog entries yet.', {
+      exact: false
+    })
+    .waitFor({ timeout: 20_000 });
+  const unavailableConnectorButtons = page.getByRole('button', { name: 'Not available' });
+  const unavailableConnectorCount = await unavailableConnectorButtons.count();
+  if (unavailableConnectorCount < 4) {
+    const visibleBody = await page.locator('body').innerText();
+    throw new Error(
+      `empty registry did not render disabled curated connector cards:\n${visibleBody}`
+    );
+  }
+  for (let index = 0; index < unavailableConnectorCount; index += 1) {
+    if (!(await unavailableConnectorButtons.nth(index).isDisabled())) {
+      throw new Error(`empty registry curated connector ${index} was actionable`);
+    }
+  }
+  if ((await page.getByRole('button', { name: 'Connect' }).count()) > 0) {
+    const visibleBody = await page.locator('body').innerText();
+    throw new Error(`empty registry exposed actionable synthetic Connect buttons:\n${visibleBody}`);
+  }
+  const emptyCatalogInstallRequests = connectorRequests
+    .slice(beforeEmptyCatalogRequestCount)
+    .filter((request) => request.url.endsWith('/api/webchat/v2/extensions/install'));
+  if (emptyCatalogInstallRequests.length > 0) {
+    throw new Error(
+      `empty registry triggered synthetic install requests:\n${JSON.stringify(
+        emptyCatalogInstallRequests,
+        null,
+        2
+      )}`
+    );
   }
 
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat`, {

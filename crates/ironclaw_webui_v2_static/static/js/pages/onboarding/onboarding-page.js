@@ -207,13 +207,26 @@ export function OnboardingPage() {
     [t]
   );
 
-  const featured = FEATURED.map((entry) => ({
-    entry,
-    provider:
-      state.providers.find((provider) => provider.id === entry.id) ||
-      (entry.id === 'nearai' ? fallbackNearaiProvider : null)
-  })).filter((row) => row.provider);
-  const showFallbackAccess = state.isLoading || state.error || featured.length === 0;
+  const featured = FEATURED.map((entry) => {
+    const provider = state.providers.find((candidate) => candidate.id === entry.id);
+    const fallbackProvider = entry.id === 'nearai' ? fallbackNearaiProvider : null;
+    return {
+      entry,
+      provider: provider || fallbackProvider,
+      isFallbackProvider: !provider && Boolean(fallbackProvider)
+    };
+  }).filter((row) => row.provider);
+  const hasSyntheticProvider = featured.some((row) => row.provider?.synthetic_unavailable);
+  const hasOnlyFallbackProvider =
+    featured.length === 0 || featured.every((row) => row.isFallbackProvider);
+  const providerSnapshotPending = Boolean(
+    state.isChecking && (hasSyntheticProvider || hasOnlyFallbackProvider)
+  );
+  const providerSnapshotUnavailable = Boolean(
+    state.error || (!providerSnapshotPending && (hasSyntheticProvider || hasOnlyFallbackProvider))
+  );
+  const providerAccessBlocked = providerSnapshotPending || providerSnapshotUnavailable;
+  const showFallbackAccess = providerAccessBlocked;
 
   // NEAR AI login shares the same backend flow as the Inference tab; on success
   // here we head straight to chat.
@@ -347,7 +360,11 @@ export function OnboardingPage() {
                 ? html`
                     <div className="grid gap-3">
                       <p className="text-sm leading-6 text-[var(--v2-text-muted)]">
-                        ${t('onboarding.providerNearaiDescDesktop')}
+                        ${providerSnapshotPending
+                          ? 'Checking the local gateway for NEAR AI Cloud access.'
+                          : providerSnapshotUnavailable
+                            ? 'IronClaw cannot reach the local gateway yet. Start or retry the gateway, then sign in with NEAR AI Cloud.'
+                            : t('onboarding.providerNearaiDescDesktop')}
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         <${Button}
@@ -356,7 +373,7 @@ export function OnboardingPage() {
                           size="md"
                           fullWidth=${true}
                           className="col-span-2"
-                          disabled=${login.nearaiBusy}
+                          disabled=${providerAccessBlocked || login.nearaiBusy}
                           onClick=${() => login.startNearai('github')}
                         >
                           ${t('onboarding.continue')}
@@ -366,7 +383,7 @@ export function OnboardingPage() {
                           variant="secondary"
                           size="sm"
                           fullWidth=${true}
-                          disabled=${login.nearaiBusy}
+                          disabled=${providerAccessBlocked || login.nearaiBusy}
                           onClick=${() => login.startNearai('google')}
                         >
                           ${t('onboarding.continueGoogle')}
@@ -376,7 +393,7 @@ export function OnboardingPage() {
                           variant="secondary"
                           size="sm"
                           fullWidth=${true}
-                          disabled=${login.nearaiBusy}
+                          disabled=${providerAccessBlocked || login.nearaiBusy}
                           onClick=${login.startNearaiWallet}
                         >
                           ${t('onboarding.continueWallet')}
@@ -387,7 +404,7 @@ export function OnboardingPage() {
                           size="sm"
                           fullWidth=${true}
                           className="col-span-2"
-                          disabled=${state.isBusy}
+                          disabled=${providerAccessBlocked || state.isBusy}
                           onClick=${() => actions.openDialog(fallbackNearaiProvider)}
                         >
                           ${t('onboarding.useApiKey')}

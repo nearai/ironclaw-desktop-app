@@ -51,11 +51,62 @@ Run an escalating hostile review against the current Reborn static desktop surfa
 ### Next Agent Should Start Here
 
 1. Run a live gateway connector gauntlet with real auth-capable fixtures and capture the exact `/api/webchat/v2/extensions/*` request/response sequence.
-2. Add a rendered smoke where registry returns `{ entries: [] }` without an error and assert curated core cards are disabled as `Not available`.
-3. Run hostile work-product scenarios inside the app: PDF-to-DOCX agreement draft, XLSX analysis, CSV export, MD/HTML export, and reload persistence.
+2. Run hostile work-product scenarios inside the app: PDF-to-DOCX agreement draft, XLSX analysis, CSV export, MD/HTML export, and reload persistence.
 
 ### Do Not Touch
 
 - Do not reintroduce OpenRouter/Anthropic/OpenAI/Claude as normal desktop setup paths.
 - Do not make slash-prefixed catalog refs into lifecycle route names.
 - Do not mark connectors connected or providers ready without gateway evidence.
+
+## Handoff: Phase 2 - Gateway-Unavailable Onboarding Guardrail
+
+Status: YELLOW
+Owner lane: Static UI / Hostile QA
+
+### Goal
+
+Escalate first-run testing from "gateway outage copy looks sane" to the more subtle empty-provider case where the gateway responds successfully but exposes no actionable NEAR AI Cloud provider.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/onboarding/onboarding-page.js`: first-run access now distinguishes real provider rows from fallback/synthetic rows. Loading, errored, empty, and synthetic-only provider snapshots are non-actionable.
+- `scripts/smoke-webui-static.mjs`: added a rendered mobile and desktop welcome gauntlet for `{ providers: [], active: null }` LLM provider snapshots. It asserts the outage copy, disabled GitHub/Google/Wallet/API-key actions, no stale `:3000` requests, no raw gateway text, no hidden provider leaks, and no horizontal overflow.
+- `scripts/smoke-webui-static.mjs`: the empty connector registry smoke now asserts curated connector cards are disabled as `Not available` and cannot emit synthetic install calls.
+
+### Verified
+
+- Live Browser check at `http://127.0.0.1:1425/v2/welcome` with the gateway pointed at a dead port: mobile 390px and desktop 1440px rendered the outage copy, disabled all four auth/setup actions, showed no raw gateway text, showed no OpenRouter/Anthropic/Claude/ChatGPT/Qwen/GLM leaks, and had no horizontal overflow.
+- `npm run smoke:webui-static`: passed with the new empty-provider welcome gauntlet and empty-registry connector gauntlet.
+- `npm run test:static`: 290/290 passed.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; Reborn gateway healthy, app terminated cleanly, no orphan sidecar.
+
+### Evidence
+
+- Rendered Browser DOM check proved `/v2/welcome` disables `Sign in with GitHub`, `Use Google`, `Use NEAR Wallet`, and `Use API key` when the local gateway/provider snapshot is unavailable.
+- Static smoke now proves the same contract on both mobile and desktop without relying on manual observation.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-072156.log`.
+
+### Still RED
+
+- Live connector OAuth/read-only tool calls are still not proven with active accounts.
+- Real in-app work-product generation from attached PDF/DOCX/XLSX inputs still needs the next hostile pass.
+
+### Risks
+
+- The first-run surface is now intentionally inert until provider truth resolves. If the gateway is slow but healthy, users may briefly see "Checking the local gateway" instead of immediately clickable auth buttons.
+
+### Next Agent Should Start Here
+
+1. Run live connector OAuth/read-only setup with active token evidence, or document exact backend blockers.
+2. Run hostile work-product scenarios inside the app: PDF-to-DOCX agreement draft, XLSX analysis, CSV export, MD/HTML export, and reload persistence.
+
+### Do Not Touch
+
+- Do not make fallback/synthetic NEAR rows actionable before backend provider truth resolves.
+- Do not allow empty registry connector cards to call install/activate lifecycle endpoints.
+- Do not expose old BYO provider setup as the normal desktop onboarding path.
