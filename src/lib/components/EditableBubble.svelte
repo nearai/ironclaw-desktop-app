@@ -26,7 +26,7 @@
 
   import { tick } from 'svelte';
   import type { Message } from '$lib/api/types';
-  import MarkdownView from './MarkdownView.svelte';
+  import MarkdownView from './LazyMarkdownView.svelte';
 
   interface Props {
     msg: Message;

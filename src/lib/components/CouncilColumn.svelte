@@ -25,7 +25,7 @@
   // get their own scrollbar rather than blowing out the page.
 
   import type { CouncilRun } from '$lib/stores/council.svelte';
-  import MarkdownView from '$lib/components/MarkdownView.svelte';
+  import MarkdownView from '$lib/components/LazyMarkdownView.svelte';
 
   interface Props {
     run: CouncilRun;

@@ -1,10 +1,6 @@
 <script lang="ts">
   import { toasts } from '$lib/stores/toasts.svelte';
-  import {
-    copyWorkProduct,
-    exportWorkProduct,
-    type WorkProductExportFormat
-  } from '$lib/util/work-product-export';
+  import type { WorkProductExportFormat } from '$lib/util/work-product-export';
 
   interface Props {
     title: string;
@@ -28,6 +24,7 @@
 
   async function copy(): Promise<void> {
     try {
+      const { copyWorkProduct } = await import('$lib/util/work-product-export');
       await copyWorkProduct(content);
       toasts.show('Copied work product', 'success');
     } catch (error) {
@@ -37,6 +34,7 @@
 
   async function download(format: WorkProductExportFormat): Promise<void> {
     try {
+      const { exportWorkProduct } = await import('$lib/util/work-product-export');
       await exportWorkProduct({
         title: actionTitle,
         content: format === 'json' ? (jsonContent ?? '') : content,

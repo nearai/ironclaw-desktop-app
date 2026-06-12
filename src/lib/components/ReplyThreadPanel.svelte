@@ -14,7 +14,7 @@
   import { replyThreads } from '$lib/stores/reply-threads.svelte';
   import { onMount } from 'svelte';
   import Icon from './Icon.svelte';
-  import MarkdownView from './MarkdownView.svelte';
+  import MarkdownView from './LazyMarkdownView.svelte';
 
   interface Props {
     parentMessage: Message;
