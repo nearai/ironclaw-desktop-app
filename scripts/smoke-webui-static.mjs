@@ -648,6 +648,8 @@ try {
   const chatMessageRequests = [];
   const timelineRequests = [];
   const llmProviderRequests = [];
+  const llmListModelRequests = [];
+  const llmActiveRequests = [];
   await page.route(
     `${gatewayOrigin}/api/webchat/v2/threads/thread-smoke/messages`,
     async (route) => {
@@ -854,6 +856,43 @@ try {
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify(llmProvidersPayload)
+      });
+      return;
+    }
+    if (webchatPath === '/api/webchat/v2/llm/list-models') {
+      llmListModelRequests.push(route.request().postDataJSON());
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          models: ['auto', 'nearai:gpt-oss-120b', 'nearai:claude-sonnet-4.5']
+        })
+      });
+      return;
+    }
+    if (webchatPath === '/api/webchat/v2/llm/active') {
+      const body = route.request().postDataJSON();
+      llmActiveRequests.push(body);
+      llmProvidersPayload = {
+        ...llmProvidersPayload,
+        active: {
+          provider_id: body.provider_id,
+          model: body.model
+        }
+      };
+      gatewayStatusPayload = {
+        ...gatewayStatusPayload,
+        llm_backend: body.provider_id,
+        llm_model: body.model,
+        model_execution_verified: true,
+        model_readiness: 'verified'
+      };
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          active: llmProvidersPayload.active
+        })
       });
       return;
     }
@@ -1170,6 +1209,71 @@ try {
     }
   };
 
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/settings/inference`, {
+    waitUntil: 'domcontentloaded'
+  });
+  const activeModelPanel = page.getByTestId('active-model-panel');
+  await activeModelPanel.waitFor({ state: 'visible', timeout: 20_000 });
+  await activeModelPanel.getByText('Current model', { exact: true }).waitFor({ timeout: 10_000 });
+  await activeModelPanel.getByText('NEAR AI Cloud', { exact: true }).waitFor({ timeout: 10_000 });
+  await activeModelPanel
+    .locator('span')
+    .filter({ hasText: /^auto$/ })
+    .first()
+    .waitFor({
+      timeout: 10_000
+    });
+  const settingsModelSelect = activeModelPanel.getByLabel('Model');
+  await settingsModelSelect
+    .locator('option[value="nearai:gpt-oss-120b"]')
+    .waitFor({ state: 'attached', timeout: 10_000 });
+  await settingsModelSelect.selectOption('nearai:gpt-oss-120b');
+  await activeModelPanel.getByRole('button', { name: 'Apply' }).click();
+  await activeModelPanel
+    .locator('span')
+    .filter({ hasText: /^nearai:gpt-oss-120b$/ })
+    .first()
+    .waitFor({
+      timeout: 20_000
+    });
+  const latestModelListRequest = llmListModelRequests.at(-1);
+  if (
+    latestModelListRequest?.provider_id !== 'nearai' ||
+    latestModelListRequest?.adapter !== 'nearai'
+  ) {
+    throw new Error(
+      `settings model picker did not request NEAR AI Cloud models: ${JSON.stringify(
+        llmListModelRequests
+      )}`
+    );
+  }
+  const latestActiveRequest = llmActiveRequests.at(-1);
+  if (
+    latestActiveRequest?.provider_id !== 'nearai' ||
+    latestActiveRequest?.model !== 'nearai:gpt-oss-120b'
+  ) {
+    throw new Error(
+      `settings model picker did not set the active NEAR AI model: ${JSON.stringify(
+        llmActiveRequests
+      )}`
+    );
+  }
+  const settingsInferenceBody = await page.locator('body').innerText();
+  if (
+    settingsInferenceBody.includes('OpenRouter') ||
+    settingsInferenceBody.includes('deepseek/') ||
+    settingsInferenceBody.includes('Anthropic')
+  ) {
+    throw new Error(
+      `settings inference exposed provider-key complexity:\n${settingsInferenceBody}`
+    );
+  }
+  await mkdir('output/playwright', { recursive: true });
+  await page.screenshot({
+    path: 'output/playwright/static-settings-active-model.png',
+    fullPage: true
+  });
+
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat`, {
     waitUntil: 'domcontentloaded'
   });
@@ -1179,7 +1283,7 @@ try {
     await page.waitForFunction(
       () => {
         const control = document.querySelector('[aria-label="Chat model settings"]');
-        return control?.textContent?.includes('NEAR AI Cloud · auto');
+        return control?.textContent?.includes('NEAR AI Cloud · nearai:gpt-oss-120b');
       },
       null,
       { timeout: 20_000 }
@@ -1197,9 +1301,9 @@ try {
     );
   }
   const modelControlText = await modelControl.innerText();
-  if (!modelControlText.includes('NEAR AI Cloud · auto')) {
+  if (!modelControlText.includes('NEAR AI Cloud · nearai:gpt-oss-120b')) {
     throw new Error(
-      `static chat model control did not show default NEAR AI Cloud model:\n${modelControlText}`
+      `static chat model control did not show active NEAR AI Cloud model:\n${modelControlText}`
     );
   }
   // Readiness moved off the chip into the tooltip — keep it honest there.

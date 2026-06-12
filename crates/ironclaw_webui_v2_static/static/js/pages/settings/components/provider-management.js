@@ -4,7 +4,7 @@ import { ConfirmDialog } from '../../../design-system/confirm-dialog.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { SettingsSearchEmpty } from './settings-search-empty.js';
-import { ProviderCard } from './provider-card.js';
+import { ActiveModelPicker, ProviderCard } from './provider-card.js';
 import { ProviderDialog } from './provider-dialog.js';
 import { ProviderLoginStatus } from './provider-login-status.js';
 import { useProviderManagementActions } from '../hooks/useProviderManagementActions.js';
@@ -31,6 +31,46 @@ function GroupHeader({ label, count, dotClass }) {
       <span className="font-mono text-[10.5px] text-[var(--v2-text-faint)]">${count}</span>
       <span className="ml-2 h-px flex-1 bg-[var(--v2-panel-border)]" />
     </div>
+  `;
+}
+
+export function ActiveModelPanel({ provider, currentModel, onListModels, onApplyModel, t }) {
+  if (!provider || provider.can_list_models === false) return null;
+  const displayName = provider.id === 'nearai' ? 'NEAR AI Cloud' : provider.name || provider.id;
+  return html`
+    <section
+      data-testid="active-model-panel"
+      className="mb-4 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-3 sm:p-3.5"
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div
+            className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+          >
+            Current model
+          </div>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-[var(--v2-text-strong)]">
+              ${displayName}
+            </span>
+            <span
+              className="rounded-full border border-[color-mix(in_srgb,var(--v2-positive-text)_34%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--v2-positive-text)]"
+            >
+              ${currentModel || t('llm.none')}
+            </span>
+          </div>
+        </div>
+        <div className="w-full lg:max-w-[34rem]">
+          <${ActiveModelPicker}
+            provider=${provider}
+            currentModel=${currentModel}
+            onListModels=${onListModels}
+            onApplyModel=${onApplyModel}
+            t=${t}
+          />
+        </div>
+      </div>
+    </section>
   `;
 }
 
@@ -63,6 +103,7 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
     state.activeProviderId
   );
   const hasProviderRows = actions.filteredProviders.length > 0;
+  const activeProvider = groups.active[0] || null;
 
   return html`
     <${Card} className="p-4 sm:p-6">
@@ -93,6 +134,14 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
       `}
 
       <${ProviderLoginStatus} login=${login} />
+
+      <${ActiveModelPanel}
+        provider=${activeProvider}
+        currentModel=${state.selectedModel}
+        onListModels=${state.listModels}
+        onApplyModel=${applyModel}
+        t=${t}
+      />
 
       ${state.error &&
       html`
@@ -149,8 +198,6 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
                                 onDelete=${actions.handleDelete}
                                 onNearaiLogin=${login.startNearai}
                                 onNearaiWallet=${login.startNearaiWallet}
-                                onListModels=${state.listModels}
-                                onApplyModel=${applyModel}
                                 loginBusy=${loginBusy}
                               />
                             `

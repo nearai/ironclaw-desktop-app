@@ -6,10 +6,9 @@ import { Select } from '../../../design-system/input.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 
-// Inline model switcher on the ACTIVE provider card: the backend's live
-// model list in a select, applied through the same set-active route the
-// chat popover uses. Loads lazily on first expand.
-function ActiveModelPicker({ provider, currentModel, onListModels, onApplyModel, t }) {
+// Active model switcher: the backend's live model list in a select,
+// applied through the same set-active route the chat popover uses.
+export function ActiveModelPicker({ provider, currentModel, onListModels, onApplyModel, t }) {
   const [models, setModels] = React.useState(null);
   const [choice, setChoice] = React.useState(currentModel || '');
   const [busy, setBusy] = React.useState(false);
@@ -40,13 +39,11 @@ function ActiveModelPicker({ provider, currentModel, onListModels, onApplyModel,
   }, [models, onListModels, provider]);
 
   if (models === null) {
-    return html`<div className="mt-3 text-xs text-[var(--v2-text-faint)]">
-      ${t('common.loading')}
-    </div>`;
+    return html`<div className="text-xs text-[var(--v2-text-faint)]">${t('common.loading')}</div>`;
   }
   if (models.length === 0) {
     return failed
-      ? html`<div className="mt-3 text-xs text-[var(--v2-warning-text)]">
+      ? html`<div className="text-xs text-[var(--v2-warning-text)]">
           ${t('chat.modelPopoverError')}
         </div>`
       : null;
@@ -63,11 +60,13 @@ function ActiveModelPicker({ provider, currentModel, onListModels, onApplyModel,
   };
 
   return html`
-    <div className="mt-3 flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <${Select}
+        aria-label=${t('llm.model')}
         value=${models.includes(choice) ? choice : ''}
         onChange=${(event) => setChoice(event.target.value)}
-        className="h-8 max-w-[22rem] flex-1 text-xs"
+        wrapperClassName="min-w-[min(18rem,100%)] flex-1 sm:min-w-[18rem]"
+        className="h-9 text-xs"
       >
         <option value="" disabled>${t('llm.pickModel')}</option>
         ${models.map((entry) => html`<option key=${entry} value=${entry}>${entry}</option>`)}
@@ -104,12 +103,11 @@ export function ProviderCard({
   onDelete,
   onNearaiLogin,
   onNearaiWallet,
-  onListModels,
-  onApplyModel,
   loginBusy
 }) {
   const t = useT();
   const isActive = provider.id === activeProviderId;
+  const displayName = provider.id === 'nearai' ? 'NEAR AI Cloud' : provider.name || provider.id;
   const configured = isProviderConfigured(provider, builtinOverrides);
   const baseUrl = providerEffectiveBaseUrl(provider, builtinOverrides);
   const model = providerDisplayModel(provider, builtinOverrides, activeProviderId, selectedModel);
@@ -282,7 +280,7 @@ export function ProviderCard({
           />
           <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
             <span className="min-w-0 truncate text-sm font-semibold text-[var(--v2-text-strong)]">
-              ${provider.name || provider.id}
+              ${displayName}
             </span>
             <span className="font-mono text-[11px] text-[var(--v2-text-faint)]"
               >${provider.id}</span
@@ -339,16 +337,6 @@ export function ProviderCard({
               <div className="mt-1 truncate font-mono">${model || t('llm.none')}</div>
             </div>
           </div>
-          ${isActive &&
-          provider.can_list_models !== false &&
-          html`<${ActiveModelPicker}
-            provider=${provider}
-            currentModel=${model}
-            onListModels=${onListModels}
-            onApplyModel=${onApplyModel}
-            t=${t}
-          />`}
-
           <div
             className="mt-4 flex flex-wrap justify-end gap-2 border-t border-[var(--v2-panel-border)] pt-3"
           >

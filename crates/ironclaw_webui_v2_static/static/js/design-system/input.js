@@ -72,9 +72,16 @@ export function Textarea({ className = '', error = false, rows = 4, ...rest }) {
 
 /* ─── Select ──────────────────────────────────────────────────────── */
 
-export function Select({ children, className = '', size = 'md', error = false, ...rest }) {
+export function Select({
+  children,
+  className = '',
+  wrapperClassName = '',
+  size = 'md',
+  error = false,
+  ...rest
+}) {
   return html`
-    <div className="relative w-full">
+    <div className=${cn('relative w-full', wrapperClassName)}>
       <select
         className=${cn(
           INPUT_BASE,

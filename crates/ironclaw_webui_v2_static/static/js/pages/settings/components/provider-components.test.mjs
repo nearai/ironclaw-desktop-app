@@ -53,7 +53,17 @@ function componentProps(node, component) {
   const props = {};
   const start = node.values.indexOf(component);
   for (let index = start + 1; index < node.values.length; index += 1) {
-    const name = node.strings[index]?.match(/([A-Za-z][A-Za-z0-9]*)=\s*$/)?.[1];
+    const templateBeforeValue = node.strings[index] || '';
+    const name = templateBeforeValue.match(/([A-Za-z][A-Za-z0-9]*)=\s*$/)?.[1];
+    if (
+      !name &&
+      index > start + 1 &&
+      (templateBeforeValue.includes('/>') ||
+        templateBeforeValue.includes('<//>') ||
+        /<\s*$/.test(templateBeforeValue))
+    ) {
+      break;
+    }
     if (name) props[name] = node.values[index];
   }
   return props;
@@ -149,6 +159,7 @@ function useProviderManagementActionsStub({ providers, activeProviderId }) {
       error: null,
       isBusy: false,
       isLoading: false,
+      listModels: async () => ({ ok: true, models: ['llama', 'auto'] }),
       selectedModel: 'llama'
     }
   });
@@ -160,6 +171,7 @@ function renderProviderManagement({ providers, activeProviderId = 'nearai', sear
     Button: 'Button',
     Card: 'Card',
     Icon: 'Icon',
+    ActiveModelPicker: 'ActiveModelPicker',
     ProviderCard,
     ProviderDialog: 'ProviderDialog',
     ConfirmDialog: 'ConfirmDialog',
@@ -188,8 +200,12 @@ function renderProviderManagement({ providers, activeProviderId = 'nearai', sear
     useT: () => (key) => key
   };
 
-  vm.runInNewContext(sourceForTest('./provider-management.js', ['ProviderManagement']), context);
-  const rendered = context.globalThis.__testExports.ProviderManagement({
+  vm.runInNewContext(
+    sourceForTest('./provider-management.js', ['ProviderManagement', 'ActiveModelPanel']),
+    context
+  );
+  const { ProviderManagement, ActiveModelPanel } = context.globalThis.__testExports;
+  const rendered = ProviderManagement({
     settings: {},
     gatewayStatus: {},
     searchQuery
@@ -197,7 +213,10 @@ function renderProviderManagement({ providers, activeProviderId = 'nearai', sear
   const cardProps = findComponentNodes(rendered, ProviderCard).map((node) =>
     componentProps(node, ProviderCard)
   );
-  return { rendered, cardProps };
+  const panelProps = findComponentNodes(rendered, ActiveModelPanel).map((node) =>
+    componentProps(node, ActiveModelPanel)
+  );
+  return { rendered, cardProps, ActiveModelPanel, panelProps };
 }
 
 function groupLabels(rendered) {
@@ -306,9 +325,43 @@ test('ProviderManagement groups filtered providers through the render caller', (
     ['nearai', 'nearai', 'nearai']
   );
   assert.ok(
+    !cardProps.some((props) => 'onListModels' in props || 'onApplyModel' in props),
+    'model selection must live in the first-class settings panel, not inside provider rows'
+  );
+  assert.ok(
     !collectScalars(rendered).includes('llm.addProvider'),
     'normal desktop provider management must not expose custom provider creation'
   );
+});
+
+test('ProviderManagement exposes active NEAR model selection before provider rows', () => {
+  const { ActiveModelPanel, panelProps } = renderProviderManagement({
+    providers: [
+      builtinProvider('nearai', {
+        adapter: 'nearai',
+        name: 'NEAR AI Cloud',
+        default_model: 'auto',
+        has_api_key: true
+      }),
+      builtinProvider('openai')
+    ]
+  });
+
+  assert.equal(panelProps.length, 1);
+  assert.equal(panelProps[0].provider.id, 'nearai');
+  assert.equal(panelProps[0].currentModel, 'llama');
+
+  const renderedPanel = ActiveModelPanel({
+    ...panelProps[0],
+    t: (key) => key
+  });
+  const pickerNodes = findComponentNodes(renderedPanel, 'ActiveModelPicker');
+
+  assert.equal(pickerNodes.length, 1);
+  assert.ok(collectTemplateText(renderedPanel).includes('data-testid="active-model-panel"'));
+  assert.ok(collectTemplateText(renderedPanel).includes('Current model'));
+  assert.equal(componentProps(pickerNodes[0], 'ActiveModelPicker').provider.id, 'nearai');
+  assert.equal(componentProps(pickerNodes[0], 'ActiveModelPicker').currentModel, 'llama');
 });
 
 test('ProviderManagement hides empty buckets after search filtering', () => {

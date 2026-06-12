@@ -502,3 +502,65 @@ Escalate the chat-design review from "the composer no longer covers the transcri
 - Do not show all large sent attachment stacks by default again.
 - Do not render attachments in optimistic user bubbles unless they have a sendable payload.
 - Do not weaken the rendered smoke to target the first historical attachment stack; it must test the newest sent turn.
+
+## Handoff: Phase 10 - First-Class NEAR AI Model Selection
+
+Status: YELLOW
+Owner lane: Static UI / Settings / Design-hostile QA / Runtime
+
+### Goal
+
+Close the repeated product complaint that users cannot tell what model IronClaw is using or change it cleanly. The model selector must be first-class in AI setup, route through NEAR AI Cloud only, avoid hidden provider-key complexity, and keep chat in sync after applying a model.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/settings/components/provider-management.js`: added a first-class `active-model-panel` above provider rows, showing the current active NEAR AI Cloud model and exposing model selection through the same set-active route used by chat.
+- `crates/ironclaw_webui_v2_static/static/js/pages/settings/components/provider-card.js`: moved model selection out of expanded provider rows, kept provider rows focused on status/details, and normalized the nearai provider label to `NEAR AI Cloud`.
+- `crates/ironclaw_webui_v2_static/static/js/design-system/input.js`: added optional `wrapperClassName` support for `Select`, so compact Settings controls can keep select + action button inline.
+- `crates/ironclaw_webui_v2_static/static/js/pages/settings/components/provider-components.test.mjs`: added coverage proving model selection lives in the first-class Settings panel and no longer leaks `onListModels`/`onApplyModel` into provider rows.
+- `scripts/smoke-webui-static.mjs`: fixture-backed rendered smoke now visits `/settings/inference`, loads the active model panel, fetches NEAR AI Cloud models, applies `nearai:gpt-oss-120b`, asserts `/api/webchat/v2/llm/list-models` and `/api/webchat/v2/llm/active` request bodies, verifies OpenRouter/deepseek/Anthropic stay hidden, screenshots the Settings surface, and verifies chat shows the newly active model.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js` and `crates/ironclaw_webui_v2_static/static/styles/tailwind.generated.css`: regenerated static artifacts for the desktop shell.
+
+### Verified
+
+- Focused component test: `node --test crates/ironclaw_webui_v2_static/static/js/pages/settings/components/provider-components.test.mjs` passed 9/9.
+- `npm run smoke:webui-static`: passed; rendered Settings flow applies `nearai:gpt-oss-120b` and chat model chip reflects `NEAR AI Cloud · nearai:gpt-oss-120b`.
+- Rendered screenshot inspected: `output/playwright/static-settings-active-model.png` shows the current model panel, inline model picker + Apply button, and no OpenRouter/Anthropic visible provider setup.
+- In-app Browser QA at `http://127.0.0.1:1420/v2/settings/inference`: no-fixture local render loaded `IronClaw`, showed the honest first-run/gateway-checking NEAR AI Cloud state, and produced zero console warnings/errors.
+- `npm run test:static`: passed 299/299.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, Reborn gateway healthy on port 3000, sidecar terminated cleanly.
+
+### Evidence
+
+- Rendered Settings screenshot artifact: `output/playwright/static-settings-active-model.png`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-085822.log`.
+- Request evidence is in `scripts/smoke-webui-static.mjs`: the smoke records `llmListModelRequests` and `llmActiveRequests` and fails unless the active model request is `{ provider_id: "nearai", model: "nearai:gpt-oss-120b" }`.
+- The first rendered smoke attempt caught a strict ambiguity between the model badge and native `<option>` text; the final smoke scopes to the visible badge and attached option, so the test proves the actual UI without flaky text matching.
+
+### Still RED
+
+- Authenticated Connections still need a fixture-backed or live design-hostile pass equivalent to this Settings pass.
+- Live connector OAuth/read-only account use still needs active account evidence or exact backend blockers.
+- Live NEAR AI Cloud model-quality output from real documents still needs credentials and human/product-quality inspection.
+- The top `Model path` summary card still uses heavier mono styling than the rest of the surface; later design cleanup should rationalize Settings typography globally.
+
+### Risks
+
+- The model picker proves the lifecycle/request contract, not the quality of any specific model response.
+- `wrapperClassName` on the shared `Select` is intentionally additive; future component cleanups should avoid turning it into a second styling API with conflicting size rules.
+
+### Next Agent Should Start Here
+
+1. Run the same hostile fixture-backed treatment on Connections: Gmail, Google Calendar, Notion, Slack, workspace, setup drawers, readiness, and canonical lifecycle route names.
+2. Rationalize Settings typography and reduce mono overuse across `Model path`, Google sign-in, and provider detail rows.
+3. Run live NEAR AI Cloud document-generation quality checks once credentials are available.
+
+### Do Not Touch
+
+- Do not bury the active model selector back inside expanded provider rows.
+- Do not expose hidden provider-key surfaces such as OpenRouter/Anthropic in normal desktop Settings.
+- Do not claim model-selection support without rendered request evidence through `/api/webchat/v2/llm/list-models` and `/api/webchat/v2/llm/active`.
