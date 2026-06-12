@@ -26,6 +26,111 @@ function dummyAttachmentScenario(name, mimeType, content, options = {}) {
   };
 }
 
+function crc32(bytes) {
+  const table =
+    crc32.table ||
+    (crc32.table = (() => {
+      const crcTable = new Uint32Array(256);
+      for (let n = 0; n < 256; n += 1) {
+        let c = n;
+        for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        crcTable[n] = c >>> 0;
+      }
+      return crcTable;
+    })());
+  let crc = 0xffffffff;
+  for (const byte of bytes) crc = table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+// Stored-method ZIP builder: enough for realistic OOXML payloads without
+// pulling a test-only archive dependency into the static smoke.
+function buildStoredZipBuffer(entries) {
+  const encoder = new TextEncoder();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+
+  for (const [name, content] of entries) {
+    const nameBytes = encoder.encode(name);
+    const data = Buffer.isBuffer(content) ? content : encoder.encode(content);
+    const crc = crc32(data);
+    const local = new Uint8Array(30 + nameBytes.length + data.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(6, 0, true);
+    lv.setUint16(8, 0, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, data.length, true);
+    lv.setUint32(22, data.length, true);
+    lv.setUint16(26, nameBytes.length, true);
+    local.set(nameBytes, 30);
+    local.set(data, 30 + nameBytes.length);
+    chunks.push(local);
+
+    const header = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(header.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, data.length, true);
+    cv.setUint32(24, data.length, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint32(42, offset, true);
+    header.set(nameBytes, 46);
+    central.push(header);
+    offset += local.length;
+  }
+
+  const centralStart = offset;
+  const centralSize = central.reduce((sum, header) => sum + header.length, 0);
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, entries.length, true);
+  ev.setUint16(10, entries.length, true);
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, centralStart, true);
+
+  return Buffer.concat([...chunks, ...central, eocd].map((chunk) => Buffer.from(chunk)));
+}
+
+function buildSmokeDocxBuffer() {
+  return buildStoredZipBuffer([
+    [
+      '[Content_Types].xml',
+      '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'
+    ],
+    [
+      'word/document.xml',
+      '<?xml version="1.0"?><w:document><w:body>' +
+        '<w:p><w:r><w:t>MASTER SERVICES AGREEMENT TEMPLATE</w:t></w:r></w:p>' +
+        '<w:p><w:r><w:t>MSA-CLAUSE-17 indemnity survives termination.</w:t></w:r></w:p>' +
+        '<w:p><w:r><w:t>Payment terms: Net 30 after invoice approval.</w:t></w:r></w:p>' +
+        '</w:body></w:document>'
+    ]
+  ]);
+}
+
+function buildSmokeXlsxBuffer() {
+  const shared =
+    '<sst><si><t>Plan</t></si><si><t>Amount</t></si><si><t>Enterprise</t></si><si><t>Renewal</t></si></sst>';
+  const sheet =
+    '<worksheet><sheetData>' +
+    '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>' +
+    '<row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><v>42000</v></c></row>' +
+    '<row r="3"><c r="A3" t="s"><v>3</v></c><c r="B3"><v>12000</v></c></row>' +
+    '</sheetData></worksheet>';
+  return buildStoredZipBuffer([
+    ['xl/sharedStrings.xml', shared],
+    ['xl/worksheets/sheet1.xml', sheet]
+  ]);
+}
+
 // A structurally valid single-page PDF (correct xref offsets) that pdf.js can
 // parse — proves the composer's real extraction path in the rendered run.
 function buildMinimalPdfBuffer(text) {
@@ -168,6 +273,7 @@ function installTauriShim(page) {
 
       window.localStorage.setItem('ironclaw:desktop-gateway-origin', 'http://127.0.0.1:3000');
       window.sessionStorage.setItem('ironclaw_token', 'stale-token-from-previous-run');
+      window.__IRONCLAW_SMOKE_SAVED_FILES__ = [];
 
       function pick(obj, key) {
         return obj && typeof obj === 'object' && key in obj ? obj[key] : undefined;
@@ -183,6 +289,15 @@ function installTauriShim(page) {
             return 'desktop-token';
           case 'get_or_create_local_token':
             return 'local-token';
+          case 'save_bytes_dialog': {
+            const defaultFilename = pick(args, 'defaultFilename') || 'ironclaw-export.bin';
+            const contentsBase64 = pick(args, 'contentsBase64') || '';
+            window.__IRONCLAW_SMOKE_SAVED_FILES__.push({
+              defaultFilename,
+              contentsBase64
+            });
+            return `/tmp/${defaultFilename}`;
+          }
           case 'gateway_http_fetch': {
             const req = pick(args, 'request');
             if (!req?.url) throw new Error('missing gateway_http_fetch url');
@@ -453,6 +568,18 @@ try {
       'application/pdf',
       buildMinimalPdfBuffer('INVOICE 7741 TOTAL 432.50 VENDOR ACME'),
       { expectExtractedText: 'INVOICE 7741' }
+    ),
+    dummyAttachmentScenario(
+      'services-template.docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      buildSmokeDocxBuffer(),
+      { expectExtractedText: 'MSA-CLAUSE-17' }
+    ),
+    dummyAttachmentScenario(
+      'pricing-model.xlsx',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buildSmokeXlsxBuffer(),
+      { expectExtractedText: 'Enterprise\t42000' }
     )
   ];
   // A corrupt OOXML package (zip magic, no central directory) must be
@@ -1204,6 +1331,8 @@ try {
   }
   const expectedEmbeds = [
     'INVOICE 7741', // extracted from acme-invoice.pdf client-side
+    'MSA-CLAUSE-17', // extracted from services-template.docx client-side
+    'Enterprise\t42000', // extracted from pricing-model.xlsx client-side
     'Preserve indemnity clause', // text/markdown raw payload
     'INV-4242' // application/json raw payload
   ];
@@ -1256,6 +1385,106 @@ try {
     path: 'output/playwright/static-work-product-attachment-chat.png',
     fullPage: true
   });
+
+  async function downloadAssistantExport(label, expectedFilename) {
+    const beforeCount = await page.evaluate(
+      () => window.__IRONCLAW_SMOKE_SAVED_FILES__?.length || 0
+    );
+    await page.getByRole('button', { name: 'Export assistant response' }).first().click();
+    await page.getByRole('button', { name: new RegExp(`^${label}\\b`) }).click();
+    await page.waitForFunction(
+      ([count, filename]) => {
+        const files = window.__IRONCLAW_SMOKE_SAVED_FILES__ || [];
+        return files.length > count && files.at(-1)?.defaultFilename === filename;
+      },
+      [beforeCount, expectedFilename],
+      { timeout: 10_000 }
+    );
+    const saved = await page.evaluate(
+      (index) => (window.__IRONCLAW_SMOKE_SAVED_FILES__ || [])[index],
+      beforeCount
+    );
+    if (!saved?.contentsBase64) {
+      throw new Error(`${label} export did not call save_bytes_dialog`);
+    }
+    return Buffer.from(saved.contentsBase64, 'base64');
+  }
+
+  const markdownExport = (
+    await downloadAssistantExport('Markdown', 'assistant-response.md')
+  ).toString('utf8');
+  if (!markdownExport.includes('# Services agreement') || !markdownExport.includes('## Scope')) {
+    throw new Error(`Markdown export lost the assistant draft:\n${markdownExport}`);
+  }
+
+  const htmlExport = (await downloadAssistantExport('HTML', 'assistant-response.html')).toString(
+    'utf8'
+  );
+  if (
+    !htmlExport.startsWith('<!doctype html>') ||
+    !htmlExport.includes('<h1>Services agreement</h1>') ||
+    !htmlExport.includes('<h2>Scope</h2>')
+  ) {
+    throw new Error(`HTML export did not render markdown headings:\n${htmlExport}`);
+  }
+
+  const pdfExport = await downloadAssistantExport('PDF', 'assistant-response.pdf');
+  const pdfText = pdfExport.toString('latin1');
+  if (
+    !pdfText.startsWith('%PDF-1.4') ||
+    !pdfText.includes('SERVICES AGREEMENT') ||
+    !pdfText.includes('startxref')
+  ) {
+    throw new Error(`PDF export is not a readable PDF work product: ${pdfText.slice(0, 200)}`);
+  }
+
+  const docxExport = await downloadAssistantExport('DOCX', 'assistant-response.docx');
+  const docxText = docxExport.toString('utf8');
+  if (
+    docxExport[0] !== 0x50 ||
+    docxExport[1] !== 0x4b ||
+    !docxText.includes('word/document.xml') ||
+    !docxText.includes('Services agreement') ||
+    !docxText.includes('Prepared from the uploaded template')
+  ) {
+    throw new Error(`DOCX export is not a parseable Word package: ${docxText.slice(0, 300)}`);
+  }
+
+  const jsonExport = JSON.parse(
+    (await downloadAssistantExport('JSON', 'assistant-response.json')).toString('utf8')
+  );
+  if (
+    jsonExport.role !== 'assistant' ||
+    !String(jsonExport.content || '').includes('Services agreement')
+  ) {
+    throw new Error(`JSON export lost assistant content: ${JSON.stringify(jsonExport)}`);
+  }
+
+  const threadMarkdownExport = (
+    await downloadAssistantExport('Thread MD', 'ironclaw-chat-thread.md')
+  ).toString('utf8');
+  if (
+    !threadMarkdownExport.includes('Draft a services agreement from this attachment.') ||
+    !threadMarkdownExport.includes('services-template.docx') ||
+    !threadMarkdownExport.includes('pricing-model.xlsx')
+  ) {
+    throw new Error(`Thread Markdown export lost prompt or attachments:\n${threadMarkdownExport}`);
+  }
+
+  const threadJsonExport = JSON.parse(
+    (await downloadAssistantExport('Thread JSON', 'ironclaw-chat-thread.json')).toString('utf8')
+  );
+  const exportedAttachmentNames = JSON.stringify(threadJsonExport);
+  if (
+    threadJsonExport.thread?.message_count < 2 ||
+    !exportedAttachmentNames.includes('services-template.docx') ||
+    !exportedAttachmentNames.includes('pricing-model.xlsx') ||
+    exportedAttachmentNames.includes('data_base64')
+  ) {
+    throw new Error(
+      `Thread JSON export lost reload-safe attachment metadata:\n${exportedAttachmentNames}`
+    );
+  }
 
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat/thread-fail`, {
     waitUntil: 'domcontentloaded'

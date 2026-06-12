@@ -94,7 +94,7 @@ Escalate first-run testing from "gateway outage copy looks sane" to the more sub
 ### Still RED
 
 - Live connector OAuth/read-only tool calls are still not proven with active accounts.
-- Real in-app work-product generation from attached PDF/DOCX/XLSX inputs still needs the next hostile pass.
+- Live model-quality generation from real PDF/DOCX/XLSX inputs still needs active gateway/account evidence; the rendered app mechanics are covered by the Phase 3 smoke below.
 
 ### Risks
 
@@ -103,10 +103,55 @@ Escalate first-run testing from "gateway outage copy looks sane" to the more sub
 ### Next Agent Should Start Here
 
 1. Run live connector OAuth/read-only setup with active token evidence, or document exact backend blockers.
-2. Run hostile work-product scenarios inside the app: PDF-to-DOCX agreement draft, XLSX analysis, CSV export, MD/HTML export, and reload persistence.
+2. Run live model-quality work-product scenarios with active NEAR AI Cloud execution: PDF-to-DOCX agreement draft, XLSX analysis, CSV export, MD/HTML export, and reload persistence.
 
 ### Do Not Touch
 
 - Do not make fallback/synthetic NEAR rows actionable before backend provider truth resolves.
 - Do not allow empty registry connector cards to call install/activate lifecycle endpoints.
 - Do not expose old BYO provider setup as the normal desktop onboarding path.
+
+## Handoff: Phase 3 - Rendered Work-Product File Matrix
+
+Status: YELLOW
+Owner lane: Static UI / Work Product / Hostile QA
+
+### Goal
+
+Escalate work-product proof from unit-level extractors/export builders to rendered app behavior: real file inputs through the composer, reload-safe attachment metadata, hidden embedded text, preview, and desktop-native save bytes for every assistant export format.
+
+### Changed
+
+- `scripts/smoke-webui-static.mjs`: added dependency-free stored-ZIP DOCX/XLSX fixtures so the rendered composer ingests valid Office documents, not only text-ish payloads and a PDF.
+- `scripts/smoke-webui-static.mjs`: the Tauri shim now implements `save_bytes_dialog`, records the exported base64 bytes, and verifies those bytes after clicking the actual assistant export menu.
+- `scripts/smoke-webui-static.mjs`: expanded the chat/work-product smoke to assert extracted text from PDF, DOCX, and XLSX reaches the Reborn message payload, durable attachment manifests preserve filenames without base64, embedded document text stays out of the visible transcript, preview shows retained text on demand, and exports are parseable.
+
+### Verified
+
+- `npm run smoke:webui-static`: passed with rendered composer upload of PDF, valid DOCX, valid XLSX, Markdown, JSON, HTML, and corrupt DOCX rejection.
+- The same smoke clicked the actual assistant `Export` menu and verified desktop-native save bytes for Markdown, HTML, PDF, DOCX, JSON, Thread MD, and Thread JSON.
+
+### Evidence
+
+- Rendered attachment proof includes `services-template.docx` extracted marker `MSA-CLAUSE-17` and `pricing-model.xlsx` extracted row `Enterprise\t42000` in the posted Reborn payload.
+- Export proof checks include PDF `%PDF-1.4` + `startxref`, DOCX `PK` + `word/document.xml`, structured assistant JSON, whole-thread Markdown with attachment names, and whole-thread JSON without `data_base64`.
+
+### Still RED
+
+- Live connector OAuth/read-only tool calls are still not proven with active accounts.
+- Live model-quality generation from the uploaded documents is still not proven; the smoke uses a deterministic mocked assistant response to prove the app surfaces and persistence/export mechanics.
+
+### Risks
+
+- The rendered smoke is heavier now because it exercises real PDF/DOCX/XLSX extraction and seven export actions. It is intentionally hostile but may need timeout tuning if CI hardware is slow.
+
+### Next Agent Should Start Here
+
+1. Run live connector OAuth/read-only setup with active token evidence, or document exact backend blockers.
+2. Run live model-quality work-product scenarios with active NEAR AI Cloud execution and inspect the generated agreement/spreadsheet/document quality, not just the UI mechanics.
+
+### Do Not Touch
+
+- Do not reduce work-product proof back to attachment chips alone.
+- Do not treat browser anchor downloads as desktop proof; desktop exports must traverse `save_bytes_dialog`.
+- Do not allow exported thread JSON to include base64 file payloads.
