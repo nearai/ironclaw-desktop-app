@@ -564,3 +564,63 @@ Close the repeated product complaint that users cannot tell what model IronClaw 
 - Do not bury the active model selector back inside expanded provider rows.
 - Do not expose hidden provider-key surfaces such as OpenRouter/Anthropic in normal desktop Settings.
 - Do not claim model-selection support without rendered request evidence through `/api/webchat/v2/llm/list-models` and `/api/webchat/v2/llm/active`.
+
+## Handoff: Phase 11 - Connector Setup Modal Design Contract
+
+Status: YELLOW
+Owner lane: Static UI / Connections / Connector Setup / Design-hostile QA
+
+### Goal
+
+Escalate the Connections pass from route correctness to actual setup-surface quality. The Gmail setup drawer/modal is the first thing a user sees when trying to make connectors useful, so it must stop looking like a legacy dark-mode leftover, use the shared v2 input language, and remain covered by rendered connector-route evidence.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/configure-modal.js`: replaced legacy `iron-*`, `white/*`, red utility, and generic `v2-panel` modal styling with v2 tokenized surfaces, shared `Input` fields, clearer label hierarchy, an accessible dialog shell, and a stable `connector-setup-modal` test id.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/configure-modal.test.mjs`: added a focused VM component test proving the modal uses the shared `Input` component and does not reintroduce modal-local `text-white`, `text-iron-*`, `border-white`, or `bg-white/*` classes.
+- `scripts/smoke-webui-static.mjs`: extended the fixture-backed Gmail configure flow to open the rendered setup modal, assert no legacy dark-surface classes leak into the modal subtree, screenshot it, then continue proving manual token submission fails honestly instead of claiming a live connector.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js` and `crates/ironclaw_webui_v2_static/static/styles/tailwind.generated.css`: regenerated static artifacts for the desktop shell.
+
+### Verified
+
+- Focused component test: `node --test crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/configure-modal.test.mjs` passed 1/1.
+- `npm run smoke:webui-static`: passed; rendered Connections flow deep-links Gmail with a slash-prefixed catalog ref, confirms the lifecycle path stays bare, opens `Configure Gmail`, screenshots the modal, and proves failed setup remains an honest blocked state.
+- Rendered screenshot inspected: `output/playwright/static-connector-setup-modal.png` shows a cleaner centered Gmail setup dialog with shared inputs, tokenized text colors, and no old translucent dark-form fields.
+- In-app Browser sanity at `http://127.0.0.1:1420/v2/welcome`: title `IronClaw`, meaningful welcome content, zero console warnings/errors. This does not prove connector behavior because Browser cannot apply the smoke gateway fixture; connector behavior is proven by the fixture-backed Playwright smoke.
+- `npm run test:static`: passed 300/300.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, Reborn gateway healthy on port 3000, sidecar terminated cleanly.
+
+### Evidence
+
+- Rendered connector setup screenshot artifact: `output/playwright/static-connector-setup-modal.png`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-091156.log`.
+- Request evidence is in `scripts/smoke-webui-static.mjs`: the smoke fails unless Gmail and Slack deep links call bare lifecycle setup routes and no slash-prefixed catalog ref leaks into lifecycle requests.
+- The first stricter rendered modal smoke failed on shared `Button` primary `text-white`; the final source-level modal test still bans modal-local `text-white`, while rendered smoke focuses on legacy extension-surface classes that should never appear inside the setup shell.
+
+### Still RED
+
+- Live connector OAuth/read-only account use still needs active account evidence or exact backend blockers.
+- The wider Connections page behind the modal still looks too flat and low-confidence in fixture screenshots; registry cards, installed cards, setup guidance, and empty/blocked states need the same tokenized design pass.
+- In-app Browser welcome still reads dark/heavy overall; it is functional and console-clean, but not yet at the visual quality bar for a product people should trust immediately.
+- Live NEAR AI Cloud model-quality output from real documents still needs credentials and human/product-quality inspection.
+
+### Risks
+
+- This pass improves the setup modal shell, not the full connector auth backend. It deliberately preserves honest failed/blocked state after manual token submission.
+- The shared `Button` primary variant still uses `text-white`, which is acceptable for accent buttons. The modal source test prevents local legacy white text from creeping back into headings and labels.
+
+### Next Agent Should Start Here
+
+1. Run the next hostile Connections pass on the full `/extensions/installed` and registry surfaces: card hierarchy, blocked-state copy, Gmail/GCal/Notion/Slack/workspace setup guidance, and empty catalog behavior.
+2. Continue replacing compatibility styling in extension components with explicit v2 tokens and shared design-system controls, backed by rendered smoke screenshots.
+3. Run live connector OAuth/readiness probes with active accounts if credentials become available; otherwise keep the UI in honest blocked/needs-auth states and cite exact HTTP evidence.
+
+### Do Not Touch
+
+- Do not weaken canonical connector routing: slash-prefixed catalog ids remain catalog refs only; lifecycle calls must use bare extension names.
+- Do not claim connectors are connected from package-install success or weak activation responses.
+- Do not remove the rendered modal class guard from `npm run smoke:webui-static`; it caught real product drift in the path users hit when trying to connect Gmail.

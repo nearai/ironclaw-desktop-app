@@ -1879,6 +1879,24 @@ try {
   await page.getByText('auth needed', { exact: true }).first().waitFor({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Configure' }).first().click();
   await page.getByText('Configure Gmail', { exact: true }).waitFor({ timeout: 20_000 });
+  const connectorSetupModal = page.getByTestId('connector-setup-modal');
+  await connectorSetupModal.waitFor({ state: 'visible', timeout: 20_000 });
+  const legacySetupClasses = await connectorSetupModal.evaluate((modal) =>
+    [modal, ...Array.from(modal.querySelectorAll('*'))]
+      .flatMap((node) => String(node.getAttribute('class') || '').split(/\s+/))
+      .filter((className) =>
+        /^(text-iron-|border-white|bg-white\/|bg-white\[|v2-panel$)/.test(className)
+      )
+  );
+  if (legacySetupClasses.length > 0) {
+    throw new Error(
+      `connector setup modal leaked old dark styling classes: ${legacySetupClasses.join(', ')}`
+    );
+  }
+  await page.screenshot({
+    path: 'output/playwright/static-connector-setup-modal.png',
+    fullPage: true
+  });
   await page.locator('input[type="password"]').fill('ya29.smoke-token');
   await page.locator('input[type="text"]').fill('Smoke Google');
   await page.getByRole('button', { name: 'Save' }).click();
