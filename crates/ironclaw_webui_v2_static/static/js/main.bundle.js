@@ -2746,13 +2746,7 @@ ${pe}`;if(C.current.gateKey!==Fe&&(C.current={gateKey:Fe,credentialRef:null,inFl
 
           <div className="px-1 text-sm leading-6 text-[var(--v2-text-muted)]">
             ${e("onboarding.moreInSettings")}${" "}
-            <button
-              type="button"
-              className="font-medium text-[var(--v2-accent-text)] hover:underline"
-              onClick=${()=>t("/settings/inference")}
-            >
-              ${e("nav.settings")}
-            </button>
+            <span className="font-medium text-[var(--v2-text-strong)]"> ${e("nav.settings")} </span>
           </div>
 
           <div className="grid gap-3 lg:hidden">

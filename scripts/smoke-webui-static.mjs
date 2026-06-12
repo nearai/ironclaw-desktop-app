@@ -428,6 +428,7 @@ async function assertGatewayUnavailableWelcome(browser) {
         const authButtons = buttons.filter((button) =>
           /Sign in with GitHub|Use Google|Use NEAR Wallet|Use API key/i.test(button.text)
         );
+        const deadSettingsButtons = buttons.filter((button) => button.text === 'Settings');
         const authControlsInFirstViewport =
           authButtons.length >= 4 &&
           authButtons.every(
@@ -443,6 +444,7 @@ async function assertGatewayUnavailableWelcome(browser) {
             text
           ),
           hasProviderLeak: /OpenRouter|Anthropic|Claude|ChatGPT|Qwen|GLM/i.test(text),
+          deadSettingsButtonCount: deadSettingsButtons.length,
           overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
           body: text
         };
@@ -468,6 +470,15 @@ async function assertGatewayUnavailableWelcome(browser) {
       if (result.hasRawGatewayText || result.hasProviderLeak || result.overflow) {
         throw new Error(
           `gateway-unavailable ${viewport.label} welcome failed product-truth checks:\n${JSON.stringify(
+            result,
+            null,
+            2
+          )}`
+        );
+      }
+      if (result.deadSettingsButtonCount > 0) {
+        throw new Error(
+          `gateway-unavailable ${viewport.label} welcome exposed a dead Settings button:\n${JSON.stringify(
             result,
             null,
             2

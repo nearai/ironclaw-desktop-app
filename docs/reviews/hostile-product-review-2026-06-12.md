@@ -331,3 +331,54 @@ Escalate from "the assistant reply exists" to "the generated work product is vis
 - Do not collapse generated document work product back into the normal assistant hairline reply.
 - Do not claim work-product support from chips alone; keep rendered upload, preview, reload, and export-byte proof.
 - Do not weaken the smoke width assertion without replacing it with better visual artifact proof.
+
+## Handoff: Phase 7 - Remove Dead First-Run Settings Affordance
+
+Status: YELLOW
+Owner lane: Static UI / Design-hostile QA
+
+### Goal
+
+Close the hostile-design RED found during the in-app Browser pass: gateway-offline first-run rendered a `Settings` button even though unauthenticated users were redirected back to `/welcome`, making the control look actionable while doing nothing useful.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/onboarding/onboarding-page.js`: changed the inline `Settings` affordance from a button to non-clickable emphasized text on the first-run page.
+- `scripts/smoke-webui-static.mjs`: gateway-unavailable welcome smoke now fails if a dead `Settings` button appears on mobile or desktop.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js` and `crates/ironclaw_webui_v2_static/static/styles/tailwind.generated.css`: regenerated static artifacts for the desktop shell.
+
+### Verified
+
+- `npm run smoke:webui-static`: passed with the new no-dead-Settings-button assertion.
+- `npm run test:static`: passed 295/295.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, Reborn gateway healthy on port 3000, sidecar terminated cleanly.
+
+### Evidence
+
+- The same rendered first-run smoke still verifies all four auth controls are disabled and visible in the first viewport while gateway is unavailable.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-081141.log`.
+
+### Still RED
+
+- Live connector OAuth/read-only account use still needs active account evidence.
+- Live NEAR AI Cloud model-quality output from real documents still needs credentials and human/product-quality inspection.
+- Authenticated Settings and Connections still need a fresh design-hostile pass with live or fixture-backed gateway state.
+
+### Risks
+
+- This intentionally removes one misleading shortcut instead of solving unauthenticated access to Settings. If product wants Settings reachable before auth, that should be built as a real public setup route with its own routing contract.
+
+### Next Agent Should Start Here
+
+1. Run an authenticated/fixture-backed design-hostile pass on Connections and Settings.
+2. Prove connector OAuth/readiness with active accounts or record exact backend blockers.
+3. Exercise live NEAR AI Cloud work-product generation quality once credentials are available.
+
+### Do Not Touch
+
+- Do not reintroduce a first-run `Settings` button unless the target route is reachable in the same auth/gateway state.
+- Do not make disabled or unreachable setup controls look primary/actionable.

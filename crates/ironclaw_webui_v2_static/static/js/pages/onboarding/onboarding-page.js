@@ -467,13 +467,7 @@ export function OnboardingPage() {
 
           <div className="px-1 text-sm leading-6 text-[var(--v2-text-muted)]">
             ${t('onboarding.moreInSettings')}${' '}
-            <button
-              type="button"
-              className="font-medium text-[var(--v2-accent-text)] hover:underline"
-              onClick=${() => navigate('/settings/inference')}
-            >
-              ${t('nav.settings')}
-            </button>
+            <span className="font-medium text-[var(--v2-text-strong)]"> ${t('nav.settings')} </span>
           </div>
 
           <div className="grid gap-3 lg:hidden">
