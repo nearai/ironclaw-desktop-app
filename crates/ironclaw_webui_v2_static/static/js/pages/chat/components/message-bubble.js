@@ -33,6 +33,7 @@ const ROLE_STYLES = {
   error:
     'mx-auto rounded-[18px] border border-red-400/20 bg-red-500/10 px-4 py-3 text-center text-red-200'
 };
+const COMPACT_ATTACHMENT_LIMIT = 3;
 
 function formatTimestamp(value) {
   if (!value) return '';
@@ -97,9 +98,38 @@ function attachmentEvidenceLabel(att = {}) {
       ? 'Model-read text retained, truncated'
       : 'Model-read text retained';
   }
+  if (att.modelReadable === true) return 'Model-readable payload retained';
   if (status === 'content_omitted_message_budget') return 'Sent as file metadata';
   if (status === 'extracted_text_truncated') return 'Preview text truncated';
   return 'Attachment sent';
+}
+
+function shouldCompactAttachmentStack(role, attachments) {
+  return (
+    role === 'user' && Array.isArray(attachments) && attachments.length > COMPACT_ATTACHMENT_LIMIT
+  );
+}
+
+function visibleAttachmentsForMessage(role, attachments, expanded = false) {
+  const list = Array.isArray(attachments) ? attachments : [];
+  if (!shouldCompactAttachmentStack(role, list) || expanded) return list;
+  return list.slice(0, COMPACT_ATTACHMENT_LIMIT);
+}
+
+function attachmentStackSummary(attachments = []) {
+  const list = Array.isArray(attachments) ? attachments : [];
+  const readable = list.filter(
+    (att) => att?.extractedText || att?.embedded_text || att?.modelReadable === true
+  ).length;
+  if (readable === list.length && list.length > 0) return 'All files have model-readable text';
+  if (readable > 0) return `${readable} files have model-readable text`;
+  return 'File metadata retained';
+}
+
+function attachmentStackClass(compact = false) {
+  return compact
+    ? 'mt-2 flex flex-col gap-1.5 rounded-[14px] border border-signal/20 bg-white/5 p-2'
+    : 'mt-2 flex flex-col gap-1.5';
 }
 
 /* Collapsible provider-reasoning summary. Collapsed by default so the
@@ -145,6 +175,7 @@ export function MessageBubble({ message, messages = [], onRetry }) {
   } = message;
   const isUser = role === 'user';
   const [copied, setCopied] = React.useState(false);
+  const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
   // Hook order: declared with the other hooks, before every role-based
   // early return below (see the crash note on `copy`).
   const [attachmentPreview, setAttachmentPreview] = React.useState(null);
@@ -213,6 +244,11 @@ export function MessageBubble({ message, messages = [], onRetry }) {
   const showActions = (role === 'assistant' || role === 'user') && !isOptimistic;
   const displayContent = messageContentForDisplay({ role, content, attachments });
   const isAssistantWorkProduct = assistantResponseLooksLikeWorkProduct(role, displayContent);
+  const compactAttachments = shouldCompactAttachmentStack(role, attachments);
+  const visibleAttachments = visibleAttachmentsForMessage(role, attachments, attachmentsExpanded);
+  const hiddenAttachmentCount = Array.isArray(attachments)
+    ? attachments.length - visibleAttachments.length
+    : 0;
 
   return html`
     <div className=${messageOuterClass(isUser, isAssistantWorkProduct)}>
@@ -248,8 +284,21 @@ export function MessageBubble({ message, messages = [], onRetry }) {
           ${attachments &&
           attachments.length > 0 &&
           html`
-            <div className="mt-2 flex flex-col gap-1.5">
-              ${attachments.map((att, i) => {
+            <div
+              className=${attachmentStackClass(compactAttachments)}
+              data-testid=${compactAttachments ? 'compact-attachment-stack' : 'attachment-stack'}
+            >
+              ${compactAttachments &&
+              html`
+                <div className="flex flex-wrap items-center gap-2 px-1 pb-1 text-xs">
+                  <span className="inline-flex items-center gap-1.5 font-medium text-iron-100">
+                    <${Icon} name="file" className="h-3.5 w-3.5 text-signal" />
+                    ${attachments.length} files attached
+                  </span>
+                  <span className="text-iron-400">${attachmentStackSummary(attachments)}</span>
+                </div>
+              `}
+              ${visibleAttachments.map((att, i) => {
                 const evidenceLabel = attachmentEvidenceLabel(att);
                 return html`
                   <button
@@ -277,6 +326,34 @@ export function MessageBubble({ message, messages = [], onRetry }) {
                   </button>
                 `;
               })}
+              ${compactAttachments &&
+              hiddenAttachmentCount > 0 &&
+              html`
+                <button
+                  type="button"
+                  onClick=${() => setAttachmentsExpanded(true)}
+                  className="v2-button mt-0.5 inline-flex w-full items-center justify-center gap-1 rounded-[10px] border border-signal/25 bg-signal/10 px-3 py-2 text-xs font-medium text-signal hover:bg-signal/15"
+                  aria-label=${`Show ${hiddenAttachmentCount} more attached files`}
+                  data-testid="attachment-stack-expand"
+                >
+                  Show ${hiddenAttachmentCount} more files
+                  <${Icon} name="chevron" className="h-3 w-3 -rotate-90" />
+                </button>
+              `}
+              ${compactAttachments &&
+              attachmentsExpanded &&
+              html`
+                <button
+                  type="button"
+                  onClick=${() => setAttachmentsExpanded(false)}
+                  className="v2-button mt-0.5 inline-flex w-full items-center justify-center gap-1 rounded-[10px] border border-iron-700 bg-transparent px-3 py-2 text-xs font-medium text-iron-300 hover:text-iron-100"
+                  aria-label="Show fewer attached files"
+                  data-testid="attachment-stack-collapse"
+                >
+                  Show fewer files
+                  <${Icon} name="chevron" className="h-3 w-3 rotate-90" />
+                </button>
+              `}
             </div>
             <${AttachmentPreviewModal}
               open=${Boolean(attachmentPreview)}

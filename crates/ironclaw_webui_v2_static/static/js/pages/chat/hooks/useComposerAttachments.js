@@ -44,6 +44,10 @@ export function useComposerAttachments() {
     setAttachments((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   }, []);
 
+  const dropAttachment = React.useCallback((id) => {
+    setAttachments((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
   const addFiles = React.useCallback(
     async (files) => {
       const notices = [];
@@ -137,7 +141,7 @@ export function useComposerAttachments() {
             } else if (result.reason === 'encrypted' || result.reason === 'corrupt') {
               // A diagnosable container failure: don't ship an unreadable
               // blob — tell the user exactly how to fix it.
-              patchAttachment(id, { extraction: 'no-text' });
+              dropAttachment(id);
               notices.push(
                 result.reason === 'encrypted'
                   ? `${file.name} is password-protected — remove the protection and attach it again.`
@@ -159,13 +163,13 @@ export function useComposerAttachments() {
                 })
               });
             } else {
-              patchAttachment(id, { extraction: 'no-text' });
+              dropAttachment(id);
               notices.push(
                 `${file.name}: no readable text found (scanned or image-only) — it will not be sent.`
               );
             }
           } catch (_) {
-            patchAttachment(id, { extraction: 'no-text' });
+            dropAttachment(id);
             notices.push(`${file.name}: could not be read — it will not be sent.`);
           }
           continue;
@@ -202,7 +206,7 @@ export function useComposerAttachments() {
         setRejections((prev) => [...prev, ...notices].slice(-4));
       }
     },
-    [attachments, images, patchAttachment]
+    [attachments, dropAttachment, images, patchAttachment]
   );
 
   return {

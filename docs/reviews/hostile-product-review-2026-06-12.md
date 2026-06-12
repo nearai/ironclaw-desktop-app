@@ -440,3 +440,65 @@ Close the next rendered chat-design defect: after the work-product artifact fix,
 
 - Do not remove the rendered geometry smoke hooks without replacing them with stronger browser-visible proof.
 - Do not collapse transcript bottom padding back to generic `py-6`.
+
+## Handoff: Phase 9 - Compact Sent Attachment Stacks And Reject Truth
+
+Status: YELLOW
+Owner lane: Static UI / Chat Layout / Work Product / Design-hostile QA
+
+### Goal
+
+Escalate the chat-design review from "the composer no longer covers the transcript" to "a realistic services-agreement turn with many files stays readable and truthful." The hostile finding was that large sent attachment groups could dominate the viewport. The rendered rerun also exposed a deeper truth bug: rejected/corrupt files were filtered out of the Reborn payload but could still appear in the optimistic sent bubble.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/components/message-bubble.js`: user messages with more than three attachments now render as a compact stack with a file-count summary, first three files, and explicit expand/collapse controls.
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/components/message-bubble.js`: sent attachment evidence labels now understand `modelReadable` metadata instead of downgrading readable optimistic chips to metadata-only copy.
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/hooks/useComposerAttachments.js`: corrupt, encrypted, unreadable-large, and failed extraction files are removed from composer attachment state after the rejection notice, so they cannot look sendable.
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/hooks/useChat.js`: optimistic user bubbles are now built from the same sendable attachment set that Reborn receives; empty-payload/rejected attachments are excluded from the transcript.
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/message-bubble.test.mjs` and `crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/useChat-send.test.mjs`: added focused coverage for compact attachment stacks, `modelReadable` labels, and rejected attachments staying out of Reborn payloads and optimistic chips.
+- `scripts/smoke-webui-static.mjs`: rendered work-product smoke now targets the newest sent attachment stack, asserts it is compact by default, asserts rejected corrupt DOCX is absent, expands the stack, and proves all valid files become visible.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js` and `crates/ironclaw_webui_v2_static/static/styles/tailwind.generated.css`: regenerated static artifacts for the desktop shell.
+
+### Verified
+
+- Focused tests: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/message-bubble.test.mjs` passed 8/8.
+- Focused tests: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/useChat-send.test.mjs` passed 7/7.
+- `npm run smoke:webui-static`: passed; rendered chat smoke uploads PDF/DOCX/XLSX/MD/JSON/HTML plus corrupt DOCX, proves corrupt DOCX is rejected, proves the latest sent stack shows 7 valid files as 3 visible + `Show 4 more files`, expands to every valid file, previews retained text, and verifies export bytes.
+- `npm run test:static`: passed 298/298.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, Reborn gateway healthy on port 3000, sidecar terminated cleanly.
+
+### Evidence
+
+- Rendered collapsed screenshot artifact: `output/playwright/static-work-product-attachment-chat-collapsed.png`.
+- Rendered expanded/preview/export screenshot artifact: `output/playwright/static-work-product-attachment-chat.png`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-083736.log`.
+- The first stricter rendered inspection caught the old bug: the optimistic bubble said `8 files attached` after the corrupt DOCX was rejected. The current smoke now fails if that rejected file appears in the newest sent stack, collapsed or expanded.
+
+### Still RED
+
+- Live connector OAuth/read-only account use still needs active account evidence.
+- Live NEAR AI Cloud model-quality output from real documents still needs credentials and human/product-quality inspection.
+- Authenticated Settings and Connections still need a fresh design-hostile pass with live or fixture-backed gateway state.
+- Timeline-projected mocked attachment stacks can still show metadata-only summary copy when the fixture manifest does not carry embedded text; the payload path is proven, but richer backend projection would improve reload copy.
+
+### Risks
+
+- Hidden attachments require one click after send. This is the intended tradeoff for readability, but the expanded path and previews must remain tested.
+- Rejected extractable files now disappear from the composer after the rejection notice. That is more truthful, but users only have the notice as the explanation; future polish could add a rejected-files drawer if repeated failures need history.
+
+### Next Agent Should Start Here
+
+1. Run authenticated/fixture-backed design QA on Connections and Settings.
+2. Prove connector OAuth/readiness with active accounts or record exact backend blockers.
+3. Run live NEAR AI Cloud work-product generation quality on real PDF/DOCX/XLSX prompts once credentials are available.
+
+### Do Not Touch
+
+- Do not show all large sent attachment stacks by default again.
+- Do not render attachments in optimistic user bubbles unless they have a sendable payload.
+- Do not weaken the rendered smoke to target the first historical attachment stack; it must test the newest sent turn.

@@ -1436,12 +1436,34 @@ try {
       throw new Error(`static chat content missing embedded document text: ${embed}`);
     }
   }
-  const visibleChatBody = await page.locator('body').innerText();
-  for (const scenario of smokeAttachmentScenarios) {
-    if (!visibleChatBody.includes(scenario.name)) {
-      throw new Error(`static chat reload did not render attachment metadata: ${scenario.name}`);
+  const compactAttachmentStack = page.getByTestId('compact-attachment-stack').last();
+  await compactAttachmentStack.waitFor({ state: 'visible', timeout: 20_000 });
+  const compactStackText = await compactAttachmentStack.innerText();
+  const hiddenAttachmentCount = smokeAttachmentScenarios.length - 3;
+  if (
+    !compactStackText.includes(`${smokeAttachmentScenarios.length} files attached`) ||
+    !compactStackText.includes(`Show ${hiddenAttachmentCount} more files`)
+  ) {
+    throw new Error(`static chat did not compact the large attachment stack: ${compactStackText}`);
+  }
+  if (compactStackText.includes(corruptDocxScenario.name)) {
+    throw new Error(
+      `static chat rendered a rejected attachment in the sent stack: ${compactStackText}`
+    );
+  }
+  for (const scenario of smokeAttachmentScenarios.slice(0, 3)) {
+    if (!compactStackText.includes(scenario.name)) {
+      throw new Error(`static chat compact stack hid leading attachment: ${scenario.name}`);
     }
   }
+  for (const scenario of smokeAttachmentScenarios.slice(3)) {
+    if (compactStackText.includes(scenario.name)) {
+      throw new Error(
+        `static chat compact stack showed hidden attachment too early: ${scenario.name}`
+      );
+    }
+  }
+  let visibleChatBody = await page.locator('body').innerText();
   // Embedded document text is for the model, never for the transcript —
   // parseDurableAttachmentBlock must strip it from the rendered bubble.
   for (const embed of [
@@ -1454,6 +1476,29 @@ try {
       throw new Error(`embedded attachment text leaked into the visible transcript: ${embed}`);
     }
   }
+  await mkdir('output/playwright', { recursive: true });
+  await page.screenshot({
+    path: 'output/playwright/static-work-product-attachment-chat-collapsed.png',
+    fullPage: true
+  });
+  await compactAttachmentStack.getByTestId('attachment-stack-expand').click();
+  await compactAttachmentStack
+    .getByText(smokeAttachmentScenarios.at(-1).name, { exact: true })
+    .waitFor({
+      timeout: 5000
+    });
+  const expandedStackText = await compactAttachmentStack.innerText();
+  for (const scenario of smokeAttachmentScenarios) {
+    if (!expandedStackText.includes(scenario.name)) {
+      throw new Error(`static chat expand did not reveal attachment metadata: ${scenario.name}`);
+    }
+  }
+  if (expandedStackText.includes(corruptDocxScenario.name)) {
+    throw new Error(
+      `static chat expand revealed a rejected attachment in the sent stack: ${expandedStackText}`
+    );
+  }
+  visibleChatBody = await page.locator('body').innerText();
 
   // Chip click opens the document preview with the captured embedded text;
   // Escape closes it and the text leaves the transcript again.
@@ -1475,7 +1520,6 @@ try {
   if (bodyAfterPreview.includes('INVOICE 7741')) {
     throw new Error('preview text remained in the transcript after closing the modal');
   }
-  await mkdir('output/playwright', { recursive: true });
   await page.screenshot({
     path: 'output/playwright/static-work-product-attachment-chat.png',
     fullPage: true
