@@ -12,7 +12,7 @@
   import { briefing } from '$lib/stores/briefing.svelte';
   import { openLoops } from '$lib/stores/open-loops.svelte';
   import Icon from './Icon.svelte';
-  import MarkdownView from './MarkdownView.svelte';
+  import MarkdownView from './LazyMarkdownView.svelte';
 
   let { onRegenerate }: { onRegenerate: () => void } = $props();
 

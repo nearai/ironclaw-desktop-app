@@ -1,15 +1,15 @@
 export const EXTENSIONS_TABS = [
-  { id: 'installed', label: 'Installed', icon: 'bolt' },
-  { id: 'channels', label: 'Channels', icon: 'send' },
-  { id: 'mcp', label: 'MCP Servers', icon: 'pulse' },
-  { id: 'registry', label: 'Registry', icon: 'plus' }
+  { id: 'installed', label: 'My apps', icon: 'bolt' },
+  { id: 'channels', label: 'Messaging', icon: 'send' },
+  { id: 'mcp', label: 'Knowledge', icon: 'pulse' },
+  { id: 'registry', label: 'Browse', icon: 'plus' }
 ];
 
 export const KIND_LABELS = {
-  wasm_tool: 'WASM Tool',
-  wasm_channel: 'Channel',
-  mcp_server: 'MCP Server',
-  first_party: 'First-party',
+  wasm_tool: 'Tool',
+  wasm_channel: 'Messaging app',
+  mcp_server: 'Knowledge app',
+  first_party: 'Built-in',
   system: 'System',
   channel_relay: 'Relay'
 };

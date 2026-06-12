@@ -5,6 +5,18 @@ import { MessageBubble } from './message-bubble.js';
 import { Icon } from '../../../design-system/icons.js';
 import { groupMessages } from '../lib/message-groups.js';
 
+function messageListScrollClass() {
+  return 'flex flex-1 overflow-y-auto px-4 pb-24 pt-6 sm:px-5 sm:pb-28 lg:px-8';
+}
+
+function messageListContentClass() {
+  return 'mx-auto flex w-full max-w-5xl flex-col gap-5';
+}
+
+function jumpToLatestClass() {
+  return 'absolute bottom-0 left-1/2 z-20 inline-flex -translate-x-1/2 translate-y-1/2 items-center gap-1.5 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-3 py-1.5 text-xs font-medium text-[var(--v2-text-strong)] shadow-[0_10px_30px_-12px_rgba(0,0,0,0.7)] hover:border-[color-mix(in_srgb,var(--v2-accent)_40%,var(--v2-panel-border))]';
+}
+
 export function MessageList({
   messages,
   isLoading,
@@ -52,9 +64,10 @@ export function MessageList({
       <div
         ref=${containerRef}
         onScroll=${onScroll}
-        className="flex flex-1 overflow-y-auto px-4 py-6 sm:px-5 lg:px-8"
+        className=${messageListScrollClass()}
+        data-testid="chat-message-scroll"
       >
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-5">
+        <div className=${messageListContentClass()} data-testid="chat-message-content">
           ${hasMore &&
           html`
             <div className="text-center">
@@ -86,7 +99,8 @@ export function MessageList({
           type="button"
           onClick=${jumpToBottom}
           aria-label=${t('chat.jumpToLatest')}
-          className="absolute bottom-4 left-1/2 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-3 py-1.5 text-xs font-medium text-[var(--v2-text-strong)] shadow-[0_10px_30px_-12px_rgba(0,0,0,0.7)] hover:border-[color-mix(in_srgb,var(--v2-accent)_40%,var(--v2-panel-border))]"
+          className=${jumpToLatestClass()}
+          data-testid="chat-jump-to-latest"
         >
           <${Icon} name="arrowDown" className="h-3.5 w-3.5" />
           ${t('chat.jumpToLatest')}

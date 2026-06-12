@@ -96,6 +96,8 @@ test('connector helpers identify catalog refs without leaking slash-prefixed lif
   assert.equal(connectorKey({ packageRef: { id: 'channels/slack_tool' } }), 'slack');
   assert.equal(connectorFamily({ package_ref: { id: 'mcp-servers/notion' } }), 'notion');
   assert.equal(isGoogleConnector({ package_ref: { id: 'tools/gmail' } }), true);
+  assert.equal(isGoogleConnector({ package_ref: { id: 'tools/google_drive' } }), true);
+  assert.equal(isGoogleConnector({ package_ref: { id: 'tools/google_sheets' } }), true);
   assert.equal(isGoogleConnector({ package_ref: { id: 'mcp-servers/notion' } }), false);
 });
 

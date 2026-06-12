@@ -238,7 +238,7 @@ test('gatewayStatus fallback blocks BYO-key providers when desktop credentials a
     assert.equal(status.llm_model, 'gpt-4o');
     assert.equal(status.model_readiness, 'blocked');
     assert.equal(status.model_execution_failure_category, 'model_credentials_unavailable');
-    assert.match(status.model_execution_failure_summary, /OpenAI/i);
+    assert.match(status.model_execution_failure_summary, /non-NEAR model provider/i);
     assert.ok(calls.some((call) => call.command === 'has_llm_provider_credential'));
   } finally {
     globalThis.window = originalWindow;

@@ -630,24 +630,8 @@ async function desktopGatewayStatusFallback() {
 function providerDisplayLabel(providerId) {
   const raw = String(providerId || 'nearai').trim();
   const normalized = raw.toLowerCase().replace(/[\s]+/g, '').replace(/[_-]+/g, '_');
-  if (normalized === 'nearai') return 'NEAR.AI';
-  if (normalized === 'openai') return 'OpenAI';
-  if (normalized === 'openai_codex') return 'OpenAI Codex';
-  if (normalized === 'openrouter') return 'OpenRouter';
-  if (normalized === 'anthropic') return 'Anthropic';
-  if (normalized === 'google' || normalized === 'googleai') return 'Google';
-  if (normalized === 'glm' || normalized === 'glm4' || normalized.startsWith('glm-')) return 'GLM';
-  if (normalized === 'z_ai' || normalized === 'zai') return 'Z.AI';
-  return (
-    raw
-      .trim()
-      .toLowerCase()
-      .replace(/[-_]+/g, ' ')
-      .split(' ')
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(' ') || 'NEAR.AI'
-  );
+  if (normalized === 'nearai') return 'NEAR AI Cloud';
+  return 'A non-NEAR model provider';
 }
 
 // --- v2 auth surface ---

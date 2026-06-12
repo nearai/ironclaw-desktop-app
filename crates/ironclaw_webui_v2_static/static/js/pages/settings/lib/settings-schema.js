@@ -24,7 +24,9 @@ export const INFERENCE_FIELDS = [
         labelKey: 'settings.field.embeddingsProvider',
         descKey: 'settings.field.embeddingsProviderDesc',
         type: 'select',
-        options: ['openai', 'nearai']
+        options: ['nearai'],
+        optionLabels: { nearai: 'NEAR AI Cloud' },
+        allowDefault: false
       },
       {
         key: 'embeddings.model',

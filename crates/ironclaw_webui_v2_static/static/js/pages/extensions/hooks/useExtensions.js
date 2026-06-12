@@ -22,9 +22,28 @@ const OAUTH_SETUP_TIMEOUT_MS = 10 * 60 * 1000;
 function activationProvedConnected(res) {
   if (!res || typeof res !== 'object') return false;
   if (res.success === false) return false;
+  const blockers = Array.isArray(res.blockers) ? res.blockers : [];
+  if (
+    blockers.length > 0 ||
+    res.authenticated === false ||
+    res.credential_ready === false ||
+    res.account_ready === false ||
+    res.ready === false
+  ) {
+    return false;
+  }
   const phase = String(res.phase || res.activation_status || res.status || '').toLowerCase();
   if (['active', 'ready', 'connected'].includes(phase)) return true;
-  return res.success === true || res.active === true || res.activated === true;
+  const readiness = String(res.readiness || res.model_readiness || '').toLowerCase();
+  if (['active', 'ready', 'connected'].includes(readiness)) return true;
+  const hasCredentialProof =
+    res.authenticated === true ||
+    res.credential_ready === true ||
+    res.account_ready === true ||
+    res.ready === true;
+  const hasActivationProof =
+    res.active === true || res.activated === true || res.success === true || res.ok === true;
+  return hasCredentialProof && hasActivationProof;
 }
 
 function activationFailureMessage(res) {
@@ -42,22 +61,30 @@ export function useExtensions() {
   const statusQuery = useQuery({
     queryKey: ['gateway-status-extensions'],
     queryFn: gatewayStatus,
-    staleTime: 10_000
+    staleTime: 10_000,
+    retry: 1,
+    retryDelay: 600
   });
 
   const extensionsQuery = useQuery({
     queryKey: ['extensions'],
-    queryFn: fetchExtensions
+    queryFn: fetchExtensions,
+    retry: 1,
+    retryDelay: 600
   });
 
   const registryQuery = useQuery({
     queryKey: ['extension-registry'],
-    queryFn: fetchExtensionRegistry
+    queryFn: fetchExtensionRegistry,
+    retry: 1,
+    retryDelay: 600
   });
 
   const connectableChannelsQuery = useQuery({
     queryKey: ['connectable-channels'],
-    queryFn: listConnectableChannels
+    queryFn: listConnectableChannels,
+    retry: 1,
+    retryDelay: 600
   });
 
   const invalidate = React.useCallback(() => {
@@ -96,7 +123,7 @@ export function useExtensions() {
   const activateMutation = useMutation({
     mutationFn: ({ packageRef }) => activateExtension(packageRef),
     onSuccess: (res, { displayName }) => {
-      if (res.success) {
+      if (activationProvedConnected(res)) {
         setActionResult({
           type: 'success',
           message: res.message || res.instructions || `${displayName || 'Extension'} activated`
@@ -152,7 +179,13 @@ export function useExtensions() {
       e.kind !== 'mcp_server' && e.kind !== 'wasm_channel' && e.kind !== 'channel' && !e.installed
   );
 
-  const isLoading = extensionsQuery.isLoading || registryQuery.isLoading;
+  const loadError =
+    extensionsQuery.error ||
+    registryQuery.error ||
+    connectableChannelsQuery.error ||
+    statusQuery.error ||
+    null;
+  const isLoading = (extensionsQuery.isLoading || registryQuery.isLoading) && !loadError;
   const isBusy =
     installMutation.isPending || activateMutation.isPending || removeMutation.isPending;
 
@@ -166,6 +199,7 @@ export function useExtensions() {
     mcpRegistry,
     toolRegistry,
     registry,
+    loadError,
     connectableChannels,
     isLoading,
     isBusy,
@@ -253,8 +287,8 @@ export function useOauthSetup(packageRef) {
           Date.now() - startedAt > OAUTH_SETUP_TIMEOUT_MS
         ) {
           clearWatcher();
-          // Claude-parity: once the browser consent lands, finish the job —
-          // activate so the tools publish without a manual third step.
+          // Once browser consent lands, finish the job by activating so the
+          // tools publish without a manual third step.
           if (configured) {
             Promise.resolve(activateExtension(packageRef)).catch(() => {});
           }
@@ -329,10 +363,9 @@ export function usePairing(channel, options = {}) {
   };
 }
 
-// One-click connect — the Claude experience: a single action that chains
-// install -> read setup -> (DCR/OAuth: system-browser consent + poll) ->
-// activate. Manual-token connectors stop at 'needs-token' so the caller can
-// open the token form instead — never a fake Connect.
+// One-click connect: install -> read setup -> (DCR/OAuth: system-browser
+// consent + poll) -> activate. Manual-token connectors stop at 'needs-token'
+// so the caller can open the token form instead, never a fake Connect.
 export function useConnectExtension() {
   const queryClient = useQueryClient();
   const [connectState, setConnectState] = React.useState({});

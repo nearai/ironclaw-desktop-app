@@ -22,6 +22,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, fireEvent, waitFor } from '@testing-library/svelte';
 
+type MarkdownRendererOptions = {
+  markdown?: string;
+};
+
+function mountMarkdownStub(anchor: Node, markdown: string): Record<string, never> {
+  const el = document.createElement('div');
+  el.className = 'markdown';
+  el.textContent = markdown;
+  anchor.parentNode?.insertBefore(el, anchor);
+  return {};
+}
+
 // ---- Stubs (hoisted so vi.mock factories can capture them) -----------------
 const { connectionStub, toastsStub, surfaceRefreshStub, clientStub } = vi.hoisted(() => {
   type MemoryNode = {
@@ -96,12 +108,14 @@ vi.mock('$lib/stores/surface-refresh.svelte', () => ({
   surfaceRefresh: surfaceRefreshStub
 }));
 
-// MarkdownView is heavy (marked + DOMPurify + highlight.js) but the
-// route-level tests just want to confirm the rendered markdown lands
-// somewhere in the DOM. Letting the real component render is fine —
-// it's a self-contained pure transform with no external IO. The
-// assertion picks the rendered text out of the `.markdown` wrapper
-// the component emits.
+// MarkdownView has its own focused tests. This route spec only needs to prove
+// selected content reaches the renderer; a tiny stub avoids timing flakes from
+// dynamically importing the full markdown stack under the full vitest run.
+vi.mock('$lib/components/MarkdownView.svelte', async () => ({
+  default: function MarkdownViewStub(anchor: Node, props: MarkdownRendererOptions) {
+    return mountMarkdownStub(anchor, props?.markdown ?? '');
+  }
+}));
 
 // Import AFTER mocks land so the route picks them up.
 import MemoryPage from './+page.svelte';

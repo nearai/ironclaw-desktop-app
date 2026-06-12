@@ -25,20 +25,18 @@
     <script nonce="__IRONCLAW_CSP_NONCE__">
       (() => {
         try {
-          // Dark is the product default; light is an explicit opt-in via the
-          // sidebar toggle (persisted), not an OS-derived guess.
           const stored = localStorage.getItem("ironclaw:v2-theme");
-          const theme = stored === "light" ? "light" : "dark";
+          const theme = stored === "dark" ? "dark" : "light";
           document.documentElement.dataset.theme = theme;
           window.__IRONCLAW_INITIAL_THEME__ = theme;
         } catch (_) {
-          document.documentElement.dataset.theme = "dark";
-          window.__IRONCLAW_INITIAL_THEME__ = "dark";
+          document.documentElement.dataset.theme = "light";
+          window.__IRONCLAW_INITIAL_THEME__ = "light";
         }
       })();
     </script>
   </head>
-  <body class="min-h-[100dvh] bg-iron-950 text-iron-100 antialiased">
+  <body class="min-h-[100dvh] antialiased">
     <div id="v2-root"></div>
     <script nonce="__IRONCLAW_CSP_NONCE__">
       (() => {

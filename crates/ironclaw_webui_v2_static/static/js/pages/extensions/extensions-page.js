@@ -23,6 +23,7 @@ export function ExtensionsPage() {
     channelRegistry,
     mcpRegistry,
     toolRegistry,
+    loadError,
     connectableChannels,
     isLoading,
     isBusy,
@@ -76,7 +77,7 @@ export function ExtensionsPage() {
               (i) => html`
                 <div
                   key=${i}
-                  className="flex items-center justify-between border-t border-white/[0.06] py-4 first:border-0"
+                  className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-4 first:border-0"
                 >
                   <div>
                     <div className="v2-skeleton h-4 w-40 rounded" />
@@ -105,6 +106,7 @@ export function ExtensionsPage() {
       channels=${channels}
       connectableChannels=${connectableChannels}
       channelRegistry=${channelRegistry}
+      loadError=${loadError}
       onActivate=${activate}
       onConfigure=${handleConfigure}
       onRemove=${remove}
@@ -114,6 +116,7 @@ export function ExtensionsPage() {
     mcp: html`<${McpTab}
       mcpServers=${mcpServers}
       mcpRegistry=${mcpRegistry}
+      loadError=${loadError}
       onActivate=${activate}
       onConfigure=${handleConfigure}
       onRemove=${remove}
@@ -124,6 +127,7 @@ export function ExtensionsPage() {
       toolRegistry=${toolRegistry}
       channelRegistry=${channelRegistry}
       mcpRegistry=${mcpRegistry}
+      loadError=${loadError}
       onInstall=${install}
       onConfigure=${handleConfigure}
       isBusy=${isBusy}

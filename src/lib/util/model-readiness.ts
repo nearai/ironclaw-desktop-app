@@ -10,14 +10,13 @@ export type ModelExecutionReadiness = {
 
 const UNVERIFIED: ModelExecutionReadiness = {
   verified: false,
-  sendBlocked: true,
+  sendBlocked: false,
   tone: 'warning',
   label: 'Execution not verified',
-  buttonPrefix: 'Not ready',
+  buttonPrefix: 'Unverified',
   description:
-    'IronClaw has not proven this model can complete a reply. Configure or restart the gateway before sending.',
-  sendBlockReason:
-    'IronClaw has not proven this model can complete a reply. Configure or restart the gateway before sending.'
+    'This model is configured but not execution-tested yet. The first successful chat run will verify it.',
+  sendBlockReason: ''
 };
 
 const BLOCKED: ModelExecutionReadiness = {
@@ -123,7 +122,7 @@ function modelExecutionBlockReason(gatewayStatus: unknown): string {
       record.modelExecutionFailureSummary
     ]
       .map(stringValue)
-      .find(isBlockingText) ?? '';
+      .find((value) => isBlockingText(value) && !isGenericFirstRunVerificationReason(value)) ?? '';
 
   if (reason) return reason;
   if (category) return category.replaceAll('_', ' ');
@@ -173,4 +172,14 @@ function isBlockingText(value: string): boolean {
     return true;
   }
   return false;
+}
+
+function isGenericFirstRunVerificationReason(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized.includes('configured provider/model only') ||
+    normalized.includes('execution is verified by a successful webchat run') ||
+    normalized.includes('first successful chat run will verify') ||
+    normalized.includes('successful chat run will verify')
+  );
 }

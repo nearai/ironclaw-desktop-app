@@ -26,6 +26,111 @@ function dummyAttachmentScenario(name, mimeType, content, options = {}) {
   };
 }
 
+function crc32(bytes) {
+  const table =
+    crc32.table ||
+    (crc32.table = (() => {
+      const crcTable = new Uint32Array(256);
+      for (let n = 0; n < 256; n += 1) {
+        let c = n;
+        for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        crcTable[n] = c >>> 0;
+      }
+      return crcTable;
+    })());
+  let crc = 0xffffffff;
+  for (const byte of bytes) crc = table[(crc ^ byte) & 0xff] ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+// Stored-method ZIP builder: enough for realistic OOXML payloads without
+// pulling a test-only archive dependency into the static smoke.
+function buildStoredZipBuffer(entries) {
+  const encoder = new TextEncoder();
+  const chunks = [];
+  const central = [];
+  let offset = 0;
+
+  for (const [name, content] of entries) {
+    const nameBytes = encoder.encode(name);
+    const data = Buffer.isBuffer(content) ? content : encoder.encode(content);
+    const crc = crc32(data);
+    const local = new Uint8Array(30 + nameBytes.length + data.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint16(4, 20, true);
+    lv.setUint16(6, 0, true);
+    lv.setUint16(8, 0, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, data.length, true);
+    lv.setUint32(22, data.length, true);
+    lv.setUint16(26, nameBytes.length, true);
+    local.set(nameBytes, 30);
+    local.set(data, 30 + nameBytes.length);
+    chunks.push(local);
+
+    const header = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(header.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint16(4, 20, true);
+    cv.setUint16(6, 20, true);
+    cv.setUint16(8, 0, true);
+    cv.setUint16(10, 0, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, data.length, true);
+    cv.setUint32(24, data.length, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint32(42, offset, true);
+    header.set(nameBytes, 46);
+    central.push(header);
+    offset += local.length;
+  }
+
+  const centralStart = offset;
+  const centralSize = central.reduce((sum, header) => sum + header.length, 0);
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, entries.length, true);
+  ev.setUint16(10, entries.length, true);
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, centralStart, true);
+
+  return Buffer.concat([...chunks, ...central, eocd].map((chunk) => Buffer.from(chunk)));
+}
+
+function buildSmokeDocxBuffer() {
+  return buildStoredZipBuffer([
+    [
+      '[Content_Types].xml',
+      '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'
+    ],
+    [
+      'word/document.xml',
+      '<?xml version="1.0"?><w:document><w:body>' +
+        '<w:p><w:r><w:t>MASTER SERVICES AGREEMENT TEMPLATE</w:t></w:r></w:p>' +
+        '<w:p><w:r><w:t>MSA-CLAUSE-17 indemnity survives termination.</w:t></w:r></w:p>' +
+        '<w:p><w:r><w:t>Payment terms: Net 30 after invoice approval.</w:t></w:r></w:p>' +
+        '</w:body></w:document>'
+    ]
+  ]);
+}
+
+function buildSmokeXlsxBuffer() {
+  const shared =
+    '<sst><si><t>Plan</t></si><si><t>Amount</t></si><si><t>Enterprise</t></si><si><t>Renewal</t></si></sst>';
+  const sheet =
+    '<worksheet><sheetData>' +
+    '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>' +
+    '<row r="2"><c r="A2" t="s"><v>2</v></c><c r="B2"><v>42000</v></c></row>' +
+    '<row r="3"><c r="A3" t="s"><v>3</v></c><c r="B3"><v>12000</v></c></row>' +
+    '</sheetData></worksheet>';
+  return buildStoredZipBuffer([
+    ['xl/sharedStrings.xml', shared],
+    ['xl/worksheets/sheet1.xml', sheet]
+  ]);
+}
+
 // A structurally valid single-page PDF (correct xref offsets) that pdf.js can
 // parse — proves the composer's real extraction path in the rendered run.
 function buildMinimalPdfBuffer(text) {
@@ -168,6 +273,7 @@ function installTauriShim(page) {
 
       window.localStorage.setItem('ironclaw:desktop-gateway-origin', 'http://127.0.0.1:3000');
       window.sessionStorage.setItem('ironclaw_token', 'stale-token-from-previous-run');
+      window.__IRONCLAW_SMOKE_SAVED_FILES__ = [];
 
       function pick(obj, key) {
         return obj && typeof obj === 'object' && key in obj ? obj[key] : undefined;
@@ -183,6 +289,15 @@ function installTauriShim(page) {
             return 'desktop-token';
           case 'get_or_create_local_token':
             return 'local-token';
+          case 'save_bytes_dialog': {
+            const defaultFilename = pick(args, 'defaultFilename') || 'ironclaw-export.bin';
+            const contentsBase64 = pick(args, 'contentsBase64') || '';
+            window.__IRONCLAW_SMOKE_SAVED_FILES__.push({
+              defaultFilename,
+              contentsBase64
+            });
+            return `/tmp/${defaultFilename}`;
+          }
           case 'gateway_http_fetch': {
             const req = pick(args, 'request');
             if (!req?.url) throw new Error('missing gateway_http_fetch url');
@@ -254,6 +369,187 @@ function installTauriShim(page) {
   );
 }
 
+async function assertGatewayUnavailableWelcome(browser) {
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+  const staleGatewayRequests = [];
+  try {
+    await installTauriShim(page);
+    await page.route('http://127.0.0.1:3000/**', async (route) => {
+      staleGatewayRequests.push(route.request().url());
+      await route.abort();
+    });
+    await page.route(`${gatewayOrigin}/api/gateway/status`, async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          engine_v2_enabled: true,
+          restart_enabled: true,
+          llm_backend: 'nearai',
+          llm_model: 'auto',
+          model_execution_verified: false,
+          model_readiness: 'unverified'
+        })
+      });
+    });
+    await page.route(`${gatewayOrigin}/api/webchat/v2/llm/providers`, async (route) => {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ providers: [], active: null })
+      });
+    });
+
+    for (const viewport of [
+      { width: 390, height: 844, label: 'mobile' },
+      { width: 1400, height: 950, label: 'desktop' }
+    ]) {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.goto(`http://127.0.0.1:${port}${appBasePath}/welcome`, {
+        waitUntil: 'domcontentloaded'
+      });
+      await page
+        .getByText(
+          'IronClaw cannot reach the local sidecar yet. Restart the app or start the sidecar, then sign in with NEAR AI Cloud.',
+          { exact: true }
+        )
+        .waitFor({ timeout: 20_000 });
+      const result = await page.evaluate(() => {
+        const text = document.body?.innerText || '';
+        const buttons = Array.from(document.querySelectorAll('button')).map((button) => ({
+          text: (button.innerText || button.getAttribute('aria-label') || '').trim(),
+          disabled: button.disabled,
+          rect: (() => {
+            const rect = button.getBoundingClientRect();
+            return {
+              bottom: Math.round(rect.bottom),
+              top: Math.round(rect.top)
+            };
+          })()
+        }));
+        const authButtons = buttons.filter((button) =>
+          /Sign in with GitHub|Use Google|Use NEAR Wallet/i.test(button.text)
+        );
+        const deadSettingsButtons = buttons.filter((button) => button.text === 'Settings');
+        const authControlsInFirstViewport =
+          authButtons.length >= 3 &&
+          authButtons.every(
+            (button) =>
+              button.rect.top >= 0 && button.rect.bottom <= document.documentElement.clientHeight
+          );
+        return {
+          authButtonCount: authButtons.length,
+          authControlsInFirstViewport,
+          allAuthButtonsDisabled:
+            authButtons.length >= 3 && authButtons.every((button) => button.disabled),
+          hasRawGatewayText: /fetch failed|Gateway proxy failed|ECONNREFUSED|Failed to fetch/i.test(
+            text
+          ),
+          hasProviderLeak: /OpenRouter|Anthropic|Claude|ChatGPT|Qwen|GLM/i.test(text),
+          deadSettingsButtonCount: deadSettingsButtons.length,
+          overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+          body: text
+        };
+      });
+      if (!result.allAuthButtonsDisabled) {
+        throw new Error(
+          `gateway-unavailable ${viewport.label} welcome left auth controls actionable:\n${JSON.stringify(
+            result,
+            null,
+            2
+          )}`
+        );
+      }
+      if (!result.authControlsInFirstViewport) {
+        throw new Error(
+          `gateway-unavailable ${viewport.label} welcome pushed auth controls below the first viewport:\n${JSON.stringify(
+            result,
+            null,
+            2
+          )}`
+        );
+      }
+      if (result.hasRawGatewayText || result.hasProviderLeak || result.overflow) {
+        throw new Error(
+          `gateway-unavailable ${viewport.label} welcome failed product-truth checks:\n${JSON.stringify(
+            result,
+            null,
+            2
+          )}`
+        );
+      }
+      if (result.deadSettingsButtonCount > 0) {
+        throw new Error(
+          `gateway-unavailable ${viewport.label} welcome exposed a dead Settings button:\n${JSON.stringify(
+            result,
+            null,
+            2
+          )}`
+        );
+      }
+    }
+    if (staleGatewayRequests.length > 0) {
+      throw new Error(
+        `gateway-unavailable welcome requested stale :3000 origin: ${staleGatewayRequests.join(
+          ', '
+        )}`
+      );
+    }
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+async function assertBrowserPreviewUnavailableWelcome(browser) {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
+  try {
+    await page.goto(`http://127.0.0.1:${port}${appBasePath}/welcome`, {
+      waitUntil: 'domcontentloaded'
+    });
+    await page
+      .getByText('Static preview needs a gateway', { exact: true })
+      .waitFor({ timeout: 20_000 });
+    await page
+      .getByText(
+        'This browser preview cannot start the desktop sidecar. Run the packaged app or npm run tauri dev for sign-in; use npm run dev:webui-static only for UI smoke tests against an already running gateway.',
+        { exact: true }
+      )
+      .waitFor({ timeout: 20_000 });
+    const result = await page.evaluate(() => {
+      const text = document.body?.innerText || '';
+      const authButtons = Array.from(document.querySelectorAll('button'))
+        .map((button) => ({
+          text: (button.innerText || button.getAttribute('aria-label') || '').trim(),
+          disabled: button.disabled
+        }))
+        .filter((button) =>
+          /Sign in with GitHub|Use Google|Use NEAR Wallet|Use API key/i.test(button.text)
+        );
+      return {
+        authButtonCount: authButtons.length,
+        allAuthButtonsDisabled:
+          authButtons.length >= 3 && authButtons.every((button) => button.disabled),
+        hasDesktopRetryCopy: text.includes('Restart the app or start the sidecar'),
+        body: text
+      };
+    });
+    if (!result.allAuthButtonsDisabled || result.hasDesktopRetryCopy) {
+      throw new Error(
+        `browser-preview welcome did not explain static preview limits:\n${JSON.stringify(
+          result,
+          null,
+          2
+        )}`
+      );
+    }
+    await mkdir('output/playwright', { recursive: true });
+    await page.screenshot({
+      path: 'output/playwright/static-preview-gateway-unavailable.png',
+      fullPage: true
+    });
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 const server = spawn('node', ['scripts/serve-webui-static.mjs'], {
   env: {
     ...process.env,
@@ -278,6 +574,8 @@ try {
   proxyProbeGateway = await startProxyProbeGateway();
   await assertProxySurvivesAbortedSse();
   const browser = await chromium.launch({ headless: true });
+  await assertBrowserPreviewUnavailableWelcome(browser);
+  await assertGatewayUnavailableWelcome(browser);
   const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
   const errors = [];
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
@@ -357,6 +655,18 @@ try {
       'application/pdf',
       buildMinimalPdfBuffer('INVOICE 7741 TOTAL 432.50 VENDOR ACME'),
       { expectExtractedText: 'INVOICE 7741' }
+    ),
+    dummyAttachmentScenario(
+      'services-template.docx',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      buildSmokeDocxBuffer(),
+      { expectExtractedText: 'MSA-CLAUSE-17' }
+    ),
+    dummyAttachmentScenario(
+      'pricing-model.xlsx',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      buildSmokeXlsxBuffer(),
+      { expectExtractedText: 'Enterprise\t42000' }
     )
   ];
   // A corrupt OOXML package (zip magic, no central directory) must be
@@ -390,6 +700,57 @@ try {
   });
   const chatMessageRequests = [];
   const timelineRequests = [];
+  const llmProviderRequests = [];
+  const llmListModelRequests = [];
+  const llmActiveRequests = [];
+  const registryFixtures = {
+    gmail: {
+      id: 'gmail',
+      display_name: 'Gmail',
+      kind: 'wasm_tool',
+      description: 'Read, triage, draft, and prepare email work with approval gates.',
+      package_ref: { kind: 'extension', id: 'tools/gmail' },
+      installed: false,
+      keywords: ['email', 'google', 'inbox']
+    },
+    'google-calendar': {
+      id: 'google-calendar',
+      display_name: 'Google Calendar',
+      kind: 'wasm_tool',
+      description: 'Find meetings, protect focus blocks, and prepare schedule changes.',
+      package_ref: { kind: 'extension', id: 'tools/google_calendar' },
+      installed: false,
+      keywords: ['calendar', 'google', 'schedule']
+    },
+    slack: {
+      id: 'slack',
+      display_name: 'Slack',
+      kind: 'wasm_channel',
+      description: 'Summarize channels, prepare replies, and surface urgent asks.',
+      package_ref: { kind: 'extension', id: 'channels/slack' },
+      installed: false,
+      keywords: ['messages', 'team', 'channels']
+    },
+    telegram: {
+      id: 'telegram',
+      display_name: 'Telegram',
+      kind: 'wasm_channel',
+      description: 'Send scheduled digests and bot messages through Telegram.',
+      package_ref: { kind: 'extension', id: 'channels/telegram' },
+      installed: false,
+      keywords: ['bot', 'news', 'dm']
+    },
+    github: {
+      id: 'github',
+      display_name: 'GitHub',
+      kind: 'wasm_tool',
+      description: 'Watch releases, summarize changes, and route follow-up tasks.',
+      package_ref: { kind: 'extension', id: 'tools/github' },
+      installed: false,
+      keywords: ['releases', 'issues', 'code']
+    }
+  };
+  let registryEntriesPayload = [];
   await page.route(
     `${gatewayOrigin}/api/webchat/v2/threads/thread-smoke/messages`,
     async (route) => {
@@ -584,14 +945,55 @@ try {
     if (webchatPath === '/api/webchat/v2/extensions/registry') {
       await route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify({ entries: [] })
+        body: JSON.stringify({ entries: registryEntriesPayload })
       });
       return;
     }
     if (webchatPath === '/api/webchat/v2/llm/providers') {
+      llmProviderRequests.push({
+        url: route.request().url(),
+        active: llmProvidersPayload.active
+      });
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify(llmProvidersPayload)
+      });
+      return;
+    }
+    if (webchatPath === '/api/webchat/v2/llm/list-models') {
+      llmListModelRequests.push(route.request().postDataJSON());
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          models: ['auto', 'nearai:gpt-oss-120b', 'nearai:claude-sonnet-4.5']
+        })
+      });
+      return;
+    }
+    if (webchatPath === '/api/webchat/v2/llm/active') {
+      const body = route.request().postDataJSON();
+      llmActiveRequests.push(body);
+      llmProvidersPayload = {
+        ...llmProvidersPayload,
+        active: {
+          provider_id: body.provider_id,
+          model: body.model
+        }
+      };
+      gatewayStatusPayload = {
+        ...gatewayStatusPayload,
+        llm_backend: body.provider_id,
+        llm_model: body.model,
+        model_execution_verified: true,
+        model_readiness: 'verified'
+      };
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          active: llmProvidersPayload.active
+        })
       });
       return;
     }
@@ -844,6 +1246,198 @@ try {
     throw new Error('desktop bootstrap failed: login token form is still visible');
   }
 
+  async function assertNoLegacyConnectionsClasses(rootLocator, label) {
+    const legacyClasses = await rootLocator.evaluate((root) =>
+      [root, ...Array.from(root.querySelectorAll('*'))]
+        .flatMap((node) => String(node.getAttribute('class') || '').split(/\s+/))
+        .filter((className) =>
+          /^(text-iron-|border-white|bg-white\/|bg-white\[|text-signal|text-mint|border-mint|bg-mint|text-red-|border-red-|bg-red-|v2-panel$)/.test(
+            className
+          )
+        )
+    );
+    if (legacyClasses.length > 0) {
+      throw new Error(
+        `${label} leaked legacy Connections styling classes: ${legacyClasses.join(', ')}`
+      );
+    }
+  }
+
+  const beforeEmptyCatalogRequestCount = connectorRequests.length;
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/extensions/registry`, {
+    waitUntil: 'domcontentloaded'
+  });
+  await page.getByText('Catalog unavailable', { exact: true }).waitFor({ timeout: 20_000 });
+  await page
+    .getByText('This gateway did not expose installable app catalog entries yet.', {
+      exact: false
+    })
+    .waitFor({ timeout: 20_000 });
+  const acceptanceConnectionNames = [
+    'Gmail',
+    'Google Calendar',
+    'Google Drive',
+    'Google Sheets',
+    'Notion',
+    'Slack',
+    'Telegram',
+    'GitHub',
+    'Web & HTTP',
+    'Routines',
+    'Workspace files'
+  ];
+  for (const name of acceptanceConnectionNames) {
+    await page.getByRole('heading', { name, exact: true }).waitFor({ timeout: 20_000 });
+  }
+  const acceptanceWorkflowNames = [
+    'Daily news digest',
+    'Calendar prep assistant',
+    'Deployment health watcher',
+    'Competitor release tracker',
+    'AMA in Slack',
+    'CRM inbound tracker',
+    'Slack to Sheet bug logger',
+    'HN keyword monitor'
+  ];
+  for (const name of acceptanceWorkflowNames) {
+    await page.getByRole('heading', { name, exact: true }).waitFor({ timeout: 20_000 });
+  }
+  const acceptanceIconKinds = [
+    'gmail',
+    'google-calendar',
+    'google-drive',
+    'google-sheets',
+    'notion',
+    'slack',
+    'telegram',
+    'github',
+    'web',
+    'routine',
+    'workspace'
+  ];
+  const renderedConnectorIcons = await page
+    .locator('[data-testid="connector-app-icon"]')
+    .evaluateAll((icons) => icons.map((icon) => icon.getAttribute('data-connector-icon')));
+  for (const iconKind of acceptanceIconKinds) {
+    if (!renderedConnectorIcons.includes(iconKind)) {
+      throw new Error(
+        `empty registry did not render ${iconKind} connector favicon: ${renderedConnectorIcons.join(
+          ', '
+        )}`
+      );
+    }
+  }
+  const unavailableConnectorButtons = page.getByRole('button', { name: 'Not available' });
+  const unavailableConnectorCount = await unavailableConnectorButtons.count();
+  if (unavailableConnectorCount < 8) {
+    const visibleBody = await page.locator('body').innerText();
+    throw new Error(
+      `empty registry did not render disabled curated connector cards:\n${visibleBody}`
+    );
+  }
+  for (let index = 0; index < unavailableConnectorCount; index += 1) {
+    if (!(await unavailableConnectorButtons.nth(index).isDisabled())) {
+      throw new Error(`empty registry curated connector ${index} was actionable`);
+    }
+  }
+  if ((await page.getByRole('button', { name: 'Connect' }).count()) > 0) {
+    const visibleBody = await page.locator('body').innerText();
+    throw new Error(`empty registry exposed actionable synthetic Connect buttons:\n${visibleBody}`);
+  }
+  await assertNoLegacyConnectionsClasses(page.locator('body'), 'empty registry Connections');
+  await page.screenshot({
+    path: 'output/playwright/static-connections-registry-empty.png',
+    fullPage: true
+  });
+  const acceptanceWorkflowsPanel = page.getByTestId('acceptance-workflows');
+  await acceptanceWorkflowsPanel.scrollIntoViewIfNeeded();
+  const acceptanceWorkflowIconKinds = [
+    'gmail',
+    'google-calendar',
+    'google-drive',
+    'google-sheets',
+    'slack',
+    'telegram',
+    'github',
+    'web',
+    'routine'
+  ];
+  const renderedWorkflowIconKinds = await acceptanceWorkflowsPanel
+    .locator('[data-testid="connector-app-icon"]')
+    .evaluateAll((icons) => icons.map((icon) => icon.getAttribute('data-connector-icon')));
+  for (const iconKind of acceptanceWorkflowIconKinds) {
+    if (!renderedWorkflowIconKinds.includes(iconKind)) {
+      throw new Error(
+        `acceptance workflow chips did not render ${iconKind} connector favicon: ${renderedWorkflowIconKinds.join(
+          ', '
+        )}`
+      );
+    }
+  }
+  await page.screenshot({
+    path: 'output/playwright/static-acceptance-workflows.png',
+    fullPage: false
+  });
+  const emptyCatalogInstallRequests = connectorRequests
+    .slice(beforeEmptyCatalogRequestCount)
+    .filter((request) => request.url.endsWith('/api/webchat/v2/extensions/install'));
+  if (emptyCatalogInstallRequests.length > 0) {
+    throw new Error(
+      `empty registry triggered synthetic install requests:\n${JSON.stringify(
+        emptyCatalogInstallRequests,
+        null,
+        2
+      )}`
+    );
+  }
+
+  registryEntriesPayload = [
+    registryFixtures.gmail,
+    registryFixtures['google-calendar'],
+    registryFixtures.slack,
+    registryFixtures.telegram,
+    registryFixtures.github
+  ];
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/extensions/registry?catalog=partial`, {
+    waitUntil: 'domcontentloaded'
+  });
+  await page.getByText('Catalog loaded', { exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByText('Ready to connect', { exact: true }).first().waitFor({ timeout: 20_000 });
+  await page
+    .getByText('1 app missing from catalog', { exact: true })
+    .first()
+    .waitFor({ timeout: 20_000 });
+  const missingWorkflowSurfaces = await page
+    .locator('[data-workflow-surface-state="missing"]')
+    .count();
+  if (missingWorkflowSurfaces < 3) {
+    const visibleBody = await page.locator('body').innerText();
+    throw new Error(
+      `partial registry did not mark missing workflow connector chips:\n${visibleBody}`
+    );
+  }
+  await page.getByTestId('acceptance-workflows').scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: 'output/playwright/static-acceptance-workflows-partial-catalog.png',
+    fullPage: false
+  });
+  await page.getByLabel('Draft prompt for Daily news digest').click();
+  await page.waitForURL(`**${appBasePath}/chat`, { timeout: 20_000 });
+  const workflowDraftComposer = page.locator('textarea').first();
+  await workflowDraftComposer.waitFor({ timeout: 20_000 });
+  const workflowDraft = await workflowDraftComposer.inputValue();
+  if (
+    !workflowDraft.includes('Telegram digest') ||
+    !workflowDraft.includes('NEAR AI news') ||
+    !workflowDraft.includes('schedule the routine')
+  ) {
+    throw new Error(`workflow recipe did not prefill a useful chat draft: ${workflowDraft}`);
+  }
+  await page.screenshot({
+    path: 'output/playwright/static-acceptance-workflow-chat-prefill.png',
+    fullPage: true
+  });
+
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat`, {
     waitUntil: 'domcontentloaded'
   });
@@ -852,8 +1446,11 @@ try {
   if (!firstRunUrl.pathname.endsWith('/chat')) {
     throw new Error(`static chat front door did not stay on chat: ${page.url()}`);
   }
+  await page
+    .getByText('Connect NEAR AI Cloud before sending your first message.', { exact: true })
+    .waitFor({ timeout: 20_000 });
   const firstRunBody = await page.locator('body').innerText();
-  if (!firstRunBody.includes('Connect NEAR AI Cloud in Settings before sending.')) {
+  if (!firstRunBody.includes('Connect NEAR AI Cloud before sending your first message.')) {
     throw new Error(`static chat did not render honest setup-required copy:\n${firstRunBody}`);
   }
 
@@ -865,15 +1462,101 @@ try {
     }
   };
 
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/settings/inference`, {
+    waitUntil: 'domcontentloaded'
+  });
+  const activeModelPanel = page.getByTestId('active-model-panel');
+  await activeModelPanel.waitFor({ state: 'visible', timeout: 20_000 });
+  await activeModelPanel.getByText('Current model', { exact: true }).waitFor({ timeout: 10_000 });
+  await activeModelPanel.getByText('NEAR AI Cloud', { exact: true }).waitFor({ timeout: 10_000 });
+  await activeModelPanel
+    .locator('span')
+    .filter({ hasText: /^auto$/ })
+    .first()
+    .waitFor({
+      timeout: 10_000
+    });
+  const settingsModelSelect = activeModelPanel.getByLabel('Model');
+  await settingsModelSelect
+    .locator('option[value="nearai:gpt-oss-120b"]')
+    .waitFor({ state: 'attached', timeout: 10_000 });
+  await settingsModelSelect.selectOption('nearai:gpt-oss-120b');
+  await activeModelPanel.getByRole('button', { name: 'Apply' }).click();
+  await activeModelPanel
+    .locator('span')
+    .filter({ hasText: /^nearai:gpt-oss-120b$/ })
+    .first()
+    .waitFor({
+      timeout: 20_000
+    });
+  const latestModelListRequest = llmListModelRequests.at(-1);
+  if (
+    latestModelListRequest?.provider_id !== 'nearai' ||
+    latestModelListRequest?.adapter !== 'nearai'
+  ) {
+    throw new Error(
+      `settings model picker did not request NEAR AI Cloud models: ${JSON.stringify(
+        llmListModelRequests
+      )}`
+    );
+  }
+  const latestActiveRequest = llmActiveRequests.at(-1);
+  if (
+    latestActiveRequest?.provider_id !== 'nearai' ||
+    latestActiveRequest?.model !== 'nearai:gpt-oss-120b'
+  ) {
+    throw new Error(
+      `settings model picker did not set the active NEAR AI model: ${JSON.stringify(
+        llmActiveRequests
+      )}`
+    );
+  }
+  const settingsInferenceBody = await page.locator('body').innerText();
+  if (
+    settingsInferenceBody.includes('OpenRouter') ||
+    settingsInferenceBody.includes('deepseek/') ||
+    settingsInferenceBody.includes('Anthropic')
+  ) {
+    throw new Error(
+      `settings inference exposed provider-key complexity:\n${settingsInferenceBody}`
+    );
+  }
+  await mkdir('output/playwright', { recursive: true });
+  await page.screenshot({
+    path: 'output/playwright/static-settings-active-model.png',
+    fullPage: true
+  });
+
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat`, {
     waitUntil: 'domcontentloaded'
   });
   const modelControl = page.getByLabel('Chat model settings').first();
   await modelControl.waitFor({ timeout: 20_000 });
-  const modelControlText = await modelControl.innerText();
-  if (!modelControlText.includes('NEAR.AI · auto')) {
+  try {
+    await page.waitForFunction(
+      () => {
+        const control = document.querySelector('[aria-label="Chat model settings"]');
+        return control?.textContent?.includes('NEAR AI Cloud · nearai:gpt-oss-120b');
+      },
+      null,
+      { timeout: 20_000 }
+    );
+  } catch (err) {
+    const visibleBody = await page
+      .locator('body')
+      .innerText()
+      .catch(() => '<body unavailable>');
     throw new Error(
-      `static chat model control did not show default NEAR.AI model:\n${modelControlText}`
+      `static chat model control never settled on active NEAR AI Cloud model; providerRequests=${JSON.stringify(
+        llmProviderRequests
+      )}; body=${visibleBody}`,
+      { cause: err }
+    );
+  }
+  const modelControlText = await modelControl.innerText();
+  if (!modelControlText.includes('NEAR AI Cloud · nearai:gpt-oss-120b')) {
+    throw new Error(
+      `static chat model control did not show active NEAR AI Cloud model:\n${modelControlText}`
     );
   }
   // Readiness moved off the chip into the tooltip — keep it honest there.
@@ -964,6 +1647,67 @@ try {
       { cause: err }
     );
   }
+  const workProductPanel = page.getByTestId('assistant-work-product').first();
+  await workProductPanel.waitFor({ state: 'visible', timeout: 20_000 });
+  const workProductBox = await workProductPanel.boundingBox();
+  if (!workProductBox || workProductBox.width < 520) {
+    throw new Error(
+      `static chat work product rendered as a buried narrow chat bubble: ${JSON.stringify(
+        workProductBox
+      )}`
+    );
+  }
+  const workProductText = await workProductPanel.innerText();
+  if (!workProductText.includes('Services agreement') || !workProductText.includes('Scope')) {
+    throw new Error(`static chat work product panel lost document content: ${workProductText}`);
+  }
+  const chatLayout = await page.evaluate(() => {
+    const rectFor = (el) => {
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      return {
+        bottom: rect.bottom,
+        height: rect.height,
+        top: rect.top
+      };
+    };
+    const scroll = document.querySelector('[data-testid="chat-message-scroll"]');
+    const composer = document.querySelector('[data-testid="chat-composer"]');
+    const jump = document.querySelector('[data-testid="chat-jump-to-latest"]');
+    const scrollStyle = scroll ? getComputedStyle(scroll) : null;
+    return {
+      scroll: rectFor(scroll),
+      composer: rectFor(composer),
+      jump: rectFor(jump),
+      scrollPaddingBottom: scrollStyle ? Number.parseFloat(scrollStyle.paddingBottom || '0') : 0
+    };
+  });
+  if (!chatLayout.scroll || !chatLayout.composer) {
+    throw new Error(`static chat layout hooks missing: ${JSON.stringify(chatLayout)}`);
+  }
+  if (chatLayout.scroll.bottom > chatLayout.composer.top + 1) {
+    throw new Error(
+      `static chat composer overlaps the transcript viewport: ${JSON.stringify(chatLayout)}`
+    );
+  }
+  if (chatLayout.scrollPaddingBottom < 96) {
+    throw new Error(
+      `static chat transcript lacks bottom safe space for composer/jump controls: ${JSON.stringify(
+        chatLayout
+      )}`
+    );
+  }
+  if (
+    chatLayout.jump &&
+    (chatLayout.jump.top < chatLayout.scroll.bottom - 40 ||
+      chatLayout.jump.bottom > chatLayout.composer.top + 40)
+  ) {
+    throw new Error(
+      `static chat jump-to-latest is not pinned to the transcript/composer boundary: ${JSON.stringify(
+        chatLayout
+      )}`
+    );
+  }
   const chatPost = chatMessageRequests.at(-1);
   if (!chatPost) {
     throw new Error('static chat did not POST a message request');
@@ -1039,6 +1783,8 @@ try {
   }
   const expectedEmbeds = [
     'INVOICE 7741', // extracted from acme-invoice.pdf client-side
+    'MSA-CLAUSE-17', // extracted from services-template.docx client-side
+    'Enterprise\t42000', // extracted from pricing-model.xlsx client-side
     'Preserve indemnity clause', // text/markdown raw payload
     'INV-4242' // application/json raw payload
   ];
@@ -1047,12 +1793,34 @@ try {
       throw new Error(`static chat content missing embedded document text: ${embed}`);
     }
   }
-  const visibleChatBody = await page.locator('body').innerText();
-  for (const scenario of smokeAttachmentScenarios) {
-    if (!visibleChatBody.includes(scenario.name)) {
-      throw new Error(`static chat reload did not render attachment metadata: ${scenario.name}`);
+  const compactAttachmentStack = page.getByTestId('compact-attachment-stack').last();
+  await compactAttachmentStack.waitFor({ state: 'visible', timeout: 20_000 });
+  const compactStackText = await compactAttachmentStack.innerText();
+  const hiddenAttachmentCount = smokeAttachmentScenarios.length - 3;
+  if (
+    !compactStackText.includes(`${smokeAttachmentScenarios.length} files attached`) ||
+    !compactStackText.includes(`Show ${hiddenAttachmentCount} more files`)
+  ) {
+    throw new Error(`static chat did not compact the large attachment stack: ${compactStackText}`);
+  }
+  if (compactStackText.includes(corruptDocxScenario.name)) {
+    throw new Error(
+      `static chat rendered a rejected attachment in the sent stack: ${compactStackText}`
+    );
+  }
+  for (const scenario of smokeAttachmentScenarios.slice(0, 3)) {
+    if (!compactStackText.includes(scenario.name)) {
+      throw new Error(`static chat compact stack hid leading attachment: ${scenario.name}`);
     }
   }
+  for (const scenario of smokeAttachmentScenarios.slice(3)) {
+    if (compactStackText.includes(scenario.name)) {
+      throw new Error(
+        `static chat compact stack showed hidden attachment too early: ${scenario.name}`
+      );
+    }
+  }
+  let visibleChatBody = await page.locator('body').innerText();
   // Embedded document text is for the model, never for the transcript —
   // parseDurableAttachmentBlock must strip it from the rendered bubble.
   for (const embed of [
@@ -1065,6 +1833,29 @@ try {
       throw new Error(`embedded attachment text leaked into the visible transcript: ${embed}`);
     }
   }
+  await mkdir('output/playwright', { recursive: true });
+  await page.screenshot({
+    path: 'output/playwright/static-work-product-attachment-chat-collapsed.png',
+    fullPage: true
+  });
+  await compactAttachmentStack.getByTestId('attachment-stack-expand').click();
+  await compactAttachmentStack
+    .getByText(smokeAttachmentScenarios.at(-1).name, { exact: true })
+    .waitFor({
+      timeout: 5000
+    });
+  const expandedStackText = await compactAttachmentStack.innerText();
+  for (const scenario of smokeAttachmentScenarios) {
+    if (!expandedStackText.includes(scenario.name)) {
+      throw new Error(`static chat expand did not reveal attachment metadata: ${scenario.name}`);
+    }
+  }
+  if (expandedStackText.includes(corruptDocxScenario.name)) {
+    throw new Error(
+      `static chat expand revealed a rejected attachment in the sent stack: ${expandedStackText}`
+    );
+  }
+  visibleChatBody = await page.locator('body').innerText();
 
   // Chip click opens the document preview with the captured embedded text;
   // Escape closes it and the text leaves the transcript again.
@@ -1086,11 +1877,110 @@ try {
   if (bodyAfterPreview.includes('INVOICE 7741')) {
     throw new Error('preview text remained in the transcript after closing the modal');
   }
-  await mkdir('output/playwright', { recursive: true });
   await page.screenshot({
     path: 'output/playwright/static-work-product-attachment-chat.png',
     fullPage: true
   });
+
+  async function downloadAssistantExport(label, expectedFilename) {
+    const beforeCount = await page.evaluate(
+      () => window.__IRONCLAW_SMOKE_SAVED_FILES__?.length || 0
+    );
+    await page.getByRole('button', { name: 'Export assistant response' }).first().click();
+    await page.getByRole('button', { name: new RegExp(`^${label}\\b`) }).click();
+    await page.waitForFunction(
+      ([count, filename]) => {
+        const files = window.__IRONCLAW_SMOKE_SAVED_FILES__ || [];
+        return files.length > count && files.at(-1)?.defaultFilename === filename;
+      },
+      [beforeCount, expectedFilename],
+      { timeout: 10_000 }
+    );
+    const saved = await page.evaluate(
+      (index) => (window.__IRONCLAW_SMOKE_SAVED_FILES__ || [])[index],
+      beforeCount
+    );
+    if (!saved?.contentsBase64) {
+      throw new Error(`${label} export did not call save_bytes_dialog`);
+    }
+    return Buffer.from(saved.contentsBase64, 'base64');
+  }
+
+  const markdownExport = (
+    await downloadAssistantExport('Markdown', 'assistant-response.md')
+  ).toString('utf8');
+  if (!markdownExport.includes('# Services agreement') || !markdownExport.includes('## Scope')) {
+    throw new Error(`Markdown export lost the assistant draft:\n${markdownExport}`);
+  }
+
+  const htmlExport = (await downloadAssistantExport('HTML', 'assistant-response.html')).toString(
+    'utf8'
+  );
+  if (
+    !htmlExport.startsWith('<!doctype html>') ||
+    !htmlExport.includes('<h1>Services agreement</h1>') ||
+    !htmlExport.includes('<h2>Scope</h2>')
+  ) {
+    throw new Error(`HTML export did not render markdown headings:\n${htmlExport}`);
+  }
+
+  const pdfExport = await downloadAssistantExport('PDF', 'assistant-response.pdf');
+  const pdfText = pdfExport.toString('latin1');
+  if (
+    !pdfText.startsWith('%PDF-1.4') ||
+    !pdfText.includes('SERVICES AGREEMENT') ||
+    !pdfText.includes('startxref')
+  ) {
+    throw new Error(`PDF export is not a readable PDF work product: ${pdfText.slice(0, 200)}`);
+  }
+
+  const docxExport = await downloadAssistantExport('DOCX', 'assistant-response.docx');
+  const docxText = docxExport.toString('utf8');
+  if (
+    docxExport[0] !== 0x50 ||
+    docxExport[1] !== 0x4b ||
+    !docxText.includes('word/document.xml') ||
+    !docxText.includes('Services agreement') ||
+    !docxText.includes('Prepared from the uploaded template')
+  ) {
+    throw new Error(`DOCX export is not a parseable Word package: ${docxText.slice(0, 300)}`);
+  }
+
+  const jsonExport = JSON.parse(
+    (await downloadAssistantExport('JSON', 'assistant-response.json')).toString('utf8')
+  );
+  if (
+    jsonExport.role !== 'assistant' ||
+    !String(jsonExport.content || '').includes('Services agreement')
+  ) {
+    throw new Error(`JSON export lost assistant content: ${JSON.stringify(jsonExport)}`);
+  }
+
+  const threadMarkdownExport = (
+    await downloadAssistantExport('Thread MD', 'ironclaw-chat-thread.md')
+  ).toString('utf8');
+  if (
+    !threadMarkdownExport.includes('Draft a services agreement from this attachment.') ||
+    !threadMarkdownExport.includes('services-template.docx') ||
+    !threadMarkdownExport.includes('pricing-model.xlsx')
+  ) {
+    throw new Error(`Thread Markdown export lost prompt or attachments:\n${threadMarkdownExport}`);
+  }
+
+  const threadJsonExport = JSON.parse(
+    (await downloadAssistantExport('Thread JSON', 'ironclaw-chat-thread.json')).toString('utf8')
+  );
+  const exportedAttachmentNames = JSON.stringify(threadJsonExport);
+  if (
+    threadJsonExport.thread?.message_count < 2 ||
+    !exportedAttachmentNames.includes('services-template.docx') ||
+    !exportedAttachmentNames.includes('pricing-model.xlsx') ||
+    exportedAttachmentNames.includes('data_base64')
+  ) {
+    throw new Error(
+      `Thread JSON export lost reload-safe attachment metadata:\n${exportedAttachmentNames}`
+    );
+  }
 
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat/thread-fail`, {
     waitUntil: 'domcontentloaded'
@@ -1233,6 +2123,11 @@ try {
     waitUntil: 'domcontentloaded'
   });
   await page.getByText('Gmail', { exact: true }).waitFor({ timeout: 20_000 });
+  await assertNoLegacyConnectionsClasses(page.locator('body'), 'installed Connections');
+  await page.screenshot({
+    path: 'output/playwright/static-connections-installed-polished.png',
+    fullPage: true
+  });
   const preSetupText = await page.locator('body').innerText();
   if (preSetupText.includes('Gmail\nactive') || preSetupText.includes('Gmail\nACTIVE')) {
     throw new Error(
@@ -1242,6 +2137,24 @@ try {
   await page.getByText('auth needed', { exact: true }).first().waitFor({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Configure' }).first().click();
   await page.getByText('Configure Gmail', { exact: true }).waitFor({ timeout: 20_000 });
+  const connectorSetupModal = page.getByTestId('connector-setup-modal');
+  await connectorSetupModal.waitFor({ state: 'visible', timeout: 20_000 });
+  const legacySetupClasses = await connectorSetupModal.evaluate((modal) =>
+    [modal, ...Array.from(modal.querySelectorAll('*'))]
+      .flatMap((node) => String(node.getAttribute('class') || '').split(/\s+/))
+      .filter((className) =>
+        /^(text-iron-|border-white|bg-white\/|bg-white\[|v2-panel$)/.test(className)
+      )
+  );
+  if (legacySetupClasses.length > 0) {
+    throw new Error(
+      `connector setup modal leaked old dark styling classes: ${legacySetupClasses.join(', ')}`
+    );
+  }
+  await page.screenshot({
+    path: 'output/playwright/static-connector-setup-modal.png',
+    fullPage: true
+  });
   await page.locator('input[type="password"]').fill('ya29.smoke-token');
   await page.locator('input[type="text"]').fill('Smoke Google');
   await page.getByRole('button', { name: 'Save' }).click();

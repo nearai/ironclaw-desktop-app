@@ -18,7 +18,7 @@ function useExtensionsSourceForTest() {
     }
     lines.push(line.replace(/^export function /, 'function '));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { useConnectExtension };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { activationProvedConnected, useConnectExtension };`;
 }
 
 function clone(value) {
@@ -54,7 +54,7 @@ function setupContext(overrides = {}) {
     },
     activateExtension: async (packageRef) => {
       calls.push(['activate', packageRef]);
-      return overrides.activateResult || { success: true };
+      return overrides.activateResult || { success: true, phase: 'active', authenticated: true };
     },
     approvePairingCode: () => {},
     fetchExtensionRegistry: () => {},
@@ -155,6 +155,69 @@ test('useConnectExtension chains OAuth install, browser consent, polling, activa
     { queryKey: ['extensions'] },
     { queryKey: ['extension-registry'] }
   ]);
+});
+
+test('activationProvedConnected rejects weak lifecycle success without credential proof', () => {
+  const { context } = setupContext();
+  const { activationProvedConnected } = context.globalThis.__testExports;
+
+  assert.equal(activationProvedConnected({ success: true }), false);
+  assert.equal(
+    activationProvedConnected({
+      success: true,
+      active: true,
+      message: 'Extension lifecycle action completed'
+    }),
+    false
+  );
+  assert.equal(
+    activationProvedConnected({
+      success: true,
+      phase: 'active',
+      blockers: ['oauth_missing']
+    }),
+    false
+  );
+  assert.equal(
+    activationProvedConnected({
+      success: true,
+      active: true,
+      authenticated: true
+    }),
+    true
+  );
+  assert.equal(activationProvedConnected({ phase: 'connected' }), true);
+});
+
+test('useConnectExtension refuses weak activation success without credential proof', async () => {
+  const pendingOauth = {
+    name: 'notion_oauth',
+    provided: false,
+    setup: { kind: 'oauth' }
+  };
+  const { calls, context, ref, stateSnapshots } = setupContext({
+    activateResult: {
+      success: true,
+      message: 'Extension lifecycle action completed'
+    },
+    setupQueue: [{ secrets: [pendingOauth] }, { secrets: [{ ...pendingOauth, provided: true }] }]
+  });
+
+  const hook = context.globalThis.__testExports.useConnectExtension();
+  await hook.connect({ package_ref: ref });
+
+  assert.deepEqual(phasesFor(stateSnapshots), [
+    'installing',
+    'authorizing',
+    'waiting',
+    'activating',
+    'error'
+  ]);
+  assert.equal(
+    stateSnapshots.at(-1).notion.message,
+    'Extension lifecycle action completed'
+  );
+  assert.ok(calls.some((call) => call[0] === 'activate'));
 });
 
 test('useConnectExtension stops honestly when OAuth setup returns no authorization URL', async () => {

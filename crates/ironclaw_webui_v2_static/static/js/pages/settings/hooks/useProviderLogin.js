@@ -7,7 +7,6 @@ import {
   completeNearaiWalletLogin,
   fetchLlmProviders,
   setActiveLlm,
-  startCodexLogin,
   startNearaiLogin,
   testLlmProviderConnection,
   upsertLlmProvider
@@ -73,9 +72,7 @@ function awaitWalletSignature(popup, channelName) {
 }
 
 // How long to keep polling the snapshot for a login to land before giving up.
-// NEAR AI is a quick browser redirect; Codex device codes live ~15 minutes.
 const NEARAI_POLL_DEADLINE_MS = 300_000;
-const CODEX_POLL_DEADLINE_MS = 900_000;
 const POLL_INTERVAL_MS = 2000;
 
 // Poll the LLM snapshot until `providerId` becomes the active provider, or the
@@ -119,7 +116,7 @@ async function pollUntilActive(providerId, deadlineMs) {
   return false;
 }
 
-// Shared NEAR AI + OpenAI Codex login flows, surface-agnostic. The onboarding
+// Shared NEAR AI login flow, surface-agnostic. The onboarding
 // screen and the Settings → Inference tab both drive the same backend login
 // endpoints; this hook owns the open-tab + poll-until-active choreography so the
 // two surfaces stay in sync. `onSuccess` runs after the provider goes active
@@ -131,9 +128,6 @@ export function useProviderLogin({ onSuccess } = {}) {
 
   const [nearaiBusy, setNearaiBusy] = React.useState(false);
   const [nearaiError, setNearaiError] = React.useState('');
-  const [codexBusy, setCodexBusy] = React.useState(false);
-  const [codexError, setCodexError] = React.useState('');
-  const [codexCode, setCodexCode] = React.useState(null);
 
   const finishActive = React.useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['llm-providers'] });
@@ -230,34 +224,10 @@ export function useProviderLogin({ onSuccess } = {}) {
     }
   }, [finishActive, t]);
 
-  const startCodex = React.useCallback(async () => {
-    setCodexError('');
-    setCodexCode(null);
-    setCodexBusy(true);
-    try {
-      const { user_code: userCode, verification_uri: verificationUri } = await startCodexLogin();
-      setCodexCode({ userCode, verificationUri });
-      await openExternalUrl(verificationUri);
-      if (await pollUntilActive('openai_codex', CODEX_POLL_DEADLINE_MS)) {
-        await finishActive();
-        return;
-      }
-      setCodexError(t('onboarding.codexTimeout'));
-    } catch (_err) {
-      setCodexError(t('onboarding.codexFailed'));
-    } finally {
-      setCodexBusy(false);
-    }
-  }, [finishActive, t]);
-
   return {
     nearaiBusy,
     nearaiError,
-    codexBusy,
-    codexError,
-    codexCode,
     startNearai,
-    startNearaiWallet,
-    startCodex
+    startNearaiWallet
   };
 }

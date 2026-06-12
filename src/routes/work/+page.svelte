@@ -16,7 +16,7 @@
   import { onDestroy, onMount, tick } from 'svelte';
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
-  import MarkdownView from '$lib/components/MarkdownView.svelte';
+  import MarkdownView from '$lib/components/LazyMarkdownView.svelte';
   import WorkProductActions from '$lib/components/WorkProductActions.svelte';
   import { surfaceRefresh } from '$lib/stores/surface-refresh.svelte';
   import { workItems } from '$lib/stores/work-items.svelte';

@@ -197,6 +197,13 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
       size: 8
     }
   ];
+  const rejectedAttachment = {
+    filename: 'corrupt-template.docx',
+    mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    base64: '',
+    size: 12,
+    extraction: 'no-text'
+  };
 
   const context = {
     AbortController,
@@ -261,7 +268,7 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
 
   const chat = context.globalThis.__testExports.useChat(threadId);
   await chat.send('draft from the template', {
-    attachments: attachmentScenarios
+    attachments: [...attachmentScenarios, rejectedAttachment]
   });
 
   assert.equal(sentArgs.threadId, threadId);
@@ -275,6 +282,7 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
       `sent content should manifest ${attachment.filename}`
     );
   }
+  assert.equal(sentArgs.content.includes(rejectedAttachment.filename), false);
   // The manifest must never inline base64 payloads (content validator rejects
   // them); the bytes ride only in the first-class attachments field.
   assert.equal(sentArgs.content.includes('data_base64'), false);
@@ -293,13 +301,24 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
   // The optimistic bubble shows the bare prompt (no manifest) plus chips.
   assert.equal(renderedMessages[0].content, 'draft from the template');
   assert.deepEqual(
-    JSON.parse(JSON.stringify(renderedMessages[0].attachments)),
-    attachmentScenarios.map((attachment) => ({
-      filename: attachment.filename,
-      mime_type: attachment.mime_type,
-      size_label: `${attachment.size} bytes`
-    }))
+    JSON.parse(
+      JSON.stringify(renderedMessages[0].attachments.map((attachment) => attachment.filename))
+    ),
+    attachmentScenarios.map((attachment) => attachment.filename)
   );
+  assert.equal(
+    renderedMessages[0].attachments.some(
+      (attachment) => attachment.filename === rejectedAttachment.filename
+    ),
+    false
+  );
+  for (const attachment of attachmentScenarios) {
+    const chip = renderedMessages[0].attachments.find(
+      (candidate) => candidate.filename === attachment.filename
+    );
+    assert.equal(chip.mime_type, attachment.mime_type);
+    assert.equal(chip.size_label, `${attachment.size} bytes`);
+  }
 });
 
 test('useChat.cancelRun clears local state before cancel request resolves', async () => {

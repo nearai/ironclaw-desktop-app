@@ -17,6 +17,8 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run verify:static-frontend
+      - name: Install Chromium for static smoke
+        run: npx playwright install --with-deps chromium
       - run: npm run smoke:webui-static
       - run: npm run test
       # The static product UI (crates/.../static/js) ships ~28 node:test suites
@@ -31,6 +33,7 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
         with:
@@ -44,7 +47,21 @@ jobs:
       # can resolve the bundle.externalBin paths.
       - name: Download sidecar binaries
         run: bash src-tauri/binaries/download.sh
-      - run: cargo check --manifest-path src-tauri/Cargo.toml
-      - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release
-      - run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
+      # The Rust PR gate only needs Tauri's externalBin path to exist while
+      # compiling/checking this crate. Release CI still builds and bundles the
+      # real Reborn sidecar from nearai/ironclaw.
+      - name: Stage Reborn sidecar placeholder for compile checks
+        run: |
+          set -euo pipefail
+          target="$(rustc -Vv | awk '/host:/ { print $2 }')"
+          path="src-tauri/binaries/ironclaw-reborn-${target}"
+          cat > "${path}" <<'EOF'
+          #!/usr/bin/env sh
+          echo "ironclaw-reborn placeholder for CI compile checks only" >&2
+          exit 64
+          EOF
+          chmod +x "${path}"
+      - run: cargo check --manifest-path src-tauri/Cargo.toml --locked
+      - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release --locked
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked -- -D warnings
         continue-on-error: true  # warn-don't-block until clippy is clean

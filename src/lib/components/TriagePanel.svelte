@@ -7,7 +7,7 @@
 
   import { triage } from '$lib/stores/triage.svelte';
   import Icon from './Icon.svelte';
-  import MarkdownView from './MarkdownView.svelte';
+  import MarkdownView from './LazyMarkdownView.svelte';
 
   let { onRegenerate }: { onRegenerate: () => void } = $props();
 

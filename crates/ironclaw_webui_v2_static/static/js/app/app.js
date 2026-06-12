@@ -18,6 +18,8 @@ import { AdminPage } from '../pages/admin/admin-page.js';
 import { LogsPage } from '../pages/logs/logs-page.js';
 import { appBasePath, appScopedPath } from '../lib/app-path.js';
 
+const unauthenticatedRoute = '/welcome';
+
 function AuthLoading() {
   return html`
     <main className="grid min-h-[100dvh] place-items-center bg-[var(--v2-canvas)] px-6">
@@ -67,7 +69,7 @@ function RequireAuth({ auth, children }) {
   }
 
   if (!auth.isAuthenticated) {
-    return html`<${Navigate} to="/login" replace state=${{ from: location }} />`;
+    return html`<${Navigate} to=${unauthenticatedRoute} replace state=${{ from: location }} />`;
   }
 
   return children;
@@ -100,11 +102,11 @@ export function App() {
   return html`
     <${BrowserRouter} basename=${basePath || undefined}>
       <${Routes}>
+        <${Route} path="/welcome" element=${html`<${OnboardingPage} />`} />
         <${Route} path="/login" element=${html`<${LoginPage} auth=${auth} />`} />
         <${Route} path="/" element=${html`<${AuthenticatedLayout} auth=${auth} />`}>
           <${Route} index element=${html`<${Navigate} to=${defaultRoute} replace />`} />
           <${Route} path="overview" element=${html`<${Navigate} to=${defaultRoute} replace />`} />
-          <${Route} path="welcome" element=${html`<${OnboardingPage} />`} />
           <${Route} path="chat" element=${html`<${ChatPage} />`} />
           <${Route} path="chat/:threadId" element=${html`<${ChatPage} />`} />
           <${Route} path="workspace" element=${html`<${WorkspacePage} />`} />

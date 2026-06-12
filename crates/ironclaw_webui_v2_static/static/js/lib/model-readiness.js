@@ -2,11 +2,20 @@ const UNVERIFIED = {
   verified: false,
   sendBlocked: false,
   tone: 'warning',
-  label: 'Configured, unverified',
-  buttonPrefix: 'Configured',
-  description:
-    'This model has not completed a live run yet. Send a message to verify execution; provider failures will appear in the thread.',
+  label: 'Verification pending',
+  buttonPrefix: 'Pending',
+  description: 'IronClaw will verify NEAR AI Cloud on the next successful chat run.',
   sendBlockReason: ''
+};
+
+const CHECKING_GATEWAY = {
+  verified: false,
+  sendBlocked: true,
+  tone: 'warning',
+  label: 'Checking gateway',
+  buttonPrefix: 'Checking',
+  description: 'IronClaw is checking the local gateway before it can run model work.',
+  sendBlockReason: 'IronClaw is checking the local gateway before it can run model work.'
 };
 
 const BLOCKED = {
@@ -15,8 +24,8 @@ const BLOCKED = {
   tone: 'warning',
   label: 'Model setup required',
   buttonPrefix: 'Setup required',
-  description: 'The configured model cannot run until provider setup is fixed.',
-  sendBlockReason: 'The configured model cannot run until provider setup is fixed.'
+  description: 'Connect NEAR AI Cloud before running work.',
+  sendBlockReason: 'Connect NEAR AI Cloud before running work.'
 };
 
 const VERIFIED = {
@@ -25,11 +34,12 @@ const VERIFIED = {
   tone: 'positive',
   label: 'Execution verified',
   buttonPrefix: 'Verified',
-  description: 'Gateway reports this model is execution-ready.',
+  description: 'NEAR AI Cloud has completed a live run.',
   sendBlockReason: ''
 };
 
 export function modelExecutionReadiness(gatewayStatus) {
+  if (!gatewayStatus || typeof gatewayStatus !== 'object') return CHECKING_GATEWAY;
   if (isModelExecutionVerified(gatewayStatus)) return VERIFIED;
   const reason = modelExecutionBlockReason(gatewayStatus);
   if (!reason) return UNVERIFIED;

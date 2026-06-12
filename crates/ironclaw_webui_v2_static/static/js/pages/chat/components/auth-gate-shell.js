@@ -40,29 +40,31 @@ export function AuthGateShell({
 
   return html`
     <div
-      className="mx-auto w-full max-w-lg rounded-xl border border-[rgba(76,167,230,0.34)] bg-[rgba(76,167,230,0.08)]"
+      className="mx-auto w-full max-w-xl rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-gold-soft)_58%,var(--v2-card-bg))]"
     >
       <button
         type="button"
         onClick=${() => setExpanded((v) => !v)}
         aria-expanded=${expanded ? 'true' : 'false'}
         aria-controls=${controlsId}
-        className="flex w-full items-center gap-3 rounded-xl border-0 bg-transparent px-4 py-3 text-left"
+        className="flex w-full items-center gap-3 rounded-[16px] border-0 bg-transparent px-4 py-3 text-left"
       >
         <span
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-[rgba(76,167,230,0.28)] bg-[rgba(76,167,230,0.1)] text-[#8fc8f2]"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
         >
           <${Icon} name=${icon} className="h-4 w-4" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-semibold text-white">
+          <span className="block truncate text-sm font-semibold text-[var(--v2-text-strong)]">
             ${headline || t('authGate.title')}
           </span>
           ${subtitle &&
-          html`<span className="block truncate text-xs text-iron-300">${subtitle}</span>`}
+          html`<span className="mt-0.5 block truncate text-xs text-[var(--v2-text-muted)]"
+            >${subtitle}</span
+          >`}
         </span>
         <span
-          className="ml-auto flex shrink-0 items-center gap-1.5 text-xs font-medium text-[#8fc8f2]"
+          className="ml-auto flex shrink-0 items-center gap-1.5 text-xs font-medium text-[var(--v2-gold-text)]"
         >
           ${pillHint && html`<span className="hidden sm:inline">${pillHint}</span>`}
           <${Icon}
@@ -74,11 +76,16 @@ export function AuthGateShell({
 
       ${expanded &&
       html`
-        <div id=${controlsId} className="border-t border-[rgba(76,167,230,0.2)] px-4 pb-4 pt-3">
-          ${body && html`<div className="mb-3 text-sm text-iron-200">${body}</div>`} ${children}
+        <div
+          id=${controlsId}
+          className="border-t border-[color-mix(in_srgb,var(--v2-gold)_24%,var(--v2-panel-border))] px-4 pb-4 pt-3"
+        >
+          ${body &&
+          html`<div className="mb-3 text-sm leading-6 text-[var(--v2-text-muted)]">${body}</div>`}
+          ${children}
           ${expiresAt &&
           html`
-            <p className="mt-2 text-xs text-iron-300">
+            <p className="mt-2 text-xs text-[var(--v2-text-faint)]">
               ${t('authGate.expiresAt')}: ${new Date(expiresAt).toLocaleString()}
             </p>
           `}

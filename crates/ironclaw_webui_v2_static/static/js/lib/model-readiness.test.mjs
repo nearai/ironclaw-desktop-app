@@ -10,9 +10,9 @@ test('configured provider and model can send until execution is verified', () =>
   };
 
   assert.equal(isModelExecutionVerified(status), false);
-  assert.equal(modelExecutionReadiness(status).buttonPrefix, 'Configured');
+  assert.equal(modelExecutionReadiness(status).buttonPrefix, 'Pending');
   assert.equal(modelExecutionReadiness(status).sendBlocked, false);
-  assert.match(modelExecutionReadiness(status).description, /Send a message to verify/);
+  assert.match(modelExecutionReadiness(status).description, /next successful chat run/);
 });
 
 test('model_execution_verified marks execution verified', () => {
@@ -60,7 +60,7 @@ test('generic first-run verification reason stays advisory', () => {
 
   assert.equal(readiness.sendBlocked, false);
   assert.equal(readiness.sendBlockReason, '');
-  assert.match(readiness.description, /Send a message to verify/);
+  assert.match(readiness.description, /next successful chat run/);
 });
 
 test('explicit credential failures block send with the backend reason', () => {

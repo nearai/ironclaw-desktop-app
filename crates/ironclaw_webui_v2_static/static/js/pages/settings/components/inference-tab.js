@@ -1,4 +1,4 @@
-import { React, html } from '../../../lib/html.js';
+import { html } from '../../../lib/html.js';
 import { Badge } from '../../../design-system/badge.js';
 import { Card } from '../../../design-system/card.js';
 import { useT } from '../../../lib/i18n.js';
@@ -39,12 +39,6 @@ export function InferenceTab({
     'near',
     'near ai cloud'
   ]);
-  const [advancedOpen, setAdvancedOpen] = React.useState(
-    Boolean(searchQuery && showProviderManagement)
-  );
-  React.useEffect(() => {
-    if (searchQuery && showProviderManagement) setAdvancedOpen(true);
-  }, [searchQuery, showProviderManagement]);
 
   if (isLoading) {
     return html`<${SettingsSkeleton} />`;
@@ -60,7 +54,7 @@ export function InferenceTab({
       html`
         <${Card} padding="none" className="p-4 sm:p-5">
           <h3
-            className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+            className="mb-4 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
           >
             ${t('inference.provider')}
           </h3>
@@ -70,7 +64,7 @@ export function InferenceTab({
             >
               <div className="text-xs text-[var(--v2-text-muted)]">${t('inference.backend')}</div>
               <div className="mt-1 flex items-center gap-2">
-                <span className="font-mono text-lg font-semibold text-[var(--v2-text-strong)]"
+                <span className="text-base font-semibold text-[var(--v2-text-strong)]"
                   >${backend}</span
                 >
                 <${Badge} tone=${readiness.tone} label=${readiness.label} size="sm" />
@@ -83,7 +77,7 @@ export function InferenceTab({
               className="rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
             >
               <div className="text-xs text-[var(--v2-text-muted)]">${t('inference.model')}</div>
-              <div className="mt-1 font-mono text-lg font-semibold text-[var(--v2-text-strong)]">
+              <div className="mt-1 text-base font-semibold text-[var(--v2-text-strong)]">
                 ${model || t('inference.none')}
               </div>
             </div>
@@ -92,38 +86,11 @@ export function InferenceTab({
       `}
       ${showProviderManagement &&
       html`
-        <section
-          className="rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)]"
-        >
-          <button
-            type="button"
-            aria-expanded=${advancedOpen ? 'true' : 'false'}
-            onClick=${() => setAdvancedOpen((open) => !open)}
-            className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left sm:px-5"
-          >
-            <span className="min-w-0">
-              <span className="block text-sm font-semibold text-[var(--v2-text-strong)]">
-                Advanced NEAR AI Cloud setup
-              </span>
-              <span className="mt-0.5 block text-sm text-[var(--v2-text-muted)]">
-                Sign-in, API key fallback, model list, and connection repair.
-              </span>
-            </span>
-            <span className="shrink-0 text-xs font-semibold text-[var(--v2-accent-text)]">
-              ${advancedOpen ? 'Hide' : 'Show'}
-            </span>
-          </button>
-          ${advancedOpen &&
-          html`
-            <div className="border-t border-[var(--v2-panel-border)] p-3 sm:p-4">
-              <${ProviderManagement}
-                settings=${settings}
-                gatewayStatus=${gatewayStatus}
-                searchQuery=${searchQuery}
-              />
-            </div>
-          `}
-        </section>
+        <${ProviderManagement}
+          settings=${settings}
+          gatewayStatus=${gatewayStatus}
+          searchQuery=${searchQuery}
+        />
       `}
       <${GoogleOauthCard} />
       ${sections.map(

@@ -71,13 +71,13 @@ export function GoogleOauthCard() {
     <${Card} id=${'google-oauth'} padding="none" className="scroll-mt-6 p-4 sm:p-5">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3
-          className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+          className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
         >
           ${t('googleOauth.title')}
         </h3>
         <span
           className=${[
-            'rounded-full border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.12em]',
+            'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
             savedId
               ? 'border-[color-mix(in_srgb,var(--v2-positive-text)_34%,var(--v2-panel-border))] text-[var(--v2-positive-text)]'
               : 'border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] text-[var(--v2-warning-text)]'

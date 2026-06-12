@@ -53,7 +53,17 @@ function componentProps(node, component) {
   const props = {};
   const start = node.values.indexOf(component);
   for (let index = start + 1; index < node.values.length; index += 1) {
-    const name = node.strings[index]?.match(/([A-Za-z][A-Za-z0-9]*)=\s*$/)?.[1];
+    const templateBeforeValue = node.strings[index] || '';
+    const name = templateBeforeValue.match(/([A-Za-z][A-Za-z0-9]*)=\s*$/)?.[1];
+    if (
+      !name &&
+      index > start + 1 &&
+      (templateBeforeValue.includes('/>') ||
+        templateBeforeValue.includes('<//>') ||
+        /<\s*$/.test(templateBeforeValue))
+    ) {
+      break;
+    }
     if (name) props[name] = node.values[index];
   }
   return props;
@@ -149,6 +159,7 @@ function useProviderManagementActionsStub({ providers, activeProviderId }) {
       error: null,
       isBusy: false,
       isLoading: false,
+      listModels: async () => ({ ok: true, models: ['llama', 'auto'] }),
       selectedModel: 'llama'
     }
   });
@@ -160,11 +171,14 @@ function renderProviderManagement({ providers, activeProviderId = 'nearai', sear
     Button: 'Button',
     Card: 'Card',
     Icon: 'Icon',
+    ActiveModelPicker: 'ActiveModelPicker',
     ProviderCard,
     ProviderDialog: 'ProviderDialog',
     ConfirmDialog: 'ConfirmDialog',
     ProviderLoginStatus: 'ProviderLoginStatus',
     SettingsSearchEmpty: 'SettingsSearchEmpty',
+    filterDesktopVisibleLlmProviders: (providers) =>
+      Array.isArray(providers) ? providers.filter((provider) => provider.id === 'nearai') : [],
     globalThis: {},
     groupProvidersByStatus,
     html,
@@ -181,17 +195,19 @@ function renderProviderManagement({ providers, activeProviderId = 'nearai', sear
       activeProviderId
     }),
     useProviderLogin: () => ({
-      codexBusy: false,
       nearaiBusy: false,
-      startCodex: () => {},
       startNearai: () => {},
       startNearaiWallet: () => {}
     }),
     useT: () => (key) => key
   };
 
-  vm.runInNewContext(sourceForTest('./provider-management.js', ['ProviderManagement']), context);
-  const rendered = context.globalThis.__testExports.ProviderManagement({
+  vm.runInNewContext(
+    sourceForTest('./provider-management.js', ['ProviderManagement', 'ActiveModelPanel']),
+    context
+  );
+  const { ProviderManagement, ActiveModelPanel } = context.globalThis.__testExports;
+  const rendered = ProviderManagement({
     settings: {},
     gatewayStatus: {},
     searchQuery
@@ -199,7 +215,10 @@ function renderProviderManagement({ providers, activeProviderId = 'nearai', sear
   const cardProps = findComponentNodes(rendered, ProviderCard).map((node) =>
     componentProps(node, ProviderCard)
   );
-  return { rendered, cardProps };
+  const panelProps = findComponentNodes(rendered, ActiveModelPanel).map((node) =>
+    componentProps(node, ActiveModelPanel)
+  );
+  return { rendered, cardProps, ActiveModelPanel, panelProps };
 }
 
 function groupLabels(rendered) {
@@ -271,7 +290,6 @@ function createProviderCardHarness() {
         onDelete: () => {},
         onNearaiLogin: () => {},
         onNearaiWallet: () => {},
-        onCodexLogin: () => {},
         loginBusy: false,
         ...props
       })
@@ -282,8 +300,8 @@ function firstButtonProps(rendered) {
   return componentProps(findComponentNodes(rendered, 'Button')[0], 'Button');
 }
 
-test('ProviderManagement groups filtered providers through the render caller', () => {
-  const { rendered, cardProps } = renderProviderManagement({
+test('ProviderManagement collapses active NEAR into the model panel', () => {
+  const { rendered, cardProps, panelProps } = renderProviderManagement({
     providers: [
       builtinProvider('nearai', { adapter: 'nearai' }),
       builtinProvider('openai'),
@@ -294,36 +312,88 @@ test('ProviderManagement groups filtered providers through the render caller', (
     ]
   });
 
-  assert.deepEqual(groupLabels(rendered), PROVIDER_GROUP_LABELS);
-  assert.deepEqual(deepValuesAfter(rendered, 'data-provider-status='), [
-    'active',
-    'ready',
-    'setup'
-  ]);
-  assert.deepEqual(
-    cardProps.map((props) => props.provider.id),
-    ['nearai', 'openai', 'anthropic']
-  );
-  assert.deepEqual(
-    cardProps.map((props) => props.activeProviderId),
-    ['nearai', 'nearai', 'nearai']
-  );
+  assert.deepEqual(groupLabels(rendered), []);
+  assert.deepEqual(deepValuesAfter(rendered, 'data-provider-status='), []);
+  assert.deepEqual(cardProps, []);
+  assert.equal(panelProps.length, 1);
+  assert.equal(panelProps[0].provider.id, 'nearai');
+  assert.equal(panelProps[0].currentModel, 'llama');
   assert.ok(
     !collectScalars(rendered).includes('llm.addProvider'),
     'normal desktop provider management must not expose custom provider creation'
   );
+  const bodyText = collectScalars(rendered).join('\n') + collectTemplateText(rendered);
+  assert.doesNotMatch(bodyText, /openai|anthropic|OpenRouter|Claude/i);
 });
 
-test('ProviderManagement hides empty buckets after search filtering', () => {
+test('ProviderManagement status copy uses v2 status tokens', () => {
+  const source = readFileSync(new URL('./provider-management.js', import.meta.url), 'utf8');
+
+  assert.match(source, /--v2-danger-text/);
+  assert.match(source, /--v2-positive-text/);
+  assert.doesNotMatch(source, /border-mint|bg-mint|text-mint/);
+  assert.doesNotMatch(source, /border-red-|bg-red-|text-red-/);
+});
+
+test('ProviderManagement exposes active NEAR model selection before provider rows', () => {
+  const { ActiveModelPanel, panelProps } = renderProviderManagement({
+    providers: [
+      builtinProvider('nearai', {
+        adapter: 'nearai',
+        name: 'NEAR AI Cloud',
+        default_model: 'auto',
+        has_api_key: true
+      }),
+      builtinProvider('openai')
+    ]
+  });
+
+  assert.equal(panelProps.length, 1);
+  assert.equal(panelProps[0].provider.id, 'nearai');
+  assert.equal(panelProps[0].currentModel, 'llama');
+
+  const renderedPanel = ActiveModelPanel({
+    ...panelProps[0],
+    t: (key) => key
+  });
+  const pickerNodes = findComponentNodes(renderedPanel, 'ActiveModelPicker');
+
+  assert.equal(pickerNodes.length, 1);
+  assert.ok(collectTemplateText(renderedPanel).includes('data-testid="active-model-panel"'));
+  assert.ok(collectTemplateText(renderedPanel).includes('Current model'));
+  assert.equal(componentProps(pickerNodes[0], 'ActiveModelPicker').provider.id, 'nearai');
+  assert.equal(componentProps(pickerNodes[0], 'ActiveModelPicker').currentModel, 'llama');
+});
+
+test('ProviderManagement search does not reveal hidden providers', () => {
   const { rendered, cardProps } = renderProviderManagement({
     providers: [builtinProvider('openai')],
     searchQuery: 'open'
   });
 
-  assert.deepEqual(groupLabels(rendered), ['llm.groupReady']);
+  assert.deepEqual(groupLabels(rendered), []);
+  assert.deepEqual(cardProps, []);
+  assert.ok(findComponentNodes(rendered, 'SettingsSearchEmpty').length > 0);
+});
+
+test('ProviderManagement keeps synthetic offline NEAR fallback out of ready bucket', () => {
+  const { rendered, cardProps } = renderProviderManagement({
+    activeProviderId: '',
+    providers: [
+      builtinProvider('nearai', {
+        adapter: 'nearai',
+        api_key_required: false,
+        has_api_key: false,
+        synthetic_unavailable: true
+      })
+    ]
+  });
+
+  assert.deepEqual(groupLabels(rendered), ['llm.groupSetup']);
+  assert.deepEqual(deepValuesAfter(rendered, 'data-provider-status='), ['setup']);
   assert.deepEqual(
     cardProps.map((props) => props.provider.id),
-    ['openai']
+    ['nearai']
   );
 });
 
@@ -421,26 +491,17 @@ test('ProviderCard renders login actions instead of generic use for login provid
   let labels = collectScalars(rendered);
   let templateText = collectTemplateText(rendered);
   assert.ok(labels.includes('onboarding.nearWallet'));
-  assert.ok(labels.includes('llm.addApiKey'));
+  assert.ok(labels.includes('llm.useNearApiKey'));
   assert.ok(templateText.includes('GitHub'));
   assert.ok(templateText.includes('Google'));
   assert.ok(!labels.includes('llm.use'));
   const addKeyButton = findComponentNodes(rendered, 'Button').find((node) => {
     const scalars = collectScalars(node);
-    return scalars.includes('llm.addApiKey') && !scalars.includes('onboarding.nearWallet');
+    return scalars.includes('llm.useNearApiKey') && !scalars.includes('onboarding.nearWallet');
   });
   assert.ok(addKeyButton, 'expected NEAR API key action');
   componentProps(addKeyButton, 'Button').onClick();
   assert.deepEqual(calls, [['configure', 'nearai']]);
-
-  rendered = harness.render({
-    activeProviderId: 'openai',
-    provider: builtinProvider('openai_codex')
-  });
-  labels = collectScalars(rendered);
-  templateText = collectTemplateText(rendered);
-  assert.ok(labels.includes('onboarding.codexSignIn'));
-  assert.ok(!labels.includes('llm.use'));
 });
 
 test('ProviderCard renders generic use action for NEAR when an API key is configured', () => {

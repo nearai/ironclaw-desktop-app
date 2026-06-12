@@ -1,5 +1,6 @@
 import { Button } from '../../../design-system/button.js';
 import { Icon } from '../../../design-system/icons.js';
+import { Input } from '../../../design-system/input.js';
 import { isDesktopRuntime } from '../../../lib/api.js';
 import { React, html } from '../../../lib/html.js';
 import { useExtensionSetup, useOauthSetup, useSetupSubmit } from '../hooks/useExtensions.js';
@@ -82,7 +83,9 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
   if (error) {
     return html`
       <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
-        <p className="text-sm text-red-200">Failed to load setup: ${error.message}</p>
+        <p className="text-sm text-[var(--v2-danger-text)]">
+          Failed to load setup: ${error.message}
+        </p>
       <//>
     `;
   }
@@ -90,7 +93,9 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
   if (secrets.length === 0 && fields.length === 0) {
     return html`
       <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
-        <p className="text-sm text-iron-300">No configuration required for this extension.</p>
+        <p className="text-sm text-[var(--v2-text-muted)]">
+          No configuration required for this extension.
+        </p>
       <//>
     `;
   }
@@ -99,7 +104,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
     <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
       ${onboarding?.credential_instructions &&
       html`
-        <p className="mb-4 text-sm leading-6 text-iron-300">
+        <p className="mb-4 text-sm leading-6 text-[var(--v2-text-muted)]">
           ${onboarding.credential_instructions}
         </p>
       `}
@@ -109,7 +114,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
           href=${httpsSetupUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-signal hover:underline"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--v2-accent-text)] hover:underline"
         >
           Get credentials
           <${Icon} name="bolt" className="h-3.5 w-3.5" />
@@ -119,7 +124,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
       !httpsSetupUrl &&
       html`
         <span
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-iron-700"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--v2-text-faint)]"
           title=${onboarding.setup_url}
         >
           Get credentials
@@ -131,19 +136,29 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
         ${secrets.map(
           (secret) => html`
             <div key=${secret.name}>
-              <label className="mb-1.5 flex items-center gap-2 text-sm text-iron-200">
+              <label
+                className="mb-1.5 flex items-center gap-2 text-sm font-medium text-[var(--v2-text-strong)]"
+              >
                 ${secret.prompt || secret.name}
                 ${secret.optional &&
-                html` <span className="font-mono text-[10px] text-iron-700">optional</span> `}
+                html`
+                  <span className="font-mono text-[10px] text-[var(--v2-text-faint)]">
+                    optional
+                  </span>
+                `}
                 ${secret.provided &&
-                html` <span className="font-mono text-[10px] text-mint">configured</span> `}
+                html`
+                  <span className="font-mono text-[10px] text-[var(--v2-positive-text)]">
+                    configured
+                  </span>
+                `}
               </label>
               ${(secret.setup?.kind || 'manual_token') === 'oauth'
                 ? html`
                     <div
-                      className="flex items-center justify-between gap-3 rounded-md border border-white/12 bg-white/[0.04] px-3 py-2"
+                      className="flex items-center justify-between gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2"
                     >
-                      <span className="text-xs text-iron-300">
+                      <span className="text-xs text-[var(--v2-text-muted)]">
                         ${secret.provided
                           ? 'Authorization is configured.'
                           : 'Authorize this provider in a browser popup.'}
@@ -162,7 +177,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                     </div>
                   `
                 : html`
-                    <input
+                    <${Input}
                       type="password"
                       placeholder=${secret.provided ? '••••••• (leave blank to keep)' : ''}
                       value=${values[secret.name] || ''}
@@ -172,12 +187,14 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                           [secret.name]: e.target.value
                         }))}
                       onKeyDown=${(e) => e.key === 'Enter' && handleSubmit()}
-                      className="h-10 w-full rounded-md border border-white/12 bg-white/[0.04] px-3 text-sm text-iron-100 outline-none placeholder:text-iron-700 focus:border-signal/45"
+                      size="sm"
                     />
                     ${secret.auto_generate &&
                     !secret.provided &&
                     html`
-                      <p className="mt-1 text-xs text-iron-700">Auto-generated if left blank</p>
+                      <p className="mt-1 text-xs text-[var(--v2-text-faint)]">
+                        Auto-generated if left blank
+                      </p>
                     `}
                   `}
             </div>
@@ -186,12 +203,18 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
         ${fields.map(
           (field) => html`
             <div key=${field.name}>
-              <label className="mb-1.5 flex items-center gap-2 text-sm text-iron-200">
+              <label
+                className="mb-1.5 flex items-center gap-2 text-sm font-medium text-[var(--v2-text-strong)]"
+              >
                 ${field.prompt || field.name}
                 ${field.optional &&
-                html` <span className="font-mono text-[10px] text-iron-700">optional</span> `}
+                html`
+                  <span className="font-mono text-[10px] text-[var(--v2-text-faint)]">
+                    optional
+                  </span>
+                `}
               </label>
-              <input
+              <${Input}
                 type="text"
                 placeholder=${field.placeholder || ''}
                 value=${fieldValues[field.name] || ''}
@@ -201,7 +224,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                     [field.name]: e.target.value
                   }))}
                 onKeyDown=${(e) => e.key === 'Enter' && handleSubmit()}
-                className="h-10 w-full rounded-md border border-white/12 bg-white/[0.04] px-3 text-sm text-iron-100 outline-none placeholder:text-iron-700 focus:border-signal/45"
+                size="sm"
               />
             </div>
           `
@@ -210,12 +233,14 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
 
       ${onboarding?.credential_next_step &&
       html`
-        <p className="mt-4 text-xs leading-5 text-iron-300">${onboarding.credential_next_step}</p>
+        <p className="mt-4 text-xs leading-5 text-[var(--v2-text-muted)]">
+          ${onboarding.credential_next_step}
+        </p>
       `}
       ${submitMutation.error &&
       html`
         <div
-          className="mt-4 rounded-md border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+          className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-2 text-xs text-[var(--v2-danger-text)]"
         >
           ${submitMutation.error.message}
         </div>
@@ -223,7 +248,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
       ${oauthMutation.error &&
       html`
         <div
-          className="mt-4 rounded-md border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+          className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-2 text-xs text-[var(--v2-danger-text)]"
         >
           ${oauthMutation.error.message}
         </div>
@@ -261,26 +286,32 @@ function ModalShell({ onClose, title, children }) {
 
   return html`
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 backdrop-blur-sm sm:items-center"
+      role="dialog"
+      aria-modal="true"
       onClick=${(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="v2-panel mx-4 w-full max-w-lg rounded-2xl p-6"
+        data-testid="connector-setup-modal"
+        className="w-full max-w-lg overflow-hidden rounded-[22px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
         onClick=${(e) => e.stopPropagation()}
       >
-        <div className="mb-5 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">${title}</h3>
+        <div
+          className="flex items-center justify-between gap-4 border-b border-[var(--v2-panel-border)] px-5 py-4"
+        >
+          <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">${title}</h3>
           <button
+            type="button"
             onClick=${onClose}
             aria-label="Close setup"
-            className="grid h-8 w-8 place-items-center rounded-md text-iron-300 hover:bg-white/[0.06] hover:text-white"
+            className="grid h-8 w-8 place-items-center rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
           >
             <${Icon} name="close" className="h-4 w-4" />
           </button>
         </div>
-        ${children}
+        <div className="max-h-[min(70dvh,38rem)] overflow-y-auto px-5 py-4">${children}</div>
       </div>
     </div>
   `;

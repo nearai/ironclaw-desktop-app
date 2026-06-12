@@ -29,11 +29,11 @@ const BASE =
 /* ── Size classes ──────────────────────────────────────────────────── */
 
 const SIZES = {
-  sm: 'h-9 rounded-[10px] px-3 text-xs',
-  md: 'min-h-[44px] rounded-[14px] px-3.5 text-[13px] md:min-h-[50px] md:rounded-[16px] md:px-4 md:text-sm',
-  lg: 'min-h-[54px] rounded-[18px] px-6 text-base',
-  icon: 'h-[44px] w-[44px] rounded-[14px] md:h-[50px] md:w-[50px] md:rounded-[16px]',
-  'icon-sm': 'h-9 w-9 rounded-[10px]'
+  sm: 'h-8 rounded-[6px] px-3 text-xs',
+  md: 'min-h-[40px] rounded-[8px] px-3.5 text-[13px] md:min-h-[44px] md:px-4 md:text-sm',
+  lg: 'min-h-[48px] rounded-[10px] px-5 text-sm',
+  icon: 'h-[40px] w-[40px] rounded-[8px] md:h-[44px] md:w-[44px]',
+  'icon-sm': 'h-8 w-8 rounded-[6px]'
 };
 
 /* ── Variant classes ───────────────────────────────────────────────── */

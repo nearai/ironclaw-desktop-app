@@ -1,4 +1,5 @@
 import { StatusPill } from '../../../design-system/primitives.js';
+import { Card, CardLabel } from '../../../design-system/card.js';
 import { html } from '../../../lib/html.js';
 import { ExtensionCard, RegistryCard } from './extension-card.js';
 import { PairingSection } from './pairing-section.js';
@@ -24,51 +25,90 @@ export function isSlackChannelEnabled(enabledChannels) {
   return ['slack', 'slack_v2', 'slack-v2'].some((channel) => enabledChannels.includes(channel));
 }
 
+export function deriveSlackMessagingState({
+  gatewayOffline,
+  enabledChannels,
+  connectableChannels
+}) {
+  if (gatewayOffline) {
+    return {
+      enabled: false,
+      connectAction: null,
+      statusLabel: 'unavailable',
+      statusTone: 'warning'
+    };
+  }
+  const enabled = isSlackChannelEnabled(enabledChannels);
+  const connectAction = connectableChannels?.find((channel) => channel.channel === 'slack');
+  return {
+    enabled,
+    connectAction,
+    statusLabel: enabled ? 'on' : connectAction ? 'connect' : 'off',
+    statusTone: enabled ? 'success' : connectAction ? 'info' : 'muted'
+  };
+}
+
 export function ChannelsTab({
   status,
   channels,
   connectableChannels,
   channelRegistry,
+  loadError,
   onActivate,
   onConfigure,
   onRemove,
   onInstall,
   isBusy
 }) {
+  const gatewayOffline = Boolean(loadError);
   const enabledChannels = status.enabled_channels || [];
-  const slackEnabled = isSlackChannelEnabled(enabledChannels);
-  const slackConnectAction = connectableChannels?.find((channel) => channel.channel === 'slack');
-  const slackStatusLabel = slackEnabled ? 'on' : slackConnectAction ? 'connect' : 'off';
-  const slackStatusTone = slackEnabled ? 'success' : slackConnectAction ? 'info' : 'muted';
+  const {
+    enabled: slackEnabled,
+    connectAction: slackConnectAction,
+    statusLabel: slackStatusLabel,
+    statusTone: slackStatusTone
+  } = deriveSlackMessagingState({ gatewayOffline, enabledChannels, connectableChannels });
 
   return html`
     <div className="space-y-5">
-      <div className="v2-panel rounded-[18px] p-5 sm:p-6">
-        <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-          Built-in channels
-        </h3>
+      ${gatewayOffline &&
+      html`
+        <div
+          className="rounded-[14px] border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3 text-sm leading-6 text-[var(--v2-warning-text)]"
+          role="status"
+        >
+          IronClaw cannot reach the local gateway yet. Messaging setup will unlock when the gateway
+          is available.
+        </div>
+      `}
+      <${Card} variant="bordered" radius="lg" padding="md">
+        <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Built-in messaging paths <//>
         <${BuiltinRow}
-          name="Web Gateway"
-          description="Browser-based chat with SSE streaming"
-          enabled=${true}
+          name="Desktop chat"
+          description="The live chat connection used by this app"
+          enabled=${!gatewayOffline}
+          statusLabel=${gatewayOffline ? 'unavailable' : 'on'}
+          statusTone=${gatewayOffline ? 'warning' : 'success'}
           detail=${'SSE: ' +
           (status.sse_connections || 0) +
           ' · WS: ' +
           (status.ws_connections || 0)}
         />
         <${BuiltinRow}
-          name="HTTP Webhook"
-          description="Inbound webhook endpoint for external integrations"
-          enabled=${enabledChannels.includes('http')}
-          detail="ENABLE_HTTP=true"
+          name="External webhook"
+          description="A controlled inbound path for approved external events"
+          enabled=${!gatewayOffline && enabledChannels.includes('http')}
+          statusLabel=${gatewayOffline ? 'unavailable' : undefined}
+          statusTone=${gatewayOffline ? 'warning' : undefined}
+          detail=${gatewayOffline ? null : 'ENABLE_HTTP=true'}
         />
         <${BuiltinRow}
           name="Slack"
-          description="Tenant app channel for DMs and app mentions"
+          description="DMs and app mentions from the workspace Slack app"
           enabled=${slackEnabled}
           statusLabel=${slackStatusLabel}
           statusTone=${slackStatusTone}
-          detail="Tenant Slack app install"
+          detail=${gatewayOffline ? null : 'Workspace Slack app'}
         >
           ${slackConnectAction &&
           html`<${PairingSection}
@@ -82,24 +122,26 @@ export function ChannelsTab({
         <//>
         <${BuiltinRow}
           name="CLI"
-          description="Terminal interface with TUI or simple REPL"
-          enabled=${enabledChannels.includes('cli')}
-          detail="ironclaw run --cli"
+          description="Local operator console for development and debugging"
+          enabled=${!gatewayOffline && enabledChannels.includes('cli')}
+          statusLabel=${gatewayOffline ? 'unavailable' : undefined}
+          statusTone=${gatewayOffline ? 'warning' : undefined}
+          detail=${gatewayOffline ? null : 'ironclaw run --cli'}
         />
         <${BuiltinRow}
-          name="REPL"
-          description="Minimal read-eval-print loop for testing"
-          enabled=${enabledChannels.includes('repl')}
-          detail="ironclaw run --repl"
+          name="Developer console"
+          description="Low-level local testing path"
+          enabled=${!gatewayOffline && enabledChannels.includes('repl')}
+          statusLabel=${gatewayOffline ? 'unavailable' : undefined}
+          statusTone=${gatewayOffline ? 'warning' : undefined}
+          detail=${gatewayOffline ? null : 'ironclaw run --repl'}
         />
-      </div>
+      <//>
 
       ${channels.length > 0 &&
       html`
-        <div className="v2-panel rounded-[18px] p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            Messaging channels
-          </h3>
+        <${Card} variant="bordered" radius="lg" padding="md">
+          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Connected messaging apps <//>
           <div className="grid grid-cols-1 gap-4">
             ${channels.map(
               (ch) => html`
@@ -118,14 +160,12 @@ export function ChannelsTab({
               `
             )}
           </div>
-        </div>
+        <//>
       `}
       ${channelRegistry.length > 0 &&
       html`
-        <div className="v2-panel rounded-[18px] p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            Available channels
-          </h3>
+        <${Card} variant="bordered" radius="lg" padding="md">
+          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Available messaging apps <//>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             ${channelRegistry.map(
               (entry) => html`
@@ -138,7 +178,7 @@ export function ChannelsTab({
               `
             )}
           </div>
-        </div>
+        <//>
       `}
     </div>
   `;
@@ -154,16 +194,18 @@ function BuiltinRow({
   statusTone = enabled ? 'success' : 'muted'
 }) {
   return html`
-    <div className="border-t border-white/[0.06] py-4 first:border-0 first:pt-0">
+    <div className="border-t border-[var(--v2-panel-border)] py-4 first:border-0 first:pt-0">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-iron-200">${name}</span>
+            <span className="text-sm font-medium text-[var(--v2-text-strong)]">${name}</span>
             <${StatusPill} tone=${statusTone} label=${statusLabel} />
           </div>
-          <div className="mt-1 text-xs text-iron-300">${description}</div>
+          <div className="mt-1 text-xs text-[var(--v2-text-muted)]">${description}</div>
           ${detail &&
-          html`<div className="mt-1 font-mono text-[11px] text-iron-700">${detail}</div>`}
+          html`<div className="mt-1 font-mono text-[11px] text-[var(--v2-text-faint)]">
+            ${detail}
+          </div>`}
         </div>
       </div>
       ${children}

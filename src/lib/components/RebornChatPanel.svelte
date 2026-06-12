@@ -15,7 +15,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/state';
   import ChatModelSelector from './ChatModelSelector.svelte';
-  import MarkdownView from './MarkdownView.svelte';
+  import MarkdownView from './LazyMarkdownView.svelte';
   import WorkProductActions from './WorkProductActions.svelte';
   import { connection } from '$lib/stores/connection.svelte';
   import { composerInsert } from '$lib/stores/templates.svelte';

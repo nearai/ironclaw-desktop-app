@@ -24,6 +24,30 @@ The legacy `src/` SvelteKit tree is not the packaged desktop UI. Svelte tests
 can still be useful for legacy/reference behavior, but they are not proof that
 the shipped app works.
 
+## Preview Vs Desktop Runtime
+
+`npm run dev:webui-static` is a browser preview of the shared static WebUI. It
+does not start the Tauri shell, does not spawn the bundled Reborn sidecar, and
+does not provide the native auth bridge used by NEAR AI Cloud sign-in. If you
+open `/v2/welcome` from that preview without a gateway already running behind
+`IRONCLAW_GATEWAY_ORIGIN`, the sign-in buttons should remain disabled.
+
+Use the desktop runtime for product/auth verification:
+
+```bash
+npm run tauri dev
+```
+
+Use the static server for deterministic UI checks:
+
+```bash
+npm run dev:webui-static
+npm run smoke:webui-static
+```
+
+Do not claim live OAuth, connector execution, or sidecar behavior from a
+browser-only static preview.
+
 ## Source Of Truth
 
 - Reborn source repo:

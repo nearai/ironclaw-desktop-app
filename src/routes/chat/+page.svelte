@@ -10,7 +10,7 @@
   import { connection } from '$lib/stores/connection.svelte';
   import { threads } from '$lib/stores/threads.svelte';
   import { messages, type ToolInvocation } from '$lib/stores/messages.svelte';
-  import MarkdownView from '$lib/components/MarkdownView.svelte';
+  import MarkdownView from '$lib/components/LazyMarkdownView.svelte';
   import StreamingText from '$lib/components/StreamingText.svelte';
   import RebornChatPanel from '$lib/components/RebornChatPanel.svelte';
   // LANE B9 — editable bubble swap (R69)

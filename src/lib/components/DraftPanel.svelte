@@ -8,7 +8,7 @@
   import { draft } from '$lib/stores/draft.svelte';
   import { toasts } from '$lib/stores/toasts.svelte';
   import Icon from './Icon.svelte';
-  import MarkdownView from './MarkdownView.svelte';
+  import MarkdownView from './LazyMarkdownView.svelte';
 
   let { onRegenerate }: { onRegenerate: () => void } = $props();
 

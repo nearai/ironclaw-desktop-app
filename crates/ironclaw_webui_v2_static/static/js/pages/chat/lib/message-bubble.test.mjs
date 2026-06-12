@@ -18,7 +18,7 @@ function messageBubbleSourceForTest() {
     }
     lines.push(line.replace('export function MessageBubble', 'function MessageBubble'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, AssistantExportActions, messageActionRowClass, messageContentForDisplay, attachmentEvidenceLabel };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, AssistantExportActions, messageActionRowClass, messageContentForDisplay, assistantResponseLooksLikeWorkProduct, messageOuterClass, messageShellClass, messageBodyClass, attachmentEvidenceLabel, shouldCompactAttachmentStack, visibleAttachmentsForMessage, attachmentStackSummary, attachmentStackClass };`;
 }
 
 function findComponentByName(node, name) {
@@ -107,6 +107,35 @@ test('assistant work-product actions are visible without hover and can wrap', ()
   assert.match(actionClass, /\bmax-w-full\b/);
 });
 
+test('assistant markdown work product renders as a first-class artifact panel', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const {
+    assistantResponseLooksLikeWorkProduct,
+    messageOuterClass,
+    messageShellClass,
+    messageBodyClass
+  } = context.globalThis.__testExports;
+
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct('assistant', '# Services agreement\n\n## Scope'),
+    true
+  );
+  assert.equal(assistantResponseLooksLikeWorkProduct('assistant', 'Sure, I can help.'), false);
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct('user', '# User-authored instructions'),
+    false
+  );
+  assert.match(messageOuterClass(false, true), /\bw-full\b/);
+  assert.doesNotMatch(messageOuterClass(false, false), /\bw-full\b/);
+  assert.match(messageShellClass(false, true), /\bw-full\b/);
+  assert.match(messageShellClass(false, true), /max-w-\[min\(860px,92vw\)\]/);
+  assert.match(messageBodyClass('assistant', false, true), /bg-\[var\(--v2-card-bg\)\]/);
+  assert.match(messageBodyClass('assistant', false, true), /shadow-\[var\(--v2-card-shadow\)\]/);
+  assert.doesNotMatch(messageBodyClass('assistant', false, false), /bg-\[var\(--v2-card-bg\)\]/);
+});
+
 test('assistant export actions collapse formats behind one export control', () => {
   const context = createMessageBubbleContext();
 
@@ -169,6 +198,61 @@ test('message attachment evidence labels say what was retained for the model', (
     }),
     'Sent as file metadata'
   );
+  assert.equal(
+    attachmentEvidenceLabel({
+      filename: 'brief.md',
+      modelReadable: true
+    }),
+    'Model-readable payload retained'
+  );
+});
+
+test('large user attachment stacks compact while preserving expandable access', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const {
+    MessageBubble,
+    shouldCompactAttachmentStack,
+    visibleAttachmentsForMessage,
+    attachmentStackSummary,
+    attachmentStackClass
+  } = context.globalThis.__testExports;
+  const attachments = Array.from({ length: 5 }, (_, index) => ({
+    filename: `file-${index + 1}.pdf`,
+    mime_type: 'application/pdf',
+    size_label: `${index + 1} KB`,
+    embedded_text: index < 4 ? `text ${index}` : ''
+  }));
+
+  assert.equal(shouldCompactAttachmentStack('user', attachments), true);
+  assert.equal(shouldCompactAttachmentStack('assistant', attachments), false);
+  assert.deepEqual(
+    visibleAttachmentsForMessage('user', attachments, false).map((att) => att.filename),
+    ['file-1.pdf', 'file-2.pdf', 'file-3.pdf']
+  );
+  assert.equal(visibleAttachmentsForMessage('user', attachments, true).length, 5);
+  assert.equal(attachmentStackSummary(attachments), '4 files have model-readable text');
+  assert.match(attachmentStackClass(true), /rounded-\[14px\]/);
+
+  const tree = MessageBubble({
+    message: {
+      id: 'u1',
+      role: 'user',
+      content: 'Draft from these files.',
+      attachments
+    }
+  });
+  const flat = flatStrings(tree);
+
+  assert.match(flat, /compact-attachment-stack/);
+  assert.match(flat, /files attached/);
+  assert.match(flat, /\b5\b/);
+  assert.match(flat, /Show\s+2\s+more files|Show 2 more attached files/);
+  assert.match(flat, /file-1\.pdf/);
+  assert.match(flat, /file-3\.pdf/);
+  assert.doesNotMatch(flat, /file-4\.pdf/);
+  assert.doesNotMatch(flat, /file-5\.pdf/);
 });
 
 test('user action row remains quiet until hover or focus', () => {
@@ -186,6 +270,10 @@ function flatStrings(node) {
   const out = [];
   const visit = (value) => {
     if (value == null) return;
+    if (typeof value === 'string' || typeof value === 'number') {
+      out.push(String(value));
+      return;
+    }
     if (Array.isArray(value)) {
       value.forEach(visit);
       return;

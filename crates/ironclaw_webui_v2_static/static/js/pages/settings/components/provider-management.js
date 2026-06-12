@@ -4,12 +4,12 @@ import { ConfirmDialog } from '../../../design-system/confirm-dialog.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { SettingsSearchEmpty } from './settings-search-empty.js';
-import { ProviderCard } from './provider-card.js';
+import { ActiveModelPicker, ProviderCard } from './provider-card.js';
 import { ProviderDialog } from './provider-dialog.js';
 import { ProviderLoginStatus } from './provider-login-status.js';
 import { useProviderManagementActions } from '../hooks/useProviderManagementActions.js';
 import { useProviderLogin } from '../hooks/useProviderLogin.js';
-import { groupProvidersByStatus } from '../lib/llm-providers.js';
+import { filterDesktopVisibleLlmProviders, groupProvidersByStatus } from '../lib/llm-providers.js';
 import { setActiveLlm } from '../lib/settings-api.js';
 
 const GROUP_ORDER = [
@@ -34,14 +34,54 @@ function GroupHeader({ label, count, dotClass }) {
   `;
 }
 
+export function ActiveModelPanel({ provider, currentModel, onListModels, onApplyModel, t }) {
+  if (!provider || provider.can_list_models === false) return null;
+  const displayName = provider.id === 'nearai' ? 'NEAR AI Cloud' : provider.name || provider.id;
+  return html`
+    <section
+      data-testid="active-model-panel"
+      className="mb-4 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-3 sm:p-3.5"
+    >
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0">
+          <div
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
+          >
+            Current model
+          </div>
+          <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-[var(--v2-text-strong)]">
+              ${displayName}
+            </span>
+            <span
+              className="rounded-full border border-[color-mix(in_srgb,var(--v2-positive-text)_34%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--v2-positive-text)]"
+            >
+              ${currentModel || t('llm.none')}
+            </span>
+          </div>
+        </div>
+        <div className="w-full lg:max-w-[34rem]">
+          <${ActiveModelPicker}
+            provider=${provider}
+            currentModel=${currentModel}
+            onListModels=${onListModels}
+            onApplyModel=${onApplyModel}
+            t=${t}
+          />
+        </div>
+      </div>
+    </section>
+  `;
+}
+
 export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }) {
   const t = useT();
   const actions = useProviderManagementActions({ settings, gatewayStatus, searchQuery, t });
   const state = actions.providerState;
-  // NEAR AI / Codex authenticate via login flows; on success the snapshot
+  // NEAR AI authenticate via login flows; on success the snapshot
   // refresh re-renders the now-active card in place (no navigation here).
   const login = useProviderLogin();
-  const loginBusy = login.nearaiBusy || login.codexBusy;
+  const loginBusy = login.nearaiBusy;
   const queryClient = useQueryClient();
   // Apply a model on the ACTIVE provider via the same set-active route the
   // chat popover uses; the snapshot invalidation re-renders every consumer.
@@ -53,22 +93,34 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
     [queryClient]
   );
 
-  if (searchQuery && actions.filteredProviders.length === 0) {
+  const visibleProviders = filterDesktopVisibleLlmProviders(actions.filteredProviders);
+
+  if (searchQuery && visibleProviders.length === 0) {
     return html`<${SettingsSearchEmpty} query=${searchQuery} />`;
   }
 
   const groups = groupProvidersByStatus(
-    actions.filteredProviders,
+    visibleProviders,
     state.builtinOverrides,
     state.activeProviderId
   );
+  const activeProvider = groups.active[0] || null;
+  const providersNeedingSetup = activeProvider
+    ? visibleProviders.filter((provider) => provider.id !== activeProvider.id)
+    : visibleProviders;
+  const rowGroups = groupProvidersByStatus(
+    providersNeedingSetup,
+    state.builtinOverrides,
+    state.activeProviderId
+  );
+  const hasProviderRows = providersNeedingSetup.length > 0;
 
   return html`
     <${Card} className="p-4 sm:p-6">
       <div className="mb-4">
         <div>
           <h3
-            className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
           >
             ${t('llm.providers')}
           </h3>
@@ -82,8 +134,8 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
           className=${[
             'mb-4 rounded-md border px-3 py-2 text-sm',
             actions.message.tone === 'error'
-              ? 'border-red-400/30 bg-red-500/10 text-red-200'
-              : 'border-mint/30 bg-mint/10 text-mint'
+              ? 'border-[color-mix(in_srgb,var(--v2-danger-text)_34%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]'
+              : 'border-[color-mix(in_srgb,var(--v2-positive-text)_34%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]'
           ].join(' ')}
           role="status"
         >
@@ -93,16 +145,40 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
 
       <${ProviderLoginStatus} login=${login} />
 
-      ${state.isLoading
+      <${ActiveModelPanel}
+        provider=${activeProvider}
+        currentModel=${state.selectedModel}
+        onListModels=${state.listModels}
+        onApplyModel=${applyModel}
+        t=${t}
+      />
+
+      ${state.error &&
+      html`
+        <div
+          className="mb-4 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_36%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-sm text-[var(--v2-warning-text)]"
+          role="status"
+        >
+          IronClaw cannot reach the local gateway yet. Choose a NEAR AI Cloud sign-in path; the app
+          will verify the connection when the gateway is back.
+        </div>
+      `}
+      ${state.isLoading && !hasProviderRows
         ? html`<div className="text-sm text-[var(--v2-text-muted)]">${t('common.loading')}</div>`
-        : state.error
-          ? html`<div className="text-sm text-red-200">
-              ${t('error.loadFailed', { what: t('llm.providers'), message: state.error.message })}
-            </div>`
+        : state.error && !hasProviderRows
+          ? html`
+              <div
+                className="rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_36%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-sm leading-6 text-[var(--v2-warning-text)]"
+                role="status"
+              >
+                IronClaw cannot reach NEAR AI Cloud yet. Start the local gateway, then retry from
+                this setup panel.
+              </div>
+            `
           : html`
               <div className="space-y-1">
                 ${GROUP_ORDER.flatMap((group) => {
-                  const items = groups[group.key];
+                  const items = rowGroups[group.key];
                   if (!items.length) return [];
                   return [
                     html`
@@ -132,9 +208,6 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
                                 onDelete=${actions.handleDelete}
                                 onNearaiLogin=${login.startNearai}
                                 onNearaiWallet=${login.startNearaiWallet}
-                                onCodexLogin=${login.startCodex}
-                                onListModels=${state.listModels}
-                                onApplyModel=${applyModel}
                                 loginBusy=${loginBusy}
                               />
                             `
@@ -150,7 +223,7 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
       <${ProviderDialog}
         open=${actions.isDialogOpen}
         provider=${actions.dialogProvider}
-        allProviderIds=${actions.allProviderIds}
+        allProviderIds=${visibleProviders.map((provider) => provider.id)}
         builtinOverrides=${state.builtinOverrides}
         onClose=${actions.closeDialog}
         onSave=${actions.handleSave}

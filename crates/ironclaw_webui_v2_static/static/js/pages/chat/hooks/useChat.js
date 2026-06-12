@@ -406,6 +406,14 @@ export function useChat(threadId) {
 
       const { threadId: targetThreadId, images = [], attachments = [] } = opts;
       const serializedAttachments = serializeComposerAttachments([...images, ...attachments]);
+      const optimisticAttachments = [
+        ...images.map((img) => ({
+          filename: img.filename || 'image',
+          mime_type: img.mime_type || 'image/*',
+          size_label: img.size ? `${img.size} bytes` : ''
+        })),
+        ...composerAttachmentsForOptimisticBubble(attachments)
+      ];
       // Reborn's timeline projection echoes `content` but NOT the first-class
       // `attachments` field, and the sidecar never feeds attachment bytes to
       // the model either. The durable block therefore carries BOTH the chip
@@ -440,18 +448,7 @@ export function useChat(threadId) {
         content,
         timestamp: new Date().toISOString(),
         images: images.map((img) => img.dataUrl).filter(Boolean),
-        attachments: [
-          ...images.map((img) => ({
-            filename: img.filename || 'image',
-            mime_type: img.mime_type || 'image/*',
-            size_label: img.size ? `${img.size} bytes` : ''
-          })),
-          ...attachments.map((att) => ({
-            filename: att.filename,
-            mime_type: att.mime_type,
-            size_label: att.size ? `${att.size} bytes` : ''
-          }))
-        ],
+        attachments: optimisticAttachments,
         isOptimistic: true
       };
       addPending(pendingMessagesRef.current, pendingKey, pendingRecord);
@@ -724,6 +721,27 @@ function serializeComposerAttachments(items) {
       // attachment, the exact failure mode this composer is built to avoid.
       .filter((item) => item.data_base64)
   );
+}
+
+function composerAttachmentsForOptimisticBubble(attachments) {
+  return (attachments || [])
+    .filter((attachment) => attachment?.base64)
+    .map((attachment) => ({
+      filename: attachment.filename || 'attachment',
+      mime_type: attachment.mime_type || 'application/octet-stream',
+      size_label: attachment.size ? `${attachment.size} bytes` : '',
+      extractedText: attachment.extractedText || '',
+      embedded_text: attachment.extractedText || '',
+      extraction_status:
+        attachment.extraction === 'extracted'
+          ? attachment.partial
+            ? 'extracted_text_truncated'
+            : 'extracted_text'
+          : attachment.modelReadable === false
+            ? 'content_omitted_message_budget'
+            : '',
+      modelReadable: attachment.modelReadable !== false
+    }));
 }
 
 function retryAfterMs(err) {
