@@ -133,11 +133,22 @@ async function main() {
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify(obj)
           });
-        // 404 on gateway/status triggers the designed fallback (renders chat,
-        // no gate). Providers/active return a verified nearai so neither the
-        // provider-setup gate nor an error toast appears.
         if (/\/api\/gateway\/status/.test(u)) {
-          return route.fulfill({ status: 404, body: '' });
+          return json({
+            engine_v2_enabled: true,
+            restart_enabled: true,
+            total_connections: 0,
+            llm_backend: 'nearai',
+            llm_model: 'auto',
+            model_readiness: 'ready',
+            model_execution_readiness: 'ready',
+            model_execution_verified: true
+          });
+        }
+        if (/\/auth\/providers/.test(u)) {
+          return json({
+            providers: [{ id: 'nearai', name: 'NEAR AI Cloud', enabled: true }]
+          });
         }
         if (/\/llm\/providers/.test(u)) {
           return json({
@@ -157,6 +168,60 @@ async function main() {
         }
         if (/\/llm\/active/.test(u)) {
           return json({ provider_id: 'nearai', model: 'auto' });
+        }
+        if (/\/llm\/list-models/.test(u)) {
+          return json({
+            ok: true,
+            models: ['auto', 'nearai:gpt-oss-120b', 'nearai:llama-3.3-70b']
+          });
+        }
+        if (/\/channels\/connectable/.test(u)) {
+          return json({ channels: [] });
+        }
+        if (/\/extensions\/registry/.test(u)) {
+          return json({
+            entries: [
+              {
+                id: 'gmail',
+                display_name: 'Gmail',
+                kind: 'wasm_tool',
+                description: 'Read, triage, draft, and prepare email work with approval gates.',
+                package_ref: { kind: 'extension', id: 'tools/gmail' },
+                installed: false,
+                keywords: ['email', 'google', 'inbox']
+              },
+              {
+                id: 'google-calendar',
+                display_name: 'Google Calendar',
+                kind: 'wasm_tool',
+                description: 'Find meetings, protect focus blocks, and prepare schedule changes.',
+                package_ref: { kind: 'extension', id: 'tools/google_calendar' },
+                installed: false,
+                keywords: ['calendar', 'google', 'schedule']
+              },
+              {
+                id: 'notion',
+                display_name: 'Notion',
+                kind: 'mcp_server',
+                description: 'Search team knowledge, draft pages, and keep decisions visible.',
+                package_ref: { kind: 'extension', id: 'mcp-servers/notion' },
+                installed: false,
+                keywords: ['knowledge', 'docs', 'wiki']
+              },
+              {
+                id: 'slack',
+                display_name: 'Slack',
+                kind: 'wasm_channel',
+                description: 'Summarize channels, prepare replies, and surface urgent asks.',
+                package_ref: { kind: 'extension', id: 'channels/slack' },
+                installed: false,
+                keywords: ['messages', 'team', 'channels']
+              }
+            ]
+          });
+        }
+        if (/\/extensions$/.test(u)) {
+          return json({ extensions: [] });
         }
         if (/\/threads(\?|$)|\/automations|\/timeline/.test(u)) {
           const empty = /\/automations/.test(u)
@@ -212,6 +277,7 @@ async function main() {
     const allSurfaces = [
       { name: 'chat', path: '/chat' },
       { name: 'extensions', path: '/extensions' },
+      { name: 'extensions-registry', path: '/extensions/registry' },
       { name: 'settings-inference', path: '/settings/inference' },
       { name: 'onboarding-welcome', path: '/welcome' }
     ];

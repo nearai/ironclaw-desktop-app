@@ -1186,7 +1186,20 @@ try {
     'Workspace files'
   ];
   for (const name of acceptanceConnectionNames) {
-    await page.getByText(name, { exact: true }).waitFor({ timeout: 20_000 });
+    await page.getByRole('heading', { name, exact: true }).waitFor({ timeout: 20_000 });
+  }
+  const acceptanceWorkflowNames = [
+    'Daily news digest',
+    'Calendar prep assistant',
+    'Deployment health watcher',
+    'Competitor release tracker',
+    'AMA in Slack',
+    'CRM inbound tracker',
+    'Slack to Sheet bug logger',
+    'HN keyword monitor'
+  ];
+  for (const name of acceptanceWorkflowNames) {
+    await page.getByRole('heading', { name, exact: true }).waitFor({ timeout: 20_000 });
   }
   const acceptanceIconKinds = [
     'gmail',
@@ -1235,6 +1248,12 @@ try {
     path: 'output/playwright/static-connections-registry-empty.png',
     fullPage: true
   });
+  const acceptanceWorkflowsPanel = page.getByTestId('acceptance-workflows');
+  await acceptanceWorkflowsPanel.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: 'output/playwright/static-acceptance-workflows.png',
+    fullPage: false
+  });
   const emptyCatalogInstallRequests = connectorRequests
     .slice(beforeEmptyCatalogRequestCount)
     .filter((request) => request.url.endsWith('/api/webchat/v2/extensions/install'));
@@ -1247,6 +1266,22 @@ try {
       )}`
     );
   }
+  await page.getByLabel('Draft prompt for Daily news digest').click();
+  await page.waitForURL(`**${appBasePath}/chat`, { timeout: 20_000 });
+  const workflowDraftComposer = page.locator('textarea').first();
+  await workflowDraftComposer.waitFor({ timeout: 20_000 });
+  const workflowDraft = await workflowDraftComposer.inputValue();
+  if (
+    !workflowDraft.includes('Telegram digest') ||
+    !workflowDraft.includes('NEAR AI news') ||
+    !workflowDraft.includes('schedule the routine')
+  ) {
+    throw new Error(`workflow recipe did not prefill a useful chat draft: ${workflowDraft}`);
+  }
+  await page.screenshot({
+    path: 'output/playwright/static-acceptance-workflow-chat-prefill.png',
+    fullPage: true
+  });
 
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat`, {
     waitUntil: 'domcontentloaded'

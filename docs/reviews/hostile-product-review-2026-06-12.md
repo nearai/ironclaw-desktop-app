@@ -870,3 +870,65 @@ Escalate the hostile product review from local UI polish to the canonical Reborn
 - Do not remove the issue-4775 acceptance surface assertions from `registry-tab.test.mjs` or `scripts/smoke-webui-static.mjs`.
 - Do not make synthetic/core connector cards actionable when the gateway catalog is unavailable.
 - Do not send slash-prefixed catalog refs as extension lifecycle names.
+
+## Handoff: Phase 16 - Chief-of-Staff Workflow Recipes
+
+Status: YELLOW
+Owner lane: Connections / Static UI / Product-contract QA
+
+### Goal
+
+Move the Connections Browse surface from a list of app tiles toward the product promise: users should immediately see the high-value chief-of-staff work loops IronClaw is meant to run. This phase maps the eight canonical issue-4775 QA workflows to visible workflow cards, shows the required app marks beside each workflow, and proves a recipe can safely prefill chat without pretending live connectors are already configured.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/registry-tab.js`: added `ACCEPTANCE_WORKFLOWS` for the eight issue-4775 scenarios, plus a rendered "Chief-of-staff workflows" panel with required connector chips, honest gateway/catalog status, and `Draft prompt` links into chat.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/registry-tab.test.mjs`: added product-contract tests requiring every issue-4775 use case to have a workflow recipe, mapped connector surfaces, useful prompt draft, and honest offline/catalog status labels.
+- `scripts/smoke-webui-static.mjs`: rendered smoke now asserts every workflow appears, captures `output/playwright/static-acceptance-workflows.png`, clicks `Draft prompt for Daily news digest`, proves the chat composer contains a Telegram/NEAR AI/routine draft, and captures `output/playwright/static-acceptance-workflow-chat-prefill.png`.
+- `scripts/capture-readme-shots.mjs`: expanded the README screenshot harness to mock registry/provider routes and include an `extensions-registry` capture surface so public screenshots can cover the new Connections Browse experience.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js` and `crates/ironclaw_webui_v2_static/static/styles/tailwind.generated.css`: regenerated shipped static artifacts.
+
+### Verified
+
+- Branch/main status checked after `git fetch --all --prune`: `codex/nearai-first-product-polish` is 16 commits ahead of `nearai/main` and 0 behind; `origin/main` is older than `nearai/main`.
+- Issue 4775 source re-read via `gh issue view 4775 --repo nearai/ironclaw`; the canonical acceptance surface remains the same eight workflows.
+- Focused test: `node --test crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/registry-tab.test.mjs` passed 11/11.
+- `npm run prepare:webui-static && npm run smoke:webui-static`: passed; rendered workflow section and workflow-to-chat prefill are now part of the smoke.
+- `npm run test:static`: passed 310/310.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `src-tauri/target/release/bundle/macos/IronClaw.app` and `src-tauri/target/release/bundle/dmg/IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, native windows were detected, Reborn gateway was healthy on port 3000, and sidecar terminated cleanly.
+- Browser plugin attempted against `http://127.0.0.1:17660/v2/extensions/registry` and `http://localhost:17660/v2/extensions/registry`; the server was reachable by `curl`, but the in-app Browser landed on an internal `ERR_CONNECTION_REFUSED` interstitial and does not expose request interception/init-script hooks needed for the mocked gateway path.
+
+### Evidence
+
+- Rendered workflow section: `output/playwright/static-acceptance-workflows.png`.
+- Rendered workflow chat prefill: `output/playwright/static-acceptance-workflow-chat-prefill.png`.
+- Rendered Connections acceptance surface: `output/playwright/static-connections-registry-empty.png`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-105920.log`.
+
+### Still RED
+
+- Live connector end-to-end behavior is still unproven. Google OAuth, Slack install/pairing, Telegram, GitHub, Drive, Sheets, and external-service execution still require backend/account evidence.
+- The workflow recipes prefill chat; they do not yet run the issue-4775 workflows through live Reborn browser e2e or fixture-backed model execution.
+- Browser plugin local-route verification is blocked in this environment despite shell reachability; rendered proof currently comes from the repo Playwright smoke.
+
+### Risks
+
+- Workflow recipes could feel aspirational if backend connector routes remain unavailable. The UI mitigates this by showing `Waiting on app catalog` and preserving disabled connector install states.
+- The recipe prompts are deliberately concise; real production prompts may need localization, prompt-quality review, and backend affordances for scheduling/routine creation.
+- README screenshot capture now includes a registry route with mocked entries. Keep it aligned with any future changes to the Connections Browse contract.
+
+### Next Agent Should Start Here
+
+1. Add a fixture-backed Reborn browser e2e harness that drives one of these workflow draft prompts through rendered chat and verifies the expected gate/tool sequence.
+2. Build guided setup journeys for Google-family, Slack, Notion, Telegram, GitHub, Drive, and Sheets once backend setup/readiness routes are exposed.
+3. Continue hostile design QA on the workflow panel below the first fold: validate mobile layout, all eight cards, and whether `Draft prompt` should become a stronger guided launch action.
+
+### Do Not Touch
+
+- Do not remove the issue-4775 workflow recipe assertions from `registry-tab.test.mjs` or `scripts/smoke-webui-static.mjs`.
+- Do not make workflow cards claim they are runnable while the app catalog or live connector readiness is unavailable.
+- Do not send slash-prefixed catalog refs as extension lifecycle names.

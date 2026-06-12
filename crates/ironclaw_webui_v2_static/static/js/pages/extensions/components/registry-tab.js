@@ -1,4 +1,5 @@
 import { React, html } from '../../../lib/html.js';
+import { Link } from 'react-router';
 import { Button } from '../../../design-system/button.js';
 import { Card, CardLabel } from '../../../design-system/card.js';
 import { Icon } from '../../../design-system/icons.js';
@@ -98,6 +99,76 @@ export const CORE_CONNECTIONS = [
   }
 ];
 
+export const ACCEPTANCE_WORKFLOWS = [
+  {
+    id: 'daily-news-digest',
+    title: 'Daily news digest',
+    outcome: 'Find NEAR AI news, summarize it, and deliver a short Telegram digest on a routine.',
+    surfaces: ['telegram', 'web-http', 'routines'],
+    prompt:
+      "Create a recurring Telegram digest of the most important NEAR AI news. Start by drafting today's summary, then schedule the routine."
+  },
+  {
+    id: 'calendar-prep-assistant',
+    title: 'Calendar prep assistant',
+    outcome:
+      'Prepare meeting briefs from Gmail, Calendar, Drive documents, public news, and a timed routine.',
+    surfaces: ['gmail', 'google-calendar', 'google-drive', 'web-http', 'routines'],
+    prompt:
+      'Thirty minutes before my next meeting, prepare a company brief from Gmail, Calendar, Drive docs, and recent news.'
+  },
+  {
+    id: 'deployment-health-watcher',
+    title: 'Deployment health watcher',
+    outcome: 'Ping an endpoint on a schedule and send a Slack DM when health checks fail.',
+    surfaces: ['slack', 'web-http', 'routines'],
+    prompt:
+      'Watch a deployment endpoint every five minutes and DM me in Slack if the status is not healthy.'
+  },
+  {
+    id: 'competitor-release-tracker',
+    title: 'Competitor release tracker',
+    outcome: 'Watch GitHub releases, summarize meaningful changes, and email the result.',
+    surfaces: ['gmail', 'github', 'routines'],
+    prompt:
+      'Track competitor GitHub releases, summarize meaningful changes, and email me a recurring update.'
+  },
+  {
+    id: 'slack-ama',
+    title: 'AMA in Slack',
+    outcome:
+      'Answer Slack questions from a Drive strategy document without losing source grounding.',
+    surfaces: ['slack', 'google-drive'],
+    prompt:
+      'Use the strategy document in Drive as a knowledge base and answer Slack DMs with grounded answers.'
+  },
+  {
+    id: 'crm-inbound-tracker',
+    title: 'CRM inbound tracker',
+    outcome: 'Find inbound Gmail from near.ai domains and append structured rows to Google Sheets.',
+    surfaces: ['gmail', 'google-sheets', 'routines'],
+    prompt:
+      'Every thirty minutes, find new near.ai-domain inbound emails and append the right fields to a Google Sheet.'
+  },
+  {
+    id: 'slack-sheet-bug-logger',
+    title: 'Slack to Sheet bug logger',
+    outcome: 'Turn Slack messages that start with "bug:" into rows in a product bug spreadsheet.',
+    surfaces: ['slack', 'google-sheets', 'routines'],
+    prompt:
+      'Watch the product Slack channel for messages that start with bug: and append them to a Google Sheet.'
+  },
+  {
+    id: 'hn-keyword-monitor',
+    title: 'HN keyword monitor',
+    outcome:
+      'Search Hacker News for IronClaw and NEAR AI mentions and send Slack summaries hourly.',
+    surfaces: ['slack', 'web-http', 'routines'],
+    prompt:
+      'Search Hacker News hourly for IronClaw or NEAR AI mentions and send a concise Slack summary.'
+  }
+];
+
 function packageId(entry) {
   return entry.package_ref?.id || '';
 }
@@ -122,6 +193,12 @@ export function coreConnectionKindLabel(entry) {
   if (entry.kind === 'wasm_channel') return 'Messaging';
   if (entry.kind === 'builtin') return 'Built-in';
   return 'Tool';
+}
+
+export function acceptanceWorkflowStatus({ gatewayOffline, catalogUnavailable }) {
+  if (gatewayOffline) return 'Gateway offline';
+  if (catalogUnavailable) return 'Waiting on app catalog';
+  return 'Connect required apps';
 }
 
 export function RegistryTab({
@@ -205,6 +282,7 @@ export function RegistryTab({
               )}
             </div>`}
       <//>
+      <${AcceptanceWorkflowsPanel} gatewayOffline=${false} catalogUnavailable=${false} />
     </div>
   `;
 }
@@ -264,7 +342,104 @@ function CoreConnectionsEmpty({ loadError, onInstall, isBusy }) {
           `
         )}
       </div>
+      <${AcceptanceWorkflowsPanel}
+        gatewayOffline=${gatewayOffline}
+        catalogUnavailable=${catalogUnavailable}
+      />
     </div>
+  `;
+}
+
+function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable }) {
+  const connectionsById = Object.fromEntries(CORE_CONNECTIONS.map((entry) => [entry.id, entry]));
+  const status = acceptanceWorkflowStatus({ gatewayOffline, catalogUnavailable });
+
+  return html`
+    <section
+      data-testid="acceptance-workflows"
+      className="rounded-[18px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-5 shadow-[var(--v2-shadow-sm)] sm:p-6"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="max-w-2xl">
+          <p
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
+          >
+            Chief-of-staff workflows
+          </p>
+          <h3 className="mt-2 text-xl font-semibold text-[var(--v2-text-strong)]">
+            Start from outcomes, not app setup.
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-[var(--v2-text-muted)]">
+            These are the work loops the connection layer should unlock once the required apps are
+            configured.
+          </p>
+        </div>
+        <span
+          className="inline-flex items-center gap-2 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--v2-text-muted)]"
+        >
+          <${Icon}
+            name=${gatewayOffline || catalogUnavailable ? 'pulse' : 'check'}
+            className="h-3.5 w-3.5"
+          />
+          ${status}
+        </span>
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-2">
+        ${ACCEPTANCE_WORKFLOWS.map(
+          (workflow) => html`
+            <article
+              key=${workflow.id}
+              data-testid="acceptance-workflow-card"
+              className="flex h-full flex-col rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h4 className="text-base font-semibold text-[var(--v2-text-strong)]">
+                    ${workflow.title}
+                  </h4>
+                  <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
+                    ${workflow.outcome}
+                  </p>
+                </div>
+                <span
+                  className="shrink-0 rounded-full bg-[var(--v2-surface-soft)] px-2 py-1 text-[11px] font-medium text-[var(--v2-text-faint)]"
+                >
+                  ${workflow.surfaces.length} apps
+                </span>
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                ${workflow.surfaces.map((surface) => {
+                  const connection = connectionsById[surface];
+                  return html`
+                    <span
+                      key=${surface}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] py-1 pl-1 pr-2 text-[11px] font-medium text-[var(--v2-text-muted)]"
+                    >
+                      <${ConnectorAppIcon} source=${connection} className="h-5 w-5 rounded-[6px]" />
+                      <span>${connection?.display_name || surface}</span>
+                    </span>
+                  `;
+                })}
+              </div>
+
+              <div className="mt-auto flex items-center justify-between gap-3 pt-4">
+                <span className="text-xs text-[var(--v2-text-faint)]">${status}</span>
+                <${Link}
+                  to="/chat"
+                  state=${{ composerDraft: workflow.prompt }}
+                  aria-label=${`Draft prompt for ${workflow.title}`}
+                  className="inline-flex h-8 items-center rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-semibold text-[var(--v2-text-strong)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
+                >
+                  Draft prompt
+                <//>
+              </div>
+            </article>
+          `
+        )}
+      </div>
+    </section>
   `;
 }
 

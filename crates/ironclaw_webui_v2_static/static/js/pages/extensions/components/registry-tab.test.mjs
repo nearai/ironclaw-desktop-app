@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  ACCEPTANCE_WORKFLOWS,
   CORE_CONNECTIONS,
+  acceptanceWorkflowStatus,
   coreConnectionButtonState,
   coreConnectionKindLabel,
   projectedConnectPhase
@@ -95,6 +97,44 @@ test('core connection fallbacks cover the issue 4775 QA acceptance surface', () 
       assert.ok(surfaced.has(surface), `${useCase.name} missing ${surface}`);
     }
   }
+});
+
+test('acceptance workflows map every issue 4775 scenario to connector surfaces', () => {
+  const workflowsByTitle = Object.fromEntries(
+    ACCEPTANCE_WORKFLOWS.map((workflow) => [workflow.title, workflow])
+  );
+
+  for (const useCase of ISSUE_4775_USE_CASES) {
+    const workflow = workflowsByTitle[useCase.name];
+    assert.ok(workflow, `${useCase.name} is not exposed as a workflow recipe`);
+    assert.deepEqual(workflow.surfaces, useCase.surfaces);
+    assert.ok(workflow.prompt.length >= 80, `${useCase.name} needs a useful chat draft`);
+  }
+});
+
+test('acceptance workflows only reference surfaced connection ids', () => {
+  const surfaced = new Set(CORE_CONNECTIONS.map((entry) => entry.id));
+
+  for (const workflow of ACCEPTANCE_WORKFLOWS) {
+    for (const surface of workflow.surfaces) {
+      assert.ok(surfaced.has(surface), `${workflow.title} references unknown surface ${surface}`);
+    }
+  }
+});
+
+test('acceptance workflow status stays honest for offline and empty-catalog states', () => {
+  assert.equal(
+    acceptanceWorkflowStatus({ gatewayOffline: true, catalogUnavailable: false }),
+    'Gateway offline'
+  );
+  assert.equal(
+    acceptanceWorkflowStatus({ gatewayOffline: false, catalogUnavailable: true }),
+    'Waiting on app catalog'
+  );
+  assert.equal(
+    acceptanceWorkflowStatus({ gatewayOffline: false, catalogUnavailable: false }),
+    'Connect required apps'
+  );
 });
 
 test('core connection fallbacks resolve to connector app favicons', () => {
