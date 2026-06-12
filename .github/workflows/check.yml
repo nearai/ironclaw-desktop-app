@@ -31,17 +31,8 @@ jobs:
 
   rust:
     runs-on: macos-14
-    env:
-      IRONCLAW_REBORN_REF: reborn-integration
     steps:
       - uses: actions/checkout@v4
-
-      - name: Checkout IronClaw Reborn source
-        uses: actions/checkout@v4
-        with:
-          repository: nearai/ironclaw
-          ref: ${{ env.IRONCLAW_REBORN_REF }}
-          path: .deps/ironclaw
 
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
@@ -50,16 +41,26 @@ jobs:
           cache: npm
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: |
-            src-tauri
-            .deps/ironclaw
+          workspaces: src-tauri
       - run: npm ci
       # Sidecar binaries are gitignored — fetch before cargo check so tauri-build
       # can resolve the bundle.externalBin paths.
       - name: Download sidecar binaries
         run: bash src-tauri/binaries/download.sh
-      - name: Build Reborn sidecar binary
-        run: bash scripts/build-reborn-sidecars.sh --repo .deps/ironclaw --targets aarch64-apple-darwin
+      # The Rust PR gate only needs Tauri's externalBin path to exist while
+      # compiling/checking this crate. Release CI still builds and bundles the
+      # real Reborn sidecar from nearai/ironclaw.
+      - name: Stage Reborn sidecar placeholder for compile checks
+        run: |
+          set -euo pipefail
+          target="$(rustc -Vv | awk '/host:/ { print $2 }')"
+          path="src-tauri/binaries/ironclaw-reborn-${target}"
+          cat > "${path}" <<'EOF'
+          #!/usr/bin/env sh
+          echo "ironclaw-reborn placeholder for CI compile checks only" >&2
+          exit 64
+          EOF
+          chmod +x "${path}"
       - run: cargo check --manifest-path src-tauri/Cargo.toml --locked
       - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release --locked
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked -- -D warnings
