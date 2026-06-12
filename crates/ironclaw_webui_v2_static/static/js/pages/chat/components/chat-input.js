@@ -68,6 +68,9 @@ function ModelPopover({ open, onClose, t }) {
   });
   const snapshot = providersQuery.data || {};
   const { providers, active } = visibleLlmSnapshot(snapshot);
+  const providerSnapshotPending = !providersQuery.data && providersQuery.isLoading;
+  const providerUnavailable =
+    !providerSnapshotPending && (providersQuery.error || providers.length === 0 || !active);
   const activeProvider = providers.find((provider) => provider.id === active?.provider_id) || null;
   const [selectedProviderId, setSelectedProviderId] = React.useState('');
   const [models, setModels] = React.useState(null);
@@ -101,7 +104,7 @@ function ModelPopover({ open, onClose, t }) {
   }, [open, selectedProvider?.id, currentProviderModel]);
 
   React.useEffect(() => {
-    if (!open || !selectedProvider || models !== null) return;
+    if (!open || !selectedProvider || !active || models !== null) return;
     let cancelled = false;
     (async () => {
       try {
@@ -128,7 +131,7 @@ function ModelPopover({ open, onClose, t }) {
     return () => {
       cancelled = true;
     };
-  }, [open, selectedProvider, models, currentProviderModel]);
+  }, [open, selectedProvider, active, models, currentProviderModel]);
 
   const apply = async () => {
     if (!selectedProvider || applying) return;
@@ -196,75 +199,119 @@ function ModelPopover({ open, onClose, t }) {
           `;
         })}
       </div>
-      <div className="border-t border-[var(--v2-panel-border)] px-2 pb-2 pt-2">
-        <div
-          className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-        >
-          ${t('chat.modelPopoverTitle')}
-        </div>
-      </div>
-      <div className="max-h-64 overflow-y-auto">
-        ${models === null &&
-        html`<div className="px-2 py-3 text-sm text-[var(--v2-text-muted)]">
-          ${t('common.loading')}
-        </div>`}
-        ${models !== null &&
-        models.length === 0 &&
-        html`<div className="px-2 py-3 text-sm text-[var(--v2-text-muted)]">
-          ${loadError ? t('chat.modelPopoverError') : t('chat.modelPopoverEmpty')}
-        </div>`}
-        ${(models || []).map((model) => {
-          const isCurrent = model === selectedModel;
-          return html`
-            <button
-              key=${model}
-              type="button"
-              disabled=${Boolean(applying)}
-              onClick=${() => {
-                setSelectedModel(model);
-                setManualModel(model);
-              }}
-              className=${`flex w-full items-center justify-between gap-2 rounded-[6px] px-2 py-1.5 text-left text-sm ${
-                isCurrent
-                  ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
-                  : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]'
-              }`}
+      ${providerSnapshotPending
+        ? html`
+            <div
+              className="mx-2 rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-3"
             >
-              <span className="truncate">${model}</span>
-              ${isCurrent ? html`<${Icon} name="check" className="h-3.5 w-3.5 shrink-0" />` : null}
-            </button>
-          `;
-        })}
-      </div>
-      <div className="mt-2 px-2">
-        <input
-          type="text"
-          value=${manualModel}
-          onChange=${(event) => {
-            setManualModel(event.target.value);
-            setSelectedModel(event.target.value);
-          }}
-          placeholder=${t('chat.modelPopoverManualPlaceholder')}
-          className="h-9 w-full rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 font-mono text-xs text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--v2-accent)_28%,transparent)]"
-        />
-      </div>
-      <div className="mt-1 border-t border-[var(--v2-panel-border)] px-2 pb-1 pt-2">
-        <div className="flex items-center justify-between gap-3">
-          <a
-            href=${modelSettingsPath()}
-            className="text-xs font-medium text-[var(--v2-accent-text)] hover:underline"
-          >
-            ${t('chat.modelPopoverManage')}
-          </a>
-          <${Button}
-            type="button"
-            variant="primary"
-            size="sm"
-            disabled=${!canApply}
-            onClick=${apply}
-          >
-            ${applying ? t('llm.applying') : t('llm.applyModel')}
-          <//>
+              <div className="text-sm font-semibold text-[var(--v2-text-strong)]">
+                Checking NEAR AI Cloud...
+              </div>
+              <p className="mt-1 text-sm leading-5 text-[var(--v2-text-muted)]">
+                IronClaw is checking your local gateway and model access.
+              </p>
+            </div>
+          `
+        : providerUnavailable
+          ? html`
+              <div
+                className="mx-2 rounded-[10px] border border-[color-mix(in_srgb,var(--v2-warning-text)_35%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-3"
+              >
+                <div className="text-sm font-semibold text-[var(--v2-warning-text)]">
+                  ${t('chat.modelPopoverNoProvider')}
+                </div>
+                <p className="mt-1 text-sm leading-5 text-[var(--v2-text-muted)]">
+                  ${t('chat.modelPopoverNeedsSetupDesc')}
+                </p>
+              </div>
+            `
+          : html`
+              <div className="border-t border-[var(--v2-panel-border)] px-2 pb-2 pt-2">
+                <div
+                  className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+                >
+                  ${t('chat.modelPopoverTitle')}
+                </div>
+              </div>
+              <div className="max-h-64 overflow-y-auto">
+                ${models === null &&
+                html`<div className="px-2 py-3 text-sm text-[var(--v2-text-muted)]">
+                  ${t('common.loading')}
+                </div>`}
+                ${models !== null &&
+                models.length === 0 &&
+                html`<div className="px-2 py-3 text-sm text-[var(--v2-text-muted)]">
+                  ${loadError ? t('chat.modelPopoverError') : t('chat.modelPopoverEmpty')}
+                </div>`}
+                ${(models || []).map((model) => {
+                  const isCurrent = model === selectedModel;
+                  return html`
+                    <button
+                      key=${model}
+                      type="button"
+                      disabled=${Boolean(applying)}
+                      onClick=${() => {
+                        setSelectedModel(model);
+                        setManualModel(model);
+                      }}
+                      className=${`flex w-full items-center justify-between gap-2 rounded-[6px] px-2 py-1.5 text-left text-sm ${
+                        isCurrent
+                          ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
+                          : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]'
+                      }`}
+                    >
+                      <span className="truncate">${model}</span>
+                      ${isCurrent
+                        ? html`<${Icon} name="check" className="h-3.5 w-3.5 shrink-0" />`
+                        : null}
+                    </button>
+                  `;
+                })}
+              </div>
+              <div className="mt-2 px-2">
+                <input
+                  type="text"
+                  value=${manualModel}
+                  onChange=${(event) => {
+                    setManualModel(event.target.value);
+                    setSelectedModel(event.target.value);
+                  }}
+                  placeholder=${t('chat.modelPopoverManualPlaceholder')}
+                  className="h-9 w-full rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 font-mono text-xs text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--v2-accent)_28%,transparent)]"
+                />
+              </div>
+            `}
+      <div className="mt-2 border-t border-[var(--v2-panel-border)] px-2 pb-1 pt-2">
+        <div className=${active ? 'flex items-center justify-between gap-3' : 'grid'}>
+          ${active
+            ? html`
+                <a
+                  href=${modelSettingsPath()}
+                  className="text-xs font-medium text-[var(--v2-accent-text)] hover:underline"
+                >
+                  ${t('chat.modelPopoverManage')}
+                </a>
+                <${Button}
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  disabled=${!canApply}
+                  onClick=${apply}
+                >
+                  ${applying ? t('llm.applying') : t('llm.applyModel')}
+                <//>
+              `
+            : html`
+                <${Button}
+                  as="a"
+                  href=${modelSettingsPath()}
+                  variant="primary"
+                  size="sm"
+                  fullWidth=${true}
+                >
+                  ${t('chat.modelPopoverManage')}
+                <//>
+              `}
         </div>
       </div>
     </div>
@@ -303,7 +350,7 @@ export function ChatInput({
   const baseReadiness = context.modelReadiness || {
     verified: false,
     sendBlocked: false,
-    label: 'Configured, unverified',
+    label: 'Ready to verify',
     description: '',
     sendBlockReason: ''
   };
@@ -329,10 +376,14 @@ export function ChatInput({
           ...baseReadiness,
           verified: false,
           sendBlocked: true,
-          tone: 'warning',
+          tone: providerSnapshotPending ? 'info' : 'warning',
           label: providerSetupUnknown ? 'Checking NEAR AI Cloud' : 'NEAR AI Cloud setup required',
-          description: cloudBlockReason,
-          sendBlockReason: cloudBlockReason
+          description: providerSnapshotPending
+            ? 'Checking your NEAR AI Cloud session.'
+            : cloudBlockReason,
+          sendBlockReason: providerSnapshotPending
+            ? 'Checking NEAR AI Cloud. This should only take a moment.'
+            : cloudBlockReason
         }
       : baseReadiness;
   const providerNameFromSnapshot =
@@ -715,24 +766,18 @@ export function ChatInput({
 
 function providerSetupFailedMessage(failed) {
   if (failed) {
-    return 'Could not confirm NEAR AI Cloud. Wait for the local gateway or open Settings.';
+    return 'IronClaw cannot reach NEAR AI Cloud yet. Open setup or retry when the gateway is ready.';
   }
-  return 'Connect NEAR AI Cloud in Settings before sending.';
+  return 'Connect NEAR AI Cloud before sending your first message.';
 }
 
 function formatProviderLabel(providerId, providerName, fallbackId = 'nearai') {
-  if (providerName && providerName.trim()) return providerName.trim();
   const raw = String(providerId || fallbackId || 'nearai').trim();
   const normalized = raw.toLowerCase().replace(/[\s]+/g, '').replace(/[_-]+/g, '_');
 
   if (normalized === 'nearai') return 'NEAR AI Cloud';
-  if (normalized === 'openai') return 'OpenAI';
-  if (normalized === 'openai_codex') return 'OpenAI Codex';
-  if (normalized === 'openrouter') return 'OpenRouter';
-  if (normalized === 'anthropic') return 'Anthropic';
-  if (normalized === 'google' || normalized === 'googleai') return 'Google';
-  if (normalized === 'z_ai' || normalized === 'zai') return 'Z.AI';
-  if (normalized === 'glm' || normalized === 'glm4' || normalized.startsWith('glm-')) return 'GLM';
+  if (providerName && providerName.trim()) return providerName.trim();
+  if (!providerName) return 'External provider';
 
   const humanized = raw
     .trim()

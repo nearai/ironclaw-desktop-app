@@ -38,10 +38,10 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
   const t = useT();
   const actions = useProviderManagementActions({ settings, gatewayStatus, searchQuery, t });
   const state = actions.providerState;
-  // NEAR AI / Codex authenticate via login flows; on success the snapshot
+  // NEAR AI authenticate via login flows; on success the snapshot
   // refresh re-renders the now-active card in place (no navigation here).
   const login = useProviderLogin();
-  const loginBusy = login.nearaiBusy || login.codexBusy;
+  const loginBusy = login.nearaiBusy;
   const queryClient = useQueryClient();
   // Apply a model on the ACTIVE provider via the same set-active route the
   // chat popover uses; the snapshot invalidation re-renders every consumer.
@@ -132,7 +132,6 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
                                 onDelete=${actions.handleDelete}
                                 onNearaiLogin=${login.startNearai}
                                 onNearaiWallet=${login.startNearaiWallet}
-                                onCodexLogin=${login.startCodex}
                                 onListModels=${state.listModels}
                                 onApplyModel=${applyModel}
                                 loginBusy=${loginBusy}

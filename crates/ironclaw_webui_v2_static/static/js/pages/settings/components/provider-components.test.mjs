@@ -181,9 +181,7 @@ function renderProviderManagement({ providers, activeProviderId = 'nearai', sear
       activeProviderId
     }),
     useProviderLogin: () => ({
-      codexBusy: false,
       nearaiBusy: false,
-      startCodex: () => {},
       startNearai: () => {},
       startNearaiWallet: () => {}
     }),
@@ -266,14 +264,13 @@ function createProviderCardHarness() {
         selectedModel: 'active-model',
         builtinOverrides: {},
         isBusy: false,
-        onUse: () => {},
-        onConfigure: () => {},
-        onDelete: () => {},
-        onNearaiLogin: () => {},
-        onNearaiWallet: () => {},
-        onCodexLogin: () => {},
-        loginBusy: false,
-        ...props
+      onUse: () => {},
+      onConfigure: () => {},
+      onDelete: () => {},
+      onNearaiLogin: () => {},
+      onNearaiWallet: () => {},
+      loginBusy: false,
+      ...props
       })
   };
 }
@@ -433,14 +430,6 @@ test('ProviderCard renders login actions instead of generic use for login provid
   componentProps(addKeyButton, 'Button').onClick();
   assert.deepEqual(calls, [['configure', 'nearai']]);
 
-  rendered = harness.render({
-    activeProviderId: 'openai',
-    provider: builtinProvider('openai_codex')
-  });
-  labels = collectScalars(rendered);
-  templateText = collectTemplateText(rendered);
-  assert.ok(labels.includes('onboarding.codexSignIn'));
-  assert.ok(!labels.includes('llm.use'));
 });
 
 test('ProviderCard renders generic use action for NEAR when an API key is configured', () => {

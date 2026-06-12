@@ -29,7 +29,13 @@ function textContent(node) {
   return node.values.map(textContent).join(' ');
 }
 
-function renderApprovalCard({ alwaysState = false, onApprove, onDeny, onAlways } = {}) {
+function renderApprovalCard({
+  alwaysState = false,
+  risk = { tone: 'danger', key: 'tool.riskSend', allowAlways: false },
+  onApprove,
+  onDeny,
+  onAlways
+} = {}) {
   const listeners = new Map();
   const cleanups = [];
   const components = {
@@ -43,14 +49,19 @@ function renderApprovalCard({ alwaysState = false, onApprove, onDeny, onAlways }
     'approval.deny': 'Deny',
     'approval.approveAndAlways': 'Approve & always allow',
     'approval.alwaysAllowToolLabel': 'Always allow {tool} without asking',
+    'approval.alwaysUnavailable':
+      'Always allow is unavailable for this kind of action. IronClaw must ask each time.',
     'approval.thisTool': 'this tool',
     'approval.nothingSentYet': 'Nothing has been sent yet.',
-    'approval.touchesLabel': 'Touches',
-    'approval.whatLeavesMachineLabel': 'What leaves the machine',
+    'approval.actionLabel': 'Action',
+    'approval.targetLabel': 'Target / resource',
+    'approval.destinationLabel': 'Destination',
+    'approval.outboundDataLabel': 'Outbound data',
     'approval.notSpecified': 'Not specified by the tool.',
     'approval.parametersLabel': 'Parameters',
     'approval.shortcutHint': 'Cmd/Ctrl+Enter approve / Esc deny',
-    'tool.riskWrite': 'writes files'
+    'tool.riskRead': 'reads',
+    'tool.riskSend': 'sends externally'
   };
   const context = {
     ...components,
@@ -63,7 +74,7 @@ function renderApprovalCard({ alwaysState = false, onApprove, onDeny, onAlways }
       useMemo: (fn) => fn(),
       useState: () => [alwaysState, () => {}]
     },
-    classifyRisk: () => ({ tone: 'danger', key: 'tool.riskWrite' }),
+    classifyRisk: () => risk,
     globalThis: {},
     html: (strings, ...values) => ({ strings: Array.from(strings), values }),
     useT:
@@ -93,15 +104,19 @@ function renderApprovalCard({ alwaysState = false, onApprove, onDeny, onAlways }
   return { tree, components, listeners, cleanups };
 }
 
-test('ApprovalCard names the pending action, pending state, outgoing data, and shortcuts', () => {
+test('ApprovalCard names literal action fields, unknown outbound data, and shortcuts', () => {
   const { tree, cleanups } = renderApprovalCard();
 
   const visible = textContent(tree);
   assert.match(visible, /Nothing has been sent yet\./);
-  assert.match(visible, /Touches/);
+  assert.match(visible, /Action/);
   assert.match(visible, /send_email/);
-  assert.match(visible, /What leaves the machine/);
-  assert.match(visible, /Send the generated services agreement to legal review\./);
+  assert.match(visible, /Target \/ resource/);
+  assert.match(visible, /Destination/);
+  assert.match(visible, /legal-review@example\.com/);
+  assert.match(visible, /Outbound data/);
+  assert.match(visible, /Not specified by the tool\./);
+  assert.match(visible, /Always allow is unavailable/);
   assert.match(visible, /Parameters/);
   assert.match(visible, /legal-review@example\.com/);
   assert.match(visible, /Cmd\/Ctrl\+Enter approve \/ Esc deny/);
@@ -145,6 +160,7 @@ test('ApprovalCard Cmd/Ctrl+Enter uses always-allow when checked', () => {
   const calls = [];
   const { listeners, cleanups } = renderApprovalCard({
     alwaysState: true,
+    risk: { tone: 'muted', key: 'tool.riskRead', allowAlways: true },
     onApprove: () => calls.push('approve'),
     onAlways: () => calls.push('always')
   });

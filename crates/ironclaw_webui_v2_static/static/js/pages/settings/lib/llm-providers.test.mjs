@@ -91,8 +91,8 @@ test('providerAcceptsApiKey rejects missing provider input', () => {
 });
 
 test('providerAcceptsApiKey honors explicit false', () => {
-  const loginOnly = builtinReady('openai_codex', {
-    adapter: 'openai_codex',
+  const loginOnly = builtinReady('googleai', {
+    adapter: 'googleai',
     api_key_required: false,
     accepts_api_key: false
   });

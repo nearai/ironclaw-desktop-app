@@ -119,6 +119,7 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
     deleteCustomProvider: (provider) => deleteCustomMutation.mutateAsync(provider),
     testConnection: testLlmProviderConnection,
     listModels: listLlmProviderModels,
+    refresh,
     isBusy:
       setActiveMutation.isPending ||
       saveProviderMutation.isPending ||

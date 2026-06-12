@@ -1,5 +1,6 @@
-import { Outlet } from 'react-router';
+import { Link, Outlet } from 'react-router';
 import { useInterfaceTheme } from '../design-system/theme.js';
+import { Button } from '../design-system/button.js';
 import { useGatewayStatus } from '../hooks/useGatewayStatus.js';
 import { useLlmProviders } from '../pages/settings/hooks/useLlmProviders.js';
 import { useSidebar } from '../hooks/useSidebar.js';
@@ -12,6 +13,37 @@ import { CommandPalette } from '../components/command-palette.js';
 import { ToastViewport } from '../components/toast-viewport.js';
 import { React } from '../lib/html.js';
 import { cn } from '../utils/cn.js';
+
+function GatewayReadinessNotice({ gatewayError, providerError, onRetry }) {
+  if (!gatewayError && !providerError) return null;
+  const detail = gatewayError
+    ? 'The local gateway is still starting or is unreachable. Chat is paused until IronClaw can reach it.'
+    : 'NEAR AI Cloud setup could not be confirmed yet. You can keep browsing, then retry or open setup.';
+
+  return html`
+    <div
+      className=${cn(
+        'm-4 rounded-[12px] border px-4 py-3 text-sm',
+        'border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))]',
+        'bg-[var(--v2-warning-soft)] text-[var(--v2-text)]'
+      )}
+      role="status"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="font-semibold text-[var(--v2-text-strong)]">IronClaw is connecting</div>
+          <div className="mt-1 leading-5 text-[var(--v2-text-muted)]">${detail}</div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <${Button} type="button" variant="secondary" size="sm" onClick=${onRetry}> Retry <//>
+          <${Button} as=${Link} to="/settings/inference" variant="primary" size="sm">
+            Open setup
+          <//>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
 export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
   const t = useT();
@@ -75,18 +107,14 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <${PageHeader} threadsState=${threadsState} onToggleSidebar=${sidebar.toggle} />
         <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          ${(statusQuery.error || llmProviders.error) &&
-          html`
-            <div
-              className=${cn(
-                'm-4 rounded-[14px] border px-4 py-3 text-sm',
-                'border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))]',
-                'bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]'
-              )}
-            >
-              ${(statusQuery.error || llmProviders.error).message || t('error.gatewayConnection')}
-            </div>
-          `}
+          <${GatewayReadinessNotice}
+            gatewayError=${statusQuery.error}
+            providerError=${llmProviders.error}
+            onRetry=${() => {
+              statusQuery.refetch?.();
+              llmProviders.refresh?.();
+            }}
+          />
           <${Outlet}
             context=${{
               gatewayStatus: status,

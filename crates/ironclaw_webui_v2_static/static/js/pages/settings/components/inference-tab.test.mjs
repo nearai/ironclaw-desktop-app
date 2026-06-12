@@ -90,7 +90,7 @@ function renderInferenceTab({ searchQuery = '' } = {}) {
     },
     modelExecutionReadiness: () => ({
       description: 'Gateway has not verified execution yet.',
-      label: 'Configured, unverified',
+      label: 'Ready to verify',
       tone: 'warning'
     }),
     useT: () => (key) => key
@@ -108,11 +108,11 @@ function renderInferenceTab({ searchQuery = '' } = {}) {
   return { rendered, ProviderManagement };
 }
 
-test('InferenceTab keeps provider management secondary by default', () => {
+test('InferenceTab opens NEAR AI Cloud setup by default', () => {
   const { rendered, ProviderManagement } = renderInferenceTab();
 
-  assert.ok(collectTemplateText(rendered).includes('Advanced NEAR AI Cloud setup'));
-  assert.equal(includesComponent(rendered, ProviderManagement), false);
+  assert.ok(collectTemplateText(rendered).includes('Connect NEAR AI Cloud'));
+  assert.equal(includesComponent(rendered, ProviderManagement), true);
 });
 
 test('InferenceTab opens provider management when settings search targets it', () => {

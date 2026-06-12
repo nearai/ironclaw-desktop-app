@@ -390,6 +390,7 @@ try {
   });
   const chatMessageRequests = [];
   const timelineRequests = [];
+  const llmProviderRequests = [];
   await page.route(
     `${gatewayOrigin}/api/webchat/v2/threads/thread-smoke/messages`,
     async (route) => {
@@ -589,6 +590,10 @@ try {
       return;
     }
     if (webchatPath === '/api/webchat/v2/llm/providers') {
+      llmProviderRequests.push({
+        url: route.request().url(),
+        active: llmProvidersPayload.active
+      });
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify(llmProvidersPayload)
@@ -852,8 +857,11 @@ try {
   if (!firstRunUrl.pathname.endsWith('/chat')) {
     throw new Error(`static chat front door did not stay on chat: ${page.url()}`);
   }
+  await page
+    .getByText('Connect NEAR AI Cloud before sending your first message.', { exact: true })
+    .waitFor({ timeout: 20_000 });
   const firstRunBody = await page.locator('body').innerText();
-  if (!firstRunBody.includes('Connect NEAR AI Cloud in Settings before sending.')) {
+  if (!firstRunBody.includes('Connect NEAR AI Cloud before sending your first message.')) {
     throw new Error(`static chat did not render honest setup-required copy:\n${firstRunBody}`);
   }
 
@@ -870,10 +878,31 @@ try {
   });
   const modelControl = page.getByLabel('Chat model settings').first();
   await modelControl.waitFor({ timeout: 20_000 });
-  const modelControlText = await modelControl.innerText();
-  if (!modelControlText.includes('NEAR.AI · auto')) {
+  try {
+    await page.waitForFunction(
+      () => {
+        const control = document.querySelector('[aria-label="Chat model settings"]');
+        return control?.textContent?.includes('NEAR AI Cloud · auto');
+      },
+      null,
+      { timeout: 20_000 }
+    );
+  } catch (err) {
+    const visibleBody = await page
+      .locator('body')
+      .innerText()
+      .catch(() => '<body unavailable>');
     throw new Error(
-      `static chat model control did not show default NEAR.AI model:\n${modelControlText}`
+      `static chat model control never settled on active NEAR AI Cloud model; providerRequests=${JSON.stringify(
+        llmProviderRequests
+      )}; body=${visibleBody}`,
+      { cause: err }
+    );
+  }
+  const modelControlText = await modelControl.innerText();
+  if (!modelControlText.includes('NEAR AI Cloud · auto')) {
+    throw new Error(
+      `static chat model control did not show default NEAR AI Cloud model:\n${modelControlText}`
     );
   }
   // Readiness moved off the chip into the tooltip — keep it honest there.

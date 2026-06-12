@@ -39,9 +39,7 @@ export function InferenceTab({
     'near',
     'near ai cloud'
   ]);
-  const [advancedOpen, setAdvancedOpen] = React.useState(
-    Boolean(searchQuery && showProviderManagement)
-  );
+  const [advancedOpen, setAdvancedOpen] = React.useState(showProviderManagement);
   React.useEffect(() => {
     if (searchQuery && showProviderManagement) setAdvancedOpen(true);
   }, [searchQuery, showProviderManagement]);
@@ -103,10 +101,10 @@ export function InferenceTab({
           >
             <span className="min-w-0">
               <span className="block text-sm font-semibold text-[var(--v2-text-strong)]">
-                Advanced NEAR AI Cloud setup
+                Connect NEAR AI Cloud
               </span>
               <span className="mt-0.5 block text-sm text-[var(--v2-text-muted)]">
-                Sign-in, API key fallback, model list, and connection repair.
+                Sign in, choose a model, or repair local access.
               </span>
             </span>
             <span className="shrink-0 text-xs font-semibold text-[var(--v2-accent-text)]">

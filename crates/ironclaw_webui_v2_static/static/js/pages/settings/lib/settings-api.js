@@ -40,10 +40,11 @@ export function setActiveLlm(payload) {
     body: JSON.stringify(payload)
   });
 }
-export function testLlmProviderConnection(payload) {
+export function testLlmProviderConnection(payload, options = {}) {
   return apiFetch('/api/webchat/v2/llm/test-connection', {
     method: 'POST',
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: options.signal
   });
 }
 export function listLlmProviderModels(payload) {
@@ -71,14 +72,6 @@ export function completeNearaiWalletLogin(payload) {
   });
 }
 
-// Begin an OpenAI Codex (ChatGPT subscription) device-code login. Returns
-// { user_code, verification_uri } to display; a background task polls for
-// authorization, stores the tokens, and makes Codex active once authorized.
-export function startCodexLogin() {
-  return apiFetch('/api/webchat/v2/llm/codex/login', {
-    method: 'POST'
-  });
-}
 export function fetchTools() {
   return Promise.resolve({ tools: [], todo: true });
 }

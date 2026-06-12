@@ -253,8 +253,8 @@ export function useOauthSetup(packageRef) {
           Date.now() - startedAt > OAUTH_SETUP_TIMEOUT_MS
         ) {
           clearWatcher();
-          // Claude-parity: once the browser consent lands, finish the job —
-          // activate so the tools publish without a manual third step.
+          // Once browser consent lands, finish the job by activating so the
+          // tools publish without a manual third step.
           if (configured) {
             Promise.resolve(activateExtension(packageRef)).catch(() => {});
           }
@@ -329,10 +329,9 @@ export function usePairing(channel, options = {}) {
   };
 }
 
-// One-click connect — the Claude experience: a single action that chains
-// install -> read setup -> (DCR/OAuth: system-browser consent + poll) ->
-// activate. Manual-token connectors stop at 'needs-token' so the caller can
-// open the token form instead — never a fake Connect.
+// One-click connect: install -> read setup -> (DCR/OAuth: system-browser
+// consent + poll) -> activate. Manual-token connectors stop at 'needs-token'
+// so the caller can open the token form instead, never a fake Connect.
 export function useConnectExtension() {
   const queryClient = useQueryClient();
   const [connectState, setConnectState] = React.useState({});

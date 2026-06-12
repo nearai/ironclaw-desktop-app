@@ -6,7 +6,9 @@ function SavedIndicator({ visible }) {
   const t = useT();
   if (!visible) return null;
   return html`
-    <span className="font-mono text-[11px] text-mint" role="status"> ${t('tools.saved')} </span>
+    <span className="text-[11px] font-medium text-[var(--v2-positive-text)]" role="status">
+      ${t('tools.saved')}
+    </span>
   `;
 }
 
@@ -20,13 +22,17 @@ function Toggle({ checked, onChange, label }) {
       onClick=${() => onChange(!checked)}
       className=${[
         'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border',
-        checked ? 'border-signal/40 bg-signal/30' : 'border-white/15 bg-white/[0.06]'
+        checked
+          ? 'border-[color-mix(in_srgb,var(--v2-accent)_46%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)]'
+          : 'border-[var(--v2-panel-border)] bg-[var(--v2-surface-muted)]'
       ].join(' ')}
     >
       <span
         className=${[
           'pointer-events-none inline-block h-5 w-5 rounded-full',
-          checked ? 'translate-x-5 bg-signal' : 'translate-x-0 bg-iron-300'
+          checked
+            ? 'translate-x-5 bg-[var(--v2-accent)]'
+            : 'translate-x-0 bg-[var(--v2-text-faint)]'
         ].join(' ')}
       />
     </button>
@@ -38,12 +44,28 @@ export function SettingsField({ field, value, onSave, isSaved }) {
   const [localValue, setLocalValue] = React.useState('');
   const label = field.labelKey ? t(field.labelKey) : field.label || '';
   const description = field.descKey ? t(field.descKey) : field.description || '';
+  const fixedSingleOption =
+    field.type === 'select' && field.allowDefault === false && field.options?.length === 1;
+  const selectValue = fixedSingleOption ? field.options[0] : localValue;
+  const fixedSavedRef = React.useRef(false);
 
   React.useEffect(() => {
     if (field.type !== 'boolean') {
       setLocalValue(value !== null && value !== undefined ? String(value) : '');
     }
   }, [value, field.type]);
+
+  React.useEffect(() => {
+    if (!fixedSingleOption) {
+      fixedSavedRef.current = false;
+      return;
+    }
+    if (value === null || value === undefined || value === '') return;
+    if (value === selectValue) return;
+    if (fixedSavedRef.current) return;
+    fixedSavedRef.current = true;
+    onSave(field.key, selectValue);
+  }, [field.key, fixedSingleOption, onSave, selectValue, value]);
 
   const handleCommit = React.useCallback(
     (val) => {
@@ -64,12 +86,14 @@ export function SettingsField({ field, value, onSave, isSaved }) {
 
   return html`
     <div
-      className="flex items-start justify-between gap-6 border-t border-white/[0.06] py-4 first:border-0 first:pt-0"
+      className="flex items-start justify-between gap-6 border-t border-[var(--v2-panel-border)] py-4 first:border-0 first:pt-0"
     >
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium text-iron-200">${label}</div>
+        <div className="text-sm font-medium text-[var(--v2-text-strong)]">${label}</div>
         ${description &&
-        html`<div className="mt-1 text-xs leading-5 text-iron-300">${description}</div>`}
+        html`<div className="mt-1 text-xs leading-5 text-[var(--v2-text-muted)]">
+          ${description}
+        </div>`}
       </div>
 
       <div className="flex shrink-0 items-center gap-3">
@@ -84,17 +108,21 @@ export function SettingsField({ field, value, onSave, isSaved }) {
           : field.type === 'select'
             ? html`
                 <select
-                  value=${localValue}
+                  value=${selectValue}
+                  disabled=${fixedSingleOption}
                   onChange=${(e) => {
                     setLocalValue(e.target.value);
                     handleCommit(e.target.value);
                   }}
                   aria-label=${label}
-                  className="v2-select h-9 rounded-md border border-white/12 bg-white/[0.04] px-3 text-sm text-iron-100 outline-none focus:border-signal/45"
+                  className="v2-select h-9 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-sm text-[var(--v2-text-strong)] outline-none focus:border-[var(--v2-accent)] disabled:opacity-100"
                 >
-                  <option value="">${t('tools.default')}</option>
+                  ${!fixedSingleOption && html`<option value="">${t('tools.default')}</option>`}
                   ${field.options.map(
-                    (opt) => html`<option key=${opt} value=${opt}>${opt}</option>`
+                    (opt) =>
+                      html`<option key=${opt} value=${opt}>
+                        ${field.optionLabels?.[opt] || opt}
+                      </option>`
                   )}
                 </select>
               `
@@ -114,7 +142,7 @@ export function SettingsField({ field, value, onSave, isSaved }) {
                   max=${field.max !== undefined ? String(field.max) : undefined}
                   placeholder=${t('tools.default')}
                   aria-label=${label}
-                  className="h-9 w-36 rounded-md border border-white/12 bg-white/[0.04] px-3 text-right font-mono text-sm text-iron-100 outline-none placeholder:text-iron-700 focus:border-signal/45"
+                  className="h-9 w-36 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-right font-mono text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
                 />
               `}
         <${SavedIndicator} visible=${isSaved} />

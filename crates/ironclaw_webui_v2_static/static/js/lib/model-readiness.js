@@ -2,10 +2,9 @@ const UNVERIFIED = {
   verified: false,
   sendBlocked: false,
   tone: 'warning',
-  label: 'Configured, unverified',
-  buttonPrefix: 'Configured',
-  description:
-    'This model has not completed a live run yet. Send a message to verify execution; provider failures will appear in the thread.',
+  label: 'Ready to verify',
+  buttonPrefix: 'Ready',
+  description: 'IronClaw will verify NEAR AI Cloud on the next successful chat run.',
   sendBlockReason: ''
 };
 
@@ -15,8 +14,8 @@ const BLOCKED = {
   tone: 'warning',
   label: 'Model setup required',
   buttonPrefix: 'Setup required',
-  description: 'The configured model cannot run until provider setup is fixed.',
-  sendBlockReason: 'The configured model cannot run until provider setup is fixed.'
+  description: 'Connect NEAR AI Cloud before running work.',
+  sendBlockReason: 'Connect NEAR AI Cloud before running work.'
 };
 
 const VERIFIED = {
@@ -25,7 +24,7 @@ const VERIFIED = {
   tone: 'positive',
   label: 'Execution verified',
   buttonPrefix: 'Verified',
-  description: 'Gateway reports this model is execution-ready.',
+  description: 'NEAR AI Cloud has completed a live run.',
   sendBlockReason: ''
 };
 

@@ -195,9 +195,9 @@ test('formatProviderLabel maps known provider ids to readable names', () => {
   vm.runInNewContext(chatInputSourceForTest(), vmContext);
   const { formatProviderLabel } = vmContext.globalThis.__testExports;
   assert.equal(formatProviderLabel('nearai'), 'NEAR AI Cloud');
-  assert.equal(formatProviderLabel('openai_codex'), 'OpenAI Codex');
-  assert.equal(formatProviderLabel('openrouter'), 'OpenRouter');
-  assert.equal(formatProviderLabel('anthropic'), 'Anthropic');
+  assert.equal(formatProviderLabel('nearai', 'NEAR.AI'), 'NEAR AI Cloud');
+  assert.equal(formatProviderLabel('legacy-router'), 'External provider');
+  assert.equal(formatProviderLabel('legacy-provider'), 'External provider');
 });
 
 test('ChatInput blocks send when NEAR AI Cloud is not active', async () => {
@@ -223,21 +223,21 @@ test('ChatInput blocks send when NEAR AI Cloud is not active', async () => {
 
   assert.equal(props.disabled, true);
   assert.ok(scalars.includes('NEAR AI Cloud · Not connected'));
-  assert.ok(scalars.includes('Connect NEAR AI Cloud in Settings before sending.'));
+  assert.ok(scalars.includes('Connect NEAR AI Cloud before sending your first message.'));
 
   await props.onClick();
   assert.deepEqual(sendCalls, []);
 });
 
-test('formatProviderLabel uses custom display name and humanizes unknown ids', () => {
+test('formatProviderLabel keeps custom names and neutralizes unknown ids', () => {
   const vmContext = {
     React: {},
     globalThis: {}
   };
   vm.runInNewContext(chatInputSourceForTest(), vmContext);
   const { formatProviderLabel } = vmContext.globalThis.__testExports;
-  assert.equal(formatProviderLabel('openai_codex', 'My Custom Provider'), 'My Custom Provider');
-  assert.equal(formatProviderLabel('my_custom-provider'), 'My Custom Provider');
+  assert.equal(formatProviderLabel('custom_adapter', 'My Custom Provider'), 'My Custom Provider');
+  assert.equal(formatProviderLabel('my_custom-provider'), 'External provider');
 });
 
 test('normalizeModelEntries accepts string and object model snapshots', () => {

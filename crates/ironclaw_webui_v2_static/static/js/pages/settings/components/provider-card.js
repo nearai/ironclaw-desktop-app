@@ -104,7 +104,6 @@ export function ProviderCard({
   onDelete,
   onNearaiLogin,
   onNearaiWallet,
-  onCodexLogin,
   onListModels,
   onApplyModel,
   loginBusy
@@ -140,7 +139,7 @@ export function ProviderCard({
         ${adapterLabel(provider.adapter)} · ${model || provider.default_model || t('llm.none')}
       </span>`;
 
-  const isLoginProvider = provider.id === 'nearai' || provider.id === 'openai_codex';
+  const isLoginProvider = provider.id === 'nearai';
   const hasApiKey = provider.api_key_set === true || provider.has_api_key === true;
   const configureLabel = provider.builtin
     ? provider.id === 'nearai' && acceptsApiKey && !hasApiKey
@@ -202,19 +201,7 @@ export function ProviderCard({
             <//>
           `}
         `
-      : !isActive && provider.id === 'openai_codex'
-        ? html`
-            <${Button}
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled=${loginBusy}
-              onClick=${onCodexLogin}
-            >
-              ${t('onboarding.codexSignIn')}
-            <//>
-          `
-        : null;
+      : null;
   const canUseProvider =
     !isActive &&
     configured &&

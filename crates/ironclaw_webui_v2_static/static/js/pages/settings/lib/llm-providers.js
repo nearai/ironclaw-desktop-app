@@ -1,12 +1,7 @@
 export const API_KEY_UNCHANGED = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
 export const DESKTOP_PRIMARY_LLM_PROVIDER_ID = 'nearai';
 
-export const ADAPTER_OPTIONS = [
-  { value: 'open_ai_completions', label: 'OpenAI Compatible' },
-  { value: 'anthropic', label: 'Anthropic' },
-  { value: 'ollama', label: 'Ollama' },
-  { value: 'nearai', label: 'NEAR AI' }
-];
+export const ADAPTER_OPTIONS = [{ value: 'nearai', label: 'NEAR AI Cloud' }];
 
 export function adapterLabel(adapter) {
   return ADAPTER_OPTIONS.find((item) => item.value === adapter)?.label || adapter;

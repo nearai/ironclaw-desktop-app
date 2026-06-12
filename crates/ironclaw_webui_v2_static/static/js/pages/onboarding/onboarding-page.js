@@ -6,6 +6,7 @@ import { useT } from '../../lib/i18n.js';
 import { Badge } from '../../design-system/badge.js';
 import { Button } from '../../design-system/button.js';
 import { Card } from '../../design-system/card.js';
+import { Icon } from '../../design-system/icons.js';
 import { ProviderDialog } from '../settings/components/provider-dialog.js';
 import { ProviderLoginStatus } from '../settings/components/provider-login-status.js';
 import { useProviderManagementActions } from '../settings/hooks/useProviderManagementActions.js';
@@ -17,6 +18,7 @@ import { ProviderLogo } from './provider-logos.js';
 // First-run model setup. The desktop product contract is NEAR AI Cloud by
 // default; generic Reborn provider support stays hidden until an explicit
 // advanced-provider mode exists.
+const RESUME_SESSION_TIMEOUT_MS = 4000;
 const FEATURED = [
   {
     id: 'nearai',
@@ -42,83 +44,81 @@ function FeaturedProviderRow({ entry, provider, configured, isBusy, login, t, on
         <${Button}
           type="button"
           variant="primary"
-          size="sm"
+          size="md"
+          fullWidth=${true}
+          className="col-span-2"
           disabled=${login.nearaiBusy}
           onClick=${() => login.startNearai('github')}
         >
-          ${t('onboarding.signInGithub')}
+          ${t('onboarding.continue')}
         <//>
         <${Button}
           type="button"
           variant="secondary"
           size="sm"
+          fullWidth=${true}
           disabled=${login.nearaiBusy}
           onClick=${() => login.startNearai('google')}
         >
-          Google
+          ${t('onboarding.continueGoogle')}
         <//>
         <${Button}
           type="button"
           variant="secondary"
           size="sm"
+          fullWidth=${true}
           disabled=${login.nearaiBusy}
           onClick=${login.startNearaiWallet}
         >
-          ${t('onboarding.nearWallet')}
+          ${t('onboarding.continueWallet')}
         <//>
         <${Button}
           type="button"
           variant="ghost"
           size="sm"
+          fullWidth=${true}
+          className="col-span-2"
           disabled=${isBusy}
           onClick=${() => onSetUp(provider)}
         >
-          ${t('onboarding.useApiKey')}
+          ${t('onboarding.useApiKeyShort')}
         <//>
       `;
     } else {
       actions = html`
         <${Button}
           type="button"
-          variant="secondary"
-          size="sm"
-          disabled=${login.nearaiBusy}
-          onClick=${login.startNearaiWallet}
-        >
-          ${t('onboarding.nearWallet')}
-        <//>
-        <${Button}
-          type="button"
-          variant="secondary"
-          size="sm"
+          variant="primary"
+          size="md"
+          fullWidth=${true}
+          className="col-span-2"
           disabled=${login.nearaiBusy}
           onClick=${() => login.startNearai('github')}
         >
-          GitHub
+          ${t('onboarding.continue')}
         <//>
         <${Button}
           type="button"
           variant="secondary"
           size="sm"
+          fullWidth=${true}
           disabled=${login.nearaiBusy}
           onClick=${() => login.startNearai('google')}
         >
-          Google
+          ${t('onboarding.continueGoogle')}
+        <//>
+        <${Button}
+          type="button"
+          variant="secondary"
+          size="sm"
+          fullWidth=${true}
+          disabled=${login.nearaiBusy}
+          onClick=${login.startNearaiWallet}
+        >
+          ${t('onboarding.continueWallet')}
         <//>
       `;
     }
-  } else if (entry.auth === 'codex') {
-    actions = html`
-      <${Button}
-        type="button"
-        variant="secondary"
-        size="sm"
-        disabled=${login.codexBusy}
-        onClick=${login.startCodex}
-      >
-        ${t('onboarding.signIn')}
-      <//>
-    `;
   } else if (configured) {
     actions = html`<${Button}
       type="button"
@@ -142,26 +142,40 @@ function FeaturedProviderRow({ entry, provider, configured, isBusy, login, t, on
   }
 
   return html`
-    <${Card} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-4">
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className="grid gap-4">
+      <div className="flex min-w-0 items-start gap-3">
         <${ProviderLogo} id=${entry.id} name=${name} />
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold text-[var(--v2-text-strong)]"
-              >${name}</span
-            >
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-[var(--v2-text-strong)]">${name}</span>
             ${configured &&
             html`<${Badge} tone="positive" label=${t('onboarding.ready')} size="sm" />`}
           </div>
-          <div className="mt-0.5 truncate text-xs text-[var(--v2-text-muted)]">
+          <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
             ${entry.auth === 'nearai' && isDesktopRuntime()
               ? t('onboarding.providerNearaiDescDesktop')
               : t(entry.descKey)}
-          </div>
+          </p>
         </div>
       </div>
-      <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">${actions}</div>
-    <//>
+      <div className="grid grid-cols-2 gap-2">${actions}</div>
+    </div>
+  `;
+}
+
+function TrustRow({ icon, title, body }) {
+  return html`
+    <div className="grid grid-cols-[auto_1fr] gap-3">
+      <span
+        className="mt-0.5 grid h-7 w-7 place-items-center rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+      >
+        <${Icon} name=${icon} className="h-3.5 w-3.5" />
+      </span>
+      <span>
+        <span className="block text-sm font-semibold text-[var(--v2-text-strong)]">${title}</span>
+        <span className="mt-0.5 block text-sm leading-6 text-[var(--v2-text-muted)]">${body}</span>
+      </span>
+    </div>
   `;
 }
 
@@ -169,7 +183,8 @@ export function OnboardingPage() {
   const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { gatewayStatus } = useOutletContext();
+  const outletContext = useOutletContext() || {};
+  const { gatewayStatus } = outletContext;
   const actions = useProviderManagementActions({
     settings: {},
     gatewayStatus,
@@ -177,11 +192,28 @@ export function OnboardingPage() {
     t
   });
   const state = actions.providerState;
+  const fallbackNearaiProvider = React.useMemo(
+    () => ({
+      id: 'nearai',
+      name: t('onboarding.providerNearai'),
+      builtin: true,
+      adapter: 'nearai',
+      accepts_api_key: true,
+      api_key_required: false,
+      base_url_required: false,
+      has_api_key: false,
+      default_model: 'auto'
+    }),
+    [t]
+  );
 
   const featured = FEATURED.map((entry) => ({
     entry,
-    provider: state.providers.find((provider) => provider.id === entry.id)
+    provider:
+      state.providers.find((provider) => provider.id === entry.id) ||
+      (entry.id === 'nearai' ? fallbackNearaiProvider : null)
   })).filter((row) => row.provider);
+  const showFallbackAccess = state.isLoading || state.error || featured.length === 0;
 
   // NEAR AI login shares the same backend flow as the Inference tab; on success
   // here we head straight to chat.
@@ -193,7 +225,6 @@ export function OnboardingPage() {
   // a working session the sidecar loaded — verify it with a real connection
   // test, activate it, and go straight to chat. Sign-in stays the path for
   // genuinely new machines.
-  const [resumingSession, setResumingSession] = React.useState(false);
   const resumeAttemptedRef = React.useRef(false);
   React.useEffect(() => {
     if (resumeAttemptedRef.current || state.isLoading) return;
@@ -201,14 +232,20 @@ export function OnboardingPage() {
     if (!nearai || state.activeProviderId) return;
     resumeAttemptedRef.current = true;
     let cancelled = false;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), RESUME_SESSION_TIMEOUT_MS);
     (async () => {
-      setResumingSession(true);
       try {
-        const probe = await testLlmProviderConnection({
-          provider_id: 'nearai',
-          adapter: nearai.adapter || 'nearai',
-          model: nearai.active_model || nearai.default_model || 'auto'
-        });
+        const probe = await testLlmProviderConnection(
+          {
+            provider_id: 'nearai',
+            adapter: nearai.adapter || 'nearai',
+            model: nearai.active_model || nearai.default_model || 'auto'
+          },
+          {
+            signal: controller.signal
+          }
+        );
         if (cancelled || !probe?.ok) return;
         await setActiveLlm({
           provider_id: 'nearai',
@@ -219,11 +256,13 @@ export function OnboardingPage() {
       } catch (_) {
         // No working session — the sign-in buttons below are the path.
       } finally {
-        if (!cancelled) setResumingSession(false);
+        window.clearTimeout(timeout);
       }
     })();
     return () => {
       cancelled = true;
+      window.clearTimeout(timeout);
+      controller.abort();
     };
   }, [state.isLoading, state.providers, state.activeProviderId, navigate, queryClient]);
 
@@ -255,57 +294,137 @@ export function OnboardingPage() {
     [actions, navigate, queryClient]
   );
 
-  if (state.isLoading) {
-    return html`
-      <div className="grid h-full place-items-center text-sm text-[var(--v2-text-muted)]">
-        ${t('common.loading')}
-      </div>
-    `;
-  }
-
   return html`
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto flex min-h-full max-w-2xl flex-col justify-center gap-6 p-6">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold text-[var(--v2-text-strong)]">
+      <div
+        className="mx-auto grid min-h-full max-w-6xl gap-6 p-5 sm:p-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center"
+      >
+        <div className="max-w-2xl">
+          <h1
+            className="max-w-[14ch] text-[30px] font-semibold leading-[1.08] tracking-[-0.01em] text-[var(--v2-text-strong)] sm:text-[34px]"
+          >
             ${t('onboarding.title')}
           </h1>
-          <p className="mt-2 text-sm text-[var(--v2-text-muted)]">${t('onboarding.subtitle')}</p>
-          ${resumingSession &&
-          html`<p className="mt-3 text-sm font-medium text-[var(--v2-accent-text)]">
-            ${t('onboarding.resumingSession')}
-          </p>`}
+          <p className="mt-4 max-w-[58ch] text-base leading-7 text-[var(--v2-text-muted)]">
+            ${t('onboarding.subtitle')}
+          </p>
+          <div className="mt-8 grid gap-5">
+            <${TrustRow}
+              icon="spark"
+              title=${t('onboarding.promiseModelsTitle')}
+              body=${t('onboarding.promiseModelsBody')}
+            />
+            <${TrustRow}
+              icon="lock"
+              title=${t('onboarding.promiseApprovalsTitle')}
+              body=${t('onboarding.promiseApprovalsBody')}
+            />
+            <${TrustRow}
+              icon="file"
+              title=${t('onboarding.promiseFilesTitle')}
+              body=${t('onboarding.promiseFilesBody')}
+            />
+          </div>
         </div>
 
-        <div className="flex flex-col gap-3">
-          ${featured.map(
-            ({ entry, provider }) => html`
-              <${FeaturedProviderRow}
-                key=${entry.id}
-                entry=${entry}
-                provider=${provider}
-                configured=${isProviderConfigured(provider, state.builtinOverrides)}
-                isBusy=${state.isBusy}
-                login=${login}
-                t=${t}
-                onUse=${handleUse}
-                onSetUp=${actions.openDialog}
-              />
-            `
-          )}
-        </div>
+        <div className="grid gap-4">
+          <${Card} radius="lg" className="p-4 sm:p-5">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <div
+                  className="font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+                >
+                  ${t('onboarding.accessLabel')}
+                </div>
+                <h2 className="mt-1 text-lg font-semibold text-[var(--v2-text-strong)]">
+                  ${t('onboarding.accessTitle')}
+                </h2>
+              </div>
+              <${Badge} tone="muted" label=${t('onboarding.firstRun')} size="sm" />
+            </div>
+            <div className="grid gap-3">
+              ${showFallbackAccess
+                ? html`
+                    <div className="grid gap-3">
+                      <p className="text-sm leading-6 text-[var(--v2-text-muted)]">
+                        ${t('onboarding.providerNearaiDescDesktop')}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <${Button}
+                          type="button"
+                          variant="primary"
+                          size="md"
+                          fullWidth=${true}
+                          className="col-span-2"
+                          disabled=${login.nearaiBusy}
+                          onClick=${() => login.startNearai('github')}
+                        >
+                          ${t('onboarding.continue')}
+                        <//>
+                        <${Button}
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          fullWidth=${true}
+                          disabled=${login.nearaiBusy}
+                          onClick=${() => login.startNearai('google')}
+                        >
+                          ${t('onboarding.continueGoogle')}
+                        <//>
+                        <${Button}
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          fullWidth=${true}
+                          disabled=${login.nearaiBusy}
+                          onClick=${login.startNearaiWallet}
+                        >
+                          ${t('onboarding.continueWallet')}
+                        <//>
+                        <${Button}
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          fullWidth=${true}
+                          className="col-span-2"
+                          disabled=${state.isBusy}
+                          onClick=${() => actions.openDialog(fallbackNearaiProvider)}
+                        >
+                          ${t('onboarding.useApiKey')}
+                        <//>
+                      </div>
+                    </div>
+                  `
+                : featured.map(
+                    ({ entry, provider }) => html`
+                      <${FeaturedProviderRow}
+                        key=${entry.id}
+                        entry=${entry}
+                        provider=${provider}
+                        configured=${isProviderConfigured(provider, state.builtinOverrides)}
+                        isBusy=${state.isBusy}
+                        login=${login}
+                        t=${t}
+                        onUse=${handleUse}
+                        onSetUp=${actions.openDialog}
+                      />
+                    `
+                  )}
+            </div>
+          <//>
 
-        <${ProviderLoginStatus} login=${login} />
+          <${ProviderLoginStatus} login=${login} />
 
-        <div className="text-center text-xs text-[var(--v2-text-muted)]">
-          ${t('onboarding.moreInSettings')}${' '}
-          <button
-            type="button"
-            className="underline hover:text-[var(--v2-text-strong)]"
-            onClick=${() => navigate('/settings/inference')}
-          >
-            ${t('nav.settings')}
-          </button>
+          <div className="px-1 text-sm leading-6 text-[var(--v2-text-muted)]">
+            ${t('onboarding.moreInSettings')}${' '}
+            <button
+              type="button"
+              className="font-medium text-[var(--v2-accent-text)] hover:underline"
+              onClick=${() => navigate('/settings/inference')}
+            >
+              ${t('nav.settings')}
+            </button>
+          </div>
         </div>
       </div>
 

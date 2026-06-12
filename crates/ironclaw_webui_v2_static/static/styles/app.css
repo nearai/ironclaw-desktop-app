@@ -21,29 +21,29 @@
   color-scheme: light;
 
   /* Canvas / surfaces */
-  --v2-canvas:        #f4f7fb;
+  --v2-canvas:        #f6f8fb;
   --v2-canvas-strong: #ffffff;
   --v2-surface:       #ffffff;
-  --v2-surface-soft:  #eef4fa;
-  --v2-surface-muted: #e4edf5;
+  --v2-surface-soft:  #f0f4f8;
+  --v2-surface-muted: #e7edf4;
 
   /* Card tokens — used by Card component */
-  --v2-card-bg:     rgba(255, 255, 255, 0.92);
-  --v2-card-border: rgba(19, 45, 68, 0.12);
+  --v2-card-bg:     rgba(255, 255, 255, 0.96);
+  --v2-card-border: rgba(24, 38, 55, 0.1);
   --v2-card-shadow: none;
 
   /* Panel border (nav items, dividers, form borders) */
-  --v2-panel-border: rgba(19, 45, 68, 0.12);
+  --v2-panel-border: rgba(24, 38, 55, 0.1);
 
   /* Rail (input bg in dark) */
   --v2-rail:    #edf3f8;
   --v2-input-bg: #ffffff;
 
   /* Typography */
-  --v2-text:        #243244;
-  --v2-text-strong: #0f1720;
-  --v2-text-muted:  #5f7183;
-  --v2-text-faint:  #8a9aab;
+  --v2-text:        #263241;
+  --v2-text-strong: #101820;
+  --v2-text-muted:  #5d6b7c;
+  --v2-text-faint:  #8995a4;
   --v2-inverse:     #ffffff;
   --v2-ink:         #0f1720;
 
@@ -74,7 +74,7 @@
   background: var(--v2-canvas);
 }
 
-/* ── Dark theme (default) — deep navy, signal blue, agent gold ───── */
+/* ── Dark theme — explicit operator mode, signal blue, agent gold ── */
 :root[data-theme="dark"] {
   color-scheme: dark;
 
@@ -84,10 +84,10 @@
   --v2-surface-soft:  var(--bg-surface-subtle, rgba(148, 180, 255, 0.045));
   --v2-surface-muted: rgba(148, 180, 255, 0.09);
 
-  /* Card tokens in dark: hairline navy border + deep shadow */
+  /* Card tokens in dark: hairline navy border, no decorative shadow. */
   --v2-card-bg:     #101828;
   --v2-card-border: rgba(148, 180, 255, 0.09);
-  --v2-card-shadow: 0 12px 32px rgba(2, 6, 16, 0.45);
+  --v2-card-shadow: none;
 
   --v2-panel-border: rgba(148, 180, 255, 0.11);
 
@@ -161,11 +161,17 @@ body {
   /* DESIGN.md: numbers use tabular figures by default. */
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* Font inheritance for form elements */
 button, input, select, textarea {
   font: inherit;
+}
+
+/* Product typography stays calm: no squeezed marketing caps or negative display tracking. */
+[class*="tracking-"] {
+  letter-spacing: 0 !important;
 }
 
 button {
@@ -300,7 +306,7 @@ input:focus, select:focus, textarea:focus {
   background: var(--v2-card-bg);
   border: 1px solid var(--v2-card-border);
   box-shadow: var(--v2-card-shadow);
-  border-radius: 1.25rem;
+  border-radius: 12px;
 }
 
 .v2-skeleton {
@@ -323,7 +329,7 @@ input:focus, select:focus, textarea:focus {
   border: 1px solid var(--v2-panel-border);
   background: var(--v2-card-bg);
   box-shadow: var(--v2-card-shadow);
-  border-radius: 1.25rem;
+  border-radius: 16px;
 }
 
 /* Base button reset — kept for components still using raw <button>/<label> with v2-button */
