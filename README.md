@@ -74,10 +74,14 @@ security delete-generic-password \
 
 ## Quick Tour
 
+IronClaw Desktop is the native shell for the shared Reborn WebUI. The normal
+product path is simple: connect NEAR AI Cloud, start from Chat, attach the work,
+and let Connections/Settings stay honest about what is actually ready.
+
 The shipped app exposes three top-level surfaces in the sidebar:
 
-- **Chat** — streaming conversations with the agent. Markdown rendering, code-block copy, file/PDF attachments with client-side text extraction (and OCR for scanned PDFs), retry on failure.
-- **Connections** — install, configure, and inspect workspace apps such as Gmail, Google Calendar, Notion, Slack, MCP servers, and channel integrations.
+- **Chat** — the home surface for asks, files, approvals, and generated work product. Markdown rendering, code-block copy, PDF/Office/text attachments, OCR for scanned PDFs, and retry on failure are built in.
+- **Connections** — inspect, install, configure, and honestly block workspace apps such as Gmail, Google Calendar, Notion, Slack, MCP servers, and channel integrations.
 - **Settings** — per-profile gateway config, Keychain-backed tokens, NEAR AI Cloud model selection, language.
 
 App-wide controls:
@@ -89,11 +93,12 @@ App-wide controls:
 
 - Home screen is always the **Chat** surface; setup no longer traps users in configuration screens by default.
 - **NEAR AI Cloud** is the normal desktop model path with one-click continuity from onboarding into chat.
+- First-run onboarding no longer exposes generic provider or API-key setup; advanced model setup stays in Settings.
 - **Model management** is now a focused NEAR AI Cloud workflow in **Settings → Inference** to keep chat execution clear and fast.
 - **Extension setup** uses safer lifecycle calls (`install`, `activate`, `configure`) with honest state on failure.
 - File attach + work-product export now routes through durable thread/message persistence so exports and outputs can be re-opened reliably.
 
-### Updated visual pass
+### Current Screenshots
 
 ![Welcome flow](docs/screenshots/github-page-onboarding.png)
 
@@ -122,9 +127,9 @@ On first launch, onboarding asks one thing: **connect NEAR AI Cloud.** Sign in o
 
 ![First run -- connect NEAR AI Cloud](docs/screenshots/onboarding.png)
 
-- **GitHub / Google** — browser sign-in through the NEAR AI Cloud gateway.
+- **GitHub / Google** — browser sign-in for NEAR AI Cloud.
 - **NEAR Wallet** — wallet-based continuity when enabled by the gateway.
-- **NEAR API key** — fallback setup for development and managed environments.
+- **Advanced setup** — key-based or managed-environment fallback configuration lives in **Settings**, not first-run onboarding.
 
 OAuth-based sign-ins open in your system browser, not an embedded webview. Tokens are stored in the macOS Keychain (with an owner-only `chmod 0600` file fallback if a Keychain prompt can't complete), and are never written into `settings.json` or your exports.
 
@@ -166,7 +171,7 @@ For users with multiple IronClaw instances (e.g. work + personal, prod + staging
 
 Chat is the primary surface. Beyond plain conversation:
 
-- **Attachments** — drop a file or PDF onto the composer. The app extracts text client-side and inlines it into the message so the model can read it. Scanned/image-only PDFs fall back to in-browser OCR (tesseract.js). Office formats (`.docx`, `.xlsx`, `.xls`) are supported.
+- **Attachments** — drop a file or PDF onto the composer. The app extracts text client-side and inlines it into the message so the model can read it. Scanned/image-only PDFs fall back to in-browser OCR (tesseract.js). OOXML Office formats (`.docx`, `.docm`, `.xlsx`, `.xlsm`, `.pptx`, `.pptm`), text, and CSV are supported; legacy binary Office files (`.doc`, `.xls`, `.ppt`) are rejected with a convert-and-reattach prompt instead of pretending the model can read them.
 - **Markdown rendering** — responses render as markdown with syntax-highlighted, copyable code blocks.
 - **Retry** — re-run the last turn on a failed or unsatisfying response.
 
