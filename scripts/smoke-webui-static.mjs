@@ -408,7 +408,7 @@ async function assertGatewayUnavailableWelcome(browser) {
       });
       await page
         .getByText(
-          'IronClaw cannot reach the local gateway yet. Start or retry the gateway, then sign in with NEAR AI Cloud.',
+          'IronClaw cannot reach the local sidecar yet. Restart the app or start the sidecar, then sign in with NEAR AI Cloud.',
           { exact: true }
         )
         .waitFor({ timeout: 20_000 });
@@ -498,6 +498,58 @@ async function assertGatewayUnavailableWelcome(browser) {
   }
 }
 
+async function assertBrowserPreviewUnavailableWelcome(browser) {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
+  try {
+    await page.goto(`http://127.0.0.1:${port}${appBasePath}/welcome`, {
+      waitUntil: 'domcontentloaded'
+    });
+    await page
+      .getByText('Static preview needs a gateway', { exact: true })
+      .waitFor({ timeout: 20_000 });
+    await page
+      .getByText(
+        'This browser preview cannot start the desktop sidecar. Run the packaged app or npm run tauri dev for sign-in; use npm run dev:webui-static only for UI smoke tests against an already running gateway.',
+        { exact: true }
+      )
+      .waitFor({ timeout: 20_000 });
+    const result = await page.evaluate(() => {
+      const text = document.body?.innerText || '';
+      const authButtons = Array.from(document.querySelectorAll('button'))
+        .map((button) => ({
+          text: (button.innerText || button.getAttribute('aria-label') || '').trim(),
+          disabled: button.disabled
+        }))
+        .filter((button) =>
+          /Sign in with GitHub|Use Google|Use NEAR Wallet|Use API key/i.test(button.text)
+        );
+      return {
+        authButtonCount: authButtons.length,
+        allAuthButtonsDisabled:
+          authButtons.length >= 3 && authButtons.every((button) => button.disabled),
+        hasDesktopRetryCopy: text.includes('Restart the app or start the sidecar'),
+        body: text
+      };
+    });
+    if (!result.allAuthButtonsDisabled || result.hasDesktopRetryCopy) {
+      throw new Error(
+        `browser-preview welcome did not explain static preview limits:\n${JSON.stringify(
+          result,
+          null,
+          2
+        )}`
+      );
+    }
+    await mkdir('output/playwright', { recursive: true });
+    await page.screenshot({
+      path: 'output/playwright/static-preview-gateway-unavailable.png',
+      fullPage: true
+    });
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
 const server = spawn('node', ['scripts/serve-webui-static.mjs'], {
   env: {
     ...process.env,
@@ -522,6 +574,7 @@ try {
   proxyProbeGateway = await startProxyProbeGateway();
   await assertProxySurvivesAbortedSse();
   const browser = await chromium.launch({ headless: true });
+  await assertBrowserPreviewUnavailableWelcome(browser);
   await assertGatewayUnavailableWelcome(browser);
   const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
   const errors = [];

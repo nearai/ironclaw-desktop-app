@@ -230,11 +230,25 @@ export function OnboardingPage() {
   const providerAccessBlocked = providerSnapshotPending || providerSnapshotUnavailable;
   const showFallbackAccess = providerAccessBlocked;
   const primaryAuthVariant = providerAccessBlocked ? 'secondary' : 'primary';
+  const desktopRuntime = isDesktopRuntime();
   const accessStatusTitle = providerSnapshotPending
-    ? 'Checking local gateway'
+    ? desktopRuntime
+      ? 'Checking local gateway'
+      : 'Checking preview gateway'
     : providerSnapshotUnavailable
-      ? 'Gateway not available'
+      ? desktopRuntime
+        ? 'Gateway not available'
+        : 'Static preview needs a gateway'
       : 'Ready to sign in';
+  const gatewayPendingCopy = desktopRuntime
+    ? 'Checking the local gateway for NEAR AI Cloud access.'
+    : 'Checking the gateway configured for this browser preview.';
+  const gatewayUnavailableCopy = desktopRuntime
+    ? 'IronClaw cannot reach the local sidecar yet. Restart the app or start the sidecar, then sign in with NEAR AI Cloud.'
+    : 'This browser preview cannot start the desktop sidecar. Run the packaged app or npm run tauri dev for sign-in; use npm run dev:webui-static only for UI smoke tests against an already running gateway.';
+  const gatewayFollowupCopy = desktopRuntime
+    ? 'Finish the access step once the gateway is reachable. IronClaw will keep model routing on NEAR AI Cloud.'
+    : 'For a working desktop session, launch IronClaw through Tauri so the sidecar and native auth bridge are available.';
 
   // NEAR AI login shares the same backend flow as the Inference tab; on success
   // here we head straight to chat.
@@ -388,16 +402,15 @@ export function OnboardingPage() {
                             className="mt-0.5 block text-sm leading-6 text-[var(--v2-text-muted)]"
                           >
                             ${providerSnapshotPending
-                              ? 'Checking the local gateway for NEAR AI Cloud access.'
+                              ? gatewayPendingCopy
                               : providerSnapshotUnavailable
-                                ? 'IronClaw cannot reach the local gateway yet. Start or retry the gateway, then sign in with NEAR AI Cloud.'
+                                ? gatewayUnavailableCopy
                                 : t('onboarding.providerNearaiDescDesktop')}
                           </span>
                         </span>
                       </div>
                       <p className="text-sm leading-6 text-[var(--v2-text-muted)]">
-                        Finish the access step once the gateway is reachable. IronClaw will keep
-                        model routing on NEAR AI Cloud.
+                        ${gatewayFollowupCopy}
                       </p>
                       <div className="grid grid-cols-2 gap-2">
                         <${Button}

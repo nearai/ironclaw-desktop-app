@@ -992,3 +992,86 @@ Close the next hostile-review gap in the chief-of-staff workflow surface: a non-
 - Do not collapse partial-catalog status back into generic `Connect required apps`.
 - Do not count built-in Web/HTTP/Routines surfaces as missing connector apps.
 - Do not make missing workflows look runnable or connected without backend readiness evidence.
+
+## Handoff: Phase 18 - Preview Runtime Truth And README Screenshots
+
+Status: YELLOW
+Owner lane: Static UI / Docs / Product-contract QA
+
+### Goal
+
+Close the immediate user-confusion gap where `http://127.0.0.1:<port>/v2/welcome`
+looked like the broken desktop app. The browser-only static preview must be
+honest that it cannot start the Tauri sidecar or native auth bridge, and the
+README must stop implying that static smoke proves live OAuth.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/onboarding/onboarding-page.js`:
+  split gateway-unavailable onboarding copy between desktop runtime and browser
+  preview runtime. Browser previews now say `Static preview needs a gateway`
+  and tell users to run `npm run tauri dev` for sign-in.
+- `scripts/smoke-webui-static.mjs`: added rendered coverage for browser-preview
+  gateway truth, including disabled auth buttons and the absence of desktop
+  retry copy.
+- `README.md`: clarified `npm run tauri dev` versus `npm run dev:webui-static`,
+  corrected the sidebar surface count, removed stale top-level Automations copy,
+  and added the refreshed Connections/workflow screenshot.
+- `docs/STATIC_WEBUI_SYNC.md`: documented the preview-versus-desktop runtime
+  contract and explicitly bans claiming live OAuth, connector execution, or
+  sidecar behavior from browser-only static preview.
+- `docs/screenshots/connections-workflows.png` and
+  `docs/screenshots/github-page-connections.png`: added refreshed Connections
+  and workflow setup screenshots for docs/GitHub presentation.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js`: regenerated the
+  shipped static artifact.
+
+### Verified
+
+- `npm run prepare:webui-static`: passed and regenerated the static bundle.
+- `npm run smoke:webui-static`: passed with the new browser-preview gateway
+  assertion.
+- Visual inspection confirmed the new static-preview screenshot shows the
+  correct blocked state and copy, and the refreshed Connections screenshot shows
+  the workflow/setup surface.
+
+### Evidence
+
+- Browser-preview truth screenshot:
+  `output/playwright/static-preview-gateway-unavailable.png`.
+- Refreshed Connections/workflow screenshot:
+  `docs/screenshots/github-page-connections.png`.
+- Rendered workflow smoke screenshot:
+  `output/playwright/static-acceptance-workflows.png`.
+
+### Still RED
+
+- Live OAuth and external connector execution still require real desktop runtime
+  evidence with a running sidecar, a valid NEAR AI Cloud session, and backend
+  connector routes. This pass intentionally does not fake that.
+- `npm run dev:webui-static` remains a deterministic UI preview and smoke-test
+  target, not a product-auth proof.
+
+### Risks
+
+- A user can still confuse the preview for the app if they ignore the runtime
+  copy and docs. The UI now states the limitation in the first-run surface
+  itself, but product/auth verification still belongs in Tauri.
+
+### Next Agent Should Start Here
+
+1. Run `npm run tauri dev` or packaged smoke with a real NEAR AI Cloud session
+   and record live auth/connector evidence.
+2. Prove one connector setup/execution path end to end from the desktop runtime,
+   including actual request URLs and readiness state.
+3. Keep README screenshots synced whenever top-level navigation, onboarding, or
+   Connections/workflow IA changes.
+
+### Do Not Touch
+
+- Do not claim live OAuth, connector execution, or sidecar readiness from static
+  smoke.
+- Do not re-add Automations as a top-level README surface unless it is visibly
+  restored in the shipped sidebar.
+- Do not remove the browser-preview truth copy unless the static preview gains a
+  real sidecar/auth bridge.

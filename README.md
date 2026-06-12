@@ -16,6 +16,21 @@ IronClaw ships with a TUI and a web UI served by its own gateway. This app gives
 
 ## 5-minute dev bring-up
 
+If you want the app to actually sign in, start the bundled sidecar, and behave
+like the desktop product, run the Tauri app:
+
+```bash
+npm install
+npm run tauri dev
+```
+
+Do not use a bare browser tab as proof that auth works. `npm run
+dev:webui-static` serves only the shared static WebUI for UI preview and smoke
+tests; it does not spawn the desktop sidecar or provide the native auth bridge.
+If you open a URL such as `http://127.0.0.1:<port>/v2/welcome` directly in a
+browser without a gateway behind it, the NEAR AI Cloud sign-in buttons are
+expected to stay disabled.
+
 If you've cloned the repo and have a remote gateway reachable over an SSH alias:
 
 ```bash
@@ -57,12 +72,11 @@ security delete-generic-password \
   -a 'gateway-token:default'
 ```
 
-## Quick tour
+## Quick Tour
 
-The shipped app exposes four top-level surfaces in the sidebar:
+The shipped app exposes three top-level surfaces in the sidebar:
 
 - **Chat** — streaming conversations with the agent. Markdown rendering, code-block copy, file/PDF attachments with client-side text extraction (and OCR for scanned PDFs), retry on failure.
-- **Automations** — scheduled and triggered agent runs.
 - **Connections** — install, configure, and inspect workspace apps such as Gmail, Google Calendar, Notion, Slack, MCP servers, and channel integrations.
 - **Settings** — per-profile gateway config, Keychain-backed tokens, NEAR AI Cloud model selection, language.
 
@@ -84,6 +98,8 @@ App-wide controls:
 ![Welcome flow](docs/screenshots/github-page-onboarding.png)
 
 ![Chat + attachment workflow](docs/screenshots/github-page-chat.png)
+
+![Connections and workflow setup](docs/screenshots/github-page-connections.png)
 
 ![Model/configuration management](docs/screenshots/github-page-settings.png)
 
@@ -154,12 +170,11 @@ Chat is the primary surface. Beyond plain conversation:
 - **Markdown rendering** — responses render as markdown with syntax-highlighted, copyable code blocks.
 - **Retry** — re-run the last turn on a failed or unsatisfying response.
 
-## What's inside
+## What's Inside
 
-The shipped static WebUI exposes four sidebar surfaces:
+The shipped static WebUI exposes three sidebar surfaces:
 
 - **Chat** (`/chat`) — the home surface. Streaming conversations with markdown rendering, code-block copy, retry on failure, and file/PDF/Office attachments with client-side text extraction + OCR.
-- **Automations** (`/automations`) — scheduled and triggered agent runs.
 - **Connections** (`/extensions`) — install, configure, and inspect workspace apps, MCP servers, and channel integrations.
 - **Settings** (`/settings`, Cmd+,) — per-profile gateway config, Keychain-backed tokens, NEAR AI Cloud model selection, and language. Local sidecar lifecycle when running the bundled binary.
 
@@ -253,7 +268,7 @@ npm run tauri build -- --target universal-apple-darwin
 ```bash
 npm run check    # svelte-check + TypeScript
 npm run verify:static-frontend
-npm run smoke:webui-static
+npm run smoke:webui-static # deterministic rendered UI smoke; does not prove live OAuth
 npm run test:e2e # default rendered static WebUI smoke
 npm run build    # vite frontend build (no Tauri compile)
 cargo check --manifest-path src-tauri/Cargo.toml
@@ -495,15 +510,15 @@ shake, drop the import) before raising the budget.
 
 ## Troubleshooting
 
-| Symptom                                                                            | Fix                                                                                                                                                                                                                                                                                                                                          |
-| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status bar shows **Disconnected** even though the server is up                     | Check the SSH tunnel is still alive (`bash scripts/tunnel.sh status`). If the gateway port shifted, re-enter the URL under **Settings → Profile → Base URL**. Re-paste the token under **Settings → Profile → Gateway token** to refresh the Keychain entry.                                                                                 |
-| macOS warns **"App can't be opened because it is from an unidentified developer"** | You are running a local/development DMG that was not Developer-ID signed and notarized. Right-click the `.app` in Finder → **Open** → confirm in the dialog. macOS remembers the exception per binary, so subsequent launches work normally. Or strip the quarantine attribute: `xattr -d com.apple.quarantine /Applications/IronClaw.app`.  |
-| Local sidecar fails to spawn on launch                                             | Most often a gateway or NEAR AI Cloud sign-in problem — restart the sidecar from the tray or Settings, then reconnect NEAR AI Cloud. Logs live at `~/Library/Application Support/com.openclaw.ironclaw-desktop/sidecar.log`. |
-| Tray icon missing from the menu bar                                                | **Settings → Advanced → "Show in menu bar"**. The toggle is on by default; if it ever flips off it usually means a startup crash before tray init. Restart the app, then re-toggle.                                                                                                                                                          |
-| **Cmd+,** (or any other shortcut) does nothing                                     | A shortcut only fires when the app window has focus. Cmd+Tab into IronClaw first, then try again. The tray "Show window" item brings it forward even when hidden.                                                                                                                                                                            |
-| Sidecar dies repeatedly with "port already in use"                                 | Another IronClaw process is bound to the local port. Open Activity Monitor, kill stray `ironclaw` processes, then **Settings → Local sidecar → Restart**. If the conflict is with a different service, change the local port in **Settings → Local sidecar → Port**.                                                                         |
-| Updater banner says "signature verification failed"                                | Means the release wasn't signed with the pubkey wired into your build. Either update to a release built after signing landed, or download the new DMG manually from the GitHub Releases page.                                                                                                                                                |
+| Symptom                                                                            | Fix                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status bar shows **Disconnected** even though the server is up                     | Check the SSH tunnel is still alive (`bash scripts/tunnel.sh status`). If the gateway port shifted, re-enter the URL under **Settings → Profile → Base URL**. Re-paste the token under **Settings → Profile → Gateway token** to refresh the Keychain entry.                                                                                |
+| macOS warns **"App can't be opened because it is from an unidentified developer"** | You are running a local/development DMG that was not Developer-ID signed and notarized. Right-click the `.app` in Finder → **Open** → confirm in the dialog. macOS remembers the exception per binary, so subsequent launches work normally. Or strip the quarantine attribute: `xattr -d com.apple.quarantine /Applications/IronClaw.app`. |
+| Local sidecar fails to spawn on launch                                             | Most often a gateway or NEAR AI Cloud sign-in problem — restart the sidecar from the tray or Settings, then reconnect NEAR AI Cloud. Logs live at `~/Library/Application Support/com.openclaw.ironclaw-desktop/sidecar.log`.                                                                                                                |
+| Tray icon missing from the menu bar                                                | **Settings → Advanced → "Show in menu bar"**. The toggle is on by default; if it ever flips off it usually means a startup crash before tray init. Restart the app, then re-toggle.                                                                                                                                                         |
+| **Cmd+,** (or any other shortcut) does nothing                                     | A shortcut only fires when the app window has focus. Cmd+Tab into IronClaw first, then try again. The tray "Show window" item brings it forward even when hidden.                                                                                                                                                                           |
+| Sidecar dies repeatedly with "port already in use"                                 | Another IronClaw process is bound to the local port. Open Activity Monitor, kill stray `ironclaw` processes, then **Settings → Local sidecar → Restart**. If the conflict is with a different service, change the local port in **Settings → Local sidecar → Port**.                                                                        |
+| Updater banner says "signature verification failed"                                | Means the release wasn't signed with the pubkey wired into your build. Either update to a release built after signing landed, or download the new DMG manually from the GitHub Releases page.                                                                                                                                               |
 
 For anything not covered here, capture the full log with `RUST_LOG=debug npm run tauri dev` (see [Develop](#develop)) and open an issue with the trace.
 
