@@ -31,8 +31,18 @@ jobs:
 
   rust:
     runs-on: macos-14
+    env:
+      IRONCLAW_REBORN_REF: reborn-integration
     steps:
       - uses: actions/checkout@v4
+
+      - name: Checkout IronClaw Reborn source
+        uses: actions/checkout@v4
+        with:
+          repository: nearai/ironclaw
+          ref: ${{ env.IRONCLAW_REBORN_REF }}
+          path: .deps/ironclaw
+
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-node@v4
         with:
@@ -40,12 +50,16 @@ jobs:
           cache: npm
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: |
+            src-tauri
+            .deps/ironclaw
       - run: npm ci
       # Sidecar binaries are gitignored — fetch before cargo check so tauri-build
       # can resolve the bundle.externalBin paths.
       - name: Download sidecar binaries
         run: bash src-tauri/binaries/download.sh
+      - name: Build Reborn sidecar binary
+        run: bash scripts/build-reborn-sidecars.sh --repo .deps/ironclaw --targets aarch64-apple-darwin
       - run: cargo check --manifest-path src-tauri/Cargo.toml --locked
       - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release --locked
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked -- -D warnings
