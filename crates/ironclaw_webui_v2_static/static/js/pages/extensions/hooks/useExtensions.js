@@ -22,9 +22,28 @@ const OAUTH_SETUP_TIMEOUT_MS = 10 * 60 * 1000;
 function activationProvedConnected(res) {
   if (!res || typeof res !== 'object') return false;
   if (res.success === false) return false;
+  const blockers = Array.isArray(res.blockers) ? res.blockers : [];
+  if (
+    blockers.length > 0 ||
+    res.authenticated === false ||
+    res.credential_ready === false ||
+    res.account_ready === false ||
+    res.ready === false
+  ) {
+    return false;
+  }
   const phase = String(res.phase || res.activation_status || res.status || '').toLowerCase();
   if (['active', 'ready', 'connected'].includes(phase)) return true;
-  return res.success === true || res.active === true || res.activated === true;
+  const readiness = String(res.readiness || res.model_readiness || '').toLowerCase();
+  if (['active', 'ready', 'connected'].includes(readiness)) return true;
+  const hasCredentialProof =
+    res.authenticated === true ||
+    res.credential_ready === true ||
+    res.account_ready === true ||
+    res.ready === true;
+  const hasActivationProof =
+    res.active === true || res.activated === true || res.success === true || res.ok === true;
+  return hasCredentialProof && hasActivationProof;
 }
 
 function activationFailureMessage(res) {
@@ -104,7 +123,7 @@ export function useExtensions() {
   const activateMutation = useMutation({
     mutationFn: ({ packageRef }) => activateExtension(packageRef),
     onSuccess: (res, { displayName }) => {
-      if (res.success) {
+      if (activationProvedConnected(res)) {
         setActionResult({
           type: 'success',
           message: res.message || res.instructions || `${displayName || 'Extension'} activated`

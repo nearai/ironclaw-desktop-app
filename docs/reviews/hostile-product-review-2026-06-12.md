@@ -155,3 +155,62 @@ Escalate work-product proof from unit-level extractors/export builders to render
 - Do not reduce work-product proof back to attachment chips alone.
 - Do not treat browser anchor downloads as desktop proof; desktop exports must traverse `save_bytes_dialog`.
 - Do not allow exported thread JSON to include base64 file payloads.
+
+## Handoff: Phase 4 - Connector Activation Truth Hardening
+
+Status: YELLOW
+Owner lane: Connector / Static UI / Hostile QA
+
+### Goal
+
+Escalate connector proof from route-canonicalization to false-positive defense: if the gateway says a lifecycle action "completed" without proving credentials/readiness, the app must not show Connected.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/hooks/useExtensions.js`: one-click connect and the lower-level Activate mutation now require explicit active/ready/connected phase evidence or credential/account proof plus activation proof. Blockers and negative readiness/auth flags always win.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/hooks/useConnectExtension.test.mjs`: added regression coverage for weak activation success and blocker-bearing responses.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/hooks/useExtensions-activation.test.mjs`: added mutation-level coverage so installed-extension activation cannot show a success toast from weak lifecycle success.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js`: regenerated static bundle for the desktop shell.
+
+### Verified
+
+- Focused connector tests: `node --test crates/ironclaw_webui_v2_static/static/js/pages/extensions/hooks/useConnectExtension.test.mjs` passed 10/10.
+- Focused activation mutation tests: `node --test crates/ironclaw_webui_v2_static/static/js/pages/extensions/hooks/useExtensions-activation.test.mjs` passed 2/2.
+- `npm run test:static`: passed 294/294.
+- `npm run verify:static-frontend`: passed.
+- `npm run smoke:webui-static`: passed rendered static desktop bootstrap smoke.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, Reborn gateway healthy on port 3000, sidecar terminated cleanly.
+- `node scripts/probe-live-reborn-connectors.mjs`: passed with no contract violations, while preserving known upstream activation false positives as defects.
+- `IRONCLAW_PROBE_MODES=nearai node scripts/probe-live-reborn-model-execution.mjs`: send path accepted and no fake assistant reply; NEAR execution still honestly failed without local session/API-key credentials.
+
+### Evidence
+
+- Connector live probe artifact: `output/live-connector-probe/reborn-live-connector-probe-2026-06-12T11-40-56-983Z.json`.
+- Model execution live probe artifact: `output/live-model-execution-probe/reborn-live-model-execution-2026-06-12T11-40-56-998Z.json`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-074247.log`.
+- Live probe still reports known upstream defects for Gmail, Google Calendar, and Notion: `POST /activate` can succeed without credentials and later report `authenticated:true`; the static UI now refuses weak activation responses without credential/readiness proof.
+
+### Still RED
+
+- Live Gmail/Google Calendar/Notion/Slack OAuth plus read-only tool proof still requires working backend OAuth/configured accounts. Current live evidence shows honest blocked states or upstream false-positive lifecycle behavior, not successful account use.
+- Live model-quality work-product generation still requires an active NEAR AI Cloud session/API key. The probe proves no fake success, but not high-quality generated output.
+
+### Risks
+
+- If the backend continues returning only generic lifecycle success for genuinely connected extensions, users may see an error until the backend includes explicit readiness/credential proof. That is preferable to showing fake Connected.
+- The UI hardening guards weak activation responses but cannot repair backend list endpoints that misreport installed connector readiness; those need backend contract fixes.
+
+### Next Agent Should Start Here
+
+1. Fix backend activation/list readiness so Gmail, Google Calendar, Notion, and Slack cannot report authenticated/active without credentials.
+2. Re-run `node scripts/probe-live-reborn-connectors.mjs` with real accounts and add read-only tool-call proof.
+3. Re-run live NEAR model execution with `NEARAI_SESSION_TOKEN` or `NEARAI_API_KEY` set and inspect generated PDF/DOCX/XLSX work-product quality.
+
+### Do Not Touch
+
+- Do not loosen `activationProvedConnected` back to accepting `success: true` alone.
+- Do not hide backend false positives by filtering probe output.
+- Do not claim live connector success until rendered UI clicks and captured Reborn requests prove account-level readiness.
