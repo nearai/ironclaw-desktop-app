@@ -932,3 +932,63 @@ Move the Connections Browse surface from a list of app tiles toward the product 
 - Do not remove the issue-4775 workflow recipe assertions from `registry-tab.test.mjs` or `scripts/smoke-webui-static.mjs`.
 - Do not make workflow cards claim they are runnable while the app catalog or live connector readiness is unavailable.
 - Do not send slash-prefixed catalog refs as extension lifecycle names.
+
+## Handoff: Phase 17 - Partial Catalog Workflow Truth
+
+Status: YELLOW
+Owner lane: Connections / Static UI / Product-contract QA
+
+### Goal
+
+Close the next hostile-review gap in the chief-of-staff workflow surface: a non-empty connector catalog is not the same as a complete catalog. The workflow panel must not imply a workflow is ready when one of its required app connectors is absent from the gateway registry.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/registry-tab.js`: added catalog-aware workflow readiness. Each workflow now distinguishes `Gateway offline`, `Waiting on app catalog`, `Ready to connect`, and explicit missing-app counts.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/registry-tab.js`: missing workflow connector chips are now visually highlighted with warning styling and `data-workflow-surface-state="missing"` while available/built-in chips remain neutral.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/registry-tab.test.mjs`: added tests for partial-catalog workflow truth, including the important invariant that built-in Web/HTTP/Routines surfaces do not count as missing connector apps.
+- `scripts/smoke-webui-static.mjs`: rendered smoke now drives both empty-catalog and partial-catalog registry states; it asserts ready workflows, missing-app workflow labels, missing chip states, page-wide core connector favicons, workflow-scoped issue-4775 favicons, and captures a dedicated partial-catalog screenshot.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js`: regenerated shipped static artifact.
+
+### Verified
+
+- Focused test: `node --test crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/registry-tab.test.mjs` passed 13/13.
+- `npm run smoke:webui-static`: passed after the workflow-scoped favicon assertion; rendered smoke now covers partial catalog truth, issue-4775 workflow connector marks, and workflow-to-chat prefill.
+- `npm run test:static`: passed 312/312.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `src-tauri/target/release/bundle/macos/IronClaw.app` and `src-tauri/target/release/bundle/dmg/IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, native windows were detected, Reborn gateway was healthy on port 3000, and sidecar terminated cleanly.
+- In-app Browser opened `http://127.0.0.1:17770/v2/`; route resolved to `/v2/welcome`, title was `IronClaw`, DOM contained the NEAR AI Cloud first-run surface, and console warnings/errors were empty. Browser-native screenshot capture timed out in this environment, so visible screenshot evidence remains the Playwright artifacts below.
+
+### Evidence
+
+- Rendered partial-catalog workflow truth: `output/playwright/static-acceptance-workflows-partial-catalog.png`.
+- Rendered empty-catalog workflow section: `output/playwright/static-acceptance-workflows.png`.
+- Rendered workflow chat prefill: `output/playwright/static-acceptance-workflow-chat-prefill.png`.
+- Rendered main chat/work-product surface: `output/playwright/static-work-product-attachment-chat-collapsed.png`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-114518.log`.
+
+### Still RED
+
+- This pass proves catalog truth in the UI, not live connector setup/execution. Google OAuth, Slack install/pairing, Telegram, GitHub, Drive, Sheets, and external-service execution still need backend/account evidence.
+- Workflow cards still use `Draft prompt` rather than a richer guided setup/run journey.
+- The issue-4775 workflows are still not covered by a real Reborn browser e2e harness that approves gates and verifies tool sequences.
+
+### Risks
+
+- Catalog matching accepts both package refs and entry ids to tolerate gateway registry shape variations. If the gateway starts exposing a new canonical id scheme, extend `catalogKeys` and tests rather than weakening missing-app detection.
+- Warning styling now appears inside workflow chips. Keep contrast readable in any future theme pass.
+
+### Next Agent Should Start Here
+
+1. Build a guided workflow launch path for one workflow: start with Daily news digest, show required apps, missing setup, and then route to chat only when the user explicitly chooses to draft/run.
+2. Add a fixture-backed e2e route for one issue-4775 workflow from rendered chat through expected gate/tool sequence.
+3. Run mobile visual QA for the workflow cards, especially the missing-app chip wrapping and bottom action row.
+
+### Do Not Touch
+
+- Do not collapse partial-catalog status back into generic `Connect required apps`.
+- Do not count built-in Web/HTTP/Routines surfaces as missing connector apps.
+- Do not make missing workflows look runnable or connected without backend readiness evidence.

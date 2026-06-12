@@ -195,10 +195,58 @@ export function coreConnectionKindLabel(entry) {
   return 'Tool';
 }
 
-export function acceptanceWorkflowStatus({ gatewayOffline, catalogUnavailable }) {
+function connectionBySurfaceId(surfaceId) {
+  return CORE_CONNECTIONS.find((entry) => entry.id === surfaceId) || null;
+}
+
+function catalogKeys(entry) {
+  const keys = new Set();
+  if (!entry) return keys;
+  if (entry.id) keys.add(String(entry.id));
+  if (entry.package_ref?.id) keys.add(String(entry.package_ref.id));
+  if (entry.packageRef?.id) keys.add(String(entry.packageRef.id));
+  if (typeof entry.package_ref === 'string') keys.add(entry.package_ref);
+  if (typeof entry.packageRef === 'string') keys.add(entry.packageRef);
+  return keys;
+}
+
+export function acceptanceWorkflowStatus({ gatewayOffline, catalogUnavailable, availableEntries }) {
   if (gatewayOffline) return 'Gateway offline';
   if (catalogUnavailable) return 'Waiting on app catalog';
+  if (Array.isArray(availableEntries) && availableEntries.length > 0) return 'Catalog loaded';
   return 'Connect required apps';
+}
+
+export function workflowCatalogStatus(
+  workflow,
+  { gatewayOffline = false, catalogUnavailable = false, availableEntries = [] } = {}
+) {
+  if (gatewayOffline) {
+    return { label: 'Gateway offline', tone: 'warning', missingSurfaces: [] };
+  }
+  if (catalogUnavailable) {
+    return { label: 'Waiting on app catalog', tone: 'muted', missingSurfaces: [] };
+  }
+
+  const availableKeys = new Set(
+    availableEntries.flatMap((entry) => Array.from(catalogKeys(entry)))
+  );
+  const missingSurfaces = (workflow?.surfaces || []).filter((surfaceId) => {
+    const connection = connectionBySurfaceId(surfaceId);
+    if (!connection?.package_ref) return false;
+    const requiredKeys = catalogKeys(connection);
+    return !Array.from(requiredKeys).some((key) => availableKeys.has(key));
+  });
+
+  if (missingSurfaces.length > 0) {
+    const label =
+      missingSurfaces.length === 1
+        ? '1 app missing from catalog'
+        : `${missingSurfaces.length} apps missing from catalog`;
+    return { label, tone: 'warning', missingSurfaces };
+  }
+
+  return { label: 'Ready to connect', tone: 'positive', missingSurfaces: [] };
 }
 
 export function RegistryTab({
@@ -282,7 +330,11 @@ export function RegistryTab({
               )}
             </div>`}
       <//>
-      <${AcceptanceWorkflowsPanel} gatewayOffline=${false} catalogUnavailable=${false} />
+      <${AcceptanceWorkflowsPanel}
+        gatewayOffline=${false}
+        catalogUnavailable=${false}
+        availableEntries=${allAvailable}
+      />
     </div>
   `;
 }
@@ -350,9 +402,13 @@ function CoreConnectionsEmpty({ loadError, onInstall, isBusy }) {
   `;
 }
 
-function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable }) {
+function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable, availableEntries = [] }) {
   const connectionsById = Object.fromEntries(CORE_CONNECTIONS.map((entry) => [entry.id, entry]));
-  const status = acceptanceWorkflowStatus({ gatewayOffline, catalogUnavailable });
+  const status = acceptanceWorkflowStatus({
+    gatewayOffline,
+    catalogUnavailable,
+    availableEntries
+  });
 
   return html`
     <section
@@ -386,8 +442,14 @@ function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable }) {
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-2">
-        ${ACCEPTANCE_WORKFLOWS.map(
-          (workflow) => html`
+        ${ACCEPTANCE_WORKFLOWS.map((workflow) => {
+          const workflowStatus = workflowCatalogStatus(workflow, {
+            gatewayOffline,
+            catalogUnavailable,
+            availableEntries
+          });
+          const missingSurfaceSet = new Set(workflowStatus.missingSurfaces);
+          return html`
             <article
               key=${workflow.id}
               data-testid="acceptance-workflow-card"
@@ -415,7 +477,15 @@ function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable }) {
                   return html`
                     <span
                       key=${surface}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] py-1 pl-1 pr-2 text-[11px] font-medium text-[var(--v2-text-muted)]"
+                      data-workflow-surface-state=${missingSurfaceSet.has(surface)
+                        ? 'missing'
+                        : 'available'}
+                      className=${[
+                        'inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2 text-[11px] font-medium',
+                        missingSurfaceSet.has(surface)
+                          ? 'border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] text-[var(--v2-warning-text)]'
+                          : 'border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)]'
+                      ].join(' ')}
                     >
                       <${ConnectorAppIcon} source=${connection} className="h-5 w-5 rounded-[6px]" />
                       <span>${connection?.display_name || surface}</span>
@@ -425,7 +495,19 @@ function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable }) {
               </div>
 
               <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-                <span className="text-xs text-[var(--v2-text-faint)]">${status}</span>
+                <span
+                  data-workflow-status-tone=${workflowStatus.tone}
+                  className=${[
+                    'text-xs',
+                    workflowStatus.tone === 'positive'
+                      ? 'font-semibold text-[var(--v2-positive-text)]'
+                      : workflowStatus.tone === 'warning'
+                        ? 'font-semibold text-[var(--v2-warning-text)]'
+                        : 'text-[var(--v2-text-faint)]'
+                  ].join(' ')}
+                >
+                  ${workflowStatus.label}
+                </span>
                 <${Link}
                   to="/chat"
                   state=${{ composerDraft: workflow.prompt }}
@@ -436,8 +518,8 @@ function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable }) {
                 <//>
               </div>
             </article>
-          `
-        )}
+          `;
+        })}
       </div>
     </section>
   `;

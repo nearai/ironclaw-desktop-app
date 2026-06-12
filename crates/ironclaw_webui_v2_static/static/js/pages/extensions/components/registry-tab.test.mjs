@@ -7,7 +7,8 @@ import {
   acceptanceWorkflowStatus,
   coreConnectionButtonState,
   coreConnectionKindLabel,
-  projectedConnectPhase
+  projectedConnectPhase,
+  workflowCatalogStatus
 } from './registry-tab.js';
 import { connectorIconKind } from './extension-card.js';
 
@@ -45,6 +46,12 @@ const ISSUE_4775_USE_CASES = [
     surfaces: ['slack', 'web-http', 'routines']
   }
 ];
+
+function coreEntry(id) {
+  const entry = CORE_CONNECTIONS.find((connection) => connection.id === id);
+  assert.ok(entry, `missing core connection fixture ${id}`);
+  return entry;
+}
 
 test('projectedConnectPhase accepts backend snake_case registry readiness', () => {
   assert.deepEqual(
@@ -134,6 +141,44 @@ test('acceptance workflow status stays honest for offline and empty-catalog stat
   assert.equal(
     acceptanceWorkflowStatus({ gatewayOffline: false, catalogUnavailable: false }),
     'Connect required apps'
+  );
+  assert.equal(
+    acceptanceWorkflowStatus({
+      gatewayOffline: false,
+      catalogUnavailable: false,
+      availableEntries: [coreEntry('gmail')]
+    }),
+    'Catalog loaded'
+  );
+});
+
+test('workflowCatalogStatus reports missing apps for partial catalogs without counting built-ins', () => {
+  const workflow = ACCEPTANCE_WORKFLOWS.find((entry) => entry.title === 'Calendar prep assistant');
+
+  assert.deepEqual(
+    workflowCatalogStatus(workflow, {
+      availableEntries: [coreEntry('gmail'), coreEntry('google-calendar')]
+    }),
+    {
+      label: '1 app missing from catalog',
+      tone: 'warning',
+      missingSurfaces: ['google-drive']
+    }
+  );
+});
+
+test('workflowCatalogStatus marks fully catalog-backed workflows ready to connect', () => {
+  const workflow = ACCEPTANCE_WORKFLOWS.find((entry) => entry.title === 'Daily news digest');
+
+  assert.deepEqual(
+    workflowCatalogStatus(workflow, {
+      availableEntries: [coreEntry('telegram')]
+    }),
+    {
+      label: 'Ready to connect',
+      tone: 'positive',
+      missingSurfaces: []
+    }
   );
 });
 

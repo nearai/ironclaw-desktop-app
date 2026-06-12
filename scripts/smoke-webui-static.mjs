@@ -650,6 +650,54 @@ try {
   const llmProviderRequests = [];
   const llmListModelRequests = [];
   const llmActiveRequests = [];
+  const registryFixtures = {
+    gmail: {
+      id: 'gmail',
+      display_name: 'Gmail',
+      kind: 'wasm_tool',
+      description: 'Read, triage, draft, and prepare email work with approval gates.',
+      package_ref: { kind: 'extension', id: 'tools/gmail' },
+      installed: false,
+      keywords: ['email', 'google', 'inbox']
+    },
+    'google-calendar': {
+      id: 'google-calendar',
+      display_name: 'Google Calendar',
+      kind: 'wasm_tool',
+      description: 'Find meetings, protect focus blocks, and prepare schedule changes.',
+      package_ref: { kind: 'extension', id: 'tools/google_calendar' },
+      installed: false,
+      keywords: ['calendar', 'google', 'schedule']
+    },
+    slack: {
+      id: 'slack',
+      display_name: 'Slack',
+      kind: 'wasm_channel',
+      description: 'Summarize channels, prepare replies, and surface urgent asks.',
+      package_ref: { kind: 'extension', id: 'channels/slack' },
+      installed: false,
+      keywords: ['messages', 'team', 'channels']
+    },
+    telegram: {
+      id: 'telegram',
+      display_name: 'Telegram',
+      kind: 'wasm_channel',
+      description: 'Send scheduled digests and bot messages through Telegram.',
+      package_ref: { kind: 'extension', id: 'channels/telegram' },
+      installed: false,
+      keywords: ['bot', 'news', 'dm']
+    },
+    github: {
+      id: 'github',
+      display_name: 'GitHub',
+      kind: 'wasm_tool',
+      description: 'Watch releases, summarize changes, and route follow-up tasks.',
+      package_ref: { kind: 'extension', id: 'tools/github' },
+      installed: false,
+      keywords: ['releases', 'issues', 'code']
+    }
+  };
+  let registryEntriesPayload = [];
   await page.route(
     `${gatewayOrigin}/api/webchat/v2/threads/thread-smoke/messages`,
     async (route) => {
@@ -844,7 +892,7 @@ try {
     if (webchatPath === '/api/webchat/v2/extensions/registry') {
       await route.fulfill({
         contentType: 'application/json',
-        body: JSON.stringify({ entries: [] })
+        body: JSON.stringify({ entries: registryEntriesPayload })
       });
       return;
     }
@@ -1250,6 +1298,29 @@ try {
   });
   const acceptanceWorkflowsPanel = page.getByTestId('acceptance-workflows');
   await acceptanceWorkflowsPanel.scrollIntoViewIfNeeded();
+  const acceptanceWorkflowIconKinds = [
+    'gmail',
+    'google-calendar',
+    'google-drive',
+    'google-sheets',
+    'slack',
+    'telegram',
+    'github',
+    'web',
+    'routine'
+  ];
+  const renderedWorkflowIconKinds = await acceptanceWorkflowsPanel
+    .locator('[data-testid="connector-app-icon"]')
+    .evaluateAll((icons) => icons.map((icon) => icon.getAttribute('data-connector-icon')));
+  for (const iconKind of acceptanceWorkflowIconKinds) {
+    if (!renderedWorkflowIconKinds.includes(iconKind)) {
+      throw new Error(
+        `acceptance workflow chips did not render ${iconKind} connector favicon: ${renderedWorkflowIconKinds.join(
+          ', '
+        )}`
+      );
+    }
+  }
   await page.screenshot({
     path: 'output/playwright/static-acceptance-workflows.png',
     fullPage: false
@@ -1266,6 +1337,37 @@ try {
       )}`
     );
   }
+
+  registryEntriesPayload = [
+    registryFixtures.gmail,
+    registryFixtures['google-calendar'],
+    registryFixtures.slack,
+    registryFixtures.telegram,
+    registryFixtures.github
+  ];
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/extensions/registry?catalog=partial`, {
+    waitUntil: 'domcontentloaded'
+  });
+  await page.getByText('Catalog loaded', { exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByText('Ready to connect', { exact: true }).first().waitFor({ timeout: 20_000 });
+  await page
+    .getByText('1 app missing from catalog', { exact: true })
+    .first()
+    .waitFor({ timeout: 20_000 });
+  const missingWorkflowSurfaces = await page
+    .locator('[data-workflow-surface-state="missing"]')
+    .count();
+  if (missingWorkflowSurfaces < 3) {
+    const visibleBody = await page.locator('body').innerText();
+    throw new Error(
+      `partial registry did not mark missing workflow connector chips:\n${visibleBody}`
+    );
+  }
+  await page.getByTestId('acceptance-workflows').scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: 'output/playwright/static-acceptance-workflows-partial-catalog.png',
+    fullPage: false
+  });
   await page.getByLabel('Draft prompt for Daily news digest').click();
   await page.waitForURL(`**${appBasePath}/chat`, { timeout: 20_000 });
   const workflowDraftComposer = page.locator('textarea').first();
