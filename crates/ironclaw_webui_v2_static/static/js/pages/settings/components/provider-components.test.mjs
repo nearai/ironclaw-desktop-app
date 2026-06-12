@@ -300,8 +300,8 @@ function firstButtonProps(rendered) {
   return componentProps(findComponentNodes(rendered, 'Button')[0], 'Button');
 }
 
-test('ProviderManagement hides non-NEAR providers at the render boundary', () => {
-  const { rendered, cardProps } = renderProviderManagement({
+test('ProviderManagement collapses active NEAR into the model panel', () => {
+  const { rendered, cardProps, panelProps } = renderProviderManagement({
     providers: [
       builtinProvider('nearai', { adapter: 'nearai' }),
       builtinProvider('openai'),
@@ -312,27 +312,27 @@ test('ProviderManagement hides non-NEAR providers at the render boundary', () =>
     ]
   });
 
-  assert.deepEqual(groupLabels(rendered), ['llm.groupActive']);
-  assert.deepEqual(deepValuesAfter(rendered, 'data-provider-status='), ['active']);
-  assert.deepEqual(
-    cardProps.map((props) => props.provider.id),
-    ['nearai']
-  );
-  assert.deepEqual(
-    cardProps.map((props) => props.activeProviderId),
-    ['nearai']
-  );
-  assert.ok(
-    !cardProps.some((props) => 'onListModels' in props || 'onApplyModel' in props),
-    'model selection must live in the first-class settings panel, not inside provider rows'
-  );
+  assert.deepEqual(groupLabels(rendered), []);
+  assert.deepEqual(deepValuesAfter(rendered, 'data-provider-status='), []);
+  assert.deepEqual(cardProps, []);
+  assert.equal(panelProps.length, 1);
+  assert.equal(panelProps[0].provider.id, 'nearai');
+  assert.equal(panelProps[0].currentModel, 'llama');
   assert.ok(
     !collectScalars(rendered).includes('llm.addProvider'),
     'normal desktop provider management must not expose custom provider creation'
   );
   const bodyText = collectScalars(rendered).join('\n') + collectTemplateText(rendered);
-  assert.match(bodyText, /nearai|NEAR AI/i);
   assert.doesNotMatch(bodyText, /openai|anthropic|OpenRouter|Claude/i);
+});
+
+test('ProviderManagement status copy uses v2 status tokens', () => {
+  const source = readFileSync(new URL('./provider-management.js', import.meta.url), 'utf8');
+
+  assert.match(source, /--v2-danger-text/);
+  assert.match(source, /--v2-positive-text/);
+  assert.doesNotMatch(source, /border-mint|bg-mint|text-mint/);
+  assert.doesNotMatch(source, /border-red-|bg-red-|text-red-/);
 });
 
 test('ProviderManagement exposes active NEAR model selection before provider rows', () => {

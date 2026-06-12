@@ -782,9 +782,9 @@ registerPack('en', {
   'lang.current': 'Current language',
 
   // Settings — inference summary card
-  'inference.provider': 'Model path',
-  'inference.backend': 'Backend',
-  'inference.model': 'Model',
+  'inference.provider': 'AI runtime',
+  'inference.backend': 'Model access',
+  'inference.model': 'Active model',
   'inference.active': 'active',
   'inference.none': '—',
 

@@ -4,8 +4,45 @@ import test from 'node:test';
 import {
   CORE_CONNECTIONS,
   coreConnectionButtonState,
+  coreConnectionKindLabel,
   projectedConnectPhase
 } from './registry-tab.js';
+import { connectorIconKind } from './extension-card.js';
+
+const ISSUE_4775_USE_CASES = [
+  {
+    name: 'Daily news digest',
+    surfaces: ['telegram', 'web-http', 'routines']
+  },
+  {
+    name: 'Calendar prep assistant',
+    surfaces: ['gmail', 'google-calendar', 'google-drive', 'web-http', 'routines']
+  },
+  {
+    name: 'Deployment health watcher',
+    surfaces: ['slack', 'web-http', 'routines']
+  },
+  {
+    name: 'Competitor release tracker',
+    surfaces: ['gmail', 'github', 'routines']
+  },
+  {
+    name: 'AMA in Slack',
+    surfaces: ['slack', 'google-drive']
+  },
+  {
+    name: 'CRM inbound tracker',
+    surfaces: ['gmail', 'google-sheets', 'routines']
+  },
+  {
+    name: 'Slack to Sheet bug logger',
+    surfaces: ['slack', 'google-sheets', 'routines']
+  },
+  {
+    name: 'HN keyword monitor',
+    surfaces: ['slack', 'web-http', 'routines']
+  }
+];
 
 test('projectedConnectPhase accepts backend snake_case registry readiness', () => {
   assert.deepEqual(
@@ -36,9 +73,60 @@ test('projectedConnectPhase preserves camelCase readiness projections', () => {
 test('core connection fallbacks expose the expected catalog refs only', () => {
   assert.deepEqual(
     CORE_CONNECTIONS.filter((entry) => entry.package_ref).map((entry) => entry.package_ref.id),
-    ['tools/gmail', 'tools/google_calendar', 'mcp-servers/notion', 'channels/slack']
+    [
+      'tools/gmail',
+      'tools/google_calendar',
+      'tools/google_drive',
+      'tools/google_sheets',
+      'mcp-servers/notion',
+      'channels/slack',
+      'channels/telegram',
+      'tools/github'
+    ]
   );
   assert.equal(CORE_CONNECTIONS.find((entry) => entry.id === 'workspace')?.package_ref, null);
+});
+
+test('core connection fallbacks cover the issue 4775 QA acceptance surface', () => {
+  const surfaced = new Set(CORE_CONNECTIONS.map((entry) => entry.id));
+
+  for (const useCase of ISSUE_4775_USE_CASES) {
+    for (const surface of useCase.surfaces) {
+      assert.ok(surfaced.has(surface), `${useCase.name} missing ${surface}`);
+    }
+  }
+});
+
+test('core connection fallbacks resolve to connector app favicons', () => {
+  const iconsById = Object.fromEntries(
+    CORE_CONNECTIONS.map((entry) => [entry.id, connectorIconKind(entry)])
+  );
+
+  assert.deepEqual(iconsById, {
+    gmail: 'gmail',
+    'google-calendar': 'google-calendar',
+    'google-drive': 'google-drive',
+    'google-sheets': 'google-sheets',
+    notion: 'notion',
+    slack: 'slack',
+    telegram: 'telegram',
+    github: 'github',
+    'web-http': 'web',
+    routines: 'routine',
+    workspace: 'workspace'
+  });
+});
+
+test('core connection fallback category pills match the product surface', () => {
+  const labelsById = Object.fromEntries(
+    CORE_CONNECTIONS.map((entry) => [entry.id, coreConnectionKindLabel(entry)])
+  );
+
+  assert.equal(labelsById['web-http'], 'Web');
+  assert.equal(labelsById.routines, 'Routine');
+  assert.equal(labelsById.workspace, 'Files');
+  assert.equal(labelsById.notion, 'Knowledge');
+  assert.equal(labelsById.slack, 'Messaging');
 });
 
 test('core connection fallbacks are not installable when catalog is empty', () => {

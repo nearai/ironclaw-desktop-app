@@ -45,7 +45,7 @@ export function ActiveModelPanel({ provider, currentModel, onListModels, onApply
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <div
-            className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
           >
             Current model
           </div>
@@ -104,15 +104,23 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
     state.builtinOverrides,
     state.activeProviderId
   );
-  const hasProviderRows = visibleProviders.length > 0;
   const activeProvider = groups.active[0] || null;
+  const providersNeedingSetup = activeProvider
+    ? visibleProviders.filter((provider) => provider.id !== activeProvider.id)
+    : visibleProviders;
+  const rowGroups = groupProvidersByStatus(
+    providersNeedingSetup,
+    state.builtinOverrides,
+    state.activeProviderId
+  );
+  const hasProviderRows = providersNeedingSetup.length > 0;
 
   return html`
     <${Card} className="p-4 sm:p-6">
       <div className="mb-4">
         <div>
           <h3
-            className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
           >
             ${t('llm.providers')}
           </h3>
@@ -126,8 +134,8 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
           className=${[
             'mb-4 rounded-md border px-3 py-2 text-sm',
             actions.message.tone === 'error'
-              ? 'border-red-400/30 bg-red-500/10 text-red-200'
-              : 'border-mint/30 bg-mint/10 text-mint'
+              ? 'border-[color-mix(in_srgb,var(--v2-danger-text)_34%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]'
+              : 'border-[color-mix(in_srgb,var(--v2-positive-text)_34%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]'
           ].join(' ')}
           role="status"
         >
@@ -170,7 +178,7 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
           : html`
               <div className="space-y-1">
                 ${GROUP_ORDER.flatMap((group) => {
-                  const items = groups[group.key];
+                  const items = rowGroups[group.key];
                   if (!items.length) return [];
                   return [
                     html`

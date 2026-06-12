@@ -68,6 +68,14 @@ function collectScalars(root) {
   return scalars;
 }
 
+function collectTemplateText(root) {
+  const text = [];
+  visit(root, (node) => {
+    if (Array.isArray(node.strings)) text.push(...node.strings);
+  });
+  return text.join('');
+}
+
 function renderGoogleOauthCard({ savedId = '', clientId = savedId } = {}) {
   const stateValues = [clientId, savedId, false, '', ''];
   let stateIndex = 0;
@@ -111,6 +119,14 @@ test('GoogleOauthCard exposes a stable deep-link target and blocked setup state'
       'Google connectors are blocked until a Desktop app client ID is saved here. Hosted Google OAuth is not available from this gateway yet.'
     )
   );
+});
+
+test('GoogleOauthCard uses product typography for setup labels', () => {
+  const rendered = renderGoogleOauthCard();
+  const templateText = collectTemplateText(rendered);
+
+  assert.doesNotMatch(templateText, /font-mono text-\[11px\] uppercase/);
+  assert.doesNotMatch(templateText, /font-mono text-\[10px\] uppercase/);
 });
 
 test('GoogleOauthCard renders ready copy when a client id is saved', () => {

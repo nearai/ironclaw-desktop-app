@@ -108,11 +108,23 @@ function renderInferenceTab({ searchQuery = '' } = {}) {
   return { rendered, ProviderManagement };
 }
 
-test('InferenceTab opens NEAR AI Cloud setup by default', () => {
+test('InferenceTab renders NEAR AI Cloud setup without a nested disclosure gate', () => {
   const { rendered, ProviderManagement } = renderInferenceTab();
+  const templateText = collectTemplateText(rendered);
 
-  assert.ok(collectTemplateText(rendered).includes('Connect NEAR AI Cloud'));
   assert.equal(includesComponent(rendered, ProviderManagement), true);
+  assert.equal(templateText.includes('aria-expanded='), false);
+  assert.equal(templateText.includes('Hide'), false);
+});
+
+test('English AI setup copy avoids generic provider jargon', () => {
+  const source = readFileSync(new URL('../../../i18n/en.js', import.meta.url), 'utf8');
+
+  assert.match(source, /'inference\.provider': 'AI runtime'/);
+  assert.match(source, /'inference\.backend': 'Model access'/);
+  assert.match(source, /'inference\.model': 'Active model'/);
+  assert.doesNotMatch(source, /'inference\.provider': 'Model path'/);
+  assert.doesNotMatch(source, /'inference\.backend': 'Backend'/);
 });
 
 test('InferenceTab opens provider management when settings search targets it', () => {

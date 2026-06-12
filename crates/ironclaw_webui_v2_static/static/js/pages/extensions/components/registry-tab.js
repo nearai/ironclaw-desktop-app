@@ -4,7 +4,7 @@ import { Card, CardLabel } from '../../../design-system/card.js';
 import { Icon } from '../../../design-system/icons.js';
 import { Input } from '../../../design-system/input.js';
 import { useT } from '../../../lib/i18n.js';
-import { RegistryCard } from './extension-card.js';
+import { ConnectorAppIcon, RegistryCard } from './extension-card.js';
 import { useConnectExtension } from '../hooks/useExtensions.js';
 
 export const CORE_CONNECTIONS = [
@@ -25,6 +25,22 @@ export const CORE_CONNECTIONS = [
     keywords: ['calendar', 'google', 'schedule']
   },
   {
+    id: 'google-drive',
+    display_name: 'Google Drive',
+    kind: 'wasm_tool',
+    description: 'Ground prep, summaries, and answers in Drive documents and folders.',
+    package_ref: { kind: 'extension', id: 'tools/google_drive' },
+    keywords: ['drive', 'docs', 'files']
+  },
+  {
+    id: 'google-sheets',
+    display_name: 'Google Sheets',
+    kind: 'wasm_tool',
+    description: 'Append CRM rows, bug reports, and recurring tracker output to Sheets.',
+    package_ref: { kind: 'extension', id: 'tools/google_sheets' },
+    keywords: ['sheets', 'spreadsheet', 'crm']
+  },
+  {
     id: 'notion',
     display_name: 'Notion',
     kind: 'mcp_server',
@@ -39,6 +55,38 @@ export const CORE_CONNECTIONS = [
     description: 'Summarize channels, prepare replies, and surface urgent asks.',
     package_ref: { kind: 'extension', id: 'channels/slack' },
     keywords: ['messages', 'team', 'channels']
+  },
+  {
+    id: 'telegram',
+    display_name: 'Telegram',
+    kind: 'wasm_channel',
+    description: 'Send scheduled digests and bot messages through Telegram.',
+    package_ref: { kind: 'extension', id: 'channels/telegram' },
+    keywords: ['bot', 'news', 'dm']
+  },
+  {
+    id: 'github',
+    display_name: 'GitHub',
+    kind: 'wasm_tool',
+    description: 'Watch releases, summarize changes, and route follow-up tasks.',
+    package_ref: { kind: 'extension', id: 'tools/github' },
+    keywords: ['releases', 'issues', 'code']
+  },
+  {
+    id: 'web-http',
+    display_name: 'Web & HTTP',
+    kind: 'builtin',
+    description: 'Fetch pages, search public sources, and watch endpoint health.',
+    package_ref: null,
+    keywords: ['web', 'http', 'monitor']
+  },
+  {
+    id: 'routines',
+    display_name: 'Routines',
+    kind: 'builtin',
+    description: 'Schedule recurring checks, prep work, and delivery loops.',
+    package_ref: null,
+    keywords: ['schedule', 'trigger', 'automation']
   },
   {
     id: 'workspace',
@@ -64,6 +112,16 @@ export function coreConnectionButtonState({ entry, gatewayOffline, catalogUnavai
   if (catalogUnavailable) return { disabled: true, label: 'Not available' };
   if (isBusy) return { disabled: true, label: 'Connect' };
   return { disabled: false, label: 'Connect' };
+}
+
+export function coreConnectionKindLabel(entry) {
+  if (entry.id === 'web-http') return 'Web';
+  if (entry.id === 'routines') return 'Routine';
+  if (entry.id === 'workspace') return 'Files';
+  if (entry.kind === 'mcp_server') return 'Knowledge';
+  if (entry.kind === 'wasm_channel') return 'Messaging';
+  if (entry.kind === 'builtin') return 'Built-in';
+  return 'Tool';
 }
 
 export function RegistryTab({
@@ -162,7 +220,7 @@ function CoreConnectionsEmpty({ loadError, onInstall, isBusy }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="max-w-2xl">
             <p
-              className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+              className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
             >
               Core connections
             </p>
@@ -223,22 +281,21 @@ function CoreConnectionCard({ entry, gatewayOffline, catalogUnavailable, isBusy,
       className="rounded-[16px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-4 shadow-[var(--v2-shadow-sm)]"
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <h4 className="text-base font-semibold text-[var(--v2-text-strong)]">
-            ${entry.display_name}
-          </h4>
-          <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">${entry.description}</p>
+        <div className="flex min-w-0 items-start gap-3">
+          <${ConnectorAppIcon} source=${entry} />
+          <div className="min-w-0">
+            <h4 className="text-base font-semibold text-[var(--v2-text-strong)]">
+              ${entry.display_name}
+            </h4>
+            <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
+              ${entry.description}
+            </p>
+          </div>
         </div>
         <span
           className="rounded-full bg-[var(--v2-surface-soft)] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--v2-text-faint)]"
         >
-          ${entry.kind === 'mcp_server'
-            ? 'Knowledge'
-            : entry.kind === 'wasm_channel'
-              ? 'Messaging'
-              : entry.kind === 'builtin'
-                ? 'Files'
-                : 'Tool'}
+          ${coreConnectionKindLabel(entry)}
         </span>
       </div>
       <div className="mt-4 flex items-center justify-between gap-3">

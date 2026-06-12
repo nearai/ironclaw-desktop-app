@@ -1172,9 +1172,50 @@ try {
       exact: false
     })
     .waitFor({ timeout: 20_000 });
+  const acceptanceConnectionNames = [
+    'Gmail',
+    'Google Calendar',
+    'Google Drive',
+    'Google Sheets',
+    'Notion',
+    'Slack',
+    'Telegram',
+    'GitHub',
+    'Web & HTTP',
+    'Routines',
+    'Workspace files'
+  ];
+  for (const name of acceptanceConnectionNames) {
+    await page.getByText(name, { exact: true }).waitFor({ timeout: 20_000 });
+  }
+  const acceptanceIconKinds = [
+    'gmail',
+    'google-calendar',
+    'google-drive',
+    'google-sheets',
+    'notion',
+    'slack',
+    'telegram',
+    'github',
+    'web',
+    'routine',
+    'workspace'
+  ];
+  const renderedConnectorIcons = await page
+    .locator('[data-testid="connector-app-icon"]')
+    .evaluateAll((icons) => icons.map((icon) => icon.getAttribute('data-connector-icon')));
+  for (const iconKind of acceptanceIconKinds) {
+    if (!renderedConnectorIcons.includes(iconKind)) {
+      throw new Error(
+        `empty registry did not render ${iconKind} connector favicon: ${renderedConnectorIcons.join(
+          ', '
+        )}`
+      );
+    }
+  }
   const unavailableConnectorButtons = page.getByRole('button', { name: 'Not available' });
   const unavailableConnectorCount = await unavailableConnectorButtons.count();
-  if (unavailableConnectorCount < 4) {
+  if (unavailableConnectorCount < 8) {
     const visibleBody = await page.locator('body').innerText();
     throw new Error(
       `empty registry did not render disabled curated connector cards:\n${visibleBody}`

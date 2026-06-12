@@ -15,7 +15,8 @@ export function InstalledTab({ extensions, onActivate, onConfigure, onRemove, is
           No apps connected yet
         </h3>
         <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
-          Open Browse to connect Gmail, Google Calendar, Notion, Slack, or local workspace files.
+          Open Browse to connect mail, calendar, docs, chat, code, web, routines, and workspace
+          files.
         </p>
         <${Button} as="a" href="/extensions/registry" variant="primary" size="sm" className="mt-4">
           Browse apps

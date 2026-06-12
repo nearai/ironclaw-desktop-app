@@ -19,7 +19,14 @@ export function primaryExtensionAction(ext) {
 
 export const GOOGLE_OAUTH_SETTINGS_PATH = '/settings/inference#google-oauth';
 
-const GOOGLE_CONNECTORS = new Set(['google', 'gmail', 'google-calendar']);
+const GOOGLE_CONNECTORS = new Set([
+  'google',
+  'gmail',
+  'google-calendar',
+  'google-drive',
+  'google-sheets',
+  'google-docs'
+]);
 
 export function connectorKey(source) {
   const ref = source?.package_ref || source?.packageRef || source;

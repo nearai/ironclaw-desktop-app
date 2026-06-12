@@ -808,3 +808,65 @@ Escalate from Connections polish to the user-visible promise mismatch: normal de
 - Do not reintroduce ChatGPT/OpenAI/Anthropic/OpenRouter/Ollama as normal desktop onboarding, chat model, Settings, README, or screenshot paths.
 - Do not weaken the OpenRouter hidden-provider assertions in `scripts/smoke-webui-static.mjs`.
 - Do not claim connector or model readiness without rendered request evidence or live account evidence.
+
+## Handoff: Phase 15 - Issue 4775 Acceptance Surface and Connector Favicons
+
+Status: YELLOW
+Owner lane: Connections / Static UI / Settings / Product-contract QA
+
+### Goal
+
+Escalate the hostile product review from local UI polish to the canonical Reborn QA acceptance surface in [nearai/ironclaw#4775](https://github.com/nearai/ironclaw/issues/4775). The desktop product must visibly support the connector families behind the eight QA workflows, show recognizable app marks for real services, keep unavailable catalog entries honest, and simplify the AI setup surface so normal users see NEAR AI Cloud model control rather than provider-admin clutter.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/extension-card.js`: added local inline connector app icons for Gmail, Google Calendar, Google Drive, Google Sheets, Notion, Slack, Telegram, GitHub, Web/HTTP, Routines, workspace files, and generic connector fallbacks; wired icons into installed and registry cards.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/registry-tab.js`: expanded `CORE_CONNECTIONS` to cover the issue-4775 acceptance primitives: Telegram, Gmail, Calendar, Drive, Slack, GitHub, Sheets, Web/HTTP, routines, and local workspace files; fixed category pills so Web and Routines do not appear as files.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/lib/extension-actions.js`: extended Google-family connector detection to Drive, Sheets, and Docs so those routes use the same honest Google OAuth setup guidance.
+- `scripts/smoke-webui-static.mjs`: rendered smoke now fails unless the empty-catalog Browse surface shows all issue-4775 acceptance apps and all expected `data-connector-icon` kinds.
+- `crates/ironclaw_webui_v2_static/static/js/pages/settings/components/inference-tab.js`: removed the nested "Connect NEAR AI Cloud" disclosure; NEAR AI Cloud model management is now first-class in AI setup.
+- `crates/ironclaw_webui_v2_static/static/js/pages/settings/components/provider-management.js`: active NEAR AI Cloud no longer renders as a redundant provider row; the active state collapses into the model panel, with setup rows reserved for actual setup/repair states.
+- `crates/ironclaw_webui_v2_static/static/js/i18n/en.js`: replaced debug-ish `Model path`/`Backend` copy with `AI runtime`, `Model access`, and `Active model`.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js` and `static/styles/tailwind.generated.css`: regenerated shipped static artifacts.
+
+### Verified
+
+- Issue 4775 source reviewed via `gh issue view 4775 --repo nearai/ironclaw`; canonical acceptance workflows are the eight QA use cases listed in that issue.
+- Focused tests passed: 34 component/lib tests covering issue-4775 surface mapping, connector icon mapping, Google-family setup, v2 Connections styling, and Settings/NEAR AI setup contracts.
+- `npm run prepare:webui-static && npm run smoke:webui-static`: passed; rendered smoke now asserts Gmail, Calendar, Drive, Sheets, Notion, Slack, Telegram, GitHub, Web/HTTP, Routines, and Workspace files all appear with expected connector icon kinds and no fake install calls.
+- `npm run test:static`: passed 307/307.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, native windows were detected, Reborn gateway was healthy on port 3000, and sidecar terminated cleanly.
+
+### Evidence
+
+- Rendered Connections acceptance surface: `output/playwright/static-connections-registry-empty.png`.
+- Rendered main work-product/chat surface: `output/playwright/static-work-product-attachment-chat-collapsed.png`.
+- Rendered AI setup/model surface: `output/playwright/static-settings-active-model.png`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-100740.log`.
+
+### Still RED
+
+- This pass proves the desktop UI acceptance surface, not live connector end-to-end behavior. Google OAuth, Slack install/pairing, Telegram, GitHub, Drive, Sheets, and external-service live paths still require backend/account evidence.
+- Browser e2e against `ironclaw-reborn serve` for every issue-4775 use case remains an upstream Reborn test-project gap.
+- Chat still needs a broader art-direction pass; the current surface is more functional and honest, but not yet the final "people want to live here" design quality.
+
+### Risks
+
+- New catalog refs such as `tools/google_drive`, `tools/google_sheets`, `channels/telegram`, and `tools/github` are shown only as disabled fallback catalog expectations when the registry is empty. They must not be sent as lifecycle `ExtensionName` values unless the gateway exposes canonical install/setup routes.
+- Inline app marks are local approximations of familiar favicons. This avoids remote image dependencies in the packaged app, but future brand assets may need legal/design review before release marketing.
+
+### Next Agent Should Start Here
+
+1. Build real guided setup flows for Google-family connectors, Slack, Notion, Telegram, GitHub, Drive, and Sheets as the backend exposes routes.
+2. Add a Reborn browser e2e project that drives issue-4775 workflows from rendered WebUI, not HTTP-only mocks.
+3. Continue hostile design QA on Chat first-run and work-product layout with fresh screenshots; reduce remaining debug-ish badges and make the chief-of-staff loop feel intentional.
+
+### Do Not Touch
+
+- Do not remove the issue-4775 acceptance surface assertions from `registry-tab.test.mjs` or `scripts/smoke-webui-static.mjs`.
+- Do not make synthetic/core connector cards actionable when the gateway catalog is unavailable.
+- Do not send slash-prefixed catalog refs as extension lifecycle names.
