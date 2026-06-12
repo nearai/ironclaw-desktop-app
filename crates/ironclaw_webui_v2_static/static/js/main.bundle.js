@@ -5346,7 +5346,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         <${j} name="close" className="h-3.5 w-3.5" />
       </button>
     </div>
-  `:null}var Qv={wasm_tool:"Tool",wasm_channel:"Messaging app",mcp_server:"Knowledge app",first_party:"Built-in",system:"System",channel_relay:"Relay"},oC={active:"success",ready:"success",pairing_required:"warning",pairing:"warning",auth_required:"warning",setup_required:"muted",failed:"danger",installed:"muted"},lC={active:"active",ready:"ready",pairing_required:"pairing",pairing:"pairing",auth_required:"auth needed",setup_required:"setup needed",failed:"failed",installed:"installed"};function cC(e){let t=e?.onboarding_state||e?.activation_status||(e?.active?"active":"installed");return!e?.package_ref||t==="active"||t==="ready"?null:t==="auth_required"||t==="setup_required"||t==="failed"?"configure":e.kind==="wasm_channel"?null:"activate"}var Jm="/settings/inference#google-oauth",VO=new Set(["google","gmail","google-calendar"]);function QO(e){let t=e?.package_ref||e?.packageRef||e,a=(typeof t=="string"?t:t?.id)||e?.id||e?.display_name||e?.name||"",n=(String(a).includes("/")?String(a).split("/").filter(Boolean).pop():String(a)).trim().toLowerCase().replaceAll("_","-");return n==="slack-tool"?"slack":n}function uC(e){let t=QO(e);return VO.has(t)?"google":t.includes("notion")?"notion":t.includes("slack")?"slack":t.includes("workspace")||t.includes("filesystem")||t.includes("file-system")?"workspace":t}function Wm(e){return uC(e)==="google"}function Jv(e,{state:t,connectPhase:a}={}){let s=uC(e),n=a?.phase||"";return s==="google"&&(n==="blocked-google-client-id"||n==="needs-token")?{title:"Needs Google sign-in setup",body:"Hosted Google OAuth is not available from this gateway yet. Add a Desktop app client ID in Settings, restart the engine, then connect Gmail or Calendar.",href:Jm,actionLabel:"Open Google setup"}:s==="google"&&(t==="setup_required"||t==="auth_required")?{title:"Needs Google sign-in setup",body:"Gmail and Calendar need a Google Desktop app client ID before browser sign-in can start.",href:Jm,actionLabel:"Open Google setup"}:n==="waiting"?{title:"Finish in your browser",body:"Complete the consent screen, then IronClaw will turn the connector on automatically."}:n==="connected"||t==="active"||t==="ready"?{title:"Connected",body:"The connector is ready for chat and agent runs."}:s==="notion"?{title:"Connect with Notion",body:n==="needs-token"?"Notion needs authorization before its tools can run. Open setup to connect the workspace this gateway exposes.":"Connect opens Notion in your browser. No token paste should be required when the gateway supports DCR."}:s==="slack"?{title:"Connect Slack",body:"Slack uses workspace install or pairing. If a code is required, enter it here after messaging the Slack app."}:s==="workspace"?{title:"Workspace setup",body:"Workspace access should ask for a local folder or account only when the gateway exposes that setup path."}:n==="needs-token"?{title:"Needs setup",body:"This connector needs credentials before its tools can be turned on.",actionLabel:"Open setup"}:t==="setup_required"||t==="auth_required"?{title:"Needs setup",body:"Complete setup before this connector is available to the assistant."}:null}function dC({secrets:e=[],fields:t=[]}={}){return t.length>0||e.length===0?!1:e.every(a=>a.provided)}function mC(e={},t=null){if(Wm(t)&&(e?.phase==="blocked-google-client-id"||e?.phase==="needs-token"))return{label:"Open Google setup",disabled:!1,action:"google_settings",variant:"secondary",href:Jm};switch(e?.phase){case"installing":case"authorizing":return{label:"Connecting...",disabled:!0,action:"wait",variant:"primary"};case"waiting":return{label:"Finish in your browser...",disabled:!0,action:"wait",variant:"primary"};case"activating":return{label:"Turning on...",disabled:!0,action:"wait",variant:"primary"};case"connected":return{label:"Connected",disabled:!0,action:"none",variant:"secondary"};case"blocked-google-client-id":return{label:"Open Google setup",disabled:!1,action:"google_settings",variant:"secondary",href:Jm};case"needs-token":return{label:"Open setup",disabled:!1,action:"manual_setup",variant:"secondary"};case"error":return{label:"Retry connect",disabled:!1,action:"connect",variant:"primary"};default:return{label:"Connect",disabled:!1,action:"connect",variant:"primary"}}}var fC="flex h-full flex-col rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4",pC="mt-1.5 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-[var(--v2-text-faint)]",hC="mt-2 line-clamp-2 min-h-[2.5rem] text-xs leading-5 text-[var(--v2-text-muted)]",gC="mt-3 flex items-center gap-2 border-t border-[var(--v2-panel-border)] pt-3",vC="v2-button inline-flex items-center gap-1.5 border-0 bg-transparent p-0 font-mono text-[11px] text-[var(--v2-text-faint)] hover:text-[var(--v2-accent-text)]",JO="rounded border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--v2-text-muted)]";function bC(e){return e.package_ref?.id||""}function WO({actions:e,isBusy:t}){let[a,s]=g.default.useState(!1),n=g.default.useRef(null);return g.default.useEffect(()=>{if(!a)return;let r=i=>{n.current&&!n.current.contains(i.target)&&s(!1)};return document.addEventListener("mousedown",r),()=>document.removeEventListener("mousedown",r)},[a]),c`
+  `:null}var Qv={wasm_tool:"Tool",wasm_channel:"Messaging app",mcp_server:"Knowledge app",first_party:"Built-in",system:"System",channel_relay:"Relay"},oC={active:"success",ready:"success",pairing_required:"warning",pairing:"warning",auth_required:"warning",setup_required:"muted",failed:"danger",installed:"muted"},lC={active:"active",ready:"ready",pairing_required:"pairing",pairing:"pairing",auth_required:"auth needed",setup_required:"setup needed",failed:"failed",installed:"installed"};function cC(e){let t=e?.onboarding_state||e?.activation_status||(e?.active?"active":"installed");return!e?.package_ref||t==="active"||t==="ready"?null:t==="auth_required"||t==="setup_required"||t==="failed"?"configure":e.kind==="wasm_channel"?null:"activate"}var Jm="/settings/inference#google-oauth",VO=new Set(["google","gmail","google-calendar"]);function QO(e){let t=e?.package_ref||e?.packageRef||e,a=(typeof t=="string"?t:t?.id)||e?.id||e?.display_name||e?.name||"",n=(String(a).includes("/")?String(a).split("/").filter(Boolean).pop():String(a)).trim().toLowerCase().replaceAll("_","-");return n==="slack-tool"?"slack":n}function uC(e){let t=QO(e);return VO.has(t)?"google":t.includes("notion")?"notion":t.includes("slack")?"slack":t.includes("workspace")||t.includes("filesystem")||t.includes("file-system")?"workspace":t}function Wm(e){return uC(e)==="google"}function Jv(e,{state:t,connectPhase:a}={}){let s=uC(e),n=a?.phase||"";return s==="google"&&(n==="blocked-google-client-id"||n==="needs-token")?{title:"Needs Google sign-in setup",body:"Hosted Google OAuth is not available from this gateway yet. Add a Desktop app client ID in Settings, restart the engine, then connect Gmail or Calendar.",href:Jm,actionLabel:"Open Google setup"}:s==="google"&&(t==="setup_required"||t==="auth_required")?{title:"Needs Google sign-in setup",body:"Gmail and Calendar need a Google Desktop app client ID before browser sign-in can start.",href:Jm,actionLabel:"Open Google setup"}:n==="waiting"?{title:"Finish in your browser",body:"Complete the consent screen, then IronClaw will turn the connector on automatically."}:n==="connected"||t==="active"||t==="ready"?{title:"Connected",body:"The connector is ready for chat and agent runs."}:s==="notion"?{title:"Connect with Notion",body:n==="needs-token"?"Notion needs authorization before its tools can run. Open setup to connect the workspace this gateway exposes.":"Connect opens Notion in your browser. No token paste should be required when the gateway supports DCR."}:s==="slack"?{title:"Connect Slack",body:"Slack uses workspace install or pairing. If a code is required, enter it here after messaging the Slack app."}:s==="workspace"?{title:"Workspace setup",body:"Workspace access should ask for a local folder or account only when the gateway exposes that setup path."}:n==="needs-token"?{title:"Needs setup",body:"This connector needs credentials before its tools can be turned on.",actionLabel:"Open setup"}:t==="setup_required"||t==="auth_required"?{title:"Needs setup",body:"Complete setup before this connector is available to the assistant."}:null}function dC({secrets:e=[],fields:t=[]}={}){return t.length>0||e.length===0?!1:e.every(a=>a.provided)}function mC(e={},t=null){if(Wm(t)&&(e?.phase==="blocked-google-client-id"||e?.phase==="needs-token"))return{label:"Open Google setup",disabled:!1,action:"google_settings",variant:"secondary",href:Jm};switch(e?.phase){case"installing":case"authorizing":return{label:"Connecting...",disabled:!0,action:"wait",variant:"primary"};case"waiting":return{label:"Finish in your browser...",disabled:!0,action:"wait",variant:"primary"};case"activating":return{label:"Turning on...",disabled:!0,action:"wait",variant:"primary"};case"connected":return{label:"Connected",disabled:!0,action:"none",variant:"secondary"};case"blocked-google-client-id":return{label:"Open Google setup",disabled:!1,action:"google_settings",variant:"secondary",href:Jm};case"needs-token":return{label:"Open setup",disabled:!1,action:"manual_setup",variant:"secondary"};case"error":return{label:"Retry connect",disabled:!1,action:"connect",variant:"primary"};default:return{label:"Connect",disabled:!1,action:"connect",variant:"primary"}}}var fC="flex h-full flex-col rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-4 shadow-[var(--v2-shadow-sm)] transition-colors hover:border-[color-mix(in_srgb,var(--v2-accent)_22%,var(--v2-panel-border))]",pC="mt-1.5 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-[var(--v2-text-faint)]",hC="mt-2 line-clamp-2 text-xs leading-5 text-[var(--v2-text-muted)]",gC="mt-auto flex items-center gap-2 border-t border-[var(--v2-panel-border)] pt-3",vC="v2-button inline-flex items-center gap-1.5 border-0 bg-transparent p-0 font-mono text-[11px] text-[var(--v2-text-faint)] hover:text-[var(--v2-accent-text)]",JO="rounded border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--v2-text-muted)]";function bC(e){return e.package_ref?.id||""}function WO({actions:e,isBusy:t}){let[a,s]=g.default.useState(!1),n=g.default.useRef(null);return g.default.useEffect(()=>{if(!a)return;let r=i=>{n.current&&!n.current.contains(i.target)&&s(!1)};return document.addEventListener("mousedown",r),()=>document.removeEventListener("mousedown",r)},[a]),c`
     <div ref=${n} className="relative shrink-0">
       <button
         type="button"
@@ -5386,7 +5386,7 @@ ${JSON.stringify(t||{},null,2)}</pre
     </div>
   `}function xC({guidance:e,fallback:t}){let a=t||e?.body;return!a&&!e?.title?null:c`
     <div
-      className="mt-2 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
+      className="mt-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
     >
       ${e?.title&&c`
         <div className="mb-0.5 font-semibold text-[var(--v2-text-strong)]">${e.title}</div>
@@ -5396,15 +5396,15 @@ ${JSON.stringify(t||{},null,2)}</pre
         <${T}
           as="a"
           href=${e.href}
-          variant="ghost"
+          variant="secondary"
           size="sm"
-          className="mt-2 h-auto px-0 py-0 text-[var(--v2-accent-text)] hover:bg-transparent hover:underline"
+          className="mt-2 h-8 px-2.5 text-xs"
         >
           ${e.actionLabel||"Open setup"}
         <//>
       `}
     </div>
-  `}function Uo({ext:e,onActivate:t,onConfigure:a,onRemove:s,isBusy:n}){let r=e.onboarding_state||e.activation_status||(e.active?"active":"installed"),i=oC[r]||"muted",o=lC[r]||r,l=Qv[e.kind]||e.kind,u=e.display_name||bC(e),d=!!e.package_ref,f=e.tools||[],[m,p]=g.default.useState(!1),x=(r==="setup_required"||r==="auth_required"?e.onboarding?.credential_instructions||e.onboarding?.credential_next_step:e.onboarding?.credential_next_step||e.onboarding?.credential_instructions)||null,w=Jv(e,{state:r}),b={packageRef:e.package_ref,displayName:u},h=[],y=[],$=cC(e);$==="configure"?h.push({id:"configure",label:e.authenticated?"Reconfigure":"Configure",run:()=>a(b)}):$==="activate"&&h.push({id:"activate",label:"Activate",run:()=>t(b)}),d&&(e.needs_setup||e.has_auth)&&$!=="configure"&&y.push({id:"configure",label:e.authenticated?"Reconfigure":"Configure",icon:"settings",run:()=>a(b)}),d&&e.kind==="wasm_channel"&&(r==="setup_required"||r==="failed")&&y.push({id:"setup",label:"Setup",icon:"settings",run:()=>a(b)}),d&&e.kind==="wasm_channel"&&(r==="active"||r==="ready"||r==="pairing_required"||r==="pairing")&&y.push({id:"reconfigure",label:"Reconfigure",icon:"settings",run:()=>a(b)}),d&&y.push({id:"remove",label:"Remove",icon:"trash",danger:!0,run:()=>s(b)});let S=h[0];return c`
+  `}function Uo({ext:e,onActivate:t,onConfigure:a,onRemove:s,isBusy:n}){let r=e.onboarding_state||e.activation_status||(e.active?"active":"installed"),i=oC[r]||"muted",o=lC[r]||r,l=Qv[e.kind]||e.kind,u=e.display_name||bC(e),d=!!e.package_ref,f=e.tools||[],[m,p]=g.default.useState(!1),x=(r==="setup_required"||r==="auth_required"?e.onboarding?.credential_instructions||e.onboarding?.credential_next_step:e.onboarding?.credential_next_step||e.onboarding?.credential_instructions)||null,w=Jv(e,{state:r}),b={packageRef:e.package_ref,displayName:u},h=[],y=[],$=cC(e);$==="configure"?h.push({id:"configure",label:e.authenticated?"Reconfigure":"Configure",run:()=>a(b)}):$==="activate"&&h.push({id:"activate",label:"Activate",run:()=>t(b)}),d&&(e.needs_setup||e.has_auth)&&$!=="configure"&&y.push({id:"configure",label:e.authenticated?"Reconfigure":"Configure",icon:"settings",run:()=>a(b)}),d&&e.kind==="wasm_channel"&&(r==="setup_required"||r==="failed")&&y.push({id:"setup",label:"Setup",icon:"settings",run:()=>a(b)}),d&&e.kind==="wasm_channel"&&(r==="active"||r==="ready"||r==="pairing_required"||r==="pairing")&&y.push({id:"reconfigure",label:"Reconfigure",icon:"settings",run:()=>a(b)}),d&&y.push({id:"remove",label:"Remove",icon:"trash",danger:!0,run:()=>s(b)});let S=h[0],_=f.length>0||!!S;return c`
     <div className=${fC}>
       <div className="flex items-start gap-2">
         <${B} tone=${i} label=${o} size="sm" />
@@ -5431,35 +5431,34 @@ ${JSON.stringify(t||{},null,2)}</pre
       `}
       <${xC} guidance=${w} fallback=${x} />
 
-      <div className=${gC}>
-        ${f.length>0?c`
-              <button
-                type="button"
-                aria-expanded=${m?"true":"false"}
-                onClick=${()=>p(_=>!_)}
-                className=${vC}
-              >
-                <${j} name="layers" className="h-3.5 w-3.5" />
-                <span>${f.length} ${f.length===1?"capability":"capabilities"}</span>
-                <${j}
-                  name="chevron"
-                  className=${["h-3 w-3",m?"rotate-180":""].join(" ")}
-                />
-              </button>
-            `:c`<span className="font-mono text-[11px] text-[var(--v2-text-faint)]"
-              >No capabilities</span
-            >`}
-        <span className="flex-1"></span>
-        ${S&&c`
-          <${T} variant="secondary" size="sm" onClick=${S.run} disabled=${n}>
-            ${S.label}
-          <//>
-        `}
-      </div>
-
+      ${_&&c`
+        <div className=${gC}>
+          ${f.length>0&&c`
+            <button
+              type="button"
+              aria-expanded=${m?"true":"false"}
+              onClick=${()=>p(C=>!C)}
+              className=${vC}
+            >
+              <${j} name="layers" className="h-3.5 w-3.5" />
+              <span>${f.length} ${f.length===1?"capability":"capabilities"}</span>
+              <${j}
+                name="chevron"
+                className=${["h-3 w-3",m?"rotate-180":""].join(" ")}
+              />
+            </button>
+          `}
+          <span className="flex-1"></span>
+          ${S&&c`
+            <${T} variant="secondary" size="sm" onClick=${S.run} disabled=${n}>
+              ${S.label}
+            <//>
+          `}
+        </div>
+      `}
       ${m&&c`<${yC} items=${f} />`}
     </div>
-  `}function Fo({entry:e,onInstall:t,isBusy:a,onConnect:s,onManualSetup:n,connectPhase:r}){let i=Qv[e.kind]||e.kind,o=e.display_name||bC(e),l=!!e.package_ref,u=e.keywords||[],[d,f]=g.default.useState(!1),m=mC(r,e),p=Jv(e,{connectPhase:r}),v=()=>{if(m.action==="manual_setup"&&n){n(e);return}if(s){s(e);return}t({packageRef:e.package_ref,displayName:o})};return c`
+  `}function Fo({entry:e,onInstall:t,isBusy:a,onConnect:s,onManualSetup:n,connectPhase:r}){let i=Qv[e.kind]||e.kind,o=e.display_name||bC(e),l=!!e.package_ref,u=e.keywords||[],[d,f]=g.default.useState(!1),m=mC(r,e),p=Jv(e,{connectPhase:r}),v=()=>{if(m.action==="manual_setup"&&n){n(e);return}if(s){s(e);return}t({packageRef:e.package_ref,displayName:o})},x=u.length>0||l;return c`
     <div className=${fC}>
       <div className="flex items-start gap-2">
         <${B} tone="muted" label="available" size="sm" />
@@ -5488,47 +5487,48 @@ ${JSON.stringify(t||{},null,2)}</pre
         fallback=${r?.phase==="blocked-google-client-id"?r?.message:null}
       />
 
-      <div className=${gC}>
-        ${u.length>0?c`
-              <button
-                type="button"
-                aria-expanded=${d?"true":"false"}
-                onClick=${()=>f(x=>!x)}
-                className=${vC}
-              >
-                <${j} name="list" className="h-3.5 w-3.5" />
-                <span>${u.length} ${u.length===1?"keyword":"keywords"}</span>
-                <${j}
-                  name="chevron"
-                  className=${["h-3 w-3",d?"rotate-180":""].join(" ")}
-                />
-              </button>
-            `:c`<span className="font-mono text-[11px] text-[var(--v2-text-faint)]"></span>`}
-        <span className="flex-1"></span>
-        ${l&&m.href&&c`
-          <${T}
-            as="a"
-            href=${m.href}
-            variant=${m.variant}
-            size="sm"
-            aria-disabled=${a||m.disabled?"true":"false"}
-          >
-            ${m.label}
-          <//>
-        `}
-        ${l&&!m.href&&c`
-          <${T}
-            variant=${m.variant}
-            size="sm"
-            onClick=${v}
-            disabled=${a||m.disabled}
-          >
-            ${m.action==="connect"&&c`<${j} name="plus" className="mr-1.5 h-3.5 w-3.5" />`}
-            ${m.label}
-          <//>
-        `}
-      </div>
-
+      ${x&&c`
+        <div className=${gC}>
+          ${u.length>0&&c`
+            <button
+              type="button"
+              aria-expanded=${d?"true":"false"}
+              onClick=${()=>f(w=>!w)}
+              className=${vC}
+            >
+              <${j} name="list" className="h-3.5 w-3.5" />
+              <span>${u.length} ${u.length===1?"keyword":"keywords"}</span>
+              <${j}
+                name="chevron"
+                className=${["h-3 w-3",d?"rotate-180":""].join(" ")}
+              />
+            </button>
+          `}
+          <span className="flex-1"></span>
+          ${l&&m.href&&c`
+            <${T}
+              as="a"
+              href=${m.href}
+              variant=${m.variant}
+              size="sm"
+              aria-disabled=${a||m.disabled?"true":"false"}
+            >
+              ${m.label}
+            <//>
+          `}
+          ${l&&!m.href&&c`
+            <${T}
+              variant=${m.variant}
+              size="sm"
+              onClick=${v}
+              disabled=${a||m.disabled}
+            >
+              ${m.action==="connect"&&c`<${j} name="plus" className="mr-1.5 h-3.5 w-3.5" />`}
+              ${m.label}
+            <//>
+          `}
+        </div>
+      `}
       ${d&&c`<${yC} items=${u} />`}
     </div>
   `}function wC(){return de("/api/webchat/v2/extensions")}function $C(){return de("/api/webchat/v2/extensions/registry")}function Wv(e){return de("/api/webchat/v2/extensions/install",{method:"POST",body:JSON.stringify({package_ref:e})})}function Ym(e){return de(`/api/webchat/v2/extensions/${encodeURIComponent(zc(e))}/activate`,{method:"POST"})}function kC(e){return de(`/api/webchat/v2/extensions/${encodeURIComponent(zc(e))}/remove`,{method:"POST"})}function Xm(e){return de(`/api/webchat/v2/extensions/${encodeURIComponent(zc(e))}/setup`)}function SC(e,t,a){return _k(zc(e),{action:"configure",payload:{secrets:t,fields:a}})}function Yv(e,t){let a=t?.setup||{},s=new Date(Date.now()+600*1e3).toISOString();return de(`/api/webchat/v2/extensions/${encodeURIComponent(zc(e))}/setup/oauth/start`,{method:"POST",body:JSON.stringify({provider:t.provider,account_label:a.account_label||`${t.provider} credential`,scopes:a.scopes||[],expires_at:s,invocation_id:a.invocation_id})})}function NC(){return Promise.resolve({requests:[]})}function _C(){return Promise.resolve({success:!1,message:"Pairing requires a v2 pairing endpoint."})}function YO(e){let t=typeof e=="string"?e:e?.id;if(!t)throw new Error("Extension package_ref is required");return t}function zc(e){let t=YO(e).trim(),a=t.includes("/")?t.split("/").filter(Boolean).pop():t;if(!a)throw new Error("Extension package_ref is required");let s=a.replaceAll("_","-");return s==="slack-tool"?"slack":s}var CC=2e3,RC=600*1e3;function TC(e){if(!e||typeof e!="object"||e.success===!1||(Array.isArray(e.blockers)?e.blockers:[]).length>0||e.authenticated===!1||e.credential_ready===!1||e.account_ready===!1||e.ready===!1)return!1;let a=String(e.phase||e.activation_status||e.status||"").toLowerCase();if(["active","ready","connected"].includes(a))return!0;let s=String(e.readiness||e.model_readiness||"").toLowerCase();if(["active","ready","connected"].includes(s))return!0;let n=e.authenticated===!0||e.credential_ready===!0||e.account_ready===!0||e.ready===!0,r=e.active===!0||e.activated===!0||e.success===!0||e.ok===!0;return n&&r}function XO(e){return e?.message||e?.instructions||e?.error||"Activation did not complete; the gateway did not confirm this connector is connected."}function EC(){let e=te(),t=G({queryKey:["gateway-status-extensions"],queryFn:Zn,staleTime:1e4,retry:1,retryDelay:600}),a=G({queryKey:["extensions"],queryFn:wC,retry:1,retryDelay:600}),s=G({queryKey:["extension-registry"],queryFn:$C,retry:1,retryDelay:600}),n=G({queryKey:["connectable-channels"],queryFn:Nm,retry:1,retryDelay:600}),r=g.default.useCallback(()=>{e.invalidateQueries({queryKey:["extensions"]}),e.invalidateQueries({queryKey:["extension-registry"]}),e.invalidateQueries({queryKey:["gateway-status-extensions"]}),e.invalidateQueries({queryKey:["connectable-channels"]})},[e]),[i,o]=g.default.useState(null),l=g.default.useCallback(()=>o(null),[]),u=ee({mutationFn:({packageRef:A})=>Wv(A),onSuccess:(A,{displayName:P})=>{A.success?(o({type:"success",message:A.message||A.instructions||`${P||"Extension"} installed`}),A.auth_url&&Ba(A.auth_url)):o({type:"error",message:A.message||"Install failed"}),r()},onError:A=>{o({type:"error",message:A.message}),r()}}),d=ee({mutationFn:({packageRef:A})=>Ym(A),onSuccess:(A,{displayName:P})=>{TC(A)?(o({type:"success",message:A.message||A.instructions||`${P||"Extension"} activated`}),A.auth_url&&Ba(A.auth_url)):A.auth_url?(Ba(A.auth_url),o({type:"info",message:"Opening authentication\u2026"})):A.awaiting_token?o({type:"info",message:"Configuration required"}):o({type:"error",message:A.message||"Activation failed"}),r()},onError:A=>{o({type:"error",message:A.message})}}),f=ee({mutationFn:({packageRef:A})=>kC(A),onSuccess:(A,{displayName:P})=>{A.success?o({type:"success",message:`${P||"Extension"} removed`}):o({type:"error",message:A.message||"Remove failed"}),r()},onError:A=>{o({type:"error",message:A.message})}}),m=t.data||{},p=a.data?.extensions||[],v=s.data?.entries||[],x=n.data?.channels||[],w=p.filter(A=>A.kind==="wasm_channel"),b=p.filter(A=>A.kind==="mcp_server"),h=p.filter(A=>A.kind!=="wasm_channel"&&A.kind!=="mcp_server"),y=v.filter(A=>(A.kind==="wasm_channel"||A.kind==="channel")&&!A.installed),$=v.filter(A=>A.kind==="mcp_server"&&!A.installed),S=v.filter(A=>A.kind!=="mcp_server"&&A.kind!=="wasm_channel"&&A.kind!=="channel"&&!A.installed),_=a.error||s.error||n.error||t.error||null,C=(a.isLoading||s.isLoading)&&!_,R=u.isPending||d.isPending||f.isPending;return{status:m,extensions:p,channels:w,mcpServers:b,tools:h,channelRegistry:y,mcpRegistry:$,toolRegistry:S,registry:v,loadError:_,connectableChannels:x,isLoading:C,isBusy:R,actionResult:i,clearResult:l,install:u.mutate,activate:d.mutate,remove:f.mutate,invalidate:r}}function AC(e){let t=G({queryKey:["extension-setup",e?.id||e],queryFn:()=>Xm(e),enabled:!!e});return{secrets:t.data?.secrets||[],fields:t.data?.fields||[],onboarding:t.data?.onboarding||null,isLoading:t.isLoading,error:t.error}}function DC(e,t){let a=te(),s=e?.id||e;return ee({mutationFn:({secrets:n,fields:r})=>SC(e,n,r),onSuccess:n=>{a.invalidateQueries({queryKey:["extensions"]}),a.invalidateQueries({queryKey:["extension-setup",s]}),t&&t(n)}})}function jC(e){let t=te(),a=e?.id||e,s=g.default.useRef(null),n=g.default.useCallback(()=>{s.current&&(window.clearInterval(s.current),s.current=null)},[]),r=g.default.useCallback(()=>{t.invalidateQueries({queryKey:["extensions"]}),t.invalidateQueries({queryKey:["extension-registry"]}),t.invalidateQueries({queryKey:["extension-setup",a]})},[a,t]),i=g.default.useCallback(()=>{let l=t.getQueryData(["extension-setup",a]);if(l?.secrets?.length>0&&l.secrets.every(m=>m.provided))return!0;let d=(t.getQueryData(["extensions"])?.extensions||[]).find(m=>m.package_ref?.id===a),f=d?.onboarding_state||d?.activation_status||(d?.active?"active":null);return f==="active"||f==="ready"},[a,t]),o=g.default.useCallback(l=>{n();let u=Date.now();s.current=window.setInterval(()=>{r();let d=i();(d||l&&l.closed||Date.now()-u>RC)&&(n(),d&&Promise.resolve(Ym(e)).catch(()=>{}),r())},CC)},[n,r,i]);return g.default.useEffect(()=>n,[n]),ee({mutationFn:({secret:l,popup:u})=>Yv(e,l).then(d=>({res:d,popup:u})),onSuccess:({res:l,popup:u})=>{let d=u;l.authorization_url&&pt()?(u&&!u.closed&&u.close(),d=null,Ba(l.authorization_url)):l.authorization_url&&u&&!u.closed?u.location.href=l.authorization_url:l.authorization_url?d=window.open(l.authorization_url,"_blank","noopener,noreferrer"):u&&!u.closed&&u.close(),r(),l.authorization_url&&o(d)},onError:(l,u)=>{n();let d=u?.popup;d&&!d.closed&&d.close()}})}function MC(e,t={}){let a=G({queryKey:["pairing",e],queryFn:()=>NC(e),enabled:!!e&&t.enabled!==!1,refetchInterval:5e3}),s=te(),n=ee({mutationFn:({code:r})=>_C(e,r),onSuccess:()=>{s.invalidateQueries({queryKey:["pairing",e]}),s.invalidateQueries({queryKey:["extensions"]})}});return{requests:a.data?.requests||[],isLoading:a.isLoading,approve:n.mutate,isApproving:n.isPending,result:n.isSuccess?n.data:null,error:n.isError?n.error:null}}function PC(){let e=te(),[t,a]=g.default.useState({}),s=g.default.useCallback((r,i,o={})=>{a(l=>({...l,[r]:{phase:i,...o}}))},[]);return{connect:g.default.useCallback(async r=>{let i=r?.package_ref,o=i?.id||String(i||"");if(o)try{s(o,"installing"),await Wv(i);let u=(await Xm(i).catch(()=>null))?.secrets||[],d=u.find(p=>(p.setup?.kind||"")==="oauth"&&!p.provided),f=u.find(p=>(p.setup?.kind||"manual_token")!=="oauth"&&!p.provided);if(d){s(o,"authorizing");let p=await Yv(i,d);if(!p?.authorization_url){Wm(r)?s(o,"blocked-google-client-id",{message:p?.message||"Google sign-in needs a Desktop app client ID before browser authorization can start."}):s(o,"error",{message:p?.message||"Authorization is unavailable \u2014 use a token instead."});return}await Ba(p.authorization_url),s(o,"waiting");let v=Date.now()+RC,x=!1;for(;Date.now()<v;){await new Promise(h=>setTimeout(h,CC));let b=(await Xm(i).catch(()=>null))?.secrets||[];if(b.length>0&&b.every(h=>h.provided)){x=!0;break}}if(!x){s(o,"error",{message:"Authorization timed out \u2014 try again."});return}}else if(f){if(Wm(r)){s(o,"blocked-google-client-id",{message:"Google sign-in needs a Desktop app client ID in Settings before Gmail or Calendar can connect."});return}s(o,"needs-token");return}s(o,"activating");let m=await Ym(i);if(!TC(m)){s(o,"error",{message:XO(m)});return}e.invalidateQueries({queryKey:["extensions"]}),e.invalidateQueries({queryKey:["extension-registry"]}),s(o,"connected")}catch(l){s(o,"error",{message:String(l?.message||l)})}},[e,s]),connectState:t}}function OC(e,t){return e?.payload?.error||e?.payload?.message||e?.message||t}var ZO={title:"pairing.title",instructions:"pairing.instructions",placeholder:"pairing.placeholder",action:"pairing.approve",success:"pairing.success",error:"pairing.error",empty:"pairing.none"};function Xv({channel:e,redeemFn:t,i18nKeys:a=ZO,queryKeys:s,copy:n,showPendingRequests:r=!0}){let i=D(),o=typeof t=="function",l=MC(e,{enabled:!o}),u=te(),[d,f]=g.default.useState(""),m=eL(i,a,n),p=ee({mutationFn:({code:S})=>t(e,S),onSuccess:()=>{f("");for(let S of s||[["pairing",e],["extensions"]])u.invalidateQueries({queryKey:S})}}),v=g.default.useCallback(S=>l.approve({code:S}),[l.approve]),x=g.default.useCallback(()=>{let S=d.trim();S&&(o?p.mutate({code:S}):(l.approve({code:S}),f("")))},[o,d,l.approve,p]),w=o?[]:l.requests,b=o?!1:l.isLoading,h=o?p.isPending:l.isApproving,y=o?p.isSuccess?p.data:null:l.result,$=o?p.isError?p.error:null:l.error;return b?c`

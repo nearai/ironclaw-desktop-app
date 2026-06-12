@@ -15,11 +15,12 @@ import {
 
 const CARD =
   'flex h-full flex-col rounded-[14px] border border-[var(--v2-panel-border)] ' +
-  'bg-[var(--v2-surface-soft)] p-4';
+  'bg-[var(--v2-card-bg)] p-4 shadow-[var(--v2-shadow-sm)] ' +
+  'transition-colors hover:border-[color-mix(in_srgb,var(--v2-accent)_22%,var(--v2-panel-border))]';
 const META =
   'mt-1.5 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-[var(--v2-text-faint)]';
-const DESC = 'mt-2 line-clamp-2 min-h-[2.5rem] text-xs leading-5 text-[var(--v2-text-muted)]';
-const FOOTER = 'mt-3 flex items-center gap-2 border-t border-[var(--v2-panel-border)] pt-3';
+const DESC = 'mt-2 line-clamp-2 text-xs leading-5 text-[var(--v2-text-muted)]';
+const FOOTER = 'mt-auto flex items-center gap-2 border-t border-[var(--v2-panel-border)] pt-3';
 const DISCLOSURE =
   'v2-button inline-flex items-center gap-1.5 border-0 bg-transparent p-0 ' +
   'font-mono text-[11px] text-[var(--v2-text-faint)] hover:text-[var(--v2-accent-text)]';
@@ -108,7 +109,7 @@ function ConnectorGuidance({ guidance, fallback }) {
 
   return html`
     <div
-      className="mt-2 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
+      className="mt-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
     >
       ${guidance?.title &&
       html`
@@ -120,9 +121,9 @@ function ConnectorGuidance({ guidance, fallback }) {
         <${Button}
           as="a"
           href=${guidance.href}
-          variant="ghost"
+          variant="secondary"
           size="sm"
-          className="mt-2 h-auto px-0 py-0 text-[var(--v2-accent-text)] hover:bg-transparent hover:underline"
+          className="mt-2 h-8 px-2.5 text-xs"
         >
           ${guidance.actionLabel || 'Open setup'}
         <//>
@@ -211,6 +212,7 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
   }
 
   const primary = primaryActions[0];
+  const showFooter = tools.length > 0 || Boolean(primary);
 
   return html`
     <div className=${CARD}>
@@ -241,35 +243,34 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
       `}
       <${ConnectorGuidance} guidance=${guidance} fallback=${onboardingHint} />
 
-      <div className=${FOOTER}>
-        ${tools.length > 0
-          ? html`
-              <button
-                type="button"
-                aria-expanded=${capsOpen ? 'true' : 'false'}
-                onClick=${() => setCapsOpen((v) => !v)}
-                className=${DISCLOSURE}
-              >
-                <${Icon} name="layers" className="h-3.5 w-3.5" />
-                <span>${tools.length} ${tools.length === 1 ? 'capability' : 'capabilities'}</span>
-                <${Icon}
-                  name="chevron"
-                  className=${['h-3 w-3', capsOpen ? 'rotate-180' : ''].join(' ')}
-                />
-              </button>
-            `
-          : html`<span className="font-mono text-[11px] text-[var(--v2-text-faint)]"
-              >No capabilities</span
-            >`}
-        <span className="flex-1"></span>
-        ${primary &&
-        html`
-          <${Button} variant="secondary" size="sm" onClick=${primary.run} disabled=${isBusy}>
-            ${primary.label}
-          <//>
-        `}
-      </div>
-
+      ${showFooter &&
+      html`
+        <div className=${FOOTER}>
+          ${tools.length > 0 &&
+          html`
+            <button
+              type="button"
+              aria-expanded=${capsOpen ? 'true' : 'false'}
+              onClick=${() => setCapsOpen((v) => !v)}
+              className=${DISCLOSURE}
+            >
+              <${Icon} name="layers" className="h-3.5 w-3.5" />
+              <span>${tools.length} ${tools.length === 1 ? 'capability' : 'capabilities'}</span>
+              <${Icon}
+                name="chevron"
+                className=${['h-3 w-3', capsOpen ? 'rotate-180' : ''].join(' ')}
+              />
+            </button>
+          `}
+          <span className="flex-1"></span>
+          ${primary &&
+          html`
+            <${Button} variant="secondary" size="sm" onClick=${primary.run} disabled=${isBusy}>
+              ${primary.label}
+            <//>
+          `}
+        </div>
+      `}
       ${capsOpen && html`<${ChipGrid} items=${tools} />`}
     </div>
   `;
@@ -294,6 +295,7 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
     }
     onInstall({ packageRef: entry.package_ref, displayName });
   };
+  const showFooter = keywords.length > 0 || canInstall;
 
   return html`
     <div className=${CARD}>
@@ -328,54 +330,55 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
           : null}
       />
 
-      <div className=${FOOTER}>
-        ${keywords.length > 0
-          ? html`
-              <button
-                type="button"
-                aria-expanded=${kwOpen ? 'true' : 'false'}
-                onClick=${() => setKwOpen((v) => !v)}
-                className=${DISCLOSURE}
-              >
-                <${Icon} name="list" className="h-3.5 w-3.5" />
-                <span>${keywords.length} ${keywords.length === 1 ? 'keyword' : 'keywords'}</span>
-                <${Icon}
-                  name="chevron"
-                  className=${['h-3 w-3', kwOpen ? 'rotate-180' : ''].join(' ')}
-                />
-              </button>
-            `
-          : html`<span className="font-mono text-[11px] text-[var(--v2-text-faint)]"></span>`}
-        <span className="flex-1"></span>
-        ${canInstall &&
-        connectButton.href &&
-        html`
-          <${Button}
-            as="a"
-            href=${connectButton.href}
-            variant=${connectButton.variant}
-            size="sm"
-            aria-disabled=${isBusy || connectButton.disabled ? 'true' : 'false'}
-          >
-            ${connectButton.label}
-          <//>
-        `}
-        ${canInstall &&
-        !connectButton.href &&
-        html`
-          <${Button}
-            variant=${connectButton.variant}
-            size="sm"
-            onClick=${runConnectAction}
-            disabled=${isBusy || connectButton.disabled}
-          >
-            ${connectButton.action === 'connect' &&
-            html`<${Icon} name="plus" className="mr-1.5 h-3.5 w-3.5" />`}
-            ${connectButton.label}
-          <//>
-        `}
-      </div>
-
+      ${showFooter &&
+      html`
+        <div className=${FOOTER}>
+          ${keywords.length > 0 &&
+          html`
+            <button
+              type="button"
+              aria-expanded=${kwOpen ? 'true' : 'false'}
+              onClick=${() => setKwOpen((v) => !v)}
+              className=${DISCLOSURE}
+            >
+              <${Icon} name="list" className="h-3.5 w-3.5" />
+              <span>${keywords.length} ${keywords.length === 1 ? 'keyword' : 'keywords'}</span>
+              <${Icon}
+                name="chevron"
+                className=${['h-3 w-3', kwOpen ? 'rotate-180' : ''].join(' ')}
+              />
+            </button>
+          `}
+          <span className="flex-1"></span>
+          ${canInstall &&
+          connectButton.href &&
+          html`
+            <${Button}
+              as="a"
+              href=${connectButton.href}
+              variant=${connectButton.variant}
+              size="sm"
+              aria-disabled=${isBusy || connectButton.disabled ? 'true' : 'false'}
+            >
+              ${connectButton.label}
+            <//>
+          `}
+          ${canInstall &&
+          !connectButton.href &&
+          html`
+            <${Button}
+              variant=${connectButton.variant}
+              size="sm"
+              onClick=${runConnectAction}
+              disabled=${isBusy || connectButton.disabled}
+            >
+              ${connectButton.action === 'connect' &&
+              html`<${Icon} name="plus" className="mr-1.5 h-3.5 w-3.5" />`}
+              ${connectButton.label}
+            <//>
+          `}
+        </div>
+      `}
       ${kwOpen && html`<${ChipGrid} items=${keywords} />`}
     </div>
   `;

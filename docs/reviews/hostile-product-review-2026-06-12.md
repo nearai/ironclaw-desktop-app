@@ -688,3 +688,61 @@ Escalate the Connections review from one fixed setup modal to the surrounding pr
 - Do not reintroduce legacy dark-era classes to Connections surfaces; keep `extensions-design-contract.test.mjs` strict.
 - Do not make synthetic core connector cards actionable when the registry is empty.
 - Do not claim connector readiness from installed/package lifecycle success alone.
+
+## Handoff: Phase 13 - Connections Card Hierarchy Polish
+
+Status: YELLOW
+Owner lane: Static UI / Connections / Design-hostile QA
+
+### Goal
+
+Escalate from token cleanup to product readability. The installed connector cards were technically cleaner after Phase 12, but still looked like dense admin tiles: repeated `No capabilities`, gray slabs, underlined setup links, and empty footers made the page feel lower-trust than the product promise.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/extension-card.js`: card surfaces now use `--v2-card-bg` plus subtle shadow, with a lighter hover border instead of gray-heavy slabs.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/extension-card.js`: removed noisy `No capabilities` placeholder rows and hides empty footers when a connector has no capabilities and no primary action.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/extension-card.js`: connector setup guidance now uses a normal secondary CTA button instead of an underlined ghost-link treatment.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js` and `crates/ironclaw_webui_v2_static/static/styles/tailwind.generated.css`: regenerated static artifacts for the desktop shell.
+
+### Verified
+
+- Focused tests: `node --test ...extensions-design-contract.test.mjs ...registry-tab.test.mjs ...configure-modal.test.mjs` passed 7/7.
+- `npm run smoke:webui-static`: passed; rendered installed Connections screenshot refreshed with quieter cards, setup CTAs, no legacy Connections classes, and canonical connector route assertions still green.
+- Rendered screenshot inspected: `output/playwright/static-connections-installed-polished.png` shows cleaner installed cards with less noise and no empty capability rows.
+- `npm run test:static`: passed 301/301.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, Reborn gateway healthy on port 3000, sidecar terminated cleanly.
+
+### Evidence
+
+- Rendered installed Connections screenshot artifact: `output/playwright/static-connections-installed-polished.png`.
+- Rendered Browse screenshot artifact remains: `output/playwright/static-connections-registry-empty.png`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-093045.log`.
+
+### Still RED
+
+- Live connector OAuth/read-only account use still needs active account evidence or exact backend blockers.
+- Connections needs a deeper product flow pass: OAuth/client-id blockers should become a guided setup journey, not repeated warning panels.
+- The broader desktop visual system still needs a proper top-down art direction pass, especially welcome, chat, and Settings.
+- Live NEAR AI Cloud model-quality output from real documents still needs credentials and human/product-quality inspection.
+
+### Risks
+
+- Hiding `No capabilities` reduces noise but also removes an explicit absence marker. This is intentional for user-facing polish; backend/tool capability proof should come from real connector readiness, not filler text.
+- The hover/focus border can appear in screenshots when the cursor lands on a card. That is acceptable, but future screenshot scripts can move the pointer away before capture if needed.
+
+### Next Agent Should Start Here
+
+1. Convert repeated connector blockers into a guided setup flow for Google, Notion, Slack, and workspace files.
+2. Continue hostile design QA on welcome/chat/Settings using fresh rendered screenshots rather than source-only reviews.
+3. Run live connector OAuth/readiness probes with active accounts if credentials become available.
+
+### Do Not Touch
+
+- Do not bring back fake `No capabilities` filler on user-facing connector cards.
+- Do not weaken the no-legacy Connections design contract.
+- Do not change connector readiness semantics without rendered route/request evidence.
