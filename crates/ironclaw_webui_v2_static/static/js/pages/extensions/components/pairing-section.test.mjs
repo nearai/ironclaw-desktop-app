@@ -50,6 +50,7 @@ test('PairingSection custom redeem trims code and invalidates configured queries
   const invalidations = [];
   const context = {
     Button: 'button',
+    Input: 'input',
     React: createReactStub(state),
     globalThis: {},
     html,
@@ -112,6 +113,7 @@ test('PairingSection custom redeem is a no-op for blank manual input', () => {
   let redeemCount = 0;
   const context = {
     Button: 'button',
+    Input: 'input',
     React: createReactStub(state),
     globalThis: {},
     html,

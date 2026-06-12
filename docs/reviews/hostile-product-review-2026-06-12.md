@@ -624,3 +624,67 @@ Escalate the Connections pass from route correctness to actual setup-surface qua
 - Do not weaken canonical connector routing: slash-prefixed catalog ids remain catalog refs only; lifecycle calls must use bare extension names.
 - Do not claim connectors are connected from package-install success or weak activation responses.
 - Do not remove the rendered modal class guard from `npm run smoke:webui-static`; it caught real product drift in the path users hit when trying to connect Gmail.
+
+## Handoff: Phase 12 - Connections Surface Tokenization Pass
+
+Status: YELLOW
+Owner lane: Static UI / Connections / Design-hostile QA / Runtime
+
+### Goal
+
+Escalate the Connections review from one fixed setup modal to the surrounding product surface. The hostile finding was that Browse, My apps, Messaging, Knowledge, pairing, and toast states still carried old dark-era utility classes and `.v2-panel` compatibility styling, making the product look patched together even when routes were correct.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/installed-tab.js`, `mcp-tab.js`, and `channels-tab.js`: replaced legacy `.v2-panel` sections with shared `Card`/`CardLabel` components and v2 tokenized text/border styling.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/registry-tab.js`: moved registry search to shared `Input`, tokenized result count and empty state, and kept core connector fallback cards honest when the catalog is unavailable.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/pairing-section.js`: moved Slack/manual pairing input to shared `Input`, replaced white translucent surfaces and red/emerald utility status text with v2 tokens, and kept pairing submit behavior unchanged.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/action-toast.js`, `extension-card.js`, and `extensions-page.js`: tokenized toast tones, connector guidance, and loading row separators.
+- `crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/extensions-design-contract.test.mjs`: added a source-level contract test preventing legacy `text-iron-*`, `border-white`, `bg-white/*`, `text-signal`, `mint`, and red utility classes from returning to Connections surfaces.
+- `scripts/smoke-webui-static.mjs`: extended the rendered Connections gauntlet to screenshot empty Browse and installed My apps, and to fail if either surface renders legacy Connections classes.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js` and `crates/ironclaw_webui_v2_static/static/styles/tailwind.generated.css`: regenerated static artifacts for the desktop shell.
+
+### Verified
+
+- Focused Connections tests: `node --test ...extensions-design-contract.test.mjs ...pairing-section.test.mjs ...registry-tab.test.mjs ...channels-tab.test.mjs ...configure-modal.test.mjs` passed 12/12.
+- `npm run smoke:webui-static`: passed; rendered smoke captured empty Browse and installed My apps, verified no legacy Connections classes, reopened Gmail setup, and rechecked canonical bare lifecycle setup routes.
+- Rendered screenshot inspected: `output/playwright/static-connections-registry-empty.png` shows the Browse fallback with honest `Catalog unavailable` state and disabled curated cards.
+- Rendered screenshot inspected: `output/playwright/static-connections-installed-polished.png` shows installed Gmail/GCal/Notion/Slack cards with tokenized setup guidance and no old translucent dark panels.
+- `npm run test:static`: passed 301/301.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, Reborn gateway healthy on port 3000, sidecar terminated cleanly.
+
+### Evidence
+
+- Rendered Browse screenshot artifact: `output/playwright/static-connections-registry-empty.png`.
+- Rendered installed Connections screenshot artifact: `output/playwright/static-connections-installed-polished.png`.
+- Rendered setup modal screenshot artifact remains: `output/playwright/static-connector-setup-modal.png`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-092318.log`.
+- Browser plugin sanity navigation to `http://127.0.0.1:1420/v2/extensions/registry` was attempted but blocked by the in-app browser with `ERR_BLOCKED_BY_CLIENT`; fixture-backed Playwright smoke remains the valid rendered evidence for this pass.
+
+### Still RED
+
+- Live connector OAuth/read-only account use still needs active account evidence or exact backend blockers.
+- Connections is cleaner but still conservative and operational; it is not yet a premium first-run “connect everything in minutes” experience.
+- The broader desktop visual system still leans too flat/light in authenticated surfaces and too dark/heavy in the unauthenticated welcome surface.
+- Live NEAR AI Cloud model-quality output from real documents still needs credentials and human/product-quality inspection.
+
+### Risks
+
+- This pass intentionally avoids changing connector semantics. The UI still says blocked/unavailable when the gateway cannot prove catalog/auth readiness.
+- The source contract is broad for Connections files. If future design-system work needs a one-off utility class, it should add an explicit tokenized replacement instead of weakening the guard.
+
+### Next Agent Should Start Here
+
+1. Escalate from tokenization to product hierarchy: make Connections explain what each app unlocks, what is blocked, and the fastest next action without dense card sameness.
+2. Run live connector OAuth/readiness probes with active accounts if credentials become available; otherwise preserve honest blocked states and exact HTTP evidence.
+3. Continue the design-hostile pass on Chat and Settings surfaces that still feel flat or confusing under real gateway states.
+
+### Do Not Touch
+
+- Do not reintroduce legacy dark-era classes to Connections surfaces; keep `extensions-design-contract.test.mjs` strict.
+- Do not make synthetic core connector cards actionable when the registry is empty.
+- Do not claim connector readiness from installed/package lifecycle success alone.

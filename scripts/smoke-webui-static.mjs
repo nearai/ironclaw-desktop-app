@@ -1145,6 +1145,23 @@ try {
     throw new Error('desktop bootstrap failed: login token form is still visible');
   }
 
+  async function assertNoLegacyConnectionsClasses(rootLocator, label) {
+    const legacyClasses = await rootLocator.evaluate((root) =>
+      [root, ...Array.from(root.querySelectorAll('*'))]
+        .flatMap((node) => String(node.getAttribute('class') || '').split(/\s+/))
+        .filter((className) =>
+          /^(text-iron-|border-white|bg-white\/|bg-white\[|text-signal|text-mint|border-mint|bg-mint|text-red-|border-red-|bg-red-|v2-panel$)/.test(
+            className
+          )
+        )
+    );
+    if (legacyClasses.length > 0) {
+      throw new Error(
+        `${label} leaked legacy Connections styling classes: ${legacyClasses.join(', ')}`
+      );
+    }
+  }
+
   const beforeEmptyCatalogRequestCount = connectorRequests.length;
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/extensions/registry`, {
     waitUntil: 'domcontentloaded'
@@ -1172,6 +1189,11 @@ try {
     const visibleBody = await page.locator('body').innerText();
     throw new Error(`empty registry exposed actionable synthetic Connect buttons:\n${visibleBody}`);
   }
+  await assertNoLegacyConnectionsClasses(page.locator('body'), 'empty registry Connections');
+  await page.screenshot({
+    path: 'output/playwright/static-connections-registry-empty.png',
+    fullPage: true
+  });
   const emptyCatalogInstallRequests = connectorRequests
     .slice(beforeEmptyCatalogRequestCount)
     .filter((request) => request.url.endsWith('/api/webchat/v2/extensions/install'));
@@ -1870,6 +1892,11 @@ try {
     waitUntil: 'domcontentloaded'
   });
   await page.getByText('Gmail', { exact: true }).waitFor({ timeout: 20_000 });
+  await assertNoLegacyConnectionsClasses(page.locator('body'), 'installed Connections');
+  await page.screenshot({
+    path: 'output/playwright/static-connections-installed-polished.png',
+    fullPage: true
+  });
   const preSetupText = await page.locator('body').innerText();
   if (preSetupText.includes('Gmail\nactive') || preSetupText.includes('Gmail\nACTIVE')) {
     throw new Error(

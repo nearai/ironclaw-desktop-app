@@ -1,4 +1,5 @@
 import { StatusPill } from '../../../design-system/primitives.js';
+import { Card, CardLabel } from '../../../design-system/card.js';
 import { html } from '../../../lib/html.js';
 import { ExtensionCard, RegistryCard } from './extension-card.js';
 import { PairingSection } from './pairing-section.js';
@@ -80,10 +81,8 @@ export function ChannelsTab({
           is available.
         </div>
       `}
-      <div className="v2-panel rounded-[18px] p-5 sm:p-6">
-        <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-          Built-in messaging paths
-        </h3>
+      <${Card} variant="bordered" radius="lg" padding="md">
+        <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Built-in messaging paths <//>
         <${BuiltinRow}
           name="Desktop chat"
           description="The live chat connection used by this app"
@@ -137,14 +136,12 @@ export function ChannelsTab({
           statusTone=${gatewayOffline ? 'warning' : undefined}
           detail=${gatewayOffline ? null : 'ironclaw run --repl'}
         />
-      </div>
+      <//>
 
       ${channels.length > 0 &&
       html`
-        <div className="v2-panel rounded-[18px] p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            Connected messaging apps
-          </h3>
+        <${Card} variant="bordered" radius="lg" padding="md">
+          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Connected messaging apps <//>
           <div className="grid grid-cols-1 gap-4">
             ${channels.map(
               (ch) => html`
@@ -163,14 +160,12 @@ export function ChannelsTab({
               `
             )}
           </div>
-        </div>
+        <//>
       `}
       ${channelRegistry.length > 0 &&
       html`
-        <div className="v2-panel rounded-[18px] p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            Available messaging apps
-          </h3>
+        <${Card} variant="bordered" radius="lg" padding="md">
+          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Available messaging apps <//>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             ${channelRegistry.map(
               (entry) => html`
@@ -183,7 +178,7 @@ export function ChannelsTab({
               `
             )}
           </div>
-        </div>
+        <//>
       `}
     </div>
   `;
@@ -199,16 +194,18 @@ function BuiltinRow({
   statusTone = enabled ? 'success' : 'muted'
 }) {
   return html`
-    <div className="border-t border-white/[0.06] py-4 first:border-0 first:pt-0">
+    <div className="border-t border-[var(--v2-panel-border)] py-4 first:border-0 first:pt-0">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-iron-200">${name}</span>
+            <span className="text-sm font-medium text-[var(--v2-text-strong)]">${name}</span>
             <${StatusPill} tone=${statusTone} label=${statusLabel} />
           </div>
-          <div className="mt-1 text-xs text-iron-300">${description}</div>
+          <div className="mt-1 text-xs text-[var(--v2-text-muted)]">${description}</div>
           ${detail &&
-          html`<div className="mt-1 font-mono text-[11px] text-iron-700">${detail}</div>`}
+          html`<div className="mt-1 font-mono text-[11px] text-[var(--v2-text-faint)]">
+            ${detail}
+          </div>`}
         </div>
       </div>
       ${children}

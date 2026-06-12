@@ -1,4 +1,5 @@
 import { html } from '../../../lib/html.js';
+import { Card, CardLabel } from '../../../design-system/card.js';
 import { ExtensionCard, RegistryCard } from './extension-card.js';
 
 function packageId(item) {
@@ -17,9 +18,11 @@ export function McpTab({
 }) {
   if (mcpServers.length === 0 && mcpRegistry.length === 0) {
     return html`
-      <div className="v2-panel rounded-[18px] p-6 sm:p-8">
-        <h3 className="text-lg font-semibold text-white">No knowledge apps connected</h3>
-        <p className="mt-2 max-w-md text-sm leading-6 text-iron-300">
+      <${Card} variant="bordered" radius="lg" padding="lg">
+        <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">
+          No knowledge apps connected
+        </h3>
+        <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
           Connect Notion or another knowledge source from Browse so IronClaw can search team context
           before drafting or deciding.
         </p>
@@ -29,7 +32,7 @@ export function McpTab({
             The local gateway is unavailable, so app setup cannot start yet.
           </p>
         `}
-      </div>
+      <//>
     `;
   }
 
@@ -37,10 +40,8 @@ export function McpTab({
     <div className="space-y-5">
       ${mcpServers.length > 0 &&
       html`
-        <div className="v2-panel rounded-[18px] p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            Connected knowledge apps
-          </h3>
+        <${Card} variant="bordered" radius="lg" padding="md">
+          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Connected knowledge apps <//>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             ${mcpServers.map(
               (ext) => html`
@@ -55,14 +56,12 @@ export function McpTab({
               `
             )}
           </div>
-        </div>
+        <//>
       `}
       ${mcpRegistry.length > 0 &&
       html`
-        <div className="v2-panel rounded-[18px] p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            Available knowledge apps
-          </h3>
+        <${Card} variant="bordered" radius="lg" padding="md">
+          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Available knowledge apps <//>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             ${mcpRegistry.map(
               (entry) => html`
@@ -75,7 +74,7 @@ export function McpTab({
               `
             )}
           </div>
-        </div>
+        <//>
       `}
     </div>
   `;

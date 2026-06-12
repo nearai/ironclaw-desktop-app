@@ -77,7 +77,7 @@ export function ExtensionsPage() {
               (i) => html`
                 <div
                   key=${i}
-                  className="flex items-center justify-between border-t border-white/[0.06] py-4 first:border-0"
+                  className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-4 first:border-0"
                 >
                   <div>
                     <div className="v2-skeleton h-4 w-40 rounded" />
