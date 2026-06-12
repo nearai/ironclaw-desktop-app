@@ -18,7 +18,7 @@ function messageBubbleSourceForTest() {
     }
     lines.push(line.replace('export function MessageBubble', 'function MessageBubble'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, AssistantExportActions, messageActionRowClass, messageContentForDisplay, attachmentEvidenceLabel };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, AssistantExportActions, messageActionRowClass, messageContentForDisplay, assistantResponseLooksLikeWorkProduct, messageOuterClass, messageShellClass, messageBodyClass, attachmentEvidenceLabel };`;
 }
 
 function findComponentByName(node, name) {
@@ -105,6 +105,35 @@ test('assistant work-product actions are visible without hover and can wrap', ()
   assert.doesNotMatch(actionClass, /\bopacity-0\b/);
   assert.match(actionClass, /\bflex-wrap\b/);
   assert.match(actionClass, /\bmax-w-full\b/);
+});
+
+test('assistant markdown work product renders as a first-class artifact panel', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const {
+    assistantResponseLooksLikeWorkProduct,
+    messageOuterClass,
+    messageShellClass,
+    messageBodyClass
+  } = context.globalThis.__testExports;
+
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct('assistant', '# Services agreement\n\n## Scope'),
+    true
+  );
+  assert.equal(assistantResponseLooksLikeWorkProduct('assistant', 'Sure, I can help.'), false);
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct('user', '# User-authored instructions'),
+    false
+  );
+  assert.match(messageOuterClass(false, true), /\bw-full\b/);
+  assert.doesNotMatch(messageOuterClass(false, false), /\bw-full\b/);
+  assert.match(messageShellClass(false, true), /\bw-full\b/);
+  assert.match(messageShellClass(false, true), /max-w-\[min\(860px,92vw\)\]/);
+  assert.match(messageBodyClass('assistant', false, true), /bg-\[var\(--v2-card-bg\)\]/);
+  assert.match(messageBodyClass('assistant', false, true), /shadow-\[var\(--v2-card-shadow\)\]/);
+  assert.doesNotMatch(messageBodyClass('assistant', false, false), /bg-\[var\(--v2-card-bg\)\]/);
 });
 
 test('assistant export actions collapse formats behind one export control', () => {

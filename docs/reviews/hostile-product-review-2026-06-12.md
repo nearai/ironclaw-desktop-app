@@ -271,3 +271,63 @@ Escalate design review from "copy is honest" to "the first screen feels like a c
 - Do not move first-run auth controls below trust/proof content on mobile.
 - Do not style disabled gateway-blocked auth actions as bright primary actions.
 - Do not replace the product headline with provider/debug terminology.
+
+## Handoff: Phase 6 - Chat Work Product Becomes A First-Class Artifact
+
+Status: YELLOW
+Owner lane: Static UI / Work Product / Design-hostile QA
+
+### Goal
+
+Escalate from "the assistant reply exists" to "the generated work product is visible, usable, and not buried inside chat." The hostile finding was that a services-agreement-style output rendered as a narrow assistant bubble with export controls nearby, which reinforced the user's complaint that work product disappeared into the transcript.
+
+### Changed
+
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/components/message-bubble.js`: assistant responses that look like document work product now render as wide artifact panels with a real border/background/shadow treatment instead of the normal gold hairline reply.
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/components/message-bubble.js`: added explicit outer/shell/body sizing helpers so artifact panels claim available chat width instead of shrink-wrapping to their Markdown text.
+- `crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/message-bubble.test.mjs`: added regression coverage for work-product detection, width classes, and ordinary assistant replies staying lightweight.
+- `scripts/smoke-webui-static.mjs`: rendered chat smoke now fails if the mocked services-agreement work product is not visible as a wide `assistant-work-product` panel with document content intact.
+- `crates/ironclaw_webui_v2_static/static/js/main.bundle.js` and `crates/ironclaw_webui_v2_static/static/styles/tailwind.generated.css`: regenerated static artifacts for the desktop shell.
+
+### Verified
+
+- Focused component test: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/message-bubble.test.mjs` passed 7/7.
+- `npm run smoke:webui-static`: passed; the rendered browser test uploaded PDF/DOCX/XLSX/MD/JSON/HTML fixtures, sent the prompt, rendered the services-agreement reply, asserted the artifact panel width was at least 520px, previewed retained attachment text, and verified all export bytes.
+- Rendered screenshot inspected: `output/playwright/static-work-product-attachment-chat.png` now shows the generated `Services agreement` output as a standalone document panel with visible Save to Work and Export controls beneath it.
+- In-app Browser QA at `http://127.0.0.1:17630/v2/chat`: local static app loaded with no console errors/warnings and honestly redirected to the gateway-unavailable NEAR AI Cloud first-run screen when no gateway mock/session was present.
+- `npm run test:static`: passed 295/295.
+- `npm run verify:static-frontend`: passed.
+- `npm run check`: 0 errors, 0 warnings.
+- `npm run test`: 161 files, 1294 tests passed.
+- `npm run tauri -- build`: produced `IronClaw.app` and `IronClaw_0.4.158_aarch64.dmg`.
+- `npm run smoke:packaged`: passed; packaged app stayed alive, Reborn gateway healthy on port 3000, sidecar terminated cleanly.
+
+### Evidence
+
+- The first rendered attempt failed exactly as intended with `width: 446.734375`; after fixing outer and body sizing, `npm run smoke:webui-static` passed.
+- Screenshot artifact: `output/playwright/static-work-product-attachment-chat.png`.
+- Packaged smoke log: `/tmp/ironclaw-packaged-smoke-20260612-080403.log`.
+- In-app Browser screenshot showed `IronClaw Desktop`, `Connect NEAR AI Cloud`, disabled GitHub/Google/Wallet/API-key controls, and zero console warnings/errors in the no-gateway local render.
+
+### Still RED
+
+- First-run `Settings` copy/button is misleading without a session: it calls `/settings/inference`, but the unauthenticated local shell redirects back to `/welcome`. Next design pass should either make it a real reachable setup route or remove the button styling when it cannot navigate.
+- Live connector OAuth/read-only account use is still not proven with active accounts.
+- Live model-quality work-product generation from user documents still requires active NEAR AI Cloud credentials; this pass proves the rendered artifact surface and export mechanics, not model quality.
+
+### Risks
+
+- Work-product detection is intentionally heuristic: Markdown headings, lists, or tables become artifact panels. Plain conversational assistant replies remain lightweight.
+- Artifact panel styling is now substantially better, but the lower composer can still overlap part of long transcript evidence in screenshots; a later chat-layout pass should review scroll anchoring, "Jump to latest", and composer docking together.
+
+### Next Agent Should Start Here
+
+1. Fix or remove the dead first-run Settings affordance in unauthenticated/gateway-offline state.
+2. Continue hostile design review on authenticated chat, Connections, Settings, and Work with fresh rendered screenshots.
+3. Add live NEAR AI Cloud model-quality tests for PDF/DOCX/XLSX work-product generation once credentials are available.
+
+### Do Not Touch
+
+- Do not collapse generated document work product back into the normal assistant hairline reply.
+- Do not claim work-product support from chips alone; keep rendered upload, preview, reload, and export-byte proof.
+- Do not weaken the smoke width assertion without replacing it with better visual artifact proof.

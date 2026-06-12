@@ -1279,6 +1279,20 @@ try {
       { cause: err }
     );
   }
+  const workProductPanel = page.getByTestId('assistant-work-product').first();
+  await workProductPanel.waitFor({ state: 'visible', timeout: 20_000 });
+  const workProductBox = await workProductPanel.boundingBox();
+  if (!workProductBox || workProductBox.width < 520) {
+    throw new Error(
+      `static chat work product rendered as a buried narrow chat bubble: ${JSON.stringify(
+        workProductBox
+      )}`
+    );
+  }
+  const workProductText = await workProductPanel.innerText();
+  if (!workProductText.includes('Services agreement') || !workProductText.includes('Scope')) {
+    throw new Error(`static chat work product panel lost document content: ${workProductText}`);
+  }
   const chatPost = chatMessageRequests.at(-1);
   if (!chatPost) {
     throw new Error('static chat did not POST a message request');
