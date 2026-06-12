@@ -426,11 +426,11 @@ async function assertGatewayUnavailableWelcome(browser) {
           })()
         }));
         const authButtons = buttons.filter((button) =>
-          /Sign in with GitHub|Use Google|Use NEAR Wallet|Use API key/i.test(button.text)
+          /Sign in with GitHub|Use Google|Use NEAR Wallet/i.test(button.text)
         );
         const deadSettingsButtons = buttons.filter((button) => button.text === 'Settings');
         const authControlsInFirstViewport =
-          authButtons.length >= 4 &&
+          authButtons.length >= 3 &&
           authButtons.every(
             (button) =>
               button.rect.top >= 0 && button.rect.bottom <= document.documentElement.clientHeight
@@ -439,7 +439,7 @@ async function assertGatewayUnavailableWelcome(browser) {
           authButtonCount: authButtons.length,
           authControlsInFirstViewport,
           allAuthButtonsDisabled:
-            authButtons.length >= 4 && authButtons.every((button) => button.disabled),
+            authButtons.length >= 3 && authButtons.every((button) => button.disabled),
           hasRawGatewayText: /fetch failed|Gateway proxy failed|ECONNREFUSED|Failed to fetch/i.test(
             text
           ),

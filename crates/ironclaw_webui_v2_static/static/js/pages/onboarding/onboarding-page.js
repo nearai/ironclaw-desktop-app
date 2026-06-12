@@ -36,7 +36,8 @@ function FeaturedProviderRow({ entry, provider, configured, isBusy, login, t, on
 
   // Desktop: NEAR AI sign-in runs in a dedicated app window (the
   // server only accepts private.near.ai callbacks; the window captures the
-  // token from that navigation). Wallet and API key remain as fallbacks.
+  // token from that navigation). Keep first-run focused on cloud sign-in;
+  // fallback setup stays in Settings.
   let actions;
   if (entry.auth === 'nearai') {
     if (isDesktopRuntime()) {
@@ -71,17 +72,6 @@ function FeaturedProviderRow({ entry, provider, configured, isBusy, login, t, on
           onClick=${login.startNearaiWallet}
         >
           ${t('onboarding.continueWallet')}
-        <//>
-        <${Button}
-          type="button"
-          variant="ghost"
-          size="sm"
-          fullWidth=${true}
-          className="col-span-2"
-          disabled=${isBusy}
-          onClick=${() => onSetUp(provider)}
-        >
-          ${t('onboarding.useApiKeyShort')}
         <//>
       `;
     } else {
@@ -443,17 +433,6 @@ export function OnboardingPage() {
                           onClick=${login.startNearaiWallet}
                         >
                           ${t('onboarding.continueWallet')}
-                        <//>
-                        <${Button}
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          fullWidth=${true}
-                          className="col-span-2"
-                          disabled=${providerAccessBlocked || state.isBusy}
-                          onClick=${() => actions.openDialog(fallbackNearaiProvider)}
-                        >
-                          ${t('onboarding.useApiKey')}
                         <//>
                       </div>
                     </div>

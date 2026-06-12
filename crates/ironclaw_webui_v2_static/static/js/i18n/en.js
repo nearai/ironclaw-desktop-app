@@ -357,8 +357,6 @@ registerPack('en', {
   'onboarding.continue': 'Sign in with GitHub',
   'onboarding.continueGoogle': 'Use Google',
   'onboarding.continueWallet': 'Use NEAR Wallet',
-  'onboarding.useApiKey': 'Use API key',
-  'onboarding.useApiKeyShort': 'API key',
   'onboarding.providerNearaiDescDesktop':
     'Sign in once; IronClaw routes models through NEAR AI Cloud.',
   'onboarding.accessLabel': 'Secure access',
