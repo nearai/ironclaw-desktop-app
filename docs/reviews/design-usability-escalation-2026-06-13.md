@@ -65,6 +65,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - `rg "animate-pulse|animate-bounce|animate-\\[v2-breathe|v2-skeleton-shimmer|@keyframes pulse|@keyframes bounce" crates/ironclaw_webui_v2_static/static/js crates/ironclaw_webui_v2_static/static/styles --glob '!vendor/**' --glob '!*.test.mjs'` returns no shipped UI hits.
 - Static accessibility gate: `npm run test:a11y-static`
   - Status: passed.
+  - Full static Playwright project now runs 24 rendered tests: 15 axe surfaces, 3 attachment ingress proofs, and 6 keyboard/approval flows.
   - Covers 15 shipped static `/v2` surfaces with mocked Reborn API responses: onboarding, chat, connections registry/installed/channels/MCP, AI setup, language settings, automations, workspace, projects, jobs, routines, missions, and logs.
   - Fails on critical/serious axe violations and console/page errors; `color-contrast` remains excluded for the same token/opacity false-positive reason as the legacy a11y suite.
   - The expanded run caught and fixed a critical Logs control-name violation; the Logs route now keeps its local-only empty state while exposing named select controls.
@@ -76,6 +77,10 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Proves the command palette opens with Ctrl/Cmd+K, does not expose hidden work surfaces, and navigates to Connections.
   - Proves a streamed approval gate resolves through the real Reborn gate endpoint with Ctrl+Enter for approve and Escape for deny.
   - Caught and fixed a real `/v2` scope regression: the Connections empty-state `Browse apps` anchor previously jumped to `/extensions/registry` outside the Tauri static basename.
+- Static attachment ingress gate: `npx playwright test --config playwright.static.config.ts tests/static/attachments-static.spec.ts`
+  - Status: passed, 3 rendered tests.
+  - Proves file picker, clipboard paste, and drag/drop each render a file chip, preserve the typed prompt, and send through the real Reborn `/messages` route via the Tauri bridge.
+  - Captures the request body and verifies both channels the model depends on: first-class `attachments[0].base64` plus the readable `<attachments ic="1">` durable text block appended to `content`.
 - Logs design contract: `node --test crates/ironclaw_webui_v2_static/static/js/pages/logs/logs-design-contract.test.mjs`
   - Status: passed.
   - Guards the rendered Logs route against raw red/yellow/amber/orange/green status classes so warning and danger states keep using semantic desktop tokens.
@@ -106,16 +111,16 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Google OAuth | RED | The UI is honest: Gmail/Calendar need hosted OAuth/client-id support and the live probe returns 503 honest blocked. Blocked setup links now stay inside `/v2` and land on the AI setup target. | Product cannot claim Google OAuth works out of the box until gateway/desktop ships hosted OAuth or a preconfigured desktop client flow. |
 | Notion OAuth | YELLOW | Notion is visible and setup-gated; live OAuth start returns 200. | Needs a rendered packaged connector flow that completes credential proof, not just OAuth start. |
 | Workspace deep link | YELLOW | Workspace is still backend-blocked, but it no longer invents a README file or reports successful saves from `{ success:false }`. | Keep hidden/deep-link-only until real v2 workspace endpoints exist. |
-| Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. | Keep. Deep OCR remains opt-in in packaged smoke. |
+| Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. Static rendered tests now separately prove picker, paste, and drag/drop attachment ingress sends readable payloads to Reborn. | Keep. Deep OCR remains opt-in in packaged smoke. |
 | Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |
 | Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks, chat typing no longer bounces, live/running dots use a reduced-motion-aware semantic class, and primary chat/Settings/Logs/deep-link/admin status states now use warning/danger/positive tokens instead of raw Tailwind colors. | Keep. Avoid returning to marketing-card layouts, raw status palettes, or perpetual skeleton motion. |
 | Copy/product language | GREEN | Remaining visible `operator`, `without leaving v2`, and developer-console leaks in jobs/routines/channels/projects copy were removed. `npm run lint:static-copy` now blocks the normal setup/provider-brand leaks the user has repeatedly called out. | Keep Google Cloud Console allowed only as the proper external Google product name. |
-| Accessibility gate | GREEN | The shipped static WebUI now has a dedicated Playwright/axe project for 15 onboarding/chat/connection/settings/deep-link surfaces plus a rendered keyboard/focus gate for composer, attachment upload, model selector, command palette, Connections, AI setup, and streamed approval gates. These gates caught a Logs select-name violation and a `/v2` Browse-apps routing regression. Raw status color regressions are blocked by `npm run lint:static-tokens`; jargon/provider copy regressions are blocked by `npm run lint:static-copy` in pre-push and CI. | Keep expanding toward drag/drop and connector-completion keyboard paths. |
+| Accessibility gate | GREEN | The shipped static WebUI now has a dedicated Playwright/axe project for 15 onboarding/chat/connection/settings/deep-link surfaces plus rendered keyboard/focus gates for composer, attachment upload, model selector, command palette, Connections, AI setup, streamed approval gates, and attachment picker/paste/drop. These gates caught a Logs select-name violation and a `/v2` Browse-apps routing regression. Raw status color regressions are blocked by `npm run lint:static-tokens`; jargon/provider copy regressions are blocked by `npm run lint:static-copy` in pre-push and CI. | Keep expanding toward connector-completion keyboard paths. |
 | Screenshot process | GREEN | README/design capture now regenerates `contact-sheet.png` from current screenshots and does not leak proxy 502 console errors. | Keep as a review precondition. |
 
 ## Required Next Product Proofs
 
-1. Real NEAR AI Cloud session proof: launch packaged app with a valid session/token, send chat, preserve user text, and receive an assistant result from attachment content.
+1. Real NEAR AI Cloud session proof: launch packaged app with a valid session/token, send chat with one of the proven attachment ingress paths, and receive an assistant result from attachment content.
 2. Connector completion proof by app: Gmail, Google Calendar, Slack, Notion, and workspace files must either connect with credential/account proof or show a specific blocked setup state with exact HTTP evidence.
 3. Real generated work-product proof: after a live assistant result, export the generated work as DOCX/PDF/HTML/MD/JSON, parse or render downloaded files, reload thread and confirm artifact persistence.
 4. OAuth completion decision: either ship hosted Google/Notion OAuth through the gateway or keep the UI in explicit blocked setup state.
