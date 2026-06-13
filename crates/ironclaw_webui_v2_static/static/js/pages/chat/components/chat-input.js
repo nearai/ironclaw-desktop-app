@@ -571,7 +571,7 @@ export function ChatInput({
                   />
                   <button
                     onClick=${() => removeImage(i)}
-                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-300/30 bg-red-500 text-white opacity-0 group-hover:opacity-100"
+                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,transparent)] bg-[var(--v2-danger-text)] text-white opacity-0 group-hover:opacity-100"
                     aria-label=${t('chat.removeImage')}
                   >
                     <${Icon} name="close" className="h-3 w-3" />

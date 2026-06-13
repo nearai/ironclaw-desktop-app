@@ -4,7 +4,8 @@ import { useT } from '../../../lib/i18n.js';
 const STYLES = {
   connected: 'bg-mint/20 text-mint border-mint/30',
   reconnecting: 'bg-copper/20 text-copper border-copper/30',
-  disconnected: 'bg-red-500/20 text-red-200 border-red-400/30',
+  disconnected:
+    'bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)] border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))]',
   connecting: 'bg-iron-700/50 text-iron-200 border-iron-700/50',
   paused: 'bg-iron-700/50 text-iron-200 border-iron-700/50',
   idle: 'hidden'

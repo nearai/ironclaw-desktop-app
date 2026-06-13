@@ -1102,10 +1102,10 @@ ${l}</pre
         <//>
       </div>
 
-      ${s.isSuccess&&c`<p className="text-xs text-emerald-300">
+      ${s.isSuccess&&c`<p className="text-xs text-[var(--v2-positive-text)]">
         ${s.data?.message||i.successMessage}
       </p>`}
-      ${s.isError&&c`<p className="text-xs text-red-300">
+      ${s.isError&&c`<p className="text-xs text-[var(--v2-danger-text)]">
         ${dM(s.error,i.errorMessage)}
       </p>`}
     </div>
@@ -1414,7 +1414,7 @@ ${n}</pre
                   />
                   <button
                     onClick=${()=>R(wt)}
-                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-red-300/30 bg-red-500 text-white opacity-0 group-hover:opacity-100"
+                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,transparent)] bg-[var(--v2-danger-text)] text-white opacity-0 group-hover:opacity-100"
                     aria-label=${u("chat.removeImage")}
                   >
                     <${j} name="close" className="h-3 w-3" />
@@ -1578,7 +1578,7 @@ ${n}</pre
         attachment=${b}
       />
     </div>
-  `}function oP(e){return e?"IronClaw cannot reach NEAR AI Cloud yet. Open setup or retry when the gateway is ready.":"Connect NEAR AI Cloud before sending your first message."}function $v(e,t,a="nearai"){let s=String(e||a||"nearai").trim();return s.toLowerCase().replace(/[\s]+/g,"").replace(/[_-]+/g,"_")==="nearai"?"NEAR AI Cloud":t&&t.trim()?t.trim():t?s.trim().toLowerCase().replace(/[-_]+/g," ").split(" ").filter(Boolean).map(i=>i.charAt(0).toUpperCase()+i.slice(1)).join(" ")||"NEAR.AI":"External provider"}function lP(e){return Array.isArray(e)?e.map(t=>typeof t=="string"?t:t?.id||t?.model||t?.name||"").map(t=>String(t).trim()).filter(Boolean):[]}function cP(e,t){return e?e.id===t?.provider_id?String(t?.model||"auto"):String(e.active_model||e.default_model||e.model||"").trim():""}var J2={connected:"bg-mint/20 text-mint border-mint/30",reconnecting:"bg-copper/20 text-copper border-copper/30",disconnected:"bg-red-500/20 text-red-200 border-red-400/30",connecting:"bg-iron-700/50 text-iron-200 border-iron-700/50",paused:"bg-iron-700/50 text-iron-200 border-iron-700/50",idle:"hidden"};function Y2({status:e}){let t=A();if(e==="idle"||e==="connected"||!e)return null;let a="connection."+e,s=t(a);return c`
+  `}function oP(e){return e?"IronClaw cannot reach NEAR AI Cloud yet. Open setup or retry when the gateway is ready.":"Connect NEAR AI Cloud before sending your first message."}function $v(e,t,a="nearai"){let s=String(e||a||"nearai").trim();return s.toLowerCase().replace(/[\s]+/g,"").replace(/[_-]+/g,"_")==="nearai"?"NEAR AI Cloud":t&&t.trim()?t.trim():t?s.trim().toLowerCase().replace(/[-_]+/g," ").split(" ").filter(Boolean).map(i=>i.charAt(0).toUpperCase()+i.slice(1)).join(" ")||"NEAR.AI":"External provider"}function lP(e){return Array.isArray(e)?e.map(t=>typeof t=="string"?t:t?.id||t?.model||t?.name||"").map(t=>String(t).trim()).filter(Boolean):[]}function cP(e,t){return e?e.id===t?.provider_id?String(t?.model||"auto"):String(e.active_model||e.default_model||e.model||"").trim():""}var J2={connected:"bg-mint/20 text-mint border-mint/30",reconnecting:"bg-copper/20 text-copper border-copper/30",disconnected:"bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)] border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))]",connecting:"bg-iron-700/50 text-iron-200 border-iron-700/50",paused:"bg-iron-700/50 text-iron-200 border-iron-700/50",idle:"hidden"};function Y2({status:e}){let t=A();if(e==="idle"||e==="connected"||!e)return null;let a="connection."+e,s=t(a);return c`
     <div
       className=${["sticky top-4 z-20 mx-auto mt-4 md:mt-0 mb-2 max-w-md rounded-full border px-4 py-1.5 text-center text-xs font-medium backdrop-blur-xl",J2[e]||J2.connecting].join(" ")}
     >
@@ -1991,7 +1991,7 @@ ${u}
 `)}if(e.attachments?.length){a.push(""),a.push("### Attachments");for(let s of e.attachments){let n=Cs(s.filename||"attachment"),r=Cs(s.mime_type),i=Cs(s.size_label);a.push(`- ${n}${r?` (${r})`:""}${i?` \u2014 ${i}`:""}`)}}if(e.images?.length){a.push(""),a.push("### Images");for(let s of e.images)a.push(`- ${Cs(s)}`)}return a.push(""),a.push(t),a.join(`
 `)}function y1(e=[],t={}){let a=v1(e,t),n=[`# ${a.thread.title}`,"",`Exported at: ${a.thread.exported_at}`,""],r=a.messages.map(QP).filter(Boolean);return n.push(...r),n.join(`
 
-`)}var Ev={user:"ml-auto rounded-[18px] border border-signal/25 bg-signal/10 px-4 py-3 text-iron-100",assistant:"mr-auto border-l-2 border-[color-mix(in_srgb,var(--v2-gold)_45%,transparent)] pl-3 text-iron-100",assistantWorkProduct:"mr-auto w-full max-w-full rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_26%,var(--v2-panel-border))] bg-[var(--v2-card-bg)] px-5 py-4 text-iron-100 shadow-[var(--v2-card-shadow)]",system:"mx-auto rounded-[18px] border border-copper/20 bg-copper/10 px-4 py-3 text-center text-copper",error:"mx-auto rounded-[18px] border border-red-400/20 bg-red-500/10 px-4 py-3 text-center text-red-200"},k1=3;function WP(e){if(!e)return"";let t=new Date(e);return Number.isNaN(t.getTime())?"":t.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}function JP({role:e,content:t,attachments:a}){let s=t==null?"":String(t);return s.trim()?s:e==="user"&&Array.isArray(a)&&a.length>0?a.length===1?"Sent 1 attachment":`Sent ${a.length} attachments`:s}function YP(e,t){if(e!=="assistant")return!1;let a=String(t||"").trim();return a?/^#{1,3}\s+\S/m.test(a)||/\n#{1,3}\s+\S/m.test(a)||/\n\s*(?:[-*]|\d+\.)\s+\S/.test(a)||/\n\|[^|\n]+\|/.test(a):!1}function XP(e,t){return["flex min-w-0 flex-col gap-1",t?"w-full max-w-[min(860px,92vw)]":"max-w-[85%]",e?"items-end":"items-start"].join(" ")}function ZP(e,t){return["group flex flex-col",t?"w-full":"",e?"items-end":"items-start"].join(" ")}function e4(e,t,a){return["text-sm leading-6",a?Ev.assistantWorkProduct:Ev[e]||Ev.assistant,t?"opacity-70":""].join(" ")}function t4(e={}){let t=String(e.extraction_status||"");return e.extractedText||e.embedded_text?t==="extracted_text_truncated"?"Model-read text retained, truncated":"Model-read text retained":e.modelReadable===!0?"Model-readable payload retained":t==="content_omitted_message_budget"?"Sent as file metadata":t==="extracted_text_truncated"?"Preview text truncated":"Attachment sent"}function S1(e,t){return e==="user"&&Array.isArray(t)&&t.length>k1}function a4(e,t,a=!1){let s=Array.isArray(t)?t:[];return!S1(e,s)||a?s:s.slice(0,k1)}function s4(e=[]){let t=Array.isArray(e)?e:[],a=t.filter(s=>s?.extractedText||s?.embedded_text||s?.modelReadable===!0).length;return a===t.length&&t.length>0?"All files have model-readable text":a>0?`${a} files have model-readable text`:"File metadata retained"}function n4(e=!1){return e?"mt-2 flex flex-col gap-1.5 rounded-[14px] border border-signal/20 bg-white/5 p-2":"mt-2 flex flex-col gap-1.5"}function r4({content:e}){let[t,a]=g.default.useState(!1);return e?c`
+`)}var Ev={user:"ml-auto rounded-[18px] border border-signal/25 bg-signal/10 px-4 py-3 text-iron-100",assistant:"mr-auto border-l-2 border-[color-mix(in_srgb,var(--v2-gold)_45%,transparent)] pl-3 text-iron-100",assistantWorkProduct:"mr-auto w-full max-w-full rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_26%,var(--v2-panel-border))] bg-[var(--v2-card-bg)] px-5 py-4 text-iron-100 shadow-[var(--v2-card-shadow)]",system:"mx-auto rounded-[18px] border border-copper/20 bg-copper/10 px-4 py-3 text-center text-copper",error:"mx-auto rounded-[18px] border border-[color-mix(in_srgb,var(--v2-danger-text)_32%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-center text-[var(--v2-danger-text)]"},k1=3;function WP(e){if(!e)return"";let t=new Date(e);return Number.isNaN(t.getTime())?"":t.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})}function JP({role:e,content:t,attachments:a}){let s=t==null?"":String(t);return s.trim()?s:e==="user"&&Array.isArray(a)&&a.length>0?a.length===1?"Sent 1 attachment":`Sent ${a.length} attachments`:s}function YP(e,t){if(e!=="assistant")return!1;let a=String(t||"").trim();return a?/^#{1,3}\s+\S/m.test(a)||/\n#{1,3}\s+\S/m.test(a)||/\n\s*(?:[-*]|\d+\.)\s+\S/.test(a)||/\n\|[^|\n]+\|/.test(a):!1}function XP(e,t){return["flex min-w-0 flex-col gap-1",t?"w-full max-w-[min(860px,92vw)]":"max-w-[85%]",e?"items-end":"items-start"].join(" ")}function ZP(e,t){return["group flex flex-col",t?"w-full":"",e?"items-end":"items-start"].join(" ")}function e4(e,t,a){return["text-sm leading-6",a?Ev.assistantWorkProduct:Ev[e]||Ev.assistant,t?"opacity-70":""].join(" ")}function t4(e={}){let t=String(e.extraction_status||"");return e.extractedText||e.embedded_text?t==="extracted_text_truncated"?"Model-read text retained, truncated":"Model-read text retained":e.modelReadable===!0?"Model-readable payload retained":t==="content_omitted_message_budget"?"Sent as file metadata":t==="extracted_text_truncated"?"Preview text truncated":"Attachment sent"}function S1(e,t){return e==="user"&&Array.isArray(t)&&t.length>k1}function a4(e,t,a=!1){let s=Array.isArray(t)?t:[];return!S1(e,s)||a?s:s.slice(0,k1)}function s4(e=[]){let t=Array.isArray(e)?e:[],a=t.filter(s=>s?.extractedText||s?.embedded_text||s?.modelReadable===!0).length;return a===t.length&&t.length>0?"All files have model-readable text":a>0?`${a} files have model-readable text`:"File metadata retained"}function n4(e=!1){return e?"mt-2 flex flex-col gap-1.5 rounded-[14px] border border-signal/20 bg-white/5 p-2":"mt-2 flex flex-col gap-1.5"}function r4({content:e}){let[t,a]=g.default.useState(!1);return e?c`
     <div className="flex flex-col items-start">
       <button
         type="button"
@@ -2037,7 +2037,9 @@ ${u}
         >
           ${s==="assistant"||s==="system"||s==="error"?c`<${ut} content=${C} />`:c`<div className="whitespace-pre-wrap">${C}</div>`}
           ${u==="error"&&c`
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-red-300">
+            <div
+              className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--v2-danger-text)]"
+            >
               <span>${d}</span>
             </div>
           `}
@@ -2142,7 +2144,7 @@ ${u}
                 type="button"
                 onClick=${()=>a(e)}
                 aria-label="Retry message"
-                className="v2-button inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-1 text-[11px] text-red-300 hover:text-red-200"
+                className="v2-button inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-1 text-[11px] text-[var(--v2-danger-text)] hover:text-[var(--v2-danger-text)]"
               >
                 <${j} name="retry" className="h-3.5 w-3.5" />
                 Retry

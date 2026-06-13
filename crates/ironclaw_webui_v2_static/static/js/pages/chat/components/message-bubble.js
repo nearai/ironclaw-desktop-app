@@ -31,7 +31,7 @@ const ROLE_STYLES = {
   system:
     'mx-auto rounded-[18px] border border-copper/20 bg-copper/10 px-4 py-3 text-center text-copper',
   error:
-    'mx-auto rounded-[18px] border border-red-400/20 bg-red-500/10 px-4 py-3 text-center text-red-200'
+    'mx-auto rounded-[18px] border border-[color-mix(in_srgb,var(--v2-danger-text)_32%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-center text-[var(--v2-danger-text)]'
 };
 const COMPACT_ATTACHMENT_LIMIT = 3;
 
@@ -262,7 +262,9 @@ export function MessageBubble({ message, messages = [], onRetry }) {
             : html`<div className="whitespace-pre-wrap">${displayContent}</div>`}
           ${status === 'error' &&
           html`
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-red-300">
+            <div
+              className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--v2-danger-text)]"
+            >
               <span>${error}</span>
             </div>
           `}
@@ -387,7 +389,7 @@ export function MessageBubble({ message, messages = [], onRetry }) {
                 type="button"
                 onClick=${() => onRetry(message)}
                 aria-label="Retry message"
-                className="v2-button inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-1 text-[11px] text-red-300 hover:text-red-200"
+                className="v2-button inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-1 text-[11px] text-[var(--v2-danger-text)] hover:text-[var(--v2-danger-text)]"
               >
                 <${Icon} name="retry" className="h-3.5 w-3.5" />
                 Retry
