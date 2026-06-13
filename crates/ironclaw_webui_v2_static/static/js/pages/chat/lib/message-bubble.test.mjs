@@ -18,7 +18,7 @@ function messageBubbleSourceForTest() {
     }
     lines.push(line.replace('export function MessageBubble', 'function MessageBubble'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, AssistantExportActions, exportThread, messageActionRowClass, messageContentForDisplay, assistantResponseLooksLikeWorkProduct, messageOuterClass, messageShellClass, messageBodyClass, attachmentEvidenceLabel, shouldCompactAttachmentStack, visibleAttachmentsForMessage, attachmentStackSummary, attachmentStackClass };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, GeneratedWorkProductHeader, AssistantExportActions, exportThread, messageActionRowClass, messageContentForDisplay, assistantResponseLooksLikeWorkProduct, messageOuterClass, messageShellClass, messageBodyClass, attachmentEvidenceLabel, shouldCompactAttachmentStack, visibleAttachmentsForMessage, attachmentStackSummary, attachmentStackClass };`;
 }
 
 function findComponentByName(node, name) {
@@ -142,6 +142,39 @@ test('assistant markdown work product renders as a first-class artifact panel', 
   assert.doesNotMatch(messageBodyClass('assistant', false, false), /bg-\[var\(--v2-card-bg\)\]/);
 });
 
+test('assistant work-product panel exposes an explicit generated artifact header', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const tree = context.globalThis.__testExports.MessageBubble({
+    message: {
+      id: 'a1',
+      role: 'assistant',
+      content: '# Services agreement\n\n## Scope\n\n- Draft clause'
+    },
+    messages: [{ id: 'a1', role: 'assistant', content: '# Services agreement' }]
+  });
+  const flat = flatStrings(tree);
+  const artifactHeader = findComponentByName(tree, 'GeneratedWorkProductHeader');
+  const headerProps = componentPropsByName(artifactHeader, 'GeneratedWorkProductHeader');
+  const headerTree = context.globalThis.__testExports.GeneratedWorkProductHeader(headerProps);
+  const headerFlat = flatStrings(headerTree);
+
+  assert.ok(artifactHeader, 'artifact header component is mounted in work-product panel');
+  assert.equal(headerProps.title, 'Services agreement');
+  assert.match(headerFlat, /assistant-artifact-chip/);
+  assert.match(headerFlat, /Generated document/);
+  assert.match(headerFlat, /Services agreement/);
+  assert.match(headerFlat, /exportable as DOCX, PDF, HTML, and JSON/);
+  assert.match(headerFlat, /Copy generated document/);
+  const exportActions = findComponentByName(headerTree, 'AssistantExportActions');
+  assert.ok(exportActions, 'artifact header mounts scoped export actions');
+  assert.match(headerFlat, /subjectLabel="generated document"/);
+  assert.match(headerFlat, /popoverSide="bottom"/);
+  assert.doesNotMatch(flat, /Save assistant response to Work/);
+  assert.doesNotMatch(flat, /Export assistant response/);
+});
+
 test('assistant export actions collapse formats behind one export control', () => {
   const context = createMessageBubbleContext();
 
@@ -159,6 +192,22 @@ test('assistant export actions collapse formats behind one export control', () =
   assert.match(flatStrings(tree), /Save to Work/);
   assert.match(flatStrings(tree), /Thread DOCX/);
   assert.match(flatStrings(tree), /Thread PDF/);
+});
+
+test('assistant export actions can be scoped to generated documents', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const tree = context.globalThis.__testExports.AssistantExportActions({
+    content: '# Draft',
+    messages: [{ id: 'a1', role: 'assistant', content: '# Draft' }],
+    subjectLabel: 'generated document'
+  });
+  const flat = flatStrings(tree);
+
+  assert.match(flat, /Save generated document to Work/);
+  assert.match(flat, /Export generated document/);
+  assert.match(flat, /Download work product/);
 });
 
 test('whole-thread exports support PDF and DOCX artifacts', () => {

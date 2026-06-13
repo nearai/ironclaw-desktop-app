@@ -1661,6 +1661,17 @@ try {
   if (!workProductText.includes('Services agreement') || !workProductText.includes('Scope')) {
     throw new Error(`static chat work product panel lost document content: ${workProductText}`);
   }
+  const artifactChip = workProductPanel.getByTestId('assistant-artifact-chip');
+  await artifactChip.waitFor({ state: 'visible', timeout: 20_000 });
+  const artifactChipText = await artifactChip.innerText();
+  const artifactChipTextLower = artifactChipText.toLowerCase();
+  if (
+    !artifactChipTextLower.includes('generated document') ||
+    !artifactChipTextLower.includes('services agreement') ||
+    !artifactChipTextLower.includes('exportable as docx, pdf, html, and json')
+  ) {
+    throw new Error(`static chat work product is not exposed as an artifact: ${artifactChipText}`);
+  }
   const chatLayout = await page.evaluate(() => {
     const rectFor = (el) => {
       if (!el) return null;
@@ -1886,7 +1897,7 @@ try {
     const beforeCount = await page.evaluate(
       () => window.__IRONCLAW_SMOKE_SAVED_FILES__?.length || 0
     );
-    await page.getByRole('button', { name: 'Export assistant response' }).first().click();
+    await page.getByRole('button', { name: 'Export generated document' }).first().click();
     await page.getByRole('button', { name: new RegExp(`^${label}\\b`) }).click();
     await page.waitForFunction(
       ([count, filename]) => {

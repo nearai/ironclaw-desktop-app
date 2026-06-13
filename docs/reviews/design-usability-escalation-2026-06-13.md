@@ -23,7 +23,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - `output/readme-shots/settings-inference.png`
   - `output/readme-shots/onboarding-welcome.png`
   - Console errors: none.
-- In-app browser sanity: `http://127.0.0.1:17666/v2/chat` on the raw static server redirects to first-run welcome without Tauri settings; visible text contains IronClaw/NEAR AI Cloud setup and no ChatGPT/OpenRouter/Anthropic/Claude leakage.
+- In-app browser sanity: `http://127.0.0.1:1420/v2/` on the raw static server redirects to first-run welcome without Tauri settings; screenshot/DOM text show `IronClaw Desktop`, NEAR AI Cloud setup, and the honest `Static preview needs a gateway` state; console warnings/errors: none.
 - Rendered copy sweep: in-app browser against `http://127.0.0.1:17668` covered `/v2/welcome`, `/v2/extensions/channels?token=render-copy-token`, `/v2/jobs?token=render-copy-token`, `/v2/routines?token=render-copy-token`, and `/v2/projects?token=render-copy-token`.
   - Console warnings/errors: none.
   - Banned visible-copy hits: none for OpenRouter, Anthropic, Claude, ChatGPT, Codex login, provider marketplace, `operator` copy, `without leaving v2`, or developer-console framing.
@@ -31,7 +31,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 - Static bundle-size gate: `npm run check:static-bundle`
   - Status: passed.
   - Measures the shipped Tauri static WebUI, not the legacy Svelte build.
-  - Current gzipped tracked assets: cold start 347.3 KB / 400 KB; `main.bundle.js` 311.9 KB / 350 KB; boot vendor 22.3 KB / 35 KB; lazy code highlighting 52.0 KB / 60 KB; lazy diagrams 858.5 KB / 950 KB; document/PDF lazy assets 516.3 KB / 600 KB; OCR lazy assets 2501.5 KB / 2800 KB; all tracked assets 4275.6 KB / 4900 KB.
+  - Current gzipped tracked assets: cold start 347.8 KB / 400 KB; `main.bundle.js` 312.4 KB / 350 KB; boot vendor 22.3 KB / 35 KB; lazy code highlighting 52.0 KB / 60 KB; lazy diagrams 858.5 KB / 950 KB; document/PDF lazy assets 516.3 KB / 600 KB; OCR lazy assets 2501.5 KB / 2800 KB; all tracked assets 4276.1 KB / 4900 KB.
   - Largest tracked asset is OCR lazy glue (`ocr/tesseract-core-simd-lstm.wasm.js`) at 1427.3 KB / 1500 KB; the gate reports WARN but remains under budget.
 - Static markdown lazy-renderer proof: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/components/markdown-renderer.test.mjs`
   - Status: passed.
@@ -45,7 +45,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Status: passed.
   - Scans 190 shipped static JS files and fails if normal desktop copy leaks OpenRouter, Anthropic, Claude, ChatGPT, Codex login, provider marketplace framing, `operator`, generic `console`, or `Gateway v2`/route wording.
 - Rendered static smoke: `npm run smoke:webui-static`
-- Static JS tests: `npm run test:static` -> 341 passed.
+- Static JS tests: `npm run test:static` -> 343 passed.
 - Full test suite: `npm run test` -> 161 files / 1294 tests passed.
 - Type/UI check: `npm run check` -> 0 errors / 0 warnings.
 - Packaged build: `npm run tauri -- build`
@@ -103,8 +103,13 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Proves DOCX exports are parseable stored OOXML packages with real `word/numbering.xml`, heading styles, editable bullet and ordered list numbering, table XML, and external hyperlink relationships instead of flattened markdown text.
   - Keeps Mermaid source preservation and byte-accurate PDF xref/startxref coverage green.
 - Static whole-thread export gate: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/message-bubble.test.mjs`
-  - Status: passed, 9 tests.
+  - Status: passed, 11 tests.
   - Proves the assistant export menu includes whole-conversation Thread DOCX and Thread PDF actions, and both route through the same tested whole-thread markdown plus DOCX/PDF artifact builders before native save.
+  - Proves generated markdown/document work mounts an explicit `Generated document` artifact header and scopes copy/save/export controls to the artifact instead of a generic assistant response.
+- Static artifact-header smoke: `npm run smoke:webui-static`
+  - Status: passed.
+  - Sends the mocked services-agreement prompt with PDF/DOCX/XLSX/MD/JSON/HTML attachments, verifies the wide assistant work-product panel, verifies the new `assistant-artifact-chip`, and exports MD/HTML/JSON/PDF/DOCX through the artifact-scoped export menu.
+  - Caught and fixed a rendered menu placement bug: the new artifact export popover initially opened upward under the sticky header; generated-document export now opens downward and the rendered export click succeeds.
 - Static connector lifecycle gate: `npx playwright test --config playwright.static.config.ts tests/static/connectors-static.spec.ts`
   - Status: passed, 3 rendered tests.
   - Clicks Gmail, Google Calendar, Notion, and Slack registry cards in the rendered app.
@@ -142,7 +147,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Google OAuth | RED | The UI is honest: Gmail/Calendar need hosted OAuth/client-id support and the live probe returns 503 honest blocked. Blocked setup links now stay inside `/v2` and land on the AI setup target. | Product cannot claim Google OAuth works out of the box until gateway/desktop ships hosted OAuth or a preconfigured desktop client flow. |
 | Notion OAuth | YELLOW | Notion is visible and setup-gated; live OAuth start returns 200. | Needs a rendered packaged connector flow that completes credential proof, not just OAuth start. |
 | Workspace deep link | YELLOW | Workspace is still backend-blocked, but it no longer invents a README file or reports successful saves from `{ success:false }`. | Keep hidden/deep-link-only until real v2 workspace endpoints exist. |
-| Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. Static rendered tests separately prove picker, paste, and drag/drop attachment ingress sends readable payloads to Reborn. DOCX exports now preserve headings, tables, editable lists, and clickable external links as OOXML structure. Whole-thread export now offers MD/JSON/PDF/DOCX instead of stopping at markdown and JSON. | Keep. Deep OCR remains opt-in in packaged smoke. |
+| Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. Static rendered tests separately prove picker, paste, and drag/drop attachment ingress sends readable payloads to Reborn. DOCX exports now preserve headings, tables, editable lists, and clickable external links as OOXML structure. Whole-thread export now offers MD/JSON/PDF/DOCX instead of stopping at markdown and JSON. Generated markdown/document work now renders with an explicit `Generated document` artifact header, copy, Save to Work, and export controls; `npm run smoke:webui-static` proves the user exports through that artifact header after sending the services-agreement attachment prompt. | Keep. Deep OCR remains opt-in in packaged smoke; native generated binary chips still need a later pass. |
 | Generated markdown layout | GREEN | Wide generated tables and SVG/media are now bounded by markdown CSS. A source CSS contract plus rendered Playwright geometry test prove hostile tables scroll internally and 2400px SVGs cannot widen the chat canvas. | Keep. Next visualization push should finish export parity for tables, diagrams, and whole-thread artifacts. |
 | Generated diagrams | GREEN/YELLOW | Mermaid fences now render as first-class diagram cards in chat, stay off the cold-start path, require explicit user click, initialize with strict Mermaid security, sanitize returned SVG, and are covered by both source tests and a rendered static Playwright proof. Exports preserve labeled Mermaid source across MD/HTML/JSON/PDF/DOCX instead of dropping it into anonymous fences. DOCX structure fidelity improved for headings/lists/links/tables. | Keep. Full VIZ-3 is still YELLOW until DOCX/PDF/HTML can embed the rendered diagram image from the same render path, not only the source. |
 | Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |
@@ -156,7 +161,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 
 1. Real NEAR AI Cloud session proof: launch packaged app with a valid session/token, send chat with one of the proven attachment ingress paths, and receive an assistant result from attachment content.
 2. Connector completion proof by app: Gmail, Google Calendar, Slack, Notion, and workspace files must either connect with credential/account proof or show a specific blocked setup state with exact HTTP evidence.
-3. Real generated work-product proof: after a live assistant result, export the generated work as DOCX/PDF/HTML/MD/JSON, parse or render downloaded files, reload thread and confirm artifact persistence.
+3. Real generated work-product proof: after a live assistant result, export the generated work as DOCX/PDF/HTML/MD/JSON through the artifact header, parse or render downloaded files, reload thread and confirm artifact persistence.
 4. OAuth completion decision: either ship hosted Google/Notion OAuth through the gateway or keep the UI in explicit blocked setup state.
 5. Browser-level regression: drive onboarding, chat, settings, and connections in a real packaged WebView after every static bridge/runtime change.
 

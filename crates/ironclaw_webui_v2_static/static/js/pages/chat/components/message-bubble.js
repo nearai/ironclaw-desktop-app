@@ -246,6 +246,7 @@ export function MessageBubble({ message, messages = [], onRetry }) {
   const showActions = (role === 'assistant' || role === 'user') && !isOptimistic;
   const displayContent = messageContentForDisplay({ role, content, attachments });
   const isAssistantWorkProduct = assistantResponseLooksLikeWorkProduct(role, displayContent);
+  const showInlineActions = showActions && !isAssistantWorkProduct;
   const compactAttachments = shouldCompactAttachmentStack(role, attachments);
   const visibleAttachments = visibleAttachmentsForMessage(role, attachments, attachmentsExpanded);
   const hiddenAttachmentCount = Array.isArray(attachments)
@@ -259,6 +260,14 @@ export function MessageBubble({ message, messages = [], onRetry }) {
           className=${messageBodyClass(role, isOptimistic, isAssistantWorkProduct)}
           data-testid=${isAssistantWorkProduct ? 'assistant-work-product' : undefined}
         >
+          ${isAssistantWorkProduct &&
+          html`<${GeneratedWorkProductHeader}
+            title=${titleFromMarkdown(displayContent) || 'Generated document'}
+            content=${content || ''}
+            messages=${messages}
+            copied=${copied}
+            onCopy=${copy}
+          />`}
           ${role === 'assistant' || role === 'system' || role === 'error'
             ? html`<${MarkdownRenderer} content=${displayContent} />`
             : html`<div className="whitespace-pre-wrap">${displayContent}</div>`}
@@ -367,10 +376,10 @@ export function MessageBubble({ message, messages = [], onRetry }) {
           `}
         </div>
 
-        ${(showActions || status === 'error' || timeLabel) &&
+        ${(showInlineActions || status === 'error' || timeLabel) &&
         html`
           <div className=${messageActionRowClass(role, isUser)}>
-            ${showActions &&
+            ${showInlineActions &&
             html`
               <button
                 type="button"
@@ -406,9 +415,61 @@ export function MessageBubble({ message, messages = [], onRetry }) {
   `;
 }
 
-function AssistantExportActions({ content, messages }) {
+function GeneratedWorkProductHeader({ title, content, messages, copied, onCopy }) {
+  return html`
+    <div
+      className="mb-4 flex flex-wrap items-center gap-3 border-b border-[var(--v2-panel-border)] pb-3"
+      data-testid="assistant-artifact-chip"
+    >
+      <span
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+        aria-hidden="true"
+      >
+        <${Icon} name="file" className="h-4 w-4" />
+      </span>
+      <span className="min-w-[12rem] flex-1">
+        <span
+          className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-gold-text)]"
+        >
+          Generated document
+        </span>
+        <span className="block truncate text-sm font-semibold text-[var(--v2-text-strong)]">
+          ${title}
+        </span>
+        <span className="block text-xs leading-5 text-[var(--v2-text-muted)]">
+          Markdown preview · exportable as DOCX, PDF, HTML, and JSON.
+        </span>
+      </span>
+      <span className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick=${onCopy}
+          aria-label="Copy generated document"
+          className=${actionClass()}
+        >
+          <${Icon} name=${copied ? 'check' : 'copy'} className="h-3.5 w-3.5" />
+          ${copied ? 'Copied' : 'Copy'}
+        </button>
+        <${AssistantExportActions}
+          content=${content}
+          messages=${messages}
+          subjectLabel="generated document"
+          popoverSide="bottom"
+        />
+      </span>
+    </div>
+  `;
+}
+
+function AssistantExportActions({
+  content,
+  messages,
+  subjectLabel = 'assistant response',
+  popoverSide = 'top'
+}) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const title = titleFromMarkdown(content) || 'Assistant response';
+  const subject = String(subjectLabel || 'assistant response');
   const exportOptions = [
     {
       id: 'md',
@@ -477,7 +538,7 @@ function AssistantExportActions({ content, messages }) {
       type="button"
       onClick=${() => saveToWork(title, content)}
       className=${actionClass('primary')}
-      aria-label="Save assistant response to Work"
+      aria-label=${`Save ${subject} to Work`}
     >
       Save to Work
     </button>
@@ -485,14 +546,14 @@ function AssistantExportActions({ content, messages }) {
       open=${menuOpen}
       onClose=${() => setMenuOpen(false)}
       align="start"
-      side="top"
+      side=${popoverSide}
       className="w-[min(22rem,calc(100vw-2rem))] max-w-none p-2"
       trigger=${html`
         <button
           type="button"
           onClick=${() => setMenuOpen((value) => !value)}
           className=${actionClass()}
-          aria-label="Export assistant response"
+          aria-label=${`Export ${subject}`}
           aria-expanded=${menuOpen ? 'true' : 'false'}
         >
           <${Icon} name="download" className="h-3.5 w-3.5" />
