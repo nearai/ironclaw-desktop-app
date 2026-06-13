@@ -196,7 +196,7 @@ desk/missions surfaces the static UI replaced. Deletion is gated by 4 CI hooks.
 | id | task | effort | deps | owned lane | acceptance |
 |----|------|--------|------|-----------|-----------|
 | **CONN-1** | Connected-state chips ("Connected as you@…") from the setup/status route + disconnect/reconnect | M | DEBT-4 | `pages/extensions/components/*` | each connected extension shows account + disconnect |
-| **CONN-2** | In-chat "Connect X" affordance when the model lacks a tool (gate-card deep link to `?setup=1&focus=<ext>`) | M | DESK-1 | gate cards, `extensions-page.js` | "I can't search Notion" becomes a Connect button |
+| **CONN-2** | In-chat "Connect X" affordance when the model lacks a tool (gate-card deep link to `?setup=1&focus=<ext>`) | M | DESK-1 | gate cards, `extensions-page.js` | IN PROGRESS: explicit `connect Notion/Gmail/Calendar/Slack/workspace` prompts now show an honest setup card and deep-link to Connections without sending lifecycle calls; remaining acceptance is model/tool-failure recovery ("I can't search Notion" becomes Connect) |
 | **CONN-3** | Custom remote MCP server add — what's buildable client-side (unauthenticated URL) vs upstream (OAuth/DCR generalization) | M | — | `pages/extensions/mcp-tab.js` | add an unauthenticated MCP URL; OAuth-MCP marked upstream |
 | **CONN-4** | **Upstream** — hosted/zero-config Google OAuth (B1) + custom-MCP OAuth generalization | — | — | (see UP-1) | filed |
 

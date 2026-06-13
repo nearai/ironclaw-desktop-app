@@ -3,7 +3,33 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 const gatewayStatus = {
   engine_v2_enabled: true,
   restart_enabled: false,
-  total_connections: 0
+  total_connections: 0,
+  llm_backend: 'nearai',
+  llm_model: 'auto',
+  model_execution_verified: true,
+  model_readiness: 'ready',
+  model_execution_readiness: 'ready'
+};
+
+const llmProviders = {
+  providers: [
+    {
+      id: 'nearai',
+      name: 'NEAR AI Cloud',
+      description: 'Model access through NEAR AI Cloud.',
+      adapter: 'nearai',
+      default_model: 'auto',
+      builtin: true,
+      api_key_required: false,
+      accepts_api_key: true,
+      base_url_required: false,
+      api_key_set: true
+    }
+  ],
+  active: {
+    provider_id: 'nearai',
+    model: 'auto'
+  }
 };
 
 const registryEntries = [
@@ -93,6 +119,33 @@ test('static connectors: registry clicks keep slash refs out of lifecycle URLs',
   }
 });
 
+test('static connectors: chat connect prompts open an honest extension setup path', async ({
+  page
+}) => {
+  const calls: CapturedCall[] = [];
+  await installConnectorMocks(page, calls);
+
+  await page.goto('/v2/chat?token=connector-static-token');
+  await expect(
+    page.getByRole('heading', { name: 'What should IronClaw handle next?' })
+  ).toBeVisible();
+
+  await page.getByPlaceholder('Ask IronClaw anything.').fill('connect notion for my team docs');
+  await page.getByRole('button', { name: 'Send message' }).click();
+
+  const recovery = page.getByTestId('connector-recovery-card');
+  await expect(recovery).toBeVisible();
+  await expect(recovery).toContainText('Open Notion setup');
+  await expect(recovery.getByRole('link', { name: 'Open setup' })).toHaveAttribute(
+    'href',
+    '/v2/extensions/registry?setup=1&focus=notion'
+  );
+
+  await recovery.getByRole('link', { name: 'Open setup' }).click();
+  await expect(page).toHaveURL(/\/v2\/extensions\/registry\?setup=1&focus=notion/);
+  await expect(page.getByTestId('registry-card-notion')).toBeVisible();
+});
+
 type CapturedCall = {
   method: string;
   path: string;
@@ -130,6 +183,15 @@ async function installConnectorMocks(page: Page, calls: CapturedCall[]) {
 
     if (path === '/api/gateway/status') {
       return json(route, gatewayStatus);
+    }
+    if (path === '/api/webchat/v2/llm/providers') {
+      return json(route, llmProviders);
+    }
+    if (path === '/api/webchat/v2/llm/list-models' && method === 'POST') {
+      return json(route, { ok: true, models: ['auto', 'z-ai/glm-4.5', 'gpt-oss-120b'] });
+    }
+    if (path === '/api/webchat/v2/llm/active' && method === 'POST') {
+      return json(route, { ok: true, active: llmProviders.active });
     }
     if (path === '/api/webchat/v2/threads' && method === 'GET') {
       return json(route, { threads: [], next_cursor: null });

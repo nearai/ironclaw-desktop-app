@@ -6,7 +6,8 @@ import vm from 'node:vm';
 import { messagesFromTimeline, buildDurableAttachmentBlock } from './history-messages.js';
 import {
   looksLikeChannelConnectCommand,
-  resolveChannelConnectCommand
+  resolveChannelConnectCommand,
+  resolveExtensionConnectCommand
 } from '../../../lib/channel-connect.js';
 import {
   addPending,
@@ -96,6 +97,7 @@ test('useChat.send: accepted ref reconciles pending message on timeline reload',
     removePending,
     replacePending,
     resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async () => ({
       accepted_message_ref: 'msg:message-1',
@@ -237,6 +239,7 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
     removePending,
     replacePending,
     resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async (args) => {
       sentArgs = args;
@@ -371,6 +374,7 @@ test('useChat.cancelRun clears local state before cancel request resolves', asyn
     removePending,
     replacePending,
     resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async () => {
       throw new Error('sendMessage should not run');
@@ -454,6 +458,7 @@ test('useChat.cancelRun completion does not clear a newer run', async () => {
     removePending,
     replacePending,
     resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async () => ({
       accepted_message_ref: 'msg:message-2',
@@ -542,6 +547,7 @@ test('useChat.send: channel connect requests return an action without submitting
     removePending,
     replacePending,
     resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async () => {
       sendMessageCalled = true;
@@ -571,6 +577,76 @@ test('useChat.send: channel connect requests return an action without submitting
   assert.equal(sendMessageCalled, false);
   assert.equal(response.channel_connect_action.channel, 'slack');
   assert.equal(response.channel_connect_action.strategy, 'inbound_proof_code');
+});
+
+test('useChat.send: extension connect requests show setup action without submitting a prompt', async () => {
+  let createThreadCalled = false;
+  let sendMessageCalled = false;
+
+  const context = {
+    AbortController,
+    TextEncoder,
+    Date,
+    Error,
+    Map,
+    Math,
+    React: createReactStub(),
+    addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
+    cancelRunRequest: async () => {},
+    clearTimeout,
+    createThreadRequest: async () => {
+      createThreadCalled = true;
+      throw new Error('connect action should not create a thread');
+    },
+    globalThis: {},
+    listConnectableChannels: async () => ({ channels: [] }),
+    looksLikeChannelConnectCommand,
+    queryClient: {
+      fetchQuery: async ({ queryFn }) => queryFn(),
+      invalidateQueries: () => {}
+    },
+    recordAcceptedMessageRef,
+    removePending,
+    replacePending,
+    resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
+    resolveGateRequest: async () => {},
+    sendMessage: async () => {
+      sendMessageCalled = true;
+      throw new Error('connect action should not submit a model prompt');
+    },
+    setInterval,
+    setTimeout,
+    submitManualToken: async () => {},
+    useChatEvents: () => () => {},
+    useHistory: () => ({
+      messages: [],
+      hasMore: false,
+      nextCursor: null,
+      isLoading: false,
+      loadHistory: () => {},
+      setMessages: () => {}
+    }),
+    useSSE: () => ({ status: 'idle' })
+  };
+
+  vm.runInNewContext(useChatSourceForTest(), context);
+
+  const chat = context.globalThis.__testExports.useChat(null);
+  const response = await chat.send('connect notion for my team docs');
+
+  assert.equal(createThreadCalled, false);
+  assert.equal(sendMessageCalled, false);
+  assert.equal(response.channel_connect_action.channel, 'notion');
+  assert.equal(response.channel_connect_action.strategy, 'extension_setup_link');
+  assert.equal(response.channel_connect_action.package_ref.id, 'mcp-servers/notion');
+  assert.equal(
+    response.channel_connect_action.action.href,
+    '/extensions/registry?setup=1&focus=notion'
+  );
 });
 
 test('useChat.send: unmatched channel connect requests submit the prompt', async () => {
@@ -619,6 +695,7 @@ test('useChat.send: unmatched channel connect requests submit the prompt', async
     removePending,
     replacePending,
     resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async ({ content, threadId }) => {
       sentContent = content;
@@ -655,7 +732,7 @@ test('useChat.send: unmatched channel connect requests submit the prompt', async
   assert.equal(response.thread_id, 'thread-created');
 });
 
-test('useChat.send: connectable channel fetch failures submit the prompt', async () => {
+test('useChat.send: connectable channel fetch failures fall back to extension setup', async () => {
   let createThreadCalled = false;
   let sentContent = null;
   const loggedErrors = [];
@@ -694,6 +771,7 @@ test('useChat.send: connectable channel fetch failures submit the prompt', async
     removePending,
     replacePending,
     resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
     resolveGateRequest: async () => {},
     sendMessage: async ({ content, threadId }) => {
       sentContent = content;
@@ -724,9 +802,10 @@ test('useChat.send: connectable channel fetch failures submit the prompt', async
   const chat = context.globalThis.__testExports.useChat(null);
   const response = await chat.send('connect my Slack account');
 
-  assert.equal(createThreadCalled, true);
-  assert.equal(sentContent, 'connect my Slack account');
-  assert.equal(response.channel_connect_action, undefined);
-  assert.equal(response.thread_id, 'thread-created');
+  assert.equal(createThreadCalled, false);
+  assert.equal(sentContent, null);
+  assert.equal(response.channel_connect_action.channel, 'slack');
+  assert.equal(response.channel_connect_action.strategy, 'extension_setup_link');
+  assert.equal(response.channel_connect_action.action.href, '/extensions/registry?setup=1&focus=slack');
   assert.equal(loggedErrors[0][0], 'Failed to resolve connectable channels:');
 });

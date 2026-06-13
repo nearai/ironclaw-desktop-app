@@ -9,7 +9,8 @@ import {
 import {
   listConnectableChannels,
   looksLikeChannelConnectCommand,
-  resolveChannelConnectCommand
+  resolveChannelConnectCommand,
+  resolveExtensionConnectCommand
 } from '../../../lib/channel-connect.js';
 import { queryClient } from '../../../lib/query-client.js';
 import { React } from '../../../lib/html.js';
@@ -135,10 +136,12 @@ async function resolveConnectAction(content) {
       queryFn: listConnectableChannels
     });
     const channels = channelsResponse?.channels || [];
-    return resolveChannelConnectCommand(content, channels);
+    return (
+      resolveChannelConnectCommand(content, channels) || resolveExtensionConnectCommand(content)
+    );
   } catch (err) {
     console.error('Failed to resolve connectable channels:', err);
-    return null;
+    return resolveExtensionConnectCommand(content);
   }
 }
 

@@ -29,14 +29,30 @@ export function ChannelConnectCard({ connectAction, onDismiss }) {
 
       ${channel === 'slack' && connectAction.strategy === 'inbound_proof_code'
         ? html`<${SlackPairingSection} action=${connectAction.action} />`
-        : html`
-            <div
-              className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs leading-5 text-iron-300"
-            >
-              ${connectAction.action?.instructions ||
-              'This channel exposes a connect action, but the WebUI has no renderer for its strategy yet.'}
-            </div>
-          `}
+        : connectAction.strategy === 'extension_setup_link'
+          ? html`
+              <div
+                className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs leading-5 text-iron-300"
+                data-testid="connector-recovery-card"
+              >
+                <p>${connectAction.action?.instructions || 'Open Connections to finish setup.'}</p>
+                <a
+                  href=${connectAction.action?.href || '/extensions/registry'}
+                  className="v2-button mt-3 inline-flex items-center gap-1.5 rounded-[8px] border border-signal/30 bg-signal/10 px-3 py-2 text-xs font-medium text-signal hover:bg-signal/15"
+                >
+                  ${connectAction.action?.label || 'Open setup'}
+                  <${Icon} name="chevron" className="h-3 w-3 -rotate-90" />
+                </a>
+              </div>
+            `
+          : html`
+              <div
+                className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs leading-5 text-iron-300"
+              >
+                ${connectAction.action?.instructions ||
+                'This channel exposes a connect action, but the WebUI has no renderer for its strategy yet.'}
+              </div>
+            `}
     </div>
   `;
 }
