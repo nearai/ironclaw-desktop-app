@@ -136,6 +136,62 @@ function attachmentStackClass(compact = false) {
     : 'mt-2 flex flex-col gap-1.5';
 }
 
+function imageAttachmentDataUrl(attachment = {}) {
+  const directUrl = String(
+    attachment.dataUrl || attachment.data_url || attachment.url || attachment.src || ''
+  ).trim();
+  const mimeType = String(attachment.mime_type || attachment.content_type || '').toLowerCase();
+  if (/^(data:image\/|blob:)/i.test(directUrl)) return directUrl;
+  if (/^https?:\/\//i.test(directUrl) && mimeType.startsWith('image/')) return directUrl;
+
+  const base64 = String(attachment.data_base64 || attachment.base64 || '').replace(/\s+/g, '');
+  if (!mimeType.startsWith('image/') || !base64) return '';
+  return `data:${mimeType};base64,${base64}`;
+}
+
+function imagePreviewsForMessage({ images, attachments } = {}) {
+  const previews = [];
+  const seen = new Set();
+  const pushPreview = (src, filename = '', index = previews.length) => {
+    const cleanSrc = String(src || '').trim();
+    if (!cleanSrc || seen.has(cleanSrc)) return;
+    seen.add(cleanSrc);
+    previews.push({
+      src: cleanSrc,
+      filename,
+      alt: filename ? `Attached image: ${filename}` : `Attached image ${index + 1}`
+    });
+  };
+
+  for (const [index, image] of (Array.isArray(images) ? images : []).entries()) {
+    if (typeof image === 'string') {
+      pushPreview(image, '', index);
+    } else if (image && typeof image === 'object') {
+      pushPreview(
+        image.dataUrl || image.data_url || image.url || image.src,
+        image.filename || image.name || '',
+        index
+      );
+    }
+  }
+
+  for (const [index, attachment] of (Array.isArray(attachments) ? attachments : []).entries()) {
+    pushPreview(imageAttachmentDataUrl(attachment), attachment?.filename || '', index);
+  }
+
+  return previews;
+}
+
+function fileAttachmentsForMessage(attachments = []) {
+  return (Array.isArray(attachments) ? attachments : []).filter(
+    (attachment) => !imageAttachmentDataUrl(attachment)
+  );
+}
+
+function imageThumbnailStripClass(isUser) {
+  return ['flex max-w-full flex-wrap gap-2', isUser ? 'justify-end' : 'justify-start'].join(' ');
+}
+
 /* Collapsible provider-reasoning summary. Collapsed by default so the
    thread stays clean; expands to the full reasoning markdown. Data comes
    from the `thinking` projection item (PR #4230). */
@@ -249,15 +305,35 @@ export function MessageBubble({ message, messages = [], onRetry }) {
   const displayContent = messageContentForDisplay({ role, content, attachments });
   const isAssistantWorkProduct = assistantResponseLooksLikeWorkProduct(role, displayContent);
   const showInlineActions = showActions && !isAssistantWorkProduct;
-  const compactAttachments = shouldCompactAttachmentStack(role, attachments);
-  const visibleAttachments = visibleAttachmentsForMessage(role, attachments, attachmentsExpanded);
-  const hiddenAttachmentCount = Array.isArray(attachments)
-    ? attachments.length - visibleAttachments.length
-    : 0;
+  const imagePreviews = imagePreviewsForMessage({ images, attachments });
+  const fileAttachments = fileAttachmentsForMessage(attachments);
+  const compactAttachments = shouldCompactAttachmentStack(role, fileAttachments);
+  const visibleAttachments = visibleAttachmentsForMessage(
+    role,
+    fileAttachments,
+    attachmentsExpanded
+  );
+  const hiddenAttachmentCount = fileAttachments.length - visibleAttachments.length;
 
   return html`
     <div className=${messageOuterClass(isUser, isAssistantWorkProduct)}>
       <div className=${messageShellClass(isUser, isAssistantWorkProduct)}>
+        ${imagePreviews.length > 0 &&
+        html`
+          <div className=${imageThumbnailStripClass(isUser)} data-testid="message-image-thumbnails">
+            ${imagePreviews.map(
+              (preview, i) =>
+                html`<img
+                  key=${`${preview.src}-${i}`}
+                  src=${preview.src}
+                  className="h-24 max-w-[min(12rem,48vw)] rounded-[14px] border border-signal/25 bg-iron-950 object-cover shadow-[0_12px_32px_rgba(0,0,0,0.22)]"
+                  alt=${preview.alt}
+                  title=${preview.filename || preview.alt}
+                  loading="lazy"
+                />`
+            )}
+          </div>
+        `}
         <div
           className=${messageBodyClass(role, isOptimistic, isAssistantWorkProduct)}
           data-testid=${isAssistantWorkProduct ? 'assistant-work-product' : undefined}
@@ -281,23 +357,7 @@ export function MessageBubble({ message, messages = [], onRetry }) {
               <span>${error}</span>
             </div>
           `}
-          ${images &&
-          images.length > 0 &&
-          html`
-            <div className="mt-2 flex flex-wrap gap-2">
-              ${images.map(
-                (src, i) =>
-                  html`<img
-                    key=${i}
-                    src=${src}
-                    className="max-h-48 rounded-lg border border-iron-700 object-cover"
-                    alt="Message attachment"
-                  />`
-              )}
-            </div>
-          `}
-          ${attachments &&
-          attachments.length > 0 &&
+          ${fileAttachments.length > 0 &&
           html`
             <div
               className=${attachmentStackClass(compactAttachments)}
@@ -308,9 +368,9 @@ export function MessageBubble({ message, messages = [], onRetry }) {
                 <div className="flex flex-wrap items-center gap-2 px-1 pb-1 text-xs">
                   <span className="inline-flex items-center gap-1.5 font-medium text-iron-100">
                     <${Icon} name="file" className="h-3.5 w-3.5 text-signal" />
-                    ${attachments.length} files attached
+                    ${fileAttachments.length} files attached
                   </span>
-                  <span className="text-iron-400">${attachmentStackSummary(attachments)}</span>
+                  <span className="text-iron-400">${attachmentStackSummary(fileAttachments)}</span>
                 </div>
               `}
               ${visibleAttachments.map((att, i) => {

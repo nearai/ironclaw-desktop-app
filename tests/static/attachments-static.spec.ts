@@ -34,6 +34,9 @@ const llmProviders = {
   }
 };
 
+const onePixelPngBase64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lBy1XwAAAABJRU5ErkJggg==';
+
 for (const scenario of [
   {
     label: 'file picker',
@@ -126,6 +129,50 @@ for (const scenario of [
     }
   });
 }
+
+test('static attachments: image upload renders thumbnail above sent user bubble', async ({
+  page
+}) => {
+  const gateway = await startAttachmentGateway();
+  try {
+    await installAttachmentTauriShim(page, gateway.origin, gateway.port);
+    await page.goto('/v2/chat/thread-attachments');
+    await page.locator('textarea').first().waitFor({ timeout: 20_000 });
+
+    const prompt = 'Use this uploaded image as evidence in the draft.';
+    await page.locator('textarea').first().fill(prompt);
+    await page.locator('input[type="file"]').setInputFiles({
+      name: 'signature-proof.png',
+      mimeType: 'image/png',
+      buffer: Buffer.from(onePixelPngBase64, 'base64')
+    });
+
+    await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Send message' }).click();
+
+    await expect(page.getByText(prompt, { exact: true })).toBeVisible();
+    const thumbnailStrip = page.getByTestId('message-image-thumbnails').first();
+    await expect(thumbnailStrip).toBeVisible();
+    await expect(thumbnailStrip.locator('img').first()).toHaveAttribute(
+      'src',
+      /^data:image\/png;base64,/
+    );
+
+    await expect.poll(() => gateway.state.messageRequests.length, { timeout: 20_000 }).toBe(1);
+    const request = gateway.state.messageRequests[0];
+
+    expect(request.content).toContain('filename: signature-proof.png');
+    expect(request.content).not.toContain('data_base64');
+    expect(request.attachments).toHaveLength(1);
+    expect(request.attachments[0]).toMatchObject({
+      filename: 'signature-proof.png',
+      mime_type: 'image/png'
+    });
+    expect(request.attachments[0].base64).toBe(onePixelPngBase64);
+  } finally {
+    await gateway.close();
+  }
+});
 
 type AttachmentFixture = {
   filename: string;

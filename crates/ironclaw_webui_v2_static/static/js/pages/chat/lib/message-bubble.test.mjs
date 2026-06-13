@@ -18,7 +18,7 @@ function messageBubbleSourceForTest() {
     }
     lines.push(line.replace('export function MessageBubble', 'function MessageBubble'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, GeneratedWorkProductHeader, AssistantExportActions, exportThread, messageActionRowClass, messageContentForDisplay, assistantResponseLooksLikeWorkProduct, messageOuterClass, messageShellClass, messageBodyClass, attachmentEvidenceLabel, shouldCompactAttachmentStack, visibleAttachmentsForMessage, attachmentStackSummary, attachmentStackClass };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, GeneratedWorkProductHeader, AssistantExportActions, exportThread, messageActionRowClass, messageContentForDisplay, assistantResponseLooksLikeWorkProduct, messageOuterClass, messageShellClass, messageBodyClass, attachmentEvidenceLabel, shouldCompactAttachmentStack, visibleAttachmentsForMessage, attachmentStackSummary, attachmentStackClass, imageAttachmentDataUrl, imagePreviewsForMessage, fileAttachmentsForMessage, imageThumbnailStripClass };`;
 }
 
 function findComponentByName(node, name) {
@@ -318,6 +318,80 @@ test('message attachment evidence labels say what was retained for the model', (
     }),
     'Model-readable payload retained'
   );
+});
+
+test('previewable image attachments render above the user bubble as thumbnails', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const {
+    MessageBubble,
+    imageAttachmentDataUrl,
+    imagePreviewsForMessage,
+    fileAttachmentsForMessage,
+    imageThumbnailStripClass
+  } = context.globalThis.__testExports;
+  const attachments = [
+    {
+      filename: 'signature-photo.png',
+      mime_type: 'image/png',
+      data_base64: 'iVBORw0KGgo=',
+      size_label: '4 KB'
+    },
+    {
+      filename: 'template.pdf',
+      mime_type: 'application/pdf',
+      size_label: '240 KB'
+    },
+    {
+      filename: 'reload-only.jpg',
+      mime_type: 'image/jpeg',
+      size_label: '18 KB'
+    }
+  ];
+
+  assert.equal(imageAttachmentDataUrl(attachments[0]), 'data:image/png;base64,iVBORw0KGgo=');
+  assert.equal(
+    imageAttachmentDataUrl({ mime_type: 'application/pdf', url: 'https://example.com/file.pdf' }),
+    ''
+  );
+  assert.equal(
+    imageAttachmentDataUrl({ mime_type: 'image/jpeg', url: 'https://example.com/photo.jpg' }),
+    'https://example.com/photo.jpg'
+  );
+  assert.deepEqual(
+    Array.from(
+      imagePreviewsForMessage({
+        images: ['data:image/png;base64,INLINE'],
+        attachments
+      }).map((preview) => preview.src)
+    ),
+    ['data:image/png;base64,INLINE', 'data:image/png;base64,iVBORw0KGgo=']
+  );
+  assert.deepEqual(
+    Array.from(fileAttachmentsForMessage(attachments).map((attachment) => attachment.filename)),
+    ['template.pdf', 'reload-only.jpg']
+  );
+  assert.match(imageThumbnailStripClass(true), /justify-end/);
+
+  const tree = MessageBubble({
+    message: {
+      id: 'u1',
+      role: 'user',
+      content: 'Draft from this image and PDF.',
+      images: ['data:image/png;base64,INLINE'],
+      attachments
+    }
+  });
+  const flat = flatStrings(tree);
+
+  assert.match(flat, /message-image-thumbnails/);
+  assert.match(flat, /data:image\/png;base64,INLINE/);
+  assert.match(flat, /data:image\/png;base64,iVBORw0KGgo=/);
+  assert.match(flat, /Attached image: signature-photo\.png/);
+  assert.match(flat, /template\.pdf/);
+  assert.match(flat, /reload-only\.jpg/);
+  assert.doesNotMatch(flat, /Preview signature-photo\.png/);
 });
 
 test('large user attachment stacks compact while preserving expandable access', () => {
