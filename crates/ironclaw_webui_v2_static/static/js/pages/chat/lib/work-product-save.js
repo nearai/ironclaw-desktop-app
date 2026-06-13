@@ -1,3 +1,9 @@
+import { appScopedPath } from '../../../lib/app-path.js';
+import {
+  generatedFileKindLabel,
+  normalizeGeneratedFileArtifact
+} from './generated-file-artifacts.js';
+
 export const WORK_ITEMS_KEY = 'ironclaw-work-items';
 const MAX_WORK_ITEMS = 500;
 
@@ -64,6 +70,76 @@ export function saveAssistantResponseToWork({
   };
 }
 
+export function saveGeneratedFileArtifactToWork({
+  artifact,
+  threadId = currentThreadId(),
+  threadLabel = 'Chat thread',
+  storage = defaultStorage(),
+  now = new Date().toISOString(),
+  idFactory = defaultIdFactory
+} = {}) {
+  const normalized = normalizeGeneratedFileArtifact(artifact);
+  if (!normalized || !storage) return null;
+
+  const safeTitle = safeText(normalized.title || normalized.filename, 'Generated file').slice(
+    0,
+    80
+  );
+  const workId = idFactory('work');
+  const artifactId = idFactory('artifact');
+  const linkedThread = safeText(threadId, '');
+  const item = {
+    id: workId,
+    title: safeTitle,
+    objective: `${generatedFileKindLabel(normalized)} generated in chat.`,
+    domain: 'general',
+    runbookIds: ['general'],
+    status: 'active',
+    created_at: now,
+    updated_at: now,
+    links: linkedThread
+      ? [
+          {
+            kind: 'thread',
+            ref: linkedThread,
+            label: safeText(threadLabel, 'Chat thread')
+          }
+        ]
+      : [],
+    dossier: [],
+    approvalBoundaries: [],
+    artifacts: [
+      {
+        id: artifactId,
+        type: 'file',
+        title: safeTitle,
+        filename: normalized.filename,
+        mime_type: normalized.mime_type,
+        size: normalized.size,
+        size_label: normalized.size_label,
+        status: 'ready',
+        provenance: linkedThread ? [`thread:${linkedThread}`] : ['chat'],
+        content: normalized.content || '',
+        content_format: normalized.data_base64 ? 'base64' : normalized.content_format || 'text',
+        data_base64: normalized.data_base64 || ''
+      }
+    ],
+    watches: [],
+    receipts: [],
+    openApprovals: [],
+    followUps: [],
+    nextAction: 'Review saved file.'
+  };
+
+  const existing = readSavedWorkItems(storage);
+  storage.setItem(WORK_ITEMS_KEY, JSON.stringify([item, ...existing].slice(0, MAX_WORK_ITEMS)));
+  return {
+    item,
+    artifact: item.artifacts[0],
+    href: workArtifactHref(workId, artifactId)
+  };
+}
+
 export function openSavedWorkProduct(saved, location = globalThis.window?.location) {
   if (!saved?.href || !location) return false;
   if (typeof location.assign === 'function') {
@@ -97,7 +173,7 @@ export function workArtifactHref(workId, artifactId) {
     item: String(workId || ''),
     artifact: String(artifactId || '')
   });
-  return `/work?${params.toString()}`;
+  return appScopedPath(`/work?${params.toString()}`);
 }
 
 export function readSavedWorkItems(storage = defaultStorage()) {

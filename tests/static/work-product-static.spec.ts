@@ -79,11 +79,37 @@ test('static work product: saved chat artifact reloads in Work route', async ({ 
     'Acme Labs hires Northstar Ops'
   );
   await expect(page.getByRole('button', { name: 'Copy' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'DOCX' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'PDF' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'DOCX', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'PDF', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open thread' })).toHaveAttribute(
     'href',
     '/v2/chat/thread-services'
+  );
+});
+
+test('static work product: assistant generated DOCX chip saves to Work and reloads as a file', async ({
+  page
+}) => {
+  await installWorkProductMocks(page);
+
+  await page.goto('/v2/chat/thread-generated-file?token=static-work-token');
+
+  await expect(page.getByTestId('generated-file-artifact-chip')).toContainText(
+    'services-agreement.docx'
+  );
+  await expect(page.getByTestId('generated-file-artifact-chip')).toContainText('Generated file');
+  await expect(page.getByRole('button', { name: 'Preview services-agreement.docx' })).toBeVisible();
+  await page.getByRole('button', { name: 'Save services-agreement.docx to Work' }).click();
+
+  await expect(page).toHaveURL(/\/v2\/work\?item=work-/);
+  await expect(page.getByTestId('saved-work-file-artifact')).toContainText('DOCX file artifact');
+  await expect(page.getByTestId('saved-work-file-artifact')).toContainText(
+    'services-agreement.docx'
+  );
+  await expect(page.getByRole('button', { name: 'Save original' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Open thread' })).toHaveAttribute(
+    'href',
+    '/v2/chat/thread-generated-file'
   );
 });
 
@@ -107,9 +133,48 @@ async function installWorkProductMocks(page: Page) {
             thread_id: 'thread-services',
             title: 'Services thread',
             updated_at: '2026-06-13T15:00:00.000Z'
+          },
+          {
+            id: 'thread-generated-file',
+            thread_id: 'thread-generated-file',
+            title: 'Generated DOCX thread',
+            updated_at: '2026-06-13T16:00:00.000Z'
           }
         ],
         next_cursor: null
+      });
+    }
+    if (path === '/api/webchat/v2/threads/thread-generated-file/timeline') {
+      return json(route, {
+        messages: [
+          {
+            kind: 'assistant',
+            message_id: 'msg-generated-docx',
+            content: 'Draft complete. Review the generated Word file.',
+            sequence: 1,
+            turn_run_id: 'run-generated-docx',
+            created_at: '2026-06-13T16:00:00.000Z',
+            artifacts: [
+              {
+                title: 'Services agreement',
+                filename: 'services-agreement.docx',
+                mime_type:
+                  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                data_base64: 'UEsDBGRvY3g=',
+                size: 8
+              }
+            ]
+          }
+        ],
+        summary_artifacts: [],
+        next_cursor: null
+      });
+    }
+    if (path === '/api/webchat/v2/threads/thread-generated-file/events') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream; charset=utf-8',
+        body: ': connected\n\n'
       });
     }
     if (path === '/auth/providers') {

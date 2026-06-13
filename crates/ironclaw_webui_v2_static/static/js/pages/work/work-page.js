@@ -13,6 +13,12 @@ import {
   downloadPdf
 } from '../chat/lib/work-product-export.js';
 import { readSavedWorkItems, workArtifactHref } from '../chat/lib/work-product-save.js';
+import {
+  buildGeneratedFileBlob,
+  generatedFileKindLabel,
+  textPreviewForGeneratedFileArtifact
+} from '../chat/lib/generated-file-artifacts.js';
+import { saveBlob } from '../../lib/save-file.js';
 
 function safeList(value) {
   return Array.isArray(value) ? value : [];
@@ -41,7 +47,11 @@ function fileStem(title) {
 }
 
 function firstReadyArtifact(item) {
-  return safeList(item?.artifacts).find((artifact) => artifact?.content) || null;
+  return (
+    safeList(item?.artifacts).find(
+      (artifact) => artifact?.content || artifact?.data_base64 || artifact?.filename
+    ) || null
+  );
 }
 
 function findArtifact(item, artifactId) {
@@ -80,9 +90,12 @@ function EmptyWorkState({ missing }) {
 
 function WorkExportActions({ item, artifact }) {
   const [busy, setBusy] = React.useState('');
-  const content = String(artifact?.content || '');
+  const content = artifactTextContent(artifact);
   const title = artifact?.title || item?.title || 'IronClaw work product';
   const stem = fileStem(title);
+  const originalBlob = buildGeneratedFileBlob(artifact);
+  const originalFilename =
+    artifact?.filename || `${stem}.${generatedFileKindLabel(artifact).toLowerCase()}`;
 
   const run = async (label, action) => {
     setBusy(label);
@@ -101,7 +114,18 @@ function WorkExportActions({ item, artifact }) {
 
   return html`
     <div className="flex flex-wrap gap-2">
-      <button
+      ${originalBlob &&
+      html`<button
+        type="button"
+        className=${actionClass}
+        disabled=${Boolean(busy)}
+        onClick=${() => run('Save original', () => saveBlob(originalBlob, originalFilename))}
+      >
+        <${Icon} name="download" className="h-4 w-4" />
+        ${busy === 'Save original' ? 'Saving...' : 'Save original'}
+      </button>`}
+      ${content &&
+      html`<button
         type="button"
         className=${actionClass}
         disabled=${Boolean(busy)}
@@ -109,12 +133,16 @@ function WorkExportActions({ item, artifact }) {
       >
         <${Icon} name="copy" className="h-4 w-4" />
         ${busy === 'Copy' ? 'Copying...' : 'Copy'}
-      </button>
+      </button>`}
       ${[
-        ['Markdown', 'download', () => downloadMarkdown(content, `${stem}.md`)],
-        ['DOCX', 'download', () => downloadDocx(content, `${stem}.docx`)],
-        ['PDF', 'download', () => downloadPdf(content, `${stem}.pdf`)],
-        ['HTML', 'download', () => downloadHtml(content, `${stem}.html`)],
+        ...(content
+          ? [
+              ['Markdown', 'download', () => downloadMarkdown(content, `${stem}.md`)],
+              ['DOCX', 'download', () => downloadDocx(content, `${stem}.docx`)],
+              ['PDF', 'download', () => downloadPdf(content, `${stem}.pdf`)],
+              ['HTML', 'download', () => downloadHtml(content, `${stem}.html`)]
+            ]
+          : []),
         [
           'JSON',
           'download',
@@ -128,7 +156,10 @@ function WorkExportActions({ item, artifact }) {
                     kind: 'work_item',
                     item_id: item?.id,
                     artifact_id: artifact?.id,
-                    title
+                    title,
+                    filename: artifact?.filename || null,
+                    mime_type: artifact?.mime_type || null,
+                    size: artifact?.size || null
                   }
                 ]
               },
@@ -153,6 +184,46 @@ function WorkExportActions({ item, artifact }) {
   `;
 }
 
+function artifactTextContent(artifact) {
+  return String(artifact?.content || textPreviewForGeneratedFileArtifact(artifact) || '');
+}
+
+function SavedFileArtifactPreview({ artifact }) {
+  const kind = generatedFileKindLabel(artifact);
+  return html`
+    <div
+      className="rounded-[12px] border border-dashed border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-6 text-sm"
+      data-testid="saved-work-file-artifact"
+    >
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <span
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+        >
+          <${Icon} name="file" className="h-5 w-5" />
+        </span>
+        <span className="min-w-[12rem] flex-1">
+          <span
+            className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-gold-text)]"
+          >
+            ${kind} file artifact
+          </span>
+          <span className="block truncate text-base font-semibold text-[var(--v2-text-strong)]">
+            ${artifact?.filename || artifact?.title || 'Generated file'}
+          </span>
+          <span className="block truncate text-xs text-[var(--v2-text-muted)]">
+            ${artifact?.mime_type || 'application/octet-stream'}
+            ${artifact?.size_label ? ` · ${artifact.size_label}` : ''}
+          </span>
+        </span>
+      </div>
+      <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--v2-text-muted)]">
+        Preview is not available for this binary file in the local reader. The original bytes are
+        retained and can be saved from the controls above.
+      </p>
+    </div>
+  `;
+}
+
 export function WorkPage() {
   const [params] = useSearchParams();
   const [items, setItems] = React.useState(() => readSavedWorkItems());
@@ -172,7 +243,7 @@ export function WorkPage() {
     return html`<${EmptyWorkState} missing=${missing || Boolean(requestedArtifactId)} />`;
   }
 
-  const content = String(selectedArtifact.content || '');
+  const content = artifactTextContent(selectedArtifact);
   const linkedThread = safeList(selectedItem.links).find((link) => link?.kind === 'thread');
   const provenance = safeList(selectedArtifact.provenance).join(', ') || 'chat';
 
@@ -235,7 +306,9 @@ export function WorkPage() {
                   <span
                     className="rounded-full border border-[color-mix(in_srgb,var(--v2-success-text)_34%,var(--v2-panel-border))] bg-[var(--v2-success-soft)] px-2 py-1 text-[var(--v2-success-text)]"
                   >
-                    Ready artifact
+                    ${selectedArtifact.type === 'file' || selectedArtifact.data_base64
+                      ? `${generatedFileKindLabel(selectedArtifact)} artifact`
+                      : 'Ready artifact'}
                   </span>
                   <span>${readableDate(selectedItem.updated_at || selectedItem.created_at)}</span>
                   <span>Source: ${provenance}</span>
@@ -271,10 +344,12 @@ export function WorkPage() {
                 className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas)] p-4 sm:p-6"
                 data-testid="saved-work-artifact"
               >
-                <${MarkdownRenderer}
-                  content=${content}
-                  className="max-w-none text-[14px] leading-7 text-[var(--v2-text)]"
-                />
+                ${content
+                  ? html`<${MarkdownRenderer}
+                      content=${content}
+                      className="max-w-none text-[14px] leading-7 text-[var(--v2-text)]"
+                    />`
+                  : html`<${SavedFileArtifactPreview} artifact=${selectedArtifact} />`}
               </div>
             </div>
           </article>

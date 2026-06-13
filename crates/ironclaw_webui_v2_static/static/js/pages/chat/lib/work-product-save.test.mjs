@@ -5,6 +5,7 @@ import {
   currentThreadId,
   openSavedWorkProduct,
   saveAssistantResponseToWork,
+  saveGeneratedFileArtifactToWork,
   workArtifactHref
 } from './work-product-save.js';
 
@@ -114,6 +115,36 @@ test('saveAssistantResponseToWork does not create empty artifacts', () => {
   assert.equal(storage.getItem('ironclaw-work-items'), null);
 });
 
+test('saveGeneratedFileArtifactToWork persists generated file bytes as a reloadable Work item', () => {
+  const storage = memoryStorage();
+  const saved = saveGeneratedFileArtifactToWork({
+    artifact: {
+      title: 'Services agreement',
+      filename: 'services-agreement.docx',
+      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      data_base64: Buffer.from('PK docx payload', 'utf8').toString('base64'),
+      size: 15
+    },
+    threadId: 'thread-docx',
+    threadLabel: 'Services draft',
+    storage,
+    now: '2026-06-13T16:00:00.000Z',
+    idFactory: sequenceIds()
+  });
+
+  assert.equal(saved.href, '/work?item=work-1&artifact=artifact-2');
+  assert.equal(saved.artifact.type, 'file');
+  assert.equal(saved.artifact.filename, 'services-agreement.docx');
+  assert.equal(saved.artifact.content_format, 'base64');
+  assert.equal(saved.artifact.data_base64, Buffer.from('PK docx payload', 'utf8').toString('base64'));
+
+  const workItems = JSON.parse(storage.getItem('ironclaw-work-items'));
+  assert.equal(workItems[0].objective, 'DOCX generated in chat.');
+  assert.deepEqual(workItems[0].links, [
+    { kind: 'thread', ref: 'thread-docx', label: 'Services draft' }
+  ]);
+});
+
 test('currentThreadId reads static chat paths and query links', () => {
   assert.equal(currentThreadId({ href: 'http://app.local/chat/thread-123' }), 'thread-123');
   assert.equal(currentThreadId({ href: 'http://app.local/v2/chat/thread-456' }), 'thread-456');
@@ -132,4 +163,14 @@ test('openSavedWorkProduct navigates to the saved artifact URL', () => {
     true
   );
   assert.deepEqual(calls, ['/work?item=work%2Fwith+spaces&artifact=artifact%231']);
+});
+
+test('workArtifactHref preserves the hosted /v2 static app prefix', () => {
+  const previousWindow = globalThis.window;
+  globalThis.window = { location: { pathname: '/v2/chat/thread-1' } };
+  try {
+    assert.equal(workArtifactHref('work-1', 'artifact-2'), '/v2/work?item=work-1&artifact=artifact-2');
+  } finally {
+    globalThis.window = previousWindow;
+  }
 });

@@ -57,9 +57,10 @@ static smoke, release build, packaged WebView gauntlet — all green.
    carry real heading styles, table XML, editable bullet/ordered lists, and external hyperlink
    relationships; whole-thread export now supports MD/JSON/PDF/DOCX. DOCX/PDF do not yet embed
    the rendered diagram image from the same render path; competitor chat patterns (completed-action
-   receipt cards, generated-document artifact headers, quiet tool rows, bubble-less assistant prose,
-   image thumbnails, and the single composer "+" sheet) are now explicit in chat. Remaining competitor
-   chat work is native binary artifact chips and richer generated-file preview/save.
+   receipt cards, generated-document artifact headers, generated-file artifact chips with original-byte
+   save, quiet tool rows, bubble-less assistant prose, image thumbnails, and the single composer "+"
+   sheet) are now explicit in chat. Remaining competitor chat work is live NEAR/Reborn proof that
+   generated file bytes arrive from real assistant runs, not static UI plumbing.
 
 **Standing decisions (this session):** Desk-lite front door · mine-then-remove the legacy
 `src/` · ship-ready then leap.
@@ -175,7 +176,7 @@ to a prepared brief, agent work is legible, and every surface is calm and on-bra
 
 **Track B — chat craft (parallel lanes, the 14 competitor patterns):**
 `CHAT-1` receipt cards for completed tool results (shipped) · `CHAT-2` artifact chips
-(incl. agent-generated work products and saved `/work` reader) ·
+(incl. agent-generated markdown, generated binary-file chips, original-byte save, and saved `/work` reader) ·
 `CHAT-3` one-line tool rows · `CHAT-4` bubble-less assistant · `CHAT-5` "+"-sheet composer
 (kill chip soup) · `CHAT-6` attachment thumbnails above user bubbles (shipped for available
 image payloads; metadata-only reload images stay as chips) · `CHAT-7` grouped model picker

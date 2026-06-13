@@ -9,6 +9,13 @@
  *   actor_id?: string | null;
  *   received_at?: string | null;
  *   created_at?: string | null;
+ *   generatedFiles?: unknown[];
+ *   generated_files?: unknown[];
+ *   outputFiles?: unknown[];
+ *   output_files?: unknown[];
+ *   files?: unknown[];
+ *   artifacts?: unknown[];
+ *   attachments?: unknown[];
  * }} TimelineRecord
  *
  * @typedef {{
@@ -91,6 +98,7 @@
 /**
  * @param {TimelineRecord[]} records
  * @param {PendingMessage[]} pendingMessages
+ * @returns {any[]}
  */
 export function messagesFromTimeline(records, pendingMessages = []) {
   const seen = new Set();
@@ -134,7 +142,9 @@ export function messagesFromTimeline(records, pendingMessages = []) {
       role === 'user'
         ? parseDurableAttachmentBlock(record.content || '', { allowLegacy: true })
         : { content: String(record.content || ''), attachments: [] };
-    messages.push({
+    const generatedFiles = role === 'assistant' ? generatedFileCandidatesFromRecord(record) : [];
+    /** @type {any} */
+    const message = {
       id,
       role,
       content: rendered.content,
@@ -145,7 +155,9 @@ export function messagesFromTimeline(records, pendingMessages = []) {
       isFinalReply: isFinalAssistantRecord(record),
       sequence: record.sequence,
       turnRunId: record.turn_run_id || null
-    });
+    };
+    if (generatedFiles.length > 0) message.generatedFiles = generatedFiles;
+    messages.push(message);
   }
 
   // Pending rows survive until the timeline confirms them. The id-based
@@ -172,6 +184,30 @@ export function messagesFromTimeline(records, pendingMessages = []) {
   }
 
   return messages;
+}
+
+/**
+ * @param {TimelineRecord} record
+ * @returns {unknown[]}
+ */
+function generatedFileCandidatesFromRecord(record = {}) {
+  return [
+    ...arrayValue(record.generatedFiles),
+    ...arrayValue(record.generated_files),
+    ...arrayValue(record.outputFiles),
+    ...arrayValue(record.output_files),
+    ...arrayValue(record.files),
+    ...arrayValue(record.artifacts),
+    ...arrayValue(record.attachments)
+  ];
+}
+
+/**
+ * @param {unknown} value
+ * @returns {unknown[]}
+ */
+function arrayValue(value) {
+  return Array.isArray(value) ? value : [];
 }
 
 /**

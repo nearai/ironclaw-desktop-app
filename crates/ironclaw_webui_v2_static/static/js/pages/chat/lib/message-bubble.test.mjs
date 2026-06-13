@@ -18,7 +18,7 @@ function messageBubbleSourceForTest() {
     }
     lines.push(line.replace('export function MessageBubble', 'function MessageBubble'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, GeneratedWorkProductHeader, AssistantExportActions, exportThread, messageActionRowClass, messageContentForDisplay, assistantResponseLooksLikeWorkProduct, messageOuterClass, messageShellClass, messageBodyClass, attachmentEvidenceLabel, shouldCompactAttachmentStack, visibleAttachmentsForMessage, attachmentStackSummary, attachmentStackClass, imageAttachmentDataUrl, imagePreviewsForMessage, fileAttachmentsForMessage, imageThumbnailStripClass };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, GeneratedWorkProductHeader, GeneratedFileArtifactStack, GeneratedFileArtifactCard, AssistantExportActions, exportThread, messageActionRowClass, messageContentForDisplay, assistantResponseLooksLikeWorkProduct, messageOuterClass, messageShellClass, messageBodyClass, attachmentEvidenceLabel, shouldCompactAttachmentStack, visibleAttachmentsForMessage, attachmentStackSummary, attachmentStackClass, imageAttachmentDataUrl, imagePreviewsForMessage, fileAttachmentsForMessage, imageThumbnailStripClass };`;
 }
 
 function findComponentByName(node, name) {
@@ -73,9 +73,25 @@ function createMessageBubbleContext(overrides = {}) {
     downloadPdf: () => {},
     copyWorkProduct: () => Promise.resolve(),
     saveAssistantResponseToWork: () => ({ href: '/work?item=work-1&artifact=artifact-1' }),
+    saveGeneratedFileArtifactToWork: () => ({ href: '/work?item=work-1&artifact=artifact-file-1' }),
     openSavedWorkProduct: () => true,
     buildThreadJsonExport: () => '{}',
     buildThreadMarkdownExport: () => '# export',
+    buildGeneratedFileBlob: (artifact) =>
+      new Blob([artifact.data_base64 || artifact.content || 'file'], {
+        type: artifact.mime_type || 'application/octet-stream'
+      }),
+    generatedFileArtifactsForMessage: (message) =>
+      message.role === 'assistant' ? message.generatedFiles || message.generated_files || [] : [],
+    generatedFileKindLabel: (artifact) =>
+      String(artifact.filename || '').split('.').pop()?.toUpperCase() || 'FILE',
+    generatedFilePreviewAttachment: (artifact) => ({
+      filename: artifact.filename,
+      mime_type: artifact.mime_type,
+      sourceFile: new Blob([artifact.data_base64 || 'file'], {
+        type: artifact.mime_type || 'application/octet-stream'
+      })
+    }),
     navigator: { clipboard: { writeText: () => Promise.resolve() } },
     setTimeout: () => {},
     ...overrides
@@ -192,6 +208,71 @@ test('assistant work-product panel exposes an explicit generated artifact header
   assert.match(headerFlat, /popoverSide="bottom"/);
   assert.doesNotMatch(flat, /Save assistant response to Work/);
   assert.doesNotMatch(flat, /Export assistant response/);
+});
+
+test('assistant generated file payload renders as a file artifact chip', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const tree = context.globalThis.__testExports.MessageBubble({
+    message: {
+      id: 'a-file',
+      role: 'assistant',
+      content: 'Draft complete. Review the attached Word file.',
+      generatedFiles: [
+        {
+          filename: 'services-agreement.docx',
+          mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          data_base64: 'UEsDBGRvY3g=',
+          size_label: '11 bytes'
+        }
+      ]
+    },
+    messages: []
+  });
+  const flat = flatStrings(tree);
+  const stack = findComponentByName(tree, 'GeneratedFileArtifactStack');
+  const stackProps = componentPropsByName(stack, 'GeneratedFileArtifactStack');
+  const stackTree = context.globalThis.__testExports.GeneratedFileArtifactStack(stackProps);
+  const stackFlat = flatStrings(stackTree);
+  const cardTree = context.globalThis.__testExports.GeneratedFileArtifactCard({
+    artifact: stackProps.artifacts[0],
+    onPreview: stackProps.onPreview
+  });
+  const cardFlat = flatStrings(cardTree);
+
+  assert.match(flat, /assistant-work-product/);
+  assert.ok(stack, 'generated file stack is mounted inside the work-product panel');
+  assert.match(stackFlat, /generated-file-artifacts/);
+  assert.equal(stackProps.artifacts.length, 1);
+  assert.match(cardFlat, /generated-file-artifact-chip/);
+  assert.match(cardFlat, /Generated file/);
+  assert.match(cardFlat, /DOCX/);
+  assert.match(cardFlat, /services-agreement\.docx/);
+  assert.match(cardFlat, /Preview services-agreement\.docx/);
+  assert.match(cardFlat, /Save services-agreement\.docx to Work/);
+});
+
+test('generated file artifact card exposes preview, save, and work actions', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const tree = context.globalThis.__testExports.GeneratedFileArtifactCard({
+    artifact: {
+      filename: 'forecast.xlsx',
+      mime_type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      data_base64: 'UEsDBHhs',
+      size_label: '8 bytes'
+    },
+    onPreview: () => {}
+  });
+  const flat = flatStrings(tree);
+
+  assert.match(flat, /Generated file/);
+  assert.match(flat, /XLSX/);
+  assert.match(flat, /forecast\.xlsx/);
+  assert.match(flat, /Preview/);
+  assert.match(flat, /Save to Work/);
 });
 
 test('assistant export actions collapse formats behind one export control', () => {

@@ -16,8 +16,18 @@ import {
   downloadMarkdown,
   downloadPdf
 } from '../lib/work-product-export.js';
-import { openSavedWorkProduct, saveAssistantResponseToWork } from '../lib/work-product-save.js';
+import {
+  openSavedWorkProduct,
+  saveAssistantResponseToWork,
+  saveGeneratedFileArtifactToWork
+} from '../lib/work-product-save.js';
 import { buildThreadJsonExport, buildThreadMarkdownExport } from '../lib/thread-export.js';
+import {
+  buildGeneratedFileBlob,
+  generatedFileArtifactsForMessage,
+  generatedFileKindLabel,
+  generatedFilePreviewAttachment
+} from '../lib/generated-file-artifacts.js';
 
 /* Bicolor attribution (DESIGN.md): signal blue is the user's hand and gold is
    reserved for agent provenance, approvals, receipts, and generated work.
@@ -239,6 +249,7 @@ export function MessageBubble({ message, messages = [], onRetry }) {
   // Hook order: declared with the other hooks, before every role-based
   // early return below (see the crash note on `copy`).
   const [attachmentPreview, setAttachmentPreview] = React.useState(null);
+  const [generatedFilePreview, setGeneratedFilePreview] = React.useState(null);
   // All hooks must run before the role-based early returns below.
   // A message can change role in place across renders (e.g. an
   // optimistic bubble upgrading, or a streaming role shift), so
@@ -303,10 +314,17 @@ export function MessageBubble({ message, messages = [], onRetry }) {
   const timeLabel = formatTimestamp(timestamp);
   const showActions = (role === 'assistant' || role === 'user') && !isOptimistic;
   const displayContent = messageContentForDisplay({ role, content, attachments });
-  const isAssistantWorkProduct = assistantResponseLooksLikeWorkProduct(role, displayContent);
+  const generatedFileArtifacts = generatedFileArtifactsForMessage(message);
+  const hasGeneratedFiles = generatedFileArtifacts.length > 0;
+  const isAssistantMarkdownWorkProduct = assistantResponseLooksLikeWorkProduct(
+    role,
+    displayContent
+  );
+  const isAssistantWorkProduct = isAssistantMarkdownWorkProduct || hasGeneratedFiles;
   const showInlineActions = showActions && !isAssistantWorkProduct;
   const imagePreviews = imagePreviewsForMessage({ images, attachments });
-  const fileAttachments = fileAttachmentsForMessage(attachments);
+  const fileAttachments =
+    hasGeneratedFiles && role === 'assistant' ? [] : fileAttachmentsForMessage(attachments);
   const compactAttachments = shouldCompactAttachmentStack(role, fileAttachments);
   const visibleAttachments = visibleAttachmentsForMessage(
     role,
@@ -338,13 +356,19 @@ export function MessageBubble({ message, messages = [], onRetry }) {
           className=${messageBodyClass(role, isOptimistic, isAssistantWorkProduct)}
           data-testid=${isAssistantWorkProduct ? 'assistant-work-product' : undefined}
         >
-          ${isAssistantWorkProduct &&
+          ${isAssistantMarkdownWorkProduct &&
           html`<${GeneratedWorkProductHeader}
             title=${titleFromMarkdown(displayContent) || 'Generated document'}
             content=${content || ''}
             messages=${messages}
             copied=${copied}
             onCopy=${copy}
+          />`}
+          ${hasGeneratedFiles &&
+          html`<${GeneratedFileArtifactStack}
+            artifacts=${generatedFileArtifacts}
+            onPreview=${(artifact) =>
+              setGeneratedFilePreview(generatedFilePreviewAttachment(artifact))}
           />`}
           ${role === 'assistant' || role === 'system' || role === 'error'
             ? html`<${MarkdownRenderer} content=${displayContent} />`
@@ -436,6 +460,12 @@ export function MessageBubble({ message, messages = [], onRetry }) {
               attachment=${attachmentPreview}
             />
           `}
+          ${hasGeneratedFiles &&
+          html`<${AttachmentPreviewModal}
+            open=${Boolean(generatedFilePreview)}
+            onClose=${() => setGeneratedFilePreview(null)}
+            attachment=${generatedFilePreview}
+          />`}
         </div>
 
         ${(showInlineActions || status === 'error' || timeLabel) &&
@@ -518,6 +548,114 @@ function GeneratedWorkProductHeader({ title, content, messages, copied, onCopy }
           subjectLabel="generated document"
           popoverSide="bottom"
         />
+      </span>
+    </div>
+  `;
+}
+
+function GeneratedFileArtifactStack({ artifacts, onPreview }) {
+  if (!artifacts?.length) return null;
+  return html`
+    <div className="mb-3 grid gap-2" data-testid="generated-file-artifacts">
+      ${artifacts.map(
+        (artifact) =>
+          html`<${GeneratedFileArtifactCard}
+            key=${artifact.id || artifact.filename}
+            artifact=${artifact}
+            onPreview=${onPreview}
+          />`
+      )}
+    </div>
+  `;
+}
+
+function GeneratedFileArtifactCard({ artifact, onPreview }) {
+  const [busy, setBusy] = React.useState('');
+  const kind = generatedFileKindLabel(artifact);
+  const filename = artifact.filename || artifact.title || 'generated-output';
+  const saveOriginal = async () => {
+    setBusy('save');
+    try {
+      const blob = buildGeneratedFileBlob(artifact);
+      if (!blob) {
+        toast('File bytes unavailable', { tone: 'error' });
+        return;
+      }
+      const saved = await saveBlob(blob, filename);
+      if (saved) toast(`Saved ${String(saved).split('/').pop()}`, { tone: 'success' });
+    } catch {
+      toast('Could not save file', { tone: 'error' });
+    } finally {
+      setBusy('');
+    }
+  };
+  const saveToWork = () => {
+    try {
+      const saved = saveGeneratedFileArtifactToWork({ artifact });
+      if (!saved) {
+        toast('File bytes unavailable', { tone: 'error' });
+        return;
+      }
+      toast('Saved to Work', { tone: 'success' });
+      openSavedWorkProduct(saved);
+    } catch {
+      toast('Could not save work product', { tone: 'error' });
+    }
+  };
+
+  return html`
+    <div
+      className="flex min-w-0 flex-wrap items-center gap-3 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-3 py-3 text-sm"
+      data-testid="generated-file-artifact-chip"
+    >
+      <span
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-[color-mix(in_srgb,var(--v2-gold)_18%,transparent)] text-[var(--v2-gold-text)]"
+        aria-hidden="true"
+      >
+        <${Icon} name="file" className="h-4 w-4" />
+      </span>
+      <span className="min-w-[12rem] flex-1">
+        <span
+          className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-gold-text)]"
+        >
+          Generated file · ${kind}
+        </span>
+        <span className="block truncate text-sm font-semibold text-[var(--v2-text-strong)]">
+          ${filename}
+        </span>
+        <span className="block truncate text-xs text-[var(--v2-text-muted)]">
+          ${artifact.mime_type || 'application/octet-stream'}
+          ${artifact.size_label ? ` · ${artifact.size_label}` : ''}
+        </span>
+      </span>
+      <span className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick=${() => onPreview?.(artifact)}
+          className=${actionClass()}
+          aria-label=${`Preview ${filename}`}
+        >
+          <${Icon} name="file" className="h-3.5 w-3.5" />
+          Preview
+        </button>
+        <button
+          type="button"
+          onClick=${saveOriginal}
+          disabled=${Boolean(busy)}
+          className=${actionClass()}
+          aria-label=${`Save ${filename}`}
+        >
+          <${Icon} name="download" className="h-3.5 w-3.5" />
+          ${busy === 'save' ? 'Saving...' : 'Save'}
+        </button>
+        <button
+          type="button"
+          onClick=${saveToWork}
+          className=${actionClass('primary')}
+          aria-label=${`Save ${filename} to Work`}
+        >
+          Save to Work
+        </button>
       </span>
     </div>
   `;

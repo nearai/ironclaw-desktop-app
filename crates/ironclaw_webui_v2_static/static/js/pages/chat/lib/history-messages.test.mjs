@@ -59,6 +59,56 @@ test('messagesFromTimeline: confirmed user records replace matching pending by t
   assert.equal(messages[0].content, 'check my calendar');
 });
 
+test('messagesFromTimeline: assistant file artifacts are preserved for generated work chips', () => {
+  const messages = messagesFromTimeline([
+    {
+      message_id: 'message-docx',
+      kind: 'assistant',
+      content: 'Draft complete.',
+      sequence: 1,
+      artifacts: [
+        {
+          filename: 'services-agreement.docx',
+          mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          data_base64: 'UEsDBGRvY3g='
+        }
+      ]
+    }
+  ]);
+
+  assert.equal(messages.length, 1);
+  assert.equal(messages[0].role, 'assistant');
+  assert.equal(messages[0].content, 'Draft complete.');
+  assert.deepEqual(messages[0].generatedFiles, [
+    {
+      filename: 'services-agreement.docx',
+      mime_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      data_base64: 'UEsDBGRvY3g='
+    }
+  ]);
+});
+
+test('messagesFromTimeline: user attachments do not become generated files', () => {
+  const messages = messagesFromTimeline([
+    {
+      message_id: 'message-user',
+      kind: 'user',
+      content: 'Use this template.',
+      sequence: 1,
+      attachments: [
+        {
+          filename: 'template.pdf',
+          mime_type: 'application/pdf',
+          data_base64: 'JVBERi0xLjQK'
+        }
+      ]
+    }
+  ]);
+
+  assert.equal(messages[0].role, 'user');
+  assert.equal(messages[0].generatedFiles, undefined);
+});
+
 test('messagesFromTimeline: mismatched pending timeline id is preserved', () => {
   const messages = messagesFromTimeline(
     [
