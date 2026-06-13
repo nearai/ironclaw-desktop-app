@@ -80,6 +80,14 @@ function ocrPath(file) {
 let ocrWorkerPromise = null;
 let ocrAssetBasePromise = null;
 
+export function desktopOcrAssetBase(endpoint) {
+  if (endpoint && typeof endpoint === 'object' && endpoint.port && endpoint.token) {
+    return `http://127.0.0.1:${endpoint.port}/${encodeURIComponent(endpoint.token)}`;
+  }
+  if (endpoint) return `http://127.0.0.1:${endpoint}`;
+  return '';
+}
+
 // Where the OCR WORKER loads its assets from. In the packaged desktop the
 // worker cannot fetch tauri:// URLs (WKWebView custom-scheme handlers do not
 // apply inside Web Workers), so the Rust side serves the asset pack over
@@ -89,8 +97,9 @@ function ocrAssetBase() {
     ocrAssetBasePromise = (async () => {
       if (isDesktopRuntime()) {
         try {
-          const port = await tauriInvoke('ocr_assets_port');
-          if (port) return `http://127.0.0.1:${port}`;
+          const endpoint = await tauriInvoke('ocr_assets_port');
+          const base = desktopOcrAssetBase(endpoint);
+          if (base) return base;
         } catch (_) {
           // Fall through to static paths (dev server).
         }

@@ -802,11 +802,12 @@ async fn install_ironhub_skill_local(
 
 // ---- OCR asset loopback server --------------------------------------------
 
-/// Port of the loopback server that feeds tesseract's worker its assets.
+/// Endpoint for the loopback server that feeds tesseract's worker its assets.
 /// WKWebView workers cannot fetch tauri:// URLs, so OCR assets ride plain
-/// localhost HTTP. Started lazily on first request.
+/// localhost HTTP behind a per-boot path token. Started lazily on first
+/// request.
 #[tauri::command]
-async fn ocr_assets_port(app: AppHandle) -> Result<u16, String> {
+async fn ocr_assets_port(app: AppHandle) -> Result<ocr_assets::OcrAssetEndpoint, String> {
     let mut roots: Vec<std::path::PathBuf> = Vec::new();
     if let Ok(resources) = app.path().resource_dir() {
         // bundle.resources flattens `../crates/.../static/ocr/*` under

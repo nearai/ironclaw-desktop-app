@@ -140,8 +140,11 @@ gates**. This is the foundation everything else builds on.
   save-dialog traversal guard.
 
 **Track C — security hardening (parallel, file-disjoint):**
-- `SEC-2` (gateway_http_fetch: redirect-none + header strip + body cap), `SEC-3` (token-lock
-  the OCR loopback server), `SEC-4` (keychain threat-model; provider keys keychain-only),
+- `SEC-2` DONE (gateway_http_fetch: redirect-none + header strip + body cap; verified by
+  `cargo test --manifest-path src-tauri/Cargo.toml --lib gateway_ssrf_tests --locked`), `SEC-3`
+  DONE (token-lock the OCR loopback server; verified by `cargo test --manifest-path
+  src-tauri/Cargo.toml --lib ocr_assets --locked` plus `pdf-text-extract.test.mjs`), `SEC-4`
+  (keychain threat-model; provider keys keychain-only),
   `SEC-5` (kill the bare `http://*` img-src).
 
 **Track D — universal approval enforcement (the safety ship-gate):**
