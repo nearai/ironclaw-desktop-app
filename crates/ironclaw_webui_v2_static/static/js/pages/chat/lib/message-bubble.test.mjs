@@ -18,7 +18,7 @@ function messageBubbleSourceForTest() {
     }
     lines.push(line.replace('export function MessageBubble', 'function MessageBubble'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, AssistantExportActions, messageActionRowClass, messageContentForDisplay, assistantResponseLooksLikeWorkProduct, messageOuterClass, messageShellClass, messageBodyClass, attachmentEvidenceLabel, shouldCompactAttachmentStack, visibleAttachmentsForMessage, attachmentStackSummary, attachmentStackClass };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { MessageBubble, AssistantExportActions, exportThread, messageActionRowClass, messageContentForDisplay, assistantResponseLooksLikeWorkProduct, messageOuterClass, messageShellClass, messageBodyClass, attachmentEvidenceLabel, shouldCompactAttachmentStack, visibleAttachmentsForMessage, attachmentStackSummary, attachmentStackClass };`;
 }
 
 function findComponentByName(node, name) {
@@ -58,8 +58,14 @@ function createMessageBubbleContext(overrides = {}) {
     AttachmentPreviewModal() {},
     Icon() {},
     Popover() {},
+    Blob,
     toast: () => {},
     saveBlob: () => {},
+    buildDocxBlob: (content) =>
+      new Blob([content], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      }),
+    buildPdfBlob: (content) => new Blob([content], { type: 'application/pdf' }),
     downloadDocx: () => {},
     downloadHtml: () => {},
     downloadJson: () => {},
@@ -151,6 +157,45 @@ test('assistant export actions collapse formats behind one export control', () =
   assert.equal(props.open, false);
   assert.match(flatStrings(props.trigger), /Export/);
   assert.match(flatStrings(tree), /Save to Work/);
+  assert.match(flatStrings(tree), /Thread DOCX/);
+  assert.match(flatStrings(tree), /Thread PDF/);
+});
+
+test('whole-thread exports support PDF and DOCX artifacts', () => {
+  const saved = [];
+  const context = createMessageBubbleContext({
+    document: { title: 'Thread Artifact Test' },
+    saveBlob: (blob, filename) => {
+      saved.push({ blob, filename });
+      return `/tmp/${filename}`;
+    },
+    buildThreadMarkdownExport: (messages, options) =>
+      [`# ${options.title}`, '', ...messages.map((message) => message.content)].join('\n'),
+    buildDocxBlob: (content) =>
+      new Blob([`docx:${content}`], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      }),
+    buildPdfBlob: (content) => new Blob([`pdf:${content}`], { type: 'application/pdf' })
+  });
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const messages = [{ role: 'assistant', content: 'Generated agreement ready.' }];
+
+  assert.equal(
+    context.globalThis.__testExports.exportThread('docx', messages),
+    '/tmp/ironclaw-chat-thread.docx'
+  );
+  assert.equal(
+    context.globalThis.__testExports.exportThread('pdf', messages),
+    '/tmp/ironclaw-chat-thread.pdf'
+  );
+  assert.equal(saved[0].filename, 'ironclaw-chat-thread.docx');
+  assert.equal(
+    saved[0].blob.type,
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  );
+  assert.equal(saved[1].filename, 'ironclaw-chat-thread.pdf');
+  assert.equal(saved[1].blob.type, 'application/pdf');
 });
 
 test('attachment-only user turns still render visible message content', () => {

@@ -45,7 +45,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Status: passed.
   - Scans 190 shipped static JS files and fails if normal desktop copy leaks OpenRouter, Anthropic, Claude, ChatGPT, Codex login, provider marketplace framing, `operator`, generic `console`, or `Gateway v2`/route wording.
 - Rendered static smoke: `npm run smoke:webui-static`
-- Static JS tests: `npm run test:static` -> 340 passed.
+- Static JS tests: `npm run test:static` -> 341 passed.
 - Full test suite: `npm run test` -> 161 files / 1294 tests passed.
 - Type/UI check: `npm run check` -> 0 errors / 0 warnings.
 - Packaged build: `npm run tauri -- build`
@@ -102,6 +102,9 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Status: passed, 4 tests.
   - Proves DOCX exports are parseable stored OOXML packages with real `word/numbering.xml`, heading styles, editable bullet and ordered list numbering, table XML, and external hyperlink relationships instead of flattened markdown text.
   - Keeps Mermaid source preservation and byte-accurate PDF xref/startxref coverage green.
+- Static whole-thread export gate: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/message-bubble.test.mjs`
+  - Status: passed, 9 tests.
+  - Proves the assistant export menu includes whole-conversation Thread DOCX and Thread PDF actions, and both route through the same tested whole-thread markdown plus DOCX/PDF artifact builders before native save.
 - Static connector lifecycle gate: `npx playwright test --config playwright.static.config.ts tests/static/connectors-static.spec.ts`
   - Status: passed, 3 rendered tests.
   - Clicks Gmail, Google Calendar, Notion, and Slack registry cards in the rendered app.
@@ -139,7 +142,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Google OAuth | RED | The UI is honest: Gmail/Calendar need hosted OAuth/client-id support and the live probe returns 503 honest blocked. Blocked setup links now stay inside `/v2` and land on the AI setup target. | Product cannot claim Google OAuth works out of the box until gateway/desktop ships hosted OAuth or a preconfigured desktop client flow. |
 | Notion OAuth | YELLOW | Notion is visible and setup-gated; live OAuth start returns 200. | Needs a rendered packaged connector flow that completes credential proof, not just OAuth start. |
 | Workspace deep link | YELLOW | Workspace is still backend-blocked, but it no longer invents a README file or reports successful saves from `{ success:false }`. | Keep hidden/deep-link-only until real v2 workspace endpoints exist. |
-| Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. Static rendered tests separately prove picker, paste, and drag/drop attachment ingress sends readable payloads to Reborn. DOCX exports now preserve headings, tables, editable lists, and clickable external links as OOXML structure. | Keep. Deep OCR remains opt-in in packaged smoke. |
+| Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. Static rendered tests separately prove picker, paste, and drag/drop attachment ingress sends readable payloads to Reborn. DOCX exports now preserve headings, tables, editable lists, and clickable external links as OOXML structure. Whole-thread export now offers MD/JSON/PDF/DOCX instead of stopping at markdown and JSON. | Keep. Deep OCR remains opt-in in packaged smoke. |
 | Generated markdown layout | GREEN | Wide generated tables and SVG/media are now bounded by markdown CSS. A source CSS contract plus rendered Playwright geometry test prove hostile tables scroll internally and 2400px SVGs cannot widen the chat canvas. | Keep. Next visualization push should finish export parity for tables, diagrams, and whole-thread artifacts. |
 | Generated diagrams | GREEN/YELLOW | Mermaid fences now render as first-class diagram cards in chat, stay off the cold-start path, require explicit user click, initialize with strict Mermaid security, sanitize returned SVG, and are covered by both source tests and a rendered static Playwright proof. Exports preserve labeled Mermaid source across MD/HTML/JSON/PDF/DOCX instead of dropping it into anonymous fences. DOCX structure fidelity improved for headings/lists/links/tables. | Keep. Full VIZ-3 is still YELLOW until DOCX/PDF/HTML can embed the rendered diagram image from the same render path, not only the source. |
 | Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |

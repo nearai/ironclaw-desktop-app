@@ -7,6 +7,8 @@ import { Popover } from '../../../design-system/popover.js';
 import { toast } from '../../../lib/toast.js';
 import { saveBlob } from '../../../lib/save-file.js';
 import {
+  buildDocxBlob,
+  buildPdfBlob,
   copyWorkProduct,
   downloadDocx,
   downloadHtml,
@@ -445,6 +447,18 @@ function AssistantExportActions({ content, messages }) {
       action: async () => exportThread('markdown', messages)
     },
     {
+      id: 'thread-docx',
+      label: 'Thread DOCX',
+      description: 'Whole conversation',
+      action: async () => exportThread('docx', messages)
+    },
+    {
+      id: 'thread-pdf',
+      label: 'Thread PDF',
+      description: 'Whole conversation',
+      action: async () => exportThread('pdf', messages)
+    },
+    {
       id: 'thread-json',
       label: 'Thread JSON',
       description: 'Whole conversation data',
@@ -564,6 +578,12 @@ function exportThread(format, messages = []) {
     return exportContent('ironclaw-chat-thread.json', 'application/json;charset=utf-8', content);
   }
   const markdown = buildThreadMarkdownExport(messages, { title });
+  if (format === 'docx') {
+    return saveBlob(buildDocxBlob(markdown), 'ironclaw-chat-thread.docx');
+  }
+  if (format === 'pdf') {
+    return saveBlob(buildPdfBlob(markdown), 'ironclaw-chat-thread.pdf');
+  }
   return exportContent('ironclaw-chat-thread.md', 'text/markdown;charset=utf-8', markdown);
 }
 
