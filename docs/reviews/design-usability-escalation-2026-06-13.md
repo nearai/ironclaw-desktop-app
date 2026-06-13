@@ -28,6 +28,11 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Console warnings/errors: none.
   - Banned visible-copy hits: none for OpenRouter, Anthropic, Claude, ChatGPT, Codex login, provider marketplace, `operator` copy, `without leaving v2`, or developer-console framing.
 - Static contract: `npm run verify:static-frontend`
+- Static bundle-size gate: `npm run check:static-bundle`
+  - Status: passed.
+  - Measures the shipped Tauri static WebUI, not the legacy Svelte build.
+  - Current gzipped tracked assets: cold start 395.4 KB / 450 KB; `main.bundle.js` 308.4 KB / 350 KB; boot vendor 74.3 KB / 85 KB; document/PDF lazy assets 516.3 KB / 600 KB; OCR lazy assets 2501.5 KB / 2800 KB; all tracked assets 3413.2 KB / 3900 KB.
+  - Largest tracked asset is OCR lazy glue (`ocr/tesseract-core-simd-lstm.wasm.js`) at 1427.3 KB / 1500 KB; the gate reports WARN but remains under budget.
 - Static token lint: `npm run lint:static-tokens`
   - Status: passed.
   - Scans 226 shipped static JS files and fails if raw red/yellow/amber/orange/green/lime status utilities return outside generated bundles/tests.
@@ -119,6 +124,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. Static rendered tests now separately prove picker, paste, and drag/drop attachment ingress sends readable payloads to Reborn. | Keep. Deep OCR remains opt-in in packaged smoke. |
 | Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |
 | Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks, chat typing no longer bounces, live/running dots use a reduced-motion-aware semantic class, and primary chat/Settings/Logs/deep-link/admin status states now use warning/danger/positive tokens instead of raw Tailwind colors. | Keep. Avoid returning to marketing-card layouts, raw status palettes, or perpetual skeleton motion. |
+| Static performance gate | GREEN | `npm run check:static-bundle` now measures the packaged static WebUI instead of the dead Svelte build and is part of `pre-push`. Cold start is 395.4 KB gzip; OCR lazy support is the closest budget pressure. | Keep. Next perf push should lazy-load `highlight.min.js` and split never-visited routes. |
 | Copy/product language | GREEN | Remaining visible `operator`, `without leaving v2`, and developer-console leaks in jobs/routines/channels/projects copy were removed. `npm run lint:static-copy` now blocks the normal setup/provider-brand leaks the user has repeatedly called out. | Keep Google Cloud Console allowed only as the proper external Google product name. |
 | Accessibility gate | GREEN | The shipped static WebUI now has a dedicated Playwright/axe project for 15 onboarding/chat/connection/settings/deep-link surfaces plus rendered keyboard/focus gates for composer, attachment upload, model selector, command palette, Connections, AI setup, streamed approval gates, attachment picker/paste/drop, and connector lifecycle clicks. These gates caught a Logs select-name violation, a `/v2` Browse-apps routing regression, and test-harness cleanup flake. Raw status color regressions are blocked by `npm run lint:static-tokens`; jargon/provider copy regressions are blocked by `npm run lint:static-copy` in pre-push and CI. | Keep expanding toward live connector-completion keyboard paths. |
 | Screenshot process | GREEN | README/design capture now regenerates `contact-sheet.png` from current screenshots and does not leak proxy 502 console errors. | Keep as a review precondition. |
