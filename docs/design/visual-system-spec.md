@@ -25,7 +25,7 @@ calm, dense, exact, and operational: prepared desk first, chat second.
 - Gold `#fbbf24`: the agent's hand. Use only for generated work, proposals,
   provenance, receipts, and approval context.
 - Success/warning/danger: semantic tokens only.
-- Dark operator mode is the default. Light mode is opt-in.
+- Dark desk mode is the default. Light mode is opt-in.
 - No warm beige, purple-blue gradient, decorative glow, or ornamental blobs.
 
 ## Accent Discipline
@@ -68,3 +68,13 @@ secondary, ghost, or a link.
 - Long workflow sludge in chat.
 - Unstructured JSON as final work product.
 - Status color used as decoration.
+
+## Lexicon
+
+| Say | Avoid | Why |
+| --- | --- | --- |
+| `you`, `your workspace`, `your attention` | `operator` | The product serves a person, not an operations console persona. |
+| `IronClaw Desktop`, `IronClaw` | `console`, `Gateway v2` | The app should feel like the product, not its transport or debug shell. |
+| `Connections`, `apps`, `knowledge apps` | `provider marketplace`, `MCP Servers` in normal UI | Users connect work tools; backend categories stay below the glass. |
+| `Scheduled work`, `routines`, `automations` | `execution loops` as default copy | Scheduled work should read as work management, not infrastructure. |
+| `NEAR AI Cloud` | ChatGPT/OpenRouter/Anthropic/Claude as normal setup choices | Normal model access routes through IronClaw infrastructure. |
