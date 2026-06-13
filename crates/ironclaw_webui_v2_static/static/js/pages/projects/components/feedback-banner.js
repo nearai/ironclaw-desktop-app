@@ -1,9 +1,11 @@
 import { html } from '../../../lib/html.js';
 
 const tone = {
-  success: 'border-mint/30 bg-mint/10 text-mint',
-  error: 'border-red-400/30 bg-red-500/10 text-red-200',
-  info: 'border-signal/30 bg-signal/10 text-signal'
+  success:
+    'border-[color-mix(in_srgb,var(--v2-positive-text)_36%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]',
+  error:
+    'border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]',
+  info: 'border-[color-mix(in_srgb,var(--v2-accent-text)_32%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
 };
 
 export function FeedbackBanner({ result, onDismiss }) {

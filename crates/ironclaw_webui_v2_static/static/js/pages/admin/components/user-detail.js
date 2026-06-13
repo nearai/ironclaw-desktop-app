@@ -56,7 +56,7 @@ export function UserDetail({ userId, onBack }) {
   if (userQuery.error) {
     return html`
       <${Panel} className="p-5 sm:p-6">
-        <p className="text-sm text-red-200">
+        <p className="text-sm text-[var(--v2-danger-text)]">
           ${t('error.loadFailed', {
             what: t('admin.users.user'),
             message: userQuery.error.message
@@ -121,7 +121,7 @@ export function UserDetail({ userId, onBack }) {
             >
             <button
               onClick=${() => setConfirmDelete(true)}
-              className="v2-button inline-flex h-10 items-center justify-center rounded-md border border-red-400/30 bg-red-500/10 px-4 text-sm font-semibold text-red-200 hover:bg-red-500/20"
+              className="v2-button inline-flex h-10 items-center justify-center rounded-md border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 text-sm font-semibold text-[var(--v2-danger-text)] hover:bg-[color-mix(in_srgb,var(--v2-danger-soft)_70%,var(--v2-danger-text))]"
             >
               ${t('admin.users.delete')}
             </button>
@@ -296,7 +296,7 @@ export function UserDetail({ userId, onBack }) {
               >
               <button
                 onClick=${handleDelete}
-                className="v2-button inline-flex h-10 items-center justify-center rounded-md bg-red-500/20 px-4 text-sm font-semibold text-red-200 hover:bg-red-500/30"
+                className="v2-button inline-flex h-10 items-center justify-center rounded-md bg-[var(--v2-danger-soft)] px-4 text-sm font-semibold text-[var(--v2-danger-text)] hover:bg-[color-mix(in_srgb,var(--v2-danger-soft)_70%,var(--v2-danger-text))]"
               >
                 ${t('admin.users.delete')}
               </button>
