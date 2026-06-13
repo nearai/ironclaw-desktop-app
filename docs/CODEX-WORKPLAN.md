@@ -61,7 +61,7 @@ a future routine/job/mission "Run" button dispatch off the gate path, and wire-v
 
 | id | task | effort | deps | owned lane | acceptance |
 |----|------|--------|------|-----------|-----------|
-| **APPR-1** | Carry full tool metadata + `allow_always` through gate normalization | S | — | `gates.js` (+test) | `gates.test.mjs` asserts `toolName/parameters/allowAlways` populated (today they're dropped → risk classifier runs on `undefined`) |
+| **APPR-1** | Carry full tool metadata + `allow_always` through gate normalization | S | — | `gates.js` (+test) | DONE for typed Reborn gate prompts: `gates.test.mjs` asserts flat tool metadata plus structured `approval_context` map into `toolName`, `description`, `parameters`, and `allowAlways`; sparse projection gates preserve `allow_always` but do not fabricate missing tool details. |
 | **APPR-2** | Propagate gate metadata through the projection `item.gate` path; fix the `requestId` footgun | M | APPR-1 | `useChatEvents.js` (+test) | resolve no longer relies on the accidental `pendingGate` read; metadata reaches the card |
 | **APPR-3** | Harden the risk taxonomy with the legacy approval action-kinds **before** deleting `src/` | S | — | `approval-risk.js` (+test) | send/trade/push/pr/export/delete/write kinds inform `classifyRisk` |
 | **APPR-4** | Wire-probe harness: mock sidecar emits gate/auth/resolve frames; assert UI gates→resolves→continues | L | APPR-1/2 | `scripts/smoke-gate-enforcement.mjs` | `node scripts/smoke-gate-enforcement.mjs` exits 0 (the design-synthesis "wire-verify enforcement" line) |

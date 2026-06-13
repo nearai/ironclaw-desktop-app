@@ -7,6 +7,12 @@ export function gateFromEvent(eventType, prompt) {
   if (!prompt) return null;
 
   if (eventType === 'gate') {
+    const context = approvalContext(prompt);
+    const contextParameters = approvalContextParameters(context);
+    const promptParameters =
+      prompt.parameters === undefined || prompt.parameters === null || prompt.parameters === ''
+        ? contextParameters
+        : prompt.parameters;
     return {
       kind: 'gate',
       requestId: prompt.request_id || prompt.gate_ref || null,
@@ -14,9 +20,10 @@ export function gateFromEvent(eventType, prompt) {
       gateRef: prompt.gate_ref,
       headline: prompt.headline,
       body: prompt.body,
-      toolName: prompt.tool_name || prompt.toolName || '',
-      description: prompt.description || prompt.body || '',
-      parameters: formatGateParameters(prompt.parameters),
+      toolName:
+        prompt.tool_name || prompt.toolName || context?.tool_name || context?.toolName || '',
+      description: prompt.description || context?.reason || prompt.body || '',
+      parameters: formatGateParameters(promptParameters),
       allowAlways: Boolean(prompt.allow_always ?? prompt.allowAlways)
     };
   }
@@ -74,4 +81,48 @@ export function formatGateParameters(parameters) {
   } catch {
     return String(parameters);
   }
+}
+
+function approvalContext(prompt) {
+  const context = prompt?.approval_context || prompt?.approvalContext;
+  if (!context || typeof context !== 'object' || Array.isArray(context)) return null;
+  return context;
+}
+
+function approvalContextParameters(context) {
+  if (!context) return null;
+  const parameters = {};
+  const action = objectValue(context.action);
+  const scope = objectValue(context.scope);
+  const destination = objectValue(context.destination);
+
+  if (action?.label) parameters.action = action.label;
+  if (action?.method) parameters.method = action.method;
+  if (scope?.label) parameters.scope = scope.label;
+  if (typeof scope?.reusable === 'boolean') parameters.reusable_scope = scope.reusable;
+  if (context.reason) parameters.reason = context.reason;
+  if (destination) {
+    parameters.destination = destination.label || destination.domain || destination.url || '';
+    if (destination.domain) parameters.destination_domain = destination.domain;
+    if (destination.url) parameters.destination_url = destination.url;
+  }
+
+  const details = detailsObject(context.details);
+  if (Object.keys(details).length > 0) parameters.details = details;
+
+  return Object.keys(parameters).length > 0 ? parameters : null;
+}
+
+function objectValue(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+}
+
+function detailsObject(details) {
+  const entries = {};
+  for (const detail of Array.isArray(details) ? details : []) {
+    const label = String(detail?.label || '').trim();
+    if (!label) continue;
+    entries[label] = detail?.value == null ? '' : String(detail.value);
+  }
+  return entries;
 }

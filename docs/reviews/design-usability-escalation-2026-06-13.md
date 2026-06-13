@@ -153,6 +153,10 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Verifies explicit chat setup prompts deep-link to `/v2/extensions/registry?setup=1&focus=notion` instead of submitting a dead model prompt.
   - Verifies a rendered Reborn SSE `projection_update` with a failed Notion run shows the real failure text plus the same setup recovery card, then opens the focused registry card.
   - Verifies blocked Google setup exits stay scoped to `/v2/settings/inference#google-oauth`; Slack reaches connected only after activation returns credential proof.
+- Static approval-gate context gate: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/gates.test.mjs crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/approval-card.test.mjs crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/useChatEvents.test.mjs`
+  - Status: passed, 18 focused tests.
+  - Typed Reborn approval gates now preserve structured `approval_context` into the approval card contract: `tool_name`, reason, action/method, scope, destination, and details become visible approval parameters instead of collapsing into a vague headline.
+  - Sparse projection gates remain honest: the current Reborn projection schema only sends `gate_ref`, `headline`, and `allow_always`, so the client preserves `allow_always` and does not invent tool parameters.
 - Logs design contract: `node --test crates/ironclaw_webui_v2_static/static/js/pages/logs/logs-design-contract.test.mjs`
   - Status: passed.
   - Guards the rendered Logs route against raw red/yellow/amber/orange/green status classes so warning and danger states keep using semantic desktop tokens.
