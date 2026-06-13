@@ -143,7 +143,7 @@ async function buildTailwindCss() {
       },
       fontFamily: {
         sans: [
-          "Geist",
+          "Inter Variable",
           "Inter",
           "SF Pro Display",
           "Helvetica Neue",

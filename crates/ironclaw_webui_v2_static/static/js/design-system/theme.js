@@ -14,11 +14,10 @@ function getInitialTheme() {
     if (current === 'light' || current === 'dark') return current;
     const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
     if (stored === 'light' || stored === 'dark') return stored;
-    // Light is the product default: IronClaw should open like a work tool, not
-    // an operator console. Dark remains an explicit, persisted opt-in.
-    return 'light';
+    // Default to the operator surface for stronger visual hierarchy and density.
+    return 'dark';
   } catch (_) {
-    return 'light';
+    return 'dark';
   }
 }
 

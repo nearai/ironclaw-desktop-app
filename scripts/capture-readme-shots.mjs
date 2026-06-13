@@ -100,6 +100,129 @@ function installShim(page, token) {
   );
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+async function buildContactSheet(browser, surfaces) {
+  const tiles = [];
+  for (const surface of surfaces) {
+    const file = path.join(outDir, `${surface.name}.png`);
+    try {
+      const data = await readFile(file);
+      tiles.push({
+        name: surface.name,
+        path: surface.path,
+        src: `data:image/png;base64,${data.toString('base64')}`
+      });
+    } catch {
+      /* CAPTURE_ONLY may intentionally leave a surface absent. */
+    }
+  }
+  if (!tiles.length) return null;
+
+  const sheet = await browser.newPage({
+    viewport: { width: 1680, height: Math.max(1100, 420 * Math.ceil(tiles.length / 2) + 180) },
+    deviceScaleFactor: 1
+  });
+  await sheet.setContent(
+    `<!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <style>
+            @font-face {
+              font-family: "Inter Variable";
+              src: local("Inter Variable"), local("Inter");
+              font-weight: 100 900;
+            }
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              padding: 32px;
+              background: #090a0c;
+              color: #f6f3ed;
+              font-family: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            }
+            header {
+              display: flex;
+              align-items: end;
+              justify-content: space-between;
+              margin-bottom: 24px;
+            }
+            h1 {
+              margin: 0;
+              font-size: 28px;
+              line-height: 1.05;
+              letter-spacing: 0;
+              font-weight: 760;
+            }
+            .stamp {
+              color: #9b9388;
+              font-size: 13px;
+            }
+            .grid {
+              display: grid;
+              grid-template-columns: repeat(2, minmax(0, 1fr));
+              gap: 20px;
+            }
+            .tile {
+              overflow: hidden;
+              border: 1px solid rgba(246, 243, 237, 0.13);
+              background: #111315;
+              border-radius: 8px;
+            }
+            .label {
+              display: flex;
+              justify-content: space-between;
+              gap: 16px;
+              padding: 10px 12px;
+              border-bottom: 1px solid rgba(246, 243, 237, 0.1);
+              color: #d9d2c8;
+              font-size: 12px;
+              font-weight: 650;
+              letter-spacing: 0;
+            }
+            .label span:last-child {
+              color: #857d73;
+              font-weight: 520;
+            }
+            img {
+              display: block;
+              width: 100%;
+              height: auto;
+            }
+          </style>
+        </head>
+        <body>
+          <header>
+            <h1>IronClaw Desktop current surfaces</h1>
+            <div class="stamp">Generated from shipped static UI</div>
+          </header>
+          <main class="grid">
+            ${tiles
+              .map(
+                (tile) => `<section class="tile">
+                  <div class="label"><span>${escapeHtml(tile.name)}</span><span>${escapeHtml(tile.path)}</span></div>
+                  <img src="${tile.src}" alt="${escapeHtml(tile.name)}" />
+                </section>`
+              )
+              .join('')}
+          </main>
+        </body>
+      </html>`,
+    { waitUntil: 'load' }
+  );
+  const file = path.join(outDir, 'contact-sheet.png');
+  await sheet.screenshot({ path: file, fullPage: true });
+  await sheet.close();
+  return file;
+}
+
 async function main() {
   const token = (await readFile(tokenFile, 'utf8')).trim();
   await mkdir(outDir, { recursive: true });
@@ -233,6 +356,10 @@ async function main() {
             body: empty
           });
         }
+        if (req.method() === 'OPTIONS') {
+          return route.fulfill({ status: 204 });
+        }
+        return json({});
       }
       try {
         const headers = { ...req.headers(), authorization: `Bearer ${token}` };
@@ -295,6 +422,8 @@ async function main() {
       await page.screenshot({ path: file, fullPage: false });
       results.push({ surface: surface.name, file });
     }
+    const contactSheet = await buildContactSheet(browser, allSurfaces);
+    if (contactSheet) results.push({ surface: 'contact-sheet', file: contactSheet });
     await browser.close();
     console.log(JSON.stringify({ results, consoleErrors: consoleErrors.slice(0, 6) }, null, 2));
   } finally {

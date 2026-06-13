@@ -26,12 +26,12 @@
       (() => {
         try {
           const stored = localStorage.getItem("ironclaw:v2-theme");
-          const theme = stored === "dark" ? "dark" : "light";
+          const theme = stored === "light" || stored === "dark" ? stored : "dark";
           document.documentElement.dataset.theme = theme;
           window.__IRONCLAW_INITIAL_THEME__ = theme;
         } catch (_) {
-          document.documentElement.dataset.theme = "light";
-          window.__IRONCLAW_INITIAL_THEME__ = "light";
+          document.documentElement.dataset.theme = "dark";
+          window.__IRONCLAW_INITIAL_THEME__ = "dark";
         }
       })();
     </script>
