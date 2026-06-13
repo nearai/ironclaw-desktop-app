@@ -24,6 +24,9 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - `output/readme-shots/onboarding-welcome.png`
   - Console errors: none.
 - In-app browser sanity: `http://127.0.0.1:17666/v2/chat` on the raw static server redirects to first-run welcome without Tauri settings; visible text contains IronClaw/NEAR AI Cloud setup and no ChatGPT/OpenRouter/Anthropic/Claude leakage.
+- Rendered copy sweep: in-app browser against `http://127.0.0.1:17668` covered `/v2/welcome`, `/v2/extensions/channels?token=render-copy-token`, `/v2/jobs?token=render-copy-token`, `/v2/routines?token=render-copy-token`, and `/v2/projects?token=render-copy-token`.
+  - Console warnings/errors: none.
+  - Banned visible-copy hits: none for OpenRouter, Anthropic, Claude, ChatGPT, Codex login, provider marketplace, `operator` copy, `without leaving v2`, or developer-console framing.
 - Static contract: `npm run verify:static-frontend`
 - Static token lint: `npm run lint:static-tokens`
   - Status: passed.
