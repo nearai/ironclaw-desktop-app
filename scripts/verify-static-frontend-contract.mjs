@@ -20,7 +20,8 @@ const requiredStaticFiles = [
   'styles/tailwind.generated.css',
   'vendor/purify.min.js',
   'vendor/marked.umd.js',
-  'vendor/highlight.min.js'
+  'vendor/highlight.min.js',
+  'vendor/mermaid.min.js'
 ];
 
 const forbiddenIndexFragments = [

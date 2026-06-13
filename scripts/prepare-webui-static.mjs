@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { access, copyFile, mkdir, rm, writeFile } from "node:fs/promises";
+import { access, copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as esbuild from "esbuild";
@@ -16,6 +16,7 @@ async function ensureStaticRoot() {
 }
 
 async function bundleIifeVendor(fileName, contents) {
+  const outfile = path.join(vendorRoot, fileName);
   await esbuild.build({
     stdin: {
       contents,
@@ -28,9 +29,11 @@ async function bundleIifeVendor(fileName, contents) {
     target: "es2020",
     minify: true,
     sourcemap: false,
-    outfile: path.join(vendorRoot, fileName),
+    outfile,
     logLevel: "silent",
   });
+  const bundled = await readFile(outfile, "utf8");
+  await writeFile(outfile, `${bundled.replace(/[ \t]+$/gm, "").trimEnd()}\n`);
 }
 
 async function prepareVendor() {
@@ -40,6 +43,10 @@ async function prepareVendor() {
   await bundleIifeVendor(
     "highlight.min.js",
     'import hljs from "highlight.js/lib/common"; window.hljs = hljs;',
+  );
+  await bundleIifeVendor(
+    "mermaid.min.js",
+    'import mermaid from "mermaid"; window.mermaid = mermaid;',
   );
 
   await Promise.all([

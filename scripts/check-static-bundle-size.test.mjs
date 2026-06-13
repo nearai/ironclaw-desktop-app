@@ -6,7 +6,7 @@ import test from 'node:test';
 
 import { ASSET_GROUPS, measureStaticBundle } from './check-static-bundle-size.mjs';
 
-test('measureStaticBundle covers shipped cold, code, document, OCR, total, and largest asset budgets', () => {
+test('measureStaticBundle covers shipped cold, code, diagram, document, OCR, total, and largest asset budgets', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 'ironclaw-static-bundle-'));
   const staticRoot = path.join(dir, 'static');
 
@@ -26,6 +26,7 @@ test('measureStaticBundle covers shipped cold, code, document, OCR, total, and l
       main_bundle_gzip_kb: 100,
       vendor_boot_gzip_kb: 100,
       code_highlight_gzip_kb: 100,
+      diagram_gzip_kb: 100,
       document_gzip_kb: 100,
       ocr_gzip_kb: 100,
       total_gzip_kb: 100,
@@ -38,11 +39,12 @@ test('measureStaticBundle covers shipped cold, code, document, OCR, total, and l
     result.files.map((file) => file.relativePath).sort(),
     Object.values(ASSET_GROUPS).flat().sort()
   );
-  assert.equal(result.metrics.length, 8);
+  assert.equal(result.metrics.length, 9);
   assert.equal(result.violations.length, 0);
   assert.ok(result.metrics.find((metric) => metric.key === 'main_bundle')?.gzipBytes > 0);
   assert.ok(result.metrics.find((metric) => metric.key === 'vendor_boot')?.gzipBytes > 0);
   assert.ok(result.metrics.find((metric) => metric.key === 'code_highlight')?.gzipBytes > 0);
+  assert.ok(result.metrics.find((metric) => metric.key === 'diagram')?.gzipBytes > 0);
   assert.ok(result.metrics.find((metric) => metric.key === 'largest_asset')?.detail);
 });
 
@@ -71,6 +73,7 @@ test('measureStaticBundle reports a violation when a tracked shipped asset excee
       main_bundle_gzip_kb: 1,
       vendor_boot_gzip_kb: 1000,
       code_highlight_gzip_kb: 1000,
+      diagram_gzip_kb: 1000,
       document_gzip_kb: 1000,
       ocr_gzip_kb: 1000,
       total_gzip_kb: 1000,

@@ -49,8 +49,9 @@ static smoke, release build, packaged WebView gauntlet — all green.
 4. **The front door is a blank-ish greeting** — DESIGN.md's *anticipation* law has no surface.
 5. **Latent bugs**: the two-writer `err-${runId}` clobber, thread-export silently dropping
    tool/thinking/image turns.
-6. **No mermaid / generated-artifact rendering; no a11y/semantic-token gate; competitor chat
-   patterns (receipt cards, artifact chips, tool rows, bubble-less) not yet built.**
+6. **Visualization/export parity is incomplete** — Mermaid now renders lazily and safely in
+   chat, but diagrams do not yet export losslessly with the same render path; competitor chat
+   patterns (receipt cards, artifact chips, tool rows, bubble-less) are still incomplete.
 
 **Standing decisions (this session):** Desk-lite front door · mine-then-remove the legacy
 `src/` · ship-ready then leap.
@@ -188,7 +189,7 @@ one-accent-per-screen; axe reports no serious/critical violations.
 one-click, obvious, and honest.
 
 - **Visualizations:** `VIZ-1` SVG/table CSS hardening → `VIZ-2` **mermaid** (lazy, sanitized,
-  on-click) → `VIZ-3` the **render==export law** (same AST screen↔export; real lists/links/
+  on-click, now shipped) → `VIZ-3` the **render==export law** (same AST screen↔export; real lists/links/
   tables in DOCX; whole-conversation export; diagram image export — building on the
   byte-accurate PDF/DOCX already shipped).
 - **Connector parity:** `CONN-1` connected-state chips + disconnect · `CONN-2` in-chat

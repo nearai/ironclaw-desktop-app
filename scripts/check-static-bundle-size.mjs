@@ -17,6 +17,7 @@ export const ASSET_GROUPS = {
     'styles/app.css'
   ],
   code: ['vendor/highlight.min.js'],
+  diagram: ['vendor/mermaid.min.js'],
   document: ['vendor/pdf.min.mjs', 'vendor/pdf.worker.min.mjs'],
   ocr: [
     'ocr/tesseract.esm.min.js',
@@ -29,6 +30,7 @@ export const ASSET_GROUPS = {
 const GROUP_BUDGET_KEYS = {
   cold: 'cold_gzip_kb',
   code: 'code_highlight_gzip_kb',
+  diagram: 'diagram_gzip_kb',
   document: 'document_gzip_kb',
   ocr: 'ocr_gzip_kb'
 };
@@ -130,6 +132,13 @@ export function measureStaticBundle({
       gzipBytes: groups.code.gzipBytes,
       budgetKb: groups.code.budgetKb,
       detail: 'lazy Highlight.js'
+    },
+    {
+      key: 'diagram',
+      label: 'diagram lazy',
+      gzipBytes: groups.diagram.gzipBytes,
+      budgetKb: groups.diagram.budgetKb,
+      detail: 'lazy Mermaid'
     },
     {
       key: 'document',

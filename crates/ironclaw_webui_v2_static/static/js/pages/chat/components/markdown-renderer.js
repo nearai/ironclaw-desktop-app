@@ -4,8 +4,12 @@ import { toast } from '../../../lib/toast.js';
 
 const COLLAPSE_PX = 360;
 const HIGHLIGHT_VENDOR_PATH = 'vendor/highlight.min.js';
+const MERMAID_VENDOR_PATH = 'vendor/mermaid.min.js';
 
 let highlightLoadPromise = null;
+let mermaidLoadPromise = null;
+let mermaidConfigured = false;
+let mermaidRenderSeq = 0;
 
 function resolveStaticAsset(path) {
   const resolver = window.__IRONCLAW_STATIC_ASSET__;
@@ -16,13 +20,14 @@ function resolveStaticAsset(path) {
   return hostedV2 ? `/v2/${path}` : `/${path}`;
 }
 
-function loadScript(path) {
+function loadScript(path, type) {
   const loader = window.__IRONCLAW_LOAD_SCRIPT__;
-  if (typeof loader === 'function') return loader(path);
+  if (typeof loader === 'function') return loader(path, type);
 
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = resolveStaticAsset(path);
+    if (type) script.type = type;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error(`Failed to load ${path}`));
     document.body.appendChild(script);
@@ -41,6 +46,60 @@ export function ensureHighlightJs() {
       });
   }
   return highlightLoadPromise;
+}
+
+function configureMermaid(mermaid) {
+  if (!mermaid || mermaidConfigured) return mermaid;
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: 'strict',
+    theme: 'dark',
+    themeVariables: {
+      background: 'transparent',
+      primaryColor: '#111827',
+      primaryTextColor: '#f8fafc',
+      primaryBorderColor: '#3b82f6',
+      lineColor: '#8aa0b4',
+      textColor: '#f8fafc',
+      fontFamily: 'Inter Variable, Inter, sans-serif'
+    }
+  });
+  mermaidConfigured = true;
+  return mermaid;
+}
+
+export function ensureMermaidJs() {
+  if (window.mermaid) return Promise.resolve(configureMermaid(window.mermaid));
+  if (!mermaidLoadPromise) {
+    mermaidLoadPromise = loadScript(MERMAID_VENDOR_PATH)
+      .then(() => (window.mermaid ? configureMermaid(window.mermaid) : null))
+      .catch((error) => {
+        console.warn('[ironclaw] Mermaid renderer failed to load', error);
+        mermaidLoadPromise = null;
+        return null;
+      });
+  }
+  return mermaidLoadPromise;
+}
+
+export async function renderMermaidDiagram(source) {
+  const mermaid = await ensureMermaidJs();
+  if (!mermaid) throw new Error('Mermaid renderer is unavailable');
+  const id = `ironclaw-mermaid-${Date.now()}-${++mermaidRenderSeq}`;
+  const result = await mermaid.render(id, String(source || ''));
+  const svg = typeof result === 'string' ? result : result?.svg;
+  if (!svg) throw new Error('Mermaid returned an empty diagram');
+  if (!window.DOMPurify) throw new Error('Diagram sanitizer is unavailable');
+  return window.DOMPurify.sanitize(svg, {
+    USE_PROFILES: { svg: true, svgFilters: true }
+  });
+}
+
+export function resetMarkdownRendererTestState() {
+  highlightLoadPromise = null;
+  mermaidLoadPromise = null;
+  mermaidConfigured = false;
+  mermaidRenderSeq = 0;
 }
 
 function highlightCodeElement(codeEl) {
@@ -66,16 +125,103 @@ function highlightCodeElement(codeEl) {
   });
 }
 
+function isMermaidCodeBlock(codeEl) {
+  const className = String(codeEl?.className || '').toLowerCase();
+  return /\blanguage-mermaid\b|\bmermaid\b/.test(className);
+}
+
+function enhanceMermaidBlock(pre, codeEl) {
+  if (!pre || !codeEl) return;
+  const source = codeEl.textContent || '';
+  const card = document.createElement('div');
+  card.className = 'v2-mermaid-card';
+  card.setAttribute('data-md-renderer', 'mermaid');
+
+  const header = document.createElement('div');
+  header.className = 'v2-mermaid-card__header';
+
+  const label = document.createElement('span');
+  label.textContent = 'Diagram';
+  label.className = 'v2-mermaid-card__label';
+
+  const actions = document.createElement('div');
+  actions.className = 'v2-mermaid-card__actions';
+
+  const renderButton = document.createElement('button');
+  renderButton.type = 'button';
+  renderButton.textContent = 'Render diagram';
+  renderButton.className = 'v2-mermaid-card__button';
+
+  const copyButton = document.createElement('button');
+  copyButton.type = 'button';
+  copyButton.textContent = 'Copy source';
+  copyButton.className = 'v2-mermaid-card__button';
+  copyButton.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(source);
+      copyButton.textContent = 'Copied';
+      toast('Diagram source copied', { tone: 'success' });
+      setTimeout(() => (copyButton.textContent = 'Copy source'), 1400);
+    } catch {
+      // clipboard unavailable
+    }
+  });
+
+  actions.appendChild(renderButton);
+  actions.appendChild(copyButton);
+  header.appendChild(label);
+  header.appendChild(actions);
+
+  const output = document.createElement('div');
+  output.className = 'v2-mermaid-card__output';
+  output.hidden = true;
+
+  const sourceDetails = document.createElement('details');
+  sourceDetails.className = 'v2-mermaid-card__source';
+  const summary = document.createElement('summary');
+  summary.textContent = 'Source';
+  sourceDetails.appendChild(summary);
+
+  pre.parentNode.insertBefore(card, pre);
+  sourceDetails.appendChild(pre);
+  card.appendChild(header);
+  card.appendChild(output);
+  card.appendChild(sourceDetails);
+
+  renderButton.addEventListener('click', async () => {
+    renderButton.disabled = true;
+    renderButton.textContent = 'Rendering...';
+    try {
+      output.innerHTML = await renderMermaidDiagram(source);
+      output.hidden = false;
+      card.dataset.rendered = '1';
+      renderButton.textContent = 'Rendered';
+    } catch (error) {
+      output.hidden = false;
+      output.textContent = `Could not render diagram: ${error?.message || error}`;
+      output.classList.add('v2-mermaid-card__output--error');
+      renderButton.disabled = false;
+      renderButton.textContent = 'Retry render';
+    }
+  });
+}
+
 /* Enhance rendered <pre> code blocks in place: syntax highlight, a hover
    toolbar (copy + soft-wrap toggle), and collapse for very tall blocks.
    Runs imperatively because the markdown is injected via innerHTML. */
-function enhanceCodeBlocks(root) {
+export function enhanceRenderedMarkdown(root) {
   if (!root) return;
   root.querySelectorAll('pre').forEach((pre) => {
+    const codeEl = pre.querySelector('code');
+    if (isMermaidCodeBlock(codeEl)) {
+      if (pre.closest('[data-md-renderer="mermaid"]')) return;
+      enhanceMermaidBlock(pre, codeEl);
+      return;
+    }
+
     if (pre.dataset.enhanced === '1') return;
     pre.dataset.enhanced = '1';
 
-    const codeEl = pre.querySelector('code');
     highlightCodeElement(codeEl);
 
     const wrap = document.createElement('div');
@@ -144,8 +290,13 @@ function enhanceCodeBlocks(root) {
 export function MarkdownRenderer({ content, className = '' }) {
   const ref = React.useRef(null);
 
-  React.useEffect(() => {
-    enhanceCodeBlocks(ref.current);
+  React.useLayoutEffect(() => {
+    const root = ref.current;
+    if (!root) return undefined;
+    enhanceRenderedMarkdown(root);
+    queueMicrotask(() => enhanceRenderedMarkdown(root));
+    const frame = requestAnimationFrame(() => enhanceRenderedMarkdown(root));
+    return () => cancelAnimationFrame(frame);
   }, [content]);
 
   return html`
