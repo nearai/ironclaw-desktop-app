@@ -146,6 +146,23 @@ test('requires detached updater signatures by default', async () => {
   });
 });
 
+test('refuses a release tag that does not match the manifest version', async () => {
+  await withArtifacts(async (dir) => {
+    await addArtifact(dir, 'IronClaw_1.2.3_universal.app.tar.gz', 'sig-universal\n');
+
+    await assert.rejects(
+      buildUpdaterManifest({
+        artifactsDir: dir,
+        repo: 'nearai/ironclaw-desktop-app',
+        tag: 'v1.2.4',
+        version: '1.2.3',
+        pubDate: '2026-06-11T12:00:00.000Z'
+      }),
+      /Release tag v1\.2\.4 does not match manifest version 1\.2\.3/
+    );
+  });
+});
+
 test('cli writes latest.json to the artifact directory', async () => {
   await withArtifacts(async (dir) => {
     await addArtifact(dir, 'IronClaw_1.2.3_aarch64.app.tar.gz', 'sig-aarch64\n');

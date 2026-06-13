@@ -25,6 +25,7 @@ jobs:
       # The static product UI (crates/.../static/js) ships ~28 node:test suites
       # that vitest does not pick up; run them so a regression there fails CI.
       - run: npm run test:static
+      - run: npm run test:scripts
       - run: npm run build
       - name: Check bundle size budget
         run: SKIP_BUILD=1 bash scripts/check-bundle-size.sh

@@ -14,6 +14,7 @@
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "lint:static-tokens": "node scripts/lint-static-status-tokens.mjs",
     "test": "vitest run",
+    "test:scripts": "node --test scripts/*.test.mjs",
     "test:static": "find crates/ironclaw_webui_v2_static/static/js -name '*.test.mjs' -print0 | xargs -0 node --test",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -34,7 +35,7 @@
   },
   "simple-git-hooks": {
     "pre-commit": "npx lint-staged",
-    "pre-push": "npm run check && npm run verify:static-frontend && npm run lint:static-tokens && npm run smoke:webui-static && npm run test:a11y-static && npm run test && npm run test:static"
+    "pre-push": "npm run check && npm run verify:static-frontend && npm run lint:static-tokens && npm run smoke:webui-static && npm run test:a11y-static && npm run test && npm run test:static && npm run test:scripts"
   },
   "lint-staged": {
     "*.{svelte,ts,js}": [

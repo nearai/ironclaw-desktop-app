@@ -117,6 +117,22 @@ jobs:
             --tag "${release_tag}" \
             --version "${{ steps.package-version.outputs.version }}"
           cat release-artifacts/latest.json
+          node -e '
+            const fs = require("node:fs");
+            const manifest = JSON.parse(fs.readFileSync("release-artifacts/latest.json", "utf8"));
+            const expected = ["darwin-aarch64", "darwin-x86_64"];
+            const keys = Object.keys(manifest.platforms || {}).sort();
+            if (JSON.stringify(keys) !== JSON.stringify(expected)) {
+              throw new Error(`latest.json platforms were ${keys.join(", ") || "<none>"}; expected ${expected.join(", ")}`);
+            }
+            for (const key of expected) {
+              const platform = manifest.platforms[key];
+              if (!platform.url || !platform.signature) {
+                throw new Error(`latest.json ${key} entry must include url and signature`);
+              }
+            }
+            console.log(`latest.json platforms: ${keys.join(", ")}`);
+          '
 
       - name: Verify Developer ID notarization
         run: |

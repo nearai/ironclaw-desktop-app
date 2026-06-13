@@ -88,6 +88,15 @@ function normalizeTag(tag, version) {
   return trimmed || `v${version}`;
 }
 
+function assertTagMatchesVersion(tag, version) {
+  const expected = `v${version}`;
+  if (tag !== expected) {
+    throw new Error(
+      `Release tag ${tag} does not match manifest version ${version}; expected ${expected}`
+    );
+  }
+}
+
 function envReleaseTag() {
   if (process.env.GITHUB_REF_TYPE === 'tag') {
     return process.env.GITHUB_REF_NAME;
@@ -150,6 +159,7 @@ export async function buildUpdaterManifest({
 
   const resolvedRepo = normalizeRepo(repo);
   const resolvedTag = normalizeTag(tag || envReleaseTag(), resolvedVersion);
+  assertTagMatchesVersion(resolvedTag, resolvedVersion);
   const artifactNames = await readdir(artifactsDir);
   const archivesByArch = new Map(REQUIRED_ARCHES.map((arch) => [arch, []]));
   const universalArchives = [];

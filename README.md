@@ -8,7 +8,7 @@ A native macOS client for [IronClaw](https://github.com/nearai/ironclaw) — the
 
 Latest macOS DMG: https://github.com/nearai/ironclaw-desktop-app/releases/latest
 
-CI produces a universal macOS build that runs on Apple Silicon and Intel. Public release CI is wired for Developer ID signing and notarization once the Apple secrets in [`docs/RELEASE-SIGNING.md`](docs/RELEASE-SIGNING.md) are provisioned; local development builds remain unsigned-by-Apple.
+When a `v*` tag is cut with the required signing secrets, CI is configured to publish a universal macOS build for Apple Silicon and Intel plus the Tauri updater manifest. Local development builds remain unsigned-by-Apple.
 
 ## Why
 
@@ -386,7 +386,7 @@ Developer ID signing and notarization use a separate Apple certificate and App S
 
 3. Update `CHANGELOG.md` with what changed.
 
-4. Commit + tag:
+4. Commit + tag. The tag must match the version in `package.json` exactly, with a leading `v`:
 
    ```bash
    git commit -am "v0.1.3"
@@ -396,7 +396,7 @@ Developer ID signing and notarization use a separate Apple certificate and App S
 
 5. The `release` workflow (`.github/workflows/release.yml`) checks out the matching IronClaw Reborn source, builds the missing `ironclaw-reborn` sidecar slices, combines all sidecars for `universal-apple-darwin`, signs the updater artifacts when secrets are present, and creates a GitHub release with the universal `.dmg`, universal `.app.tar.gz`, `.app.tar.gz.sig`, and `latest.json` files attached.
 
-6. The workflow generates `latest.json` with `scripts/build-updater-manifest.mjs`. The app polls `https://github.com/nearai/ironclaw-desktop-app/releases/latest/download/latest.json` on startup; if the updater signature is missing, manifest generation fails instead of publishing a broken update. For universal releases, both `darwin-aarch64` and `darwin-x86_64` entries point at the same universal updater archive.
+6. The workflow generates `latest.json` with `scripts/build-updater-manifest.mjs`. The app polls `https://github.com/nearai/ironclaw-desktop-app/releases/latest/download/latest.json` on startup; if the updater signature is missing or the tag/version pair is skewed, manifest generation fails instead of publishing a broken update. For universal releases, both `darwin-aarch64` and `darwin-x86_64` entries point at the same universal updater archive.
 
 ### Sanity-checking a release locally before tagging
 
