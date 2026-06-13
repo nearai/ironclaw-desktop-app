@@ -4,6 +4,7 @@
 //   projection and maps those operations to the extension registry.
 
 import { apiFetch, setupExtension } from '../../../lib/api.js';
+import { buildCustomMcpInstallPayload } from './custom-mcp.js';
 
 export function fetchExtensions() {
   return apiFetch('/api/webchat/v2/extensions');
@@ -15,6 +16,12 @@ export function installExtension(packageRef) {
   return apiFetch('/api/webchat/v2/extensions/install', {
     method: 'POST',
     body: JSON.stringify({ package_ref: packageRef })
+  });
+}
+export function installCustomMcpServer(input) {
+  return apiFetch('/api/webchat/v2/extensions/install', {
+    method: 'POST',
+    body: JSON.stringify(buildCustomMcpInstallPayload(input))
   });
 }
 export function activateExtension(packageRef) {

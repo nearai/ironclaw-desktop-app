@@ -86,7 +86,7 @@ function buildContext() {
 
 test('activate mutation reports error for weak lifecycle success', () => {
   const context = buildContext();
-  const activateMutation = context.mutationConfigs[1];
+  const activateMutation = activationMutation(context);
 
   activateMutation.onSuccess(
     { success: true, active: true, message: 'Extension lifecycle action completed' },
@@ -99,7 +99,7 @@ test('activate mutation reports error for weak lifecycle success', () => {
 
 test('activate mutation accepts activation with credential proof', () => {
   const context = buildContext();
-  const activateMutation = context.mutationConfigs[1];
+  const activateMutation = activationMutation(context);
 
   activateMutation.onSuccess(
     {
@@ -114,3 +114,11 @@ test('activate mutation accepts activation with credential proof', () => {
   assert.equal(context.actionResult.type, 'success');
   assert.equal(context.actionResult.message, 'Gmail connected');
 });
+
+function activationMutation(context) {
+  const config = context.mutationConfigs.find((entry) =>
+    String(entry.mutationFn).includes('activateExtension')
+  );
+  assert.ok(config, 'expected activation mutation to be registered');
+  return config;
+}

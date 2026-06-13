@@ -5,6 +5,7 @@ import {
   activateExtension,
   canonicalExtensionName,
   fetchExtensionSetup,
+  installCustomMcpServer,
   installExtension,
   removeExtension,
   startExtensionOauth,
@@ -58,6 +59,27 @@ test('installExtension keeps catalog refs in the install payload only', async (t
   assert.equal(calls.length, 1);
   assert.equal(calls[0].path, '/api/webchat/v2/extensions/install');
   assert.deepEqual(JSON.parse(calls[0].options.body), { package_ref: packageRef });
+});
+
+test('installCustomMcpServer posts the Reborn custom MCP install payload', async (t) => {
+  const calls = [];
+  installFetch(t, async (path, options) => {
+    calls.push({ path, options });
+    return okJson();
+  });
+
+  await installCustomMcpServer({
+    name: 'Team Docs',
+    url: 'https://docs.example.com/mcp'
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/api/webchat/v2/extensions/install');
+  assert.deepEqual(JSON.parse(calls[0].options.body), {
+    name: 'team-docs',
+    url: 'https://docs.example.com/mcp',
+    kind: 'mcp_server'
+  });
 });
 
 test('lifecycle extension calls use canonical bare names in route paths', async (t) => {

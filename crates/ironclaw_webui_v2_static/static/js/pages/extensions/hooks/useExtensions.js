@@ -6,6 +6,7 @@ import {
   fetchExtensions,
   fetchExtensionRegistry,
   installExtension,
+  installCustomMcpServer,
   activateExtension,
   removeExtension,
   fetchExtensionSetup,
@@ -120,6 +121,25 @@ export function useExtensions() {
     }
   });
 
+  const addCustomMcpMutation = useMutation({
+    mutationFn: ({ name, url }) => installCustomMcpServer({ name, url }),
+    onSuccess: (res, { name }) => {
+      if (res.success !== false) {
+        setActionResult({
+          type: 'success',
+          message: res.message || res.instructions || `${name || 'MCP server'} installed`
+        });
+      } else {
+        setActionResult({ type: 'error', message: res.message || 'MCP server install failed' });
+      }
+      invalidate();
+    },
+    onError: (err) => {
+      setActionResult({ type: 'error', message: err.message });
+      invalidate();
+    }
+  });
+
   const activateMutation = useMutation({
     mutationFn: ({ packageRef }) => activateExtension(packageRef),
     onSuccess: (res, { displayName }) => {
@@ -187,7 +207,10 @@ export function useExtensions() {
     null;
   const isLoading = (extensionsQuery.isLoading || registryQuery.isLoading) && !loadError;
   const isBusy =
-    installMutation.isPending || activateMutation.isPending || removeMutation.isPending;
+    installMutation.isPending ||
+    addCustomMcpMutation.isPending ||
+    activateMutation.isPending ||
+    removeMutation.isPending;
 
   return {
     status,
@@ -206,6 +229,7 @@ export function useExtensions() {
     actionResult,
     clearResult,
     install: installMutation.mutate,
+    addCustomMcp: addCustomMcpMutation.mutate,
     activate: activateMutation.mutate,
     remove: removeMutation.mutate,
     invalidate

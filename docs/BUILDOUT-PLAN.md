@@ -211,7 +211,8 @@ one-click, obvious, and honest.
   tables in DOCX; whole-conversation export; diagram image export — building on the
   byte-accurate PDF/DOCX already shipped).
 - **Connector parity:** `CONN-1` connected-state chips + disconnect · `CONN-2` in-chat
-  "Connect X" affordance when the model lacks a tool · `CONN-3` custom remote MCP add.
+  "Connect X" affordance when the model lacks a tool · `CONN-3` custom remote MCP add
+  (shipped client-side for unauthenticated HTTPS/local MCP URLs; OAuth custom MCP remains upstream).
 - **Native macOS:** `MAC-1` Spotlight thread indexing (wire the existing `spotlight.rs`) ·
   `MAC-2` TTS · `MAC-3` Notes/file thread export · `MAC-4` vibrancy + traffic-light inset ·
   `MAC-5` tray status + sidecar-death notification.

@@ -30,6 +30,7 @@ export function ExtensionsPage() {
     actionResult,
     clearResult,
     install,
+    addCustomMcp,
     activate,
     remove,
     invalidate
@@ -121,6 +122,7 @@ export function ExtensionsPage() {
       onConfigure=${handleConfigure}
       onRemove=${remove}
       onInstall=${install}
+      onAddCustom=${addCustomMcp}
       isBusy=${isBusy}
     />`,
     registry: html`<${RegistryTab}

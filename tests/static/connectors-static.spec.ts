@@ -146,6 +146,62 @@ test('static connectors: chat connect prompts open an honest extension setup pat
   await expect(page.getByTestId('registry-card-notion')).toBeVisible();
 });
 
+test('static connectors: custom MCP install posts a Reborn URL install payload', async ({
+  page
+}) => {
+  const calls: CapturedCall[] = [];
+  await installConnectorMocks(page, calls);
+
+  await page.goto('/v2/extensions/mcp?token=connector-static-token');
+  await expect(page.getByTestId('custom-mcp-card')).toBeVisible();
+  await expect(page.getByTestId('custom-mcp-card')).toHaveAttribute('data-disabled-reason', '');
+
+  await page.getByTestId('custom-mcp-name').fill('Team Docs');
+  await page.getByTestId('custom-mcp-url').fill('https://docs.example.com/mcp');
+  await page.getByTestId('custom-mcp-submit').click();
+
+  await expect
+    .poll(() =>
+      calls.some(
+        (call) =>
+          call.path === '/api/webchat/v2/extensions/install' &&
+          call.body?.kind === 'mcp_server' &&
+          call.body?.name === 'team-docs'
+      )
+    )
+    .toBe(true);
+
+  const installCall = calls.find(
+    (call) => call.path === '/api/webchat/v2/extensions/install' && call.body?.name === 'team-docs'
+  );
+  expect(installCall?.body).toEqual({
+    name: 'team-docs',
+    url: 'https://docs.example.com/mcp',
+    kind: 'mcp_server'
+  });
+  expect(installCall?.body?.package_ref).toBeUndefined();
+  await expect(page.getByText('team-docs installed')).toBeVisible();
+});
+
+test('static connectors: custom MCP form blocks insecure remote HTTP before gateway calls', async ({
+  page
+}) => {
+  const calls: CapturedCall[] = [];
+  await installConnectorMocks(page, calls);
+
+  await page.goto('/v2/extensions/mcp?token=connector-static-token');
+  await page.getByTestId('custom-mcp-name').fill('Team Docs');
+  await page.getByTestId('custom-mcp-url').fill('http://docs.example.com/mcp');
+  await page.getByTestId('custom-mcp-submit').click();
+
+  await expect(
+    page.getByText('Use HTTPS, or localhost HTTP for a local MCP server.')
+  ).toBeVisible();
+  expect(calls.filter((call) => call.path === '/api/webchat/v2/extensions/install')).toHaveLength(
+    0
+  );
+});
+
 test('static connectors: failed connector runs recover to extension setup', async ({ page }) => {
   const calls: CapturedCall[] = [];
   await installConnectorMocks(page, calls);
@@ -277,6 +333,10 @@ async function installConnectorMocks(page: Page, calls: CapturedCall[]) {
       return json(route, { providers: [] });
     }
     if (path === '/api/webchat/v2/extensions/install' && method === 'POST') {
+      const body = await requestJson(route);
+      if (body?.kind === 'mcp_server' && body?.url) {
+        return json(route, { success: true, message: `${body.name} installed` });
+      }
       return json(route, { success: true });
     }
     if (path.endsWith('/setup') && method === 'GET') {
