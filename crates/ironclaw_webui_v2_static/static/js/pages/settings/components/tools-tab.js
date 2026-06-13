@@ -79,15 +79,15 @@ export function ToolsTab({ searchQuery = '' }) {
   if (query.isLoading) {
     return html`
       <${Card} padding="md">
-        <div className="mb-4 h-3 w-28 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+        <div className="v2-skeleton mb-4 h-3 w-28 rounded" />
         ${[1, 2, 3, 4, 5].map(
           (i) => html`
             <div
               key=${i}
               className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-3.5 first:border-0"
             >
-              <div className="h-4 w-36 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
-              <div className="h-8 w-28 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+              <div className="v2-skeleton h-4 w-36 rounded" />
+              <div className="v2-skeleton h-8 w-28 rounded" />
             </div>
           `
         )}

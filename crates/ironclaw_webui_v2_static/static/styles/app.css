@@ -320,11 +320,6 @@ input:focus, select:focus, textarea:focus {
   border-radius: 6px;
 }
 
-@keyframes v2-skeleton-shimmer {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.55; }
-}
-
 .v2-chat-composer {
   border: 1px solid var(--v2-panel-border);
   background: var(--v2-card-bg);
@@ -379,10 +374,9 @@ input:focus, select:focus, textarea:focus {
 }
 
 /* ── Motion policy ───────────────────────────────────────────────── */
-/* Calm by default: no transitions, no decorative motion. The ONLY motion
-   allowed is the small set that carries meaning — a breathing dot that says
-   "live/running" and a slow skeleton pulse that says "loading" — and even
-   those yield to prefers-reduced-motion. No shimmer, no bounce, no slides. */
+/* Calm by default: no transitions, no decorative motion. The only recurring
+   motion allowed here carries live/running meaning and yields to reduced
+   motion. Loading placeholders remain static; no shimmer, bounce, or pulse. */
 *, *::before, *::after {
   animation: none !important;
   transition: none !important;
@@ -391,9 +385,6 @@ input:focus, select:focus, textarea:focus {
 @media (prefers-reduced-motion: no-preference) {
   .v2-breathing-dot {
     animation: v2-breathe 2.4s ease-in-out infinite !important;
-  }
-  .v2-skeleton {
-    animation: v2-skeleton-shimmer 1.8s ease-in-out infinite !important;
   }
 }
 

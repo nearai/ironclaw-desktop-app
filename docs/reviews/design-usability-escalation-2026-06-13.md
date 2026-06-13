@@ -35,7 +35,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Local artifact is unsigned because `TAURI_SIGNING_PRIVATE_KEY` is not set.
 - Packaged WebView smoke: `npm run smoke:packaged -- --webview-smoke`
   - Status: passed.
-  - Evidence: `/tmp/ironclaw-packaged-webview-smoke-20260613-102751.json`
+  - Evidence: `/tmp/ironclaw-packaged-webview-smoke-20260613-113630.json`
   - 15 checks passed.
   - Chat proof: timeline.
   - Export proof: Markdown, HTML, JSON, PDF, DOCX blobs parse/render, and a saved file exists on disk.
@@ -49,6 +49,10 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 - NEAR AI execution honesty probe: `IRONCLAW_PROBE_MODES=nearai node scripts/probe-live-reborn-model-execution.mjs`
   - Evidence: `output/live-model-execution-probe/reborn-live-model-execution-2026-06-13T14-28-51-559Z.json`
   - Send accepted, timeline projected the prompt, run lifecycle reached failed, assistant marker was not fabricated, assistant message count stayed 0.
+- Calm-motion contract: `node --test crates/ironclaw_webui_v2_static/static/js/design-system/calm-motion.test.mjs`
+  - Status: passed.
+  - Guards committed source, generated `main.bundle.js`, and generated Tailwind CSS against `animate-pulse`, `animate-bounce`, default pulse/bounce keyframes, and skeleton shimmer.
+  - `rg "animate-pulse|animate-bounce|v2-skeleton-shimmer|@keyframes pulse|@keyframes bounce" crates/ironclaw_webui_v2_static/static/js crates/ironclaw_webui_v2_static/static/styles --glob '!vendor/**' --glob '!*.test.mjs'` returns no shipped UI hits.
 
 ## Escalated Findings
 
@@ -64,7 +68,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Notion OAuth | YELLOW | Notion is visible and setup-gated; live OAuth start returns 200. | Needs a rendered packaged connector flow that completes credential proof, not just OAuth start. |
 | Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. | Keep. Deep OCR remains opt-in in packaged smoke. |
 | Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |
-| Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. | Keep. Avoid returning to marketing-card layouts. |
+| Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks and the chat typing indicator no longer uses bouncing dots. | Keep. Avoid returning to marketing-card layouts or perpetual skeleton motion. |
 | Screenshot process | GREEN | README/design capture now regenerates `contact-sheet.png` from current screenshots and does not leak proxy 502 console errors. | Keep as a review precondition. |
 
 ## Required Next Product Proofs

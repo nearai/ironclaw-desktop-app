@@ -183,15 +183,15 @@ export function ChannelsTab({ searchQuery = '' }) {
     return html`
       <div className="space-y-5">
         <${Card} padding="md">
-          <div className="mb-4 h-3 w-28 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+          <div className="v2-skeleton mb-4 h-3 w-28 rounded" />
           ${[1, 2, 3].map(
             (i) => html`
               <div
                 key=${i}
                 className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-4 first:border-0"
               >
-                <div className="h-4 w-32 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
-                <div className="h-6 w-16 animate-pulse rounded-full bg-[var(--v2-surface-muted)]" />
+                <div className="v2-skeleton h-4 w-32 rounded" />
+                <div className="v2-skeleton h-6 w-16 rounded-full" />
               </div>
             `
           )}

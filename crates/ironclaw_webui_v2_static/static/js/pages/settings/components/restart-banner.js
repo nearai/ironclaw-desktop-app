@@ -116,7 +116,7 @@ export function RestartBanner({ visible, gatewayStatus, gatewayStatusQuery }) {
           <div
             className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-copper/30 bg-copper/10 text-copper"
           >
-            <${Icon} name="pulse" className="h-5 w-5 animate-pulse" />
+            <${Icon} name="pulse" className="h-5 w-5" />
           </div>
           <p className="mt-4 text-base font-semibold text-[var(--v2-text-strong)]">
             ${t('restart.progressTitle')}

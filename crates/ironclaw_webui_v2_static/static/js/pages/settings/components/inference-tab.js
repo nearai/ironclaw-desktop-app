@@ -110,9 +110,7 @@ export function InferenceTab({
 }
 
 function Skeleton({ className = '' }) {
-  return html`
-    <div className=${'rounded animate-pulse bg-[var(--v2-surface-muted)] ' + className} />
-  `;
+  return html` <div className=${'v2-skeleton rounded ' + className} /> `;
 }
 
 function SettingsSkeleton() {

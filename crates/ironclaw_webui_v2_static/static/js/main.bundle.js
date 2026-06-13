@@ -2283,26 +2283,17 @@ ${u}
       </div>
     </div>
   `}function P1(){return c`
-    <div className="flex gap-3">
+    <div className="flex gap-3" role="status" aria-label="IronClaw is working">
       <div
         className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-iron-700 font-mono text-[11px] font-semibold text-iron-100"
       >
         IC
       </div>
       <div className="rounded-[18px] border border-white/10 bg-iron-800/60 px-4 py-3">
-        <div className="flex gap-1">
-          <span
-            className="h-2 w-2 animate-bounce rounded-full bg-iron-200"
-            style=${{animationDelay:"0ms"}}
-          />
-          <span
-            className="h-2 w-2 animate-bounce rounded-full bg-iron-200"
-            style=${{animationDelay:"150ms"}}
-          />
-          <span
-            className="h-2 w-2 animate-bounce rounded-full bg-iron-200"
-            style=${{animationDelay:"300ms"}}
-          />
+        <div className="flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full bg-iron-200 opacity-40" />
+          <span className="h-2 w-2 rounded-full bg-iron-200 opacity-65" />
+          <span className="h-2 w-2 rounded-full bg-iron-200 opacity-90" />
         </div>
       </div>
     </div>
@@ -6502,19 +6493,17 @@ ${JSON.stringify(t||{},null,2)}</pre
     <div className="space-y-5">
       ${[1,2,3].map(e=>c`
           <${W} key=${e} padding="md">
-            <div className="mb-4 h-3 w-20 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+            <div className="v2-skeleton mb-4 h-3 w-20 rounded" />
             ${[1,2,3,4].map(t=>c`
                 <div
                   key=${t}
                   className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-4 first:border-0"
                 >
                   <div>
-                    <div className="h-4 w-32 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
-                    <div
-                      className="mt-1 h-3 w-48 animate-pulse rounded bg-[var(--v2-surface-muted)]"
-                    />
+                    <div className="v2-skeleton h-4 w-32 rounded" />
+                    <div className="v2-skeleton mt-1 h-3 w-48 rounded" />
                   </div>
-                  <div className="h-9 w-36 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+                  <div className="v2-skeleton h-9 w-36 rounded" />
                 </div>
               `)}
           <//>
@@ -6558,14 +6547,14 @@ ${JSON.stringify(t||{},null,2)}</pre
   `}function TO(e,t){let a=e.enabled_channels||[];return[{id:"web",name:t("channels.webGateway"),description:t("channels.webGatewayDesc"),enabled:!0,detail:"SSE: "+(e.sse_connections||0)+" \xB7 WS: "+(e.ws_connections||0)},{id:"http",name:t("channels.httpWebhook"),description:t("channels.httpWebhookDesc"),enabled:a.includes("http"),detail:"ENABLE_HTTP=true"},{id:"cli",name:t("channels.cli"),description:t("channels.cliDesc"),enabled:a.includes("cli"),detail:"ironclaw run --cli"},{id:"repl",name:t("channels.repl"),description:t("channels.replDesc"),enabled:a.includes("repl"),detail:"ironclaw run --repl"}]}function EO({status:e,channels:t,channelRegistry:a,mcpServers:s,mcpRegistry:n,searchQuery:r,t:i}){let o=TO(e,i).filter(v=>Dt(r,[i("channels.builtIn"),v.id,v.name,v.description,v.detail])),l=new Set(t.map(v=>v.name)),u=t.filter(v=>Dt(r,[i("channels.messaging"),v.name,v.display_name,v.description,v.onboarding_state])),d=a.filter(v=>!l.has(v.name)).filter(v=>Dt(r,[i("channels.messaging"),v.name,v.display_name,v.description])),f=new Set(s.map(v=>v.name)),m=s.filter(v=>Dt(r,[i("channels.mcpServers"),v.name,v.display_name,v.description,v.active?i("channels.active"):i("channels.inactive")])),p=n.filter(v=>!f.has(v.name)).filter(v=>Dt(r,[i("channels.mcpServers"),v.name,v.display_name,v.description]));return{builtInChannels:o,visibleChannels:u,availableRegistry:d,visibleMcpServers:m,availableMcp:p}}function nR({searchQuery:e=""}){let t=A(),{status:a,channels:s,channelRegistry:n,mcpServers:r,mcpRegistry:i,isLoading:o}=aR();if(o)return c`
       <div className="space-y-5">
         <${W} padding="md">
-          <div className="mb-4 h-3 w-28 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+          <div className="v2-skeleton mb-4 h-3 w-28 rounded" />
           ${[1,2,3].map(p=>c`
               <div
                 key=${p}
                 className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-4 first:border-0"
               >
-                <div className="h-4 w-32 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
-                <div className="h-6 w-16 animate-pulse rounded-full bg-[var(--v2-surface-muted)]" />
+                <div className="v2-skeleton h-4 w-32 rounded" />
+                <div className="v2-skeleton h-6 w-16 rounded-full" />
               </div>
             `)}
         <//>
@@ -7104,7 +7093,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         `)}
     </div>
   `}function dr({className:e=""}){return c`
-    <div className=${"rounded animate-pulse bg-[var(--v2-surface-muted)] "+e} />
+    <div className=${"v2-skeleton rounded "+e} />
   `}function PO(){return c`
     <div className="space-y-5">
       <${W} padding="md">
@@ -7185,14 +7174,14 @@ ${JSON.stringify(t||{},null,2)}</pre
       <div className="space-y-5">
         ${[1,2].map(o=>c`
             <${W} key=${o} padding="md">
-              <div className="mb-4 h-3 w-20 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+              <div className="v2-skeleton mb-4 h-3 w-20 rounded" />
               ${[1,2].map(l=>c`
                   <div
                     key=${l}
                     className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-4 first:border-0"
                   >
-                    <div className="h-4 w-32 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
-                    <div className="h-9 w-36 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+                    <div className="v2-skeleton h-4 w-32 rounded" />
+                    <div className="v2-skeleton h-9 w-36 rounded" />
                   </div>
                 `)}
             <//>
@@ -7311,7 +7300,7 @@ ${JSON.stringify(t||{},null,2)}</pre
           <div
             className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-copper/30 bg-copper/10 text-copper"
           >
-            <${j} name="pulse" className="h-5 w-5 animate-pulse" />
+            <${j} name="pulse" className="h-5 w-5" />
           </div>
           <p className="mt-4 text-base font-semibold text-[var(--v2-text-strong)]">
             ${s("restart.progressTitle")}
@@ -7434,19 +7423,17 @@ ${JSON.stringify(t||{},null,2)}</pre
       <div className="space-y-4">
         <${Bo} onInstall=${n} isInstalling=${i} />
         <${W} padding="md">
-          <div className="mb-4 h-3 w-24 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+          <div className="v2-skeleton mb-4 h-3 w-24 rounded" />
           ${[1,2,3].map(x=>c`
               <div
                 key=${x}
                 className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-4 first:border-0"
               >
                 <div>
-                  <div className="h-4 w-32 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
-                  <div
-                    className="mt-1 h-3 w-48 animate-pulse rounded bg-[var(--v2-surface-muted)]"
-                  />
+                  <div className="v2-skeleton h-4 w-32 rounded" />
+                  <div className="v2-skeleton mt-1 h-3 w-48 rounded" />
                 </div>
-                <div className="h-6 w-20 animate-pulse rounded-full bg-[var(--v2-surface-muted)]" />
+                <div className="v2-skeleton h-6 w-20 rounded-full" />
               </div>
             `)}
         <//>
@@ -7549,14 +7536,14 @@ ${JSON.stringify(t||{},null,2)}</pre
     </div>
   `}function bR({searchQuery:e=""}){let t=A(),{tools:a,query:s,setPermission:n,savedTools:r}=vR();if(s.isLoading)return c`
       <${W} padding="md">
-        <div className="mb-4 h-3 w-28 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+        <div className="v2-skeleton mb-4 h-3 w-28 rounded" />
         ${[1,2,3,4,5].map(o=>c`
             <div
               key=${o}
               className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-3.5 first:border-0"
             >
-              <div className="h-4 w-36 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
-              <div className="h-8 w-28 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+              <div className="v2-skeleton h-4 w-36 rounded" />
+              <div className="v2-skeleton h-8 w-28 rounded" />
             </div>
           `)}
       <//>
@@ -7674,14 +7661,14 @@ ${JSON.stringify(t||{},null,2)}</pre
     </div>
   `}function xR({searchQuery:e=""}){let t=A(),{users:a,query:s,isForbidden:n,createUser:r,createError:i,isCreating:o}=yR();if(s.isLoading)return c`
       <${W} padding="md">
-        <div className="mb-4 h-3 w-24 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
+        <div className="v2-skeleton mb-4 h-3 w-24 rounded" />
         ${[1,2,3].map(u=>c`
             <div
               key=${u}
               className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-3.5 first:border-0"
             >
-              <div className="h-4 w-32 animate-pulse rounded bg-[var(--v2-surface-muted)]" />
-              <div className="h-6 w-20 animate-pulse rounded-full bg-[var(--v2-surface-muted)]" />
+              <div className="v2-skeleton h-4 w-32 rounded" />
+              <div className="v2-skeleton h-6 w-20 rounded-full" />
             </div>
           `)}
       <//>
