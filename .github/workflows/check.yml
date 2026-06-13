@@ -20,6 +20,7 @@ jobs:
       - run: npm run check:static-bundle
       - run: npm run lint:static-tokens
       - run: npm run lint:static-copy
+      - run: npm run test:design-static
       - name: Install Chromium for static rendered tests
         run: npx playwright install --with-deps chromium
       - run: npm run smoke:webui-static

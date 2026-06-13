@@ -95,6 +95,10 @@ const surfaces: Surface[] = [
       await expect(
         page.getByRole('heading', { name: 'No knowledge apps connected' })
       ).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Browse knowledge apps' })).toHaveAttribute(
+        'href',
+        '/v2/extensions/registry?setup=1&focus=notion'
+      );
     }
   },
   {

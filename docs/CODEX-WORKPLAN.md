@@ -101,7 +101,7 @@ desk/missions surfaces the static UI replaced. Deletion is gated by 4 CI hooks.
 | **TCI-3** | Unit-test `sidecar.rs` pure helpers (0 `#[test]` today) | M | — | `sidecar.rs` | `selected_model`/`clean_secret`/env-allowlist covered |
 | **TCI-4** | Test `save_bytes_dialog` path-traversal guard + base64 edges | S | — | `lib.rs` | DONE: pure `smoke_save_filename` extracted and verified by `cargo test --manifest-path src-tauri/Cargo.toml --lib base64_payload_tests --locked` (5 tests: padded/unpadded base64, binary round-trip, invalid bytes, traversal stripping, separator/dot rejection). |
 | **TCI-5** | Retarget the design-token + hardcoded-color guards to the SHIPPED static UI | M | — | `design-tokens.test.*` | reads `static/styles/app.css` `:root`; fails on raw status colors |
-| **TCI-6** | Build the **DT-1..DT-6** automatable design-test harness as a runnable gate | L | TCI-5 | `scripts/design-test-harness.mjs` | accent-count / animation-count / empty-state / gate checks runnable + in CI |
+| **TCI-6** | Build the **DT-1..DT-6** automatable design-test harness as a runnable gate | L | TCI-5 | `scripts/design-test-harness.mjs` | DONE: `npm run test:design-static` maps DT-1..DT-6 to shipped static UI proofs for cold-open desk, flat primary action discipline, semantic/bicolor tokens, calm motion, empty/loading dignity, and approval gate craft. Wired into pre-push and `check.yml`. |
 | **TCI-7** | Port E2E + a11y onto a **static-UI** Playwright project (pre-delete migration) | L | — | `playwright.static.config.ts` | DONE for current static gate: webServer `dev:webui-static`; 30 rendered tests cover chat/onboarding/extensions/settings plus attachments, connectors, keyboard/approval, markdown geometry, Mermaid, and saved Work reload; `check.yml` now runs `npm run test:a11y-static`. |
 | **TCI-8** | Retire the legacy SvelteKit test surface after static coverage lands | M | TCI-5/6/7 | `vitest.config.ts`, configs | vitest `include` drops `src/**`; legacy playwright removed |
 | **TCI-9** | Coverage instrumentation + thresholds (green == measured) | M | TCI-1/2 | `scripts/static-coverage.mjs` | `node --test --experimental-test-coverage` thresholds enforced |
@@ -278,7 +278,7 @@ npm run smoke:webui-static
 npm run smoke:gate-enforcement
 node scripts/tauri-cli.mjs build
 bash scripts/smoke-packaged-app.sh --webview-smoke
-node scripts/design-test-harness.mjs   # DT-1..6 (after TCI-6)
+npm run test:design-static             # DT-1..6 shipped static UI design gate
 npx playwright test -c playwright.static.config.ts   # E2E + axe (after TCI-7)
 ```
 

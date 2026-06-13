@@ -1,5 +1,7 @@
 import { html } from '../../../lib/html.js';
+import { Button } from '../../../design-system/button.js';
 import { Card, CardLabel } from '../../../design-system/card.js';
+import { appScopedPath } from '../../../lib/app-path.js';
 import { ExtensionCard, RegistryCard } from './extension-card.js';
 
 function packageId(item) {
@@ -26,6 +28,15 @@ export function McpTab({
           Connect Notion or another knowledge source from Browse so IronClaw can search team context
           before drafting or deciding.
         </p>
+        <${Button}
+          as="a"
+          href=${appScopedPath('/extensions/registry?setup=1&focus=notion')}
+          variant="primary"
+          size="sm"
+          className="mt-4"
+        >
+          Browse knowledge apps
+        <//>
         ${loadError &&
         html`
           <p className="mt-3 text-sm leading-6 text-[var(--v2-warning-text)]" role="status">

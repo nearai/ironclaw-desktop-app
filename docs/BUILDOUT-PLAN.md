@@ -74,8 +74,8 @@ static smoke, release build, packaged WebView gauntlet — all green.
   the tasks it pulls and which run in parallel.
 - **Every PR passes the gate stack:** `npm run test:static` · `npm run test` · `cargo test
   --release` · `npm run smoke:webui-static` · `npm run smoke:gate-enforcement` ·
-  `node scripts/tauri-cli.mjs build` · packaged gauntlet — plus, as they land, the DT-1..6
-  design harness and the static-UI Playwright/axe.
+  `npm run test:design-static` · `node scripts/tauri-cli.mjs build` · packaged gauntlet —
+  plus the static-UI Playwright/axe.
 - **Two blockers need a human, not Codex:** (a) an **Apple Developer ID cert + notarization
   credentials** for M1; (b) the **M2 main-sidecar adoption decision** (`UP-6`). Everything
   else is buildable now.
