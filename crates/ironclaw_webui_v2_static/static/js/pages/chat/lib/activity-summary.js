@@ -39,6 +39,9 @@ export function summarizeActivity(activity) {
 
   return {
     hasError: failed > 0,
+    isComplete: tools.total > 0 && failed === 0 && running === 0,
+    isRunning: running > 0,
+    toolCount: tools.total,
     label
   };
 }

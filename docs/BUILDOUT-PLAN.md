@@ -172,8 +172,8 @@ to a prepared brief, agent work is legible, and every surface is calm and on-bra
    state (calm greeting when nothing is backed).
 
 **Track B — chat craft (parallel lanes, the 14 competitor patterns):**
-`CHAT-1` receipt cards · `CHAT-2` artifact chips (incl. agent-generated work products and
-saved `/work` reader) ·
+`CHAT-1` receipt cards for completed tool results (shipped) · `CHAT-2` artifact chips
+(incl. agent-generated work products and saved `/work` reader) ·
 `CHAT-3` one-line tool rows · `CHAT-4` bubble-less assistant · `CHAT-5` "+"-sheet composer
 (kill chip soup) · `CHAT-6` attachment thumbnails above user bubbles (shipped for available
 image payloads; metadata-only reload images stay as chips) · `CHAT-7` grouped model picker
