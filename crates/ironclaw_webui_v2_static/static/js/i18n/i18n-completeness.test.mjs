@@ -77,6 +77,10 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'automations.table.schedule',
   'automations.table.status',
   'automations.title',
+  'chat.addMenuTitle',
+  'chat.addToMessage',
+  'chat.attachFilesDesc',
+  'chat.attachFilesHint',
   'chat.attachmentExtracted',
   'chat.attachmentExtracting',
   'chat.attachmentMetadataOnly',
@@ -332,7 +336,7 @@ test('every advertised language has a registered pack', () => {
 
 test('i18n baseline is sorted, unique, and references real English keys', () => {
   const englishKeys = Object.keys(packs.en || {}).sort();
-  assert.equal(englishKeys.length, 790);
+  assert.equal(englishKeys.length, 794);
   assert.deepEqual(BASELINE_MISSING_KEYS, sortedUnique(BASELINE_MISSING_KEYS));
 
   const unknownBaselineKeys = BASELINE_MISSING_KEYS.filter((key) => !packs.en?.[key]);

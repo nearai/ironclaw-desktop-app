@@ -530,6 +530,11 @@ export function ChatInput({
   const hasPayload = text.trim() || images.length > 0 || attachments.length > 0;
   const placeholder = isHero ? t('chat.heroPlaceholder') : t('chat.followUpPlaceholder');
   const [modelMenuOpen, setModelMenuOpen] = React.useState(false);
+  const [addMenuOpen, setAddMenuOpen] = React.useState(false);
+  const openFilePicker = React.useCallback(() => {
+    setAddMenuOpen(false);
+    fileInputRef.current?.click();
+  }, []);
   const shellClass = isHero ? 'w-full' : 'px-4 py-3 sm:px-5 lg:px-8';
   const composerClass = [
     'relative mx-auto w-full max-w-5xl rounded-[20px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] shadow-[var(--v2-card-shadow)] p-2.5',
@@ -723,15 +728,54 @@ export function ChatInput({
               className="hidden"
               onChange=${onFileInputChange}
             />
-            <button
-              type="button"
-              onClick=${() => fileInputRef.current?.click()}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--v2-canvas)]"
-              title=${t('chat.attachFiles')}
-              aria-label=${t('chat.attachFiles')}
+            <${Popover}
+              open=${addMenuOpen}
+              onClose=${() => setAddMenuOpen(false)}
+              align="end"
+              side="top"
+              ariaLabel=${t('chat.addToMessage')}
+              trigger=${html`
+                <button
+                  type="button"
+                  onClick=${() => setAddMenuOpen((value) => !value)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--v2-canvas)]"
+                  title=${t('chat.addToMessage')}
+                  aria-label=${t('chat.addToMessage')}
+                  aria-expanded=${addMenuOpen}
+                >
+                  <${Icon} name="plus" className="h-5 w-5" />
+                </button>
+              `}
             >
-              <${Icon} name="attach" className="h-5 w-5" />
-            </button>
+              <div className="w-[min(18rem,calc(100vw-2rem))] p-2" data-testid="composer-add-menu">
+                <div
+                  className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+                >
+                  ${t('chat.addMenuTitle')}
+                </div>
+                <button
+                  type="button"
+                  onClick=${openFilePicker}
+                  className="flex w-full items-start gap-3 rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-3 text-left text-sm text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_40%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)]"
+                >
+                  <span
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-[9px] border border-[var(--v2-panel-border)] text-[var(--v2-accent-text)]"
+                    aria-hidden="true"
+                  >
+                    <${Icon} name="upload" className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block font-semibold">${t('chat.attachFiles')}</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-[var(--v2-text-muted)]">
+                      ${t('chat.attachFilesDesc')}
+                    </span>
+                  </span>
+                </button>
+                <p className="px-2 pt-2 text-xs leading-5 text-[var(--v2-text-muted)]">
+                  ${t('chat.attachFilesHint')}
+                </p>
+              </div>
+            <//>
             ${canCancel
               ? html`
                   <${Button}

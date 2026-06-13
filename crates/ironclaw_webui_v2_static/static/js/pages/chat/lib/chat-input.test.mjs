@@ -229,7 +229,7 @@ test('ChatInput blocks send when NEAR AI Cloud is not active', async () => {
   assert.deepEqual(sendCalls, []);
 });
 
-test('ChatInput renders attachment as a keyboard-focusable button', () => {
+test('ChatInput renders attachment behind a keyboard-focusable plus sheet', () => {
   const { tree } = renderChatInput({
     disabled: false,
     canCancel: false,
@@ -244,8 +244,13 @@ test('ChatInput renders attachment as a keyboard-focusable button', () => {
   const scalars = collectScalars(tree);
   const source = JSON.stringify(tree);
 
+  assert.ok(scalars.includes('chat.addToMessage'));
+  assert.ok(scalars.includes('chat.addMenuTitle'));
   assert.ok(scalars.includes('chat.attachFiles'));
+  assert.ok(scalars.includes('chat.attachFilesDesc'));
+  assert.ok(scalars.includes('chat.attachFilesHint'));
   assert.match(source, /type=\\?"button\\?"/);
+  assert.match(source, /composer-add-menu/);
   assert.match(source, /aria-label=/);
   assert.match(source, /focus-visible:ring/);
 });

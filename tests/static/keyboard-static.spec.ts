@@ -110,7 +110,7 @@ async function activeElementSummary(page: Page) {
   });
 }
 
-test('static keyboard: composer reaches model, attach, and send controls in order', async ({
+test('static keyboard: composer reaches model, add sheet, and send controls in order', async ({
   page
 }) => {
   await installStaticInteractionMocks(page);
@@ -127,7 +127,15 @@ test('static keyboard: composer reaches model, attach, and send controls in orde
   await expect.poll(() => activeElementSummary(page)).toContain('Chat model settings');
 
   await page.keyboard.press('Tab');
-  await expect.poll(() => activeElementSummary(page)).toContain('Attach files');
+  await expect.poll(() => activeElementSummary(page)).toContain('Add to message');
+
+  await page.keyboard.press('Enter');
+  const addSheet = page.getByRole('dialog', { name: 'Add to message' });
+  await expect(addSheet).toBeVisible();
+  await expect(addSheet.getByText('Attach files')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(addSheet).toHaveCount(0);
 
   await page.keyboard.press('Tab');
   await expect.poll(() => activeElementSummary(page)).toContain('Send message');
