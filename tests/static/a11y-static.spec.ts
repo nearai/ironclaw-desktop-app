@@ -70,12 +70,109 @@ const surfaces: Surface[] = [
     }
   },
   {
+    label: 'connections installed',
+    path: '/v2/extensions',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByRole('heading', { name: 'No apps connected yet' })).toBeVisible();
+      await expect(page.getByRole('link', { name: 'Browse apps' })).toBeVisible();
+    }
+  },
+  {
+    label: 'connections channels',
+    path: '/v2/extensions/channels',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByText('Built-in messaging paths')).toBeVisible();
+      await expect(page.getByText('Slack').first()).toBeVisible();
+    }
+  },
+  {
+    label: 'connections knowledge apps',
+    path: '/v2/extensions/mcp',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(
+        page.getByRole('heading', { name: 'No knowledge apps connected' })
+      ).toBeVisible();
+    }
+  },
+  {
     label: 'AI setup',
     path: '/v2/settings/inference',
     authenticated: true,
     waitFor: async (page) => {
       await expect(page.getByText('AI runtime')).toBeVisible();
       await expect(page.getByRole('heading', { name: 'NEAR AI Cloud' })).toBeVisible();
+    }
+  },
+  {
+    label: 'language settings',
+    path: '/v2/settings/language',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByRole('heading', { name: 'Language' })).toBeVisible();
+      await expect(page.getByText('English').first()).toBeVisible();
+    }
+  },
+  {
+    label: 'automations deep link',
+    path: '/v2/automations',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByRole('heading', { name: 'Automations', exact: true })).toBeVisible();
+      await expect(page.getByText('No scheduled automations yet.')).toBeVisible();
+    }
+  },
+  {
+    label: 'workspace deep link',
+    path: '/v2/workspace',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByText('No files in workspace.')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'README.md' })).toBeVisible();
+    }
+  },
+  {
+    label: 'projects deep link',
+    path: '/v2/projects',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
+    }
+  },
+  {
+    label: 'jobs deep link',
+    path: '/v2/jobs',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByRole('heading', { name: 'No jobs yet' })).toBeVisible();
+    }
+  },
+  {
+    label: 'routines deep link',
+    path: '/v2/routines',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByRole('heading', { name: 'Routines' })).toBeVisible();
+      await expect(page.getByText('No routines yet')).toBeVisible();
+    }
+  },
+  {
+    label: 'missions deep link',
+    path: '/v2/missions',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByRole('heading', { name: 'Execution loops' })).toBeVisible();
+      await expect(page.getByText('No missions match')).toBeVisible();
+    }
+  },
+  {
+    label: 'logs deep link',
+    path: '/v2/logs',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByText('Waiting for log entries…')).toBeVisible();
     }
   }
 ];
@@ -94,6 +191,9 @@ async function installStaticApiMocks(page: Page) {
     }
     if (path === '/api/webchat/v2/threads' && method === 'GET') {
       return json(route, { threads: [], next_cursor: null });
+    }
+    if (path === '/api/webchat/v2/automations' && method === 'GET') {
+      return json(route, { automations: [], next_cursor: null });
     }
     if (path === '/api/webchat/v2/extensions/registry') {
       return json(route, { entries: [] });

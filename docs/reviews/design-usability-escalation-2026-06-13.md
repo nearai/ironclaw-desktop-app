@@ -55,8 +55,9 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - `rg "animate-pulse|animate-bounce|v2-skeleton-shimmer|@keyframes pulse|@keyframes bounce" crates/ironclaw_webui_v2_static/static/js crates/ironclaw_webui_v2_static/static/styles --glob '!vendor/**' --glob '!*.test.mjs'` returns no shipped UI hits.
 - Static accessibility gate: `npm run test:a11y-static`
   - Status: passed.
-  - Covers shipped static `/v2` onboarding, chat, connections registry, and AI setup with mocked Reborn API responses.
+  - Covers 15 shipped static `/v2` surfaces with mocked Reborn API responses: onboarding, chat, connections registry/installed/channels/MCP, AI setup, language settings, automations, workspace, projects, jobs, routines, missions, and logs.
   - Fails on critical/serious axe violations and console/page errors; `color-contrast` remains excluded for the same token/opacity false-positive reason as the legacy a11y suite.
+  - The expanded run caught and fixed a critical Logs control-name violation; the Logs route now keeps its local-only empty state while exposing named select controls.
 
 ## Escalated Findings
 
@@ -73,7 +74,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. | Keep. Deep OCR remains opt-in in packaged smoke. |
 | Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |
 | Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks and the chat typing indicator no longer uses bouncing dots. | Keep. Avoid returning to marketing-card layouts or perpetual skeleton motion. |
-| Accessibility gate | GREEN | The shipped static WebUI now has a dedicated Playwright/axe project for onboarding, chat, connections registry, and AI setup; it is wired into pre-push. | Keep expanding route coverage before deleting the legacy Svelte a11y sweep. |
+| Accessibility gate | GREEN | The shipped static WebUI now has a dedicated Playwright/axe project for 15 onboarding/chat/connection/settings/deep-link surfaces; it is wired into pre-push and caught a real Logs select-name violation. | Keep expanding interaction coverage before deleting the legacy Svelte a11y sweep. |
 | Screenshot process | GREEN | README/design capture now regenerates `contact-sheet.png` from current screenshots and does not leak proxy 502 console errors. | Keep as a review precondition. |
 
 ## Required Next Product Proofs

@@ -50,9 +50,10 @@ function LogEntry({ entry }) {
   `;
 }
 
-function ToolbarSelect({ value, onChange, options, labelKey, t }) {
+function ToolbarSelect({ value, onChange, options, labelKey, ariaLabel, t }) {
   return html`
     <select
+      aria-label=${ariaLabel}
       value=${value}
       onChange=${(e) => onChange(e.target.value)}
       className="v2-select h-8 min-w-0 rounded-[8px] px-2.5 py-0 text-xs"
@@ -100,6 +101,7 @@ export function LogsPage() {
           onChange=${setLevelFilter}
           options=${LEVELS}
           labelKey=${(opt) => (opt === 'all' ? 'logs.levelAll' : `logs.level.${opt}`)}
+          ariaLabel="Log level filter"
           t=${t}
         />
 
@@ -162,6 +164,7 @@ export function LogsPage() {
               onChange=${changeServerLevel}
               options=${SERVER_LEVELS}
               labelKey=${(opt) => `logs.level.${opt}`}
+              ariaLabel="Server log level"
               t=${t}
             />
             <span className="ml-auto tabular-nums">

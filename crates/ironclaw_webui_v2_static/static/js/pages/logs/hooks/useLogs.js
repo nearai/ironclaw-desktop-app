@@ -5,16 +5,29 @@ import { React } from '../../../lib/html.js';
 // the #3815 contract. Hook returns empty/static so the Logs page
 // renders an empty list without hitting any v1 path.
 export function useLogs() {
-  const [level, setLevel] = React.useState('info');
+  const [levelFilter, setLevelFilter] = React.useState('all');
+  const [targetFilter, setTargetFilter] = React.useState('');
+  const [paused, setPaused] = React.useState(false);
+  const [autoScroll, setAutoScroll] = React.useState(true);
 
-  const updateLevel = React.useCallback(async (next) => {
-    setLevel(next); // local-only — no v2 endpoint to persist
+  const changeServerLevel = React.useCallback(async (_next) => {
+    // Local-only until a v2 system log endpoint exists.
   }, []);
 
   return {
     entries: [],
-    level,
-    setLevel: updateLevel,
+    totalCount: 0,
+    paused,
+    togglePause: () => setPaused((value) => !value),
+    clearEntries: () => {},
+    levelFilter,
+    setLevelFilter,
+    targetFilter,
+    setTargetFilter,
+    autoScroll,
+    setAutoScroll,
+    serverLevel: null,
+    changeServerLevel,
     status: 'todo',
     isLoading: false
   };

@@ -8574,7 +8574,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         <div className="space-y-5">${i[e]}</div>
       </div>
     </div>
-  `:c`<${ra} to="/admin/dashboard" replace />`}function KR(){let[e,t]=g.default.useState("info"),a=g.default.useCallback(async s=>{t(s)},[]);return{entries:[],level:e,setLevel:a,status:"todo",isLoading:!1}}var JO=["all","trace","debug","info","warn","error"],YO=["trace","debug","info","warn","error"],GR={trace:"text-[var(--v2-text-muted)]",debug:"text-[color-mix(in_srgb,var(--v2-accent)_80%,white)]",info:"text-[var(--v2-text-strong)]",warn:"text-yellow-400",error:"text-red-400"},XO={warn:"bg-yellow-500/5",error:"bg-red-500/8"};function ZO({entry:e}){let[t,a]=g.default.useState(!1),s=e.timestamp?e.timestamp.substring(11,23):"",n=GR[e.level]||GR.info,r=XO[e.level]||"";return c`
+  `:c`<${ra} to="/admin/dashboard" replace />`}function KR(){let[e,t]=g.default.useState("all"),[a,s]=g.default.useState(""),[n,r]=g.default.useState(!1),[i,o]=g.default.useState(!0),l=g.default.useCallback(async u=>{},[]);return{entries:[],totalCount:0,paused:n,togglePause:()=>r(u=>!u),clearEntries:()=>{},levelFilter:e,setLevelFilter:t,targetFilter:a,setTargetFilter:s,autoScroll:i,setAutoScroll:o,serverLevel:null,changeServerLevel:l,status:"todo",isLoading:!1}}var JO=["all","trace","debug","info","warn","error"],YO=["trace","debug","info","warn","error"],GR={trace:"text-[var(--v2-text-muted)]",debug:"text-[color-mix(in_srgb,var(--v2-accent)_80%,white)]",info:"text-[var(--v2-text-strong)]",warn:"text-yellow-400",error:"text-red-400"},XO={warn:"bg-yellow-500/5",error:"bg-red-500/8"};function ZO({entry:e}){let[t,a]=g.default.useState(!1),s=e.timestamp?e.timestamp.substring(11,23):"",n=GR[e.level]||GR.info,r=XO[e.level]||"";return c`
     <div
       onClick=${()=>a(i=>!i)}
       className=${["grid cursor-pointer select-none gap-x-3 px-4 py-1 font-mono text-xs hover:bg-[var(--v2-surface-muted)]","grid-cols-[7rem_3rem_minmax(10rem,18rem)_1fr]",r].filter(Boolean).join(" ")}
@@ -8588,13 +8588,14 @@ ${JSON.stringify(t||{},null,2)}</pre
         ${e.message}
       </span>
     </div>
-  `}function VR({value:e,onChange:t,options:a,labelKey:s,t:n}){return c`
+  `}function VR({value:e,onChange:t,options:a,labelKey:s,ariaLabel:n,t:r}){return c`
     <select
+      aria-label=${n}
       value=${e}
-      onChange=${r=>t(r.target.value)}
+      onChange=${i=>t(i.target.value)}
       className="v2-select h-8 min-w-0 rounded-[8px] px-2.5 py-0 text-xs"
     >
-      ${a.map(r=>c`<option key=${r} value=${r}>${n(s(r))}</option>`)}
+      ${a.map(i=>c`<option key=${i} value=${i}>${r(s(i))}</option>`)}
     </select>
   `}function QR(){let e=A(),{entries:t,totalCount:a,paused:s,togglePause:n,clearEntries:r,levelFilter:i,setLevelFilter:o,targetFilter:l,setTargetFilter:u,autoScroll:d,setAutoScroll:f,serverLevel:m,changeServerLevel:p}=KR(),v=g.default.useRef(null);return g.default.useEffect(()=>{d&&v.current&&(v.current.scrollTop=0)},[t,d]),c`
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -8608,6 +8609,7 @@ ${JSON.stringify(t||{},null,2)}</pre
           onChange=${o}
           options=${JO}
           labelKey=${w=>w==="all"?"logs.levelAll":`logs.level.${w}`}
+          ariaLabel="Log level filter"
           t=${e}
         />
 
@@ -8662,6 +8664,7 @@ ${JSON.stringify(t||{},null,2)}</pre
               onChange=${p}
               options=${YO}
               labelKey=${w=>`logs.level.${w}`}
+              ariaLabel="Server log level"
               t=${e}
             />
             <span className="ml-auto tabular-nums">
