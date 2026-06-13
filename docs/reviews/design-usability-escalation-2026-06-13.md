@@ -31,7 +31,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 - Static bundle-size gate: `npm run check:static-bundle`
   - Status: passed.
   - Measures the shipped Tauri static WebUI, not the legacy Svelte build.
-  - Current gzipped tracked assets: cold start 347.8 KB / 400 KB; `main.bundle.js` 312.4 KB / 350 KB; boot vendor 22.3 KB / 35 KB; lazy code highlighting 52.0 KB / 60 KB; lazy diagrams 858.5 KB / 950 KB; document/PDF lazy assets 516.3 KB / 600 KB; OCR lazy assets 2501.5 KB / 2800 KB; all tracked assets 4276.1 KB / 4900 KB.
+  - Current gzipped tracked assets: cold start 348.1 KB / 400 KB; `main.bundle.js` 312.7 KB / 350 KB; boot vendor 22.3 KB / 35 KB; lazy code highlighting 52.0 KB / 60 KB; lazy diagrams 858.5 KB / 950 KB; document/PDF lazy assets 516.3 KB / 600 KB; OCR lazy assets 2501.5 KB / 2800 KB; all tracked assets 4276.4 KB / 4900 KB.
   - Largest tracked asset is OCR lazy glue (`ocr/tesseract-core-simd-lstm.wasm.js`) at 1427.3 KB / 1500 KB; the gate reports WARN but remains under budget.
 - Static markdown lazy-renderer proof: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/components/markdown-renderer.test.mjs`
   - Status: passed.
@@ -45,7 +45,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Status: passed.
   - Scans 190 shipped static JS files and fails if normal desktop copy leaks OpenRouter, Anthropic, Claude, ChatGPT, Codex login, provider marketplace framing, `operator`, generic `console`, or `Gateway v2`/route wording.
 - Rendered static smoke: `npm run smoke:webui-static`
-- Static JS tests: `npm run test:static` -> 343 passed.
+- Static JS tests: `npm run test:static` -> 344 passed.
 - Full test suite: `npm run test` -> 161 files / 1294 tests passed.
 - Type/UI check: `npm run check` -> 0 errors / 0 warnings.
 - Packaged build: `npm run tauri -- build`
@@ -110,6 +110,10 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Status: passed.
   - Sends the mocked services-agreement prompt with PDF/DOCX/XLSX/MD/JSON/HTML attachments, verifies the wide assistant work-product panel, verifies the new `assistant-artifact-chip`, and exports MD/HTML/JSON/PDF/DOCX through the artifact-scoped export menu.
   - Caught and fixed a rendered menu placement bug: the new artifact export popover initially opened upward under the sticky header; generated-document export now opens downward and the rendered export click succeeds.
+- Static tool-row copy gate: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/activity-summary.test.mjs crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/tool-activity.test.mjs`
+  - Status: passed, 3 focused tests; covered again inside `npm run test:static`.
+  - Replaces generic `Activity - 2 tools`/`explored` wording with quiet one-line labels such as `Read 1 file`, `Searched 1 time`, `Checked 3 tool steps`, `Checking 1 tool step...`, and `1 tool failed`.
+  - `ActivityRun` now exposes a stable `activity-summary-row` control with an accessible label that names the row and whether details will show/hide.
 - Static connector lifecycle gate: `npx playwright test --config playwright.static.config.ts tests/static/connectors-static.spec.ts`
   - Status: passed, 3 rendered tests.
   - Clicks Gmail, Google Calendar, Notion, and Slack registry cards in the rendered app.
@@ -150,6 +154,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. Static rendered tests separately prove picker, paste, and drag/drop attachment ingress sends readable payloads to Reborn. DOCX exports now preserve headings, tables, editable lists, and clickable external links as OOXML structure. Whole-thread export now offers MD/JSON/PDF/DOCX instead of stopping at markdown and JSON. Generated markdown/document work now renders with an explicit `Generated document` artifact header, copy, Save to Work, and export controls; `npm run smoke:webui-static` proves the user exports through that artifact header after sending the services-agreement attachment prompt. | Keep. Deep OCR remains opt-in in packaged smoke; native generated binary chips still need a later pass. |
 | Generated markdown layout | GREEN | Wide generated tables and SVG/media are now bounded by markdown CSS. A source CSS contract plus rendered Playwright geometry test prove hostile tables scroll internally and 2400px SVGs cannot widen the chat canvas. | Keep. Next visualization push should finish export parity for tables, diagrams, and whole-thread artifacts. |
 | Generated diagrams | GREEN/YELLOW | Mermaid fences now render as first-class diagram cards in chat, stay off the cold-start path, require explicit user click, initialize with strict Mermaid security, sanitize returned SVG, and are covered by both source tests and a rendered static Playwright proof. Exports preserve labeled Mermaid source across MD/HTML/JSON/PDF/DOCX instead of dropping it into anonymous fences. DOCX structure fidelity improved for headings/lists/links/tables. | Keep. Full VIZ-3 is still YELLOW until DOCX/PDF/HTML can embed the rendered diagram image from the same render path, not only the source. |
+| Tool activity readability | GREEN | Grouped activity no longer reads as generic workflow machinery. Source/static tests prove quiet row labels for file reads, searches, mixed tool steps, running state, and failure state, and the row has a stable accessible expand affordance. | Keep. Next craft pass can add richer receipt cards for completed external actions, but tool chatter should stay collapsed by default. |
 | Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |
 | Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks, chat typing no longer bounces, live/running dots use a reduced-motion-aware semantic class, and primary chat/Settings/Logs/deep-link/admin status states now use warning/danger/positive tokens instead of raw Tailwind colors. | Keep. Avoid returning to marketing-card layouts, raw status palettes, or perpetual skeleton motion. |
 | Static performance gate | GREEN | `npm run check:static-bundle` now measures the packaged static WebUI instead of the dead Svelte build and is part of `pre-push`. Highlight.js and Mermaid are lazy-loaded from markdown/code/diagram blocks instead of blocking app boot; cold start is 347.3 KB gzip. OCR lazy support is the closest budget pressure. | Keep. Next perf push should split never-visited routes and keep OCR under pressure watch. |

@@ -14,6 +14,8 @@ export function ActivityRun({ activity }) {
         type="button"
         onClick=${() => setExpanded((value) => !value)}
         aria-expanded=${expanded ? 'true' : 'false'}
+        aria-label=${`${summary.label}; ${expanded ? 'hide details' : 'show details'}`}
+        data-testid="activity-summary-row"
         className=${[
           'v2-button flex w-full items-center gap-2 border-0 bg-transparent px-1 py-1.5 text-left text-sm',
           summary.hasError ? 'text-[var(--v2-danger-text)]' : 'text-iron-400 hover:text-iron-200'

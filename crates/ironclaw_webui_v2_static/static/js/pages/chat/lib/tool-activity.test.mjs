@@ -43,14 +43,14 @@ function createContext() {
     useT: () => (key, vars = {}) => {
       const n = vars.n || 0;
       const map = {
-        'tool.runFile': `explored ${n} file`,
-        'tool.runFiles': `explored ${n} files`,
-        'tool.runSearch': `${n} search`,
-        'tool.runSearches': `${n} searches`,
+        'tool.runFile': `read ${n} file`,
+        'tool.runFiles': `read ${n} files`,
+        'tool.runSearch': `searched ${n} time`,
+        'tool.runSearches': `searched ${n} times`,
         'tool.runCommand': `ran ${n} command`,
         'tool.runCommands': `ran ${n} commands`,
-        'tool.runOther': `${n} tool`,
-        'tool.runOthers': `${n} tools`
+        'tool.runOther': `used ${n} tool`,
+        'tool.runOthers': `used ${n} tools`
       };
       return map[key] || key;
     }
@@ -66,7 +66,7 @@ test('ToolRun collapses successful tool activity behind a summary by default', (
   });
 
   assert.equal(context.globalThis.__testExports.TOOL_RUN_COLLAPSE_AFTER, 0);
-  assert.match(flatText(tree), /Explored 1 file/);
+  assert.match(flatText(tree), /Read 1 file/);
   assert.equal(countFunctionValue(tree, context.globalThis.__testExports.ToolRun), 0);
   assert.doesNotMatch(flatText(tree), /read_file/);
 });
