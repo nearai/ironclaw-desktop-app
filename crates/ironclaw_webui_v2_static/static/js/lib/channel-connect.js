@@ -51,10 +51,18 @@ export function resolveChannelConnectCommand(input, channels) {
 export function resolveExtensionConnectCommand(input) {
   if (!looksLikeChannelConnectCommand(input)) return null;
   const text = normalizedWords(input);
-  const target = EXTENSION_CONNECT_TARGETS.find((entry) =>
-    entry.aliases.some((alias) => includesWordPhrase(text, normalizedWords(alias)))
-  );
+  const target = findExtensionConnectTarget(text);
   if (!target) return null;
+  return extensionSetupAction(target);
+}
+
+export function resolveExtensionRecoveryAction(input) {
+  const target = findExtensionConnectTarget(normalizedWords(input));
+  if (!target) return null;
+  return extensionSetupAction(target);
+}
+
+function extensionSetupAction(target) {
   const setupPath =
     target.id === 'workspace'
       ? `/extensions/registry?focus=${encodeURIComponent(target.id)}`
@@ -103,6 +111,12 @@ function normalizedWords(value) {
 function includesWordPhrase(text, phrase) {
   if (!phrase) return false;
   return ` ${text} `.includes(` ${phrase} `);
+}
+
+function findExtensionConnectTarget(text) {
+  return EXTENSION_CONNECT_TARGETS.find((entry) =>
+    entry.aliases.some((alias) => includesWordPhrase(text, normalizedWords(alias)))
+  );
 }
 
 function connectorInstructions(id) {

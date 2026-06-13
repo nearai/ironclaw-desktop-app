@@ -31,7 +31,8 @@ function useChatEventsSourceForTest() {
 
 function createUseChatEventsHarness({
   gateFromEvent = () => null,
-  gateFromProjection: gateFromProjectionOverride = gateFromProjection
+  gateFromProjection: gateFromProjectionOverride = gateFromProjection,
+  failureMessageForRunStatus: failureMessageForRunStatusOverride = () => 'run failed'
 } = {}) {
   let messages = [];
   let pendingGate = null;
@@ -39,13 +40,14 @@ function createUseChatEventsHarness({
   let activeRun = null;
   const activeRunRef = { current: null };
   const completedRuns = [];
+  const failedRuns = [];
   const context = {
     Date,
     React: {
       useCallback: (fn) => fn,
       useRef: (value) => ({ current: value })
     },
-    failureMessageForRunStatus: () => 'run failed',
+    failureMessageForRunStatus: failureMessageForRunStatusOverride,
     upsertRunFailureMessage,
     gateFromEvent,
     globalThis: {},
@@ -73,7 +75,8 @@ function createUseChatEventsHarness({
       activeRunRef.current = activeRun;
     },
     activeRunRef,
-    onRunCompleted: (runId) => completedRuns.push(runId)
+    onRunCompleted: (runId) => completedRuns.push(runId),
+    onRunFailed: (failure) => failedRuns.push(failure)
   });
 
   return {
@@ -96,6 +99,9 @@ function createUseChatEventsHarness({
     },
     get completedRuns() {
       return completedRuns;
+    },
+    get failedRuns() {
+      return failedRuns;
     }
   };
 }
@@ -405,6 +411,43 @@ test('useChatEvents: stale failed run status does not append error', () => {
     threadId: 'thread-1',
     status: 'running'
   });
+});
+
+test('useChatEvents: failed run status emits connector recovery context', () => {
+  const harness = createUseChatEventsHarness({
+    failureMessageForRunStatus: ({ failureSummary }) => failureSummary
+  });
+
+  harness.handleEvent({
+    type: 'projection_update',
+    frame: {
+      state: {
+        items: [
+          { run_status: { run_id: 'run-1', status: 'running' } },
+          {
+            run_status: {
+              run_id: 'run-1',
+              status: 'failed',
+              failure_category: 'missing_tool',
+              failure_summary: 'Notion tool is not installed for this run.'
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(harness.messages[0].content, 'Notion tool is not installed for this run.');
+  assert.deepEqual(plain(harness.failedRuns), [
+    {
+      runId: 'run-1',
+      status: 'failed',
+      failureCategory: 'missing_tool',
+      failureSummary: 'Notion tool is not installed for this run.',
+      content: 'Notion tool is not installed for this run.'
+    }
+  ]);
 });
 
 test('useChatEvents: stale completed run status does not refetch timeline', () => {

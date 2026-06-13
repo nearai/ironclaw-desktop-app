@@ -146,6 +146,29 @@ test('static connectors: chat connect prompts open an honest extension setup pat
   await expect(page.getByTestId('registry-card-notion')).toBeVisible();
 });
 
+test('static connectors: failed connector runs recover to extension setup', async ({ page }) => {
+  const calls: CapturedCall[] = [];
+  await installConnectorMocks(page, calls);
+
+  await page.goto('/v2/chat/thread-connector-failure?token=connector-static-token');
+  await page.locator('textarea').first().waitFor({ timeout: 20_000 });
+
+  await expect(page.getByText('Notion tool is not installed for this run.')).toBeVisible({
+    timeout: 20_000
+  });
+  const recovery = page.getByTestId('connector-recovery-card');
+  await expect(recovery).toBeVisible();
+  await expect(recovery).toContainText('Open Notion setup');
+  await expect(recovery.getByRole('link', { name: 'Open setup' })).toHaveAttribute(
+    'href',
+    '/v2/extensions/registry?setup=1&focus=notion'
+  );
+
+  await recovery.getByRole('link', { name: 'Open setup' }).click();
+  await expect(page).toHaveURL(/\/v2\/extensions\/registry\?setup=1&focus=notion/);
+  await expect(page.getByTestId('registry-card-notion')).toBeVisible();
+});
+
 type CapturedCall = {
   method: string;
   path: string;
@@ -194,7 +217,49 @@ async function installConnectorMocks(page: Page, calls: CapturedCall[]) {
       return json(route, { ok: true, active: llmProviders.active });
     }
     if (path === '/api/webchat/v2/threads' && method === 'GET') {
-      return json(route, { threads: [], next_cursor: null });
+      return json(route, {
+        threads: [
+          {
+            thread_id: 'thread-connector-failure',
+            id: 'thread-connector-failure',
+            title: 'Connector failure proof'
+          }
+        ],
+        next_cursor: null
+      });
+    }
+    if (path === '/api/webchat/v2/threads/thread-connector-failure/timeline') {
+      return json(route, { messages: [], summary_artifacts: [], next_cursor: null });
+    }
+    if (path === '/api/webchat/v2/threads/thread-connector-failure/events') {
+      return route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream; charset=utf-8',
+        body: [
+          ': connected',
+          '',
+          'id: connector-failure-1',
+          'event: projection_update',
+          `data: ${JSON.stringify({
+            type: 'projection_update',
+            state: {
+              items: [
+                { run_status: { run_id: 'run-connector-failure', status: 'running' } },
+                {
+                  run_status: {
+                    run_id: 'run-connector-failure',
+                    status: 'failed',
+                    failure_category: 'missing_tool',
+                    failure_summary: 'Notion tool is not installed for this run.'
+                  }
+                }
+              ]
+            }
+          })}`,
+          '',
+          ''
+        ].join('\n')
+      });
     }
     if (path === '/api/webchat/v2/automations' && method === 'GET') {
       return json(route, { automations: [], next_cursor: null });

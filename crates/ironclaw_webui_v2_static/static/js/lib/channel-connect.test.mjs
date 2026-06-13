@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { resolveChannelConnectCommand, resolveExtensionConnectCommand } from './channel-connect.js';
+import {
+  resolveChannelConnectCommand,
+  resolveExtensionConnectCommand,
+  resolveExtensionRecoveryAction
+} from './channel-connect.js';
 
 const slack = {
   channel: 'slack',
@@ -39,4 +43,18 @@ test('resolveExtensionConnectCommand creates honest app setup links for connecto
 test('resolveExtensionConnectCommand keeps ordinary connector work prompts in the model path', () => {
   assert.equal(resolveExtensionConnectCommand('search notion for the launch notes'), null);
   assert.equal(resolveExtensionConnectCommand('draft a reply to this gmail thread'), null);
+});
+
+test('resolveExtensionRecoveryAction maps connector failures to setup links', () => {
+  const notion = resolveExtensionRecoveryAction('The notion tool is not installed for this run.');
+  assert.equal(notion.channel, 'notion');
+  assert.equal(notion.action.href, '/extensions/registry?setup=1&focus=notion');
+
+  const calendar = resolveExtensionRecoveryAction('google_calendar auth required');
+  assert.equal(calendar.channel, 'google-calendar');
+  assert.equal(calendar.package_ref.id, 'tools/google_calendar');
+});
+
+test('resolveExtensionRecoveryAction ignores unrelated failures', () => {
+  assert.equal(resolveExtensionRecoveryAction('The run failed because the model timed out.'), null);
 });

@@ -10,7 +10,8 @@ import {
   listConnectableChannels,
   looksLikeChannelConnectCommand,
   resolveChannelConnectCommand,
-  resolveExtensionConnectCommand
+  resolveExtensionConnectCommand,
+  resolveExtensionRecoveryAction
 } from '../../../lib/channel-connect.js';
 import { queryClient } from '../../../lib/query-client.js';
 import { React } from '../../../lib/html.js';
@@ -126,6 +127,10 @@ function failureSummaryFromRunState(runState) {
     runState?.summary ||
     ''
   );
+}
+
+function connectorRecoveryText({ content, failureCategory, failureSummary } = {}) {
+  return [content, failureCategory, failureSummary].filter(Boolean).join('\n');
 }
 
 async function resolveConnectAction(content) {
@@ -286,6 +291,10 @@ export function useChat(threadId) {
     // whose projection hasn't landed yet.
     onRunCompleted: () => {
       loadHistory();
+    },
+    onRunFailed: (failure) => {
+      const recovery = resolveExtensionRecoveryAction(connectorRecoveryText(failure));
+      if (recovery) setChannelConnectAction(recovery);
     }
   });
 
@@ -340,13 +349,18 @@ export function useChat(threadId) {
           return;
         }
         if (isRunFailureStatus(status)) {
-          appendFailureMessage(
-            failureMessageForRunStatus({
-              status,
-              failureCategory: failureCategoryFromRunState(runState),
-              failureSummary: failureSummaryFromRunState(runState)
-            })
+          const failureCategory = failureCategoryFromRunState(runState);
+          const failureSummary = failureSummaryFromRunState(runState);
+          const content = failureMessageForRunStatus({
+            status,
+            failureCategory,
+            failureSummary
+          });
+          appendFailureMessage(content);
+          const recovery = resolveExtensionRecoveryAction(
+            connectorRecoveryText({ content, failureCategory, failureSummary })
           );
+          if (recovery) setChannelConnectAction(recovery);
           setPendingGate(null);
           setIsProcessing(false);
           setActiveRun(null);

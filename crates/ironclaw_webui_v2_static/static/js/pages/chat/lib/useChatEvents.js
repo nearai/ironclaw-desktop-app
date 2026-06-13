@@ -37,7 +37,8 @@ export function useChatEvents({
   setPendingGate,
   setActiveRun,
   activeRunRef,
-  onRunCompleted
+  onRunCompleted,
+  onRunFailed
 }) {
   // Track which runIds we've already announced completion for so that
   // SSE replays (reconnect with `last-event-id`, repeated snapshots)
@@ -161,6 +162,7 @@ export function useChatEvents({
             setPendingGate,
             setActiveRun,
             onRunCompleted,
+            onRunFailed,
             completedRunsRef,
             latestRunIdRef,
             promptRunIdRef,
@@ -181,7 +183,8 @@ export function useChatEvents({
       setPendingGate,
       setActiveRun,
       activeRunRef,
-      onRunCompleted
+      onRunCompleted,
+      onRunFailed
     ]
   );
 }
@@ -226,6 +229,7 @@ function applyProjectionItems({
   setPendingGate,
   setActiveRun,
   onRunCompleted,
+  onRunFailed,
   completedRunsRef,
   latestRunIdRef,
   promptRunIdRef,
@@ -301,20 +305,22 @@ function applyProjectionItems({
           onRunCompleted(runId);
         }
         if (status === 'failed' || status === 'recovery_required') {
+          const content = failureMessageForRunStatus({
+            status,
+            failureCategory,
+            failureSummary
+          });
           // Dedup by `err-<runId>` so replays of the same projection
           // (SSE reconnect with `last-event-id`, or repeated updates
           // carrying the same terminal status) collapse to one
           // bubble instead of stacking.
           upsertRunFailureMessage(setMessages, {
             runId,
-            content: failureMessageForRunStatus({
-              status,
-              failureCategory,
-              failureSummary
-            }),
+            content,
             source: 'run_status',
             timestamp: new Date().toISOString()
           });
+          onRunFailed?.({ runId, status, failureCategory, failureSummary, content });
         }
       } else if (!PROMPT_RUN_STATUSES.has(status)) {
         clearPendingGateForRun(setPendingGate, runId, promptRunIdRef);
