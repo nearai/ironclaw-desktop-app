@@ -494,7 +494,10 @@ try {
   await page
     .getByText('Send the generated services agreement to the legal review inbox.', { exact: true })
     .waitFor({ timeout: 20_000 });
+  await page.getByText('Touches', { exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByText('What leaves the machine', { exact: true }).waitFor({ timeout: 20_000 });
   await page.getByText('"recipient": "legal-review@example.com"').waitFor({ timeout: 20_000 });
+  await page.locator('dd', { hasText: 'services-agreement.docx' }).waitFor({ timeout: 20_000 });
   await page
     .getByText('Always allow is unavailable for this kind of action. IronClaw must ask each time.')
     .waitFor({ timeout: 20_000 });

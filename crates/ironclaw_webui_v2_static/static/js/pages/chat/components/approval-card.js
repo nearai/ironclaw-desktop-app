@@ -41,6 +41,8 @@ const OUTBOUND_KEYS = [
   'message',
   'text',
   'attachment',
+  'attachment_name',
+  'attachment_names',
   'attachments',
   'document',
   'diff',
@@ -116,7 +118,7 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
         value: headline || displayName
       },
       {
-        label: t('approval.targetLabel'),
+        label: t('approval.touchesLabel'),
         value: findSummary(parsedParameters, TARGET_KEYS)
       },
       {
@@ -124,7 +126,7 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
         value: findSummary(parsedParameters, DESTINATION_KEYS)
       },
       {
-        label: t('approval.outboundDataLabel'),
+        label: t('approval.whatLeavesMachineLabel'),
         value: findSummary(parsedParameters, OUTBOUND_KEYS)
       }
     ],

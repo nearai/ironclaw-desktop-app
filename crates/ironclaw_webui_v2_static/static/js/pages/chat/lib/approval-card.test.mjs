@@ -57,6 +57,8 @@ function renderApprovalCard({
     'approval.targetLabel': 'Target / resource',
     'approval.destinationLabel': 'Destination',
     'approval.outboundDataLabel': 'Outbound data',
+    'approval.touchesLabel': 'Touches',
+    'approval.whatLeavesMachineLabel': 'What leaves the machine',
     'approval.notSpecified': 'Not specified by the tool.',
     'approval.parametersLabel': 'Parameters',
     'approval.shortcutHint': 'Cmd/Ctrl+Enter approve / Esc deny',
@@ -94,7 +96,8 @@ function renderApprovalCard({
     gate: {
       toolName: 'send_email',
       description: 'Send the generated services agreement to legal review.',
-      parameters: '{\n  "recipient": "legal-review@example.com"\n}',
+      parameters:
+        '{\n  "recipient": "legal-review@example.com",\n  "attachment_name": "services-agreement.docx"\n}',
       allowAlways: true
     },
     onApprove,
@@ -112,11 +115,11 @@ test('ApprovalCard names literal action fields, unknown outbound data, and short
   assert.match(visible, /Send the generated services agreement to legal review\./);
   assert.match(visible, /Action/);
   assert.match(visible, /send_email/);
-  assert.match(visible, /Target \/ resource/);
+  assert.match(visible, /Touches/);
   assert.match(visible, /Destination/);
   assert.match(visible, /legal-review@example\.com/);
-  assert.match(visible, /Outbound data/);
-  assert.match(visible, /Not specified by the tool\./);
+  assert.match(visible, /What leaves the machine/);
+  assert.match(visible, /services-agreement\.docx/);
   assert.match(visible, /Always allow is unavailable/);
   assert.match(visible, /Parameters/);
   assert.match(visible, /legal-review@example\.com/);

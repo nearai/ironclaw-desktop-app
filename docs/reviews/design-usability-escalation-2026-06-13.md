@@ -101,7 +101,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Caught and fixed a real `/v2` scope regression: the Connections empty-state `Browse apps` anchor previously jumped to `/extensions/registry` outside the Tauri static basename.
 - Static gate-enforcement smoke: `npm run smoke:gate-enforcement`
   - Status: passed.
-  - Starts a mock Reborn gateway and static WebUI server, posts a real chat prompt, streams a `send_email` approval gate over SSE, verifies the accessible approval card includes the Reborn reason/body, parameters, high-risk always-allow block, and controls, then approves the gate and verifies the exact `/threads/{thread}/runs/{run}/gates/{gate}/resolve` URL, bearer token, one-shot approval body, continuation message, and gate/resolved screenshots.
+  - Starts a mock Reborn gateway and static WebUI server, posts a real chat prompt, streams a `send_email` approval gate over SSE, verifies the accessible approval card includes the Reborn reason/body, `Touches`, `What leaves the machine`, parameters, high-risk always-allow block, and controls, then approves the gate and verifies the exact `/threads/{thread}/runs/{run}/gates/{gate}/resolve` URL, bearer token, one-shot approval body, continuation message, and gate/resolved screenshots.
 - Static attachment ingress gate: `npx playwright test --config playwright.static.config.ts tests/static/attachments-static.spec.ts`
   - Status: passed, 3 rendered tests.
   - Proves file picker, clipboard paste, and drag/drop each render a file chip, preserve the typed prompt, and send through the real Reborn `/messages` route via the Tauri bridge.
