@@ -28,6 +28,9 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 - Static token lint: `npm run lint:static-tokens`
   - Status: passed.
   - Scans 226 shipped static JS files and fails if raw red/yellow/amber/orange/green/lime status utilities return outside generated bundles/tests.
+- Static copy lint: `npm run lint:static-copy`
+  - Status: passed.
+  - Scans 190 shipped static JS files and fails if normal desktop copy leaks OpenRouter, Anthropic, Claude, ChatGPT, Codex login, provider marketplace framing, `operator`, generic `console`, or `Gateway v2`/route wording.
 - Rendered static smoke: `npm run smoke:webui-static`
 - Static JS tests: `npm run test:static` -> 325 passed.
 - Full test suite: `npm run test` -> 161 files / 1294 tests passed.
@@ -96,7 +99,8 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. | Keep. Deep OCR remains opt-in in packaged smoke. |
 | Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |
 | Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks, chat typing no longer bounces, live/running dots use a reduced-motion-aware semantic class, and primary chat/Settings/Logs/deep-link/admin status states now use warning/danger/positive tokens instead of raw Tailwind colors. | Keep. Avoid returning to marketing-card layouts, raw status palettes, or perpetual skeleton motion. |
-| Accessibility gate | GREEN | The shipped static WebUI now has a dedicated Playwright/axe project for 15 onboarding/chat/connection/settings/deep-link surfaces; it is wired into pre-push and caught a real Logs select-name violation. Raw status color regressions are now blocked by `npm run lint:static-tokens` in pre-push and CI. | Keep expanding interaction coverage before deleting the legacy Svelte a11y sweep. |
+| Copy/product language | GREEN | Remaining visible `operator`, `without leaving v2`, and developer-console leaks in jobs/routines/channels/projects copy were removed. `npm run lint:static-copy` now blocks the normal setup/provider-brand leaks the user has repeatedly called out. | Keep Google Cloud Console allowed only as the proper external Google product name. |
+| Accessibility gate | GREEN | The shipped static WebUI now has a dedicated Playwright/axe project for 15 onboarding/chat/connection/settings/deep-link surfaces; it is wired into pre-push and caught a real Logs select-name violation. Raw status color regressions are blocked by `npm run lint:static-tokens`; jargon/provider copy regressions are blocked by `npm run lint:static-copy` in pre-push and CI. | Keep expanding interaction coverage before deleting the legacy Svelte a11y sweep. |
 | Screenshot process | GREEN | README/design capture now regenerates `contact-sheet.png` from current screenshots and does not leak proxy 502 console errors. | Keep as a review precondition. |
 
 ## Required Next Product Proofs

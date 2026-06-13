@@ -122,14 +122,14 @@ export function ChannelsTab({
         <//>
         <${BuiltinRow}
           name="CLI"
-          description="Local operator console for development and debugging"
+          description="Local command bridge for development and debugging"
           enabled=${!gatewayOffline && enabledChannels.includes('cli')}
           statusLabel=${gatewayOffline ? 'unavailable' : undefined}
           statusTone=${gatewayOffline ? 'warning' : undefined}
           detail=${gatewayOffline ? null : 'ironclaw run --cli'}
         />
         <${BuiltinRow}
-          name="Developer console"
+          name="Developer bridge"
           description="Low-level local testing path"
           enabled=${!gatewayOffline && enabledChannels.includes('repl')}
           statusLabel=${gatewayOffline ? 'unavailable' : undefined}

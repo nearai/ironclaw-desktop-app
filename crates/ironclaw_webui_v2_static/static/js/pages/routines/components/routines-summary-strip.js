@@ -30,7 +30,7 @@ const SUMMARY_CARDS = [
     key: 'failing',
     label: 'Failing',
     tone: 'danger',
-    detail: 'Recent run status needs operator attention.'
+    detail: 'Recent run status needs your attention.'
   },
   {
     key: 'runs_today',

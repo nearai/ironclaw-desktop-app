@@ -614,7 +614,7 @@ registerPack('en', {
     'Try a broader search term or reset the state filter to see the rest of the queue.',
   'jobs.list.empty.noJobsTitle': 'No jobs yet',
   'jobs.list.empty.noJobsDesc':
-    'Background work, sandbox runs, and operator interventions will appear here once the gateway starts creating jobs.',
+    'Background work, sandbox runs, and recovery requests will appear here once the gateway starts creating jobs.',
   'jobs.list.filter.all': 'All states',
   'jobs.list.filter.pending': 'Pending',
   'jobs.list.filter.inProgress': 'In progress',
@@ -712,7 +712,7 @@ registerPack('en', {
   'routines.explorer': 'Tasks',
   'routines.title': 'Routines',
   'routines.description':
-    'Search saved routines, inspect their schedule or trigger, and run or pause them without leaving v2.',
+    'Search saved routines, inspect their schedule or trigger, and run or pause them from this page.',
 
   // Extensions page
   'ext.installed': 'My apps',

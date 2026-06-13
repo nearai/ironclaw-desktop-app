@@ -102,8 +102,8 @@ export function JobActivityTab({ job, events, onSendPrompt, isSendingPrompt }) {
           </div>
           <h3 className="mt-2 text-xl font-semibold text-white">Job activity</h3>
           <p className="mt-2 text-sm leading-6 text-iron-300">
-            Persisted events are refreshed automatically so operators can follow tool calls,
-            prompts, and worker output.
+            Persisted events are refreshed automatically so you can follow tool calls, prompts, and
+            worker output.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">

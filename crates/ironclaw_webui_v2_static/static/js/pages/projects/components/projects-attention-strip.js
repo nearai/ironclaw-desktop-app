@@ -23,7 +23,7 @@ export function ProjectsAttentionStrip({ items, onOpenItem }) {
           Needs attention
         </div>
         <p className="mt-2 max-w-[70ch] text-sm leading-6 text-iron-200">
-          Operator-visible gates and recent failures across your project workspace.
+          Gates and recent failures across your project workspace.
         </p>
       </div>
       <div className="grid gap-3 p-4 sm:p-5 xl:grid-cols-2">
