@@ -13,6 +13,8 @@ const scannedRoots = [jsRoot, path.join(staticRoot, 'styles')];
 const forbiddenTokens = [
   'animate-pulse',
   'animate-bounce',
+  'animate-[v2-breathe',
+  '.animate-\\[v2-breathe',
   '@keyframes pulse',
   '@keyframes bounce',
   'v2-skeleton-shimmer'
@@ -56,8 +58,26 @@ test('static skeleton primitive remains non-animated', async () => {
   const skeletonRule = appCss.match(/\.v2-skeleton\s*\{(?<body>[^}]*)\}/s);
 
   assert.ok(skeletonRule?.groups?.body, 'expected a .v2-skeleton rule in app.css');
-  const animationDeclarations = [...skeletonRule.groups.body.matchAll(/animation:\s*([^;]+);/g)].map(
-    (match) => match[1].trim()
-  );
+  const animationDeclarations = [
+    ...skeletonRule.groups.body.matchAll(/animation:\s*([^;]+);/g)
+  ].map((match) => match[1].trim());
   assert.deepEqual(animationDeclarations, ['none']);
+});
+
+test('reduced-motion policy disables ambient motion and opts in semantic live dots only', async () => {
+  const appCss = await readFile(path.join(staticRoot, 'styles', 'app.css'), 'utf8');
+  const globalMotionRule = [
+    ...appCss.matchAll(/\*,\s*\*::before,\s*\*::after\s*\{(?<body>[^}]*)\}/gs)
+  ].find((match) => match.groups?.body?.includes('animation: none !important'));
+  const noPreferenceRule = appCss.match(
+    /@media\s*\(prefers-reduced-motion:\s*no-preference\)\s*\{(?<body>[\s\S]*?)\n\}/
+  );
+
+  assert.ok(globalMotionRule?.groups?.body, 'expected global motion policy rule');
+  assert.match(globalMotionRule.groups.body, /animation:\s*none\s*!important;/);
+  assert.match(globalMotionRule.groups.body, /transition:\s*none\s*!important;/);
+
+  assert.ok(noPreferenceRule?.groups?.body, 'expected reduced-motion no-preference opt-in');
+  assert.match(noPreferenceRule.groups.body, /\.v2-breathing-dot\s*\{/);
+  assert.match(noPreferenceRule.groups.body, /animation:\s*v2-breathe\s+2\.4s/);
 });

@@ -2,10 +2,10 @@ import { Icon } from '../../../design-system/icons.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 
-/* Status dot colour by tool status. Running shows the breathing dot (a no-op
-   under the static motion policy, matching the Badge component's approach). */
+/* Status dot colour by tool status. Running uses the shared semantic motion
+   hook, which only animates when the user has not requested reduced motion. */
 const DOT_STYLE = {
-  running: 'bg-[var(--v2-accent)] animate-[v2-breathe_1.6s_ease-in-out_infinite]',
+  running: 'bg-[var(--v2-accent)] v2-breathing-dot',
   success: 'bg-[var(--v2-positive-text)]',
   error: 'bg-[var(--v2-danger-text)]'
 };

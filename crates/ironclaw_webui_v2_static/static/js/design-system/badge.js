@@ -1,8 +1,8 @@
 /**
  * Badge / StatusPill
  *
- * A small labelled chip with a coloured dot.  All styling is via Tailwind
- * arbitrary values — no app.css classes.
+ * A small labelled chip with a coloured dot. Styling is via Tailwind
+ * arbitrary values plus the semantic v2-breathing-dot motion hook.
  *
  * Props
  *   tone     "success" | "warning" | "danger" | "muted" | "signal" | "info"
@@ -55,7 +55,7 @@ export function Badge({ tone = 'muted', label, dot = true, size = 'md', classNam
       html`<span
         className=${cn(
           'h-1.5 w-1.5 shrink-0 rounded-full bg-current',
-          isLive && 'animate-[v2-breathe_2s_ease-in-out_infinite]'
+          isLive && 'v2-breathing-dot'
         )}
       />`}
       ${label}

@@ -831,7 +831,7 @@ Please change the parent <Route path="${h}"> to <Route path="${h==="/"?"*":`${h}
       className=${ne("inline-flex items-center border font-mono uppercase",u2[s]??u2.md,c2[e]??c2.muted,n)}
     >
       ${a&&c`<span
-        className=${ne("h-1.5 w-1.5 shrink-0 rounded-full bg-current",r&&"animate-[v2-breathe_2s_ease-in-out_infinite]")}
+        className=${ne("h-1.5 w-1.5 shrink-0 rounded-full bg-current",r&&"v2-breathing-dot")}
       />`}
       ${t}
     </span>
@@ -1777,7 +1777,7 @@ ${n}</pre
       className=${["markdown-body",t].join(" ")}
       dangerouslySetInnerHTML=${{__html:km(e)}}
     />
-  `}var a1={running:"bg-[var(--v2-accent)] animate-[v2-breathe_1.6s_ease-in-out_infinite]",success:"bg-[var(--v2-positive-text)]",error:"bg-[var(--v2-danger-text)]"},gP={success:"ok",error:"err",running:"run"},vP=0;function Ao({activity:e}){return e.toolCalls&&e.toolCalls.length>0?c`<${yP} tools=${e.toolCalls} />`:c`<${xP} activity=${e} />`}function bP(e,t){let a=0,s=0,n=0,r=0;for(let l of t){let u=String(l.toolName||"").toLowerCase();/(grep|search|find|lookup|query)/.test(u)?s+=1:/(bash|shell|exec|run|command|terminal|spawn|process)/.test(u)?n+=1:/(read|file|content|cat|view|open|glob|list|ls|tree|fetch|get|inspect|diff)/.test(u)?a+=1:r+=1}let i=[];a&&i.push(e(a===1?"tool.runFile":"tool.runFiles",{n:a})),s&&i.push(e(s===1?"tool.runSearch":"tool.runSearches",{n:s})),n&&i.push(e(n===1?"tool.runCommand":"tool.runCommands",{n})),r&&i.push(e(r===1?"tool.runOther":"tool.runOthers",{n:r}));let o=i.join(", ");return o.charAt(0).toUpperCase()+o.slice(1)}function yP({tools:e}){let t=A(),a=e.some(i=>i.toolStatus==="error"),[s,n]=g.default.useState(a);if(g.default.useEffect(()=>{a&&n(!0)},[a]),e.length<=vP)return c`
+  `}var a1={running:"bg-[var(--v2-accent)] v2-breathing-dot",success:"bg-[var(--v2-positive-text)]",error:"bg-[var(--v2-danger-text)]"},gP={success:"ok",error:"err",running:"run"},vP=0;function Ao({activity:e}){return e.toolCalls&&e.toolCalls.length>0?c`<${yP} tools=${e.toolCalls} />`:c`<${xP} activity=${e} />`}function bP(e,t){let a=0,s=0,n=0,r=0;for(let l of t){let u=String(l.toolName||"").toLowerCase();/(grep|search|find|lookup|query)/.test(u)?s+=1:/(bash|shell|exec|run|command|terminal|spawn|process)/.test(u)?n+=1:/(read|file|content|cat|view|open|glob|list|ls|tree|fetch|get|inspect|diff)/.test(u)?a+=1:r+=1}let i=[];a&&i.push(e(a===1?"tool.runFile":"tool.runFiles",{n:a})),s&&i.push(e(s===1?"tool.runSearch":"tool.runSearches",{n:s})),n&&i.push(e(n===1?"tool.runCommand":"tool.runCommands",{n})),r&&i.push(e(r===1?"tool.runOther":"tool.runOthers",{n:r}));let o=i.join(", ");return o.charAt(0).toUpperCase()+o.slice(1)}function yP({tools:e}){let t=A(),a=e.some(i=>i.toolStatus==="error"),[s,n]=g.default.useState(a);if(g.default.useEffect(()=>{a&&n(!0)},[a]),e.length<=vP)return c`
       <div className="flex flex-col gap-3">
         ${e.map((i,o)=>c`<${Ao}
               key=${i.id||i.callId||`${i.toolName}-${o}`}

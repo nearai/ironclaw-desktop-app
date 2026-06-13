@@ -52,7 +52,8 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 - Calm-motion contract: `node --test crates/ironclaw_webui_v2_static/static/js/design-system/calm-motion.test.mjs`
   - Status: passed.
   - Guards committed source, generated `main.bundle.js`, and generated Tailwind CSS against `animate-pulse`, `animate-bounce`, default pulse/bounce keyframes, and skeleton shimmer.
-  - `rg "animate-pulse|animate-bounce|v2-skeleton-shimmer|@keyframes pulse|@keyframes bounce" crates/ironclaw_webui_v2_static/static/js crates/ironclaw_webui_v2_static/static/styles --glob '!vendor/**' --glob '!*.test.mjs'` returns no shipped UI hits.
+  - Guards reduced-motion policy: all ambient animation/transition is suppressed, and live/running dots opt into `v2-breathing-dot` only under `prefers-reduced-motion: no-preference`.
+  - `rg "animate-pulse|animate-bounce|animate-\\[v2-breathe|v2-skeleton-shimmer|@keyframes pulse|@keyframes bounce" crates/ironclaw_webui_v2_static/static/js crates/ironclaw_webui_v2_static/static/styles --glob '!vendor/**' --glob '!*.test.mjs'` returns no shipped UI hits.
 - Static accessibility gate: `npm run test:a11y-static`
   - Status: passed.
   - Covers 15 shipped static `/v2` surfaces with mocked Reborn API responses: onboarding, chat, connections registry/installed/channels/MCP, AI setup, language settings, automations, workspace, projects, jobs, routines, missions, and logs.
@@ -73,7 +74,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Notion OAuth | YELLOW | Notion is visible and setup-gated; live OAuth start returns 200. | Needs a rendered packaged connector flow that completes credential proof, not just OAuth start. |
 | Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. | Keep. Deep OCR remains opt-in in packaged smoke. |
 | Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |
-| Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks and the chat typing indicator no longer uses bouncing dots. | Keep. Avoid returning to marketing-card layouts or perpetual skeleton motion. |
+| Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks, chat typing no longer bounces, and live/running dots use a reduced-motion-aware semantic class. | Keep. Avoid returning to marketing-card layouts or perpetual skeleton motion. |
 | Accessibility gate | GREEN | The shipped static WebUI now has a dedicated Playwright/axe project for 15 onboarding/chat/connection/settings/deep-link surfaces; it is wired into pre-push and caught a real Logs select-name violation. | Keep expanding interaction coverage before deleting the legacy Svelte a11y sweep. |
 | Screenshot process | GREEN | README/design capture now regenerates `contact-sheet.png` from current screenshots and does not leak proxy 502 console errors. | Keep as a review precondition. |
 
