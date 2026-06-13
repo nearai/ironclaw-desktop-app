@@ -144,8 +144,9 @@ gates**. This is the foundation everything else builds on.
   `cargo test --manifest-path src-tauri/Cargo.toml --lib gateway_ssrf_tests --locked`), `SEC-3`
   DONE (token-lock the OCR loopback server; verified by `cargo test --manifest-path
   src-tauri/Cargo.toml --lib ocr_assets --locked` plus `pdf-text-extract.test.mjs`), `SEC-4`
-  (keychain threat-model; provider keys keychain-only),
-  `SEC-5` (kill the bare `http://*` img-src).
+  DONE (provider credentials keychain-only, local bearer fallback only after keychain failure, and
+  `docs/ARCHITECTURE.md` threat model), `SEC-5` DONE (no bare `http://*` image source;
+  guarded by `tauri-security.test.mjs`).
 
 **Track D — universal approval enforcement (the safety ship-gate):**
 - `APPR-1` → `APPR-2` (carry tool metadata + `allow_always`; fix the requestId footgun) →

@@ -24,6 +24,14 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
 const SERVICE: &str = "com.openclaw.ironclaw-desktop";
+const ACCOUNT_GATEWAY_PREFIX: &str = "gateway-token";
+const ACCOUNT_LOCAL_TOKEN: &str = "local-gateway-token";
+/// Prefix for per-LLM-provider credentials stored by the desktop's
+/// LlmProviderPicker. Combined with the provider id and profile id this
+/// produces `llm-<provider-id>:<profile-id>` slots (e.g.
+/// `llm-openai:default`, `llm-anthropic:abc-123`).
+const ACCOUNT_LLM_PROVIDER_PREFIX: &str = "llm";
+const KEYCHAIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(2);
 
 // =============================================================================
 // !!! DO NOT REMOVE the token-file fallback below !!!
@@ -48,6 +56,9 @@ const SERVICE: &str = "com.openclaw.ironclaw-desktop";
 ///
 /// Location: app_data_dir/tokens/<account>.token (mode 0600).
 fn token_file_path(app: &AppHandle, account: &str) -> Result<PathBuf, String> {
+    if !account_allows_file_fallback(account) {
+        return Err(format!("file fallback denied for account [{account}]"));
+    }
     let base = app
         .path()
         .app_data_dir()
@@ -57,6 +68,14 @@ fn token_file_path(app: &AppHandle, account: &str) -> Result<PathBuf, String> {
     // Sanitise the account name so it can't escape the tokens dir.
     let safe = account.replace(['/', '\\', '.', ':'], "_");
     Ok(dir.join(format!("{safe}.token")))
+}
+
+fn account_allows_file_fallback(account: &str) -> bool {
+    account == ACCOUNT_LOCAL_TOKEN
+        || matches!(
+            account.strip_prefix(ACCOUNT_GATEWAY_PREFIX),
+            Some(suffix) if suffix.starts_with(':') && suffix.len() > 1
+        )
 }
 
 fn read_token_file(app: &AppHandle, account: &str) -> Option<String> {
@@ -97,14 +116,6 @@ fn write_token_file(app: &AppHandle, account: &str, value: &str) -> Result<(), S
     Ok(())
 }
 
-const ACCOUNT_GATEWAY_PREFIX: &str = "gateway-token";
-const ACCOUNT_LOCAL_TOKEN: &str = "local-gateway-token";
-/// Prefix for per-LLM-provider credentials stored by the desktop's
-/// LlmProviderPicker. Combined with the provider id and profile id this
-/// produces `llm-<provider-id>:<profile-id>` slots (e.g.
-/// `llm-openai:default`, `llm-anthropic:abc-123`).
-const ACCOUNT_LLM_PROVIDER_PREFIX: &str = "llm";
-
 /// Profile id used by the JS migration when wrapping an old flat-shape
 /// settings file into a single profile. Must stay in sync with the JS
 /// constant `DEFAULT_PROFILE_ID` in `settings.svelte.ts`.
@@ -127,8 +138,9 @@ fn get_secret(account: &str) -> Result<Option<String>, String> {
     // frontend, and the app.
     //
     // Run the keychain call on a worker thread with a hard timeout so
-    // a hung prompt cannot wedge the app. On timeout, fall back to a
-    // plaintext token file in app_data_dir/tokens/<account>.token.
+    // a hung prompt cannot wedge the app. Only gateway/local bearer
+    // callers are allowed to consult the plaintext fallback afterwards;
+    // LLM provider credentials are keychain-only.
     let account_owned = account.to_string();
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
@@ -139,7 +151,7 @@ fn get_secret(account: &str) -> Result<Option<String>, String> {
         });
         let _ = tx.send(result);
     });
-    match rx.recv_timeout(std::time::Duration::from_secs(2)) {
+    match rx.recv_timeout(KEYCHAIN_TIMEOUT) {
         Ok(Ok(Some(s))) => {
             log::info!(target: "ironclaw_keychain", "READ OK [{account}] len={}", s.len());
             Ok(Some(s))
@@ -165,6 +177,22 @@ fn set_secret(account: &str, value: &str) -> Result<(), String> {
     let e = entry(account)?;
     e.set_password(value)
         .map_err(|err| format!("keyring write [{account}]: {err}"))
+}
+
+fn set_secret_with_timeout(account: &str, value: &str) -> Result<(), String> {
+    let account_owned = account.to_string();
+    let value_owned = value.to_string();
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let result = set_secret(&account_owned, &value_owned);
+        let _ = tx.send(result);
+    });
+    match rx.recv_timeout(KEYCHAIN_TIMEOUT) {
+        Ok(result) => result,
+        Err(_) => Err(format!(
+            "keychain write [{account}] timed out (likely ACL prompt hung)"
+        )),
+    }
 }
 
 fn delete_secret(account: &str) -> Result<(), String> {
@@ -252,13 +280,14 @@ pub fn get_source(app: &AppHandle, profile_id: &str) -> Result<String, String> {
 
 pub fn set(app: &AppHandle, profile_id: &str, token: &str) -> Result<(), String> {
     let account = account_for(ACCOUNT_GATEWAY_PREFIX, profile_id);
-    // Write the file fallback FIRST so even if the keychain write hangs,
-    // a subsequent read can still recover the value. Keychain write is
-    // best-effort — log but don't propagate failures.
+    // Remote gateway bearers keep the historical file fallback so a stuck
+    // macOS keychain prompt cannot disconnect the app forever. Keychain write
+    // is timeout-bound and best-effort; the fallback is written first so the
+    // value is recoverable even if the keychain prompt hangs.
     if let Err(err) = write_token_file(app, &account, token) {
         log::warn!(target: "ironclaw_keychain", "file fallback write FAILED [{account}]: {err}");
     }
-    match set_secret(&account, token) {
+    match set_secret_with_timeout(&account, token) {
         Ok(()) => Ok(()),
         Err(err) => {
             log::warn!(target: "ironclaw_keychain", "keychain write FAILED [{account}]: {err} — file fallback persisted");
@@ -310,7 +339,7 @@ pub fn set_llm_provider_credential(
     provider_id: &str,
     value: &str,
 ) -> Result<(), String> {
-    set_secret(&llm_account_for(provider_id, profile_id), value)
+    set_secret_with_timeout(&llm_account_for(provider_id, profile_id), value)
 }
 
 pub fn delete_llm_provider_credential(profile_id: &str, provider_id: &str) -> Result<(), String> {
@@ -333,9 +362,9 @@ pub fn get_or_create_local_token(app: &AppHandle) -> Result<String, String> {
         }
     }
     let fresh = uuid::Uuid::new_v4().to_string();
-    write_token_file(app, ACCOUNT_LOCAL_TOKEN, &fresh)?;
-    if let Err(err) = set_secret(ACCOUNT_LOCAL_TOKEN, &fresh) {
-        log::warn!(target: "ironclaw_keychain", "keychain write FAILED [{ACCOUNT_LOCAL_TOKEN}]: {err} — file fallback persisted");
+    if let Err(err) = set_secret_with_timeout(ACCOUNT_LOCAL_TOKEN, &fresh) {
+        log::warn!(target: "ironclaw_keychain", "keychain write FAILED [{ACCOUNT_LOCAL_TOKEN}]: {err} — writing file fallback");
+        write_token_file(app, ACCOUNT_LOCAL_TOKEN, &fresh)?;
     }
     Ok(fresh)
 }
@@ -350,6 +379,7 @@ pub fn get_or_create_local_token(app: &AppHandle) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::fs;
     use tempfile::TempDir;
 
@@ -388,6 +418,33 @@ mod tests {
                 "sanitiser leaked an unsafe char in '{safe}' (from '{raw}')"
             );
         }
+    }
+
+    #[test]
+    fn file_fallback_is_only_for_gateway_bearers() {
+        assert!(account_allows_file_fallback("gateway-token:default"));
+        assert!(account_allows_file_fallback("gateway-token:profile-123"));
+        assert!(account_allows_file_fallback("local-gateway-token"));
+
+        assert!(!account_allows_file_fallback("llm-nearai:default"));
+        assert!(!account_allows_file_fallback("llm-openai:default"));
+        assert!(!account_allows_file_fallback("llm-anthropic:default"));
+        assert!(!account_allows_file_fallback("openrouter-key:default"));
+        assert!(!account_allows_file_fallback("gateway-token"));
+        assert!(!account_allows_file_fallback("gateway-token:"));
+    }
+
+    #[test]
+    fn llm_provider_account_slots_stay_out_of_token_files() {
+        assert_eq!(llm_account_for("nearai", "default"), "llm-nearai:default");
+        assert_eq!(
+            llm_account_for("openai/custom", "default"),
+            "llm-openai_custom:default"
+        );
+        assert!(!account_allows_file_fallback(&llm_account_for(
+            "anthropic",
+            "default"
+        )));
     }
 
     #[test]
