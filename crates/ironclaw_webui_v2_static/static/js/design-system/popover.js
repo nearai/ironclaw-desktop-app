@@ -20,7 +20,8 @@ export function Popover({
   align = 'end',
   side = 'top',
   children,
-  className
+  className,
+  ariaLabel = 'Popover'
 }) {
   const rootRef = React.useRef(null);
 
@@ -53,6 +54,7 @@ export function Popover({
       html`
         <div
           role="dialog"
+          aria-label=${ariaLabel}
           className=${cn(
             position,
             'rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] shadow-[var(--v2-card-shadow)]',

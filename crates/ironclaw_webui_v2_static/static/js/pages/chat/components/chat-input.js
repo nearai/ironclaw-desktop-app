@@ -336,6 +336,7 @@ export function ChatInput({
   const [isCancelling, setIsCancelling] = React.useState(false);
   const [attachmentPreview, setAttachmentPreview] = React.useState(null);
   const textareaRef = React.useRef(null);
+  const fileInputRef = React.useRef(null);
   const {
     images,
     attachments,
@@ -693,6 +694,7 @@ export function ChatInput({
               onClose=${() => setModelMenuOpen(false)}
               align="end"
               side="top"
+              ariaLabel="Chat model settings"
               trigger=${html`
                 <button
                   type="button"
@@ -714,13 +716,22 @@ export function ChatInput({
                 t=${t}
               />
             <//>
-            <label
-              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-accent-text)]"
+            <input
+              ref=${fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange=${onFileInputChange}
+            />
+            <button
+              type="button"
+              onClick=${() => fileInputRef.current?.click()}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--v2-canvas)]"
               title=${t('chat.attachFiles')}
+              aria-label=${t('chat.attachFiles')}
             >
-              <input type="file" multiple className="hidden" onChange=${onFileInputChange} />
               <${Icon} name="attach" className="h-5 w-5" />
-            </label>
+            </button>
             ${canCancel
               ? html`
                   <${Button}

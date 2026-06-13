@@ -1,6 +1,7 @@
 import { html } from '../../../lib/html.js';
 import { Button } from '../../../design-system/button.js';
 import { Card, CardLabel } from '../../../design-system/card.js';
+import { appScopedPath } from '../../../lib/app-path.js';
 import { ExtensionCard } from './extension-card.js';
 
 function packageId(ext) {
@@ -18,7 +19,13 @@ export function InstalledTab({ extensions, onActivate, onConfigure, onRemove, is
           Open Browse to connect mail, calendar, docs, chat, code, web, routines, and workspace
           files.
         </p>
-        <${Button} as="a" href="/extensions/registry" variant="primary" size="sm" className="mt-4">
+        <${Button}
+          as="a"
+          href=${appScopedPath('/extensions/registry')}
+          variant="primary"
+          size="sm"
+          className="mt-4"
+        >
           Browse apps
         <//>
       <//>

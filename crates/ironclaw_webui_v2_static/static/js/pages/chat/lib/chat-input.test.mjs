@@ -229,6 +229,27 @@ test('ChatInput blocks send when NEAR AI Cloud is not active', async () => {
   assert.deepEqual(sendCalls, []);
 });
 
+test('ChatInput renders attachment as a keyboard-focusable button', () => {
+  const { tree } = renderChatInput({
+    disabled: false,
+    canCancel: false,
+    queryResult: {
+      data: {
+        providers: [{ id: 'nearai', name: 'NEAR AI Cloud', default_model: 'auto' }],
+        active: { provider_id: 'nearai', model: 'auto' }
+      },
+      isLoading: false
+    }
+  });
+  const scalars = collectScalars(tree);
+  const source = JSON.stringify(tree);
+
+  assert.ok(scalars.includes('chat.attachFiles'));
+  assert.match(source, /type=\\?"button\\?"/);
+  assert.match(source, /aria-label=/);
+  assert.match(source, /focus-visible:ring/);
+});
+
 test('formatProviderLabel keeps custom names and neutralizes unknown ids', () => {
   const vmContext = {
     React: {},
