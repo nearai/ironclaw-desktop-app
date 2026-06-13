@@ -69,7 +69,9 @@ export function ActiveModelPicker({ provider, currentModel, onListModels, onAppl
         className="h-9 text-xs"
       >
         <option value="" disabled>${t('llm.pickModel')}</option>
-        ${models.map((entry) => html`<option key=${entry} value=${entry}>${entry}</option>`)}
+        ${models.map(
+          (entry) => html`<option key=${entry} value=${entry}>${modelDisplayName(entry)}</option>`
+        )}
       <//>
       <${Button}
         type="button"
@@ -86,6 +88,7 @@ export function ActiveModelPicker({ provider, currentModel, onListModels, onAppl
 import {
   adapterLabel,
   isProviderConfigured,
+  modelDisplayName,
   providerAcceptsApiKey,
   providerDisplayModel,
   providerEffectiveBaseUrl,
@@ -111,6 +114,7 @@ export function ProviderCard({
   const configured = isProviderConfigured(provider, builtinOverrides);
   const baseUrl = providerEffectiveBaseUrl(provider, builtinOverrides);
   const model = providerDisplayModel(provider, builtinOverrides, activeProviderId, selectedModel);
+  const modelLabel = modelDisplayName(model || provider.default_model || '');
   const missing = providerMissingReason(provider, builtinOverrides);
   const acceptsApiKey = providerAcceptsApiKey(provider);
   const missingLabel =
@@ -136,7 +140,7 @@ export function ProviderCard({
     : html`<span
         className="hidden truncate font-mono text-[11px] text-[var(--v2-text-faint)] sm:inline"
       >
-        ${adapterLabel(provider.adapter)} · ${model || provider.default_model || t('llm.none')}
+        ${adapterLabel(provider.adapter)} · ${modelLabel || t('llm.none')}
       </span>`;
 
   const isLoginProvider = provider.id === 'nearai';
@@ -334,7 +338,7 @@ export function ProviderCard({
               <div className="font-mono uppercase text-[10px] text-[var(--v2-text-faint)]">
                 ${t('llm.model')}
               </div>
-              <div className="mt-1 truncate font-mono">${model || t('llm.none')}</div>
+              <div className="mt-1 truncate font-mono">${modelLabel || t('llm.none')}</div>
             </div>
           </div>
           <div

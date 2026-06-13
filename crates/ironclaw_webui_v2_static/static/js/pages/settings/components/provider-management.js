@@ -9,7 +9,11 @@ import { ProviderDialog } from './provider-dialog.js';
 import { ProviderLoginStatus } from './provider-login-status.js';
 import { useProviderManagementActions } from '../hooks/useProviderManagementActions.js';
 import { useProviderLogin } from '../hooks/useProviderLogin.js';
-import { filterDesktopVisibleLlmProviders, groupProvidersByStatus } from '../lib/llm-providers.js';
+import {
+  filterDesktopVisibleLlmProviders,
+  groupProvidersByStatus,
+  modelDisplayName
+} from '../lib/llm-providers.js';
 import { setActiveLlm } from '../lib/settings-api.js';
 
 const GROUP_ORDER = [
@@ -37,6 +41,7 @@ function GroupHeader({ label, count, dotClass }) {
 export function ActiveModelPanel({ provider, currentModel, onListModels, onApplyModel, t }) {
   if (!provider || provider.can_list_models === false) return null;
   const displayName = provider.id === 'nearai' ? 'NEAR AI Cloud' : provider.name || provider.id;
+  const currentModelLabel = modelDisplayName(currentModel);
   return html`
     <section
       data-testid="active-model-panel"
@@ -56,7 +61,7 @@ export function ActiveModelPanel({ provider, currentModel, onListModels, onApply
             <span
               className="rounded-full border border-[color-mix(in_srgb,var(--v2-positive-text)_34%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--v2-positive-text)]"
             >
-              ${currentModel || t('llm.none')}
+              ${currentModelLabel || t('llm.none')}
             </span>
           </div>
         </div>

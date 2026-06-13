@@ -126,6 +126,10 @@ function renderChatInput({
     fetchLlmProviders: async () => ({ providers: [], active: null }),
     filterDesktopVisibleLlmProviders: (providers) =>
       Array.isArray(providers) ? providers.filter((provider) => provider.id === 'nearai') : [],
+    modelDisplayName: (model) =>
+      String(model || '')
+        .replace(/^z-ai\//, '')
+        .replace('glm-4.5', 'GLM 4.5'),
     setActiveLlm: async () => ({}),
     gatewayStatus: () => ({}),
     window: { requestAnimationFrame: (fn) => fn() }
@@ -253,6 +257,24 @@ test('ChatInput renders attachment behind a keyboard-focusable plus sheet', () =
   assert.match(source, /composer-add-menu/);
   assert.match(source, /aria-label=/);
   assert.match(source, /focus-visible:ring/);
+});
+
+test('ChatInput model chip renders NEAR model labels instead of raw ids', () => {
+  const { tree } = renderChatInput({
+    disabled: false,
+    canCancel: false,
+    queryResult: {
+      data: {
+        providers: [{ id: 'nearai', name: 'NEAR AI Cloud', default_model: 'z-ai/glm-4.5' }],
+        active: { provider_id: 'nearai', model: 'z-ai/glm-4.5' }
+      },
+      isLoading: false
+    }
+  });
+  const scalars = collectScalars(tree);
+
+  assert.ok(scalars.includes('NEAR AI Cloud · GLM 4.5'));
+  assert.ok(!scalars.includes('NEAR AI Cloud · z-ai/glm-4.5'));
 });
 
 test('formatProviderLabel keeps custom names and neutralizes unknown ids', () => {

@@ -52,6 +52,48 @@ export function providerDisplayModel(provider, overrides, activeId, selectedMode
   return override.model || provider.env_model || provider.default_model || '';
 }
 
+function modelDisplaySegment(segment) {
+  const value = String(segment || '').trim();
+  if (!value) return '';
+  const lower = value.toLowerCase();
+  const acronym = {
+    ai: 'AI',
+    api: 'API',
+    glm: 'GLM',
+    gpt: 'GPT',
+    llm: 'LLM',
+    oss: 'OSS'
+  }[lower];
+  if (acronym) return acronym;
+  if (/^\d+(?:\.\d+)?[a-z]$/i.test(value)) {
+    return value.replace(/[a-z]$/i, (match) => match.toUpperCase());
+  }
+  if (/^\d/.test(value)) return value.toUpperCase();
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+export function modelDisplayName(model) {
+  const raw = String(model || '').trim();
+  if (!raw) return '';
+  const lower = raw.toLowerCase();
+  if (lower === 'auto') return 'Auto';
+  if (/openrouter|anthropic|claude|chatgpt/.test(lower)) return 'NEAR premium reasoning';
+  if (/qwen/.test(lower)) return 'NEAR fast model';
+
+  const token =
+    raw
+      .split(/[/:]/)
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .at(-1) || raw;
+  return token
+    .replace(/\.(?=\d)/g, 'DOTMARK')
+    .split(/[\s._-]+/)
+    .map((part) => modelDisplaySegment(part.replace(/DOTMARK/g, '.')))
+    .filter(Boolean)
+    .join(' ');
+}
+
 export function providerDefaultModel(provider, overrides) {
   const override = provider.builtin ? overrides[provider.id] || {} : {};
   return override.model || provider.env_model || provider.default_model || '';

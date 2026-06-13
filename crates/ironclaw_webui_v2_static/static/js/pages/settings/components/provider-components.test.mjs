@@ -182,6 +182,11 @@ function renderProviderManagement({ providers, activeProviderId = 'nearai', sear
     globalThis: {},
     groupProvidersByStatus,
     html,
+    modelDisplayName: (model) =>
+      String(model || '')
+        .replace(/^z-ai\//, '')
+        .replace('glm-4.5', 'GLM 4.5')
+        .replace(/anthropic\/claude[^ ]*/i, 'NEAR premium reasoning'),
     React: {
       useCallback: (fn) => fn,
       useEffect: () => {},
@@ -268,6 +273,11 @@ function createProviderCardHarness() {
     globalThis: {},
     html,
     isProviderConfigured: (provider) => provider.configured !== false,
+    modelDisplayName: (model) =>
+      String(model || '')
+        .replace(/^z-ai\//, '')
+        .replace('glm-4.5', 'GLM 4.5')
+        .replace(/anthropic\/claude[^ ]*/i, 'NEAR premium reasoning'),
     providerAcceptsApiKey: (provider) => provider.accepts_api_key !== false,
     providerDisplayModel: (provider) => provider.default_model || 'model',
     providerEffectiveBaseUrl: (provider) => provider.base_url || 'https://example.com/v1',
@@ -528,4 +538,21 @@ test('ProviderCard renders generic use action for NEAR when an API key is config
 
   firstButtonProps(rendered).onClick();
   assert.deepEqual(calls, [['use', 'nearai']]);
+});
+
+test('ProviderCard renders cleaned model labels while preserving provider values', () => {
+  const harness = createProviderCardHarness();
+  harness.state.expanded = true;
+
+  const rendered = harness.render({
+    provider: builtinProvider('nearai', {
+      adapter: 'nearai',
+      default_model: 'anthropic/claude-sonnet-4.5',
+      has_api_key: true
+    })
+  });
+  const bodyText = collectScalars(rendered).join('\n') + collectTemplateText(rendered);
+
+  assert.match(bodyText, /NEAR premium reasoning/);
+  assert.doesNotMatch(bodyText, /anthropic\/claude|Claude/i);
 });

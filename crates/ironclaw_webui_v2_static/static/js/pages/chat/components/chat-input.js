@@ -11,7 +11,10 @@ import {
   listLlmProviderModels,
   setActiveLlm
 } from '../../settings/lib/settings-api.js';
-import { filterDesktopVisibleLlmProviders } from '../../settings/lib/llm-providers.js';
+import {
+  filterDesktopVisibleLlmProviders,
+  modelDisplayName
+} from '../../settings/lib/llm-providers.js';
 
 // One short status per chip: what actually happens to this file when sent.
 function attachmentStatusLabel(att, t) {
@@ -260,7 +263,7 @@ function ModelPopover({ open, onClose, t }) {
                           : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]'
                       }`}
                     >
-                      <span className="truncate">${model}</span>
+                      <span className="truncate">${modelDisplayName(model)}</span>
                       ${isCurrent
                         ? html`<${Icon} name="check" className="h-3.5 w-3.5 shrink-0" />`
                         : null}
@@ -399,10 +402,12 @@ export function ChatInput({
   const fallbackModel = String(
     cloudProvider?.active_model || cloudProvider?.default_model || context.model || 'auto'
   );
-  const modelLabel = String(
+  const rawModelLabel = String(
     activeSelection?.model ||
       (providerSetupRequired ? 'Not connected' : providerSetupUnknown ? 'Checking' : fallbackModel)
   );
+  const modelLabel =
+    providerSetupRequired || providerSetupUnknown ? rawModelLabel : modelDisplayName(rawModelLabel);
   // Calm chip: "Provider · model" with a status dot; the readiness phrase
   // lives in the tooltip and (when blocking) the banner — not shouted inline.
   const modelControlLabel = `${providerLabel} · ${modelLabel}`;

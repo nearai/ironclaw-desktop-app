@@ -1471,7 +1471,7 @@ try {
   await activeModelPanel.getByText('NEAR AI Cloud', { exact: true }).waitFor({ timeout: 10_000 });
   await activeModelPanel
     .locator('span')
-    .filter({ hasText: /^auto$/ })
+    .filter({ hasText: /^Auto$/ })
     .first()
     .waitFor({
       timeout: 10_000
@@ -1484,7 +1484,7 @@ try {
   await activeModelPanel.getByRole('button', { name: 'Apply' }).click();
   await activeModelPanel
     .locator('span')
-    .filter({ hasText: /^nearai:gpt-oss-120b$/ })
+    .filter({ hasText: /^GPT OSS 120B$/ })
     .first()
     .waitFor({
       timeout: 20_000
@@ -1536,7 +1536,7 @@ try {
     await page.waitForFunction(
       () => {
         const control = document.querySelector('[aria-label="Chat model settings"]');
-        return control?.textContent?.includes('NEAR AI Cloud · nearai:gpt-oss-120b');
+        return control?.textContent?.includes('NEAR AI Cloud · GPT OSS 120B');
       },
       null,
       { timeout: 20_000 }
@@ -1554,7 +1554,7 @@ try {
     );
   }
   const modelControlText = await modelControl.innerText();
-  if (!modelControlText.includes('NEAR AI Cloud · nearai:gpt-oss-120b')) {
+  if (!modelControlText.includes('NEAR AI Cloud · GPT OSS 120B')) {
     throw new Error(
       `static chat model control did not show active NEAR AI Cloud model:\n${modelControlText}`
     );

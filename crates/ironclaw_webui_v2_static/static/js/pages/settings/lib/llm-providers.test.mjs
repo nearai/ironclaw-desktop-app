@@ -6,6 +6,7 @@ import {
   filterDesktopVisibleLlmProviders,
   groupProvidersByStatus,
   isDesktopVisibleLlmProvider,
+  modelDisplayName,
   providerAcceptsApiKey,
   providerStatus
 } from './llm-providers.js';
@@ -209,4 +210,26 @@ test('isDesktopVisibleLlmProvider accepts provider objects and ids', () => {
   assert.equal(isDesktopVisibleLlmProvider('nearai'), true);
   assert.equal(isDesktopVisibleLlmProvider({ id: 'openai' }), false);
   assert.equal(isDesktopVisibleLlmProvider(null), false);
+});
+
+test('modelDisplayName keeps NEAR model choices readable without provider plumbing', () => {
+  assert.equal(modelDisplayName('auto'), 'Auto');
+  assert.equal(modelDisplayName('z-ai/glm-4.5'), 'GLM 4.5');
+  assert.equal(modelDisplayName('gpt-oss-120b'), 'GPT OSS 120B');
+  assert.equal(modelDisplayName('qwen/qwen3.5'), 'NEAR fast model');
+});
+
+test('modelDisplayName neutralizes provider-looking model ids in normal UI', () => {
+  const labels = [
+    modelDisplayName('anthropic/claude-sonnet-4.5'),
+    modelDisplayName('openrouter/anthropic/claude-3-opus'),
+    modelDisplayName('chatgpt-4o')
+  ];
+
+  assert.deepEqual(labels, [
+    'NEAR premium reasoning',
+    'NEAR premium reasoning',
+    'NEAR premium reasoning'
+  ]);
+  assert.doesNotMatch(labels.join('\n'), /openrouter|anthropic|claude|chatgpt/i);
 });
