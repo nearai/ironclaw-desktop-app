@@ -1,4 +1,4 @@
-const WORK_ITEMS_KEY = 'ironclaw-work-items';
+export const WORK_ITEMS_KEY = 'ironclaw-work-items';
 const MAX_WORK_ITEMS = 500;
 
 export function saveAssistantResponseToWork({
@@ -55,7 +55,7 @@ export function saveAssistantResponseToWork({
     nextAction: 'Review saved work product.'
   };
 
-  const existing = readWorkItems(storage);
+  const existing = readSavedWorkItems(storage);
   storage.setItem(WORK_ITEMS_KEY, JSON.stringify([item, ...existing].slice(0, MAX_WORK_ITEMS)));
   return {
     item,
@@ -100,7 +100,8 @@ export function workArtifactHref(workId, artifactId) {
   return `/work?${params.toString()}`;
 }
 
-function readWorkItems(storage) {
+export function readSavedWorkItems(storage = defaultStorage()) {
+  if (!storage) return [];
   try {
     const parsed = JSON.parse(storage.getItem(WORK_ITEMS_KEY) || '[]');
     return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === 'object') : [];

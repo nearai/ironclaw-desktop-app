@@ -16,6 +16,7 @@ registerPack('en', {
 
   // Navigation
   'nav.chat': 'Chat',
+  'nav.work': 'Work',
   'nav.workspace': 'Workspace',
   'nav.projects': 'Projects',
   'nav.jobs': 'Jobs',

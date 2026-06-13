@@ -15,7 +15,16 @@ test('desktop primary information architecture stays simple for normal users', (
 test('backend-blocked and specialist routes stay deep-link only', () => {
   const hiddenIds = new Set(primaryRoutes.filter((route) => route.hidden).map((route) => route.id));
 
-  for (const id of ['workspace', 'projects', 'jobs', 'routines', 'automations', 'missions', 'admin']) {
+  for (const id of [
+    'work',
+    'workspace',
+    'projects',
+    'jobs',
+    'routines',
+    'automations',
+    'missions',
+    'admin'
+  ]) {
     assert.equal(hiddenIds.has(id), true, `${id} should not appear in primary navigation`);
   }
 });
