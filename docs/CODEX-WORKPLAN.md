@@ -175,7 +175,7 @@ desk/missions surfaces the static UI replaced. Deletion is gated by 4 CI hooks.
 |----|------|--------|------|-----------|-----------|
 | **A11Y-1** | Axe gate over the static UI (`@axe-core/playwright`, already a dep) | M | TCI-7 | `tests/a11y-static.spec.ts` | zero serious/critical axe violations on chat/onboarding/extensions/settings |
 | **A11Y-2** | Semantic-token sweep — route the ~348 hardcoded status color classes through DESIGN.md `--v2` tokens; lint fails CI on raw status colors | M | TCI-5 | components + `scripts/token-lint.mjs` | grep for raw `text-red-*/green-*` status colors returns 0; lint in CI |
-| **A11Y-3** | Keyboard nav + focus management — focus order, modal/gate traps, ⌘⏎/Esc on gates, visible focus rings | M | — | `tests/static/keyboard-static.spec.ts`, components | composer/model/attach/send, model popover Esc, command palette, and setup-link tab-through covered; gate actions still need a rendered pending-gate fixture |
+| **A11Y-3** | Keyboard nav + focus management — focus order, modal/gate traps, ⌘⏎/Esc on gates, visible focus rings | M | — | `tests/static/keyboard-static.spec.ts`, components | composer/model/attach/send, model popover Esc, command palette, setup-link tab-through, and approval-gate Ctrl+Enter/Esc resolution covered in the rendered app |
 | **A11Y-4** | `prefers-reduced-motion` honored (calm fade) + AA contrast on tokens | S | DSYS-1 | `app.css`, tokens | reduced-motion disables transitions; contrast AA verified |
 
 ---
