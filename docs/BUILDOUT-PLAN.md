@@ -46,18 +46,20 @@ static smoke, release build, packaged WebView gauntlet — all green.
    testing a ghost.
 3. **Approval enforcement is wire-only** — the gate card silently drops `tool metadata` +
    `allow_always`; non-chat dispatch paths aren't guarded for when they light up.
-4. **The front door is a blank-ish greeting** — DESIGN.md's *anticipation* law has no surface.
+4. **The front door is only partially backed** — the static chat home now has a prepared
+   Desk-lite panel for backed `Needs you` thread state and `Handled` automation/thread receipts,
+   but true cross-thread pending gates and recent run receipts still need gateway/user-scoped
+   feed support.
 5. **Latent bugs**: the two-writer `err-${runId}` clobber, thread-export silently dropping
    tool/thinking/image turns.
 6. **Visualization/export parity is incomplete** — Mermaid now renders lazily and safely in
    chat; exports preserve labeled Mermaid source across MD/HTML/JSON/PDF/DOCX; DOCX exports now
    carry real heading styles, table XML, editable bullet/ordered lists, and external hyperlink
    relationships; whole-thread export now supports MD/JSON/PDF/DOCX. DOCX/PDF do not yet embed
-   the rendered diagram image from the same render path; competitor chat patterns (receipt cards,
-   generated-document artifact headers are now explicit in chat, tool activity now collapses into
-   quiet readable rows, plain assistant prose is bubble-less, and attachment entry now sits behind
-   a single composer "+" sheet; remaining competitor chat patterns (native binary artifact chips
-   and receipt cards) are still incomplete.
+   the rendered diagram image from the same render path; competitor chat patterns (completed-action
+   receipt cards, generated-document artifact headers, quiet tool rows, bubble-less assistant prose,
+   image thumbnails, and the single composer "+" sheet) are now explicit in chat. Remaining competitor
+   chat work is native binary artifact chips and richer generated-file preview/save.
 
 **Standing decisions (this session):** Desk-lite front door · mine-then-remove the legacy
 `src/` · ship-ready then leap.

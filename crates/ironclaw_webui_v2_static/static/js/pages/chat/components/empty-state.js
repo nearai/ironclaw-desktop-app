@@ -1,10 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { Icon } from '../../../design-system/icons.js';
+import { listAutomations } from '../../../lib/api.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
+import { normalizeAutomations } from '../../automations/lib/automations-presenters.js';
 import { filterDesktopVisibleLlmProviders } from '../../settings/lib/llm-providers.js';
 import { fetchLlmProviders } from '../../settings/lib/settings-api.js';
+import { buildFrontDoorData } from '../lib/frontdoor-data.js';
 import { ChatInput } from './chat-input.js';
 
 // Anticipation over interrogation: the front door greets by time of day,
@@ -43,6 +46,8 @@ function visibleLlmSnapshot(snapshot = {}) {
 }
 
 export function EmptyState({
+  threads = [],
+  threadStates,
   onSuggestion: _onSuggestion,
   onSend,
   disabled,
@@ -61,9 +66,24 @@ export function EmptyState({
     queryFn: fetchLlmProviders,
     staleTime: 60_000
   });
-  const recentThreads = (threadsQuery.data?.threads || [])
-    .filter((thread) => thread?.thread_id && (thread.title || '').trim())
+  const rawThreads = threads.length > 0 ? threads : threadsQuery.data?.threads || [];
+  const automationsQuery = useQuery({
+    queryKey: ['automations'],
+    queryFn: () => listAutomations({ limit: 10 }),
+    staleTime: 60_000
+  });
+  const recentThreads = rawThreads
+    .filter((thread) => (thread?.thread_id || thread?.id) && (thread.title || '').trim())
     .slice(0, 3);
+  const frontDoor = React.useMemo(
+    () =>
+      buildFrontDoorData({
+        threads: rawThreads,
+        threadStates,
+        automations: normalizeAutomations(automationsQuery.data)
+      }),
+    [rawThreads, threadStates, automationsQuery.data]
+  );
   const providersSnapshot = providersQuery.data;
   const visibleProvidersSnapshot = visibleLlmSnapshot(providersSnapshot || {});
   const providerSetupChecking = Boolean(!providersSnapshot && providersQuery.isLoading);
@@ -203,8 +223,8 @@ export function EmptyState({
                 ${recentThreads.map(
                   (thread) => html`
                     <${Link}
-                      key=${thread.thread_id}
-                      to=${`/chat/${thread.thread_id}`}
+                      key=${thread.thread_id || thread.id}
+                      to=${`/chat/${thread.thread_id || thread.id}`}
                       className="group grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-sm text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
                     >
                       <${Icon} name="chat" className="h-3.5 w-3.5 shrink-0 opacity-70" />
@@ -254,6 +274,8 @@ export function EmptyState({
             </div>
           `}
 
+          <${FrontDoorPanel} needsYou=${frontDoor.needsYou} handled=${frontDoor.handled} />
+
           <div className="mt-4 grid gap-2">
             ${suggestions.map(
               (item) => html`
@@ -292,5 +314,87 @@ export function EmptyState({
         </section>
       </div>
     </div>
+  `;
+}
+
+function FrontDoorPanel({ needsYou, handled }) {
+  return html`
+    <div
+      className="mt-4 grid gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
+      data-testid="frontdoor-panel"
+    >
+      <${FrontDoorSection}
+        title="Needs you"
+        emptyTitle="Nothing waiting on you."
+        emptyDetail="Approvals and auth gates appear here when they are backed by a thread."
+        tone="warning"
+        items=${needsYou}
+      />
+      <${FrontDoorSection}
+        title="Handled"
+        emptyTitle="No completed receipts yet."
+        emptyDetail="Completed actions, automations, and recent work appear here once IronClaw has evidence."
+        tone="gold"
+        items=${handled}
+      />
+    </div>
+  `;
+}
+
+function FrontDoorSection({ title, emptyTitle, emptyDetail, tone, items }) {
+  const toneClass =
+    tone === 'gold'
+      ? 'bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]'
+      : 'bg-[var(--v2-warning-soft)] text-[var(--v2-warning-text)]';
+  return html`
+    <section className="min-w-0" aria-label=${title} data-testid=${`frontdoor-${tone}`}>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="text-[11px] font-semibold uppercase text-[var(--v2-text-faint)]">
+          ${title}
+        </div>
+        <span className=${`rounded-[6px] px-2 py-0.5 text-[11px] font-semibold ${toneClass}`}>
+          ${items.length}
+        </span>
+      </div>
+      <div className="grid gap-2">
+        ${items.length > 0
+          ? items.map(
+              (item) => html`
+                <${Link}
+                  key=${item.id}
+                  to=${item.href}
+                  className="grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 hover:border-[color-mix(in_srgb,var(--v2-accent)_42%,var(--v2-panel-border))]"
+                >
+                  <span className=${`grid h-8 w-8 place-items-center rounded-[8px] ${toneClass}`}>
+                    <${Icon} name=${item.icon} className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0">
+                    <span
+                      className="block truncate text-sm font-semibold text-[var(--v2-text-strong)]"
+                    >
+                      ${item.title}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-[var(--v2-text-muted)]">
+                      ${item.badge}${item.age ? ` · ${item.age}` : ''} · ${item.detail}
+                    </span>
+                  </span>
+                  <span className="text-xs font-semibold text-[var(--v2-accent-text)]">Open</span>
+                <//>
+              `
+            )
+          : html`
+              <div
+                className="rounded-[8px] border border-dashed border-[var(--v2-panel-border)] px-3 py-2"
+              >
+                <div className="text-sm font-semibold text-[var(--v2-text-strong)]">
+                  ${emptyTitle}
+                </div>
+                <div className="mt-0.5 text-xs leading-5 text-[var(--v2-text-muted)]">
+                  ${emptyDetail}
+                </div>
+              </div>
+            `}
+      </div>
+    </section>
   `;
 }

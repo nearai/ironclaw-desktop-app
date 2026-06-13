@@ -1,5 +1,10 @@
 import { React, html } from '../../lib/html.js';
-import { THREAD_STATE, clearThreadState, setThreadState } from '../../lib/thread-state.js';
+import {
+  THREAD_STATE,
+  clearThreadState,
+  setThreadState,
+  useThreadStates
+} from '../../lib/thread-state.js';
 import { ApprovalCard } from './components/approval-card.js';
 import { AuthGenericCard } from './components/auth-generic-card.js';
 import { AuthOauthCard } from './components/auth-oauth-card.js';
@@ -47,6 +52,7 @@ export function Chat({
     submitAuthToken,
     dismissChannelConnectAction
   } = useChat(activeThreadId);
+  const threadStates = useThreadStates();
 
   const activeThread = React.useMemo(
     () => threads.find((thread) => thread.id === activeThreadId) || null,
@@ -155,6 +161,8 @@ export function Chat({
         ${showLanding &&
         html`
           <${EmptyState}
+            threads=${threads}
+            threadStates=${threadStates}
             onSuggestion=${handleSuggestion}
             onSend=${handleSend}
             disabled=${composerDisabled}

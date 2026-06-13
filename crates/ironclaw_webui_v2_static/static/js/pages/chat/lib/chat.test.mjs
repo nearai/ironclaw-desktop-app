@@ -74,7 +74,8 @@ function renderChat({ hookState, activeThreadId = 'thread-1' }) {
     globalThis: {},
     html: (strings, ...values) => ({ strings: Array.from(strings), values }),
     setThreadState: () => {},
-    useChat: () => hookState
+    useChat: () => hookState,
+    useThreadStates: () => new Map()
   };
 
   vm.runInNewContext(chatSourceForTest(), context);
