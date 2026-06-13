@@ -31,8 +31,9 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 - Static bundle-size gate: `npm run check:static-bundle`
   - Status: passed.
   - Measures the shipped Tauri static WebUI, not the legacy Svelte build.
-  - Current gzipped tracked assets: cold start 348.4 KB / 400 KB; `main.bundle.js` 313.0 KB / 350 KB; boot vendor 22.3 KB / 35 KB; lazy code highlighting 52.0 KB / 60 KB; lazy diagrams 858.5 KB / 950 KB; document/PDF lazy assets 516.3 KB / 600 KB; OCR lazy assets 2501.5 KB / 2800 KB; all tracked assets 4276.7 KB / 4900 KB.
+  - Current gzipped tracked assets: cold start 351.0 KB / 400 KB; `main.bundle.js` 315.3 KB / 350 KB; boot vendor 22.3 KB / 35 KB; lazy code highlighting 52.0 KB / 60 KB; lazy diagrams 858.5 KB / 950 KB; document/PDF lazy assets 516.3 KB / 600 KB; OCR lazy assets 2501.5 KB / 2800 KB; all tracked assets 4279.3 KB / 4900 KB.
   - Largest tracked asset is OCR lazy glue (`ocr/tesseract-core-simd-lstm.wasm.js`) at 1427.3 KB / 1500 KB; the gate reports WARN but remains under budget.
+  - `.github/workflows/check.yml` now runs this gate directly instead of the legacy Svelte bundle-size script.
 - Static markdown lazy-renderer proof: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/components/markdown-renderer.test.mjs`
   - Status: passed.
   - `index.html` now boots `purify -> marked -> main.bundle` and exposes the shared static asset loader.
@@ -40,10 +41,10 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Mermaid is also off the cold-start path; `MarkdownRenderer` requests `vendor/mermaid.min.js` only after the user clicks `Render diagram`, initializes Mermaid with `securityLevel: strict`, sanitizes returned SVG, and recovers already-enhanced Mermaid blocks.
 - Static token lint: `npm run lint:static-tokens`
   - Status: passed.
-  - Scans 226 shipped static JS files and fails if raw red/yellow/amber/orange/green/lime status utilities return outside generated bundles/tests.
+  - Scans 227 shipped static JS files and fails if raw red/yellow/amber/orange/green/lime status utilities return outside generated bundles/tests.
 - Static copy lint: `npm run lint:static-copy`
   - Status: passed.
-  - Scans 190 shipped static JS files and fails if normal desktop copy leaks OpenRouter, Anthropic, Claude, ChatGPT, Codex login, provider marketplace framing, `operator`, generic `console`, or `Gateway v2`/route wording.
+  - Scans 191 shipped static JS files and fails if normal desktop copy leaks OpenRouter, Anthropic, Claude, ChatGPT, Codex login, provider marketplace framing, `operator`, generic `console`, or `Gateway v2`/route wording.
 - Rendered static smoke: `npm run smoke:webui-static`
 - Static JS tests: `npm run test:static` -> 345 passed.
 - Full test suite: `npm run test` -> 161 files / 1294 tests passed.
@@ -75,9 +76,10 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - `rg "animate-pulse|animate-bounce|animate-\\[v2-breathe|v2-skeleton-shimmer|@keyframes pulse|@keyframes bounce" crates/ironclaw_webui_v2_static/static/js crates/ironclaw_webui_v2_static/static/styles --glob '!vendor/**' --glob '!*.test.mjs'` returns no shipped UI hits.
 - Static accessibility gate: `npm run test:a11y-static`
   - Status: passed.
-  - Full static Playwright project now runs 29 rendered tests: 15 axe surfaces, 3 attachment ingress proofs, 3 connector proofs, 6 keyboard/approval flows, 1 hostile markdown geometry proof, and 1 Mermaid diagram proof.
+  - Full static Playwright project now runs 30 rendered tests: 15 axe surfaces, 3 attachment ingress proofs, 3 connector proofs, 6 keyboard/approval flows, 1 hostile markdown geometry proof, 1 Mermaid diagram proof, and 1 saved Work artifact reload proof.
   - Covers 15 shipped static `/v2` surfaces with mocked Reborn API responses: onboarding, chat, connections registry/installed/channels/MCP, AI setup, language settings, automations, workspace, projects, jobs, routines, missions, and logs.
   - Fails on critical/serious axe violations and console/page errors; `color-contrast` remains excluded for the same token/opacity false-positive reason as the legacy a11y suite.
+  - `.github/workflows/check.yml` now runs this rendered static gate, so saved-work, connector, attachment, keyboard, and axe regressions do not rely only on local pre-push.
   - The expanded run caught and fixed a critical Logs control-name violation; the Logs route now keeps its local-only empty state while exposing named select controls.
   - The gate now starts the static server on the same port it tests (`PORT=1420`), removing the fake-green dependency on a previously-running local server.
 - Static markdown layout gate: `npx playwright test --config playwright.static.config.ts tests/static/markdown-layout-static.spec.ts`

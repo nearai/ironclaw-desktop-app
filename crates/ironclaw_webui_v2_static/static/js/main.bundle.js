@@ -2601,7 +2601,9 @@ ${ge}`;if(C.current.gateKey!==ve&&(C.current={gateKey:ve,credentialRef:null,inFl
               className="border-b border-[var(--v2-panel-border)] px-5 py-4 sm:flex sm:items-start sm:justify-between sm:gap-4"
             >
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--v2-text-muted)]">
+                <div
+                  className="flex flex-wrap items-center gap-2 text-xs text-[var(--v2-text-muted)]"
+                >
                   <span
                     className="rounded-full border border-[color-mix(in_srgb,var(--v2-success-text)_34%,var(--v2-panel-border))] bg-[var(--v2-success-soft)] px-2 py-1 text-[var(--v2-success-text)]"
                   >
