@@ -2,6 +2,7 @@ import { renderMarkdown } from '../../../lib/markdown.js';
 import { saveBlob } from '../../../lib/save-file.js';
 
 export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const MERMAID_EXPORT_LABEL = 'Mermaid diagram source';
 
 export async function copyWorkProduct(content) {
   const text = String(content || '');
@@ -45,7 +46,7 @@ export function buildMarkdownBlob(content) {
 }
 
 export function buildHtmlBlob(content) {
-  const body = renderMarkdown(String(content || ''));
+  const body = renderMarkdown(annotateMermaidFences(String(content || '')));
   return new Blob(
     [
       `<!doctype html><html><head><meta charset="utf-8"><title>IronClaw export</title></head><body>${body}</body></html>`
@@ -218,6 +219,7 @@ function markdownBlocks(content) {
   const lines = String(content || '').split(/\r?\n/);
   const blocks = [];
   let inCode = false;
+  let codeLanguage = '';
   let tableRows = [];
   let tableSourceRows = [];
 
@@ -232,9 +234,19 @@ function markdownBlocks(content) {
   };
 
   for (const line of lines) {
-    if (line.trim().startsWith('```')) {
+    const fence = parseFence(line);
+    if (fence) {
       flushTable();
-      inCode = !inCode;
+      if (inCode) {
+        inCode = false;
+        codeLanguage = '';
+      } else {
+        inCode = true;
+        codeLanguage = fence.language;
+        if (isMermaidLanguage(codeLanguage)) {
+          blocks.push(paragraphXml(MERMAID_EXPORT_LABEL));
+        }
+      }
       continue;
     }
     if (inCode) {
@@ -287,12 +299,79 @@ function isMarkdownTableRow(line) {
 }
 
 function linesForPdf(content) {
-  const lines = String(content || '')
-    .split(/\r?\n/)
-    .map((line) => stripMarkdown(line).trim())
-    .filter(Boolean)
-    .slice(0, 32);
+  const lines = [];
+  let inCode = false;
+  let codeLanguage = '';
+
+  for (const line of String(content || '').split(/\r?\n/)) {
+    const fence = parseFence(line);
+    if (fence) {
+      if (inCode) {
+        inCode = false;
+        codeLanguage = '';
+      } else {
+        inCode = true;
+        codeLanguage = fence.language;
+        if (isMermaidLanguage(codeLanguage)) {
+          lines.push(MERMAID_EXPORT_LABEL);
+        }
+      }
+      continue;
+    }
+    const text = stripMarkdown(line).trim();
+    if (text) {
+      lines.push(text);
+    }
+    if (lines.length >= 32) break;
+  }
   return lines.length ? lines : ['IronClaw export'];
+}
+
+function annotateMermaidFences(content) {
+  const lines = String(content || '').split(/\r?\n/);
+  const output = [];
+  let inCode = false;
+
+  for (const line of lines) {
+    const fence = parseFence(line);
+    if (fence) {
+      if (inCode) {
+        inCode = false;
+      } else {
+        inCode = true;
+        if (
+          isMermaidLanguage(fence.language) &&
+          !lastNonEmptyLineIs(output, `**${MERMAID_EXPORT_LABEL}**`)
+        ) {
+          if (output.length && output.at(-1) !== '') output.push('');
+          output.push(`**${MERMAID_EXPORT_LABEL}**`, '');
+        }
+      }
+    }
+    output.push(line);
+  }
+
+  return output.join('\n');
+}
+
+function lastNonEmptyLineIs(lines, expected) {
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    if (lines[index] === '') continue;
+    return lines[index] === expected;
+  }
+  return false;
+}
+
+function parseFence(line) {
+  const match = String(line || '')
+    .trim()
+    .match(/^```+\s*([^\s`]*)/);
+  if (!match) return null;
+  return { language: String(match[1] || '').toLowerCase() };
+}
+
+function isMermaidLanguage(language) {
+  return String(language || '').toLowerCase() === 'mermaid';
 }
 
 function stripMarkdown(value) {

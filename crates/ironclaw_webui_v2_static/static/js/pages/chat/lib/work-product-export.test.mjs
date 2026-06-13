@@ -3,14 +3,21 @@ import test from 'node:test';
 
 globalThis.window = {
   marked: {
-    parse: (content) =>
-      [
+    parse: (content) => {
+      const code = content.match(/```([a-z]*)\n([\s\S]*?)```/);
+      const language = code?.[1] || '';
+      const languageClass = language ? ` class="language-${escapeHtml(language)}"` : '';
+      return [
         '<h1>Services Agreement Smoke Draft</h1>',
         '<p>This is a static export validation artifact.</p>',
         '<table><thead><tr><th>Item</th><th>Value</th></tr></thead>',
         '<tbody><tr><td>Scope</td><td>Dummy services agreement update</td></tr></tbody></table>',
-        `<pre><code>${escapeHtml(content.match(/```[a-z]*\n([\s\S]*?)```/)?.[1] || '')}</code></pre>`
-      ].join('')
+        content.includes('Mermaid diagram source')
+          ? '<p><strong>Mermaid diagram source</strong></p>'
+          : '',
+        `<pre><code${languageClass}>${escapeHtml(code?.[2] || '')}</code></pre>`
+      ].join('');
+    }
   },
   DOMPurify: {
     sanitize: (html) => html
@@ -32,6 +39,18 @@ const WORK_PRODUCT_MARKDOWN = [
   '',
   '```json',
   '{"status":"ready","format":"json"}',
+  '```'
+].join('\n');
+
+const MERMAID_WORK_PRODUCT_MARKDOWN = [
+  '# Workflow diagram',
+  '',
+  'The assistant included a generated process diagram.',
+  '',
+  '```mermaid',
+  'graph TD',
+  '  A[Client instructions] --> B[Draft DOCX]',
+  '  B --> C[Review and export]',
   '```'
 ].join('\n');
 
@@ -81,6 +100,43 @@ test('static export builders create parseable MD, HTML, JSON, PDF, and DOCX arti
   assert.match(entries.get('word/document.xml'), /<w:tbl>/);
   assert.match(entries.get('word/document.xml'), /Services Agreement Smoke Draft/);
   assert.match(entries.get('word/document.xml'), /Dummy services agreement update/);
+});
+
+test('static exports preserve Mermaid diagram source in every work-product format', async () => {
+  const markdown = await buildMarkdownBlob(MERMAID_WORK_PRODUCT_MARKDOWN).text();
+  assert.equal(markdown, MERMAID_WORK_PRODUCT_MARKDOWN);
+  assert.match(markdown, /```mermaid/);
+  assert.match(markdown, /Draft DOCX/);
+
+  const html = await buildHtmlBlob(MERMAID_WORK_PRODUCT_MARKDOWN).text();
+  assert.match(html, /Mermaid diagram source/);
+  assert.match(html, /class="language-mermaid"/);
+  assert.match(html, /graph TD/);
+  assert.match(html, /Draft DOCX/);
+
+  const json = JSON.parse(
+    await buildJsonBlob({
+      role: 'assistant',
+      content: MERMAID_WORK_PRODUCT_MARKDOWN
+    }).text()
+  );
+  assert.equal(json.content, MERMAID_WORK_PRODUCT_MARKDOWN);
+
+  const pdfText = new TextDecoder('latin1').decode(
+    new Uint8Array(await buildPdfBlob(MERMAID_WORK_PRODUCT_MARKDOWN).arrayBuffer())
+  );
+  assert.match(pdfText, /Mermaid diagram source/);
+  assert.match(pdfText, /graph TD/);
+  assert.match(pdfText, /Draft DOCX/);
+  assert.doesNotMatch(pdfText, /```/);
+
+  const docx = buildDocxBlob(MERMAID_WORK_PRODUCT_MARKDOWN);
+  const entries = unzipStoredEntries(new Uint8Array(await docx.arrayBuffer()));
+  const documentXml = entries.get('word/document.xml');
+  assert.match(documentXml, /Mermaid diagram source/);
+  assert.match(documentXml, /graph TD/);
+  assert.match(documentXml, /Draft DOCX/);
+  assert.doesNotMatch(documentXml, /```/);
 });
 
 function unzipStoredEntries(bytes) {
