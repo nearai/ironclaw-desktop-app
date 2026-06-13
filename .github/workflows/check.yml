@@ -17,6 +17,7 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run verify:static-frontend
+      - run: npm run lint:static-tokens
       - name: Install Chromium for static smoke
         run: npx playwright install --with-deps chromium
       - run: npm run smoke:webui-static
@@ -64,4 +65,4 @@ jobs:
       - run: cargo check --manifest-path src-tauri/Cargo.toml --locked
       - run: cargo test --manifest-path src-tauri/Cargo.toml --lib --release --locked
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked -- -D warnings
-        continue-on-error: true  # warn-don't-block until clippy is clean
+        continue-on-error: true # warn-don't-block until clippy is clean
