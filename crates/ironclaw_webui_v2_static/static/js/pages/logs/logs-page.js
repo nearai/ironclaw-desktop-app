@@ -9,13 +9,13 @@ const LEVEL_COLORS = {
   trace: 'text-[var(--v2-text-muted)]',
   debug: 'text-[color-mix(in_srgb,var(--v2-accent)_80%,white)]',
   info: 'text-[var(--v2-text-strong)]',
-  warn: 'text-yellow-400',
-  error: 'text-red-400'
+  warn: 'text-[var(--v2-warning-text)]',
+  error: 'text-[var(--v2-danger-text)]'
 };
 
 const LEVEL_BG = {
-  warn: 'bg-yellow-500/5',
-  error: 'bg-red-500/8'
+  warn: 'bg-[var(--v2-warning-soft)]',
+  error: 'bg-[var(--v2-danger-soft)]'
 };
 
 function LogEntry({ entry }) {
@@ -170,7 +170,9 @@ export function LogsPage() {
             <span className="ml-auto tabular-nums">
               ${t('logs.entryCount', { count: totalCount })}
               ${paused
-                ? html`<span className="ml-1 text-yellow-400">${t('logs.pausedBadge')}</span>`
+                ? html`<span className="ml-1 text-[var(--v2-warning-text)]"
+                    >${t('logs.pausedBadge')}</span
+                  >`
                 : null}
             </span>
           </div>

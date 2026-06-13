@@ -26,7 +26,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 - In-app browser sanity: `http://127.0.0.1:17666/v2/chat` on the raw static server redirects to first-run welcome without Tauri settings; visible text contains IronClaw/NEAR AI Cloud setup and no ChatGPT/OpenRouter/Anthropic/Claude leakage.
 - Static contract: `npm run verify:static-frontend`
 - Rendered static smoke: `npm run smoke:webui-static`
-- Static JS tests: `npm run test:static` -> 313 passed.
+- Static JS tests: `npm run test:static` -> 317 passed.
 - Full test suite: `npm run test` -> 161 files / 1294 tests passed.
 - Type/UI check: `npm run check` -> 0 errors / 0 warnings.
 - Packaged build: `npm run tauri -- build`
@@ -59,6 +59,9 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
   - Covers 15 shipped static `/v2` surfaces with mocked Reborn API responses: onboarding, chat, connections registry/installed/channels/MCP, AI setup, language settings, automations, workspace, projects, jobs, routines, missions, and logs.
   - Fails on critical/serious axe violations and console/page errors; `color-contrast` remains excluded for the same token/opacity false-positive reason as the legacy a11y suite.
   - The expanded run caught and fixed a critical Logs control-name violation; the Logs route now keeps its local-only empty state while exposing named select controls.
+- Logs design contract: `node --test crates/ironclaw_webui_v2_static/static/js/pages/logs/logs-design-contract.test.mjs`
+  - Status: passed.
+  - Guards the rendered Logs route against raw red/yellow/amber/orange/green status classes so warning and danger states keep using semantic desktop tokens.
 
 ## Escalated Findings
 
@@ -74,7 +77,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Notion OAuth | YELLOW | Notion is visible and setup-gated; live OAuth start returns 200. | Needs a rendered packaged connector flow that completes credential proof, not just OAuth start. |
 | Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. | Keep. Deep OCR remains opt-in in packaged smoke. |
 | Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |
-| Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks, chat typing no longer bounces, and live/running dots use a reduced-motion-aware semantic class. | Keep. Avoid returning to marketing-card layouts or perpetual skeleton motion. |
+| Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks, chat typing no longer bounces, live/running dots use a reduced-motion-aware semantic class, and Logs status states now use warning/danger tokens instead of raw Tailwind colors. | Keep. Avoid returning to marketing-card layouts, raw status palettes, or perpetual skeleton motion. |
 | Accessibility gate | GREEN | The shipped static WebUI now has a dedicated Playwright/axe project for 15 onboarding/chat/connection/settings/deep-link surfaces; it is wired into pre-push and caught a real Logs select-name violation. | Keep expanding interaction coverage before deleting the legacy Svelte a11y sweep. |
 | Screenshot process | GREEN | README/design capture now regenerates `contact-sheet.png` from current screenshots and does not leak proxy 502 console errors. | Keep as a review precondition. |
 

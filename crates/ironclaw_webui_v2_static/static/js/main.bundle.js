@@ -8574,7 +8574,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         <div className="space-y-5">${i[e]}</div>
       </div>
     </div>
-  `:c`<${ra} to="/admin/dashboard" replace />`}function KR(){let[e,t]=g.default.useState("all"),[a,s]=g.default.useState(""),[n,r]=g.default.useState(!1),[i,o]=g.default.useState(!0),l=g.default.useCallback(async u=>{},[]);return{entries:[],totalCount:0,paused:n,togglePause:()=>r(u=>!u),clearEntries:()=>{},levelFilter:e,setLevelFilter:t,targetFilter:a,setTargetFilter:s,autoScroll:i,setAutoScroll:o,serverLevel:null,changeServerLevel:l,status:"todo",isLoading:!1}}var JO=["all","trace","debug","info","warn","error"],YO=["trace","debug","info","warn","error"],GR={trace:"text-[var(--v2-text-muted)]",debug:"text-[color-mix(in_srgb,var(--v2-accent)_80%,white)]",info:"text-[var(--v2-text-strong)]",warn:"text-yellow-400",error:"text-red-400"},XO={warn:"bg-yellow-500/5",error:"bg-red-500/8"};function ZO({entry:e}){let[t,a]=g.default.useState(!1),s=e.timestamp?e.timestamp.substring(11,23):"",n=GR[e.level]||GR.info,r=XO[e.level]||"";return c`
+  `:c`<${ra} to="/admin/dashboard" replace />`}function KR(){let[e,t]=g.default.useState("all"),[a,s]=g.default.useState(""),[n,r]=g.default.useState(!1),[i,o]=g.default.useState(!0),l=g.default.useCallback(async u=>{},[]);return{entries:[],totalCount:0,paused:n,togglePause:()=>r(u=>!u),clearEntries:()=>{},levelFilter:e,setLevelFilter:t,targetFilter:a,setTargetFilter:s,autoScroll:i,setAutoScroll:o,serverLevel:null,changeServerLevel:l,status:"todo",isLoading:!1}}var JO=["all","trace","debug","info","warn","error"],YO=["trace","debug","info","warn","error"],GR={trace:"text-[var(--v2-text-muted)]",debug:"text-[color-mix(in_srgb,var(--v2-accent)_80%,white)]",info:"text-[var(--v2-text-strong)]",warn:"text-[var(--v2-warning-text)]",error:"text-[var(--v2-danger-text)]"},XO={warn:"bg-[var(--v2-warning-soft)]",error:"bg-[var(--v2-danger-soft)]"};function ZO({entry:e}){let[t,a]=g.default.useState(!1),s=e.timestamp?e.timestamp.substring(11,23):"",n=GR[e.level]||GR.info,r=XO[e.level]||"";return c`
     <div
       onClick=${()=>a(i=>!i)}
       className=${["grid cursor-pointer select-none gap-x-3 px-4 py-1 font-mono text-xs hover:bg-[var(--v2-surface-muted)]","grid-cols-[7rem_3rem_minmax(10rem,18rem)_1fr]",r].filter(Boolean).join(" ")}
@@ -8669,7 +8669,9 @@ ${JSON.stringify(t||{},null,2)}</pre
             />
             <span className="ml-auto tabular-nums">
               ${e("logs.entryCount",{count:a})}
-              ${s?c`<span className="ml-1 text-yellow-400">${e("logs.pausedBadge")}</span>`:null}
+              ${s?c`<span className="ml-1 text-[var(--v2-warning-text)]"
+                    >${e("logs.pausedBadge")}</span
+                  >`:null}
             </span>
           </div>
         `}
