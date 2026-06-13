@@ -13,6 +13,7 @@ export function ProviderLoginStatus({ login }) {
     html`<div className="text-center text-xs text-[var(--v2-text-muted)]">
       ${t('onboarding.nearaiWaiting')}
     </div>`}
-    ${nearaiError && html`<div className="text-center text-xs text-red-300">${nearaiError}</div>`}
+    ${nearaiError &&
+    html`<div className="text-center text-xs text-[var(--v2-danger-text)]">${nearaiError}</div>`}
   `;
 }

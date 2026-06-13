@@ -2475,7 +2475,7 @@ ${pe}`;if(R.current.gateKey!==Fe&&(R.current={gateKey:Fe,credentialRef:null,inFl
         `}
         ${p&&c`
           <div
-            className=${p.tone==="error"?"text-sm text-red-200":"text-sm text-mint"}
+            className=${p.tone==="error"?"text-sm text-[var(--v2-danger-text)]":"text-sm text-[var(--v2-positive-text)]"}
             role="status"
           >
             ${p.text}
@@ -2503,7 +2503,7 @@ ${pe}`;if(R.current.gateKey!==Fe&&(R.current={gateKey:Fe,credentialRef:null,inFl
     ${a&&c`<div className="text-center text-xs text-[var(--v2-text-muted)]">
       ${t("onboarding.nearaiWaiting")}
     </div>`}
-    ${s&&c`<div className="text-center text-xs text-red-300">${s}</div>`}
+    ${s&&c`<div className="text-center text-xs text-[var(--v2-danger-text)]">${s}</div>`}
   `}function nL(e,t){if(!t)return!0;let a=t.toLowerCase();return[e.id,e.name,e.adapter,e.base_url,e.default_model].filter(Boolean).some(s=>String(s).toLowerCase().includes(a))}function Mm({settings:e,gatewayStatus:t,searchQuery:a,t:s}){let n=sm({settings:e,gatewayStatus:t}),[r,i]=g.default.useState(null),[o,l]=g.default.useState(!1),[u,d]=g.default.useState(null),[f,m]=g.default.useState(null),p=g.default.useRef(null),v=g.default.useCallback((y,$)=>{p.current&&window.clearTimeout(p.current),d({tone:y,text:$}),p.current=window.setTimeout(()=>d(null),3500)},[]);g.default.useEffect(()=>()=>{p.current&&window.clearTimeout(p.current)},[]);let w=g.default.useCallback((y=null)=>{i(y),l(!0)},[]),x=g.default.useCallback(async y=>{try{await n.setActiveProvider(y),v("success",s("llm.providerActivated",{name:y.name||y.id}))}catch($){$.message==="base_url"||$.message==="api_key"||$.message==="model"?(w(y),v("error",s($.message==="base_url"?"llm.baseUrlRequired":$.message==="model"?"llm.modelRequired":"llm.configureToUse"))):v("error",$.message)}},[w,n,v,s]),b=g.default.useCallback(async({form:y,apiKey:$,provider:S})=>{if(S?.builtin){await n.saveBuiltinProvider({provider:S,form:y,apiKey:$}),v("success",s("llm.providerConfigured",{name:S.name||S.id}));return}let _=await n.saveCustomProvider({form:y,apiKey:$,editingProvider:S});v("success",s(S?"llm.providerUpdated":"llm.providerAdded",{name:_.name||_.id}))},[n,v,s]),h=g.default.useCallback(y=>{m({message:s("llm.confirmDelete",{id:y.id}),title:s("llm.deleteTitle"),confirmLabel:s("llm.deleteConfirm"),tone:"danger",onConfirm:async()=>{try{await n.deleteCustomProvider(y),v("success",s("llm.providerDeleted"))}catch($){throw v("error",$.message),$}}})},[n,v,s]);return{providerState:n,dialogProvider:r,isDialogOpen:o,message:u,confirmRequest:f,dismissConfirm:()=>m(null),filteredProviders:n.providers.filter(y=>nL(y,a)),allProviderIds:n.providers.map(y=>y.id),openDialog:w,closeDialog:()=>l(!1),handleUse:x,handleSave:b,handleDelete:h}}var rL=3e5;function iL(){return`nearai-wallet-login:${typeof window.crypto?.randomUUID=="function"?window.crypto.randomUUID():`${Date.now()}-${Math.random().toString(16).slice(2)}`}`}function oL(){if(lt()){let e=nn();if(e)return e}return window.location.origin}function lL(e){return No(`/wallet/connect?channel=${encodeURIComponent(e)}`)}function cL(e,t){return new Promise(a=>{if(typeof window.BroadcastChannel!="function"){a(null);return}let s=new window.BroadcastChannel(t),n=l=>{let u=l.data;!u||u.type!=="nearai-wallet-login"||(o(),a(u.ok?u:null))},r=setInterval(()=>{e&&e.closed&&(o(),a(null))},500),i=setTimeout(()=>{o(),a(null)},rL);function o(){clearInterval(r),clearTimeout(i),s.removeEventListener("message",n),s.close()}s.addEventListener("message",n)})}var lN=3e5,uL=2e3,dL=3;async function cN(e,t){let a=Date.now()+t,s=0;for(;Date.now()<a;){await new Promise(l=>setTimeout(l,uL)),s+=1;let n=await Xa().catch(()=>null);if(n?.active?.provider_id===e)return!0;if(s%dL!==0)continue;let r=n?.providers?.find(l=>l?.id===e);if(!r||!(await ko({provider_id:e,adapter:r.adapter||e,model:r.active_model||r.default_model||"auto"}).catch(()=>null))?.ok)continue;if(await Ha({provider_id:e,model:r.active_model||r.default_model||"auto"}).catch(()=>{}),(await Xa().catch(()=>null))?.active?.provider_id===e)return!0}return!1}function Pm({onSuccess:e}={}){let t=A(),a=te(),[s,n]=g.default.useState(!1),[r,i]=g.default.useState(""),o=g.default.useCallback(async()=>{await a.invalidateQueries({queryKey:["llm-providers"]}),e&&e()},[a,e]),l=g.default.useCallback(async d=>{i(""),n(!0);try{if(lt()){let p=await we("nearai_browser_login",{provider:d}),w=((await Xa().catch(()=>null))?.providers||[]).find(x=>x.id==="nearai")||{};if(await Zd({id:"nearai",name:w.name||"NEAR AI",adapter:w.adapter||"nearai",base_url:w.base_url||"",api_key:p}),await cN("nearai",lN)){await o();return}i(t("onboarding.nearaiTimeout"));return}let{auth_url:f}=await Hk({provider:d,origin:oL()});if(!await qa(f)){i(t("onboarding.nearaiFailed"));return}if(await cN("nearai",lN)){await o();return}i(t("onboarding.nearaiTimeout"))}catch(f){let m=String(f?.message||f||"");i(m||t("onboarding.nearaiFailed"))}finally{n(!1)}},[o,t]),u=g.default.useCallback(async()=>{i(""),n(!0);try{let d=iL(),f=window.open(lL(d),"_blank","noopener,noreferrer,width=460,height=640"),m=await cL(f,d);if(!m){i(t("onboarding.nearaiFailed"));return}await Kk({account_id:m.accountId,public_key:m.publicKey,signature:m.signature,message:m.message,recipient:m.recipient,nonce:m.nonce}),await o()}catch{i(t("onboarding.nearaiFailed"))}finally{n(!1)}},[o,t]);return{nearaiBusy:s,nearaiError:r,startNearai:l,startNearaiWallet:u}}var mL="M21.443 0c-.89 0-1.714.46-2.18 1.218l-5.017 7.448a.533.533 0 0 0 .792.7l4.938-4.282a.2.2 0 0 1 .334.151v13.41a.2.2 0 0 1-.354.128L5.03.905A2.555 2.555 0 0 0 3.078 0h-.521A2.557 2.557 0 0 0 0 2.557v18.886a2.557 2.557 0 0 0 4.736 1.338l5.017-7.448a.533.533 0 0 0-.792-.7l-4.938 4.283a.2.2 0 0 1-.333-.152V5.352a.2.2 0 0 1 .354-.128l14.924 17.87c.486.574 1.2.905 1.952.906h.521A2.558 2.558 0 0 0 24 21.445V2.557A2.558 2.558 0 0 0 21.443 0Z",fL={nearai:{color:"#00ec97",path:mL}};function uN({id:e,name:t}){let a=fL[e],s="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl";if(!a){let n=(t||e||"?").trim().charAt(0).toUpperCase();return c`
       <span
         className=${`${s} bg-[var(--v2-surface-muted)] text-sm font-semibold text-[var(--v2-text-strong)]`}
@@ -7237,14 +7237,14 @@ ${JSON.stringify(t||{},null,2)}</pre
 
       ${n.error&&c`
         <div
-          className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+          className="rounded-xl border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]"
         >
           ${n.error}
         </div>
       `}
       ${n.message&&c`
         <div
-          className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200"
+          className="rounded-xl border border-[color-mix(in_srgb,var(--v2-positive-text)_36%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] px-4 py-3 text-sm text-[var(--v2-positive-text)]"
         >
           ${n.message}
         </div>
@@ -7487,7 +7487,7 @@ ${JSON.stringify(t||{},null,2)}</pre
     </div>
   `}function UO({error:e,result:t}){return!e&&!t?null:c`
     <div
-      className=${e?"rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200":"rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200"}
+      className=${e?"rounded-xl border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]":"rounded-xl border border-[color-mix(in_srgb,var(--v2-positive-text)_36%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] px-4 py-3 text-sm text-[var(--v2-positive-text)]"}
     >
       ${e||t}
     </div>
@@ -7737,7 +7737,7 @@ ${JSON.stringify(t||{},null,2)}</pre
             </div>`}
             ${d&&c`
               <div
-                className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+                className="rounded-xl border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]"
               >
                 ${e("error.saveFailed",{message:d.message})}
               </div>

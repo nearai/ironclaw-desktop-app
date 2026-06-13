@@ -26,7 +26,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 - In-app browser sanity: `http://127.0.0.1:17666/v2/chat` on the raw static server redirects to first-run welcome without Tauri settings; visible text contains IronClaw/NEAR AI Cloud setup and no ChatGPT/OpenRouter/Anthropic/Claude leakage.
 - Static contract: `npm run verify:static-frontend`
 - Rendered static smoke: `npm run smoke:webui-static`
-- Static JS tests: `npm run test:static` -> 318 passed.
+- Static JS tests: `npm run test:static` -> 319 passed.
 - Full test suite: `npm run test` -> 161 files / 1294 tests passed.
 - Type/UI check: `npm run check` -> 0 errors / 0 warnings.
 - Packaged build: `npm run tauri -- build`
@@ -65,6 +65,9 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 - Chat design contract: `node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/chat-design-contract.test.mjs`
   - Status: passed.
   - Guards primary chat failure, connection, composer-remove, and Slack pairing status states against raw red/yellow/amber/orange/green utility classes.
+- Settings design contract: `node --test crates/ironclaw_webui_v2_static/static/js/pages/settings/lib/settings-design-contract.test.mjs`
+  - Status: passed.
+  - Guards the NEAR AI/model setup path against raw status color utilities in save errors, provider login/test messages, restart feedback, and skill action results.
 
 ## Escalated Findings
 
@@ -80,7 +83,7 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Notion OAuth | YELLOW | Notion is visible and setup-gated; live OAuth start returns 200. | Needs a rendered packaged connector flow that completes credential proof, not just OAuth start. |
 | Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. | Keep. Deep OCR remains opt-in in packaged smoke. |
 | Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |
-| Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks, chat typing no longer bounces, live/running dots use a reduced-motion-aware semantic class, and primary chat/Logs status states now use warning/danger/positive tokens instead of raw Tailwind colors. | Keep. Avoid returning to marketing-card layouts, raw status palettes, or perpetual skeleton motion. |
+| Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. Loading placeholders now use static `v2-skeleton` blocks, chat typing no longer bounces, live/running dots use a reduced-motion-aware semantic class, and primary chat/Settings/Logs status states now use warning/danger/positive tokens instead of raw Tailwind colors. | Keep. Avoid returning to marketing-card layouts, raw status palettes, or perpetual skeleton motion. |
 | Accessibility gate | GREEN | The shipped static WebUI now has a dedicated Playwright/axe project for 15 onboarding/chat/connection/settings/deep-link surfaces; it is wired into pre-push and caught a real Logs select-name violation. | Keep expanding interaction coverage before deleting the legacy Svelte a11y sweep. |
 | Screenshot process | GREEN | README/design capture now regenerates `contact-sheet.png` from current screenshots and does not leak proxy 502 console errors. | Keep as a review precondition. |
 
