@@ -175,7 +175,8 @@ to a prepared brief, agent work is legible, and every surface is calm and on-bra
 `CHAT-1` receipt cards · `CHAT-2` artifact chips (incl. agent-generated work products and
 saved `/work` reader) ·
 `CHAT-3` one-line tool rows · `CHAT-4` bubble-less assistant · `CHAT-5` "+"-sheet composer
-(kill chip soup) · `CHAT-6` attachment thumbnails · `CHAT-7` grouped model picker.
+(kill chip soup) · `CHAT-6` attachment thumbnails · `CHAT-7` grouped model picker (shipped
+for normal chat: Active/Available grouping, NEAR labels, expert-only raw model id override).
 
 **Track C — design-system + a11y (parallel):**
 `DSYS-1` calm density (kill shimmer) · `DSYS-2` empty/loading dignity · `DSYS-3` accent

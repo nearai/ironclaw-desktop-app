@@ -101,10 +101,15 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'chat.heroEvening',
   'chat.heroMorning',
   'chat.jumpToLatest',
+  'chat.modelPopoverActive',
+  'chat.modelPopoverAvailable',
   'chat.modelPopoverEmpty',
   'chat.modelPopoverError',
   'chat.modelPopoverManage',
+  'chat.modelPopoverManualDesc',
+  'chat.modelPopoverManualLabel',
   'chat.modelPopoverManualPlaceholder',
+  'chat.modelPopoverManualToggle',
   'chat.modelPopoverNeedsSetupDesc',
   'chat.modelPopoverNoProvider',
   'chat.modelPopoverProvider',
@@ -337,7 +342,7 @@ test('every advertised language has a registered pack', () => {
 
 test('i18n baseline is sorted, unique, and references real English keys', () => {
   const englishKeys = Object.keys(packs.en || {}).sort();
-  assert.equal(englishKeys.length, 795);
+  assert.equal(englishKeys.length, 800);
   assert.deepEqual(BASELINE_MISSING_KEYS, sortedUnique(BASELINE_MISSING_KEYS));
 
   const unknownBaselineKeys = BASELINE_MISSING_KEYS.filter((key) => !packs.en?.[key]);

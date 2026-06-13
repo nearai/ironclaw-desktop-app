@@ -163,9 +163,16 @@ test('static keyboard: model selector opens, closes, and keeps setup reachable',
   const dialog = page.getByRole('dialog', { name: 'Chat model settings' });
   await expect(dialog).toBeVisible();
   await expect(dialog.getByText('Model source')).toBeVisible();
+  await expect(dialog.locator('div').filter({ hasText: /^Active$/ })).toHaveCount(1);
+  await expect(dialog.getByText('Available models')).toBeVisible();
   await expect(dialog.getByText('GLM 4.5')).toBeVisible();
-  await expect(dialog.getByText('NEAR premium reasoning').first()).toBeVisible();
+  await expect(dialog.getByText('NEAR premium reasoning', { exact: true })).toHaveCount(1);
   await expect(dialog.getByText(/z-ai\/glm|anthropic|claude|openrouter|chatgpt/i)).toHaveCount(0);
+  await expect(dialog.getByPlaceholder('Enter a NEAR AI model id')).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Use a model ID' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Use a model ID' }).click();
+  await expect(dialog.getByPlaceholder('Enter a NEAR AI model id')).toBeVisible();
+  await expect(dialog.getByText('NEAR AI model ID')).toBeVisible();
   await expect(
     dialog.getByRole('link', { name: 'Manage NEAR AI Cloud in Settings' })
   ).toBeVisible();

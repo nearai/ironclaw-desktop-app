@@ -81,6 +81,7 @@ function ModelPopover({ open, onClose, t }) {
   const [applying, setApplying] = React.useState('');
   const [selectedModel, setSelectedModel] = React.useState('');
   const [manualModel, setManualModel] = React.useState('');
+  const [manualOpen, setManualOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) return;
@@ -103,7 +104,8 @@ function ModelPopover({ open, onClose, t }) {
     setModels(null);
     setLoadError(false);
     setSelectedModel(currentProviderModel);
-    setManualModel(currentProviderModel === 'auto' ? '' : currentProviderModel);
+    setManualModel('');
+    setManualOpen(false);
   }, [open, selectedProvider?.id, currentProviderModel]);
 
   React.useEffect(() => {
@@ -122,7 +124,6 @@ function ModelPopover({ open, onClose, t }) {
           setSelectedModel((current) =>
             normalized.includes(current) ? current : normalized[0] || currentProviderModel
           );
-          setManualModel((current) => current || currentProviderModel || normalized[0] || '');
         }
       } catch (_) {
         if (!cancelled) {
@@ -138,7 +139,9 @@ function ModelPopover({ open, onClose, t }) {
 
   const apply = async () => {
     if (!selectedProvider || applying) return;
-    const model = (selectedModel || manualModel || currentProviderModel || 'auto').trim();
+    const model = (
+      manualOpen ? manualModel : selectedModel || currentProviderModel || 'auto'
+    ).trim();
     if (!model) return;
     setApplying(`${selectedProvider.id}:${model}`);
     try {
@@ -153,10 +156,18 @@ function ModelPopover({ open, onClose, t }) {
     }
   };
 
-  const applyModel = (selectedModel || manualModel || currentProviderModel || 'auto').trim();
+  const applyModel = (
+    manualOpen ? manualModel : selectedModel || currentProviderModel || 'auto'
+  ).trim();
   const isCurrentSelection =
     selectedProvider?.id === active?.provider_id && applyModel === String(active?.model || 'auto');
   const canApply = Boolean(selectedProvider && applyModel && !applying && !isCurrentSelection);
+  const visibleModels = uniqueModelsByDisplayLabel(models || []);
+  const activeModel = currentProviderModel || 'auto';
+  const activeModelLabel = modelDisplayName(activeModel).toLowerCase();
+  const availableModels = visibleModels.filter(
+    (model) => model !== activeModel && modelDisplayName(model).toLowerCase() !== activeModelLabel
+  );
 
   return html`
     <div className="w-[min(28rem,calc(100vw-2rem))] p-2">
@@ -246,42 +257,114 @@ function ModelPopover({ open, onClose, t }) {
                 html`<div className="px-2 py-3 text-sm text-[var(--v2-text-muted)]">
                   ${loadError ? t('chat.modelPopoverError') : t('chat.modelPopoverEmpty')}
                 </div>`}
-                ${(models || []).map((model) => {
-                  const isCurrent = model === selectedModel;
-                  return html`
+                ${models !== null &&
+                models.length > 0 &&
+                html`
+                  <div className="px-2 pb-1">
+                    <div
+                      className="mb-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--v2-text-faint)]"
+                    >
+                      ${t('chat.modelPopoverActive')}
+                    </div>
                     <button
-                      key=${model}
                       type="button"
                       disabled=${Boolean(applying)}
                       onClick=${() => {
-                        setSelectedModel(model);
-                        setManualModel(model);
+                        setSelectedModel(activeModel);
+                        setManualModel('');
+                        setManualOpen(false);
                       }}
-                      className=${`flex w-full items-center justify-between gap-2 rounded-[6px] px-2 py-1.5 text-left text-sm ${
-                        isCurrent
+                      className=${`flex w-full items-center justify-between gap-2 rounded-[8px] px-2 py-1.5 text-left text-sm ${
+                        selectedModel === activeModel && !manualOpen
                           ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
                           : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]'
                       }`}
                     >
-                      <span className="truncate">${modelDisplayName(model)}</span>
-                      ${isCurrent
+                      <span className="truncate">${modelDisplayName(activeModel)}</span>
+                      ${selectedModel === activeModel && !manualOpen
                         ? html`<${Icon} name="check" className="h-3.5 w-3.5 shrink-0" />`
                         : null}
                     </button>
-                  `;
-                })}
+                  </div>
+                  ${availableModels.length > 0 &&
+                  html`
+                    <div className="px-2 pt-2">
+                      <div
+                        className="mb-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--v2-text-faint)]"
+                      >
+                        ${t('chat.modelPopoverAvailable')}
+                      </div>
+                      <div className="grid gap-1">
+                        ${availableModels.map((model) => {
+                          const isCurrent = model === selectedModel && !manualOpen;
+                          return html`
+                            <button
+                              key=${model}
+                              type="button"
+                              disabled=${Boolean(applying)}
+                              onClick=${() => {
+                                setSelectedModel(model);
+                                setManualModel('');
+                                setManualOpen(false);
+                              }}
+                              className=${`flex w-full items-center justify-between gap-2 rounded-[6px] px-2 py-1.5 text-left text-sm ${
+                                isCurrent
+                                  ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
+                                  : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]'
+                              }`}
+                            >
+                              <span className="truncate">${modelDisplayName(model)}</span>
+                              ${isCurrent
+                                ? html`<${Icon} name="check" className="h-3.5 w-3.5 shrink-0" />`
+                                : null}
+                            </button>
+                          `;
+                        })}
+                      </div>
+                    </div>
+                  `}
+                `}
               </div>
-              <div className="mt-2 px-2">
-                <input
-                  type="text"
-                  value=${manualModel}
-                  onChange=${(event) => {
-                    setManualModel(event.target.value);
-                    setSelectedModel(event.target.value);
+              <div className="mt-2 border-t border-[var(--v2-panel-border)] px-2 pt-2">
+                <button
+                  type="button"
+                  aria-expanded=${manualOpen ? 'true' : 'false'}
+                  onClick=${() => {
+                    setManualOpen((value) => !value);
+                    setManualModel('');
                   }}
-                  placeholder=${t('chat.modelPopoverManualPlaceholder')}
-                  className="h-9 w-full rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 font-mono text-xs text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--v2-accent)_28%,transparent)]"
-                />
+                  className="flex w-full items-center justify-between gap-2 rounded-[8px] px-2 py-1.5 text-left text-xs font-medium text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]"
+                >
+                  <span>${t('chat.modelPopoverManualToggle')}</span>
+                  <${Icon}
+                    name="chevron"
+                    className=${`h-3.5 w-3.5 transition-transform ${manualOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                ${manualOpen &&
+                html`
+                  <div
+                    className="mt-2 rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-2"
+                  >
+                    <label
+                      className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+                    >
+                      ${t('chat.modelPopoverManualLabel')}
+                    </label>
+                    <input
+                      type="text"
+                      value=${manualModel}
+                      onChange=${(event) => {
+                        setManualModel(event.target.value);
+                      }}
+                      placeholder=${t('chat.modelPopoverManualPlaceholder')}
+                      className="h-9 w-full rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 font-mono text-xs text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--v2-accent)_28%,transparent)]"
+                    />
+                    <p className="mt-1.5 text-xs leading-4 text-[var(--v2-text-muted)]">
+                      ${t('chat.modelPopoverManualDesc')}
+                    </p>
+                  </div>
+                `}
               </div>
             `}
       <div className="mt-2 border-t border-[var(--v2-panel-border)] px-2 pb-1 pt-2">
@@ -860,6 +943,16 @@ function normalizeModelEntries(models) {
     )
     .map((model) => String(model).trim())
     .filter(Boolean);
+}
+
+function uniqueModelsByDisplayLabel(models) {
+  const seen = new Set();
+  return normalizeModelEntries(models).filter((model) => {
+    const label = modelDisplayName(model).toLowerCase();
+    if (seen.has(label)) return false;
+    seen.add(label);
+    return true;
+  });
 }
 
 function modelForProvider(provider, active) {
