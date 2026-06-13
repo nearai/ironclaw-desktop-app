@@ -130,7 +130,8 @@ const surfaces: Surface[] = [
     authenticated: true,
     waitFor: async (page) => {
       await expect(page.getByText('No files in workspace.')).toBeVisible();
-      await expect(page.getByRole('button', { name: 'README.md' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Pick a workspace file' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0);
     }
   },
   {

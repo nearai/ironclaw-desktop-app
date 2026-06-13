@@ -74,3 +74,15 @@ test('explicit credential failures block send with the backend reason', () => {
   assert.equal(readiness.sendBlocked, true);
   assert.match(readiness.description, /NEARAI_SESSION_TOKEN/);
 });
+
+test('bare backend readiness tokens block send without extra reason text', () => {
+  for (const token of ['needs_token', 'blocked', 'auth_required', 'credentials_unavailable']) {
+    const readiness = modelExecutionReadiness({
+      model_execution_verified: false,
+      model_readiness: token
+    });
+
+    assert.equal(readiness.sendBlocked, true, `${token} should block send`);
+    assert.match(readiness.description, new RegExp(token.replaceAll('_', ' ')));
+  }
+});

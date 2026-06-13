@@ -6,6 +6,7 @@ import {
   connectorFamily,
   connectorKey,
   connectorSetupGuidance,
+  googleOauthSettingsHref,
   isGoogleConnector,
   primaryExtensionAction,
   registryConnectButtonState,
@@ -123,6 +124,35 @@ test('Google connector guidance points blocked users to the settings client-id t
       href: GOOGLE_OAUTH_SETTINGS_PATH
     }
   );
+});
+
+test('Google connector guidance stays scoped inside the hosted /v2 app', () => {
+  const previousWindow = globalThis.window;
+  globalThis.window = { location: { pathname: '/v2/extensions/registry' } };
+
+  try {
+    assert.equal(googleOauthSettingsHref(), '/v2/settings/inference#google-oauth');
+    assert.equal(
+      connectorSetupGuidance(
+        { package_ref: { id: 'tools/gmail' } },
+        { connectPhase: { phase: 'blocked-google-client-id' } }
+      ).href,
+      '/v2/settings/inference#google-oauth'
+    );
+    assert.equal(
+      registryConnectButtonState(
+        { phase: 'blocked-google-client-id' },
+        { package_ref: { id: 'tools/google_calendar' } }
+      ).href,
+      '/v2/settings/inference#google-oauth'
+    );
+  } finally {
+    if (previousWindow === undefined) {
+      delete globalThis.window;
+    } else {
+      globalThis.window = previousWindow;
+    }
+  }
 });
 
 test('connectorSetupGuidance gives honest connector-specific setup copy', () => {

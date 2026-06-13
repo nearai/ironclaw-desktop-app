@@ -3,6 +3,7 @@ import { React } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import {
   listWorkspace,
+  requireWorkspaceWriteSuccess,
   readWorkspaceFile,
   searchWorkspace,
   writeWorkspaceFile
@@ -74,7 +75,10 @@ export function useWorkspaceBrowser(selectedPath) {
   );
 
   const saveMutation = useMutation({
-    mutationFn: () => writeWorkspaceFile({ path: selectedPath, content: draft }),
+    mutationFn: async () => {
+      const response = await writeWorkspaceFile({ path: selectedPath, content: draft });
+      return requireWorkspaceWriteSuccess(response, t('workspace.unableSaveFile'));
+    },
     onSuccess: () => {
       setEditing(false);
       setResult({ type: 'success', message: t('workspace.savedPath', { path: selectedPath }) });

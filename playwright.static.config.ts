@@ -10,7 +10,7 @@ export default defineConfig({
     trace: 'on-first-retry'
   },
   webServer: {
-    command: 'npm run dev:webui-static',
+    command: 'PORT=1420 npm run dev:webui-static',
     url: 'http://127.0.0.1:1420/index.html',
     reuseExistingServer: !process.env.CI,
     timeout: 60_000

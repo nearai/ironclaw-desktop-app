@@ -38,6 +38,28 @@ const VERIFIED = {
   sendBlockReason: ''
 };
 
+const BLOCKING_READINESS_TOKENS = new Set([
+  'auth_required',
+  'blocked',
+  'credential_required',
+  'credentials_missing',
+  'credentials_required',
+  'credentials_unavailable',
+  'missing_credentials',
+  'missing_token',
+  'needs_auth',
+  'needs_credentials',
+  'needs_setup',
+  'needs_token',
+  'no_credentials',
+  'no_token',
+  'requires_auth',
+  'requires_token',
+  'token_missing',
+  'token_required',
+  'unauthenticated'
+]);
+
 export function modelExecutionReadiness(gatewayStatus) {
   if (!gatewayStatus || typeof gatewayStatus !== 'object') return CHECKING_GATEWAY;
   if (isModelExecutionVerified(gatewayStatus)) return VERIFIED;
@@ -160,6 +182,7 @@ function blockingToken(value) {
 function isBlockingText(value) {
   const normalized = value.trim().toLowerCase();
   if (!normalized || normalized === 'unverified' || normalized === 'configured') return false;
+  if (BLOCKING_READINESS_TOKENS.has(normalized)) return true;
   if (normalized.includes('policy_denied')) return true;
   if (/(credential|token|api[_ -]?key|session[_ -]?token|auth)/.test(normalized)) {
     return /(missing|required|unavailable|not[_ -]?configured|no |sign in|authenticate|vaulted)/.test(

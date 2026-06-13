@@ -1,3 +1,5 @@
+import { appScopedPath } from '../../../lib/app-path.js';
+
 export function primaryExtensionAction(ext) {
   const state =
     ext?.onboarding_state || ext?.activation_status || (ext?.active ? 'active' : 'installed');
@@ -18,6 +20,10 @@ export function primaryExtensionAction(ext) {
 }
 
 export const GOOGLE_OAUTH_SETTINGS_PATH = '/settings/inference#google-oauth';
+
+export function googleOauthSettingsHref() {
+  return appScopedPath(GOOGLE_OAUTH_SETTINGS_PATH);
+}
 
 const GOOGLE_CONNECTORS = new Set([
   'google',
@@ -67,7 +73,7 @@ export function connectorSetupGuidance(source, { state, connectPhase } = {}) {
     return {
       title: 'Needs Google sign-in setup',
       body: 'Hosted Google OAuth is not available from this gateway yet. Add a Desktop app client ID in Settings, restart the engine, then connect Gmail or Calendar.',
-      href: GOOGLE_OAUTH_SETTINGS_PATH,
+      href: googleOauthSettingsHref(),
       actionLabel: 'Open Google setup'
     };
   }
@@ -76,7 +82,7 @@ export function connectorSetupGuidance(source, { state, connectPhase } = {}) {
     return {
       title: 'Needs Google sign-in setup',
       body: 'Gmail and Calendar need a Google Desktop app client ID before browser sign-in can start.',
-      href: GOOGLE_OAUTH_SETTINGS_PATH,
+      href: googleOauthSettingsHref(),
       actionLabel: 'Open Google setup'
     };
   }
@@ -154,7 +160,7 @@ export function registryConnectButtonState(connectPhase = {}, entry = null) {
       disabled: false,
       action: 'google_settings',
       variant: 'secondary',
-      href: GOOGLE_OAUTH_SETTINGS_PATH
+      href: googleOauthSettingsHref()
     };
   }
 
@@ -179,7 +185,7 @@ export function registryConnectButtonState(connectPhase = {}, entry = null) {
         disabled: false,
         action: 'google_settings',
         variant: 'secondary',
-        href: GOOGLE_OAUTH_SETTINGS_PATH
+        href: googleOauthSettingsHref()
       };
     case 'needs-token':
       return { label: 'Open setup', disabled: false, action: 'manual_setup', variant: 'secondary' };

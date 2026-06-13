@@ -1,4 +1,4 @@
-export const DEFAULT_WORKSPACE_PATH = 'README.md';
+export const DEFAULT_WORKSPACE_PATH = '';
 
 export function pathSegments(path) {
   if (!path) return [];
