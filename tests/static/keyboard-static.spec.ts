@@ -1,5 +1,6 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
 import http from 'node:http';
+import type { Socket } from 'node:net';
 
 const gatewayStatus = {
   engine_v2_enabled: true,
@@ -245,6 +246,7 @@ for (const scenario of [
 
 async function startGateGateway() {
   const clients = new Set<http.ServerResponse>();
+  const sockets = new Set<Socket>();
   const state: {
     messageRequest: null | { content?: string };
     resolveRequests: Array<{ url: string; body: unknown; authorization: string }>;
@@ -370,6 +372,11 @@ async function startGateGateway() {
     sendJson(res, 404, { error: `unhandled ${req.method} ${url.pathname}` });
   });
 
+  server.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
+
   const port = await new Promise<number>((resolve) => {
     server.listen(0, '127.0.0.1', () => {
       const address = server.address();
@@ -385,7 +392,15 @@ async function startGateGateway() {
     close: () =>
       new Promise<void>((resolve) => {
         for (const client of clients) client.end();
-        server.close(() => resolve());
+        for (const socket of sockets) socket.destroy();
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        server.close(finish);
+        setTimeout(finish, 1_000).unref?.();
       })
   };
 }

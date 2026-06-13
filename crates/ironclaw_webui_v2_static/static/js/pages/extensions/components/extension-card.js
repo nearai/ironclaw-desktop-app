@@ -489,7 +489,11 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
   const showFooter = keywords.length > 0 || canInstall;
 
   return html`
-    <div className=${CARD}>
+    <div
+      className=${CARD}
+      data-testid=${`registry-card-${entry.id || packageId(entry)}`}
+      data-package-ref=${entry.package_ref?.id || ''}
+    >
       <div className="flex items-start gap-3">
         <${ConnectorAppIcon} source=${entry} />
         <div className="min-w-0 flex-1">
