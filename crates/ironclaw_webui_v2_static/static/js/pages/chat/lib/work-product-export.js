@@ -74,18 +74,25 @@ export function buildJsonBlob(message) {
 }
 
 export function buildDocxBlob(content) {
-  const docXml = documentXmlFromMarkdown(String(content || ''));
-  const relsXml =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+  const { documentXml, relationships } = documentPartsFromMarkdown(String(content || ''));
+  const relsXml = relationshipsXml([
+    {
+      id: 'rIdNumbering',
+      type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering',
+      target: 'numbering.xml'
+    },
+    ...relationships
+  ]);
   const rootRels =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
   const contentTypes =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/></Types>';
   const bytes = zipStore([
     { name: '[Content_Types].xml', data: contentTypes },
     { name: '_rels/.rels', data: rootRels },
     { name: 'word/_rels/document.xml.rels', data: relsXml },
-    { name: 'word/document.xml', data: docXml }
+    { name: 'word/document.xml', data: documentXml },
+    { name: 'word/numbering.xml', data: numberingXml() }
   ]);
   return new Blob([bytes], { type: DOCX_MIME });
 }
@@ -207,15 +214,20 @@ function downloadBlob(filename, blob) {
   return saveBlob(blob, filename);
 }
 
-function documentXmlFromMarkdown(content) {
-  const body = markdownBlocks(content).join('');
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+function documentPartsFromMarkdown(content) {
+  const state = {
+    relationships: [],
+    linkIds: new Map()
+  };
+  const body = markdownBlocks(content, state).join('');
+  const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:body>${body}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body>
 </w:document>`;
+  return { documentXml, relationships: state.relationships };
 }
 
-function markdownBlocks(content) {
+function markdownBlocks(content, state) {
   const lines = String(content || '').split(/\r?\n/);
   const blocks = [];
   let inCode = false;
@@ -225,9 +237,9 @@ function markdownBlocks(content) {
 
   const flushTable = () => {
     if (tableRows.length === 0) return;
-    blocks.push(tableXml(tableRows));
+    blocks.push(tableXml(tableRows, state));
     for (const sourceRow of tableSourceRows) {
-      blocks.push(paragraphXml(sourceRow, { hidden: true }));
+      blocks.push(paragraphXml(sourceRow, { hidden: true }, state));
     }
     tableRows = [];
     tableSourceRows = [];
@@ -244,13 +256,13 @@ function markdownBlocks(content) {
         inCode = true;
         codeLanguage = fence.language;
         if (isMermaidLanguage(codeLanguage)) {
-          blocks.push(paragraphXml(MERMAID_EXPORT_LABEL));
+          blocks.push(paragraphXml(MERMAID_EXPORT_LABEL, {}, state));
         }
       }
       continue;
     }
     if (inCode) {
-      blocks.push(paragraphXml(line, { code: true }));
+      blocks.push(paragraphXml(line, { code: true }, state));
       continue;
     }
     if (isMarkdownTableRow(line)) {
@@ -268,30 +280,149 @@ function markdownBlocks(content) {
       continue;
     }
     flushTable();
-    const text = line.replace(/^#{1,6}\s+/, '').replace(/^[-*]\s+/, '- ');
-    blocks.push(paragraphXml(text || ' '));
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      blocks.push(
+        paragraphXml(
+          heading[2],
+          {
+            paragraphProps: `<w:pPr><w:pStyle w:val="Heading${Math.min(3, heading[1].length)}"/></w:pPr>`
+          },
+          state
+        )
+      );
+      continue;
+    }
+    const unordered = line.match(/^(\s*)[-*]\s+(.+)$/);
+    if (unordered) {
+      blocks.push(
+        listParagraphXml(unordered[2], { ordered: false, level: listLevel(unordered[1]) }, state)
+      );
+      continue;
+    }
+    const ordered = line.match(/^(\s*)\d+[.)]\s+(.+)$/);
+    if (ordered) {
+      blocks.push(
+        listParagraphXml(ordered[2], { ordered: true, level: listLevel(ordered[1]) }, state)
+      );
+      continue;
+    }
+    blocks.push(paragraphXml(line || ' ', {}, state));
   }
   flushTable();
   return blocks;
 }
 
-function paragraphXml(text, { code = false, hidden = false } = {}) {
+function listParagraphXml(text, { ordered = false, level = 0 } = {}, state) {
+  const numId = ordered ? 2 : 1;
+  return paragraphXml(
+    text,
+    {
+      paragraphProps: `<w:pPr><w:numPr><w:ilvl w:val="${Math.max(0, Math.min(8, level))}"/><w:numId w:val="${numId}"/></w:numPr></w:pPr>`
+    },
+    state
+  );
+}
+
+function paragraphXml(text, { code = false, hidden = false, paragraphProps = '' } = {}, state) {
+  return `<w:p>${paragraphProps}${inlineRunsXml(text, { code, hidden }, state)}</w:p>`;
+}
+
+function inlineRunsXml(text, { code = false, hidden = false } = {}, state) {
+  const value = String(text || '');
+  const linkPattern = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+  const parts = [];
+  let cursor = 0;
+  let match;
+  while ((match = linkPattern.exec(value))) {
+    if (match.index > cursor) {
+      parts.push(runXml(stripMarkdown(value.slice(cursor, match.index)), { code, hidden }));
+    }
+    const label = stripMarkdown(match[1]);
+    const href = safeDocxHref(match[2]);
+    if (href && state) {
+      const relationshipId = docxLinkRelationshipId(href, state);
+      parts.push(
+        `<w:hyperlink r:id="${relationshipId}" w:history="1">${runXml(label, {
+          code,
+          hidden,
+          link: true
+        })}</w:hyperlink>`
+      );
+    } else {
+      parts.push(runXml(label || match[0], { code, hidden }));
+    }
+    cursor = match.index + match[0].length;
+  }
+  if (cursor < value.length || parts.length === 0) {
+    parts.push(runXml(stripMarkdown(value.slice(cursor)), { code, hidden }));
+  }
+  return parts.join('');
+}
+
+function runXml(text, { code = false, hidden = false, link = false } = {}) {
   const runProps = [
     code ? '<w:rFonts w:ascii="Courier New" w:hAnsi="Courier New"/>' : '',
-    hidden ? '<w:vanish/>' : ''
+    hidden ? '<w:vanish/>' : '',
+    link ? '<w:color w:val="0563C1"/><w:u w:val="single"/>' : ''
   ]
     .filter(Boolean)
     .join('');
   const props = runProps ? `<w:rPr>${runProps}</w:rPr>` : '';
-  return `<w:p><w:r>${props}<w:t xml:space="preserve">${escapeXml(stripMarkdown(text))}</w:t></w:r></w:p>`;
+  return `<w:r>${props}<w:t xml:space="preserve">${escapeXml(text)}</w:t></w:r>`;
 }
 
-function tableXml(rows) {
+function tableXml(rows, state) {
   return `<w:tbl>${rows
     .map(
-      (row) => `<w:tr>${row.map((cell) => `<w:tc>${paragraphXml(cell)}</w:tc>`).join('')}</w:tr>`
+      (row) =>
+        `<w:tr>${row.map((cell) => `<w:tc>${paragraphXml(cell, {}, state)}</w:tc>`).join('')}</w:tr>`
     )
     .join('')}</w:tbl>`;
+}
+
+function listLevel(indent) {
+  return Math.floor(String(indent || '').replace(/\t/g, '  ').length / 2);
+}
+
+function docxLinkRelationshipId(href, state) {
+  const existing = state.linkIds.get(href);
+  if (existing) return existing;
+  const id = `rIdLink${state.relationships.length + 1}`;
+  state.linkIds.set(href, id);
+  state.relationships.push({
+    id,
+    type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+    target: href,
+    targetMode: 'External'
+  });
+  return id;
+}
+
+function safeDocxHref(value) {
+  const href = String(value || '').trim();
+  return /^(https?:|mailto:)/i.test(href) ? href : '';
+}
+
+function relationshipsXml(relationships) {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${relationships
+    .map(
+      (relationship) =>
+        `<Relationship Id="${escapeXmlAttr(relationship.id)}" Type="${escapeXmlAttr(
+          relationship.type
+        )}" Target="${escapeXmlAttr(relationship.target)}"${relationship.targetMode ? ` TargetMode="${escapeXmlAttr(relationship.targetMode)}"` : ''}/>`
+    )
+    .join('')}</Relationships>`;
+}
+
+function numberingXml() {
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val="&#8226;"/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum>
+  <w:abstractNum w:abstractNumId="2"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum>
+  <w:num w:numId="1"><w:abstractNumId w:val="1"/></w:num>
+  <w:num w:numId="2"><w:abstractNumId w:val="2"/></w:num>
+</w:numbering>`;
 }
 
 function isMarkdownTableRow(line) {
@@ -394,6 +525,10 @@ function escapeXml(value) {
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
   );
+}
+
+function escapeXmlAttr(value) {
+  return escapeXml(value).replace(/'/g, '&apos;');
 }
 
 function escapePdfText(value) {

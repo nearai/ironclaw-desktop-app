@@ -54,6 +54,19 @@ const MERMAID_WORK_PRODUCT_MARKDOWN = [
   '```'
 ].join('\n');
 
+const DOCX_RICH_MARKDOWN = [
+  '# Export fidelity proof',
+  '',
+  'Review [NEAR AI docs](https://near.ai/docs?section=agents&format=docx) before signature.',
+  '',
+  '- Preserve clause numbering',
+  '- Keep approval notes editable',
+  '',
+  '1. Draft',
+  '2. Review',
+  '3. Export'
+].join('\n');
+
 test('static export builders create parseable MD, HTML, JSON, PDF, and DOCX artifacts', async () => {
   const markdown = await buildMarkdownBlob(WORK_PRODUCT_MARKDOWN).text();
   assert.equal(markdown, WORK_PRODUCT_MARKDOWN);
@@ -94,12 +107,45 @@ test('static export builders create parseable MD, HTML, JSON, PDF, and DOCX arti
     '[Content_Types].xml',
     '_rels/.rels',
     'word/_rels/document.xml.rels',
-    'word/document.xml'
+    'word/document.xml',
+    'word/numbering.xml'
   ]);
   assert.match(entries.get('[Content_Types].xml'), /wordprocessingml\.document\.main\+xml/);
+  assert.match(entries.get('[Content_Types].xml'), /wordprocessingml\.numbering\+xml/);
   assert.match(entries.get('word/document.xml'), /<w:tbl>/);
   assert.match(entries.get('word/document.xml'), /Services Agreement Smoke Draft/);
   assert.match(entries.get('word/document.xml'), /Dummy services agreement update/);
+});
+
+test('DOCX export preserves headings, links, and editable list structure', async () => {
+  const entries = unzipStoredEntries(
+    new Uint8Array(await buildDocxBlob(DOCX_RICH_MARKDOWN).arrayBuffer())
+  );
+  const rels = entries.get('word/_rels/document.xml.rels');
+  const documentXml = entries.get('word/document.xml');
+  const numbering = entries.get('word/numbering.xml');
+
+  assert.match(documentXml, /<w:pStyle w:val="Heading1"\/>/);
+  assert.match(documentXml, /<w:hyperlink r:id="rIdLink1" w:history="1">/);
+  assert.match(documentXml, /NEAR AI docs/);
+  assert.doesNotMatch(documentXml, /\]\(https:\/\/near\.ai/);
+  assert.match(documentXml, /<w:numId w:val="1"\/>/);
+  assert.match(documentXml, /<w:numId w:val="2"\/>/);
+  assert.match(documentXml, /Preserve clause numbering/);
+  assert.match(documentXml, /Draft/);
+
+  assert.match(
+    rels,
+    /Type="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/relationships\/numbering" Target="numbering\.xml"/
+  );
+  assert.match(
+    rels,
+    /Type="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/relationships\/hyperlink"/
+  );
+  assert.match(rels, /TargetMode="External"/);
+  assert.match(rels, /Target="https:\/\/near\.ai\/docs\?section=agents&amp;format=docx"/);
+  assert.match(numbering, /<w:numFmt w:val="bullet"\/>/);
+  assert.match(numbering, /<w:numFmt w:val="decimal"\/>/);
 });
 
 test('static exports preserve Mermaid diagram source in every work-product format', async () => {

@@ -50,9 +50,11 @@ static smoke, release build, packaged WebView gauntlet — all green.
 5. **Latent bugs**: the two-writer `err-${runId}` clobber, thread-export silently dropping
    tool/thinking/image turns.
 6. **Visualization/export parity is incomplete** — Mermaid now renders lazily and safely in
-   chat, and exports preserve labeled Mermaid source across MD/HTML/JSON/PDF/DOCX, but DOCX/PDF
-   do not yet embed the rendered diagram image from the same render path; competitor chat patterns
-   (receipt cards, artifact chips, tool rows, bubble-less) are still incomplete.
+   chat; exports preserve labeled Mermaid source across MD/HTML/JSON/PDF/DOCX; DOCX exports now
+   carry real heading styles, table XML, editable bullet/ordered lists, and external hyperlink
+   relationships. DOCX/PDF do not yet embed the rendered diagram image from the same render path;
+   competitor chat patterns (receipt cards, artifact chips, tool rows, bubble-less) are still
+   incomplete.
 
 **Standing decisions (this session):** Desk-lite front door · mine-then-remove the legacy
 `src/` · ship-ready then leap.
