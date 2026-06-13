@@ -64,8 +64,12 @@
           link.onerror = () => diag(`failed style ${link.href}`);
           document.head.appendChild(link);
         };
-        const loadScript = (src, type) =>
-          new Promise((resolve, reject) => {
+        const scriptLoads = new Map();
+        const loadScript = (src, type) => {
+          const key = `${type || "classic"}:${src}`;
+          const existing = scriptLoads.get(key);
+          if (existing) return existing;
+          const promise = new Promise((resolve, reject) => {
             const script = document.createElement("script");
             script.src = asset(src);
             if (type) script.type = type;
@@ -75,17 +79,22 @@
             };
             script.onerror = () => {
               diag(`failed script ${script.src}`);
+              scriptLoads.delete(key);
               reject(new Error(`Failed to load ${src}`));
             };
             document.body.appendChild(script);
           });
+          scriptLoads.set(key, promise);
+          return promise;
+        };
+        window.__IRONCLAW_STATIC_ASSET__ = asset;
+        window.__IRONCLAW_LOAD_SCRIPT__ = loadScript;
 
         diag(`start protocol=${location.protocol} pathname=${location.pathname}`);
         loadStyle("styles/tailwind.generated.css");
         loadStyle("styles/app.css");
         loadScript("vendor/purify.min.js")
           .then(() => loadScript("vendor/marked.umd.js"))
-          .then(() => loadScript("vendor/highlight.min.js"))
           .then(() => loadScript("js/main.bundle.js", "module"))
           .catch((err) => console.error("[ironclaw] static asset bootstrap failed", err));
       })();

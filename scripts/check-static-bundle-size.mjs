@@ -12,11 +12,11 @@ export const ASSET_GROUPS = {
   cold: [
     'vendor/purify.min.js',
     'vendor/marked.umd.js',
-    'vendor/highlight.min.js',
     'js/main.bundle.js',
     'styles/tailwind.generated.css',
     'styles/app.css'
   ],
+  code: ['vendor/highlight.min.js'],
   document: ['vendor/pdf.min.mjs', 'vendor/pdf.worker.min.mjs'],
   ocr: [
     'ocr/tesseract.esm.min.js',
@@ -28,6 +28,7 @@ export const ASSET_GROUPS = {
 
 const GROUP_BUDGET_KEYS = {
   cold: 'cold_gzip_kb',
+  code: 'code_highlight_gzip_kb',
   document: 'document_gzip_kb',
   ocr: 'ocr_gzip_kb'
 };
@@ -121,7 +122,14 @@ export function measureStaticBundle({
       label: 'boot vendor',
       gzipBytes: vendorBootBytes,
       budgetKb: assertBudgetNumber(budget, 'vendor_boot_gzip_kb'),
-      detail: 'purify + marked + highlight'
+      detail: 'purify + marked'
+    },
+    {
+      key: 'code_highlight',
+      label: 'code highlight',
+      gzipBytes: groups.code.gzipBytes,
+      budgetKb: groups.code.budgetKb,
+      detail: 'lazy Highlight.js'
     },
     {
       key: 'document',

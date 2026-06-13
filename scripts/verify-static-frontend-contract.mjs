@@ -77,6 +77,12 @@ async function assertStaticRoot() {
   if (!index.includes('loadScript("js/main.bundle.js", "module")')) {
     fail('static index.html must load the bundled shared WebUI entry js/main.bundle.js');
   }
+  if (!index.includes('window.__IRONCLAW_LOAD_SCRIPT__ = loadScript')) {
+    fail('static index.html must expose the local asset loader for lazy static assets');
+  }
+  if (index.includes('loadScript("vendor/highlight.min.js")')) {
+    fail('static index.html must not load Highlight.js on the cold boot path');
+  }
   if (!index.includes('loadStyle("styles/tailwind.generated.css")')) {
     fail('static index.html must load generated local Tailwind CSS');
   }

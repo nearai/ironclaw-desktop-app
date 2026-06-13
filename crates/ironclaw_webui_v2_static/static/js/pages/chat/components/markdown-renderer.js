@@ -3,6 +3,68 @@ import { renderMarkdown } from '../../../lib/markdown.js';
 import { toast } from '../../../lib/toast.js';
 
 const COLLAPSE_PX = 360;
+const HIGHLIGHT_VENDOR_PATH = 'vendor/highlight.min.js';
+
+let highlightLoadPromise = null;
+
+function resolveStaticAsset(path) {
+  const resolver = window.__IRONCLAW_STATIC_ASSET__;
+  if (typeof resolver === 'function') return resolver(path);
+
+  const hostedV2 =
+    window.location?.pathname === '/v2' || window.location?.pathname?.startsWith('/v2/');
+  return hostedV2 ? `/v2/${path}` : `/${path}`;
+}
+
+function loadScript(path) {
+  const loader = window.__IRONCLAW_LOAD_SCRIPT__;
+  if (typeof loader === 'function') return loader(path);
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = resolveStaticAsset(path);
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load ${path}`));
+    document.body.appendChild(script);
+  });
+}
+
+export function ensureHighlightJs() {
+  if (window.hljs) return Promise.resolve(window.hljs);
+  if (!highlightLoadPromise) {
+    highlightLoadPromise = loadScript(HIGHLIGHT_VENDOR_PATH)
+      .then(() => window.hljs || null)
+      .catch((error) => {
+        console.warn('[ironclaw] syntax highlighter failed to load', error);
+        highlightLoadPromise = null;
+        return null;
+      });
+  }
+  return highlightLoadPromise;
+}
+
+function highlightCodeElement(codeEl) {
+  if (!codeEl || codeEl.dataset.icHighlighted === '1') return;
+  if (window.hljs) {
+    try {
+      window.hljs.highlightElement(codeEl);
+      codeEl.dataset.icHighlighted = '1';
+    } catch {
+      // highlight failure is non-fatal
+    }
+    return;
+  }
+
+  ensureHighlightJs().then((hljs) => {
+    if (!hljs || !codeEl.isConnected || codeEl.dataset.icHighlighted === '1') return;
+    try {
+      hljs.highlightElement(codeEl);
+      codeEl.dataset.icHighlighted = '1';
+    } catch {
+      // highlight failure is non-fatal
+    }
+  });
+}
 
 /* Enhance rendered <pre> code blocks in place: syntax highlight, a hover
    toolbar (copy + soft-wrap toggle), and collapse for very tall blocks.
@@ -14,13 +76,7 @@ function enhanceCodeBlocks(root) {
     pre.dataset.enhanced = '1';
 
     const codeEl = pre.querySelector('code');
-    if (window.hljs && codeEl) {
-      try {
-        window.hljs.highlightElement(codeEl);
-      } catch {
-        // highlight failure is non-fatal
-      }
-    }
+    highlightCodeElement(codeEl);
 
     const wrap = document.createElement('div');
     wrap.style.position = 'relative';

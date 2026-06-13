@@ -124,7 +124,7 @@ desk/missions surfaces the static UI replaced. Deletion is gated by 4 CI hooks.
 | id | task | effort | deps | owned lane | acceptance |
 |----|------|--------|------|-----------|-----------|
 | **PERF-1** | Re-point the bundle-size gate at the **shipped static bundle** + vendor blobs (today it measures the dead Svelte build) | M | — | `scripts/check-static-bundle-size.mjs`, `scripts/static-bundle-budget.json` | `npm run check:static-bundle` measures shipped `main.bundle.js`, boot vendor, document/PDF assets, OCR assets, total, and largest tracked asset; gate is in `pre-push` |
-| **PERF-2** | Lazy-load `highlight.js` off the cold-start critical path | M | — | `index.html`, loader | bootstrap chain = purify→marked→main; hljs loaded on first code block |
+| **PERF-2** | Lazy-load `highlight.js` off the cold-start critical path | M | — | `index.html`, loader | bootstrap chain = purify→marked→main; `hljs` loaded on first code block; guarded by `markdown-renderer.test.mjs`, `verify:static-frontend`, and `check:static-bundle` |
 | **PERF-3** | Code-split never-visited routes via `React.lazy` + esbuild splitting | L | PERF-1 | `app.js`, `prepare-webui-static.mjs` | initial bundle drops measurably; hidden routes load on demand |
 | **PERF-4** | Fix O(n²) streaming-markdown re-render + full-bubble repaint | M | — | `markdown-renderer.js` | coalesced re-renders (rAF/throttle); N streamed tokens ≠ N full reparses |
 | **PERF-5** | **(Phase 2)** Virtualize long transcripts in `MessageList`; bound force-scroll | L | PERF-4 | `message-list.js` | windowed mount; large-thread scroll stays smooth |
