@@ -7092,9 +7092,7 @@ ${JSON.stringify(t||{},null,2)}</pre
           />
         `)}
     </div>
-  `}function dr({className:e=""}){return c`
-    <div className=${"v2-skeleton rounded "+e} />
-  `}function PO(){return c`
+  `}function dr({className:e=""}){return c` <div className=${"v2-skeleton rounded "+e} /> `}function PO(){return c`
     <div className="space-y-5">
       <${W} padding="md">
         <${dr} className="mb-4 h-3 w-24" />
