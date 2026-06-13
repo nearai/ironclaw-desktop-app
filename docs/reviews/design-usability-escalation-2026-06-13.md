@@ -1,7 +1,7 @@
 # IronClaw Desktop Design + Usability Escalation
 
 Date: 2026-06-13
-Branch under review: `codex/nearai-first-product-polish`
+Branch under review: `codex/design-system-usability-push`
 Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop Design System.zip`
 
 ## User Promises Verified
@@ -29,6 +29,26 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 - Static JS tests: `npm run test:static` -> 313 passed.
 - Full test suite: `npm run test` -> 161 files / 1294 tests passed.
 - Type/UI check: `npm run check` -> 0 errors / 0 warnings.
+- Packaged build: `npm run tauri -- build`
+  - App: `src-tauri/target/release/bundle/macos/IronClaw.app`
+  - DMG: `src-tauri/target/release/bundle/dmg/IronClaw_0.4.158_aarch64.dmg`
+  - Local artifact is unsigned because `TAURI_SIGNING_PRIVATE_KEY` is not set.
+- Packaged WebView smoke: `npm run smoke:packaged -- --webview-smoke`
+  - Status: passed.
+  - Evidence: `/tmp/ironclaw-packaged-webview-smoke-20260613-102751.json`
+  - 15 checks passed.
+  - Chat proof: timeline.
+  - Export proof: Markdown, HTML, JSON, PDF, DOCX blobs parse/render, and a saved file exists on disk.
+- Live connector truth probe: `node scripts/probe-live-reborn-connectors.mjs`
+  - Evidence: `output/live-connector-probe/reborn-live-connector-probe-2026-06-13T14-28-15-711Z.json`
+  - Contract violations: none.
+  - Gmail OAuth: 503 honest blocked.
+  - Google Calendar OAuth: 503 honest blocked.
+  - Notion OAuth: 200.
+  - Upstream defect: raw `POST /activate` can still report `authenticated:true` without credential proof for Gmail, Google Calendar, and Notion; the desktop UI must keep guarding this.
+- NEAR AI execution honesty probe: `IRONCLAW_PROBE_MODES=nearai node scripts/probe-live-reborn-model-execution.mjs`
+  - Evidence: `output/live-model-execution-probe/reborn-live-model-execution-2026-06-13T14-28-51-559Z.json`
+  - Send accepted, timeline projected the prompt, run lifecycle reached failed, assistant marker was not fabricated, assistant message count stayed 0.
 
 ## Escalated Findings
 
@@ -39,18 +59,19 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 | Model selector | GREEN | Normal desktop UI exposes NEAR AI Cloud and `auto`; non-NEAR providers are hidden from search/default setup. | Keep. Advanced provider management must remain deep-link/admin-only. |
 | Provider copy | GREEN | A new desktop provider contract test prevents ChatGPT/Codex login paths and Codex-specific routes from returning to normal setup surfaces. | Keep as a release gate. |
 | Connections installed state | GREEN | Empty installed state is clear and leads to Browse apps. | Keep. Add connected examples once live connector proofs exist. |
-| Connections registry | YELLOW | Gmail, Google Calendar, Slack, and Notion appear as easy primary actions with honest install/setup guidance. | Still needs live route proof for each connector on a packaged app with an active token. |
-| Google OAuth | RED | The UI is honest: Gmail/Calendar need a hosted Google OAuth client ID, and the screenshot shows `NEEDS CLIENT ID`. That means out-of-box Google auth is not complete yet. | Product cannot claim Google OAuth works out of the box until gateway/desktop ships hosted OAuth or a preconfigured desktop client flow. |
-| Notion OAuth | YELLOW | Notion is visible and setup-gated rather than fake-connected. | Needs live DCR/OAuth proof or a clear manual-token fallback with exact copy. |
-| Work product exports | YELLOW | Static tests cover export builders and parseable MD/HTML/JSON/PDF/DOCX. | Needs rendered app smoke of attaching a file, generating output, downloading, reopening, and parsing the downloaded artifact. |
+| Connections registry | YELLOW | Gmail, Google Calendar, Slack, and Notion appear as easy primary actions with honest install/setup guidance. Live probe found no route-contract violations. | Keep UI credential-proof guard because backend raw activate still reports authenticated without credential proof. |
+| Google OAuth | RED | The UI is honest: Gmail/Calendar need hosted OAuth/client-id support and the live probe returns 503 honest blocked. | Product cannot claim Google OAuth works out of the box until gateway/desktop ships hosted OAuth or a preconfigured desktop client flow. |
+| Notion OAuth | YELLOW | Notion is visible and setup-gated; live OAuth start returns 200. | Needs a rendered packaged connector flow that completes credential proof, not just OAuth start. |
+| Work product exports | GREEN | Packaged WebView smoke proves attachment send, timeline chat proof, parseable MD/HTML/JSON/PDF/DOCX export blobs, and native saved-file bytes. | Keep. Deep OCR remains opt-in in packaged smoke. |
+| Real assistant generation | RED | NEAR AI no-credential probe correctly fails without fabricating assistant work. | Needs a real NEAR AI Cloud token/session proof to produce assistant work from attachments. |
 | Visual system | GREEN | Inter Variable, restrained dark desk, 8px cards, quiet tokens, and left-nav hierarchy are coherent across captured surfaces. | Keep. Avoid returning to marketing-card layouts. |
 | Screenshot process | GREEN | README/design capture now regenerates `contact-sheet.png` from current screenshots and does not leak proxy 502 console errors. | Keep as a review precondition. |
 
 ## Required Next Product Proofs
 
-1. Packaged app smoke with a real NEAR AI Cloud session: launch, send chat, preserve user text, receive assistant result.
-2. Live connector proof by app: Gmail, Google Calendar, Slack, Notion, and workspace files must either connect or show a specific blocked setup state with exact HTTP evidence.
-3. Work-product proof: attach DOCX/PDF/XLSX/CSV/PPTX/JSON, generate an artifact, export DOCX/PDF/HTML/MD/JSON, parse or render downloaded files, reload thread and confirm artifact persistence.
+1. Real NEAR AI Cloud session proof: launch packaged app with a valid session/token, send chat, preserve user text, and receive an assistant result from attachment content.
+2. Connector completion proof by app: Gmail, Google Calendar, Slack, Notion, and workspace files must either connect with credential/account proof or show a specific blocked setup state with exact HTTP evidence.
+3. Real generated work-product proof: after a live assistant result, export the generated work as DOCX/PDF/HTML/MD/JSON, parse or render downloaded files, reload thread and confirm artifact persistence.
 4. OAuth completion decision: either ship hosted Google/Notion OAuth through the gateway or keep the UI in explicit blocked setup state.
 5. Browser-level regression: drive onboarding, chat, settings, and connections in a real packaged WebView after every static bridge/runtime change.
 
@@ -58,4 +79,4 @@ Design system source: `/Users/abhishekvaidyanathan/Downloads/IronClaw Desktop De
 
 This design push is shippable as a static UI/product-surface cleanup. It is not yet sufficient to claim connectors work out of the box. The correct public claim is:
 
-> IronClaw Desktop now presents a coherent NEAR AI Cloud-first assistant surface, exposes connector setup honestly, and has rendered/static test coverage for the redesigned flows. Live connector OAuth and packaged work-product proofs remain the next release blockers.
+> IronClaw Desktop now presents a coherent NEAR AI Cloud-first assistant surface, exposes connector setup honestly, builds into a packaged app, and has rendered/static/package proof for chat attachment persistence and work-product exports. Live connector completion and real NEAR AI assistant generation remain the next release blockers.
