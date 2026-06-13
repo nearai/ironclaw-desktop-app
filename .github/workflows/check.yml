@@ -23,6 +23,7 @@ jobs:
       - name: Install Chromium for static rendered tests
         run: npx playwright install --with-deps chromium
       - run: npm run smoke:webui-static
+      - run: npm run smoke:gate-enforcement
       - run: npm run test:a11y-static
       - run: npm run test
       # The static product UI (crates/.../static/js) ships ~28 node:test suites

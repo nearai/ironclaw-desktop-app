@@ -99,6 +99,8 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
   const { toolName, headline, body, parameters, allowAlways } = gate;
   const description = gate.description || body || '';
   const displayName = toolName || headline || t('approval.thisTool');
+  const visibleDescription =
+    description && description !== displayName && description !== headline ? description : '';
   const [always, setAlways] = React.useState(false);
   const parsedParameters = React.useMemo(() => parseParameters(parameters), [parameters]);
 
@@ -174,6 +176,12 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
           <h3 className="mt-1 text-base font-semibold leading-6 text-[var(--v2-text-strong)]">
             ${displayName}
           </h3>
+          ${visibleDescription &&
+          html`
+            <p className="mt-1 text-sm leading-5 text-[var(--v2-text-muted)]">
+              ${visibleDescription}
+            </p>
+          `}
         </div>
         <${Badge}
           tone=${risk.tone}

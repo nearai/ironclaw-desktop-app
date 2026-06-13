@@ -109,6 +109,7 @@ test('ApprovalCard names literal action fields, unknown outbound data, and short
 
   const visible = textContent(tree);
   assert.match(visible, /Nothing has been sent yet\./);
+  assert.match(visible, /Send the generated services agreement to legal review\./);
   assert.match(visible, /Action/);
   assert.match(visible, /send_email/);
   assert.match(visible, /Target \/ resource/);

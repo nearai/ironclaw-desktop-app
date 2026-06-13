@@ -64,7 +64,7 @@ a future routine/job/mission "Run" button dispatch off the gate path, and wire-v
 | **APPR-1** | Carry full tool metadata + `allow_always` through gate normalization | S | — | `gates.js` (+test) | DONE for typed Reborn gate prompts: `gates.test.mjs` asserts flat tool metadata plus structured `approval_context` map into `toolName`, `description`, `parameters`, and `allowAlways`; sparse projection gates preserve `allow_always` but do not fabricate missing tool details. |
 | **APPR-2** | Propagate gate metadata through the projection `item.gate` path; fix the `requestId` footgun | M | APPR-1 | `useChatEvents.js` (+test) | resolve no longer relies on the accidental `pendingGate` read; metadata reaches the card |
 | **APPR-3** | Harden the risk taxonomy with the legacy approval action-kinds **before** deleting `src/` | S | — | `approval-risk.js` (+test) | send/trade/push/pr/export/delete/write kinds inform `classifyRisk` |
-| **APPR-4** | Wire-probe harness: mock sidecar emits gate/auth/resolve frames; assert UI gates→resolves→continues | L | APPR-1/2 | `scripts/smoke-gate-enforcement.mjs` | `node scripts/smoke-gate-enforcement.mjs` exits 0 (the design-synthesis "wire-verify enforcement" line) |
+| **APPR-4** | Wire-probe harness: mock sidecar emits gate/auth/resolve frames; assert UI gates→resolves→continues | L | APPR-1/2 | `scripts/smoke-gate-enforcement.mjs` | DONE: `npm run smoke:gate-enforcement` starts a mock Reborn gateway, posts a chat prompt, streams a `send_email` gate, renders the accessible approval card with Reborn reason/body and parameters, proves high-risk `allow_always` is unavailable, resolves the exact `/threads/{thread}/runs/{run}/gates/{gate}/resolve` URL with bearer auth, receives continuation, and writes gate/resolved screenshots. It now runs in pre-push and `check.yml`. |
 | **APPR-5** | Dispatch-router guard: every agent-run entry point routes through the gate-aware send path | M | APPR-2 | `agent-dispatch.js` (+test) | future routine/job/mission Run buttons **cannot** dispatch except through a gate-aware path |
 | **APPR-6** | **DT-6 gate-craft** on `ApprovalCard`: touches / *what-leaves-the-machine* / "Nothing sent yet" / ⌘⏎ Approve · Esc Deny / gold context | M | APPR-1/2 | `approval-card.js` (+test) | DT-6 rubric green; rendered before/after |
 | **APPR-7** | **UPSTREAM**: confirm the sidecar gate-prompt exposes `tool_name/parameters/allow_always` and gates *every* send/write/export/delete tool | S | — | `docs/reviews/upstream-gate-enforcement-questions.md` | issue filed against `nearai/ironclaw` (reborn) |
@@ -275,6 +275,7 @@ npm run test            # vitest (shrinks to the retargeted set after LEG-2/TCI-
 cargo test --release    # incl. SSRF/keychain/sidecar unit tests
 npm run check           # svelte-check (removed after LEG-3)
 npm run smoke:webui-static
+npm run smoke:gate-enforcement
 node scripts/tauri-cli.mjs build
 bash scripts/smoke-packaged-app.sh --webview-smoke
 node scripts/design-test-harness.mjs   # DT-1..6 (after TCI-6)

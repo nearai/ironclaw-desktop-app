@@ -8,6 +8,8 @@ const gatewayPort = Number(process.env.GATE_SMOKE_GATEWAY_PORT || '17633');
 const staticOrigin = `http://127.0.0.1:${staticPort}`;
 const gatewayOrigin = `http://127.0.0.1:${gatewayPort}`;
 const appBasePath = '/v2';
+const gateScreenshotPath = 'output/playwright/static-gate-enforcement-gate.png';
+const resolvedScreenshotPath = 'output/playwright/static-gate-enforcement-smoke.png';
 
 function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -190,6 +192,11 @@ function createGateGateway() {
 
       if (url.pathname === '/api/webchat/v2/channels/connectable') {
         sendJson(res, 200, { channels: [] });
+        return;
+      }
+
+      if (url.pathname === '/api/webchat/v2/automations' && req.method === 'GET') {
+        sendJson(res, 200, { automations: [], next_cursor: null });
         return;
       }
 
@@ -452,6 +459,11 @@ try {
   const page = await browser.newPage({ viewport: { width: 1320, height: 900 } });
   const errors = [];
   page.on('pageerror', (err) => errors.push(`pageerror: ${err.message}`));
+  page.on('response', (response) => {
+    if (response.status() >= 400) {
+      errors.push(`http ${response.status()}: ${response.url()}`);
+    }
+  });
   page.on('console', (message) => {
     if (['error', 'warning'].includes(message.type())) {
       errors.push(`${message.type()}: ${message.text()}`);
@@ -475,16 +487,24 @@ try {
   });
   await page.locator('button[aria-label="Send message"]').last().click();
 
-  await page.getByText('Approval required', { exact: true }).waitFor({ timeout: 20_000 });
+  await page
+    .getByRole('group', { name: 'Approval required' })
+    .waitFor({ timeout: 20_000 });
   await page.getByText('send_email', { exact: true }).waitFor({ timeout: 20_000 });
   await page
     .getByText('Send the generated services agreement to the legal review inbox.', { exact: true })
     .waitFor({ timeout: 20_000 });
   await page.getByText('"recipient": "legal-review@example.com"').waitFor({ timeout: 20_000 });
-  await page.getByText('Always allow send_email without asking').waitFor({ timeout: 20_000 });
+  await page
+    .getByText('Always allow is unavailable for this kind of action. IronClaw must ask each time.')
+    .waitFor({ timeout: 20_000 });
+  await mkdir('output/playwright', { recursive: true });
+  await page.screenshot({
+    path: gateScreenshotPath,
+    fullPage: true
+  });
 
-  await page.getByLabel('Always allow send_email without asking').check();
-  await page.getByRole('button', { name: 'Approve & always allow' }).click();
+  await page.getByRole('button', { name: 'Approve' }).click();
 
   await page.getByText('Gate resolved and run continued.', { exact: true }).waitFor({
     timeout: 20_000
@@ -504,13 +524,12 @@ try {
   if (resolveRequest.authorization !== 'Bearer gate-smoke-token') {
     throw new Error(`gate resolve missing bearer auth: ${resolveRequest.authorization}`);
   }
-  if (resolveRequest.body?.resolution !== 'approved' || resolveRequest.body?.always !== true) {
-    throw new Error(`gate resolve body lost approval/always: ${JSON.stringify(resolveRequest.body)}`);
+  if (resolveRequest.body?.resolution !== 'approved' || resolveRequest.body?.always === true) {
+    throw new Error(`gate resolve body lost one-shot approval: ${JSON.stringify(resolveRequest.body)}`);
   }
 
-  await mkdir('output/playwright', { recursive: true });
   await page.screenshot({
-    path: 'output/playwright/static-gate-enforcement-smoke.png',
+    path: resolvedScreenshotPath,
     fullPage: true
   });
 
@@ -525,7 +544,8 @@ try {
         prompt_posted: Boolean(post),
         resolve_url: resolveRequest.url,
         resolve_body: resolveRequest.body,
-        screenshot: 'output/playwright/static-gate-enforcement-smoke.png'
+        gate_screenshot: gateScreenshotPath,
+        resolved_screenshot: resolvedScreenshotPath
       },
       null,
       2
