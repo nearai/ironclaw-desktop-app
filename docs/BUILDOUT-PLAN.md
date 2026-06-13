@@ -54,9 +54,10 @@ static smoke, release build, packaged WebView gauntlet — all green.
    carry real heading styles, table XML, editable bullet/ordered lists, and external hyperlink
    relationships; whole-thread export now supports MD/JSON/PDF/DOCX. DOCX/PDF do not yet embed
    the rendered diagram image from the same render path; competitor chat patterns (receipt cards,
-   generated-document artifact headers are now explicit in chat and tool activity now collapses
-   into quiet readable rows; remaining competitor chat patterns (native binary artifact chips,
-   receipt cards, bubble-less assistant) are still incomplete.
+   generated-document artifact headers are now explicit in chat, tool activity now collapses into
+   quiet readable rows, and plain assistant prose is bubble-less; remaining competitor chat
+   patterns (native binary artifact chips, receipt cards, composer "+" sheet) are still
+   incomplete.
 
 **Standing decisions (this session):** Desk-lite front door · mine-then-remove the legacy
 `src/` · ship-ready then leap.

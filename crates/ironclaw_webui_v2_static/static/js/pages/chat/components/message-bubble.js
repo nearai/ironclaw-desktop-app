@@ -19,15 +19,13 @@ import {
 import { openSavedWorkProduct, saveAssistantResponseToWork } from '../lib/work-product-save.js';
 import { buildThreadJsonExport, buildThreadMarkdownExport } from '../lib/thread-export.js';
 
-/* Bicolor attribution (DESIGN.md): signal blue is the user's hand, gold is
-   the agent's. The user keeps a blue-tinted bubble; the assistant stays
-   borderless (document-like) but carries a quiet gold left hairline so a run
-   of agent turns reads as one gold column without becoming a card.
-   system / error stay as centered tinted notices. */
+/* Bicolor attribution (DESIGN.md): signal blue is the user's hand and gold is
+   reserved for agent provenance, approvals, receipts, and generated work.
+   User turns stay in a restrained blue bubble; plain assistant prose stays
+   borderless and document-like; generated work gets the gold artifact panel. */
 const ROLE_STYLES = {
   user: 'ml-auto rounded-[18px] border border-signal/25 bg-signal/10 px-4 py-3 text-iron-100',
-  assistant:
-    'mr-auto border-l-2 border-[color-mix(in_srgb,var(--v2-gold)_45%,transparent)] pl-3 text-iron-100',
+  assistant: 'mr-auto text-iron-100',
   assistantWorkProduct:
     'mr-auto w-full max-w-full rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_26%,var(--v2-panel-border))] bg-[var(--v2-card-bg)] px-5 py-4 text-iron-100 shadow-[var(--v2-card-shadow)]',
   system:
@@ -70,7 +68,11 @@ function assistantResponseLooksLikeWorkProduct(role, content) {
 function messageShellClass(isUser, isAssistantWorkProduct) {
   return [
     'flex min-w-0 flex-col gap-1',
-    isAssistantWorkProduct ? 'w-full max-w-[min(860px,92vw)]' : 'max-w-[85%]',
+    isAssistantWorkProduct
+      ? 'w-full max-w-[min(860px,92vw)]'
+      : isUser
+        ? 'max-w-[min(680px,86vw)]'
+        : 'max-w-[min(760px,92vw)]',
     isUser ? 'items-end' : 'items-start'
   ].join(' ');
 }

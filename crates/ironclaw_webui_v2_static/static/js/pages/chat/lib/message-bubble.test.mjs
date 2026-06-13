@@ -113,6 +113,25 @@ test('assistant work-product actions are visible without hover and can wrap', ()
   assert.match(actionClass, /\bmax-w-full\b/);
 });
 
+test('plain assistant prose is borderless while user turns keep the blue bubble', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const { messageShellClass, messageBodyClass } = context.globalThis.__testExports;
+  const assistantClass = messageBodyClass('assistant', false, false);
+  const userClass = messageBodyClass('user', false, false);
+
+  assert.doesNotMatch(assistantClass, /\bbg-/);
+  assert.doesNotMatch(assistantClass, /\bborder(?:-|_|\b)/);
+  assert.doesNotMatch(assistantClass, /v2-gold/);
+  assert.doesNotMatch(assistantClass, /\brounded-/);
+  assert.match(userClass, /\bbg-signal\/10\b/);
+  assert.match(userClass, /\bborder-signal\/25\b/);
+  assert.match(userClass, /rounded-\[18px\]/);
+  assert.match(messageShellClass(false, false), /max-w-\[min\(760px,92vw\)\]/);
+  assert.match(messageShellClass(true, false), /max-w-\[min\(680px,86vw\)\]/);
+});
+
 test('assistant markdown work product renders as a first-class artifact panel', () => {
   const context = createMessageBubbleContext();
 
