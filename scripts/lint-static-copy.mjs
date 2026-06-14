@@ -46,6 +46,21 @@ const forbidden = [
     pattern: /\bconsole\b/i,
     allow: (text) =>
       text.includes('Google Cloud Console') || text.includes('https://console.cloud.google.com')
+  },
+  {
+    // DSYS-5: keep product copy plain. These marketing/LLM-tell words have no
+    // place in a calm chief-of-staff desk; honest product copy never needs them.
+    name: 'marketing / AI-tell jargon',
+    pattern:
+      /\b(?:seamless(?:ly)?|effortless(?:ly)?|unleash|supercharge|delve|cutting[ -]?edge|best[ -]?in[ -]?class|world[ -]?class|game[ -]?chang(?:er|ing)|revolutioniz(?:e|ing)|unlock (?:the )?(?:full )?potential|harness the power)\b/i
+  },
+  {
+    // DSYS-5: the "It's not X. It's Y" / "This is X. This is not Y" emphasis-card
+    // construction is a flagged AI tell. Matches only the two-clause contrast
+    // within one string (single honest phrases like "not available yet" are fine).
+    name: 'emphasis-card AI-tell ("it is not X. it is Y")',
+    pattern:
+      /\b(?:it'?s|it is|this is)\s+not\b[^.!?]{1,70}[.!?]+\s*(?:it'?s|it is|this is)\b|\bthis is\b[^.!?]{1,70}[.!?]+\s*this is not\b/is
   }
 ];
 

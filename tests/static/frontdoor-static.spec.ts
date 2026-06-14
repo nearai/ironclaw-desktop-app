@@ -229,20 +229,26 @@ async function installFrontDoorMocks(
   page: Page,
   overrides: { threads?: unknown[]; automations?: unknown[] } = {}
 ) {
+  // Timestamps are relative to now so the rendered relative-age stays in the
+  // "Xh ago" band the assertions expect, regardless of the calendar date the
+  // suite runs on. (Hardcoded dates aged past 24h and flipped to "1d ago".)
+  const now = Date.now();
+  const hoursAgo = (h: number) => new Date(now - h * 3_600_000).toISOString();
+  const hoursFromNow = (h: number) => new Date(now + h * 3_600_000).toISOString();
   const threads = overrides.threads ?? [
     {
       id: 'thread-needs-you',
       thread_id: 'thread-needs-you',
       title: 'Legal review approval',
       turn_count: 4,
-      updated_at: '2026-06-13T17:45:00.000Z'
+      updated_at: hoursAgo(3)
     },
     {
       id: 'thread-recent',
       thread_id: 'thread-recent',
       title: 'Draft launch memo',
       turn_count: 2,
-      updated_at: '2026-06-13T16:30:00.000Z'
+      updated_at: hoursAgo(1)
     }
   ];
   const automations = overrides.automations ?? [
@@ -252,9 +258,9 @@ async function installFrontDoorMocks(
       state: 'active',
       source: { type: 'schedule', cron: '0 8 * * *' },
       last_status: 'ok',
-      last_run_at: '2026-06-13T17:30:00.000Z',
-      next_run_at: '2026-06-14T08:00:00.000Z',
-      created_at: '2026-06-01T08:00:00.000Z'
+      last_run_at: hoursAgo(2),
+      next_run_at: hoursFromNow(6),
+      created_at: hoursAgo(72)
     }
   ];
   await installFrontDoorRoutes(page, threads, automations);
