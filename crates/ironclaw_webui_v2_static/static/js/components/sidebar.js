@@ -50,6 +50,9 @@ export function Sidebar({
           isLoading=${threadsState.isLoading}
           isError=${threadsState.isError}
           onRetry=${threadsState.refetch}
+          hasMore=${threadsState.hasMoreThreads}
+          isLoadingMore=${threadsState.isLoadingMore}
+          onLoadMore=${threadsState.loadMoreThreads}
           onSelect=${onSelectThread}
           onDelete=${onDeleteThread}
         />

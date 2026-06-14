@@ -153,6 +153,9 @@ export function SidebarThreads({
   isLoading = false,
   isError = false,
   onRetry,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
   onSelect,
   onDelete
 }) {
@@ -192,6 +195,16 @@ export function SidebarThreads({
       totalMatches: pinnedList.length + recentList.length
     };
   }, [threads, query, activeThreadId, states]);
+
+  // Search-miss auto-load: while a search has no loaded matches but older pages
+  // exist, page through them so a thread on page 3 is still findable. Bounded —
+  // stops once hasMore is false; one fetch at a time.
+  const isSearching = query.trim().length > 0;
+  React.useEffect(() => {
+    if (isSearching && totalMatches === 0 && hasMore && !isLoadingMore && onLoadMore) {
+      onLoadMore();
+    }
+  }, [isSearching, totalMatches, hasMore, isLoadingMore, onLoadMore]);
 
   return html`
     <div className="flex min-h-0 flex-1 flex-col px-2">
@@ -255,9 +268,15 @@ export function SidebarThreads({
                 </div>`)}
           ${threads.length > 0 &&
           totalMatches === 0 &&
-          html`<div className="px-3 py-2 text-[12px] text-[var(--v2-text-faint)]">
-            No chats match “${query}”
-          </div>`}
+          (hasMore || isLoadingMore
+            ? html`<div
+                className="flex items-center gap-2 px-3 py-2 text-[12px] text-[var(--v2-text-faint)]"
+              >
+                <${Icon} name="search" className="h-3.5 w-3.5" /> Searching older conversations…
+              </div>`
+            : html`<div className="px-3 py-2 text-[12px] text-[var(--v2-text-faint)]">
+                No chats match “${query}”
+              </div>`)}
 
           <${ThreadGroup}
             label="Pinned"
@@ -275,6 +294,16 @@ export function SidebarThreads({
             onSelect=${onSelect}
             onDelete=${onDelete}
           />
+          ${hasMore &&
+          !(isSearching && totalMatches === 0) &&
+          html`<button
+            type="button"
+            onClick=${() => onLoadMore?.()}
+            disabled=${isLoadingMore}
+            className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-[var(--v2-panel-border)] px-3 text-[12px] font-medium text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:opacity-60"
+          >
+            ${isLoadingMore ? 'Loading…' : 'Load older conversations'}
+          </button>`}
         </div>
       `}
     </div>
