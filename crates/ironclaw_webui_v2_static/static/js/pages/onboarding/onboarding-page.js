@@ -66,7 +66,7 @@ function FeaturedProviderRow({
         <${Button}
           type="button"
           variant="secondary"
-          size="sm"
+          size="md"
           fullWidth=${true}
           disabled=${login.nearaiBusy}
           onClick=${() => login.startNearai('google')}
@@ -76,7 +76,7 @@ function FeaturedProviderRow({
         <${Button}
           type="button"
           variant="secondary"
-          size="sm"
+          size="md"
           fullWidth=${true}
           disabled=${login.nearaiBusy}
           onClick=${login.startNearaiWallet}
@@ -100,7 +100,7 @@ function FeaturedProviderRow({
         <${Button}
           type="button"
           variant="secondary"
-          size="sm"
+          size="md"
           fullWidth=${true}
           disabled=${login.nearaiBusy}
           onClick=${() => login.startNearai('google')}
@@ -110,7 +110,7 @@ function FeaturedProviderRow({
         <${Button}
           type="button"
           variant="secondary"
-          size="sm"
+          size="md"
           fullWidth=${true}
           disabled=${login.nearaiBusy}
           onClick=${login.startNearaiWallet}
@@ -169,7 +169,7 @@ function TrustRow({ icon, title, body }) {
       className="grid grid-cols-[auto_1fr] gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[color-mix(in_srgb,var(--v2-surface-soft)_58%,transparent)] p-3"
     >
       <span
-        className="mt-0.5 grid h-8 w-8 place-items-center rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+        className="mt-0.5 grid h-8 w-8 place-items-center rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)]"
       >
         <${Icon} name=${icon} className="h-3.5 w-3.5" />
       </span>
@@ -427,7 +427,7 @@ export function OnboardingPage() {
                         <${Button}
                           type="button"
                           variant="secondary"
-                          size="sm"
+                          size="md"
                           fullWidth=${true}
                           disabled=${providerAccessBlocked || login.nearaiBusy}
                           onClick=${() => login.startNearai('google')}
@@ -437,7 +437,7 @@ export function OnboardingPage() {
                         <${Button}
                           type="button"
                           variant="secondary"
-                          size="sm"
+                          size="md"
                           fullWidth=${true}
                           disabled=${providerAccessBlocked || login.nearaiBusy}
                           onClick=${login.startNearaiWallet}

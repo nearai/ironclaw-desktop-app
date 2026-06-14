@@ -421,7 +421,8 @@ async function assertGatewayUnavailableWelcome(browser) {
             const rect = button.getBoundingClientRect();
             return {
               bottom: Math.round(rect.bottom),
-              top: Math.round(rect.top)
+              top: Math.round(rect.top),
+              height: Math.round(rect.height)
             };
           })()
         }));
@@ -438,6 +439,9 @@ async function assertGatewayUnavailableWelcome(browser) {
         return {
           authButtonCount: authButtons.length,
           authControlsInFirstViewport,
+          minAuthButtonHeight: authButtons.length
+            ? Math.min(...authButtons.map((button) => button.rect.height))
+            : 0,
           allAuthButtonsDisabled:
             authButtons.length >= 3 && authButtons.every((button) => button.disabled),
           hasRawGatewayText: /fetch failed|Gateway proxy failed|ECONNREFUSED|Failed to fetch/i.test(
@@ -461,6 +465,19 @@ async function assertGatewayUnavailableWelcome(browser) {
       if (!result.authControlsInFirstViewport) {
         throw new Error(
           `gateway-unavailable ${viewport.label} welcome pushed auth controls below the first viewport:\n${JSON.stringify(
+            result,
+            null,
+            2
+          )}`
+        );
+      }
+      // Every NEAR AI Cloud auth control must be a real tap target, not just the
+      // primary. The shared Button `md` size floors at 40px on mobile and 44px on
+      // desktop; the secondary Google/Wallet actions previously shipped at the
+      // 32px `sm` size. 40 is the cross-viewport floor.
+      if (result.minAuthButtonHeight < 40) {
+        throw new Error(
+          `gateway-unavailable ${viewport.label} welcome rendered an auth control below the 40px tap-target floor:\n${JSON.stringify(
             result,
             null,
             2

@@ -457,3 +457,36 @@ for (const surface of surfaces) {
     expect(consoleIssues, `${surface.label} console should stay quiet`).toEqual([]);
   });
 }
+
+// First-run is the only surface every user sees, and its three NEAR AI Cloud
+// auth controls are the whole job of the screen. They must all be real tap
+// targets — not just the primary. The two secondary actions (Use Google / Use
+// NEAR Wallet) previously shipped at `size="sm"` (32px), below the 44px desktop
+// floor and visibly shorter than the primary. This guards every auth control to
+// the same `Button` `md` height the primary uses (>=44px desktop, >=40px mobile)
+// so the fix cannot silently regress to `sm`.
+for (const viewport of [
+  { width: 1440, height: 950, label: 'desktop', minHeight: 44 },
+  { width: 390, height: 844, label: 'mobile', minHeight: 40 }
+] as const) {
+  test(`static a11y: onboarding auth controls meet tap-target floor (${viewport.label})`, async ({
+    page
+  }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await installStaticApiMocks(page);
+    await page.goto('/v2/welcome');
+    await expect(page.getByRole('heading', { name: 'IronClaw Desktop' })).toBeVisible();
+
+    const authNames = ['Sign in with GitHub', 'Use Google', 'Use NEAR Wallet'];
+    for (const name of authNames) {
+      const button = page.getByRole('button', { name });
+      await expect(button, `${name} should render on first-run`).toBeVisible();
+      const box = await button.boundingBox();
+      expect(box, `${name} should have a layout box`).not.toBeNull();
+      expect(
+        Math.round(box!.height),
+        `${name} must be at least ${viewport.minHeight}px tall at ${viewport.label}`
+      ).toBeGreaterThanOrEqual(viewport.minHeight);
+    }
+  });
+}

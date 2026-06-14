@@ -9,13 +9,7 @@ import { getRegisteredPacks } from '../../lib/i18n.js';
 
 const testDir = path.dirname(fileURLToPath(import.meta.url));
 const onboardingPagePath = path.join(testDir, 'onboarding-page.js');
-const emptyStatePath = path.resolve(
-  testDir,
-  '..',
-  'chat',
-  'components',
-  'empty-state.js'
-);
+const emptyStatePath = path.resolve(testDir, '..', 'chat', 'components', 'empty-state.js');
 
 // onboarding-desk-1 — no fake readiness.
 // The green READY badge must reflect a capability the gateway can prove:
@@ -52,6 +46,47 @@ test('onboarding READY badge is gated on real auth, not pre-auth configured', as
     source,
     /function isProviderConfigured\b/,
     'onboarding must not redefine isProviderConfigured'
+  );
+});
+
+// onboarding-tap-target — every NEAR AI Cloud auth control is a real tap target.
+// The screen's whole job is the three sign-in actions; the two secondary ones
+// (Use Google / Use NEAR Wallet) must match the primary's `md` height, not the
+// 32px `size="sm"` they previously shipped at. The rendered floor is enforced in
+// tests/static/a11y-static.spec.ts; this guards the source so the secondary auth
+// buttons cannot silently regress to `sm`.
+test('onboarding auth secondary actions use the md tap-target size, not sm', async () => {
+  const source = await readFile(onboardingPagePath, 'utf8');
+
+  // Pull every <Button …> element and look only at the auth actions that drive
+  // NEAR AI Cloud sign-in (Google + Wallet). They must not be size="sm".
+  const buttonBlocks = source.match(/<\$\{Button\}[\s\S]*?\/>|<\$\{Button\}[\s\S]*?<\/\/>/g) || [];
+  const authSecondaries = buttonBlocks.filter(
+    (block) => block.includes("startNearai('google')") || block.includes('startNearaiWallet')
+  );
+  assert.ok(authSecondaries.length >= 4, 'expected the Google/Wallet auth buttons to be present');
+  for (const block of authSecondaries) {
+    assert.doesNotMatch(
+      block,
+      /size="sm"/,
+      'auth secondary actions must not use the sub-44px sm size'
+    );
+    assert.match(block, /size="md"/, 'auth secondary actions must use the md tap-target size');
+  }
+});
+
+// onboarding-accent-discipline — gold is the agent's hand (DESIGN.md color law:
+// "Never use gold as decoration"). The first-run trust rows are static product
+// promises, not agent artifacts/receipts, so their icon tiles must not be gold.
+test('onboarding trust-row icon tiles do not use gold as decoration', async () => {
+  const source = await readFile(onboardingPagePath, 'utf8');
+
+  const trustRow = source.match(/function TrustRow\([\s\S]*?\n}/);
+  assert.ok(trustRow, 'expected a TrustRow component');
+  assert.doesNotMatch(
+    trustRow[0],
+    /var\(--v2-gold/,
+    'TrustRow must not paint its icon tile with gold (reserved for agent work)'
   );
 });
 
