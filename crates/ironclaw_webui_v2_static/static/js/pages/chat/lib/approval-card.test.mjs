@@ -29,6 +29,19 @@ function textContent(node) {
   return node.values.map(textContent).join(' ');
 }
 
+// Full markup walk (static template strings + interpolated values), so
+// structural/class assertions can prove how a field is rendered, not just its
+// visible text.
+function markup(node) {
+  if (node == null) return '';
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(markup).join(' ');
+  if (typeof node !== 'object') return '';
+  const strings = Array.isArray(node.strings) ? node.strings.join(' ') : '';
+  const values = Array.isArray(node.values) ? node.values.map(markup).join(' ') : '';
+  return `${strings} ${values}`;
+}
+
 function renderApprovalCard({
   alwaysState = false,
   risk = { tone: 'danger', key: 'tool.riskSend', allowAlways: false },
@@ -62,6 +75,7 @@ function renderApprovalCard({
     'approval.notSpecified': 'Not specified by the tool.',
     'approval.parametersLabel': 'Parameters',
     'approval.shortcutHint': 'Cmd/Ctrl+Enter approve / Esc deny',
+    'projects.card.risk': 'Risk',
     'tool.riskRead': 'reads',
     'tool.riskSend': 'sends externally'
   };
@@ -126,6 +140,24 @@ test('ApprovalCard names literal action fields, unknown outbound data, and short
   assert.match(visible, /Cmd\/Ctrl\+Enter approve \/ Esc deny/);
   assert.match(visible, /Approve/);
   assert.match(visible, /Deny/);
+  // The risk classification is explicitly named (not just an unlabeled pill).
+  assert.match(visible, /Risk/);
+  assert.match(visible, /sends externally/);
+
+  // Craft contract: the sent-yet boundary reads as a distinct strong-weight
+  // statement, and the two data-movement fields (destination + outbound) are
+  // visually emphasized so the safety crux scans above honest-empty fields.
+  const all = markup(tree);
+  assert.match(all, /shield/, 'sent-yet boundary keeps the shield affordance');
+  // The boundary statement is rendered as its own bordered, strong-weight bar.
+  assert.match(
+    all,
+    /text-\[var\(--v2-text-strong\)\][^]*?Nothing has been sent yet/,
+    'sent-yet boundary uses strong text weight'
+  );
+  // Emphasis (strong-weight value + bordered cell) is present for the
+  // data-movement fields that actually carry data.
+  assert.match(all, /font-medium text-\[var\(--v2-text-strong\)\]/);
   cleanups.forEach((cleanup) => cleanup());
 });
 

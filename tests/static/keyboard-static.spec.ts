@@ -319,8 +319,18 @@ for (const scenario of [
       await expect(page.getByRole('group', { name: 'Approval required' })).toBeVisible();
       await expect(page.getByText('send_email', { exact: true })).toBeVisible();
       await expect(page.getByText('"recipient": "legal-review@example.com"')).toBeVisible();
+      // DT-6 craft: the risk is explicitly named, the sent-yet boundary and the
+      // data-movement fields are present, and the approve/deny controls are
+      // keyboard-focusable with a visible label each.
+      await expect(page.getByText('Risk', { exact: true })).toBeVisible();
+      await expect(page.getByText('Nothing has been sent yet.', { exact: true })).toBeVisible();
+      await expect(page.getByText('What leaves the machine', { exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Deny' })).toBeVisible();
 
-      await page.getByRole('button', { name: scenario.focusButton }).focus();
+      const focusTarget = page.getByRole('button', { name: scenario.focusButton });
+      await focusTarget.focus();
+      await expect(focusTarget).toBeFocused();
       await page.keyboard.press(scenario.shortcut);
 
       await expect.poll(() => gateway.state.resolveRequests.length, { timeout: 20_000 }).toBe(1);

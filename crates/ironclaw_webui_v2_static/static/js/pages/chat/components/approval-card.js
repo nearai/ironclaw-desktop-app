@@ -123,11 +123,13 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
       },
       {
         label: t('approval.destinationLabel'),
-        value: findSummary(parsedParameters, DESTINATION_KEYS)
+        value: findSummary(parsedParameters, DESTINATION_KEYS),
+        emphasis: true
       },
       {
         label: t('approval.whatLeavesMachineLabel'),
-        value: findSummary(parsedParameters, OUTBOUND_KEYS)
+        value: findSummary(parsedParameters, OUTBOUND_KEYS),
+        emphasis: true
       }
     ],
     [displayName, headline, parsedParameters, t]
@@ -185,34 +187,46 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
             </p>
           `}
         </div>
-        <${Badge}
-          tone=${risk.tone}
-          label=${t(risk.key)}
-          dot=${false}
-          size="sm"
-          className="shrink-0"
-        />
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span
+            className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--v2-text-faint)]"
+          >
+            ${t('projects.card.risk')}
+          </span>
+          <${Badge} tone=${risk.tone} label=${t(risk.key)} dot=${false} size="sm" />
+        </div>
       </div>
 
       <div
         className="mb-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
       >
         <div
-          className="mb-3 flex items-center gap-2 text-xs font-semibold text-[var(--v2-gold-text)]"
+          className="mb-3 flex items-center gap-2 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_28%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-3 py-2 text-sm font-semibold text-[var(--v2-text-strong)]"
         >
-          <${Icon} name="shield" className="h-3.5 w-3.5" />
+          <${Icon} name="shield" className="h-4 w-4 shrink-0 text-[var(--v2-gold-text)]" />
           ${t('approval.nothingSentYet')}
         </div>
         <dl className="grid gap-3 text-xs sm:grid-cols-2">
           ${summaryRows.map(
             (row) => html`
-              <div key=${row.label} className="grid gap-1">
+              <div
+                key=${row.label}
+                className=${'grid gap-1' +
+                (row.emphasis && row.value
+                  ? ' rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_22%,var(--v2-panel-border))] bg-[var(--v2-canvas-strong)] px-2.5 py-2'
+                  : '')}
+              >
                 <dt
                   className="font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
                 >
                   ${row.label}
                 </dt>
-                <dd className="text-sm leading-5 text-[var(--v2-text-muted)]">
+                <dd
+                  className=${'text-sm leading-5 ' +
+                  (row.emphasis && row.value
+                    ? 'font-medium text-[var(--v2-text-strong)]'
+                    : 'text-[var(--v2-text-muted)]')}
+                >
                   ${row.value || t('approval.notSpecified')}
                 </dd>
               </div>

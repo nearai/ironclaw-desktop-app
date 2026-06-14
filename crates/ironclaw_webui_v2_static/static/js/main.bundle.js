@@ -835,7 +835,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
       />`}
       ${t}
     </span>
-  `}var jP=/(delete|remove|rm\b|trash|destroy)/,MP=/(trade|swap|transfer|pay|payment|wire|purchase|buy|sell|money|funds?)/,PP=/(send|email|reply|message|notify|dm|mail)/,LP=/(publish|post|push|(^|[_-])pr($|[_-])|pull[_-]?request|deploy|release)/,OP=/(export|download|upload|share)/,UP=/(write|edit|patch|create|move|rename|chmod|save|update)/,v1=/(bash|shell|exec|run|command|terminal|spawn|process)/,b1=/(curl|http|fetch|web|network|request|api|gh\b|git|download|upload|browse)/;function y1(e,t,a){let n=String(e||"").toLowerCase(),s=[t,a].filter(Boolean).join(" ").toLowerCase();return jP.test(n)?Pn("danger","tool.riskDelete"):MP.test(n)?Pn("danger","tool.riskTrade"):PP.test(n)?Pn("danger","tool.riskSend"):LP.test(n)?Pn("danger","tool.riskPublish"):OP.test(n)?Pn("danger","tool.riskExport"):UP.test(n)?Pn("danger","tool.riskWrite"):v1.test(n)?Pn("warning","tool.riskExec"):b1.test(n)?Pn("info","tool.riskNetwork"):v1.test(s)?Pn("warning","tool.riskExec"):b1.test(s)?Pn("info","tool.riskNetwork"):{tone:"muted",key:"tool.riskRead",allowAlways:!0}}function Pn(e,t){return{tone:e,key:t,allowAlways:!1}}function FP(e){let t=String(e?.tagName||"").toLowerCase();return t==="textarea"||t==="select"?!0:t!=="input"?!1:!["button","checkbox","radio","submit"].includes(String(e?.type||""))}var IP=["target","resource","path","file","filename","name","id","repo"],zP=["destination","recipient","recipients","to","email","channel","workspace","account","endpoint"],BP=["outbound_data","data","payload","body","content","message","text","attachment","attachment_name","attachment_names","attachments","document","diff","patch"];function qP(e){if(!e)return null;if(typeof e=="object")return e;try{return JSON.parse(e)}catch{return null}}function x1(e){if(e==null||e==="")return"";if(Array.isArray(e))return e.length===0?"":e.every(a=>typeof a=="string")?e.slice(0,3).join(", "):`${e.length} ${e.length===1?"item":"items"}`;if(typeof e=="object"){let a=e.name||e.filename||e.title||e.id||e.url;if(a)return String(a);let n=Object.keys(e);return n.length?`${n.length} fields`:""}let t=String(e).trim().replace(/\s+/g," ");return t.length>120?`${t.slice(0,117)}...`:t}function nb(e,t){if(!e||typeof e!="object")return"";for(let a of t)if(Object.prototype.hasOwnProperty.call(e,a)){let n=x1(e[a]);if(n)return n}for(let a of Object.values(e))if(!(!a||typeof a!="object"||Array.isArray(a))){for(let n of t)if(Object.prototype.hasOwnProperty.call(a,n)){let s=x1(a[n]);if(s)return s}}return""}function w1({gate:e,onApprove:t,onDeny:a,onAlways:n}){let s=j(),{toolName:r,headline:i,body:o,parameters:l,allowAlways:u}=e,d=e.description||o||"",m=r||i||s("approval.thisTool"),f=d&&d!==m&&d!==i?d:"",[p,h]=v.default.useState(!1),x=v.default.useMemo(()=>qP(l),[l]),w=v.default.useMemo(()=>y1(r||i,d,l),[r,i,d,l]),b=!!(u&&w.allowAlways===!0),g=v.default.useMemo(()=>[{label:s("approval.actionLabel"),value:i||m},{label:s("approval.touchesLabel"),value:nb(x,IP)},{label:s("approval.destinationLabel"),value:nb(x,zP)},{label:s("approval.whatLeavesMachineLabel"),value:nb(x,BP)}],[m,i,x,s]),y=v.default.useCallback(()=>{p&&b?n?.():t?.()},[p,b,n,t]);return v.default.useEffect(()=>{let $=k=>{if(FP(k.target))return;let C=String(k.key||"").toLowerCase();(k.metaKey||k.ctrlKey)&&C==="enter"?(k.preventDefault(),y()):C==="escape"&&(k.preventDefault(),a?.())};return window.addEventListener("keydown",$),()=>window.removeEventListener("keydown",$)},[a,y]),c`
+  `}var jP=/(delete|remove|rm\b|trash|destroy)/,MP=/(trade|swap|transfer|pay|payment|wire|purchase|buy|sell|money|funds?)/,PP=/(send|email|reply|message|notify|dm|mail)/,LP=/(publish|post|push|(^|[_-])pr($|[_-])|pull[_-]?request|deploy|release)/,OP=/(export|download|upload|share)/,UP=/(write|edit|patch|create|move|rename|chmod|save|update)/,v1=/(bash|shell|exec|run|command|terminal|spawn|process)/,b1=/(curl|http|fetch|web|network|request|api|gh\b|git|download|upload|browse)/;function y1(e,t,a){let n=String(e||"").toLowerCase(),s=[t,a].filter(Boolean).join(" ").toLowerCase();return jP.test(n)?Pn("danger","tool.riskDelete"):MP.test(n)?Pn("danger","tool.riskTrade"):PP.test(n)?Pn("danger","tool.riskSend"):LP.test(n)?Pn("danger","tool.riskPublish"):OP.test(n)?Pn("danger","tool.riskExport"):UP.test(n)?Pn("danger","tool.riskWrite"):v1.test(n)?Pn("warning","tool.riskExec"):b1.test(n)?Pn("info","tool.riskNetwork"):v1.test(s)?Pn("warning","tool.riskExec"):b1.test(s)?Pn("info","tool.riskNetwork"):{tone:"muted",key:"tool.riskRead",allowAlways:!0}}function Pn(e,t){return{tone:e,key:t,allowAlways:!1}}function FP(e){let t=String(e?.tagName||"").toLowerCase();return t==="textarea"||t==="select"?!0:t!=="input"?!1:!["button","checkbox","radio","submit"].includes(String(e?.type||""))}var IP=["target","resource","path","file","filename","name","id","repo"],zP=["destination","recipient","recipients","to","email","channel","workspace","account","endpoint"],BP=["outbound_data","data","payload","body","content","message","text","attachment","attachment_name","attachment_names","attachments","document","diff","patch"];function qP(e){if(!e)return null;if(typeof e=="object")return e;try{return JSON.parse(e)}catch{return null}}function x1(e){if(e==null||e==="")return"";if(Array.isArray(e))return e.length===0?"":e.every(a=>typeof a=="string")?e.slice(0,3).join(", "):`${e.length} ${e.length===1?"item":"items"}`;if(typeof e=="object"){let a=e.name||e.filename||e.title||e.id||e.url;if(a)return String(a);let n=Object.keys(e);return n.length?`${n.length} fields`:""}let t=String(e).trim().replace(/\s+/g," ");return t.length>120?`${t.slice(0,117)}...`:t}function nb(e,t){if(!e||typeof e!="object")return"";for(let a of t)if(Object.prototype.hasOwnProperty.call(e,a)){let n=x1(e[a]);if(n)return n}for(let a of Object.values(e))if(!(!a||typeof a!="object"||Array.isArray(a))){for(let n of t)if(Object.prototype.hasOwnProperty.call(a,n)){let s=x1(a[n]);if(s)return s}}return""}function w1({gate:e,onApprove:t,onDeny:a,onAlways:n}){let s=j(),{toolName:r,headline:i,body:o,parameters:l,allowAlways:u}=e,d=e.description||o||"",m=r||i||s("approval.thisTool"),f=d&&d!==m&&d!==i?d:"",[p,h]=v.default.useState(!1),x=v.default.useMemo(()=>qP(l),[l]),w=v.default.useMemo(()=>y1(r||i,d,l),[r,i,d,l]),b=!!(u&&w.allowAlways===!0),g=v.default.useMemo(()=>[{label:s("approval.actionLabel"),value:i||m},{label:s("approval.touchesLabel"),value:nb(x,IP)},{label:s("approval.destinationLabel"),value:nb(x,zP),emphasis:!0},{label:s("approval.whatLeavesMachineLabel"),value:nb(x,BP),emphasis:!0}],[m,i,x,s]),y=v.default.useCallback(()=>{p&&b?n?.():t?.()},[p,b,n,t]);return v.default.useEffect(()=>{let $=k=>{if(FP(k.target))return;let C=String(k.key||"").toLowerCase();(k.metaKey||k.ctrlKey)&&C==="enter"?(k.preventDefault(),y()):C==="escape"&&(k.preventDefault(),a?.())};return window.addEventListener("keydown",$),()=>window.removeEventListener("keydown",$)},[a,y]),c`
     <div
       role="group"
       aria-label=${s("approval.title")}
@@ -862,33 +862,39 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
             </p>
           `}
         </div>
-        <${I}
-          tone=${w.tone}
-          label=${s(w.key)}
-          dot=${!1}
-          size="sm"
-          className="shrink-0"
-        />
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span
+            className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--v2-text-faint)]"
+          >
+            ${s("projects.card.risk")}
+          </span>
+          <${I} tone=${w.tone} label=${s(w.key)} dot=${!1} size="sm" />
+        </div>
       </div>
 
       <div
         className="mb-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
       >
         <div
-          className="mb-3 flex items-center gap-2 text-xs font-semibold text-[var(--v2-gold-text)]"
+          className="mb-3 flex items-center gap-2 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_28%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-3 py-2 text-sm font-semibold text-[var(--v2-text-strong)]"
         >
-          <${A} name="shield" className="h-3.5 w-3.5" />
+          <${A} name="shield" className="h-4 w-4 shrink-0 text-[var(--v2-gold-text)]" />
           ${s("approval.nothingSentYet")}
         </div>
         <dl className="grid gap-3 text-xs sm:grid-cols-2">
           ${g.map($=>c`
-              <div key=${$.label} className="grid gap-1">
+              <div
+                key=${$.label}
+                className=${"grid gap-1"+($.emphasis&&$.value?" rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_22%,var(--v2-panel-border))] bg-[var(--v2-canvas-strong)] px-2.5 py-2":"")}
+              >
                 <dt
                   className="font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
                 >
                   ${$.label}
                 </dt>
-                <dd className="text-sm leading-5 text-[var(--v2-text-muted)]">
+                <dd
+                  className=${"text-sm leading-5 "+($.emphasis&&$.value?"font-medium text-[var(--v2-text-strong)]":"text-[var(--v2-text-muted)]")}
+                >
                   ${$.value||s("approval.notSpecified")}
                 </dd>
               </div>
