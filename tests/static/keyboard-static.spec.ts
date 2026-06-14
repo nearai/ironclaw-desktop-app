@@ -209,6 +209,73 @@ test('static keyboard: command palette navigates without exposing hidden surface
   await expect(page.getByRole('heading', { name: 'No apps connected yet' })).toBeVisible();
 });
 
+test('static shell at 390px: app-shell chrome controls stay >=44px and the nav rail does not overflow', async ({
+  page
+}) => {
+  // Mobile-first law: the shared app shell (header icon buttons + sidebar nav
+  // rail) renders on every surface, so its tap targets must clear the 44px
+  // minimum at 390px and the 260px nav rail must not push horizontal overflow.
+  // Regression guard for the header sidebar toggle / Logs / Docs buttons and the
+  // sidebar New-chat / nav-rail links / Conversations toggle / footer controls
+  // (were 28-37px before the shell-chrome 390px pass).
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installStaticInteractionMocks(page);
+  await page.goto('/v2/chat?token=static-keyboard-token');
+  await expect(
+    page.getByRole('heading', { name: 'What should IronClaw handle next?' })
+  ).toBeVisible();
+
+  // Header chrome is visible before the sidebar is opened (the toggle is the
+  // only way to reach the rail on a phone).
+  const headerControls: Array<[string, ReturnType<Page['locator']>]> = [
+    ['Toggle sidebar', page.getByRole('button', { name: 'Toggle sidebar' })],
+    ['Logs', page.getByRole('link', { name: 'Logs' })],
+    ['Documentation', page.getByRole('link', { name: 'Documentation' })]
+  ];
+  for (const [name, control] of headerControls) {
+    await expect(control, `${name} should be visible`).toBeVisible();
+    const box = await control.boundingBox();
+    expect(box, `${name} should have a measurable box`).not.toBeNull();
+    expect(box!.height, `${name} height >=44px`).toBeGreaterThanOrEqual(44);
+    expect(box!.width, `${name} width >=44px`).toBeGreaterThanOrEqual(44);
+  }
+
+  // Open the sidebar/nav rail.
+  await page.getByRole('button', { name: 'Toggle sidebar' }).click();
+  const rail = page.locator('aside');
+  await expect(rail).toBeVisible();
+
+  // Every interactive control inside the nav rail clears 44px in both axes.
+  const railControls: Array<[string, ReturnType<Page['locator']>]> = [
+    ['IronClaw home', rail.getByRole('link', { name: 'IronClaw' })],
+    ['New thread', rail.getByRole('button', { name: 'New', exact: true })],
+    ['Chat nav', rail.getByRole('link', { name: 'Chat', exact: true })],
+    ['Connections nav', rail.getByRole('link', { name: 'Connections' })],
+    ['Settings nav', rail.getByRole('link', { name: 'Settings', exact: true })],
+    ['Conversations toggle', rail.getByRole('button', { name: /Conversations/ })],
+    ['Theme toggle', rail.getByRole('button', { name: /theme/i }).first()],
+    ['Sign out', rail.getByRole('button', { name: /Sign out/i })]
+  ];
+  for (const [name, control] of railControls) {
+    await expect(control, `${name} should be visible`).toBeVisible();
+    const box = await control.boundingBox();
+    expect(box, `${name} should have a measurable box`).not.toBeNull();
+    expect(box!.height, `${name} height >=44px`).toBeGreaterThanOrEqual(44);
+    expect(box!.width, `${name} width >=44px`).toBeGreaterThanOrEqual(44);
+  }
+
+  // The rail renders at its fixed 260px width without clipping or forcing the
+  // document to scroll sideways at 390px.
+  const railBox = await rail.boundingBox();
+  expect(railBox, 'nav rail should have a measurable box').not.toBeNull();
+  expect(railBox!.width, 'nav rail keeps its 260px width').toBeGreaterThanOrEqual(259);
+  const docOverflow = await page.evaluate(() => {
+    const de = document.documentElement;
+    return de.scrollWidth - de.clientWidth;
+  });
+  expect(docOverflow, 'no horizontal overflow at 390px with the rail open').toBeLessThanOrEqual(1);
+});
+
 test('static keyboard: connections and setup pages expose primary actions to tab focus', async ({
   page
 }) => {

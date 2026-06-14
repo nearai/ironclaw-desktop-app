@@ -54,7 +54,7 @@ export function PageHeader({ threadsState, onToggleSidebar }) {
     >
       <button
         onClick=${onToggleSidebar}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] md:hidden"
+        className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] md:hidden"
         aria-label="Toggle sidebar"
       >
         <${Icon} name="list" className="h-4 w-4" />
@@ -83,7 +83,7 @@ export function PageHeader({ threadsState, onToggleSidebar }) {
           to="/logs"
           className=${({ isActive }) =>
             cn(
-              'grid h-8 w-8 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]',
+              'grid h-11 w-11 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]',
               isActive && 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
             )}
           title=${t('nav.logs')}
@@ -94,7 +94,7 @@ export function PageHeader({ threadsState, onToggleSidebar }) {
           href=${DOCS_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+          className="-mr-2 grid h-11 w-11 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
           title=${t('nav.docs')}
         >
           <${Icon} name="file" className="h-4 w-4" />

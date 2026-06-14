@@ -36,7 +36,7 @@ function NavItem({ route, label, onNavigate }) {
       onClick=${onNavigate}
       className=${({ isActive }) =>
         cn(
-          'flex items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] font-medium',
+          'flex min-h-[44px] items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] font-medium',
           isActive
             ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
             : 'text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]'
@@ -62,7 +62,7 @@ function ExpandableNavItem({ route, label, subRoutes, onNavigate }) {
         onClick=${onNavigate}
         className=${() =>
           cn(
-            'flex items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] font-medium',
+            'flex min-h-[44px] items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] font-medium',
             isExpanded
               ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
               : 'text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]'
@@ -90,7 +90,7 @@ function ExpandableNavItem({ route, label, subRoutes, onNavigate }) {
                 onClick=${onNavigate}
                 className=${({ isActive }) =>
                   cn(
-                    'flex items-center gap-2.5 rounded-[8px] py-1.5 pl-7 pr-3 text-[12px] font-medium',
+                    'flex min-h-[44px] items-center gap-2.5 rounded-[8px] py-1.5 pl-7 pr-3 text-[12px] font-medium',
                     isActive
                       ? 'text-[var(--v2-accent-text)]'
                       : 'text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]'
@@ -132,7 +132,7 @@ export function SidebarNav({ onNewChat, isCreating, isAdmin = true, onNavigate }
         onClick=${onNewChat}
         disabled=${isCreating}
         className=${cn(
-          'flex items-center gap-2.5 rounded-[10px] px-3 py-2',
+          'flex min-h-[44px] items-center gap-2.5 rounded-[10px] px-3 py-2',
           'border border-[color-mix(in_srgb,var(--v2-accent)_30%,var(--v2-panel-border))]',
           'bg-[var(--v2-accent-soft)] text-[13px] font-medium text-[var(--v2-accent-text)]',
           'hover:bg-[color-mix(in_srgb,var(--v2-accent)_18%,transparent)] disabled:opacity-50'

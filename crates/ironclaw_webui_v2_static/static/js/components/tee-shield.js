@@ -41,7 +41,7 @@ export function TeeShield() {
         aria-expanded=${open}
         title=${t('tee.title')}
         className=${cn(
-          'grid h-8 w-8 place-items-center rounded-[8px]',
+          'grid h-11 w-11 place-items-center rounded-[8px]',
           'border border-[color-mix(in_srgb,var(--v2-positive-text)_28%,transparent)]',
           'bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]',
           'hover:border-[color-mix(in_srgb,var(--v2-positive-text)_52%,transparent)]'

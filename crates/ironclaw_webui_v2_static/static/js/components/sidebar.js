@@ -29,7 +29,7 @@ export function Sidebar({
         <${Link}
           to="/chat"
           onClick=${onClose}
-          className="flex items-center gap-2.5 opacity-90 hover:opacity-100"
+          className="flex min-h-[44px] min-w-[44px] items-center gap-2.5 opacity-90 hover:opacity-100"
           aria-label="IronClaw"
         >
           <img src=${appScopedPath('/assets/logo.jpg')} alt="IronClaw" className="h-7 w-auto" />

@@ -53,7 +53,7 @@ export function SidebarFooter({ theme, toggleTheme, profile, onSignOut }) {
       <button
         type="button"
         onClick=${accountPopover.toggle}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-[8px] text-left"
+        className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 rounded-[8px] text-left"
         title=${name}
       >
         <div
@@ -79,14 +79,14 @@ export function SidebarFooter({ theme, toggleTheme, profile, onSignOut }) {
       </button>
       <button
         onClick=${toggleTheme}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
         title=${theme === 'dark' ? t('theme.light') : t('theme.dark')}
       >
         <${Icon} name=${theme === 'dark' ? 'sun' : 'moon'} className="h-4 w-4" />
       </button>
       <button
         onClick=${onSignOut}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+        className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
         title=${t('header.signOut')}
       >
         <${Icon} name="logout" className="h-4 w-4" />

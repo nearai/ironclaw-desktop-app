@@ -189,7 +189,7 @@ export function SidebarThreads({ threads, activeThreadId, onSelect, onDelete }) 
     <div className="flex min-h-0 flex-1 flex-col px-2">
       <button
         onClick=${() => setCollapsed((v) => !v)}
-        className="flex w-full items-center gap-1 rounded-[6px] px-2 py-1.5 hover:bg-[var(--v2-surface-muted)]"
+        className="flex min-h-[44px] w-full items-center gap-1 rounded-[6px] px-2 py-1.5 hover:bg-[var(--v2-surface-muted)]"
       >
         <span
           className="flex-1 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--v2-text-faint)]"
@@ -217,7 +217,7 @@ export function SidebarThreads({ threads, activeThreadId, onSelect, onDelete }) 
             value=${query}
             onInput=${(event) => setQuery(event.currentTarget.value)}
             placeholder="Search chats…"
-            className="h-8 w-full rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[12px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
+            className="h-8 min-h-[44px] w-full rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[12px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
           />
         </div>`}
         <div className="mt-1 flex flex-col gap-2 overflow-y-auto [scrollbar-width:thin]">

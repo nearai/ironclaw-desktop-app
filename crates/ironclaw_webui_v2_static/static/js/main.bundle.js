@@ -85,7 +85,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
       <button
         type="button"
         onClick=${r.toggle}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-[8px] text-left"
+        className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 rounded-[8px] text-left"
         title=${i}
       >
         <div
@@ -109,14 +109,14 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
       </button>
       <button
         onClick=${t}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
         title=${s(e==="dark"?"theme.light":"theme.dark")}
       >
         <${A} name=${e==="dark"?"sun":"moon"} className="h-4 w-4" />
       </button>
       <button
         onClick=${n}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+        className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
         title=${s("header.signOut")}
       >
         <${A} name="logout" className="h-4 w-4" />
@@ -126,7 +126,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
     <${ar}
       to=${e.path}
       onClick=${a}
-      className=${({isActive:n})=>le("flex items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] font-medium",n?"bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]":"text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]")}
+      className=${({isActive:n})=>le("flex min-h-[44px] items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] font-medium",n?"bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]":"text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]")}
     >
       <${A} name=${wS[e.id]||"bolt"} className="h-4 w-4 shrink-0" />
       <span className="min-w-0 truncate">${t}</span>
@@ -136,7 +136,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
       <${ar}
         to=${o}
         onClick=${n}
-        className=${()=>le("flex items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] font-medium",i?"bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]":"text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]")}
+        className=${()=>le("flex min-h-[44px] items-center gap-3 rounded-[10px] px-3 py-2 text-[13px] font-medium",i?"bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]":"text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]")}
       >
         <${A} name=${wS[e.id]||"bolt"} className="h-4 w-4 shrink-0" />
         <span className="min-w-0 flex-1 truncate">${t}</span>
@@ -153,7 +153,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
                 key=${l.id}
                 to=${e.path+"/"+l.id}
                 onClick=${n}
-                className=${({isActive:u})=>le("flex items-center gap-2.5 rounded-[8px] py-1.5 pl-7 pr-3 text-[12px] font-medium",u?"text-[var(--v2-accent-text)]":"text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]")}
+                className=${({isActive:u})=>le("flex min-h-[44px] items-center gap-2.5 rounded-[8px] py-1.5 pl-7 pr-3 text-[12px] font-medium",u?"text-[var(--v2-accent-text)]":"text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]")}
               >
                 <${A} name=${l.icon} className="h-3 w-3 shrink-0" />
                 <span className="min-w-0 truncate">${s(l.labelKey)}</span>
@@ -167,7 +167,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
       <button
         onClick=${e}
         disabled=${t}
-        className=${le("flex items-center gap-2.5 rounded-[10px] px-3 py-2","border border-[color-mix(in_srgb,var(--v2-accent)_30%,var(--v2-panel-border))]","bg-[var(--v2-accent-soft)] text-[13px] font-medium text-[var(--v2-accent-text)]","hover:bg-[color-mix(in_srgb,var(--v2-accent)_18%,transparent)] disabled:opacity-50")}
+        className=${le("flex min-h-[44px] items-center gap-2.5 rounded-[10px] px-3 py-2","border border-[color-mix(in_srgb,var(--v2-accent)_30%,var(--v2-panel-border))]","bg-[var(--v2-accent-soft)] text-[13px] font-medium text-[var(--v2-accent-text)]","hover:bg-[color-mix(in_srgb,var(--v2-accent)_18%,transparent)] disabled:opacity-50")}
       >
         <${A} name="plus" className="h-4 w-4 shrink-0" />
         <span>${s(t?"chat.creating":"chat.newThread")}</span>
@@ -323,7 +323,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
     <div className="flex min-h-0 flex-1 flex-col px-2">
       <button
         onClick=${()=>r(f=>!f)}
-        className="flex w-full items-center gap-1 rounded-[6px] px-2 py-1.5 hover:bg-[var(--v2-surface-muted)]"
+        className="flex min-h-[44px] w-full items-center gap-1 rounded-[6px] px-2 py-1.5 hover:bg-[var(--v2-surface-muted)]"
       >
         <span
           className="flex-1 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--v2-text-faint)]"
@@ -349,7 +349,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
             value=${i}
             onInput=${f=>o(f.currentTarget.value)}
             placeholder="Search chats…"
-            className="h-8 w-full rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[12px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
+            className="h-8 min-h-[44px] w-full rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[12px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
           />
         </div>`}
         <div className="mt-1 flex flex-col gap-2 overflow-y-auto [scrollbar-width:thin]">
@@ -390,7 +390,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
         <${Dt}
           to="/chat"
           onClick=${i}
-          className="flex items-center gap-2.5 opacity-90 hover:opacity-100"
+          className="flex min-h-[44px] min-w-[44px] items-center gap-2.5 opacity-90 hover:opacity-100"
           aria-label="IronClaw"
         >
           <img src=${Gt("/assets/logo.jpg")} alt="IronClaw" className="h-7 w-auto" />
@@ -427,7 +427,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
         onClick=${s}
         aria-expanded=${a}
         title=${e("tee.title")}
-        className=${le("grid h-8 w-8 place-items-center rounded-[8px]","border border-[color-mix(in_srgb,var(--v2-positive-text)_28%,transparent)]","bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]","hover:border-[color-mix(in_srgb,var(--v2-positive-text)_52%,transparent)]")}
+        className=${le("grid h-11 w-11 place-items-center rounded-[8px]","border border-[color-mix(in_srgb,var(--v2-positive-text)_28%,transparent)]","bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]","hover:border-[color-mix(in_srgb,var(--v2-positive-text)_52%,transparent)]")}
       >
         <${A} name="shield" className="h-4 w-4" />
       </button>
@@ -490,7 +490,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
     >
       <button
         onClick=${t}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] md:hidden"
+        className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] md:hidden"
         aria-label="Toggle sidebar"
       >
         <${A} name="list" className="h-4 w-4" />
@@ -515,7 +515,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
         <${MS} />
         <${ar}
           to="/logs"
-          className=${({isActive:i})=>le("grid h-8 w-8 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]",i&&"bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]")}
+          className=${({isActive:i})=>le("grid h-11 w-11 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]",i&&"bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]")}
           title=${a("nav.logs")}
         >
           <${A} name="list" className="h-4 w-4" />
@@ -524,7 +524,7 @@ Please change the parent <Route path="${g}"> to <Route path="${g==="/"?"*":`${g}
           href=${X3}
           target="_blank"
           rel="noopener noreferrer"
-          className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+          className="-mr-2 grid h-11 w-11 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
           title=${a("nav.docs")}
         >
           <${A} name="file" className="h-4 w-4" />
