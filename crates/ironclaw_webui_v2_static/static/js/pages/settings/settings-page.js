@@ -16,7 +16,7 @@ export function SettingsPage() {
   const t = useT();
   const { tab = 'inference' } = useParams();
   const { gatewayStatus, gatewayStatusQuery, isAdmin = true } = useOutletContext();
-  const { settings, query, save, savedKeys, needsRestart, saveError } = useSettings();
+  const { settings, query, status, save, savedKeys, needsRestart, saveError } = useSettings();
 
   const isLoading = query.isLoading;
 
@@ -24,6 +24,7 @@ export function SettingsPage() {
     inference: html`<${InferenceTab}
       settings=${settings}
       gatewayStatus=${gatewayStatus}
+      settingsStatus=${status}
       onSave=${save}
       savedKeys=${savedKeys}
       isLoading=${isLoading}

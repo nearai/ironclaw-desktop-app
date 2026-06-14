@@ -13,6 +13,7 @@ import { modelExecutionReadiness } from '../../../lib/model-readiness.js';
 export function InferenceTab({
   settings,
   gatewayStatus,
+  settingsStatus = 'ready',
   onSave,
   savedKeys,
   isLoading,
@@ -22,7 +23,16 @@ export function InferenceTab({
   const backend = 'NEAR AI Cloud';
   const model = gatewayStatus?.llm_model || settings.selected_model || 'NEAR AI Cloud default';
   const readiness = modelExecutionReadiness(gatewayStatus);
-  const sections = filterSettingsSections(INFERENCE_FIELDS, settings, searchQuery, t);
+  // The embeddings/sampling field cards write through `useSettings.save`, which
+  // has no v2 persistence endpoint yet (status:'todo'). Rendering live toggles
+  // and inputs that silently fail to save is fake readiness — gate them on a
+  // proven settings backend. The provider summary and ProviderManagement below
+  // stay: those read real `gatewayStatus`/LLM-provider state and are the honest
+  // AI-setup controls on this surface.
+  const settingsWritable = settingsStatus !== 'todo';
+  const sections = settingsWritable
+    ? filterSettingsSections(INFERENCE_FIELDS, settings, searchQuery, t)
+    : [];
   const showProviderSummary = matchesSearch(searchQuery, [
     t('inference.provider'),
     t('inference.backend'),

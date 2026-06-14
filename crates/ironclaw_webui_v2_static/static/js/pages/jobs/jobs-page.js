@@ -212,7 +212,15 @@ export function JobsPage() {
             result=${detailState.promptResult}
             onDismiss=${detailState.clearPromptResult}
           />
-          <${JobsSummaryStrip} summary=${jobsState.summary} />
+          ${
+            // No v2 jobs endpoint exists yet (useJobs status:'todo'). The summary
+            // strip renders a six-tile live metrics ledger; showing hardcoded
+            // zeros as a polling dashboard implies tracking the gateway cannot
+            // prove. Gate it on a real backend — the dignified empty list still
+            // renders below with its honest "No jobs yet" state.
+            jobsState.status !== 'todo' &&
+            html`<${JobsSummaryStrip} summary=${jobsState.summary} />`
+          }
           ${detailContent}
         </div>
       </div>

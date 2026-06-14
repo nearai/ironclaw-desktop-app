@@ -187,6 +187,9 @@ test('static attachments: preview lightbox honors the modal keyboard contract', 
     await installAttachmentTauriShim(page, gateway.origin, gateway.port);
     await page.goto('/v2/chat/thread-attachments');
     await page.locator('textarea').first().waitFor({ timeout: 20_000 });
+    // Type a prompt so Send enables on text (matches the other scenarios) rather
+    // than depending on attachment-extraction timing, which flakes under load.
+    await page.locator('textarea').first().fill('Preview the attached contract.');
 
     const filename = 'preview-contract.txt';
     await page.locator('input[type="file"]').setInputFiles({
@@ -197,8 +200,11 @@ test('static attachments: preview lightbox honors the modal keyboard contract', 
 
     // Send so the attachment lands as a sent-message chip — the Preview opener
     // only exists on sent attachments, not the composer draft (matches the
-    // smoke + the other attachment scenarios in this file).
-    await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
+    // smoke + the other attachment scenarios in this file). Generous timeout:
+    // upload + on-device extraction is CPU-heavy and slows under full-suite load.
+    await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled({
+      timeout: 20_000
+    });
     await page.getByRole('button', { name: 'Send message' }).click();
 
     // Wait on the preview opener (its aria-label is the robust anchor — the

@@ -108,6 +108,15 @@ const surfaces: Surface[] = [
     waitFor: async (page) => {
       await expect(page.getByText('AI runtime')).toBeVisible();
       await expect(page.getByRole('heading', { name: 'NEAR AI Cloud' })).toBeVisible();
+
+      // No fake readiness: the embeddings/sampling field cards write through a
+      // settings endpoint that does not exist yet (useSettings status:'todo').
+      // Live toggles/inputs that silently fail to save must not render; only the
+      // real, gateway-backed provider controls stay on this surface.
+      await expect(page.getByRole('switch', { name: 'Enable embeddings' })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Embeddings' })).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Sampling' })).toHaveCount(0);
+      await expect(page.getByLabel('Temperature')).toHaveCount(0);
     }
   },
   {
@@ -152,6 +161,12 @@ const surfaces: Surface[] = [
     authenticated: true,
     waitFor: async (page) => {
       await expect(page.getByRole('heading', { name: 'No jobs yet' })).toBeVisible();
+
+      // No fake readiness: with no v2 jobs endpoint (useJobs status:'todo') the
+      // six-tile live metrics ledger must not render hardcoded zeros as a polling
+      // dashboard. Only the dignified empty state stands.
+      await expect(page.getByText('Total jobs')).toHaveCount(0);
+      await expect(page.getByText('In progress')).toHaveCount(0);
     }
   },
   {

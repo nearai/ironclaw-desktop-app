@@ -16,13 +16,26 @@ export function useSettings() {
   });
 
   const settings = query.data?.settings || {};
+  // No v2 settings-write endpoint exists yet: `fetchSettingsExport`/`updateSetting`
+  // are stubs (`{ todo: true }` / `{ success: false }`). `status:'todo'` lets the
+  // consuming tabs gate their write controls behind a real backend instead of
+  // implying a capability the gateway cannot prove ("No fake readiness").
+  const status = query.data?.todo ? 'todo' : 'ready';
 
   const [savedKeys, setSavedKeys] = React.useState({});
   const [needsRestart, setNeedsRestart] = React.useState(false);
 
   const mutation = useMutation({
     mutationFn: ({ key, value }) => updateSetting(key, value),
-    onSuccess: (_data, { key, value }) => {
+    onSuccess: (data, { key, value }) => {
+      // The stub resolves the promise even though nothing persisted. Only treat a
+      // write as saved when the gateway actually confirms it — otherwise the
+      // "Saved" indicator and the restart banner would assert a change that never
+      // reached the backend.
+      if (data?.success === false || data?.todo) {
+        return;
+      }
+
       queryClient.setQueryData(['settings-export'], (old) => {
         if (!old) return old;
         const next = { ...old, settings: { ...old.settings } };
@@ -47,7 +60,10 @@ export function useSettings() {
 
   const importMutation = useMutation({
     mutationFn: importSettingsPayload,
-    onSuccess: (_data, payload) => {
+    onSuccess: (data, payload) => {
+      if (data?.success === false || data?.todo) {
+        return;
+      }
       queryClient.invalidateQueries({ queryKey: ['settings-export'] });
       const importedKeys = Object.keys(payload?.settings || {});
       if (importedKeys.some((key) => RESTART_REQUIRED_KEYS.has(key))) {
@@ -64,6 +80,7 @@ export function useSettings() {
   return {
     settings,
     query,
+    status,
     save,
     savedKeys,
     needsRestart,

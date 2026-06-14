@@ -72,6 +72,11 @@ export function useJobs() {
       failed: 0,
       stuck: 0
     },
+    // No v2 jobs endpoint exists yet: `fetchJobsSummary`/`fetchJobs` are stubs
+    // (`{ todo: true }`). `status:'todo'` lets the page suppress the live-looking
+    // metrics ledger instead of presenting hardcoded zeros as a real, polling
+    // dashboard ("No fake readiness").
+    status: summaryQuery.data?.todo || jobsQuery.data?.todo ? 'todo' : 'ready',
     jobs: jobsQuery.data?.jobs || [],
     isLoading: summaryQuery.isLoading || jobsQuery.isLoading,
     isRefreshing: summaryQuery.isFetching || jobsQuery.isFetching,
