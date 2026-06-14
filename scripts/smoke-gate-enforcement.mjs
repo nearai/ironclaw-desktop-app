@@ -487,9 +487,7 @@ try {
   });
   await page.locator('button[aria-label="Send message"]').last().click();
 
-  await page
-    .getByRole('group', { name: 'Approval required' })
-    .waitFor({ timeout: 20_000 });
+  await page.getByRole('group', { name: 'Approval required' }).waitFor({ timeout: 20_000 });
   await page.getByText('send_email', { exact: true }).waitFor({ timeout: 20_000 });
   await page
     .getByText('Send the generated services agreement to the legal review inbox.', { exact: true })
@@ -497,7 +495,13 @@ try {
   await page.getByText('Touches', { exact: true }).waitFor({ timeout: 20_000 });
   await page.getByText('What leaves the machine', { exact: true }).waitFor({ timeout: 20_000 });
   await page.getByText('"recipient": "legal-review@example.com"').waitFor({ timeout: 20_000 });
-  await page.locator('dd', { hasText: 'services-agreement.docx' }).waitFor({ timeout: 20_000 });
+  // The outbound cell must disclose every field that leaves: the email subject
+  // is sent externally and previously never surfaced on the gate. It now renders
+  // in the same outbound cell as the attachment, so neither is under-reported.
+  await page
+    .locator('dd', { hasText: 'services-agreement.docx' })
+    .filter({ hasText: 'subject: Draft services agreement' })
+    .waitFor({ timeout: 20_000 });
   await page
     .getByText('Always allow is unavailable for this kind of action. IronClaw must ask each time.')
     .waitFor({ timeout: 20_000 });
@@ -521,14 +525,18 @@ try {
   if (!resolveRequest) {
     throw new Error('gate smoke did not call the gate resolve endpoint');
   }
-  if (!resolveRequest.url.endsWith('/threads/thread-gate/runs/run-gate/gates/gate-send-email/resolve')) {
+  if (
+    !resolveRequest.url.endsWith('/threads/thread-gate/runs/run-gate/gates/gate-send-email/resolve')
+  ) {
     throw new Error(`wrong gate resolve URL: ${resolveRequest.url}`);
   }
   if (resolveRequest.authorization !== 'Bearer gate-smoke-token') {
     throw new Error(`gate resolve missing bearer auth: ${resolveRequest.authorization}`);
   }
   if (resolveRequest.body?.resolution !== 'approved' || resolveRequest.body?.always === true) {
-    throw new Error(`gate resolve body lost one-shot approval: ${JSON.stringify(resolveRequest.body)}`);
+    throw new Error(
+      `gate resolve body lost one-shot approval: ${JSON.stringify(resolveRequest.body)}`
+    );
   }
 
   await page.screenshot({

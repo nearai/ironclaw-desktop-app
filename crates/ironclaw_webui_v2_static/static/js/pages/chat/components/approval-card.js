@@ -32,14 +32,27 @@ const DESTINATION_KEYS = [
   'account',
   'endpoint'
 ];
+// Every key whose value genuinely leaves the machine. Recipient-copy fields
+// (cc/bcc) are listed here too: they are additional parties the data is sent to,
+// so the gate must disclose them as outbound even though the primary recipient
+// renders under Destination. Keep this list a superset, never a subset — under-
+// reporting an outbound field on the gate is a no-fake-readiness violation.
 const OUTBOUND_KEYS = [
   'outbound_data',
   'data',
   'payload',
+  'subject',
   'body',
+  'body_html',
+  'html',
   'content',
   'message',
   'text',
+  'note',
+  'comment',
+  'caption',
+  'cc',
+  'bcc',
   'attachment',
   'attachment_name',
   'attachment_names',
@@ -48,6 +61,30 @@ const OUTBOUND_KEYS = [
   'diff',
   'patch'
 ];
+
+// Human labels for outbound fields so a multi-field disclosure reads as
+// "subject: ..., cc: ..." instead of bare values. Falls back to the raw key.
+const OUTBOUND_FIELD_LABELS = {
+  subject: 'subject',
+  body: 'body',
+  body_html: 'body',
+  html: 'body',
+  content: 'content',
+  message: 'message',
+  text: 'text',
+  note: 'note',
+  comment: 'comment',
+  caption: 'caption',
+  cc: 'cc',
+  bcc: 'bcc',
+  attachment: 'attachment',
+  attachment_name: 'attachment',
+  attachment_names: 'attachments',
+  attachments: 'attachments',
+  document: 'document',
+  diff: 'diff',
+  patch: 'patch'
+};
 
 function parseParameters(parameters) {
   if (!parameters) return null;
@@ -96,6 +133,40 @@ function findSummary(parameters, keys) {
   return '';
 }
 
+// "What leaves the machine" must disclose every outbound field, not just the
+// first match — a send with both a subject and a body sends both, so showing
+// only one under-reports. Collects each present outbound key (top level plus one
+// nesting level, matching findSummary's search depth) and labels it. Distinct
+// keys are distinct disclosures and all show; dedupe only collapses an identical
+// label+value pair (e.g. the same key reachable at both depths), so the line is
+// never padded with a literal repeat.
+function findOutboundSummary(parameters, keys, labels) {
+  if (!parameters || typeof parameters !== 'object') return '';
+  const parts = [];
+  const seen = new Set();
+
+  const collect = (source) => {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return;
+    for (const key of keys) {
+      if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
+      const summary = summarizeValue(source[key]);
+      if (!summary) continue;
+      const label = labels[key] || key;
+      const dedupeKey = `${label}:${summary}`;
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      parts.push(`${label}: ${summary}`);
+    }
+  };
+
+  collect(parameters);
+  for (const value of Object.values(parameters)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) collect(value);
+  }
+
+  return parts.join('; ');
+}
+
 export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
   const t = useT();
   const { toolName, headline, body, parameters, allowAlways } = gate;
@@ -128,7 +199,7 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
       },
       {
         label: t('approval.whatLeavesMachineLabel'),
-        value: findSummary(parsedParameters, OUTBOUND_KEYS),
+        value: findOutboundSummary(parsedParameters, OUTBOUND_KEYS, OUTBOUND_FIELD_LABELS),
         emphasis: true
       }
     ],

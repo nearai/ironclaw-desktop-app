@@ -45,6 +45,7 @@ function markup(node) {
 function renderApprovalCard({
   alwaysState = false,
   risk = { tone: 'danger', key: 'tool.riskSend', allowAlways: false },
+  gateOverride = null,
   onApprove,
   onDeny,
   onAlways
@@ -107,11 +108,21 @@ function renderApprovalCard({
 
   vm.runInNewContext(approvalCardSourceForTest(), context);
   const tree = context.globalThis.__testExports.ApprovalCard({
-    gate: {
+    gate: gateOverride || {
       toolName: 'send_email',
       description: 'Send the generated services agreement to legal review.',
-      parameters:
-        '{\n  "recipient": "legal-review@example.com",\n  "attachment_name": "services-agreement.docx"\n}',
+      parameters: JSON.stringify(
+        {
+          recipient: 'legal-review@example.com',
+          subject: 'Draft services agreement',
+          body: 'Please find the agreement attached for review.',
+          cc: ['counsel@example.com'],
+          bcc: 'records@example.com',
+          attachment_name: 'services-agreement.docx'
+        },
+        null,
+        2
+      ),
       allowAlways: true
     },
     onApprove,
@@ -133,7 +144,16 @@ test('ApprovalCard names literal action fields, unknown outbound data, and short
   assert.match(visible, /Destination/);
   assert.match(visible, /legal-review@example\.com/);
   assert.match(visible, /What leaves the machine/);
-  assert.match(visible, /services-agreement\.docx/);
+  // Every field that genuinely leaves the machine is disclosed in the outbound
+  // section — subject and body are sent content; cc/bcc are additional parties
+  // the data reaches. None may silently vanish behind a first-match.
+  assert.match(visible, /subject: Draft services agreement/);
+  assert.match(visible, /body: Please find the agreement attached for review\./);
+  assert.match(visible, /cc: counsel@example\.com/);
+  assert.match(visible, /bcc: records@example\.com/);
+  // Regression: the attachment that was already disclosed before this change is
+  // still listed, so expanding the outbound set never dropped a prior field.
+  assert.match(visible, /attachment: services-agreement\.docx/);
   assert.match(visible, /Always allow is unavailable/);
   assert.match(visible, /Parameters/);
   assert.match(visible, /legal-review@example\.com/);
@@ -158,6 +178,54 @@ test('ApprovalCard names literal action fields, unknown outbound data, and short
   // Emphasis (strong-weight value + bordered cell) is present for the
   // data-movement fields that actually carry data.
   assert.match(all, /font-medium text-\[var\(--v2-text-strong\)\]/);
+  // The outbound disclosures are anchored under the "What leaves the machine"
+  // label, not stranded elsewhere on the card — the gate's data-egress claim
+  // must be the thing that actually enumerates what egresses.
+  assert.match(
+    all,
+    /What leaves the machine[^]*?subject: Draft services agreement[^]*?bcc: records@example\.com/,
+    'outbound fields render under the outbound label'
+  );
+  cleanups.forEach((cleanup) => cleanup());
+});
+
+test('ApprovalCard outbound section enumerates fields nested one level deep and dedupes a key reachable twice', () => {
+  const { tree, cleanups } = renderApprovalCard({
+    gateOverride: {
+      toolName: 'send_email',
+      description: 'Send the prepared note.',
+      // `subject` lives both at top level and in the nested params object. The
+      // outbound search visits both depths, so without dedupe it would list the
+      // identical subject twice. A distinct nested `body`/`bcc` must still show.
+      parameters: JSON.stringify(
+        {
+          to: 'ops@example.com',
+          subject: 'Status update',
+          args: {
+            subject: 'Status update',
+            body: 'All systems nominal.',
+            bcc: 'audit@example.com'
+          }
+        },
+        null,
+        2
+      ),
+      allowAlways: true
+    }
+  });
+
+  const visible = textContent(tree);
+  // Primary recipient is the Destination, not an outbound content field.
+  assert.match(visible, /ops@example\.com/);
+  // Nested outbound fields are disclosed.
+  assert.match(visible, /subject: Status update/);
+  assert.match(visible, /body: All systems nominal\./);
+  assert.match(visible, /bcc: audit@example\.com/);
+  // The identical subject reachable at both depths collapses to one entry.
+  const all = markup(tree);
+  const outboundSection = all.slice(all.indexOf('What leaves the machine'));
+  const subjectMentions = (outboundSection.match(/subject: Status update/g) || []).length;
+  assert.equal(subjectMentions, 1, 'a key reachable at two depths is listed once');
   cleanups.forEach((cleanup) => cleanup());
 });
 
