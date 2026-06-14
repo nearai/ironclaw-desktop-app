@@ -79,6 +79,72 @@ test('static front door: cold open shows backed needs-you and handled receipts',
   expect(consoleIssues).toEqual([]);
 });
 
+test('static front door: receipt rows show the full specific detail, not just badge metadata', async ({
+  page
+}) => {
+  // Trust law: a receipt earns the panel by showing specific data, not wallpaper.
+  // Regression guard for the old single-line `badge · age · detail` cram, where the
+  // load-bearing detail (the actual receipt) was clipped behind the category badge
+  // and age on desktop and went fully invisible at 390px. The detail must render in
+  // full and wrap (line-clamp), and the badge must be its own chip on the title row.
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'ironclaw:v2-thread-attention',
+      JSON.stringify([['thread-needs-you', 'needs_attention']])
+    );
+  });
+  await installFrontDoorMocks(page);
+
+  await page.goto('/v2/chat?token=frontdoor-static-token');
+  const panel = page.getByTestId('frontdoor-panel');
+  await expect(panel).toBeVisible();
+
+  const needsRow = panel.getByRole('link', { name: /Legal review approval/ });
+  // The specific receipt payload is present in full (was truncated to "...waiting in t…").
+  await expect(needsRow).toContainText('An approval or auth gate is waiting in this thread.');
+  // The detail lives on its own wrappable line, never a single-line truncate.
+  const needsDetail = needsRow.locator('[title]').filter({
+    hasText: 'An approval or auth gate is waiting in this thread.'
+  });
+  await expect(needsDetail).toHaveCount(1);
+  const needsDetailClass = (await needsDetail.first().getAttribute('class')) || '';
+  expect(needsDetailClass).toContain('line-clamp-2');
+  expect(needsDetailClass).not.toContain('truncate');
+  // Age and badge are still shown, but as supporting metadata around the detail.
+  await expect(needsRow).toContainText('Needs approval');
+  await expect(needsRow).toContainText(/\dh ago/);
+
+  // Handled receipts keep their specific payload too.
+  const handledRow = panel.getByRole('link', { name: /Daily digest/ });
+  await expect(handledRow).toContainText('Automation result from');
+  const handledDetailClass =
+    (await handledRow.locator('[title]').first().getAttribute('class')) || '';
+  expect(handledDetailClass).toContain('line-clamp-2');
+});
+
+test('static front door: suggestion action label never wraps', async ({ page }) => {
+  // Design-system SuggestionCard keeps the "Use prompt" affordance on one line
+  // (whiteSpace: nowrap). The shipped static card had dropped this, so the label
+  // wrapped to "Use\nprompt" and ragged the third column. Guard it stays one line.
+  await installFrontDoorMocks(page);
+
+  await page.goto('/v2/chat?token=frontdoor-static-token');
+  await expect(page.getByTestId('frontdoor-panel')).toBeVisible();
+
+  const useLabel = page.getByText('Use prompt', { exact: true }).first();
+  await expect(useLabel).toBeVisible();
+  const labelClass = (await useLabel.getAttribute('class')) || '';
+  expect(labelClass).toContain('whitespace-nowrap');
+
+  // Single text line: client rect height stays within one line-height band.
+  const lineMetrics = await useLabel.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || rect.height;
+    return { height: rect.height, lineHeight };
+  });
+  expect(lineMetrics.height).toBeLessThanOrEqual(lineMetrics.lineHeight + 2);
+});
+
 test('static front door: empty desk keeps zero-state pills neutral and shows at most one setup nudge', async ({
   page
 }) => {

@@ -1851,7 +1851,9 @@ ${s}</pre
                       ${V.detail}
                     </span>
                   </span>
-                  <span className="text-xs font-medium text-[var(--v2-text-faint)]">
+                  <span
+                    className="self-start whitespace-nowrap text-xs font-medium text-[var(--v2-text-faint)]"
+                  >
                     ${re?"Setup first":m("chat.suggestionUse")}
                   </span>
                 </button>
@@ -1901,16 +1903,26 @@ ${s}</pre
                     <${A} name=${l.icon} className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
-                    <span
-                      className="block truncate text-sm font-semibold text-[var(--v2-text-strong)]"
-                    >
-                      ${l.title}
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-[var(--v2-text-strong)]">
+                        ${l.title}
+                      </span>
+                      <span
+                        className="shrink-0 rounded-[4px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em] text-[var(--v2-text-faint)]"
+                      >
+                        ${l.badge}
+                      </span>
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-[var(--v2-text-muted)]">
-                      ${l.badge}${l.age?` \xB7 ${l.age}`:""} · ${l.detail}
+                    <span
+                      className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-[var(--v2-text-muted)]"
+                      title=${l.age?`${l.age} \xB7 ${l.detail}`:l.detail}
+                    >
+                      ${l.age?c`<span className="text-[var(--v2-text-faint)]">${l.age} · </span>`:""}${l.detail}
                     </span>
                   </span>
-                  <span className="text-xs font-semibold text-[var(--v2-accent-text)]">Open</span>
+                  <span className="self-start text-xs font-semibold text-[var(--v2-accent-text)]"
+                    >Open</span
+                  >
                 <//>
               `):c`
               <div

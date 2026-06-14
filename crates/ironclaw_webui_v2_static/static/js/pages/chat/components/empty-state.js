@@ -304,7 +304,9 @@ export function EmptyState({
                       ${item.detail}
                     </span>
                   </span>
-                  <span className="text-xs font-medium text-[var(--v2-text-faint)]">
+                  <span
+                    className="self-start whitespace-nowrap text-xs font-medium text-[var(--v2-text-faint)]"
+                  >
                     ${suggestionsBlocked ? 'Setup first' : t('chat.suggestionUse')}
                   </span>
                 </button>
@@ -376,16 +378,28 @@ function FrontDoorSection({ title, emptyTitle, emptyDetail, tone, items }) {
                     <${Icon} name=${item.icon} className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
-                    <span
-                      className="block truncate text-sm font-semibold text-[var(--v2-text-strong)]"
-                    >
-                      ${item.title}
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-[var(--v2-text-strong)]">
+                        ${item.title}
+                      </span>
+                      <span
+                        className="shrink-0 rounded-[4px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em] text-[var(--v2-text-faint)]"
+                      >
+                        ${item.badge}
+                      </span>
                     </span>
-                    <span className="mt-0.5 block truncate text-xs text-[var(--v2-text-muted)]">
-                      ${item.badge}${item.age ? ` · ${item.age}` : ''} · ${item.detail}
+                    <span
+                      className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-[var(--v2-text-muted)]"
+                      title=${item.age ? `${item.age} · ${item.detail}` : item.detail}
+                    >
+                      ${item.age
+                        ? html`<span className="text-[var(--v2-text-faint)]">${item.age} · </span>`
+                        : ''}${item.detail}
                     </span>
                   </span>
-                  <span className="text-xs font-semibold text-[var(--v2-accent-text)]">Open</span>
+                  <span className="self-start text-xs font-semibold text-[var(--v2-accent-text)]"
+                    >Open</span
+                  >
                 <//>
               `
             )
