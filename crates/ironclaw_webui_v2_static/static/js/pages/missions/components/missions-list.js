@@ -1,3 +1,4 @@
+import { Link } from 'react-router';
 import { html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { Button } from '../../../design-system/button.js';
@@ -168,7 +169,9 @@ export function MissionsList({
                 title=${t('missions.emptyTitle')}
                 description=${t('missions.emptyDesc')}
                 boxed=${false}
-              />
+              >
+                <${Button} as=${Link} to="/projects" variant="primary"> ${t('nav.projects')} <//>
+              <//>
             `}
       </div>
     <//>

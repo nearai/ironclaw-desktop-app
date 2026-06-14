@@ -107,7 +107,7 @@ export function JobFilesTab({
                     onSelectPath=${onSelectPath}
                   />
                 `
-              : html`<div className="px-2 py-6 text-sm text-iron-300">
+              : html`<div className="px-2 py-6 text-sm text-[var(--v2-text-muted)]">
                   No files were recorded for this workspace.
                 </div>`}
         </div>

@@ -1,3 +1,5 @@
+import { Link } from 'react-router';
+import { Button } from '../../../design-system/button.js';
 import { EmptyPanel, Panel } from '../../../design-system/primitives.js';
 import { html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
@@ -29,13 +31,17 @@ export function RoutinesList({
 
   if (!routines.length) {
     const hasFilters = Boolean(search.trim()) || statusFilter !== 'all';
+    const filteredEmpty = Boolean(totalRoutines) && hasFilters;
     return html`
       <${EmptyPanel}
-        title=${totalRoutines && hasFilters ? 'No routines match' : 'No routines yet'}
-        description=${totalRoutines && hasFilters
+        title=${filteredEmpty ? 'No routines match' : 'No routines yet'}
+        description=${filteredEmpty
           ? 'Adjust the search or status filter to find a saved routine.'
           : 'Routines created from chat will appear here after they are saved.'}
-      />
+      >
+        ${!filteredEmpty &&
+        html`<${Button} as=${Link} to="/chat" variant="primary">${t('nav.chat')}<//>`}
+      <//>
     `;
   }
 

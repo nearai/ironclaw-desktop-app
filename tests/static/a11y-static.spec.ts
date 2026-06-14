@@ -161,6 +161,12 @@ const surfaces: Surface[] = [
     waitFor: async (page) => {
       await expect(page.getByRole('heading', { name: 'Routines' })).toBeVisible();
       await expect(page.getByText('No routines yet')).toBeVisible();
+      // Empty/loading dignity (DSYS-2): the empty state is not a dead-end — it
+      // exposes a real next action back to where routines are created. Scope to
+      // main content so we assert the empty-state CTA, not the sidebar nav link.
+      const routinesAction = page.getByRole('main').getByRole('link', { name: 'Chat' });
+      await expect(routinesAction).toBeVisible();
+      await expect(routinesAction).toHaveAttribute('href', '/v2/chat');
     }
   },
   {
@@ -170,6 +176,12 @@ const surfaces: Surface[] = [
     waitFor: async (page) => {
       await expect(page.getByRole('heading', { name: 'Execution loops' })).toBeVisible();
       await expect(page.getByText('No missions match')).toBeVisible();
+      // Empty/loading dignity (DSYS-2): the empty state names a real next action
+      // (missions are created inside projects) instead of dead-ending. Scope to
+      // main content so we assert the empty-state CTA, not the sidebar nav link.
+      const missionsAction = page.getByRole('main').getByRole('link', { name: 'Projects' });
+      await expect(missionsAction).toBeVisible();
+      await expect(missionsAction).toHaveAttribute('href', '/v2/projects');
     }
   },
   {
