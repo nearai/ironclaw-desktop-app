@@ -1598,7 +1598,7 @@ ${s}</pre
                   aria-expanded=${te}
                   title=${`${pe.label} \u2014 ${pe.description||""}`}
                   onClick=${()=>$e(ie=>!ie)}
-                  className="inline-flex h-9 min-w-0 max-w-[16rem] items-center gap-2 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-semibold text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
+                  className="inline-flex h-11 min-w-0 max-w-[16rem] items-center gap-2 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-semibold text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
                 >
                   <span className=${`h-1.5 w-1.5 shrink-0 rounded-full ${dn}`} />
                   <span className="truncate">${un}</span>
@@ -1629,7 +1629,7 @@ ${s}</pre
                 <button
                   type="button"
                   onClick=${()=>zt(ie=>!ie)}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--v2-canvas)]"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--v2-canvas)]"
                   title=${u("chat.addToMessage")}
                   aria-label=${u("chat.addToMessage")}
                   aria-expanded=${je}
@@ -1676,7 +1676,7 @@ ${s}</pre
                     disabled=${x}
                     aria-label=${u("common.cancel")}
                     title=${u("common.cancel")}
-                    className="rounded-full"
+                    className="!h-11 !w-11 rounded-full"
                   >
                     <${A} name="close" className="h-5 w-5" />
                   <//>
@@ -1688,7 +1688,7 @@ ${s}</pre
                     onClick=${De}
                     disabled=${a||pe.sendBlocked||p||W||!H}
                     aria-label=${u("chat.send")}
-                    className="rounded-full"
+                    className="!h-11 !w-11 rounded-full"
                   >
                     <${A} name="send" className="h-5 w-5" />
                   <//>
@@ -1804,7 +1804,7 @@ ${s}</pre
               </div>
               <${Dt}
                 to="/settings/inference"
-                className="mt-3 inline-flex h-8 items-center rounded-[8px] bg-[var(--v2-accent)] px-3 text-xs font-semibold text-white"
+                className="mt-3 inline-flex h-11 items-center rounded-[8px] bg-[var(--v2-accent)] px-4 text-sm font-semibold text-white"
               >
                 Open setup
               <//>

@@ -267,7 +267,7 @@ export function EmptyState({
               </div>
               <${Link}
                 to="/settings/inference"
-                className="mt-3 inline-flex h-8 items-center rounded-[8px] bg-[var(--v2-accent)] px-3 text-xs font-semibold text-white"
+                className="mt-3 inline-flex h-11 items-center rounded-[8px] bg-[var(--v2-accent)] px-4 text-sm font-semibold text-white"
               >
                 Open setup
               <//>

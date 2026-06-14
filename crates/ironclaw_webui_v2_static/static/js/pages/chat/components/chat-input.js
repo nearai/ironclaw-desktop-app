@@ -795,7 +795,7 @@ export function ChatInput({
                   aria-expanded=${modelMenuOpen}
                   title=${`${readiness.label} — ${readiness.description || ''}`}
                   onClick=${() => setModelMenuOpen((value) => !value)}
-                  className="inline-flex h-9 min-w-0 max-w-[16rem] items-center gap-2 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-semibold text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
+                  className="inline-flex h-11 min-w-0 max-w-[16rem] items-center gap-2 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-semibold text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
                 >
                   <span className=${`h-1.5 w-1.5 shrink-0 rounded-full ${readinessDotClass}`} />
                   <span className="truncate">${modelControlLabel}</span>
@@ -826,7 +826,7 @@ export function ChatInput({
                 <button
                   type="button"
                   onClick=${() => setAddMenuOpen((value) => !value)}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--v2-canvas)]"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--v2-canvas)]"
                   title=${t('chat.addToMessage')}
                   aria-label=${t('chat.addToMessage')}
                   aria-expanded=${addMenuOpen}
@@ -874,7 +874,7 @@ export function ChatInput({
                     disabled=${isCancelling}
                     aria-label=${t('common.cancel')}
                     title=${t('common.cancel')}
-                    className="rounded-full"
+                    className="!h-11 !w-11 rounded-full"
                   >
                     <${Icon} name="close" className="h-5 w-5" />
                   <//>
@@ -891,7 +891,7 @@ export function ChatInput({
                     extracting ||
                     !hasPayload}
                     aria-label=${t('chat.send')}
-                    className="rounded-full"
+                    className="!h-11 !w-11 rounded-full"
                   >
                     <${Icon} name="send" className="h-5 w-5" />
                   <//>

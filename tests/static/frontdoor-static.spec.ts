@@ -120,6 +120,45 @@ test('static front door: empty desk keeps zero-state pills neutral and shows at 
   expect(await page.getByRole('button', { name: 'Open setup' }).count()).toBeLessThanOrEqual(1);
 });
 
+test('static front door at 390px: no horizontal overflow and composer touch targets stay >=44px', async ({
+  page
+}) => {
+  // Mobile-first law: the chat front door must not overflow at 390px and every
+  // composer control the user taps must clear the 44px touch-target minimum.
+  // Regression guard for the composer send/add/model controls (were 32-36px)
+  // and the prepared-desk "Open setup" CTA (was 32px).
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installFrontDoorMocks(page);
+
+  await page.goto('/v2/chat?token=frontdoor-static-token');
+  await expect(
+    page.getByRole('heading', { name: 'What should IronClaw handle next?' })
+  ).toBeVisible();
+  await expect(page.getByTestId('frontdoor-panel')).toBeVisible();
+
+  // No horizontal overflow: the document never scrolls sideways at 390px.
+  const overflow = await page.evaluate(() => {
+    const de = document.documentElement;
+    return {
+      docOverflow: de.scrollWidth - de.clientWidth,
+      bodyOverflow: document.body.scrollWidth - de.clientWidth
+    };
+  });
+  expect(overflow.docOverflow).toBeLessThanOrEqual(1);
+  expect(overflow.bodyOverflow).toBeLessThanOrEqual(1);
+
+  // Every composer control the thumb hits clears 44px in both dimensions.
+  const composer = page.getByTestId('chat-composer');
+  for (const name of ['Chat model settings', 'Add to message', 'Send message']) {
+    const control = composer.getByRole('button', { name }).first();
+    await expect(control).toBeVisible();
+    const box = await control.boundingBox();
+    expect(box, `${name} should have a measurable box`).not.toBeNull();
+    expect(box!.height, `${name} height >=44px`).toBeGreaterThanOrEqual(44);
+    expect(box!.width, `${name} width >=44px`).toBeGreaterThanOrEqual(44);
+  }
+});
+
 async function installFrontDoorMocks(
   page: Page,
   overrides: { threads?: unknown[]; automations?: unknown[] } = {}
