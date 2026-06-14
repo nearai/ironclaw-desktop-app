@@ -167,7 +167,15 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
   `;
 }
 
-function UserRow({ user, onSelect, onSuspend, onActivate, onChangeRole, onCreateToken }) {
+function UserRow({
+  user,
+  onSelect,
+  onSuspend,
+  onActivate,
+  onChangeRole,
+  onCreateToken,
+  canManage
+}) {
   const t = useT();
   return html`
     <div
@@ -198,7 +206,8 @@ function UserRow({ user, onSelect, onSuspend, onActivate, onChangeRole, onCreate
         <span className="hidden text-xs text-iron-700 lg:inline"
           >${formatRelativeTime(user.last_active_at)}</span
         >
-        <div className="flex gap-1">
+        ${canManage &&
+        html`<div className="flex gap-1">
           ${user.status === 'active'
             ? html`<button
                 onClick=${() => onSuspend(user.id)}
@@ -224,7 +233,7 @@ function UserRow({ user, onSelect, onSuspend, onActivate, onChangeRole, onCreate
           >
             ${t('admin.users.token')}
           </button>
-        </div>
+        </div>`}
       </div>
     </div>
   `;
@@ -235,6 +244,7 @@ export function AdminUsersTab({ selectedUserId, onSelectUser }) {
   const {
     users,
     query,
+    status,
     isForbidden,
     createUser,
     isCreating,
@@ -252,6 +262,13 @@ export function AdminUsersTab({ selectedUserId, onSelectUser }) {
   const [filter, setFilter] = React.useState('all');
   const [confirm, setConfirm] = React.useState(null);
 
+  // No v2 admin write endpoint exists yet (useAdminUsers status:'todo'): create,
+  // suspend/activate, role change, and token issuance all resolve against stubs
+  // that never persist. Rendering those controls would imply a capability the
+  // gateway cannot prove. Gate every write affordance behind a real backend and
+  // keep the roster read-only ("No fake readiness"). The provider summary and
+  // search/filter stay because they only read or filter local state.
+  const canManage = status !== 'todo';
   const filtered = filterUsers(users, { search, filter });
   const FILTERS = buildFilters(t);
 
@@ -310,15 +327,20 @@ export function AdminUsersTab({ selectedUserId, onSelectUser }) {
 
   return html`
     <div className="space-y-5">
-      ${newToken &&
+      ${canManage &&
+      newToken &&
       html`
         <${TokenBanner}
           token=${newToken.token || newToken.plaintext_token}
           onDismiss=${clearToken}
         />
       `}
-
-      <${CreateUserForm} onCreate=${createUser} isCreating=${isCreating} error=${createError} />
+      ${canManage &&
+      html`<${CreateUserForm}
+        onCreate=${createUser}
+        isCreating=${isCreating}
+        error=${createError}
+      />`}
 
       <${Panel} className="p-5 sm:p-6">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -361,6 +383,7 @@ export function AdminUsersTab({ selectedUserId, onSelectUser }) {
                 <${UserRow}
                   key=${user.id}
                   user=${user}
+                  canManage=${canManage}
                   onSelect=${onSelectUser}
                   onSuspend=${handleSuspend}
                   onActivate=${activateUser}

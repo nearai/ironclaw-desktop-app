@@ -129,6 +129,33 @@ const surfaces: Surface[] = [
     }
   },
   {
+    label: 'settings tools deep link',
+    path: '/v2/settings/tools',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByRole('heading', { name: 'Tool permissions' })).toBeVisible();
+
+      // No fake readiness: no v2 tools-write endpoint exists (useTools
+      // status:'todo'), so editable permission selects must not render over a
+      // stub that silently fails to persist. Only read-only state is honest here.
+      await expect(page.getByRole('combobox')).toHaveCount(0);
+    }
+  },
+  {
+    label: 'settings skills deep link',
+    path: '/v2/settings/skills',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByRole('heading', { name: 'No skills installed' })).toBeVisible();
+
+      // No fake readiness: no v2 skills endpoint exists (useSkills status:'todo'),
+      // so the Import-skill form must not render over a stub. Submitting it would
+      // silently no-op. The dignified empty state stands alone.
+      await expect(page.getByRole('heading', { name: 'Import skill' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0);
+    }
+  },
+  {
     label: 'automations deep link',
     path: '/v2/automations',
     authenticated: true,

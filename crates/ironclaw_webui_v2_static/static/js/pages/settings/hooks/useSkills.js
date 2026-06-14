@@ -27,10 +27,16 @@ export function useSkills() {
   });
 
   const skills = query.data?.skills || [];
+  // No v2 skills endpoint exists yet: `fetchSkills` returns `{ todo: true }` and
+  // `installSkill`/`removeSkill` are `{ success: false }` stubs. `status:'todo'`
+  // lets the tab gate the import form behind a real backend so users never
+  // submit an install that silently no-ops ("No fake readiness").
+  const status = query.data?.todo ? 'todo' : 'ready';
 
   return {
     skills,
     query,
+    status,
     installSkill: installMutation.mutateAsync,
     removeSkill: removeMutation.mutateAsync,
     isInstalling: installMutation.isPending,

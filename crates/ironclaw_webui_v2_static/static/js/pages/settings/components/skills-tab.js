@@ -10,10 +10,20 @@ import { SettingsSearchEmpty } from './settings-search-empty.js';
 
 export function SkillsTab({ searchQuery = '' }) {
   const t = useT();
-  const { skills, query, installSkill, removeSkill, isInstalling, isRemoving } = useSkills();
+  const { skills, query, status, installSkill, removeSkill, isInstalling, isRemoving } =
+    useSkills();
   const [actionError, setActionError] = React.useState('');
   const [actionResult, setActionResult] = React.useState('');
   const [confirmRemove, setConfirmRemove] = React.useState(null);
+
+  // No v2 skills endpoint exists yet (useSkills status:'todo'): an import here
+  // resolves against a stub that never persists. Rendering the install form would
+  // imply a capability the gateway cannot prove, so gate it behind a real backend
+  // and keep the dignified installed/empty states ("No fake readiness").
+  const installPanel =
+    status !== 'todo'
+      ? html`<${SkillInstallPanel} onInstall=${installSkill} isInstalling=${isInstalling} />`
+      : null;
 
   const handleRemove = React.useCallback(
     (name) => {
@@ -40,7 +50,7 @@ export function SkillsTab({ searchQuery = '' }) {
   if (query.isLoading) {
     return html`
       <div className="space-y-4">
-        <${SkillInstallPanel} onInstall=${installSkill} isInstalling=${isInstalling} />
+        ${installPanel}
         <${Card} padding="md">
           <div className="v2-skeleton mb-4 h-3 w-24 rounded" />
           ${[1, 2, 3].map(
@@ -65,7 +75,7 @@ export function SkillsTab({ searchQuery = '' }) {
   if (query.error) {
     return html`
       <div className="space-y-4">
-        <${SkillInstallPanel} onInstall=${installSkill} isInstalling=${isInstalling} />
+        ${installPanel}
         <${Card} padding="md">
           <p className="text-sm text-[var(--v2-danger-text)]">
             ${t('skills.failedLoad', { message: query.error.message })}
@@ -89,7 +99,7 @@ export function SkillsTab({ searchQuery = '' }) {
   if (skills.length === 0) {
     return html`
       <div className="space-y-4">
-        <${SkillInstallPanel} onInstall=${installSkill} isInstalling=${isInstalling} />
+        ${installPanel}
         <${Card} padding="lg">
           <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">
             ${t('skills.noInstalled')}
@@ -105,7 +115,7 @@ export function SkillsTab({ searchQuery = '' }) {
   if (filteredSkills.length === 0) {
     return html`
       <div className="space-y-4">
-        <${SkillInstallPanel} onInstall=${installSkill} isInstalling=${isInstalling} />
+        ${installPanel}
         <${SettingsSearchEmpty} query=${searchQuery} />
       </div>
     `;
@@ -113,7 +123,7 @@ export function SkillsTab({ searchQuery = '' }) {
 
   return html`
     <div className="space-y-4">
-      <${SkillInstallPanel} onInstall=${installSkill} isInstalling=${isInstalling} />
+      ${installPanel}
       <${SkillActionResult} error=${actionError} result=${actionResult} />
       <${Card} padding="md">
         <h3

@@ -6,7 +6,7 @@ import { useT } from '../../../lib/i18n.js';
 import { useTools } from '../hooks/useTools.js';
 import { matchesSearch } from '../lib/settings-search.js';
 
-function ToolRow({ tool, onPermissionChange, isSaved }) {
+function ToolRow({ tool, onPermissionChange, isSaved, canEdit }) {
   const t = useT();
   const permissionStates = [
     { value: 'always_allow', label: t('tools.alwaysAllow'), tone: 'positive' },
@@ -14,7 +14,10 @@ function ToolRow({ tool, onPermissionChange, isSaved }) {
     { value: 'disabled', label: t('tools.disabled'), tone: 'danger' }
   ];
 
-  const isLocked = tool.locked;
+  // A locked tool, or any tool when the gateway has no v2 tools-write endpoint
+  // (canEdit:false), shows its permission as a read-only badge. Rendering an
+  // editable select whose change silently fails to persist is fake readiness.
+  const isLocked = tool.locked || !canEdit;
   const current = permissionStates.find((p) => p.value === tool.state) || permissionStates[1];
   const isDefault = tool.state === tool.default_state;
 
@@ -74,7 +77,13 @@ function ToolRow({ tool, onPermissionChange, isSaved }) {
 
 export function ToolsTab({ searchQuery = '' }) {
   const t = useT();
-  const { tools, query, setPermission, savedTools } = useTools();
+  const { tools, query, status, setPermission, savedTools } = useTools();
+
+  // No v2 tools-write endpoint exists yet (useTools status:'todo'): permission
+  // changes resolve against a stub that never persists. Gate the editable
+  // controls behind a real backend so the rows present as read-only instead of
+  // implying a capability the gateway cannot prove ("No fake readiness").
+  const canEdit = status !== 'todo';
 
   if (query.isLoading) {
     return html`
@@ -139,6 +148,7 @@ export function ToolsTab({ searchQuery = '' }) {
                 <${ToolRow}
                   key=${tool.name}
                   tool=${tool}
+                  canEdit=${canEdit}
                   onPermissionChange=${setPermission}
                   isSaved=${savedTools[tool.name]}
                 />

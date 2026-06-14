@@ -24,6 +24,12 @@ export function useAdminUsers() {
   const users = Array.isArray(rawUsers) ? rawUsers : rawUsers?.users || [];
   const isForbidden =
     query.error?.message?.includes('403') || query.error?.message?.includes('Forbidden');
+  // No v2 admin endpoint exists yet: `fetchAdminUsers` and every write in
+  // `admin-api.js` are stubs (`{ todo: true }` / `{ success: false }`).
+  // `status:'todo'` lets the tab gate its create/suspend/role/token controls
+  // behind a real backend instead of rendering forms that silently no-op
+  // ("No fake readiness").
+  const status = rawUsers?.todo ? 'todo' : 'ready';
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
 
@@ -51,6 +57,7 @@ export function useAdminUsers() {
   return {
     users,
     query,
+    status,
     isForbidden,
     createUser: createMut.mutateAsync,
     isCreating: createMut.isPending,
