@@ -103,7 +103,7 @@ export function PairingSection({
         />
         <${Button}
           variant="secondary"
-          className="h-9 shrink-0 px-3 text-xs"
+          className="h-11 shrink-0 px-3 text-xs"
           onClick=${handleManualSubmit}
           disabled=${isApproving || !manualCode.trim()}
         >
@@ -146,7 +146,7 @@ export function PairingSection({
                     </div>
                     <${Button}
                       variant="secondary"
-                      className="h-7 px-2.5 text-xs"
+                      className="h-11 shrink-0 px-2.5 text-xs"
                       onClick=${() => handleApprove(req.code || req.id)}
                       disabled=${isApproving}
                     >

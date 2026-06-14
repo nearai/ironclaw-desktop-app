@@ -25,7 +25,7 @@ const META =
 const DESC = 'mt-2 line-clamp-2 text-xs leading-5 text-[var(--v2-text-muted)]';
 const FOOTER = 'mt-auto flex items-center gap-2 border-t border-[var(--v2-panel-border)] pt-3';
 const DISCLOSURE =
-  'v2-button inline-flex items-center gap-1.5 border-0 bg-transparent p-0 ' +
+  'v2-button -my-2 inline-flex min-h-[44px] items-center gap-1.5 border-0 bg-transparent py-2 pr-2 ' +
   'font-mono text-[11px] text-[var(--v2-text-faint)] hover:text-[var(--v2-accent-text)]';
 const CHIP =
   'rounded border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] ' +
@@ -245,7 +245,7 @@ function OverflowMenu({ actions, isBusy }) {
         aria-expanded=${open ? 'true' : 'false'}
         disabled=${isBusy}
         onClick=${() => setOpen((v) => !v)}
-        className="grid h-7 w-7 place-items-center rounded-md border border-transparent text-[var(--v2-text-faint)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="grid h-11 w-11 -mr-1.5 -mt-1.5 place-items-center rounded-md border border-transparent text-[var(--v2-text-faint)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <${Icon} name="more" className="h-4 w-4" strokeWidth=${2.4} />
       </button>
@@ -267,7 +267,7 @@ function OverflowMenu({ actions, isBusy }) {
                   action.run();
                 }}
                 className=${[
-                  'flex w-full items-center gap-2.5 rounded-[7px] px-2.5 py-1.5 text-left text-[13px] disabled:cursor-not-allowed disabled:opacity-50',
+                  'flex min-h-[44px] w-full items-center gap-2.5 rounded-[7px] px-2.5 py-1.5 text-left text-[13px] disabled:cursor-not-allowed disabled:opacity-50',
                   action.danger
                     ? 'text-[var(--v2-danger-text)] hover:bg-[var(--v2-danger-soft)]'
                     : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]'
@@ -313,7 +313,7 @@ function ConnectorGuidance({ guidance, fallback }) {
           href=${guidance.href}
           variant="secondary"
           size="sm"
-          className="mt-2 h-8 px-2.5 text-xs"
+          className="mt-2 min-h-[44px] px-2.5 text-xs"
         >
           ${guidance.actionLabel || 'Open setup'}
         <//>
@@ -457,7 +457,13 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
           <span className="flex-1"></span>
           ${primary &&
           html`
-            <${Button} variant="secondary" size="sm" onClick=${primary.run} disabled=${isBusy}>
+            <${Button}
+              variant="secondary"
+              size="sm"
+              className="min-h-[44px] px-3.5"
+              onClick=${primary.run}
+              disabled=${isBusy}
+            >
               ${primary.label}
             <//>
           `}
@@ -557,6 +563,7 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
               href=${connectButton.href}
               variant=${connectButton.variant}
               size="sm"
+              className="min-h-[44px] px-3.5"
               aria-disabled=${isBusy || connectButton.disabled ? 'true' : 'false'}
             >
               ${connectButton.label}
@@ -568,6 +575,7 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
             <${Button}
               variant=${connectButton.variant}
               size="sm"
+              className="min-h-[44px] px-3.5"
               onClick=${runConnectAction}
               disabled=${isBusy || connectButton.disabled}
             >

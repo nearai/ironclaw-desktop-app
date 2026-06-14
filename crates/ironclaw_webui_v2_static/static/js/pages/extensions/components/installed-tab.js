@@ -24,7 +24,7 @@ export function InstalledTab({ extensions, onActivate, onConfigure, onRemove, is
           href=${appScopedPath('/extensions/registry')}
           variant="primary"
           size="sm"
-          className="mt-4"
+          className="mt-4 min-h-[44px] px-3.5"
         >
           Browse apps
         <//>

@@ -275,6 +275,89 @@ test('static connectors: failed connector runs recover to extension setup', asyn
   await expect(page.getByTestId('registry-card-notion')).toBeVisible();
 });
 
+test('static connectors: registry surface has no horizontal overflow and 44px tap targets at 390px', async ({
+  page
+}) => {
+  // Mobile responsive contract (matches the chat-composer 390px pass): the
+  // Connections registry must not scroll sideways on a 390px phone, and its
+  // primary controls — the Connect action, the registry filter input, and the
+  // capability/keyword disclosure — must meet the 44px touch-target minimum.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const calls: CapturedCall[] = [];
+  await installConnectorMocks(page, calls);
+
+  await page.goto('/v2/extensions/registry?token=connector-static-token');
+  await expect(page.getByTestId('registry-card-gmail')).toBeVisible();
+
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+
+  const filter = page.getByPlaceholder('Search apps...');
+  expect(await tapHeight(filter)).toBeGreaterThanOrEqual(44);
+
+  const connect = page.getByTestId('registry-card-gmail').getByRole('button', { name: 'Connect' });
+  expect(await tapHeight(connect)).toBeGreaterThanOrEqual(44);
+
+  const disclosure = page
+    .getByTestId('registry-card-gmail')
+    .getByRole('button', { name: /keyword/ });
+  expect(await tapHeight(disclosure)).toBeGreaterThanOrEqual(44);
+
+  const draftPrompt = page.getByRole('link', { name: /^Draft prompt for / }).first();
+  expect(await tapHeight(draftPrompt)).toBeGreaterThanOrEqual(44);
+});
+
+test('static connectors: installed card actions stay 44px tappable at 390px', async ({ page }) => {
+  // The overflow menu is the ONLY route to Configure / Remove on an installed
+  // card, so its trigger and the primary card action must clear 44px on mobile.
+  await page.setViewportSize({ width: 390, height: 844 });
+  const calls: CapturedCall[] = [];
+  await installConnectorMocks(page, calls);
+  await page.route('**/api/webchat/v2/extensions', async (route: Route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json; charset=utf-8',
+      body: JSON.stringify({
+        extensions: [
+          {
+            display_name: 'Google Calendar Scheduling Assistant',
+            kind: 'wasm_tool',
+            active: true,
+            version: '1.4.2',
+            package_ref: { kind: 'extension', id: 'tools/google_calendar' },
+            description: 'Find meetings, protect focus blocks, and prepare schedule changes.',
+            tools: ['list_events', 'create_event', 'update_event', 'delete_event']
+          }
+        ]
+      })
+    });
+  });
+
+  await page.goto('/v2/extensions/installed?token=connector-static-token');
+
+  const overflowTrigger = page.getByRole('button', { name: 'More actions' }).first();
+  await expect(overflowTrigger).toBeVisible();
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
+  const trigger = await overflowTrigger.boundingBox();
+  expect(trigger).not.toBeNull();
+  expect(Math.min(trigger!.width, trigger!.height)).toBeGreaterThanOrEqual(44);
+
+  const disclosure = page.getByRole('button', { name: /capabilit/ }).first();
+  expect(await tapHeight(disclosure)).toBeGreaterThanOrEqual(44);
+});
+
+async function horizontalOverflow(page: Page) {
+  return page.evaluate(() => {
+    const el = document.documentElement;
+    return el.scrollWidth - el.clientWidth;
+  });
+}
+
+async function tapHeight(locator: ReturnType<Page['locator']>) {
+  const box = await locator.boundingBox();
+  return box ? box.height : 0;
+}
+
 type CapturedCall = {
   method: string;
   path: string;

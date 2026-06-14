@@ -299,7 +299,7 @@ export function RegistryTab({
           onChange=${(e) => setFilter(e.target.value)}
           placeholder=${t('ext.registry.searchPlaceholder')}
           size="sm"
-          className="flex-1"
+          className="min-h-[44px] flex-1"
         />
         <span className="font-mono text-[11px] text-[var(--v2-text-faint)]">
           ${filtered.length} / ${allAvailable.length}
@@ -512,7 +512,7 @@ function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable, availabl
                   to="/chat"
                   state=${{ composerDraft: workflow.prompt }}
                   aria-label=${`Draft prompt for ${workflow.title}`}
-                  className="inline-flex h-8 items-center rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-semibold text-[var(--v2-text-strong)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
+                  className="inline-flex h-11 shrink-0 items-center rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-semibold text-[var(--v2-text-strong)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
                 >
                   Draft prompt
                 <//>
@@ -574,6 +574,7 @@ function CoreConnectionCard({ entry, gatewayOffline, catalogUnavailable, isBusy,
           type="button"
           variant=${canInstall && !disabled ? 'primary' : 'secondary'}
           size="sm"
+          className="min-h-[44px] shrink-0 px-3.5"
           disabled=${disabled}
           onClick=${() =>
             canInstall &&

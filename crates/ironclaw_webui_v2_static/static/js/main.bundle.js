@@ -5909,7 +5909,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         <${A} name="close" className="h-3.5 w-3.5" />
       </button>
     </div>
-  `:null}var Wb={wasm_tool:"Tool",wasm_channel:"Messaging app",mcp_server:"Knowledge app",first_party:"Built-in",system:"System",channel_relay:"Relay"},ER={active:"success",ready:"success",pairing_required:"warning",pairing:"warning",auth_required:"warning",setup_required:"muted",failed:"danger",installed:"muted"},AR={active:"active",ready:"ready",pairing_required:"pairing",pairing:"pairing",auth_required:"auth needed",setup_required:"setup needed",failed:"failed",installed:"installed"};function DR(e){let t=e?.onboarding_state||e?.activation_status||(e?.active?"active":"installed");return!e?.package_ref||t==="active"||t==="ready"?null:t==="auth_required"||t==="setup_required"||t==="failed"?"configure":e.kind==="wasm_channel"?null:"activate"}var w5="/settings/inference#google-oauth";function Lf(){return Gt(w5)}var $5=new Set(["google","gmail","google-calendar","google-drive","google-sheets","google-docs"]);function Jb(e){let t=e?.package_ref||e?.packageRef||e,a=(typeof t=="string"?t:t?.id)||e?.id||e?.display_name||e?.name||"",s=(String(a).includes("/")?String(a).split("/").filter(Boolean).pop():String(a)).trim().toLowerCase().replaceAll("_","-");return s==="slack-tool"?"slack":s}function Of(e){let t=Jb(e);return $5.has(t)?"google":t.includes("notion")?"notion":t.includes("slack")?"slack":t.includes("workspace")||t.includes("filesystem")||t.includes("file-system")?"workspace":t}function Uf(e){return Of(e)==="google"}function Ff(e,{state:t,connectPhase:a}={}){let n=Of(e),s=a?.phase||"";return n==="google"&&(s==="blocked-google-client-id"||s==="needs-token")?{title:"Needs Google sign-in setup",body:"Hosted Google OAuth is not available from this gateway yet. Add a Desktop app client ID in Settings, restart the engine, then connect Gmail or Calendar.",href:Lf(),actionLabel:"Open Google setup"}:n==="google"&&(t==="setup_required"||t==="auth_required")?{title:"Needs Google sign-in setup",body:"Gmail and Calendar need a Google Desktop app client ID before browser sign-in can start.",href:Lf(),actionLabel:"Open Google setup"}:s==="waiting"?{title:"Finish in your browser",body:"Complete the consent screen, then IronClaw will turn the connector on automatically."}:s==="connected"||t==="active"||t==="ready"?{title:"Connected",body:"The connector is ready for chat and agent runs."}:n==="notion"?{title:"Connect with Notion",body:s==="needs-token"?"Notion needs authorization before its tools can run. Open setup to connect the workspace this gateway exposes.":"Connect opens Notion in your browser. No token paste should be required when the gateway supports DCR."}:n==="slack"?{title:"Connect Slack",body:"Slack uses workspace install or pairing. If a code is required, enter it here after messaging the Slack app."}:n==="workspace"?{title:"Workspace setup",body:"Workspace access should ask for a local folder or account only when the gateway exposes that setup path."}:s==="needs-token"?{title:"Needs setup",body:"This connector needs credentials before its tools can be turned on.",actionLabel:"Open setup"}:t==="setup_required"||t==="auth_required"?{title:"Needs setup",body:"Complete setup before this connector is available to the assistant."}:null}function jR(e,t){let a=t?.phase||"";return a==="blocked-google-client-id"?{tone:"danger",label:"BLOCKED"}:a==="needs-token"||Ff(e,{connectPhase:t})?.title?{tone:"warning",label:"NEEDS SETUP"}:{tone:"muted",label:"AVAILABLE"}}function MR({secrets:e=[],fields:t=[]}={}){return t.length>0||e.length===0?!1:e.every(a=>a.provided)}function PR(e={},t=null){if(Uf(t)&&(e?.phase==="blocked-google-client-id"||e?.phase==="needs-token"))return{label:"Open Google setup",disabled:!1,action:"google_settings",variant:"secondary",href:Lf()};switch(e?.phase){case"installing":case"authorizing":return{label:"Connecting...",disabled:!0,action:"wait",variant:"primary"};case"waiting":return{label:"Finish in your browser...",disabled:!0,action:"wait",variant:"primary"};case"activating":return{label:"Turning on...",disabled:!0,action:"wait",variant:"primary"};case"connected":return{label:"Connected",disabled:!0,action:"none",variant:"secondary"};case"blocked-google-client-id":return{label:"Open Google setup",disabled:!1,action:"google_settings",variant:"secondary",href:Lf()};case"needs-token":return{label:"Open setup",disabled:!1,action:"manual_setup",variant:"secondary"};case"error":return{label:"Retry connect",disabled:!1,action:"connect",variant:"primary"};default:return{label:"Connect",disabled:!1,action:"connect",variant:"primary"}}}var LR="flex h-full flex-col rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-4 shadow-[var(--v2-shadow-sm)] transition-colors hover:border-[color-mix(in_srgb,var(--v2-accent)_22%,var(--v2-panel-border))]",OR="mt-1.5 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-[var(--v2-text-faint)]",UR="mt-2 line-clamp-2 text-xs leading-5 text-[var(--v2-text-muted)]",FR="mt-auto flex items-center gap-2 border-t border-[var(--v2-panel-border)] pt-3",IR="v2-button inline-flex items-center gap-1.5 border-0 bg-transparent p-0 font-mono text-[11px] text-[var(--v2-text-faint)] hover:text-[var(--v2-accent-text)]",k5="rounded border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--v2-text-muted)]",S5="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] shadow-[var(--v2-shadow-sm)]";function Yb(e){return e.package_ref?.id||""}function N5(e){let t=Jb(e),a=Of(e);return t==="gmail"?"gmail":t==="google-calendar"||t==="google_calendar"?"google-calendar":t==="google-drive"||t==="gdrive"||t==="drive"?"google-drive":t==="google-sheets"||t==="gsheets"||t==="sheets"?"google-sheets":t.includes("github")?"github":t.includes("telegram")?"telegram":t.includes("web")||t.includes("http")||t.includes("hacker-news")?"web":t.includes("routine")||t.includes("trigger")?"routine":a==="notion"?"notion":a==="slack"?"slack":a==="workspace"?"workspace":a==="google"?"google":e?.kind==="wasm_channel"?"channel":e?.kind==="mcp_server"?"knowledge":"tool"}function _5({letter:e}){return c`
+  `:null}var Wb={wasm_tool:"Tool",wasm_channel:"Messaging app",mcp_server:"Knowledge app",first_party:"Built-in",system:"System",channel_relay:"Relay"},ER={active:"success",ready:"success",pairing_required:"warning",pairing:"warning",auth_required:"warning",setup_required:"muted",failed:"danger",installed:"muted"},AR={active:"active",ready:"ready",pairing_required:"pairing",pairing:"pairing",auth_required:"auth needed",setup_required:"setup needed",failed:"failed",installed:"installed"};function DR(e){let t=e?.onboarding_state||e?.activation_status||(e?.active?"active":"installed");return!e?.package_ref||t==="active"||t==="ready"?null:t==="auth_required"||t==="setup_required"||t==="failed"?"configure":e.kind==="wasm_channel"?null:"activate"}var w5="/settings/inference#google-oauth";function Lf(){return Gt(w5)}var $5=new Set(["google","gmail","google-calendar","google-drive","google-sheets","google-docs"]);function Jb(e){let t=e?.package_ref||e?.packageRef||e,a=(typeof t=="string"?t:t?.id)||e?.id||e?.display_name||e?.name||"",s=(String(a).includes("/")?String(a).split("/").filter(Boolean).pop():String(a)).trim().toLowerCase().replaceAll("_","-");return s==="slack-tool"?"slack":s}function Of(e){let t=Jb(e);return $5.has(t)?"google":t.includes("notion")?"notion":t.includes("slack")?"slack":t.includes("workspace")||t.includes("filesystem")||t.includes("file-system")?"workspace":t}function Uf(e){return Of(e)==="google"}function Ff(e,{state:t,connectPhase:a}={}){let n=Of(e),s=a?.phase||"";return n==="google"&&(s==="blocked-google-client-id"||s==="needs-token")?{title:"Needs Google sign-in setup",body:"Hosted Google OAuth is not available from this gateway yet. Add a Desktop app client ID in Settings, restart the engine, then connect Gmail or Calendar.",href:Lf(),actionLabel:"Open Google setup"}:n==="google"&&(t==="setup_required"||t==="auth_required")?{title:"Needs Google sign-in setup",body:"Gmail and Calendar need a Google Desktop app client ID before browser sign-in can start.",href:Lf(),actionLabel:"Open Google setup"}:s==="waiting"?{title:"Finish in your browser",body:"Complete the consent screen, then IronClaw will turn the connector on automatically."}:s==="connected"||t==="active"||t==="ready"?{title:"Connected",body:"The connector is ready for chat and agent runs."}:n==="notion"?{title:"Connect with Notion",body:s==="needs-token"?"Notion needs authorization before its tools can run. Open setup to connect the workspace this gateway exposes.":"Connect opens Notion in your browser. No token paste should be required when the gateway supports DCR."}:n==="slack"?{title:"Connect Slack",body:"Slack uses workspace install or pairing. If a code is required, enter it here after messaging the Slack app."}:n==="workspace"?{title:"Workspace setup",body:"Workspace access should ask for a local folder or account only when the gateway exposes that setup path."}:s==="needs-token"?{title:"Needs setup",body:"This connector needs credentials before its tools can be turned on.",actionLabel:"Open setup"}:t==="setup_required"||t==="auth_required"?{title:"Needs setup",body:"Complete setup before this connector is available to the assistant."}:null}function jR(e,t){let a=t?.phase||"";return a==="blocked-google-client-id"?{tone:"danger",label:"BLOCKED"}:a==="needs-token"||Ff(e,{connectPhase:t})?.title?{tone:"warning",label:"NEEDS SETUP"}:{tone:"muted",label:"AVAILABLE"}}function MR({secrets:e=[],fields:t=[]}={}){return t.length>0||e.length===0?!1:e.every(a=>a.provided)}function PR(e={},t=null){if(Uf(t)&&(e?.phase==="blocked-google-client-id"||e?.phase==="needs-token"))return{label:"Open Google setup",disabled:!1,action:"google_settings",variant:"secondary",href:Lf()};switch(e?.phase){case"installing":case"authorizing":return{label:"Connecting...",disabled:!0,action:"wait",variant:"primary"};case"waiting":return{label:"Finish in your browser...",disabled:!0,action:"wait",variant:"primary"};case"activating":return{label:"Turning on...",disabled:!0,action:"wait",variant:"primary"};case"connected":return{label:"Connected",disabled:!0,action:"none",variant:"secondary"};case"blocked-google-client-id":return{label:"Open Google setup",disabled:!1,action:"google_settings",variant:"secondary",href:Lf()};case"needs-token":return{label:"Open setup",disabled:!1,action:"manual_setup",variant:"secondary"};case"error":return{label:"Retry connect",disabled:!1,action:"connect",variant:"primary"};default:return{label:"Connect",disabled:!1,action:"connect",variant:"primary"}}}var LR="flex h-full flex-col rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-4 shadow-[var(--v2-shadow-sm)] transition-colors hover:border-[color-mix(in_srgb,var(--v2-accent)_22%,var(--v2-panel-border))]",OR="mt-1.5 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-[var(--v2-text-faint)]",UR="mt-2 line-clamp-2 text-xs leading-5 text-[var(--v2-text-muted)]",FR="mt-auto flex items-center gap-2 border-t border-[var(--v2-panel-border)] pt-3",IR="v2-button -my-2 inline-flex min-h-[44px] items-center gap-1.5 border-0 bg-transparent py-2 pr-2 font-mono text-[11px] text-[var(--v2-text-faint)] hover:text-[var(--v2-accent-text)]",k5="rounded border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--v2-text-muted)]",S5="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] shadow-[var(--v2-shadow-sm)]";function Yb(e){return e.package_ref?.id||""}function N5(e){let t=Jb(e),a=Of(e);return t==="gmail"?"gmail":t==="google-calendar"||t==="google_calendar"?"google-calendar":t==="google-drive"||t==="gdrive"||t==="drive"?"google-drive":t==="google-sheets"||t==="gsheets"||t==="sheets"?"google-sheets":t.includes("github")?"github":t.includes("telegram")?"telegram":t.includes("web")||t.includes("http")||t.includes("hacker-news")?"web":t.includes("routine")||t.includes("trigger")?"routine":a==="notion"?"notion":a==="slack"?"slack":a==="workspace"?"workspace":a==="google"?"google":e?.kind==="wasm_channel"?"channel":e?.kind==="mcp_server"?"knowledge":"tool"}function _5({letter:e}){return c`
     <svg viewBox="0 0 36 36" className="h-full w-full" aria-hidden="true">
       <rect width="36" height="36" rx="9" fill="#fff" />
       <path d="M6 9h24v5H6z" fill="#4285f4" />
@@ -6039,7 +6039,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         aria-expanded=${a?"true":"false"}
         disabled=${t}
         onClick=${()=>n(r=>!r)}
-        className="grid h-7 w-7 place-items-center rounded-md border border-transparent text-[var(--v2-text-faint)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="grid h-11 w-11 -mr-1.5 -mt-1.5 place-items-center rounded-md border border-transparent text-[var(--v2-text-faint)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <${A} name="more" className="h-4 w-4" strokeWidth=${2.4} />
       </button>
@@ -6055,7 +6055,7 @@ ${JSON.stringify(t||{},null,2)}</pre
                 role="menuitem"
                 disabled=${t}
                 onClick=${()=>{n(!1),r.run()}}
-                className=${["flex w-full items-center gap-2.5 rounded-[7px] px-2.5 py-1.5 text-left text-[13px] disabled:cursor-not-allowed disabled:opacity-50",r.danger?"text-[var(--v2-danger-text)] hover:bg-[var(--v2-danger-soft)]":"text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]"].join(" ")}
+                className=${["flex min-h-[44px] w-full items-center gap-2.5 rounded-[7px] px-2.5 py-1.5 text-left text-[13px] disabled:cursor-not-allowed disabled:opacity-50",r.danger?"text-[var(--v2-danger-text)] hover:bg-[var(--v2-danger-soft)]":"text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]"].join(" ")}
               >
                 <${A} name=${r.icon||"settings"} className="h-3.5 w-3.5" />
                 ${r.label}
@@ -6082,7 +6082,7 @@ ${JSON.stringify(t||{},null,2)}</pre
           href=${e.href}
           variant="secondary"
           size="sm"
-          className="mt-2 h-8 px-2.5 text-xs"
+          className="mt-2 min-h-[44px] px-2.5 text-xs"
         >
           ${e.actionLabel||"Open setup"}
         <//>
@@ -6136,7 +6136,13 @@ ${JSON.stringify(t||{},null,2)}</pre
           `}
           <span className="flex-1"></span>
           ${k&&c`
-            <${R} variant="secondary" size="sm" onClick=${k.run} disabled=${s}>
+            <${R}
+              variant="secondary"
+              size="sm"
+              className="min-h-[44px] px-3.5"
+              onClick=${k.run}
+              disabled=${s}
+            >
               ${k.label}
             <//>
           `}
@@ -6203,6 +6209,7 @@ ${JSON.stringify(t||{},null,2)}</pre
               href=${f.href}
               variant=${f.variant}
               size="sm"
+              className="min-h-[44px] px-3.5"
               aria-disabled=${a||f.disabled?"true":"false"}
             >
               ${f.label}
@@ -6212,6 +6219,7 @@ ${JSON.stringify(t||{},null,2)}</pre
             <${R}
               variant=${f.variant}
               size="sm"
+              className="min-h-[44px] px-3.5"
               onClick=${x}
               disabled=${a||f.disabled}
             >
@@ -6254,7 +6262,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         />
         <${R}
           variant="secondary"
-          className="h-9 shrink-0 px-3 text-xs"
+          className="h-11 shrink-0 px-3 text-xs"
           onClick=${x}
           disabled=${g||!d.trim()}
         >
@@ -6290,7 +6298,7 @@ ${JSON.stringify(t||{},null,2)}</pre
                     </div>
                     <${R}
                       variant="secondary"
-                      className="h-7 px-2.5 text-xs"
+                      className="h-11 shrink-0 px-2.5 text-xs"
                       onClick=${()=>h(k.code||k.id)}
                       disabled=${g}
                     >
@@ -6489,6 +6497,7 @@ ${JSON.stringify(t||{},null,2)}</pre
                       </span>
                       <${R}
                         variant=${C.provided?"secondary":"primary"}
+                        className="min-h-[44px] shrink-0"
                         onClick=${()=>g(C)}
                         disabled=${h.isPending}
                       >
@@ -6503,6 +6512,7 @@ ${JSON.stringify(t||{},null,2)}</pre
                       onChange=${T=>m(E=>({...E,[C.name]:T.target.value}))}
                       onKeyDown=${T=>T.key==="Enter"&&b()}
                       size="sm"
+                      className="min-h-[44px]"
                     />
                     ${C.auto_generate&&!C.provided&&c`
                       <p className="mt-1 text-xs text-[var(--v2-text-faint)]">
@@ -6531,6 +6541,7 @@ ${JSON.stringify(t||{},null,2)}</pre
                 onChange=${T=>p(E=>({...E,[C.name]:T.target.value}))}
                 onKeyDown=${T=>T.key==="Enter"&&b()}
                 size="sm"
+                className="min-h-[44px]"
               />
             </div>
           `)}
@@ -6557,13 +6568,20 @@ ${JSON.stringify(t||{},null,2)}</pre
       `}
 
       <div className="mt-6 flex items-center justify-end gap-3">
-        <${R} variant="ghost" onClick=${a}>Cancel<//>
+        <${R} variant="ghost" className="min-h-[44px]" onClick=${a}>Cancel<//>
         ${k&&c`
-          <${R} variant="primary" onClick=${()=>t?.(e)}> Activate <//>
+          <${R}
+            variant="primary"
+            className="min-h-[44px]"
+            onClick=${()=>t?.(e)}
+          >
+            Activate
+          <//>
         `}
         ${$&&c`
           <${R}
             variant=${k?"secondary":"primary"}
+            className="min-h-[44px]"
             onClick=${b}
             disabled=${w.isPending}
           >
@@ -6592,7 +6610,7 @@ ${JSON.stringify(t||{},null,2)}</pre
             type="button"
             onClick=${e}
             aria-label="Close setup"
-            className="grid h-8 w-8 place-items-center rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+            className="grid h-11 w-11 -mr-1.5 place-items-center rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
           >
             <${A} name="close" className="h-4 w-4" />
           </button>
@@ -6614,7 +6632,7 @@ ${JSON.stringify(t||{},null,2)}</pre
           href=${Gt("/extensions/registry")}
           variant="primary"
           size="sm"
-          className="mt-4"
+          className="mt-4 min-h-[44px] px-3.5"
         >
           Browse apps
         <//>
@@ -6652,7 +6670,7 @@ ${JSON.stringify(t||{},null,2)}</pre
             href=${Gt("/extensions/registry?setup=1&focus=notion")}
             variant="primary"
             size="sm"
-            className="mt-4"
+            className="mt-4 min-h-[44px] px-3.5"
           >
             Browse knowledge apps
           <//>
@@ -6766,7 +6784,7 @@ ${JSON.stringify(t||{},null,2)}</pre
             data-testid="custom-mcp-submit"
             disabled=${m}
             size="md"
-            className="w-full lg:w-auto"
+            className="min-h-[44px] w-full lg:w-auto"
           >
             Add MCP server
           <//>
@@ -6786,7 +6804,7 @@ ${JSON.stringify(t||{},null,2)}</pre
           onChange=${x=>f(x.target.value)}
           placeholder=${o("ext.registry.searchPlaceholder")}
           size="sm"
-          className="flex-1"
+          className="min-h-[44px] flex-1"
         />
         <span className="font-mono text-[11px] text-[var(--v2-text-faint)]">
           ${p.length} / ${d.length}
@@ -6945,7 +6963,7 @@ ${JSON.stringify(t||{},null,2)}</pre
                   to="/chat"
                   state=${{composerDraft:r.prompt}}
                   aria-label=${`Draft prompt for ${r.title}`}
-                  className="inline-flex h-8 items-center rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-semibold text-[var(--v2-text-strong)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
+                  className="inline-flex h-11 shrink-0 items-center rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-semibold text-[var(--v2-text-strong)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
                 >
                   Draft prompt
                 <//>
@@ -6991,6 +7009,7 @@ ${JSON.stringify(t||{},null,2)}</pre
           type="button"
           variant=${r&&!i?"primary":"secondary"}
           size="sm"
+          className="min-h-[44px] shrink-0 px-3.5"
           disabled=${i}
           onClick=${()=>r&&s({packageRef:e.package_ref,displayName:e.display_name})}
         >

@@ -165,6 +165,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                       </span>
                       <${Button}
                         variant=${secret.provided ? 'secondary' : 'primary'}
+                        className="min-h-[44px] shrink-0"
                         onClick=${() => handleOauth(secret)}
                         disabled=${oauthMutation.isPending}
                       >
@@ -188,6 +189,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                         }))}
                       onKeyDown=${(e) => e.key === 'Enter' && handleSubmit()}
                       size="sm"
+                      className="min-h-[44px]"
                     />
                     ${secret.auto_generate &&
                     !secret.provided &&
@@ -225,6 +227,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                   }))}
                 onKeyDown=${(e) => e.key === 'Enter' && handleSubmit()}
                 size="sm"
+                className="min-h-[44px]"
               />
             </div>
           `
@@ -255,15 +258,22 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
       `}
 
       <div className="mt-6 flex items-center justify-end gap-3">
-        <${Button} variant="ghost" onClick=${onClose}>Cancel<//>
+        <${Button} variant="ghost" className="min-h-[44px]" onClick=${onClose}>Cancel<//>
         ${canActivate &&
         html`
-          <${Button} variant="primary" onClick=${() => onActivate?.(extension)}> Activate <//>
+          <${Button}
+            variant="primary"
+            className="min-h-[44px]"
+            onClick=${() => onActivate?.(extension)}
+          >
+            Activate
+          <//>
         `}
         ${canSave &&
         html`
           <${Button}
             variant=${canActivate ? 'secondary' : 'primary'}
+            className="min-h-[44px]"
             onClick=${handleSubmit}
             disabled=${submitMutation.isPending}
           >
@@ -306,7 +316,7 @@ function ModalShell({ onClose, title, children }) {
             type="button"
             onClick=${onClose}
             aria-label="Close setup"
-            className="grid h-8 w-8 place-items-center rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+            className="grid h-11 w-11 -mr-1.5 place-items-center rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
           >
             <${Icon} name="close" className="h-4 w-4" />
           </button>

@@ -40,7 +40,7 @@ export function McpTab({
             href=${appScopedPath('/extensions/registry?setup=1&focus=notion')}
             variant="primary"
             size="sm"
-            className="mt-4"
+            className="mt-4 min-h-[44px] px-3.5"
           >
             Browse knowledge apps
           <//>
@@ -198,7 +198,7 @@ function CustomMcpServerCard({ onAddCustom, isBusy }) {
             data-testid="custom-mcp-submit"
             disabled=${fieldsDisabled}
             size="md"
-            className="w-full lg:w-auto"
+            className="min-h-[44px] w-full lg:w-auto"
           >
             Add MCP server
           <//>
