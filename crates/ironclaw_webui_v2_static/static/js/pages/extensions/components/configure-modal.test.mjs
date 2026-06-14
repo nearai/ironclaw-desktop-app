@@ -66,6 +66,7 @@ function createConfigureModalHarness() {
       useCallback: (fn) => fn,
       useEffect: () => {},
       useMemo: (fn) => fn(),
+      useRef: (value) => ({ current: value ?? null }),
       useState: (value) => [value, () => {}]
     },
     setupReadyForActivation: () => false,

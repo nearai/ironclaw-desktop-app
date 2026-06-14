@@ -346,6 +346,78 @@ test('static connectors: installed card actions stay 44px tappable at 390px', as
   expect(await tapHeight(disclosure)).toBeGreaterThanOrEqual(44);
 });
 
+test('static connectors: configure setup dialog honors the modal keyboard contract', async ({
+  page
+}) => {
+  // The connector setup dialog renders its own ModalShell (not the shared Modal).
+  // It had Esc but no focus trap, no focus-in, and no focus-restore — the same
+  // broken contract the command palette had. After the fix it must move focus in
+  // on open, trap Tab/Shift-Tab behind the backdrop, close on Esc from a control,
+  // and return focus to the opener. Driven via the ?setup=1&focus deep link, which
+  // auto-opens ConfigureModal for a matching installed extension.
+  const calls: CapturedCall[] = [];
+  await installConnectorMocks(page, calls);
+  await page.route('**/api/webchat/v2/extensions', async (route: Route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json; charset=utf-8',
+      body: JSON.stringify({
+        extensions: [
+          {
+            display_name: 'Google Calendar',
+            kind: 'wasm_tool',
+            active: true,
+            version: '1.4.2',
+            package_ref: { kind: 'extension', id: 'tools/google_calendar' },
+            description: 'Find meetings, protect focus blocks, and prepare schedule changes.',
+            tools: ['list_events', 'create_event']
+          }
+        ]
+      })
+    });
+  });
+
+  // Land on the installed tab first so a real control holds focus to restore to,
+  // then trigger the deep link that opens the setup dialog.
+  await page.goto('/v2/extensions/installed?token=connector-static-token');
+  const opener = page.getByRole('button', { name: 'More actions' }).first();
+  await expect(opener).toBeVisible();
+  await opener.focus();
+
+  await page.goto(
+    '/v2/extensions/installed?setup=1&focus=google-calendar&token=connector-static-token'
+  );
+
+  const dialog = page.getByTestId('connector-setup-modal');
+  await expect(dialog).toBeVisible();
+
+  // Focus moved into the dialog on open.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const d = document.querySelector('[data-testid="connector-setup-modal"]');
+        return !!d && d.contains(document.activeElement);
+      })
+    )
+    .toBe(true);
+
+  // Tab stays trapped inside the setup dialog.
+  for (let i = 0; i < 10; i += 1) {
+    await page.keyboard.press('Tab');
+    const inside = await page.evaluate(() => {
+      const d = document.querySelector('[data-testid="connector-setup-modal"]');
+      return !!d && d.contains(document.activeElement);
+    });
+    expect(inside, `focus stays inside the setup dialog after ${i + 1} tab(s)`).toBe(true);
+  }
+
+  // Esc closes from the Cancel control (a non-input button).
+  await dialog.getByRole('button', { name: 'Cancel' }).focus();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('connector-setup-modal')).toHaveCount(0);
+});
+
 async function horizontalOverflow(page: Page) {
   return page.evaluate(() => {
     const el = document.documentElement;

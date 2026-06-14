@@ -174,6 +174,70 @@ test('static attachments: image upload renders thumbnail above sent user bubble'
   }
 });
 
+test('static attachments: preview lightbox honors the modal keyboard contract', async ({
+  page
+}) => {
+  // The attachment preview uses the shared design-system Modal. That primitive
+  // now owns the full dialog keyboard contract centrally, so every Modal consumer
+  // inherits it: focus moves in on open, Tab/Shift-Tab stay trapped behind the
+  // backdrop, Esc closes from a non-input control, and focus returns to the chip
+  // that opened it. This is the rendered proof for the modal.js fix.
+  const gateway = await startAttachmentGateway();
+  try {
+    await installAttachmentTauriShim(page, gateway.origin, gateway.port);
+    await page.goto('/v2/chat/thread-attachments');
+    await page.locator('textarea').first().waitFor({ timeout: 20_000 });
+
+    const filename = 'preview-contract.txt';
+    await page.locator('input[type="file"]').setInputFiles({
+      name: filename,
+      mimeType: 'text/plain',
+      buffer: Buffer.from('Preview contract body for the keyboard a11y proof.', 'utf8')
+    });
+
+    // The chip appears once extraction settles; wait on the preview opener
+    // (its aria-label is the robust anchor — the filename text alone can wrap).
+    const opener = page.getByRole('button', { name: new RegExp(`^Preview ${filename}`) });
+    await expect(opener).toBeVisible({ timeout: 20_000 });
+    await opener.focus();
+    await opener.press('Enter');
+
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: filename })).toBeVisible();
+
+    // Focus moved into the dialog on open (not stranded on the chip behind it).
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const d = document.querySelector('[role="dialog"]');
+          return !!d && d.contains(document.activeElement);
+        })
+      )
+      .toBe(true);
+
+    // Tab cycles within the dialog; it never falls behind the modal.
+    for (let i = 0; i < 8; i += 1) {
+      await page.keyboard.press('Tab');
+      const inside = await page.evaluate(() => {
+        const d = document.querySelector('[role="dialog"]');
+        return !!d && d.contains(document.activeElement);
+      });
+      expect(inside, `focus stays inside the preview after ${i + 1} tab(s)`).toBe(true);
+    }
+
+    // Esc closes from the dialog's close button (a non-input control).
+    await dialog.getByRole('button', { name: 'Close' }).focus();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+
+    // Focus returns to the chip that opened the preview.
+    await expect(opener).toBeFocused();
+  } finally {
+    await gateway.close();
+  }
+});
+
 type AttachmentFixture = {
   filename: string;
   text: string;

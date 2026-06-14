@@ -254,6 +254,55 @@ test('static keyboard: command palette traps focus, closes from a row, and retur
   await expect(opener).toBeFocused();
 });
 
+test('static keyboard: shortcuts dialog traps focus, closes on Esc, and returns focus', async ({
+  page
+}) => {
+  // The "?" keyboard-shortcuts dialog had NO keyboard handling before this pass
+  // (Esc was a no-op inside it, Tab fell behind the modal, focus never returned).
+  // It must now honor the same Mac keyboard contract as the command palette.
+  await installStaticInteractionMocks(page);
+  await page.goto('/v2/chat?token=static-keyboard-token');
+  await expect(
+    page.getByRole('heading', { name: 'What should IronClaw handle next?' })
+  ).toBeVisible();
+
+  // Open via "?" from a non-input control so the chat handler does not swallow it.
+  const opener = page.getByRole('button', { name: 'New', exact: true }).first();
+  await opener.focus();
+  await page.keyboard.press('?');
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+
+  // Focus moved into the dialog on open.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const d = document.querySelector('[role="dialog"][aria-modal="true"]');
+        return !!d && d.contains(document.activeElement);
+      })
+    )
+    .toBe(true);
+
+  // Tab stays trapped inside the dialog (it only has two close buttons).
+  for (let i = 0; i < 6; i += 1) {
+    await page.keyboard.press('Tab');
+    const inside = await page.evaluate(() => {
+      const d = document.querySelector('[role="dialog"][aria-modal="true"]');
+      return !!d && d.contains(document.activeElement);
+    });
+    expect(inside, `focus stays inside the shortcuts dialog after ${i + 1} tab(s)`).toBe(true);
+  }
+
+  // Esc closes from a focused control inside the dialog.
+  await dialog.getByRole('button', { name: 'Close' }).first().focus();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+
+  // Focus returns to the opener instead of being stranded on <body>.
+  await expect(opener).toBeFocused();
+});
+
 test('static palette at 390px: rows clear 44px and the dialog does not overflow', async ({
   page
 }) => {

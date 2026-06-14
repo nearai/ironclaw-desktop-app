@@ -34,6 +34,9 @@ const SIZES = {
 /* ─── Modal ───────────────────────────────────────────────────────── */
 
 export function Modal({ open, onClose, title, size = 'md', className = '', children }) {
+  const panelRef = React.useRef(null);
+  const restoreFocusRef = React.useRef(null);
+
   /* Lock body scroll when open */
   React.useEffect(() => {
     if (!open) return;
@@ -44,15 +47,69 @@ export function Modal({ open, onClose, title, size = 'md', className = '', child
     };
   }, [open]);
 
-  /* Close on Escape */
+  /* Move focus into the dialog on open and return it to the opener on close,
+     so keyboard users are never stranded behind the modal or on <body>. */
   React.useEffect(() => {
-    if (!open) return;
-    const handler = (e) => {
-      if (e.key === 'Escape') onClose?.();
+    if (!open) return undefined;
+    restoreFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const id = window.requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const target = panel.querySelector(
+        'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])'
+      );
+      (target instanceof HTMLElement ? target : panel).focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(id);
+      restoreFocusRef.current?.focus?.();
+      restoreFocusRef.current = null;
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+  }, [open]);
+
+  /* Esc closes from anywhere while open, even if focus has not landed inside
+     the panel yet (e.g. the modal was opened by mouse). A document listener is
+     more robust than relying on the keydown bubbling to the dialog root. */
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onDocKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose?.();
+      }
+    };
+    document.addEventListener('keydown', onDocKeyDown);
+    return () => document.removeEventListener('keydown', onDocKeyDown);
   }, [open, onClose]);
+
+  /* Tab/Shift-Tab stay trapped in the panel. */
+  const onKeyDown = React.useCallback((event) => {
+    if (event.key !== 'Tab') return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const items = Array.from(
+      panel.querySelectorAll(
+        'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+    if (items.length === 0) {
+      // No tabbable controls — keep focus pinned to the panel itself.
+      event.preventDefault();
+      panel.focus();
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    const activeEl = document.activeElement;
+    if (event.shiftKey && (activeEl === first || activeEl === panel)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && activeEl === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }, []);
 
   if (!open) return null;
 
@@ -62,6 +119,7 @@ export function Modal({ open, onClose, title, size = 'md', className = '', child
       className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
       aria-modal="true"
       role="dialog"
+      onKeyDown=${onKeyDown}
     >
       <!-- Dim layer -->
       <div
@@ -72,8 +130,10 @@ export function Modal({ open, onClose, title, size = 'md', className = '', child
 
       <!-- Panel -->
       <div
+        ref=${panelRef}
+        tabindex=${-1}
         className=${cn(
-          'relative z-10 w-full',
+          'relative z-10 w-full outline-none',
           'bg-[var(--v2-card-bg)] border border-[var(--v2-panel-border)]',
           'shadow-[0_24px_60px_rgba(0,0,0,0.35)]',
           'rounded-[1.5rem]',

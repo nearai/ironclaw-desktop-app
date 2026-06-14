@@ -286,26 +286,76 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
 }
 
 function ModalShell({ onClose, title, children }) {
+  const panelRef = React.useRef(null);
+  const restoreFocusRef = React.useRef(null);
+
+  // Move focus into the setup dialog on open and hand it back to the opener on
+  // close so keyboard users are never stranded behind the modal.
   React.useEffect(() => {
-    const handleKey = (e) => {
-      if (e.key === 'Escape') onClose();
+    restoreFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const id = window.requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel) return;
+      const target = panel.querySelector(
+        'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])'
+      );
+      (target instanceof HTMLElement ? target : panel).focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(id);
+      restoreFocusRef.current?.focus?.();
+      restoreFocusRef.current = null;
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose]);
+  }, []);
+
+  // Esc closes from anywhere inside; Tab/Shift-Tab stay trapped in the panel.
+  const onKeyDown = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const items = Array.from(
+      panel.querySelectorAll(
+        'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])'
+      )
+    ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+    if (items.length === 0) {
+      event.preventDefault();
+      panel.focus();
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    const activeEl = document.activeElement;
+    if (event.shiftKey && (activeEl === first || activeEl === panel)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && activeEl === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   return html`
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 backdrop-blur-sm sm:items-center"
       role="dialog"
       aria-modal="true"
+      onKeyDown=${onKeyDown}
       onClick=${(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
+        ref=${panelRef}
+        tabindex=${-1}
         data-testid="connector-setup-modal"
-        className="w-full max-w-lg overflow-hidden rounded-[22px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] shadow-[0_24px_60px_rgba(0,0,0,0.35)]"
+        className="w-full max-w-lg overflow-hidden rounded-[22px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] shadow-[0_24px_60px_rgba(0,0,0,0.35)] outline-none"
         onClick=${(e) => e.stopPropagation()}
       >
         <div
