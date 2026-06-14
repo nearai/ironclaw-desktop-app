@@ -66,7 +66,7 @@ export function ActiveModelPicker({ provider, currentModel, onListModels, onAppl
         value=${models.includes(choice) ? choice : ''}
         onChange=${(event) => setChoice(event.target.value)}
         wrapperClassName="min-w-[min(18rem,100%)] flex-1 sm:min-w-[18rem]"
-        className="h-9 text-xs"
+        className="h-11 text-xs md:h-9"
       >
         <option value="" disabled>${t('llm.pickModel')}</option>
         ${models.map(
@@ -76,7 +76,6 @@ export function ActiveModelPicker({ provider, currentModel, onListModels, onAppl
       <${Button}
         type="button"
         variant="primary"
-        size="sm"
         disabled=${busy || !choice || choice === currentModel}
         onClick=${apply}
       >
@@ -306,7 +305,7 @@ export function ProviderCard({
             data-testid="llm-provider-chevron"
             aria-label=${expanded ? t('llm.collapseDetails') : t('llm.expandDetails')}
             className=${[
-              'grid h-7 w-7 place-items-center rounded-md text-[var(--v2-text-faint)] transition-transform hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]',
+              'grid h-11 w-11 place-items-center rounded-md text-[var(--v2-text-faint)] transition-transform hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)] md:h-7 md:w-7',
               expanded ? 'rotate-180' : ''
             ].join(' ')}
           >

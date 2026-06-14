@@ -20,7 +20,7 @@ export function LanguageTab({ searchQuery = '' }) {
   return html`
     <${Card} padding="md">
       <h3
-        className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+        className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
       >
         ${t('lang.title')}
       </h3>
@@ -34,7 +34,7 @@ export function LanguageTab({ searchQuery = '' }) {
           <span className="text-lg font-semibold text-[var(--v2-text-strong)]"
             >${current.native}</span
           >
-          <span className="font-mono text-xs text-[var(--v2-text-faint)]">${current.name}</span>
+          <span className="text-xs text-[var(--v2-text-faint)]">${current.name}</span>
         </div>
       </div>
 
@@ -46,7 +46,7 @@ export function LanguageTab({ searchQuery = '' }) {
               type="button"
               onClick=${() => setLang(l.code)}
               className=${[
-                'flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left',
+                'flex min-h-[44px] items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left',
                 l.code === lang
                   ? 'border-[color-mix(in_srgb,var(--v2-accent)_35%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-text-strong)]'
                   : 'border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] hover:border-[color-mix(in_srgb,var(--v2-accent)_20%,var(--v2-panel-border))] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]'
@@ -54,9 +54,7 @@ export function LanguageTab({ searchQuery = '' }) {
             >
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">${l.native}</div>
-                <div className="truncate font-mono text-[11px] text-[var(--v2-text-faint)]">
-                  ${l.name}
-                </div>
+                <div className="truncate text-[11px] text-[var(--v2-text-faint)]">${l.name}</div>
               </div>
               <div className="shrink-0 font-mono text-[11px] text-[var(--v2-text-faint)]">
                 ${l.code}

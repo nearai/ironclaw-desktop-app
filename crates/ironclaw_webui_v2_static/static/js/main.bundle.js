@@ -7120,11 +7120,15 @@ ${JSON.stringify(t||{},null,2)}</pre
       aria-checked=${e}
       aria-label=${a}
       onClick=${()=>t(!e)}
-      className=${["relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border",e?"border-[color-mix(in_srgb,var(--v2-accent)_46%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)]":"border-[var(--v2-panel-border)] bg-[var(--v2-surface-muted)]"].join(" ")}
+      className="group flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)] md:h-6"
     >
       <span
-        className=${["pointer-events-none inline-block h-5 w-5 rounded-full",e?"translate-x-5 bg-[var(--v2-accent)]":"translate-x-0 bg-[var(--v2-text-faint)]"].join(" ")}
-      />
+        className=${["relative inline-flex h-6 w-11 rounded-full border",e?"border-[color-mix(in_srgb,var(--v2-accent)_46%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)]":"border-[var(--v2-panel-border)] bg-[var(--v2-surface-muted)]"].join(" ")}
+      >
+        <span
+          className=${["pointer-events-none inline-block h-5 w-5 rounded-full",e?"translate-x-5 bg-[var(--v2-accent)]":"translate-x-0 bg-[var(--v2-text-faint)]"].join(" ")}
+        />
+      </span>
     </button>
   `}function sF({field:e,value:t,onSave:a,isSaved:n}){let s=j(),[r,i]=v.default.useState(""),o=e.labelKey?s(e.labelKey):e.label||"",l=e.descKey?s(e.descKey):e.description||"",u=e.type==="select"&&e.allowDefault===!1&&e.options?.length===1,d=u?e.options[0]:r,m=v.default.useRef(!1);v.default.useEffect(()=>{e.type!=="boolean"&&i(t!=null?String(t):"")},[t,e.type]),v.default.useEffect(()=>{if(!u){m.current=!1;return}t==null||t===""||t!==d&&(m.current||(m.current=!0,a(e.key,d)))},[e.key,u,a,d,t]);let f=v.default.useCallback(p=>{if(p==="")a(e.key,null);else if(e.type==="number"){let h=parseInt(p,10);isNaN(h)||a(e.key,h)}else if(e.type==="float"){let h=parseFloat(p);isNaN(h)||a(e.key,h)}else a(e.key,p)},[e.key,e.type,a]);return c`
     <div
@@ -7150,7 +7154,7 @@ ${JSON.stringify(t||{},null,2)}</pre
                   disabled=${u}
                   onChange=${p=>{i(p.target.value),f(p.target.value)}}
                   aria-label=${o}
-                  className="v2-select h-9 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-sm text-[var(--v2-text-strong)] outline-none focus:border-[var(--v2-accent)] disabled:opacity-100"
+                  className="v2-select h-11 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-sm text-[var(--v2-text-strong)] outline-none focus:border-[var(--v2-accent)] disabled:opacity-100 md:h-9"
                 >
                   ${!u&&c`<option value="">${s("tools.default")}</option>`}
                   ${e.options.map(p=>c`<option key=${p} value=${p}>
@@ -7169,7 +7173,7 @@ ${JSON.stringify(t||{},null,2)}</pre
                   max=${e.max!==void 0?String(e.max):void 0}
                   placeholder=${s("tools.default")}
                   aria-label=${o}
-                  className="h-9 w-36 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-right font-mono text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
+                  className="h-11 w-36 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-right font-mono text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)] md:h-9"
                 />
               `}
         <${aF} visible=${n} />
@@ -7178,7 +7182,7 @@ ${JSON.stringify(t||{},null,2)}</pre
   `}function al({group:e,groupKey:t,fields:a,settings:n,onSave:s,savedKeys:r}){let i=j(),o=t?i(t):e||"";return c`
     <${J} className="p-4 sm:p-6">
       <h3
-        className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+        className="mb-4 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
       >
         ${o}
       </h3>
@@ -7388,7 +7392,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         value=${r.includes(o)?o:""}
         onChange=${h=>l(h.target.value)}
         wrapperClassName="min-w-[min(18rem,100%)] flex-1 sm:min-w-[18rem]"
-        className="h-9 text-xs"
+        className="h-11 text-xs md:h-9"
       >
         <option value="" disabled>${s("llm.pickModel")}</option>
         ${r.map(h=>c`<option key=${h} value=${h}>${Qa(h)}</option>`)}
@@ -7396,7 +7400,6 @@ ${JSON.stringify(t||{},null,2)}</pre
       <${R}
         type="button"
         variant="primary"
-        size="sm"
         disabled=${u||!o||o===t}
         onClick=${p}
       >
@@ -7512,7 +7515,7 @@ ${JSON.stringify(t||{},null,2)}</pre
             onClick=${T}
             data-testid="llm-provider-chevron"
             aria-label=${m(k?"llm.collapseDetails":"llm.expandDetails")}
-            className=${["grid h-7 w-7 place-items-center rounded-md text-[var(--v2-text-faint)] transition-transform hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]",k?"rotate-180":""].join(" ")}
+            className=${["grid h-11 w-11 place-items-center rounded-md text-[var(--v2-text-faint)] transition-transform hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)] md:h-7 md:w-7",k?"rotate-180":""].join(" ")}
           >
             <${A} name="chevron" className="h-4 w-4" />
           </button>
@@ -7862,7 +7865,7 @@ ${JSON.stringify(t||{},null,2)}</pre
   `}function DT({searchQuery:e=""}){let t=j(),{lang:a,setLang:n}=lS(),s=Rm.find(i=>i.code===a)||Rm[0],r=Rm.filter(i=>Pt(e,[i.code,i.name,i.native]));return r.length===0?c`<${ha} query=${e} />`:c`
     <${J} padding="md">
       <h3
-        className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+        className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
       >
         ${t("lang.title")}
       </h3>
@@ -7876,7 +7879,7 @@ ${JSON.stringify(t||{},null,2)}</pre
           <span className="text-lg font-semibold text-[var(--v2-text-strong)]"
             >${s.native}</span
           >
-          <span className="font-mono text-xs text-[var(--v2-text-faint)]">${s.name}</span>
+          <span className="text-xs text-[var(--v2-text-faint)]">${s.name}</span>
         </div>
       </div>
 
@@ -7886,13 +7889,11 @@ ${JSON.stringify(t||{},null,2)}</pre
               key=${i.code}
               type="button"
               onClick=${()=>n(i.code)}
-              className=${["flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left",i.code===a?"border-[color-mix(in_srgb,var(--v2-accent)_35%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-text-strong)]":"border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] hover:border-[color-mix(in_srgb,var(--v2-accent)_20%,var(--v2-panel-border))] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"].join(" ")}
+              className=${["flex min-h-[44px] items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left",i.code===a?"border-[color-mix(in_srgb,var(--v2-accent)_35%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-text-strong)]":"border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] hover:border-[color-mix(in_srgb,var(--v2-accent)_20%,var(--v2-panel-border))] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"].join(" ")}
             >
               <div className="min-w-0">
                 <div className="truncate text-sm font-medium">${i.native}</div>
-                <div className="truncate font-mono text-[11px] text-[var(--v2-text-faint)]">
-                  ${i.name}
-                </div>
+                <div className="truncate text-[11px] text-[var(--v2-text-faint)]">${i.name}</div>
               </div>
               <div className="shrink-0 font-mono text-[11px] text-[var(--v2-text-faint)]">
                 ${i.code}

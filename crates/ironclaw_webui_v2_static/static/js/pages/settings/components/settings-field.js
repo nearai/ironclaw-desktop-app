@@ -13,6 +13,9 @@ function SavedIndicator({ visible }) {
 }
 
 function Toggle({ checked, onChange, label }) {
+  // Mobile-first 44px hit target (global touch-target law): the button fills a
+  // 44px-tall row on touch widths and centers the compact 24px track; desktop
+  // collapses to the dense 24px control where pointer precision is fine.
   return html`
     <button
       type="button"
@@ -20,21 +23,25 @@ function Toggle({ checked, onChange, label }) {
       aria-checked=${checked}
       aria-label=${label}
       onClick=${() => onChange(!checked)}
-      className=${[
-        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border',
-        checked
-          ? 'border-[color-mix(in_srgb,var(--v2-accent)_46%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)]'
-          : 'border-[var(--v2-panel-border)] bg-[var(--v2-surface-muted)]'
-      ].join(' ')}
+      className="group flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)] md:h-6"
     >
       <span
         className=${[
-          'pointer-events-none inline-block h-5 w-5 rounded-full',
+          'relative inline-flex h-6 w-11 rounded-full border',
           checked
-            ? 'translate-x-5 bg-[var(--v2-accent)]'
-            : 'translate-x-0 bg-[var(--v2-text-faint)]'
+            ? 'border-[color-mix(in_srgb,var(--v2-accent)_46%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)]'
+            : 'border-[var(--v2-panel-border)] bg-[var(--v2-surface-muted)]'
         ].join(' ')}
-      />
+      >
+        <span
+          className=${[
+            'pointer-events-none inline-block h-5 w-5 rounded-full',
+            checked
+              ? 'translate-x-5 bg-[var(--v2-accent)]'
+              : 'translate-x-0 bg-[var(--v2-text-faint)]'
+          ].join(' ')}
+        />
+      </span>
     </button>
   `;
 }
@@ -115,7 +122,7 @@ export function SettingsField({ field, value, onSave, isSaved }) {
                     handleCommit(e.target.value);
                   }}
                   aria-label=${label}
-                  className="v2-select h-9 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-sm text-[var(--v2-text-strong)] outline-none focus:border-[var(--v2-accent)] disabled:opacity-100"
+                  className="v2-select h-11 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-sm text-[var(--v2-text-strong)] outline-none focus:border-[var(--v2-accent)] disabled:opacity-100 md:h-9"
                 >
                   ${!fixedSingleOption && html`<option value="">${t('tools.default')}</option>`}
                   ${field.options.map(
@@ -142,7 +149,7 @@ export function SettingsField({ field, value, onSave, isSaved }) {
                   max=${field.max !== undefined ? String(field.max) : undefined}
                   placeholder=${t('tools.default')}
                   aria-label=${label}
-                  className="h-9 w-36 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-right font-mono text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
+                  className="h-11 w-36 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-right font-mono text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)] md:h-9"
                 />
               `}
         <${SavedIndicator} visible=${isSaved} />
@@ -157,7 +164,7 @@ export function SettingsGroup({ group, groupKey, fields, settings, onSave, saved
   return html`
     <${Card} className="p-4 sm:p-6">
       <h3
-        className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+        className="mb-4 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
       >
         ${groupLabel}
       </h3>
