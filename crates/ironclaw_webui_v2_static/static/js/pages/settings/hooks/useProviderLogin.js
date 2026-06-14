@@ -198,11 +198,12 @@ export function useProviderLogin({ onSuccess } = {}) {
     setNearaiBusy(true);
     try {
       const channelName = walletLoginChannelName();
-      const popup = window.open(
-        walletLoginUrl(channelName),
-        '_blank',
-        'noopener,noreferrer,width=460,height=640'
-      );
+      // No 'noopener'/'noreferrer': both null out window.open's return value, so
+      // awaitWalletSignature could never see `popup.closed` and a cancelled
+      // sign-in would dead-wait the full 5-minute timeout. The popup is a
+      // same-origin app page (walletLoginUrl → appScopedPath) that talks back
+      // over BroadcastChannel and holds no app state, so a real handle is safe.
+      const popup = window.open(walletLoginUrl(channelName), '_blank', 'width=460,height=640');
       const signed = await awaitWalletSignature(popup, channelName);
       if (!signed) {
         setNearaiError(t('onboarding.nearaiFailed'));

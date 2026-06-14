@@ -72,12 +72,12 @@ export function ConfirmDialog({ request, onClose }) {
         ${error && html`<p className="mt-3 text-xs text-[var(--v2-danger-text)]">${error}</p>`}
       <//>
       <${ModalFooter}>
-        <${Button} variant="ghost" size="sm" disabled=${pending} onClick=${onClose}>
+        <${Button} variant="ghost" size="md" disabled=${pending} onClick=${onClose}>
           ${cancelLabel}
         <//>
         <${Button}
           variant=${tone === 'danger' ? 'danger' : 'primary'}
-          size="sm"
+          size="md"
           disabled=${pending}
           onClick=${runConfirm}
         >

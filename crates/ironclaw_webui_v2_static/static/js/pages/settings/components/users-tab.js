@@ -6,6 +6,7 @@ import { Input, FormField, Label } from '../../../design-system/input.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { useUsers } from '../hooks/useUsers.js';
+import { SettingsNotWritable } from './settings-not-writable.js';
 import { matchesSearch } from '../lib/settings-search.js';
 
 function CreateUserForm({ onCreate, isCreating, error }) {
@@ -128,7 +129,7 @@ function UserRow({ user }) {
 
 export function UsersTab({ searchQuery = '' }) {
   const t = useT();
-  const { users, query, isForbidden, createUser, createError, isCreating } = useUsers();
+  const { users, query, status, isForbidden, createUser, createError, isCreating } = useUsers();
 
   if (query.isLoading) {
     return html`
@@ -173,6 +174,15 @@ export function UsersTab({ searchQuery = '' }) {
         </p>
       <//>
     `;
+  }
+
+  // The users backend is a permanent stub: reads return { todo: true } and every
+  // write returns { success: false }. Rendering the add-user form here would be a
+  // dead affordance that silently no-ops. Show the honest not-writable state
+  // instead, mirroring the agent/networking/tools/skills tabs. Design Law:
+  // "No fake readiness."
+  if (status === 'todo') {
+    return html`<${SettingsNotWritable} />`;
   }
 
   const filteredUsers = users.filter((user) =>

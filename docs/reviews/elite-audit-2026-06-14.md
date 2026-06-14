@@ -104,8 +104,9 @@ Exhaustive hostile design + functionality audit of the committed static UI (near
 
 ## Fix campaign status
 
-- **Batch A (landed 2026-06-14, this pass):** #1 approval-gate resolution guard (try/catch + double-fire block + error surface), #2 SSE clean-stream-end reconnect, #3 dead Retry button hidden (no-dead-affordance), #4 markdown link hardening (target/rel). Tests added.
-- **Queued (highest first):** see topFixQueue items 5-12 below; then mediums, then lows/polish.
+- **Batch A (landed 2026-06-14, `7086c17`):** #1 approval-gate resolution guard (try/catch + double-fire block + error surface), #2 SSE clean-stream-end reconnect, #3 dead Retry button hidden (no-dead-affordance), #4 markdown link hardening (target/rel). Tests added.
+- **Batch B (landed 2026-06-14):** #5 Users add-user form gated behind `SettingsNotWritable` when the endpoint is a stub (status:'todo'), #6 wallet popup opens without `noopener,noreferrer` so cancel close-detection works, #11 ConfirmDialog footer buttons `sm`→`md` (44px). Tests added. (Refinement: #4 could additionally route link clicks through the existing `openExternalUrl` helper for a fuller fix.)
+- **Queued (highest first):** #7 mtime→content bundle gate, #8 i18n freeze (translations human-gated), #9 sidebar/⌘K false-empty during load, #10 saved-work >30 unreachable; then mediums, then lows/polish.
 
 ### Top fix queue (remaining)
 
