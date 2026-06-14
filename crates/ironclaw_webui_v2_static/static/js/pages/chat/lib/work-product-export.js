@@ -37,16 +37,19 @@ export function downloadDocx(content, filename = 'assistant-response.docx', opti
   return downloadBlob(filename, buildDocxBlob(content, options));
 }
 
-export function downloadPdf(content, filename = 'assistant-response.pdf') {
-  return downloadBlob(filename, buildPdfBlob(content));
+export function downloadPdf(content, filename = 'assistant-response.pdf', options) {
+  return downloadBlob(filename, buildPdfBlob(content, options));
 }
 
-// Rasterize already-rendered mermaid diagrams under `rootEl` into PNG buffers
-// keyed by their fence source, so the DOCX export can embed the picture (not
-// just the source). Only cards the user has rendered ([data-rendered="1"] with
-// an <svg>) are collected; un-rendered diagrams fall back to the source-only
-// path. Returns [] in any non-browser context (no canvas) so callers can pass
-// the result straight to buildDocxBlob without guarding.
+// Rasterize already-rendered mermaid diagrams under `rootEl` into image buffers
+// keyed by their fence source, so the exporters can embed the picture (not just
+// the source). Each entry carries BOTH a PNG (lossless, what DOCX embeds) and a
+// JPEG variant (what the PDF embeds via /DCTDecode, since a JPEG canvas blob is
+// directly droppable as a PDF image XObject stream while a PNG IDAT is not).
+// Only cards the user has rendered (with an <svg>) are collected; un-rendered
+// diagrams fall back to the source-only path. Returns [] in any non-browser
+// context (no canvas) so callers can pass the result straight to the builders
+// without guarding.
 export async function collectMermaidExportImages(rootEl) {
   if (!rootEl || typeof document === 'undefined' || typeof document.createElement !== 'function') {
     return [];
@@ -61,13 +64,14 @@ export async function collectMermaidExportImages(rootEl) {
     const source = card.querySelector?.('.v2-mermaid-card__source pre')?.textContent;
     if (!svg || !source) continue;
     try {
-      const png = await rasterizeSvgToPng(svg);
-      if (png) {
+      const raster = await rasterizeSvgToImages(svg);
+      if (raster && raster.png) {
         images.push({
           source: String(source),
-          png: png.bytes,
-          width: png.width,
-          height: png.height
+          png: raster.png,
+          jpeg: raster.jpeg || null,
+          width: raster.width,
+          height: raster.height
         });
       }
     } catch {
@@ -113,7 +117,7 @@ function svgPixelSize(svg) {
   };
 }
 
-function rasterizeSvgToPng(svg) {
+function rasterizeSvgToImages(svg) {
   const { width, height } = svgPixelSize(svg);
   const clone = svg.cloneNode(true);
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
@@ -145,14 +149,22 @@ function rasterizeSvgToPng(svg) {
           resolve(null);
           return;
         }
-        // Opaque background: Word renders PNG alpha as black, which would hide a
-        // dark-themed diagram. Paint the diagram surface first.
+        // Opaque background: Word and PDF readers render PNG alpha as black,
+        // which would hide a dark-themed diagram, and JPEG has no alpha at all.
+        // Paint the diagram surface first so both variants stay legible.
         ctx.fillStyle = '#0b1220';
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
         ctx.drawImage(image, 0, 0, canvasWidth, canvasHeight);
-        const dataPng = canvas.toDataURL('image/png');
-        const bytes = dataUrlToBytes(dataPng);
-        resolve(bytes ? { bytes, width: canvasWidth, height: canvasHeight } : null);
+        const png = dataUrlToBytes(canvas.toDataURL('image/png'));
+        // JPEG variant for the PDF: a /DCTDecode image XObject embeds these
+        // bytes verbatim. Quality 0.92 keeps diagram text crisp.
+        let jpeg = null;
+        try {
+          jpeg = dataUrlToBytes(canvas.toDataURL('image/jpeg', 0.92));
+        } catch {
+          jpeg = null;
+        }
+        resolve(png ? { png, jpeg, width: canvasWidth, height: canvasHeight } : null);
       } catch {
         resolve(null);
       }
@@ -295,69 +307,184 @@ function imageDrawingXml(part) {
 
 // PDF text layout: 14pt Helvetica on US Letter (612x792). Start the baseline at
 // Y=760 (72pt from the top) and step 20pt per line; once the next baseline would
-// drop below ~72pt of bottom margin, start a new page. Object layout is kept
-// sequential so the byte-measured xref stays valid:
-//   1 Catalog, 2 Pages, 3 Font, then per page [Page obj, Content obj].
+// drop below ~72pt of bottom margin, start a new page. Object layout is built
+// dynamically (an allocator hands out the next free object number) so embedded
+// diagram image XObjects can sit after the page/content objects without breaking
+// the byte-measured xref. Base objects are still 1 Catalog, 2 Pages, 3 Font.
 const PDF_TOP_Y = 760;
 const PDF_LINE_HEIGHT = 20;
 const PDF_BOTTOM_Y = 72;
+// Page text column is 612 - 2*72 = 468pt wide on the 1" margins; cap an embedded
+// diagram to that width and scale height by the source aspect ratio. The drawn
+// height is converted to whole line-height steps so pagination stays line-based.
+const PDF_CONTENT_LEFT = 72;
+const PDF_MAX_IMAGE_WIDTH_PT = 612 - 2 * 72;
+const PDF_IMAGE_GAP_LINES = 1;
 
-function paginatePdfLines(lines) {
+function pdfImageDrawSize(image) {
+  const naturalWidth = image.width > 0 ? image.width : 800;
+  const naturalHeight = image.height > 0 ? image.height : 450;
+  const scale = naturalWidth > PDF_MAX_IMAGE_WIDTH_PT ? PDF_MAX_IMAGE_WIDTH_PT / naturalWidth : 1;
+  const drawWidth = Math.max(1, Math.round(naturalWidth * scale));
+  const drawHeight = Math.max(1, Math.round(naturalHeight * scale));
+  // How many text-line steps this image consumes, so the line-based paginator
+  // can reserve room for it and the text cursor resumes below the picture.
+  const lineSpan = Math.max(1, Math.ceil(drawHeight / PDF_LINE_HEIGHT)) + PDF_IMAGE_GAP_LINES;
+  return { drawWidth, drawHeight, lineSpan };
+}
+
+// A page token is either a plain text line (string) or a drawn diagram image
+// ({ image }). Image tokens reserve `lineSpan` vertical line-steps so a tall
+// diagram pushes following text down and onto the next page when needed.
+function tokenLineSpan(token) {
+  if (token && typeof token === 'object' && token.image) {
+    return pdfImageDrawSize(token.image).lineSpan;
+  }
+  return 1;
+}
+
+function paginatePdfTokens(tokens) {
   const pages = [];
   let current = [];
-  let y = PDF_TOP_Y;
-  for (const line of lines) {
-    if (current.length && y < PDF_BOTTOM_Y) {
+  let used = 0;
+  const capacity = Math.floor((PDF_TOP_Y - PDF_BOTTOM_Y) / PDF_LINE_HEIGHT) + 1;
+  for (const token of tokens) {
+    const span = tokenLineSpan(token);
+    if (current.length && used + span > capacity) {
       pages.push(current);
       current = [];
-      y = PDF_TOP_Y;
+      used = 0;
     }
-    current.push(line);
-    y -= PDF_LINE_HEIGHT;
+    current.push(token);
+    used += span;
   }
   if (current.length) pages.push(current);
   return pages.length ? pages : [['IronClaw export']];
 }
 
-function pdfContentStream(pageLines) {
-  return [
-    'BT',
-    '/F1 14 Tf',
-    `72 ${PDF_TOP_Y} Td`,
-    ...pageLines.map((line, index) =>
-      index === 0
-        ? `(${escapePdfText(line)}) Tj`
-        : `0 -${PDF_LINE_HEIGHT} Td (${escapePdfText(line)}) Tj`
-    ),
-    'ET'
-  ].join('\n');
+// Emit one page content stream. The text path is kept byte-identical to the
+// prior text-only builder (BT / Td / Tj) when a page has no image, so the
+// existing PDF regex assertions still hold. When a page carries an image the
+// stream advances an absolute Y cursor: text runs in its own BT/ET block and
+// each image is drawn with a saved graphics state (q .. cm /ImN Do Q).
+function pdfContentStream(pageTokens, pageImageNames) {
+  const hasImage = pageTokens.some((token) => token && typeof token === 'object' && token.image);
+  if (!hasImage) {
+    return [
+      'BT',
+      '/F1 14 Tf',
+      `${PDF_CONTENT_LEFT} ${PDF_TOP_Y} Td`,
+      ...pageTokens.map((line, index) =>
+        index === 0
+          ? `(${escapePdfText(line)}) Tj`
+          : `0 -${PDF_LINE_HEIGHT} Td (${escapePdfText(line)}) Tj`
+      ),
+      'ET'
+    ].join('\n');
+  }
+  const ops = [];
+  let y = PDF_TOP_Y;
+  let imageIndex = 0;
+  for (const token of pageTokens) {
+    if (token && typeof token === 'object' && token.image) {
+      const { drawWidth, drawHeight } = pdfImageDrawSize(token.image);
+      const name = pageImageNames[imageIndex];
+      imageIndex += 1;
+      // PDF image space is bottom-left origin: place the image so its TOP edge
+      // sits at the current baseline cursor, then drop the cursor past it.
+      const bottom = y - drawHeight;
+      ops.push('q');
+      ops.push(`${drawWidth} 0 0 ${drawHeight} ${PDF_CONTENT_LEFT} ${bottom} cm`);
+      ops.push(`/${name} Do`);
+      ops.push('Q');
+      y -= tokenLineSpan(token) * PDF_LINE_HEIGHT;
+      continue;
+    }
+    ops.push('BT');
+    ops.push('/F1 14 Tf');
+    ops.push(`${PDF_CONTENT_LEFT} ${y} Td`);
+    ops.push(`(${escapePdfText(token)}) Tj`);
+    ops.push('ET');
+    y -= PDF_LINE_HEIGHT;
+  }
+  return ops.join('\n');
 }
 
-export function buildPdfBlob(content) {
-  const lines = linesForPdf(String(content || ''));
-  const pages = paginatePdfLines(lines);
+// A diagram image becomes a /DCTDecode (JPEG) image XObject. JPEG canvas bytes
+// drop straight into the stream — a PNG IDAT cannot, since it is PNG-row-filtered
+// under its zlib, so we carry a JPEG variant specifically for the PDF. /Length is
+// the JPEG byte count (measured, like every other stream) so xref stays exact.
+function pdfImageXObject(image, objectNumber) {
+  const jpeg = image.jpeg;
+  const header = encodeWinAnsi(
+    `<< /Type /XObject /Subtype /Image /Width ${image.width || 1} /Height ${
+      image.height || 1
+    } /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`
+  );
+  return {
+    objectNumber,
+    bytes: concatBytes([header, jpeg, encodeWinAnsi('\nendstream')])
+  };
+}
+
+export function buildPdfBlob(content, options = {}) {
+  const images = normalizePdfImages(options.images);
+  const tokens = tokensForPdf(String(content || ''), images);
+  const pages = paginatePdfTokens(tokens);
   // The content stream is emitted as WinAnsi single-byte so the base-14
   // Helvetica renders it AND one character is exactly one byte. The PDF
   // structure (xref offsets, startxref, /Length) is measured in BYTES, never
   // in JS string .length — a UTF-16 code-unit count would diverge from the
   // UTF-8 bytes a Blob writes and corrupt every offset for non-ASCII text.
-  const kids = pages.map((_, index) => `${4 + index * 2} 0 R`).join(' ');
-  const objects = [
-    encodeWinAnsi('<< /Type /Catalog /Pages 2 0 R >>'),
-    encodeWinAnsi(`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`),
+  const objects = [];
+  let nextObjectNumber = 1;
+  const allocate = () => nextObjectNumber++;
+  const catalogNumber = allocate();
+  const pagesNumber = allocate();
+  const fontNumber = allocate();
+  // Reserve the page object numbers up front so /Kids can name them; the page
+  // and content streams are filled in below, with image XObjects appended after.
+  const pageNumbers = pages.map(() => allocate());
+  const setObject = (number, bytes) => {
+    objects[number - 1] = bytes;
+  };
+  setObject(catalogNumber, encodeWinAnsi(`<< /Type /Catalog /Pages ${pagesNumber} 0 R >>`));
+  setObject(
+    fontNumber,
     encodeWinAnsi(
       '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'
     )
-  ];
-  pages.forEach((pageLines, index) => {
-    const contentObjNumber = 5 + index * 2;
-    objects.push(
+  );
+  const kids = pageNumbers.map((number) => `${number} 0 R`).join(' ');
+  setObject(
+    pagesNumber,
+    encodeWinAnsi(`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`)
+  );
+  pages.forEach((pageTokens, index) => {
+    const pageImages = pageTokens
+      .filter((token) => token && typeof token === 'object' && token.image)
+      .map((token) => token.image);
+    // Each image on this page gets its own XObject object + a page-local /ImN
+    // resource name, wired into the page /Resources /XObject dictionary.
+    const pageImageNames = pageImages.map((_, imageIndex) => `Im${imageIndex + 1}`);
+    const xobjectEntries = pageImages.map((image, imageIndex) => {
+      const objectNumber = allocate();
+      objects[objectNumber - 1] = pdfImageXObject(image, objectNumber).bytes;
+      return `/${pageImageNames[imageIndex]} ${objectNumber} 0 R`;
+    });
+    const contentNumber = allocate();
+    const xobjectResource = xobjectEntries.length
+      ? ` /XObject << ${xobjectEntries.join(' ')} >>`
+      : '';
+    setObject(
+      pageNumbers[index],
       encodeWinAnsi(
-        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObjNumber} 0 R >>`
+        `<< /Type /Page /Parent ${pagesNumber} 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 ${fontNumber} 0 R >>${xobjectResource} >> /Contents ${contentNumber} 0 R >>`
       )
     );
-    const streamBytes = encodeWinAnsi(pdfContentStream(pageLines));
-    objects.push(
+    const streamBytes = encodeWinAnsi(pdfContentStream(pageTokens, pageImageNames));
+    setObject(
+      contentNumber,
       concatBytes([
         encodeWinAnsi(`<< /Length ${streamBytes.length} >>\nstream\n`),
         streamBytes,
@@ -707,34 +834,71 @@ function isMarkdownTableRow(line) {
   return /^\s*\|.*\|\s*$/.test(line);
 }
 
-function linesForPdf(content) {
-  const lines = [];
+// Validate and trim the PDF image inputs. A PDF embed needs the JPEG variant
+// (DCTDecode); entries without one fall back to source-only, so DOCX-style
+// PNG-only payloads do not break the PDF path.
+function normalizePdfImages(images) {
+  if (!Array.isArray(images)) return [];
+  const out = [];
+  for (const image of images) {
+    const jpeg = image?.jpeg;
+    const source = String(image?.source || '');
+    const isBytes = jpeg instanceof Uint8Array && jpeg.length > 0;
+    if (!source || !isBytes) continue;
+    const width = Number.isFinite(image.width) && image.width > 0 ? Math.round(image.width) : 0;
+    const height = Number.isFinite(image.height) && image.height > 0 ? Math.round(image.height) : 0;
+    out.push({ source, jpeg, width, height });
+  }
+  return out;
+}
+
+// Turn markdown into the ordered PDF token stream: text lines (strings) plus a
+// drawn diagram image token ({ image }) inserted directly above its mermaid
+// source whenever a rendered JPEG matches the fence. The source text is still
+// emitted below the image, so an unrendered or unmatched diagram keeps the exact
+// prior source-only output.
+function tokensForPdf(content, images = []) {
+  const tokens = [];
   let inCode = false;
   let codeLanguage = '';
+  let mermaidSource = [];
+  let mermaidLabelIndex = -1;
 
   for (const line of String(content || '').split(/\r?\n/)) {
     const fence = parseFence(line);
     if (fence) {
       if (inCode) {
+        if (isMermaidLanguage(codeLanguage) && mermaidLabelIndex >= 0 && images.length) {
+          const trimmed = mermaidSource.join('\n').trim();
+          const match = images.find((image) => image.source.trim() === trimmed);
+          if (match) tokens.splice(mermaidLabelIndex + 1, 0, { image: match });
+        }
         inCode = false;
         codeLanguage = '';
+        mermaidSource = [];
+        mermaidLabelIndex = -1;
       } else {
         inCode = true;
         codeLanguage = fence.language;
         if (isMermaidLanguage(codeLanguage)) {
-          lines.push(MERMAID_EXPORT_LABEL);
+          mermaidSource = [];
+          mermaidLabelIndex = tokens.length;
+          tokens.push(MERMAID_EXPORT_LABEL);
         }
       }
       continue;
     }
+    if (inCode && isMermaidLanguage(codeLanguage)) {
+      mermaidSource.push(line);
+    }
     const text = stripMarkdown(line).trim();
     if (text) {
       for (const wrapped of wrapPdfLine(text)) {
-        lines.push(wrapped);
+        tokens.push(wrapped);
       }
     }
   }
-  return lines.length ? lines : ['IronClaw export'];
+  return tokens.length ? tokens : ['IronClaw export'];
 }
 
 // Word-wrap a single logical line at ~95 chars on word boundaries so PDF text

@@ -670,12 +670,21 @@ function AssistantExportActions({
   const title = titleFromMarkdown(content) || 'Assistant response';
   const subject = String(subjectLabel || 'assistant response');
 
-  // Embed rendered mermaid diagrams (the user clicked "Render diagram") as
-  // real images in the DOCX; un-rendered diagrams keep the source-only export.
-  const exportDocxWithDiagrams = async () => {
+  // Embed rendered mermaid diagrams (the user clicked "Render diagram") as real
+  // images in the DOCX and PDF; un-rendered diagrams keep the source-only
+  // export. The same rasterized images feed both formats (DOCX uses the PNG, PDF
+  // uses the JPEG variant) so screen and export stay in lockstep.
+  const collectRenderedDiagramImages = async () => {
     const messageRoot = rootRef.current?.closest?.('[data-message-root]');
-    const images = messageRoot ? await collectMermaidExportImages(messageRoot) : [];
+    return messageRoot ? await collectMermaidExportImages(messageRoot) : [];
+  };
+  const exportDocxWithDiagrams = async () => {
+    const images = await collectRenderedDiagramImages();
     return downloadDocx(content, 'assistant-response.docx', images.length ? { images } : undefined);
+  };
+  const exportPdfWithDiagrams = async () => {
+    const images = await collectRenderedDiagramImages();
+    return downloadPdf(content, 'assistant-response.pdf', images.length ? { images } : undefined);
   };
   const exportOptions = [
     {
@@ -694,7 +703,7 @@ function AssistantExportActions({
       id: 'pdf',
       label: 'PDF',
       description: 'Readable PDF',
-      action: async () => downloadPdf(content)
+      action: exportPdfWithDiagrams
     },
     {
       id: 'docx',

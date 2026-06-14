@@ -2081,6 +2081,57 @@ try {
     );
   }
 
+  // VIZ-3: with the same diagram rendered, the PDF export must embed the
+  // rasterized diagram as a real /DCTDecode image XObject (above the preserved
+  // source) and still parse as a PDF. The mermaid card stays rendered from the
+  // DOCX assertion above, so this just exports PDF and inspects the bytes.
+  const diagramPdfExport = await downloadAssistantExport('PDF', 'assistant-response.pdf');
+  const diagramPdfText = diagramPdfExport.toString('latin1');
+  if (
+    !diagramPdfText.startsWith('%PDF-1.4') ||
+    !diagramPdfText.includes('startxref') ||
+    !diagramPdfText.includes('%%EOF')
+  ) {
+    throw new Error(
+      `rendered-diagram PDF export is not a parseable PDF: ${diagramPdfText.slice(0, 200)}`
+    );
+  }
+  if (
+    !diagramPdfText.includes('/Subtype /Image') ||
+    !diagramPdfText.includes('/Filter /DCTDecode') ||
+    !/\/XObject << \/Im1 \d+ 0 R >>/.test(diagramPdfText) ||
+    !/\/Im1 Do/.test(diagramPdfText) ||
+    !diagramPdfText.includes('Mermaid diagram source') ||
+    !diagramPdfText.includes('graph TD')
+  ) {
+    throw new Error(
+      'rendered-diagram PDF missing image XObject, resource wiring, draw op, or source'
+    );
+  }
+  // The embedded JPEG /Length must match the real stream byte length so the
+  // dynamic xref stays exact (the most delicate part of the PDF builder).
+  const pdfLengthMatch = diagramPdfText.match(/\/Filter \/DCTDecode \/Length (\d+) >>\nstream\n/);
+  if (!pdfLengthMatch) {
+    throw new Error('rendered-diagram PDF image XObject did not declare a /Length');
+  }
+  {
+    const declaredLength = Number(pdfLengthMatch[1]);
+    const streamStart =
+      diagramPdfText.indexOf('stream\n', pdfLengthMatch.index) + 'stream\n'.length;
+    const streamEnd = diagramPdfText.indexOf('\nendstream', streamStart);
+    if (streamEnd - streamStart !== declaredLength) {
+      throw new Error(
+        `rendered-diagram PDF image /Length ${declaredLength} != actual stream length ${
+          streamEnd - streamStart
+        }`
+      );
+    }
+    // The embedded stream must be real JPEG bytes (SOI 0xFF 0xD8).
+    if (diagramPdfExport[streamStart] !== 0xff || diagramPdfExport[streamStart + 1] !== 0xd8) {
+      throw new Error('rendered-diagram PDF image stream is not JPEG (missing SOI marker)');
+    }
+  }
+
   const jsonExport = JSON.parse(
     (await downloadAssistantExport('JSON', 'assistant-response.json')).toString('utf8')
   );

@@ -257,6 +257,145 @@ test('DOCX without supplied images is byte-identical to the source-only export',
   assert.doesNotMatch(entries.get('word/document.xml'), /<w:drawing>/);
 });
 
+// VIZ-3 (PDF): the rendered diagram is embedded as a /DCTDecode image XObject
+// above the preserved source. A PDF needs the JPEG variant (a raw PNG IDAT is
+// not droppable), so the PDF path keys off image.jpeg. This canvas-less node
+// test hands the builder a tiny but real JPEG buffer (SOI..EOI) so the XObject,
+// resource wiring, and byte-accurate xref can all be asserted without a canvas.
+const JPEG_FIXTURE = new Uint8Array([
+  0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01,
+  0x00, 0x01, 0x00, 0x00, 0xff, 0xdb, 0x00, 0x43, 0x00, 0x08, 0x06, 0x06, 0x07, 0x06, 0x05, 0x08,
+  0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0a, 0x0c, 0x14, 0x0d, 0x0c, 0x0b, 0x0b, 0x0c, 0x19, 0x12,
+  0x13, 0x0f, 0xff, 0xd9
+]);
+
+test('PDF embeds a rendered mermaid diagram as a DCTDecode image XObject above the source', async () => {
+  const mermaidSource = [
+    'graph TD',
+    '  A[Client instructions] --> B[Draft DOCX]',
+    '  B --> C[Review and export]'
+  ].join('\n');
+  const bytes = new Uint8Array(
+    await buildPdfBlob(MERMAID_WORK_PRODUCT_MARKDOWN, {
+      images: [{ source: mermaidSource, jpeg: JPEG_FIXTURE, width: 640, height: 360 }]
+    }).arrayBuffer()
+  );
+  const latin1 = new TextDecoder('latin1').decode(bytes);
+
+  // Structural sanity: still a parseable PDF with the original source preserved.
+  assert.match(latin1, /^%PDF-1\.4/);
+  assert.match(latin1, /startxref/);
+  assert.match(latin1, /%%EOF/);
+  assert.match(latin1, /Mermaid diagram source/);
+  assert.match(latin1, /graph TD/);
+  assert.match(latin1, /Draft DOCX/);
+
+  // An image XObject exists, is a DCTDecode image, and carries the JPEG bytes.
+  assert.match(latin1, /\/Subtype \/Image/);
+  assert.match(latin1, /\/Filter \/DCTDecode/);
+  assert.match(latin1, /\/Width 640 \/Height 360/);
+  assert.match(latin1, /\/ColorSpace \/DeviceRGB \/BitsPerComponent 8/);
+  const jpegMarker = String.fromCharCode(0xff, 0xd8, 0xff, 0xe0);
+  assert.ok(latin1.includes(jpegMarker), 'embedded stream carries the JPEG SOI marker');
+
+  // The image XObject /Length equals the real JPEG byte length.
+  const lengthMatch = latin1.match(/\/Filter \/DCTDecode \/Length (\d+) >>\nstream\n/);
+  assert.ok(lengthMatch, 'image XObject declares /Length');
+  assert.equal(Number(lengthMatch[1]), JPEG_FIXTURE.length, 'image /Length is the JPEG byte count');
+
+  // The page /Resources references the XObject by name and the content stream
+  // draws it with a cm + Do above the source.
+  assert.match(latin1, /\/XObject << \/Im1 \d+ 0 R >>/);
+  assert.match(latin1, /\/Im1 Do/);
+  assert.match(latin1, /\d+ 0 0 \d+ 72 -?\d+ cm/);
+});
+
+test('PDF embedded image keeps byte-accurate xref/startxref/Length for every object', async () => {
+  const mermaidSource = ['graph TD', '  A --> B'].join('\n');
+  const markdown = ['# Diagram', '', '```mermaid', 'graph TD', '  A --> B', '```'].join('\n');
+  const bytes = new Uint8Array(
+    await buildPdfBlob(markdown, {
+      images: [{ source: mermaidSource, jpeg: JPEG_FIXTURE, width: 200, height: 120 }]
+    }).arrayBuffer()
+  );
+  const latin1 = new TextDecoder('latin1').decode(bytes);
+
+  const trailer = latin1.match(/startxref\n(\d+)\n%%EOF/);
+  assert.ok(trailer, 'has startxref/%%EOF trailer');
+  const startxref = Number(trailer[1]);
+  assert.equal(latin1.slice(startxref, startxref + 4), 'xref', 'startxref lands on xref keyword');
+
+  // Every in-use xref entry offset (including the image XObject) must land on
+  // its own "<n> 0 obj" header — proves the dynamic numbering kept offsets exact.
+  const entryRe = /^(\d{10}) 00000 n /gm;
+  let entry;
+  let index = 0;
+  while ((entry = entryRe.exec(latin1.slice(startxref)))) {
+    index += 1;
+    const off = Number(entry[1]);
+    const header = `${index} 0 obj`;
+    assert.equal(
+      latin1.slice(off, off + header.length),
+      header,
+      `xref entry ${index} points at its object header`
+    );
+  }
+  // catalog, pages, font, page, image XObject, content = 6 objects on one page.
+  assert.equal(index, 6, `expected 6 objects (incl. image XObject), saw ${index}`);
+
+  // /Count and /Kids still agree with the single page object.
+  const countMatch = latin1.match(/\/Type \/Pages \/Kids \[([^\]]*)\] \/Count (\d+)/);
+  assert.ok(countMatch, 'has a /Pages node');
+  assert.equal(Number(countMatch[2]), 1, 'single page /Count');
+  const pageCount = (latin1.match(/\/Type \/Page\b(?!s)/g) || []).length;
+  assert.equal(pageCount, 1, 'exactly one Page object');
+});
+
+test('PDF without supplied images is byte-identical to the source-only export', async () => {
+  const withoutOption = new Uint8Array(
+    await buildPdfBlob(MERMAID_WORK_PRODUCT_MARKDOWN).arrayBuffer()
+  );
+  const withEmptyImages = new Uint8Array(
+    await buildPdfBlob(MERMAID_WORK_PRODUCT_MARKDOWN, { images: [] }).arrayBuffer()
+  );
+  assert.deepEqual(
+    [...withEmptyImages],
+    [...withoutOption],
+    'no images => no XObject, no drawing, identical bytes'
+  );
+  const latin1 = new TextDecoder('latin1').decode(withoutOption);
+  assert.doesNotMatch(latin1, /\/Subtype \/Image/);
+  assert.doesNotMatch(latin1, /\/XObject/);
+});
+
+test('PDF skips the image when the supplied source does not match a fence', async () => {
+  const bytes = new Uint8Array(
+    await buildPdfBlob(MERMAID_WORK_PRODUCT_MARKDOWN, {
+      images: [{ source: 'graph LR\n  X --> Y', jpeg: JPEG_FIXTURE, width: 320, height: 180 }]
+    }).arrayBuffer()
+  );
+  const latin1 = new TextDecoder('latin1').decode(bytes);
+  assert.doesNotMatch(latin1, /\/Subtype \/Image/);
+  assert.match(latin1, /graph TD/, 'source still preserved');
+});
+
+test('PDF ignores a PNG-only image payload (no JPEG variant) and stays source-only', async () => {
+  const mermaidSource = [
+    'graph TD',
+    '  A[Client instructions] --> B[Draft DOCX]',
+    '  B --> C[Review and export]'
+  ].join('\n');
+  const withPngOnly = new Uint8Array(
+    await buildPdfBlob(MERMAID_WORK_PRODUCT_MARKDOWN, {
+      images: [{ source: mermaidSource, png: PNG_FIXTURE, width: 640, height: 360 }]
+    }).arrayBuffer()
+  );
+  const sourceOnly = new Uint8Array(
+    await buildPdfBlob(MERMAID_WORK_PRODUCT_MARKDOWN).arrayBuffer()
+  );
+  assert.deepEqual([...withPngOnly], [...sourceOnly], 'PNG-only payload cannot feed the PDF embed');
+});
+
 test('DOCX skips the drawing when the supplied image source does not match a fence', async () => {
   const docx = buildDocxBlob(MERMAID_WORK_PRODUCT_MARKDOWN, {
     images: [{ source: 'graph LR\n  X --> Y', png: PNG_FIXTURE, width: 320, height: 180 }]
