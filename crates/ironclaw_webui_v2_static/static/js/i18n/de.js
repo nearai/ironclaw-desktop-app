@@ -85,6 +85,9 @@ registerPack('de', {
   'settings.skills': 'Skills',
   'settings.users': 'Benutzer',
   'settings.language': 'Sprache',
+  'settings.notWritable': 'Bearbeiten auf diesem Gateway noch nicht verfügbar',
+  'settings.notWritableDesc':
+    'Dieses Gateway kann Änderungen an diesen Einstellungen noch nicht speichern, daher werden die Bedienelemente ausgeblendet, statt als bearbeitbar angezeigt zu werden. Sie kehren zurück, sobald das Gateway sie dauerhaft speichern kann.',
   'settings.restartRequired': 'Einige Änderungen erfordern einen Neustart, um wirksam zu werden.',
 
   'settings.group.embeddings': 'Embeddings',

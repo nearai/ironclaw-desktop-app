@@ -120,6 +120,40 @@ const surfaces: Surface[] = [
     }
   },
   {
+    label: 'settings agent deep link',
+    path: '/v2/settings/agent',
+    authenticated: true,
+    waitFor: async (page) => {
+      // No fake readiness: every Agent field writes through a settings endpoint
+      // that does not exist yet (useSettings status:'todo'). Editable
+      // toggles/selects/inputs that silently fail to save must not render. The
+      // surface shows a dignified explanation instead of empty void or live
+      // controls over a stub.
+      await expect(
+        page.getByRole('heading', { name: 'Editing not available on this gateway yet' })
+      ).toBeVisible();
+      await expect(page.getByRole('switch')).toHaveCount(0);
+      await expect(page.getByRole('combobox')).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: 'Core' })).toHaveCount(0);
+      await expect(page.getByLabel('Agent name')).toHaveCount(0);
+    }
+  },
+  {
+    label: 'settings networking deep link',
+    path: '/v2/settings/networking',
+    authenticated: true,
+    waitFor: async (page) => {
+      // No fake readiness: the Networking fields share the same settings stub
+      // (useSettings status:'todo'). Live inputs that never persist must not
+      // render; the honest unavailable state stands in their place.
+      await expect(
+        page.getByRole('heading', { name: 'Editing not available on this gateway yet' })
+      ).toBeVisible();
+      await expect(page.getByRole('combobox')).toHaveCount(0);
+      await expect(page.getByRole('textbox')).toHaveCount(0);
+    }
+  },
+  {
     label: 'language settings',
     path: '/v2/settings/language',
     authenticated: true,

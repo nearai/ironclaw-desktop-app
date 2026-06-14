@@ -277,6 +277,9 @@ registerPack('en', {
   'settings.searchPlaceholder': 'Search settings...',
   'settings.clearSearch': 'Clear search',
   'settings.noMatchingSettings': 'No settings match "{query}"',
+  'settings.notWritable': 'Editing not available on this gateway yet',
+  'settings.notWritableDesc':
+    'This gateway cannot save changes to these settings yet, so the controls are hidden rather than shown as editable. They will return once the gateway can persist them.',
   'settings.manageJson': 'Settings JSON',
   'settings.export': 'Export',
   'settings.import': 'Import',

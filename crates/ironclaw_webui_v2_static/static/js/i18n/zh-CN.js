@@ -83,6 +83,9 @@ registerPack('zh-CN', {
   'settings.users': '用户',
   'settings.language': '语言',
 
+  'settings.notWritable': '此网关暂不支持编辑',
+  'settings.notWritableDesc':
+    '此网关暂时无法保存对这些设置的更改，因此控件被隐藏，而不是显示为可编辑。待网关能够持久保存后，它们将重新出现。',
   'settings.restartRequired': '某些更改需要重启才能生效。',
 
   'settings.group.embeddings': '向量嵌入',

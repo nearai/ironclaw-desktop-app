@@ -85,6 +85,9 @@ registerPack('fr', {
   'settings.skills': 'Skills',
   'settings.users': 'Utilisateurs',
   'settings.language': 'Langue',
+  'settings.notWritable': "L'édition n'est pas encore disponible sur cette passerelle",
+  'settings.notWritableDesc':
+    "Cette passerelle ne peut pas encore enregistrer les modifications de ces paramètres, c'est pourquoi les contrôles sont masqués plutôt qu'affichés comme modifiables. Ils réapparaîtront dès que la passerelle pourra les conserver.",
   'settings.restartRequired':
     'Certaines modifications nécessitent un redémarrage pour prendre effet.',
 

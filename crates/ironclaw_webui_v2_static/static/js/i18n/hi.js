@@ -84,6 +84,9 @@ registerPack('hi', {
   'settings.skills': 'Skills',
   'settings.users': 'Users',
   'settings.language': 'भाषा',
+  'settings.notWritable': 'इस गेटवे पर अभी संपादन उपलब्ध नहीं है',
+  'settings.notWritableDesc':
+    'यह गेटवे अभी इन सेटिंग्स में बदलाव सहेज नहीं सकता, इसलिए नियंत्रण संपादन योग्य दिखाने के बजाय छिपा दिए गए हैं। जब गेटवे इन्हें सहेज पाएगा, तब ये फिर दिखेंगे।',
   'settings.restartRequired': 'कुछ बदलाव लागू होने के लिए रीस्टार्ट की ज़रूरत है।',
 
   'settings.group.embeddings': 'Embeddings',

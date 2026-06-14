@@ -85,6 +85,9 @@ registerPack('ko', {
   'settings.users': '사용자',
   'settings.language': '언어',
 
+  'settings.notWritable': '이 게이트웨이에서는 아직 편집할 수 없습니다',
+  'settings.notWritableDesc':
+    '이 게이트웨이는 아직 이 설정의 변경 사항을 저장할 수 없으므로, 컨트롤을 편집 가능한 것으로 표시하지 않고 숨깁니다. 게이트웨이가 저장할 수 있게 되면 다시 표시됩니다.',
   'settings.restartRequired': '일부 변경사항은 재시작이 필요합니다.',
 
   'settings.group.embeddings': '임베딩',

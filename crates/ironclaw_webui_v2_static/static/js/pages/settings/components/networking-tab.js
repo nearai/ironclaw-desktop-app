@@ -3,10 +3,18 @@ import { Card } from '../../../design-system/card.js';
 import { NETWORKING_FIELDS } from '../lib/settings-schema.js';
 import { filterSettingsSections } from '../lib/settings-search.js';
 import { SettingsGroup } from './settings-field.js';
+import { SettingsNotWritable } from './settings-not-writable.js';
 import { SettingsSearchEmpty } from './settings-search-empty.js';
 import { useT } from '../../../lib/i18n.js';
 
-export function NetworkingTab({ settings, onSave, savedKeys, isLoading, searchQuery = '' }) {
+export function NetworkingTab({
+  settings,
+  settingsStatus = 'ready',
+  onSave,
+  savedKeys,
+  isLoading,
+  searchQuery = ''
+}) {
   const t = useT();
   if (isLoading) {
     return html`
@@ -31,6 +39,14 @@ export function NetworkingTab({ settings, onSave, savedKeys, isLoading, searchQu
         )}
       </div>
     `;
+  }
+
+  // These fields write through `useSettings.save`, which has no v2 persistence
+  // endpoint yet (status:'todo'). Editable inputs that silently fail to save are
+  // fake readiness — gate them on a proven settings backend and show an honest
+  // explanation instead ("No fake readiness").
+  if (settingsStatus === 'todo') {
+    return html`<${SettingsNotWritable} />`;
   }
 
   const sections = filterSettingsSections(NETWORKING_FIELDS, settings, searchQuery, t);

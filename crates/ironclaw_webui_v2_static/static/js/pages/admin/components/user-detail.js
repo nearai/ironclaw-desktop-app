@@ -1,6 +1,6 @@
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
-import { Panel, StatCard, StatusPill } from '../../../design-system/primitives.js';
+import { Panel, StatusPill } from '../../../design-system/primitives.js';
 import { Button } from '../../../design-system/button.js';
 import { Icon } from '../../../design-system/icons.js';
 import { useAdminUserDetail, useAdminUsers } from '../hooks/useAdminUsers.js';

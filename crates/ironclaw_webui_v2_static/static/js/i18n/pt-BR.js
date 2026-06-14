@@ -84,6 +84,9 @@ registerPack('pt-BR', {
   'settings.skills': 'Skills',
   'settings.users': 'Usuários',
   'settings.language': 'Idioma',
+  'settings.notWritable': 'Edição ainda não disponível neste gateway',
+  'settings.notWritableDesc':
+    'Este gateway ainda não consegue salvar alterações nestas configurações, por isso os controles ficam ocultos em vez de aparecerem como editáveis. Eles voltarão assim que o gateway puder persisti-los.',
   'settings.restartRequired': 'Algumas alterações exigem reinício para ter efeito.',
 
   'settings.group.embeddings': 'Embeddings',

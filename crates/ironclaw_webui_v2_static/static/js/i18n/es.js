@@ -85,6 +85,9 @@ registerPack('es', {
   'settings.skills': 'Skills',
   'settings.users': 'Usuarios',
   'settings.language': 'Idioma',
+  'settings.notWritable': 'La edición aún no está disponible en esta pasarela',
+  'settings.notWritableDesc':
+    'Esta pasarela todavía no puede guardar cambios en estos ajustes, por lo que los controles se ocultan en lugar de mostrarse como editables. Volverán cuando la pasarela pueda guardarlos.',
   'settings.restartRequired': 'Algunos cambios requieren reiniciar para aplicarse.',
 
   'settings.group.embeddings': 'Embeddings',

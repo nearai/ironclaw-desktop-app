@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 
 const componentsDir = path.dirname(fileURLToPath(import.meta.url));
 const hooksDir = path.resolve(componentsDir, '..', 'hooks');
+const settingsDir = path.resolve(componentsDir, '..');
+const i18nDir = path.resolve(componentsDir, '..', '..', '..', 'i18n');
 
 // Settings sub-tabs reachable by deep-link (/v2/settings/<tab>) must not present
 // actionable controls backed by permanent stubs. `settings-api.js` returns
@@ -79,4 +81,60 @@ test('tool permission selects are gated behind a real backend (no fake readiness
     lockedTernaryIndex > -1 && selectIndex > -1 && lockedTernaryIndex < selectIndex,
     'the permission select must remain gated behind the isLocked ternary'
   );
+});
+
+// The Agent and Networking sub-tabs render only `SettingsGroup` field cards, every
+// one of which writes through `useSettings.save` (the v2 `{ success: false }`
+// stub). When the settings backend cannot persist (status:'todo') they must show
+// an honest explanation, never editable controls that silently no-op. Mirrors the
+// inference-tab gate. Design Law: "No fake readiness."
+for (const tab of ['agent', 'networking']) {
+  test(`${tab}-tab gates its editable fields on settings status (no fake readiness)`, async () => {
+    const source = await readFile(path.join(componentsDir, `${tab}-tab.js`), 'utf8');
+
+    // The tab accepts the settings status and derives the gate from a todo stub.
+    assert.match(source, /settingsStatus = 'ready'/);
+    assert.match(source, /if \(settingsStatus === 'todo'\) \{/);
+
+    // The honest unavailable state renders instead of the field controls.
+    assert.match(source, /import \{ SettingsNotWritable \} from '\.\/settings-not-writable\.js';/);
+    assert.match(source, /<\$\{SettingsNotWritable\} \/>/);
+
+    // The editable SettingsGroup must sit after the todo gate, so the stub branch
+    // returns before any field card is ever constructed.
+    const gateIndex = source.indexOf("if (settingsStatus === 'todo')");
+    const groupIndex = source.indexOf('<${SettingsGroup}');
+    assert.ok(
+      gateIndex > -1 && groupIndex > -1 && gateIndex < groupIndex,
+      'the todo gate must precede the editable SettingsGroup render'
+    );
+  });
+}
+
+test('settings-page wires the settings status into the agent and networking tabs', async () => {
+  const source = await readFile(path.join(settingsDir, 'settings-page.js'), 'utf8');
+
+  // Both deep-linkable write tabs receive the real settings status so their gate
+  // reflects the gateway, not a hardcoded default.
+  for (const tag of ['AgentTab', 'NetworkingTab']) {
+    const open = source.indexOf(`<\${${tag}}`);
+    assert.ok(open > -1, `${tag} must be mounted`);
+    const close = source.indexOf('/>', open);
+    const props = source.slice(open, close);
+    assert.match(props, /settingsStatus=\$\{status\}/);
+  }
+});
+
+test('SettingsNotWritable is a read-only honest state backed by real i18n keys', async () => {
+  const source = await readFile(path.join(componentsDir, 'settings-not-writable.js'), 'utf8');
+
+  // It is an explanation, not a control surface: no inputs, toggles, or buttons.
+  assert.doesNotMatch(source, /<button|<input|<select|role="switch"/);
+  assert.match(source, /t\('settings\.notWritable'\)/);
+  assert.match(source, /t\('settings\.notWritableDesc'\)/);
+
+  // The shared copy must exist in the English pack so the gate is never a blank.
+  const en = await readFile(path.join(i18nDir, 'en.js'), 'utf8');
+  assert.match(en, /'settings\.notWritable':/);
+  assert.match(en, /'settings\.notWritableDesc':/);
 });

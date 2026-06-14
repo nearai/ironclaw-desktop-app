@@ -31,6 +31,7 @@ export function SettingsPage() {
     />`,
     agent: html`<${AgentTab}
       settings=${settings}
+      settingsStatus=${status}
       onSave=${save}
       savedKeys=${savedKeys}
       isLoading=${isLoading}
@@ -38,6 +39,7 @@ export function SettingsPage() {
     channels: html`<${ChannelsTab} />`,
     networking: html`<${NetworkingTab}
       settings=${settings}
+      settingsStatus=${status}
       onSave=${save}
       savedKeys=${savedKeys}
       isLoading=${isLoading}

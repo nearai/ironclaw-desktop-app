@@ -84,6 +84,9 @@ registerPack('ar', {
   'settings.skills': 'المهارات',
   'settings.users': 'المستخدمون',
   'settings.language': 'اللغة',
+  'settings.notWritable': 'التعديل غير متاح بعد على هذه البوابة',
+  'settings.notWritableDesc':
+    'لا يمكن لهذه البوابة بعد حفظ التغييرات على هذه الإعدادات، لذا تُخفى عناصر التحكم بدلاً من عرضها قابلة للتعديل. ستعود بمجرد أن تتمكن البوابة من حفظها.',
   'settings.restartRequired': 'بعض التغييرات تتطلب إعادة تشغيل لتطبيقها.',
 
   'settings.group.embeddings': 'التضمينات',

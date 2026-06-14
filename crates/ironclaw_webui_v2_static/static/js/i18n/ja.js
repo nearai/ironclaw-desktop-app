@@ -85,6 +85,9 @@ registerPack('ja', {
   'settings.skills': 'スキル',
   'settings.users': 'ユーザー',
   'settings.language': '言語',
+  'settings.notWritable': 'このゲートウェイではまだ編集できません',
+  'settings.notWritableDesc':
+    'このゲートウェイはまだこれらの設定の変更を保存できないため、コントロールは編集可能として表示するのではなく非表示にしています。ゲートウェイが保存できるようになると再び表示されます。',
   'settings.restartRequired': '一部の変更は反映に再起動が必要です。',
 
   'settings.group.embeddings': '埋め込み',
