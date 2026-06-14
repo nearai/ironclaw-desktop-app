@@ -5,7 +5,8 @@ import {
   automationSummary,
   filterAutomations,
   normalizeAutomations,
-  scheduleLabel
+  scheduleLabel,
+  stateTone
 } from './automations-presenters.js';
 
 test('normalizeAutomations keeps only schedule rows and avoids raw schedule text', () => {
@@ -159,6 +160,40 @@ test('automationSummary ignores unparseable next_run_at values', () => {
     paused: 0,
     nextRun: null
   });
+});
+
+test('enabled states use agent-gold attribution, never the live success tone', () => {
+  // Status truth: an enabled-but-idle schedule must not borrow the success tone
+  // (which the Badge renders identically to a completed "Done" run, with a live
+  // breathing dot). Agent-owned scheduled work is gold; only a real completed
+  // run keeps success. Paused/disabled read as warning; unknown stays muted.
+  assert.equal(stateTone('active'), 'gold');
+  assert.equal(stateTone('scheduled'), 'gold');
+  assert.notEqual(stateTone('active'), 'signal');
+  assert.notEqual(stateTone('active'), 'success');
+  assert.equal(stateTone('paused'), 'warning');
+  assert.equal(stateTone('disabled'), 'warning');
+  assert.equal(stateTone('inactive'), 'warning');
+  assert.equal(stateTone('completed'), 'success');
+  assert.equal(stateTone('unknown'), 'muted');
+
+  const automations = normalizeAutomations({
+    automations: [
+      {
+        automation_id: 'enabled',
+        name: 'Enabled',
+        source: { type: 'schedule', cron: '0 9 * * *' },
+        state: 'active',
+        next_run_at: '2026-06-15T13:00:00Z',
+        last_run_at: '2026-06-14T13:00:00Z',
+        last_status: 'ok'
+      }
+    ]
+  });
+  // The row carries gold attribution for its enabled state while a genuinely
+  // completed last run keeps the success tone — the two truths stay distinct.
+  assert.equal(automations[0].state_tone, 'gold');
+  assert.equal(automations[0].last_status_tone, 'success');
 });
 
 test('normalizeAutomations preserves explicit unknown state even when is_active is true', () => {

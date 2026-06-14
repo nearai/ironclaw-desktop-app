@@ -14,9 +14,11 @@ export function AutomationsSummaryStrip({ summary }) {
     },
     {
       key: 'active',
+      // Agent attribution, not a live-success signal: keep the summary tone in
+      // step with the table's gold "Active"/"Scheduled" state pills.
       label: t('automations.summary.active'),
       value: summary?.active ?? 0,
-      tone: 'signal',
+      tone: 'gold',
       detail: t('automations.summary.activeDetail')
     },
     {
@@ -42,7 +44,7 @@ export function AutomationsSummaryStrip({ summary }) {
           (card) => html`
             <div
               key=${card.key}
-              className="rounded-[14px] border border-white/8 bg-white/[0.03] p-4"
+              className="rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
             >
               <${StatCard}
                 label=${card.label}

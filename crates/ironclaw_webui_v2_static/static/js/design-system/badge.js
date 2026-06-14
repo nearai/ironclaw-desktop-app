@@ -5,7 +5,7 @@
  * arbitrary values plus the semantic v2-breathing-dot motion hook.
  *
  * Props
- *   tone     "success" | "warning" | "danger" | "muted" | "signal" | "info"
+ *   tone     "success" | "warning" | "danger" | "muted" | "signal" | "info" | "gold"
  *   label    string
  *   dot      boolean (default true)
  *   size     "sm" (default) | "md"
@@ -30,6 +30,7 @@ const toneClasses = {
   danger:
     'border-[color-mix(in_srgb,var(--v2-danger-text)_34%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]',
   info: 'border-[color-mix(in_srgb,var(--v2-info-text)_30%,var(--v2-panel-border))] bg-[var(--v2-info-soft)] text-[var(--v2-info-text)]',
+  gold: 'border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]',
   accent:
     'border-[color-mix(in_srgb,var(--v2-accent-text)_30%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]',
   muted: 'border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)]'

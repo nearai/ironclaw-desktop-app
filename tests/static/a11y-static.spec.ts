@@ -227,7 +227,7 @@ const surfaces: Surface[] = [
   }
 ];
 
-async function installStaticApiMocks(page: Page) {
+async function installStaticApiMocks(page: Page, automations: unknown[] = []) {
   await page.route(/\/(api|auth)\//, async (route: Route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -243,7 +243,7 @@ async function installStaticApiMocks(page: Page) {
       return json(route, { threads: [], next_cursor: null });
     }
     if (path === '/api/webchat/v2/automations' && method === 'GET') {
-      return json(route, { automations: [], next_cursor: null });
+      return json(route, { automations, next_cursor: null });
     }
     if (path === '/api/webchat/v2/extensions/registry') {
       return json(route, { entries: [] });
@@ -290,6 +290,151 @@ async function expectNoBlockingA11y(page: Page, label: string) {
     `${label} has ${blocking.length} blocking a11y violation(s): ${JSON.stringify(blocking, null, 2)}`
   ).toEqual([]);
 }
+
+const mixedAutomations = [
+  {
+    automation_id: 'daily-digest',
+    name: 'Daily news digest',
+    source: { type: 'schedule', cron: '0 9 * * 1-5' },
+    state: 'active',
+    is_active: true,
+    next_run_at: '2026-06-15T13:00:00Z',
+    last_run_at: '2026-06-13T13:01:00Z',
+    last_status: 'ok'
+  },
+  {
+    automation_id: 'weekly-report',
+    name: 'Weekly portfolio report',
+    source: { type: 'schedule', cron: '0 17 * * 0' },
+    state: 'paused',
+    is_active: false,
+    next_run_at: null,
+    last_run_at: '2026-06-08T16:01:00Z',
+    last_status: 'error'
+  },
+  {
+    automation_id: 'month-close',
+    name: 'Month-close summary',
+    source: { type: 'schedule', cron: '0 8 1 * *' },
+    state: 'scheduled',
+    is_active: true,
+    next_run_at: '2026-07-01T12:00:00Z',
+    last_run_at: null,
+    last_status: null
+  }
+];
+
+const POSITIVE_GREEN = 'rgb(32, 210, 154)';
+
+test('static automations: backed rows attribute enabled state in gold, not the live success tone', async ({
+  page
+}) => {
+  // Status truth (DESIGN.md "Honest by construction"): an enabled-but-idle
+  // schedule must not render in the success green with a live breathing dot,
+  // which is the visual reserved for a genuinely completed run. Before this pass
+  // "Active"/"Scheduled" state pills were `signal` tone — identical green + pulse
+  // to a "Done" last-run pill — so three different truths looked the same and all
+  // looked "running/healthy now". Enabled schedules now carry gold agent
+  // attribution; only a real completed run keeps the success tone.
+  await installStaticApiMocks(page, mixedAutomations);
+  await page.goto('/v2/automations?token=static-a11y-token');
+  await expect(page.getByRole('heading', { name: 'Automations', exact: true })).toBeVisible();
+  await expect(page.getByText('Daily news digest')).toBeVisible();
+
+  const rows = page.locator('table tbody tr');
+  await expect(rows).toHaveCount(3);
+
+  type PillInfo = { color: string; live: boolean };
+  async function pill(rowName: string, label: string): Promise<PillInfo> {
+    const span = page
+      .locator('table tbody tr', { hasText: rowName })
+      .locator('span.inline-flex', { hasText: label })
+      .first();
+    await expect(span).toBeVisible();
+    return span.evaluate((el) => {
+      const dot = el.querySelector('span');
+      return {
+        color: getComputedStyle(el).color,
+        live: dot ? getComputedStyle(dot).animationName !== 'none' : false
+      };
+    });
+  }
+
+  // Enabled states render in gold and are NOT the live success green.
+  for (const [row, state] of [
+    ['Daily news digest', 'Active'],
+    ['Month-close summary', 'Scheduled']
+  ] as const) {
+    const info = await pill(row, state);
+    expect(info.color, `${state} state pill is not the live success green`).not.toBe(
+      POSITIVE_GREEN
+    );
+    expect(info.live, `${state} state pill does not pulse as live`).toBe(false);
+  }
+
+  // A genuinely completed run keeps the success tone — the two truths stay
+  // visually distinct on the same surface.
+  const done = await pill('Daily news digest', 'Done');
+  expect(done.color, 'a completed run keeps the success green').toBe(POSITIVE_GREEN);
+
+  // A paused schedule and a failed last run read as their own honest tones, not
+  // green: the surface never makes a stopped/errored automation look active.
+  const paused = await pill('Weekly portfolio report', 'Paused');
+  expect(paused.color, 'paused state is not green').not.toBe(POSITIVE_GREEN);
+  const errored = await pill('Weekly portfolio report', 'Error');
+  expect(errored.color, 'errored last run is not green').not.toBe(POSITIVE_GREEN);
+
+  await expectNoBlockingA11y(page, 'automations backed rows');
+});
+
+test('static automations at 390px: list controls clear 44px and the surface does not overflow', async ({
+  page
+}) => {
+  // Mobile-first law: the filter segmented control and the refresh button are
+  // real tap targets at 390px (were 36px and 32px before this pass), matching the
+  // 44px floor a sibling pass set on chat/connections/shell/settings/work.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installStaticApiMocks(page, mixedAutomations);
+  await page.goto('/v2/automations?token=static-a11y-token');
+  await expect(page.getByText('Daily news digest')).toBeVisible();
+
+  const filterButtons = page.locator(
+    '[role="group"][aria-label="Automation status filter"] button'
+  );
+  const filterCount = await filterButtons.count();
+  expect(filterCount).toBe(3);
+  for (let i = 0; i < filterCount; i += 1) {
+    const box = await filterButtons.nth(i).boundingBox();
+    expect(box, `filter button ${i} should have a measurable box`).not.toBeNull();
+    expect(box!.height, `filter button ${i} height >=44px`).toBeGreaterThanOrEqual(44);
+  }
+
+  const refresh = page.getByRole('button', { name: 'Refresh automations' });
+  const refreshBox = await refresh.boundingBox();
+  expect(refreshBox, 'refresh button should have a measurable box').not.toBeNull();
+  expect(refreshBox!.height, 'refresh button height >=44px').toBeGreaterThanOrEqual(44);
+  expect(refreshBox!.width, 'refresh button width >=44px').toBeGreaterThanOrEqual(44);
+
+  const docOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+  );
+  expect(docOverflow, 'no horizontal overflow at 390px on Automations').toBeLessThanOrEqual(1);
+});
+
+test('static automations: empty state offers a real next action instead of dead-ending', async ({
+  page
+}) => {
+  // Empty/loading dignity (DT-5): with no scheduled automations the surface names
+  // a real next action (automations are created from Chat) instead of leaving a
+  // dead-end. Scope to main content so we assert the empty-state CTA, not the
+  // sidebar nav link.
+  await installStaticApiMocks(page, []);
+  await page.goto('/v2/automations?token=static-a11y-token');
+  await expect(page.getByText('No scheduled automations yet.')).toBeVisible();
+  const action = page.getByRole('main').getByRole('link', { name: 'Chat' });
+  await expect(action).toBeVisible();
+  await expect(action).toHaveAttribute('href', '/v2/chat');
+});
 
 for (const surface of surfaces) {
   test(`static a11y: ${surface.label}`, async ({ page }) => {

@@ -9,9 +9,14 @@ const WEEKDAYS = [
 ];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// State is agent attribution, not a live-success signal. An enabled schedule is
+// agent-owned work waiting to run, so it earns the gold tone (DESIGN.md: gold is
+// the agent's hand) rather than the success green + breathing dot, which would
+// read identically to a completed run and imply the automation is succeeding or
+// running right now. Only a genuinely completed run keeps the success tone.
 const STATE_PRESENTATION = {
-  active: { label: 'Active', tone: 'signal' },
-  scheduled: { label: 'Scheduled', tone: 'signal' },
+  active: { label: 'Active', tone: 'gold' },
+  scheduled: { label: 'Scheduled', tone: 'gold' },
   paused: { label: 'Paused', tone: 'warning' },
   disabled: { label: 'Disabled', tone: 'warning' },
   inactive: { label: 'Inactive', tone: 'warning' },
