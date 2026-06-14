@@ -287,17 +287,21 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
   }
   assert.equal(sentArgs.content.includes(rejectedAttachment.filename), false);
   // The manifest must never inline base64 payloads (content validator rejects
-  // them); the bytes ride only in the first-class attachments field.
+  // them); the document text rides in `content` as decoded durable text.
   assert.equal(sentArgs.content.includes('data_base64'), false);
   for (const attachment of attachmentScenarios) {
     assert.equal(sentArgs.content.includes(attachment.base64), false);
   }
+  // The wire carries chip metadata but NO bytes: the Reborn byte-landing path
+  // (#4644) is incomplete and 500s on any data_base64 under the DevOnly
+  // composition, and the model reads the document only through the inlined
+  // durable block above. See attachmentsForWire / GATEWAY_LANDS_ATTACHMENT_BYTES.
   assert.deepEqual(
     JSON.parse(JSON.stringify(sentArgs.attachments)),
     attachmentScenarios.map((attachment) => ({
       name: attachment.filename,
       mime_type: attachment.mime_type,
-      data_base64: attachment.base64,
+      data_base64: '',
       size: attachment.size
     }))
   );

@@ -115,15 +115,12 @@ for (const scenario of [
       expect(request.content).toContain('<attachments ic="1">');
       expect(request.content).toContain(`filename: ${scenario.filename}`);
       expect(request.content).toContain('extraction_status: extracted_text');
+      // The document reaches the model through the inlined durable text above —
+      // its only channel. The wire carries NO bytes: the Reborn byte-landing
+      // path (#4644) 500s on any data_base64 under the DevOnly composition, so
+      // shipping bytes would fail the whole turn. See attachmentsForWire.
       expect(request.content).toContain(scenario.text);
-      expect(request.attachments).toHaveLength(1);
-      expect(request.attachments[0]).toMatchObject({
-        filename: scenario.filename,
-        mime_type: 'text/plain'
-      });
-      expect(Buffer.from(request.attachments[0].base64, 'base64').toString('utf8')).toBe(
-        scenario.text
-      );
+      expect(request.attachments).toHaveLength(0);
     } finally {
       await gateway.close();
     }
@@ -163,12 +160,9 @@ test('static attachments: image upload renders thumbnail above sent user bubble'
 
     expect(request.content).toContain('filename: signature-proof.png');
     expect(request.content).not.toContain('data_base64');
-    expect(request.attachments).toHaveLength(1);
-    expect(request.attachments[0]).toMatchObject({
-      filename: 'signature-proof.png',
-      mime_type: 'image/png'
-    });
-    expect(request.attachments[0].base64).toBe(onePixelPngBase64);
+    // Image bytes are not shipped either: the same landing path 500s on them.
+    // The thumbnail above renders from the local dataUrl, not the wire.
+    expect(request.attachments).toHaveLength(0);
   } finally {
     await gateway.close();
   }

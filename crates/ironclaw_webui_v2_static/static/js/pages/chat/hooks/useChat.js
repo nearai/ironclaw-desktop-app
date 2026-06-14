@@ -491,7 +491,10 @@ export function useChat(threadId) {
         const response = await sendMessage({
           threadId: sendThreadId,
           content: contentForReborn,
-          attachments: serializedAttachments
+          // The model reads the document through the inlined durable block in
+          // `content` (the only channel the sidecar feeds to it); the wire drops
+          // the bytes the gateway cannot land yet. See attachmentsForWire.
+          attachments: attachmentsForWire(serializedAttachments)
         });
         // Refresh the sidebar only while the cached entry is missing
         // or title-less. Once the first-message title has appeared,
@@ -722,6 +725,24 @@ export function useChat(threadId) {
     recoverHistory: noop,
     recoveryNotice: null
   };
+}
+
+// The Reborn byte-landing path (#4644, mid-merge as of 2026-06-14) cannot yet
+// accept attachment bytes: under the DevOnly composition the host-side
+// attachment_landing builds a read-only MountView, so any send carrying
+// data_base64 fails the whole turn with HTTP 500 ("permission denied for
+// write_file on scoped /workspace/attachments/..."). The model never reads
+// attachment bytes regardless — its only channel is the inlined durable text
+// block, which buildDurableAttachmentBlock decodes from the same base64 into
+// `content`. So until the landing endpoint is real we ship NO bytes on the wire:
+// keep the chip metadata, drop data_base64, and the api layer then omits the
+// now-empty attachments field. Flip this to true (and update
+// useChat-send.test.mjs) the sprint the gateway can land bytes.
+const GATEWAY_LANDS_ATTACHMENT_BYTES = false;
+
+function attachmentsForWire(serialized) {
+  if (GATEWAY_LANDS_ATTACHMENT_BYTES) return serialized || [];
+  return (serialized || []).map((item) => ({ ...item, data_base64: '' }));
 }
 
 function serializeComposerAttachments(items) {

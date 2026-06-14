@@ -1795,50 +1795,19 @@ try {
       throw new Error(`static chat manifest missing ${scenario.name}: ${JSON.stringify(chatPost)}`);
     }
   }
-  if (
-    chatPost.attachments.some(
-      (attachment) =>
-        attachment.filename === corruptDocxScenario.name ||
-        attachment.name === corruptDocxScenario.name
-    )
-  ) {
-    throw new Error('corrupt docx was shipped instead of rejected');
-  }
-  if (
-    !Array.isArray(chatPost.attachments) ||
-    chatPost.attachments.length !== smokeAttachmentScenarios.length
-  ) {
-    throw new Error(`static chat did not send JSON attachments: ${JSON.stringify(chatPost)}`);
-  }
-  for (const scenario of smokeAttachmentScenarios) {
-    const postedAttachment = chatPost.attachments.find(
-      (attachment) => attachment.filename === scenario.name || attachment.name === scenario.name
+  // The wire carries NO attachment bytes. The Reborn byte-landing path (#4644)
+  // fails the whole turn with HTTP 500 on any data_base64 under the DevOnly
+  // composition ("permission denied for write_file on scoped /workspace/
+  // attachments/..."), and the model never reads attachment bytes regardless —
+  // it reads each document only through the durable manifest embedded in
+  // `content` (verified below). So the composer strips bytes off the wire (see
+  // attachmentsForWire) and the api layer omits the now-empty attachments field.
+  // The corrupt docx is subsumed: nothing rides the wire at all.
+  const wireAttachments = Array.isArray(chatPost.attachments) ? chatPost.attachments : [];
+  if (wireAttachments.length !== 0) {
+    throw new Error(
+      `static chat shipped attachment bytes the gateway cannot land yet: ${JSON.stringify(chatPost)}`
     );
-    if (!postedAttachment) {
-      throw new Error(
-        `static chat did not post attachment ${scenario.name}: ${JSON.stringify(chatPost)}`
-      );
-    }
-    if (scenario.expectExtractedText) {
-      // The composer's client-side extractor must have replaced the binary
-      // payload with inline text the sidecar can feed the model.
-      const decoded = Buffer.from(postedAttachment.base64 || '', 'base64').toString('utf8');
-      if (
-        postedAttachment.mime_type !== 'text/plain' ||
-        !decoded.includes(scenario.expectExtractedText)
-      ) {
-        throw new Error(
-          `static chat did not extract text from ${scenario.name}: mime=${postedAttachment.mime_type} decoded=${decoded.slice(0, 120)}`
-        );
-      }
-    } else if (
-      postedAttachment.mime_type !== scenario.mimeType ||
-      postedAttachment.base64 !== scenario.base64
-    ) {
-      throw new Error(
-        `static chat posted wrong attachment payload for ${scenario.name}: ${JSON.stringify(chatPost)}`
-      );
-    }
   }
   // The durable block must also EMBED text content — the bundled sidecar
   // never feeds attachment bytes to the model, so message content is the
