@@ -43,7 +43,7 @@
   --v2-text:        #263241;
   --v2-text-strong: #101820;
   --v2-text-muted:  #5d6b7c;
-  --v2-text-faint:  #8995a4;
+  --v2-text-faint:  #67707c;
   --v2-inverse:     #ffffff;
   --v2-ink:         #0f1720;
 
@@ -54,7 +54,8 @@
   --v2-accent:       #0091fd;
   --v2-accent-strong:#0077d4;
   --v2-accent-soft:  rgba(0, 145, 253, 0.12);
-  --v2-accent-text:  #0a6ecb;
+  --v2-accent-text:  #0a64ba;
+  --v2-accent-btn:   #0077d4;
 
   /* The agent's hand (DESIGN.md): gold — generated work, proposals */
   --v2-gold:      #b07a00;
@@ -63,13 +64,13 @@
 
   /* Semantic colours */
   --v2-positive-soft: rgba(32, 210, 154, 0.13);
-  --v2-positive-text: #087a5d;
+  --v2-positive-text: #077254;
   --v2-warning-soft:  rgba(245, 193, 91, 0.18);
   --v2-warning-text:  #8b5b00;
   --v2-danger-soft:   rgba(255, 100, 128, 0.12);
   --v2-danger-text:   #b42342;
   --v2-info-soft:     rgba(76, 167, 230, 0.12);
-  --v2-info-text:     #146fae;
+  --v2-info-text:     #136aa6;
 
   background: var(--v2-canvas);
 }
@@ -97,7 +98,7 @@
   --v2-text:        rgba(232, 240, 252, 0.86);
   --v2-text-strong: var(--text-primary, #f4f8ff);
   --v2-text-muted:  var(--text-secondary, rgba(196, 211, 235, 0.62));
-  --v2-text-faint:  var(--text-tertiary, rgba(196, 211, 235, 0.42));
+  --v2-text-faint:  var(--text-tertiary, rgba(196, 211, 235, 0.66));
   --v2-inverse:     var(--text-inverse, #0a0f1c);
   --v2-ink:         var(--accent-primary, #0091fd);
 
@@ -108,6 +109,7 @@
   --v2-accent-strong: var(--accent-primary-strong, #0077d4);
   --v2-accent-soft:   rgba(0, 145, 253, 0.16);
   --v2-accent-text:   var(--text-brand,            #5fb8ff);
+  --v2-accent-btn:    #0077d4;
 
   /* The agent's hand (DESIGN.md): gold — generated work, proposals */
   --v2-gold:      #fbbf24;
@@ -271,7 +273,10 @@ summary:focus-visible {
 }
 
 [class~="bg-signal"],[class~="bg-signal/60"] {
-  background-color: var(--v2-accent) !important; color: #ffffff !important;
+  background-color: var(--v2-accent-btn) !important; color: #ffffff !important;
+}
+[class~="hover:bg-signal"]:hover,[class~="hover:bg-signal/60"]:hover {
+  background-color: color-mix(in srgb, var(--v2-accent-btn) 88%, #000) !important; color: #ffffff !important;
 }
 [class~="bg-signal/10"],[class~="bg-signal/12"],[class~="bg-signal/15"],
 [class~="hover:bg-signal/10"]:hover,[class~="hover:bg-signal/15"]:hover {
@@ -364,12 +369,12 @@ summary:focus-visible {
   cursor: not-allowed;
 }
 .v2-button-primary {
-  background: var(--v2-accent);
+  background: var(--v2-accent-btn);
   border: 1px solid transparent;
   color: #ffffff;
 }
 .v2-button-primary:hover {
-  background: var(--v2-accent-strong);
+  background: color-mix(in srgb, var(--v2-accent-btn) 88%, #000);
 }
 
 /* Page-level animation wrapper */

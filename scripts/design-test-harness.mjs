@@ -43,7 +43,8 @@ const checks = [
   {
     id: 'DT-2',
     label: 'primary-action dominance',
-    proof: 'primary controls remain flat signal-blue tokens and Connections avoids legacy loud classes',
+    proof:
+      'primary controls remain flat signal-blue tokens and Connections avoids legacy loud classes',
     commands: [
       {
         label: 'Connections design-token contract',
@@ -57,13 +58,13 @@ const checks = [
       {
         label: 'Button primary is flat token blue',
         file: 'crates/ironclaw_webui_v2_static/static/js/design-system/button.js',
-        includes: ['bg-[var(--v2-accent)] text-white', 'hover:bg-[var(--v2-accent-strong)]'],
+        includes: ['bg-[var(--v2-accent-btn)] text-white'],
         rejects: [/bg-gradient/, /linear-gradient/, /shadow-\[/]
       },
       {
         label: 'legacy v2 primary button shim is flat token blue',
         file: 'crates/ironclaw_webui_v2_static/static/styles/app.css',
-        includes: ['.v2-button-primary', 'background: var(--v2-accent);'],
+        includes: ['.v2-button-primary', 'background: var(--v2-accent-btn);'],
         rejectsInBlock: {
           start: '.v2-button-primary {',
           end: '}',
@@ -75,7 +76,8 @@ const checks = [
   {
     id: 'DT-3',
     label: 'bicolor attribution and semantic status',
-    proof: 'gold stays reserved for agent artifacts/receipts while status states use semantic tokens',
+    proof:
+      'gold stays reserved for agent artifacts/receipts while status states use semantic tokens',
     commands: [
       {
         label: 'static status-token lint',

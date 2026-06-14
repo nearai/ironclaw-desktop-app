@@ -40,8 +40,9 @@ const SIZES = {
 
 const VARIANTS = {
   primary:
-    'border border-transparent bg-[var(--v2-accent)] text-white ' +
-    'hover:bg-[var(--v2-accent-strong)] active:bg-[var(--v2-accent-strong)]',
+    'border border-transparent bg-[var(--v2-accent-btn)] text-white ' +
+    'hover:bg-[color-mix(in_srgb,var(--v2-accent-btn)_88%,#000)] ' +
+    'active:bg-[color-mix(in_srgb,var(--v2-accent-btn)_88%,#000)]',
 
   outline:
     'border border-[color-mix(in_srgb,var(--v2-accent)_55%,transparent)] bg-transparent ' +
