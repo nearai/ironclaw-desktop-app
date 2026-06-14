@@ -11,6 +11,13 @@ export function RestartBanner({ visible, gatewayStatus, gatewayStatusQuery }) {
 
   if (!visible) return null;
 
+  // Honest availability: a restart affordance only appears when the gateway can
+  // actually perform a restart (`canRestart`). Otherwise the banner is purely
+  // informational — it states that a restart is required and explains, in a
+  // muted line, why the app cannot do it automatically. No disabled "Restart
+  // now" button that teases a capability the gateway cannot prove.
+  const progressLabel = restart.progress ? t(restart.progress) : t('settings.restartStarting');
+
   return html`
     <div className="space-y-3">
       <div
@@ -21,31 +28,32 @@ export function RestartBanner({ visible, gatewayStatus, gatewayStatusQuery }) {
           <${Icon} name="bolt" className="mt-0.5 h-4 w-4 shrink-0 text-copper" />
           <div className="min-w-0">
             <p className="text-sm text-copper">${t('settings.restartRequired')}</p>
-            ${!restart.restartEnabled &&
+            ${!restart.canRestart &&
+            restart.unavailableReason &&
             html`
               <p className="mt-1 text-xs text-[var(--v2-text-muted)]">
-                ${restart.unavailableReason}
+                ${t(restart.unavailableReason)}
               </p>
             `}
             ${restart.isRestarting &&
-            html`
-              <p className="mt-1 text-xs text-[var(--v2-text-muted)]">${restart.progressLabel}</p>
-            `}
+            html` <p className="mt-1 text-xs text-[var(--v2-text-muted)]">${progressLabel}</p> `}
           </div>
         </div>
 
-        <${Button}
-          type="button"
-          variant="secondary"
-          size="sm"
-          disabled=${!restart.restartEnabled || restart.isRestarting}
-          onClick=${restart.openConfirm}
-          title=${!restart.restartEnabled ? restart.unavailableReason : undefined}
-          className="w-full sm:w-auto"
-        >
-          <${Icon} name=${restart.isRestarting ? 'pulse' : 'bolt'} className="h-4 w-4" />
-          ${restart.isRestarting ? t('settings.restartStarting') : t('settings.restartNow')}
-        <//>
+        ${restart.canRestart &&
+        html`
+          <${Button}
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled=${restart.isRestarting}
+            onClick=${restart.openConfirm}
+            className="w-full sm:w-auto"
+          >
+            <${Icon} name=${restart.isRestarting ? 'pulse' : 'bolt'} className="h-4 w-4" />
+            ${restart.isRestarting ? t('settings.restartStarting') : t('settings.restartNow')}
+          <//>
+        `}
       </div>
 
       ${restart.error &&
@@ -53,56 +61,50 @@ export function RestartBanner({ visible, gatewayStatus, gatewayStatusQuery }) {
         <div
           className="rounded-xl border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]"
         >
-          ${restart.error}
-        </div>
-      `}
-      ${restart.message &&
-      html`
-        <div
-          className="rounded-xl border border-[color-mix(in_srgb,var(--v2-positive-text)_36%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] px-4 py-3 text-sm text-[var(--v2-positive-text)]"
-        >
-          ${restart.message}
+          ${t(restart.error)}
         </div>
       `}
     </div>
 
-    <${Modal}
-      open=${restart.confirmOpen}
-      onClose=${restart.closeConfirm}
-      title=${t('restart.title')}
-      size="sm"
-    >
-      <${ModalBody} className="space-y-3">
-        <p className="text-sm text-[var(--v2-text)]">${t('restart.description')}</p>
-        <div
-          className="rounded-xl border border-copper/25 bg-copper/10 px-3 py-2 text-xs text-copper"
-        >
-          ${t('restart.warning')}
-        </div>
-      <//>
-      <${ModalFooter}>
-        <${Button}
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled=${restart.isRestarting}
-          onClick=${restart.closeConfirm}
-        >
-          ${t('restart.cancel')}
+    ${restart.canRestart &&
+    html`
+      <${Modal}
+        open=${restart.confirmOpen}
+        onClose=${restart.closeConfirm}
+        title=${t('restart.title')}
+        size="sm"
+      >
+        <${ModalBody} className="space-y-3">
+          <p className="text-sm text-[var(--v2-text)]">${t('restart.description')}</p>
+          <div
+            className="rounded-xl border border-copper/25 bg-copper/10 px-3 py-2 text-xs text-copper"
+          >
+            ${t('restart.warning')}
+          </div>
         <//>
-        <${Button}
-          type="button"
-          variant="danger"
-          size="sm"
-          disabled=${restart.isRestarting}
-          onClick=${restart.confirmRestart}
-        >
-          <${Icon} name="bolt" className="h-4 w-4" />
-          ${t('restart.confirm')}
+        <${ModalFooter}>
+          <${Button}
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled=${restart.isRestarting}
+            onClick=${restart.closeConfirm}
+          >
+            ${t('restart.cancel')}
+          <//>
+          <${Button}
+            type="button"
+            variant="danger"
+            size="sm"
+            disabled=${restart.isRestarting}
+            onClick=${restart.confirmRestart}
+          >
+            <${Icon} name="bolt" className="h-4 w-4" />
+            ${t('restart.confirm')}
+          <//>
         <//>
       <//>
-    <//>
-
+    `}
     ${restart.isRestarting &&
     html`
       <div
@@ -121,7 +123,7 @@ export function RestartBanner({ visible, gatewayStatus, gatewayStatusQuery }) {
           <p className="mt-4 text-base font-semibold text-[var(--v2-text-strong)]">
             ${t('restart.progressTitle')}
           </p>
-          <p className="mt-2 text-sm text-[var(--v2-text-muted)]">${restart.progressLabel}</p>
+          <p className="mt-2 text-sm text-[var(--v2-text-muted)]">${progressLabel}</p>
         </div>
       </div>
     `}
