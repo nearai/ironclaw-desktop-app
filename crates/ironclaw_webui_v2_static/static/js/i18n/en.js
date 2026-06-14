@@ -928,5 +928,6 @@ registerPack('en', {
   'logs.serverLevel': 'Server level:',
   'logs.entryCount': '{count} entries',
   'logs.pausedBadge': '● paused',
-  'logs.empty': 'Waiting for log entries…'
+  'logs.empty':
+    "IronClaw isn't streaming activity to this view yet. Your work, approvals, and receipts stay in Chat."
 });

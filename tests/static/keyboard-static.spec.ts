@@ -422,6 +422,46 @@ test('static keyboard: connections and setup pages expose primary actions to tab
   await expect.poll(() => activeElementSummary(page)).toContain('Model');
 });
 
+test('static logs at 390px: filter controls stay >=44px and the surface does not overflow', async ({
+  page
+}) => {
+  // Mobile-first law: the Logs toolbar keeps its named level-filter select and
+  // target-filter input even with no stream, so both must clear the 44px tap
+  // target at 390px (were 32px before this pass). The stream-lifecycle controls
+  // (Pause/Clear/Auto-scroll) must stay hidden while there is no stream to
+  // control, and the empty state must offer a real next action instead of a void.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installStaticInteractionMocks(page);
+  await page.goto('/v2/logs?token=static-keyboard-token');
+
+  await expect(page.getByRole('heading', { name: 'Logs' })).toBeVisible();
+  const chatAction = page.getByRole('main').getByRole('link', { name: 'Chat' });
+  await expect(chatAction).toBeVisible();
+  await expect(chatAction).toHaveAttribute('href', '/v2/chat');
+
+  // No fake readiness: stream-lifecycle controls are absent without a stream.
+  await expect(page.getByRole('button', { name: 'Pause' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Clear' })).toHaveCount(0);
+  await expect(page.getByLabel('Auto-scroll')).toHaveCount(0);
+
+  const filterControls: Array<[string, ReturnType<Page['locator']>]> = [
+    ['Log level filter', page.getByLabel('Log level filter')],
+    ['Target filter', page.getByPlaceholder('Filter by target…')]
+  ];
+  for (const [name, control] of filterControls) {
+    await expect(control, `${name} should be visible`).toBeVisible();
+    const box = await control.boundingBox();
+    expect(box, `${name} should have a measurable box`).not.toBeNull();
+    expect(box!.height, `${name} height >=44px`).toBeGreaterThanOrEqual(44);
+  }
+
+  const docOverflow = await page.evaluate(() => {
+    const de = document.documentElement;
+    return de.scrollWidth - de.clientWidth;
+  });
+  expect(docOverflow, 'no horizontal overflow at 390px on Logs').toBeLessThanOrEqual(1);
+});
+
 for (const scenario of [
   { label: 'approve', shortcut: 'Control+Enter', focusButton: 'Approve', resolution: 'approved' },
   { label: 'deny', shortcut: 'Escape', focusButton: 'Deny', resolution: 'denied' }

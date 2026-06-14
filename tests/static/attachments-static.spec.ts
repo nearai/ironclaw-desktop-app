@@ -195,8 +195,14 @@ test('static attachments: preview lightbox honors the modal keyboard contract', 
       buffer: Buffer.from('Preview contract body for the keyboard a11y proof.', 'utf8')
     });
 
-    // The chip appears once extraction settles; wait on the preview opener
-    // (its aria-label is the robust anchor — the filename text alone can wrap).
+    // Send so the attachment lands as a sent-message chip — the Preview opener
+    // only exists on sent attachments, not the composer draft (matches the
+    // smoke + the other attachment scenarios in this file).
+    await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
+    await page.getByRole('button', { name: 'Send message' }).click();
+
+    // Wait on the preview opener (its aria-label is the robust anchor — the
+    // filename text alone can wrap).
     const opener = page.getByRole('button', { name: new RegExp(`^Preview ${filename}`) });
     await expect(opener).toBeVisible({ timeout: 20_000 });
     await opener.focus();

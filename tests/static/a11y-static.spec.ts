@@ -189,7 +189,25 @@ const surfaces: Surface[] = [
     path: '/v2/logs',
     authenticated: true,
     waitFor: async (page) => {
-      await expect(page.getByText('Waiting for log entries…')).toBeVisible();
+      // Empty/loading dignity (DT-5): no v2 log-streaming endpoint exists, so the
+      // surface must show a dignified empty state with a real next action instead
+      // of a void plus stream-lifecycle controls that imply a capability the
+      // gateway cannot prove.
+      await expect(page.getByRole('heading', { name: 'Logs' })).toBeVisible();
+      const logsAction = page.getByRole('main').getByRole('link', { name: 'Chat' });
+      await expect(logsAction).toBeVisible();
+      await expect(logsAction).toHaveAttribute('href', '/v2/chat');
+
+      // No fake readiness: lifecycle controls (Pause/Clear/Auto-scroll) must not
+      // render while there is no stream to control.
+      await expect(page.getByRole('button', { name: 'Pause' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Clear' })).toHaveCount(0);
+      await expect(page.getByLabel('Auto-scroll')).toHaveCount(0);
+
+      // The named filter control stays (preserves the prior control-name fix).
+      // Its >=44px mobile tap-target floor is asserted at 390px in
+      // keyboard-static.spec.ts, where the viewport is controlled explicitly.
+      await expect(page.getByLabel('Log level filter')).toBeVisible();
     }
   }
 ];
