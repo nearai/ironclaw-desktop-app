@@ -65,6 +65,11 @@ export function useThreads() {
     activeThreadId,
     setActiveThreadId,
     isLoading: query.isLoading,
+    // Surface load failure + a refetch so the sidebar can tell "still loading"
+    // and "couldn't load" apart from a genuinely empty list — instead of all
+    // three collapsing into a false "No conversations yet".
+    isError: query.isError,
+    refetch: query.refetch,
     isCreating,
     createThread: handleCreateThread
   };

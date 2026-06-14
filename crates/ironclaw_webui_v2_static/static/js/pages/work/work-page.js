@@ -234,9 +234,15 @@ function SavedFileArtifactPreview({ artifact }) {
   `;
 }
 
+const WORK_LIST_VISIBLE_LIMIT = 30;
+
 export function WorkPage() {
   const [params] = useSearchParams();
   const [items, setItems] = React.useState(() => readSavedWorkItems());
+  // The saved-work store holds up to 500 items; without a filter + expander the
+  // sidebar list hard-capped at 30 and everything older was unreachable.
+  const [workFilter, setWorkFilter] = React.useState('');
+  const [showAllWork, setShowAllWork] = React.useState(false);
 
   React.useEffect(() => {
     setItems(readSavedWorkItems());
@@ -262,6 +268,18 @@ export function WorkPage() {
   const linkedThread = safeList(selectedItem.links).find((link) => link?.kind === 'thread');
   const provenance = safeList(selectedArtifact.provenance).join(', ') || 'chat';
 
+  // Filter by title, then page: show the first N and let the user expand the
+  // rest so saved work past the 30th item is always reachable (search finds it
+  // even unexpanded).
+  const filterQuery = workFilter.trim().toLowerCase();
+  const filteredItems = filterQuery
+    ? items.filter((item) => (item.title || '').toLowerCase().includes(filterQuery))
+    : items;
+  const visibleItems = showAllWork
+    ? filteredItems
+    : filteredItems.slice(0, WORK_LIST_VISIBLE_LIMIT);
+  const hiddenItemCount = filteredItems.length - visibleItems.length;
+
   return html`
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="v2-page-entrance flex-1 p-4 sm:p-6">
@@ -282,8 +300,26 @@ export function WorkPage() {
                 Local artifacts saved from chat.
               </p>
             </div>
+            ${items.length > 8 &&
+            html`<div className="relative mb-1 px-2">
+              <span
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--v2-text-faint)]"
+              >
+                <${Icon} name="search" className="h-3.5 w-3.5" />
+              </span>
+              <input
+                type="text"
+                value=${workFilter}
+                onInput=${(event) => {
+                  setWorkFilter(event.currentTarget.value);
+                  setShowAllWork(false);
+                }}
+                placeholder="Filter saved work…"
+                className="h-9 min-h-[44px] w-full rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[13px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
+              />
+            </div>`}
             <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-1">
-              ${items.slice(0, 30).map((item) => {
+              ${visibleItems.map((item) => {
                 const artifact = firstReadyArtifact(item);
                 const href = artifact ? workArtifactHref(item.id, artifact.id) : '/work';
                 const active = item.id === selectedItem.id;
@@ -308,6 +344,18 @@ export function WorkPage() {
                 `;
               })}
             </div>
+            ${filteredItems.length === 0 &&
+            html`<p className="px-3 py-3 text-xs text-[var(--v2-text-faint)]">
+              No saved work matches “${workFilter.trim()}”.
+            </p>`}
+            ${hiddenItemCount > 0 &&
+            html`<button
+              type="button"
+              onClick=${() => setShowAllWork(true)}
+              className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center rounded-[8px] border border-[var(--v2-panel-border)] px-3 text-xs font-medium text-[var(--v2-accent-text)] hover:bg-[var(--v2-surface-soft)]"
+            >
+              Show all ${filteredItems.length}
+            </button>`}
           </aside>
 
           <article

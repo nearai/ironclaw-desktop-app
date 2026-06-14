@@ -147,7 +147,15 @@ function ThreadGroup({ label, items, activeThreadId, states, onSelect, onDelete 
   `;
 }
 
-export function SidebarThreads({ threads, activeThreadId, onSelect, onDelete }) {
+export function SidebarThreads({
+  threads,
+  activeThreadId,
+  isLoading = false,
+  isError = false,
+  onRetry,
+  onSelect,
+  onDelete
+}) {
   const [collapsed, setCollapsed] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const states = useThreadStates();
@@ -222,9 +230,29 @@ export function SidebarThreads({ threads, activeThreadId, onSelect, onDelete }) 
         </div>`}
         <div className="mt-1 flex flex-col gap-2 overflow-y-auto [scrollbar-width:thin]">
           ${threads.length === 0 &&
-          html`<div className="px-3 py-2 text-[12px] text-[var(--v2-text-faint)]">
-            No conversations yet
-          </div>`}
+          (isLoading
+            ? html`<div className="flex flex-col gap-1.5 px-1 py-2" aria-hidden="true">
+                ${[1, 2, 3, 4].map(
+                  (i) => html`<div key=${i} className="v2-skeleton h-8 w-full rounded-[8px]" />`
+                )}
+              </div>`
+            : isError
+              ? html`<div className="px-3 py-2">
+                  <p className="text-[12px] text-[var(--v2-danger-text)]">
+                    Could not load conversations.
+                  </p>
+                  ${onRetry &&
+                  html`<button
+                    type="button"
+                    onClick=${() => onRetry()}
+                    className="mt-1.5 inline-flex min-h-[44px] items-center gap-1 rounded-[6px] px-2 py-1 text-[12px] font-medium text-[var(--v2-accent-text)] hover:bg-[var(--v2-surface-muted)]"
+                  >
+                    <${Icon} name="retry" className="h-3.5 w-3.5" /> Retry
+                  </button>`}
+                </div>`
+              : html`<div className="px-3 py-2 text-[12px] text-[var(--v2-text-faint)]">
+                  No conversations yet
+                </div>`)}
           ${threads.length > 0 &&
           totalMatches === 0 &&
           html`<div className="px-3 py-2 text-[12px] text-[var(--v2-text-faint)]">

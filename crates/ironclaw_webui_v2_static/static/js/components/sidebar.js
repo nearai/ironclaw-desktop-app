@@ -47,6 +47,9 @@ export function Sidebar({
         <${SidebarThreads}
           threads=${threadsState.threads}
           activeThreadId=${threadsState.activeThreadId}
+          isLoading=${threadsState.isLoading}
+          isError=${threadsState.isError}
+          onRetry=${threadsState.refetch}
           onSelect=${onSelectThread}
           onDelete=${onDeleteThread}
         />
