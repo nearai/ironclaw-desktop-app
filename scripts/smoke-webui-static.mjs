@@ -909,6 +909,11 @@ try {
       await route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
+          // SSE is silent for this thread, so the chat loop falls back to
+          // polling the (registered) timeline. Once the turn is submitted the
+          // timeline carries the finalized assistant reply — proof the run
+          // completed — which the fallback must detect (runReplyLandedInTimeline)
+          // without ever hitting the unregistered bare GET /runs/{id}.
           messages: failedRunMessageSubmitted
             ? [
                 {
@@ -918,6 +923,15 @@ try {
                   sequence: 1,
                   turn_run_id: 'run-fail',
                   created_at: '2026-06-02T08:01:00.000Z'
+                },
+                {
+                  kind: 'assistant',
+                  message_id: 'msg-asst-failed-run',
+                  content: 'Recovered from the timeline after the stream went quiet.',
+                  status: 'finalized',
+                  sequence: 2,
+                  turn_run_id: 'run-fail',
+                  created_at: '2026-06-02T08:01:05.000Z'
                 }
               ]
             : [],
@@ -927,23 +941,18 @@ try {
       });
     }
   );
+  // Tripwire: the real gateway registers NO bare GET /runs/{id} (only
+  // .../cancel and .../gates/.../resolve), so it 404s. Mirror that and record
+  // any hit — the client must derive run state from the timeline and never call
+  // this route. We assert failedRunStateRequests stays empty below.
   await page.route(
     `${gatewayOrigin}/api/webchat/v2/threads/thread-fail/runs/run-fail`,
     async (route) => {
       failedRunStateRequests.push(route.request().url());
       await route.fulfill({
+        status: 404,
         contentType: 'application/json',
-        body: JSON.stringify({
-          turn_id: 'turn-fail',
-          run_id: 'run-fail',
-          status: 'Failed',
-          event_cursor: 70,
-          accepted_message_ref: 'msg:msg-user-failed-run',
-          resolved_run_profile_id: 'reborn-planned-default',
-          resolved_run_profile_version: 1,
-          received_at: '2026-06-02T08:01:01.000Z',
-          failure: { category: 'driver_unavailable' }
-        })
+        body: JSON.stringify({ error: 'not_found' })
       });
     }
   );
@@ -2173,8 +2182,9 @@ try {
   });
   await page.locator('button[aria-label="Send message"]').last().click();
   try {
+    // The SSE-drop fallback recovers the completed run from the timeline.
     await page
-      .getByText(/run failed|driver unavailable|recovery_required/i)
+      .getByText(/Recovered from the timeline after the stream went quiet\./i)
       .first()
       .waitFor({
         timeout: 30_000
@@ -2183,7 +2193,7 @@ try {
     await mkdir('output/playwright', { recursive: true });
     await page
       .screenshot({
-        path: 'output/playwright/static-run-state-failure-missing.png',
+        path: 'output/playwright/static-run-state-recovery-missing.png',
         fullPage: true
       })
       .catch(() => {});
@@ -2192,27 +2202,33 @@ try {
       .innerText()
       .catch(() => '<body unavailable>');
     throw new Error(
-      `failed-run UI did not surface run-state failure; requests=${JSON.stringify({
-        failedRunMessageRequests,
-        failedRunTimelineRequests,
-        failedRunStateRequests
-      })}; errors=${JSON.stringify(errors)}; body=${JSON.stringify(visibleBody)}`,
+      `SSE-drop fallback did not recover the completed run from the timeline; requests=${JSON.stringify(
+        {
+          failedRunMessageRequests,
+          failedRunTimelineRequests,
+          failedRunStateRequests
+        }
+      )}; errors=${JSON.stringify(errors)}; body=${JSON.stringify(visibleBody)}`,
       { cause: err }
     );
   }
   if (!failedRunMessageRequests.length || !failedRunTimelineRequests.length) {
     throw new Error(
-      `failed-run UI did not exercise message+timeline routes: ${JSON.stringify({
+      `SSE-drop fallback did not exercise message+timeline routes: ${JSON.stringify({
         failedRunMessageRequests,
         failedRunTimelineRequests
       })}`
     );
   }
-  if (!failedRunStateRequests.length) {
-    throw new Error('failed-run UI did not call getRunState after timeline polling expired');
+  // The client must read run state from the registered timeline, never the
+  // unregistered bare GET /runs/{id} (which 404s on the real gateway).
+  if (failedRunStateRequests.length) {
+    throw new Error(
+      `client hit the unregistered bare GET /runs/{id}: ${JSON.stringify(failedRunStateRequests)}`
+    );
   }
   await page.screenshot({
-    path: 'output/playwright/static-run-state-failure-visible.png',
+    path: 'output/playwright/static-run-state-recovery-visible.png',
     fullPage: true
   });
 

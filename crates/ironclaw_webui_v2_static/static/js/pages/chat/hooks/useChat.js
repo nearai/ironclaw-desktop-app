@@ -1,7 +1,7 @@
 import {
   cancelRun as cancelRunRequest,
   createThread as createThreadRequest,
-  fetchRunState,
+  fetchTimeline,
   resolveGate as resolveGateRequest,
   sendMessage,
   submitManualToken
@@ -17,8 +17,7 @@ import { queryClient } from '../../../lib/query-client.js';
 import { toast } from '../../../lib/toast.js';
 import { React } from '../../../lib/html.js';
 import { useChatEvents } from '../lib/useChatEvents.js';
-import { failureMessageForRunStatus } from '../lib/failureMessages.js';
-import { buildDurableAttachmentBlock } from '../lib/history-messages.js';
+import { buildDurableAttachmentBlock, runReplyLandedInTimeline } from '../lib/history-messages.js';
 import { upsertRunFailureMessage } from '../lib/message-upsert.js';
 import {
   addPending,
@@ -94,40 +93,6 @@ function parseOAuthCallbackStoragePayload(value) {
   } catch {
     return null;
   }
-}
-
-function normalizeRunStatus(status) {
-  return String(status || '')
-    .trim()
-    .toLowerCase();
-}
-
-function isRunSuccessStatus(status) {
-  return status === 'completed' || status === 'succeeded';
-}
-
-function isRunFailureStatus(status) {
-  return status === 'failed' || status === 'recovery_required' || status === 'cancelled';
-}
-
-function failureCategoryFromRunState(runState) {
-  return (
-    runState?.failure?.category ||
-    runState?.failure_category ||
-    runState?.failureCategory ||
-    runState?.category ||
-    ''
-  );
-}
-
-function failureSummaryFromRunState(runState) {
-  return (
-    runState?.failure?.summary ||
-    runState?.failure_summary ||
-    runState?.failureSummary ||
-    runState?.summary ||
-    ''
-  );
 }
 
 function connectorRecoveryText({ content, failureCategory, failureSummary } = {}) {
@@ -330,17 +295,21 @@ export function useChat(threadId) {
       });
     };
 
+    // SSE-drop fallback. The gateway registers no bare GET /runs/{id}, so we
+    // poll the registered timeline route and treat a finalized assistant reply
+    // for this run as completion (runReplyLandedInTimeline). Run failures are
+    // surfaced by the live SSE channel; a dropped-SSE run that produces nothing
+    // falls through to the honest timeout below rather than a fabricated status.
     const pollRunState = async () => {
       attempts += 1;
       try {
-        const runState = await fetchRunState({
+        const timeline = await fetchTimeline({
           threadId,
-          runId: activeRun.runId,
+          limit: 60,
           signal: controller.signal
         });
         if (cancelled) return;
-        const status = normalizeRunStatus(runState?.status);
-        if (isRunSuccessStatus(status)) {
+        if (runReplyLandedInTimeline(timeline?.messages || [], activeRun.runId)) {
           // loadHistory reconciles pending rows against the timeline;
           // no blanket wipe (see onRunCompleted).
           setPendingGate(null);
@@ -349,28 +318,10 @@ export function useChat(threadId) {
           loadHistory();
           return;
         }
-        if (isRunFailureStatus(status)) {
-          const failureCategory = failureCategoryFromRunState(runState);
-          const failureSummary = failureSummaryFromRunState(runState);
-          const content = failureMessageForRunStatus({
-            status,
-            failureCategory,
-            failureSummary
-          });
-          appendFailureMessage(content);
-          const recovery = resolveExtensionRecoveryAction(
-            connectorRecoveryText({ content, failureCategory, failureSummary })
-          );
-          if (recovery) setChannelConnectAction(recovery);
-          setPendingGate(null);
-          setIsProcessing(false);
-          setActiveRun(null);
-          return;
-        }
       } catch (err) {
         if (cancelled || controller.signal.aborted) return;
-        // Keep polling; transient run-state misses are expected while
-        // the backend creates the run record.
+        // Keep polling; transient timeline misses are expected while the
+        // backend is still writing the run's records.
       }
 
       if (!cancelled && attempts < RUN_STATE_FALLBACK_MAX_ATTEMPTS) {

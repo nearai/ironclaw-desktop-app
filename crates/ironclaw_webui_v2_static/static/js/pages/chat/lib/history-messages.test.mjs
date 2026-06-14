@@ -4,8 +4,30 @@ import test from 'node:test';
 import {
   messagesFromTimeline,
   pendingMessagesAfterTimeline,
-  buildDurableAttachmentBlock
+  buildDurableAttachmentBlock,
+  runReplyLandedInTimeline
 } from './history-messages.js';
+
+test('runReplyLandedInTimeline: finalized assistant reply for the run counts as complete', () => {
+  const records = [
+    { kind: 'user', content: 'hi', turn_run_id: 'run-1' },
+    { kind: 'assistant', content: 'hello', status: 'finalized', turn_run_id: 'run-1' }
+  ];
+  assert.equal(runReplyLandedInTimeline(records, 'run-1'), true);
+});
+
+test('runReplyLandedInTimeline: streaming reply, mid-run tool result, other run, or no run id do not count', () => {
+  const streaming = [{ kind: 'assistant', status: 'streaming', turn_run_id: 'run-1' }];
+  const toolMidRun = [{ kind: 'tool_result', status: 'finalized', turn_run_id: 'run-1' }];
+  const otherRun = [{ kind: 'assistant', status: 'finalized', turn_run_id: 'run-2' }];
+  const userOnly = [{ kind: 'user', content: 'hi', turn_run_id: 'run-1' }];
+  assert.equal(runReplyLandedInTimeline(streaming, 'run-1'), false);
+  assert.equal(runReplyLandedInTimeline(toolMidRun, 'run-1'), false);
+  assert.equal(runReplyLandedInTimeline(otherRun, 'run-1'), false);
+  assert.equal(runReplyLandedInTimeline(userOnly, 'run-1'), false);
+  assert.equal(runReplyLandedInTimeline([], 'run-1'), false);
+  assert.equal(runReplyLandedInTimeline([{ kind: 'assistant', status: 'finalized' }], ''), false);
+});
 
 test('messagesFromTimeline: pending messages default to optimistic user messages', () => {
   const messages = messagesFromTimeline(

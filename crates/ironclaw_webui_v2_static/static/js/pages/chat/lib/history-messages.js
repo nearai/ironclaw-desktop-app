@@ -95,6 +95,35 @@
 // in `content` until the native v2 request grows a first-class attachment
 // field. Parse that block back into chips while preserving turn grouping.
 
+// True once a run has produced a finalized assistant reply in the timeline.
+// This is the SSE-drop fallback's completion signal: the gateway registers no
+// bare GET /runs/{id} (only .../cancel and .../gates/.../resolve), so the old
+// fetchRunState poll 404'd forever and then falsely declared "no result". The
+// timeline IS registered and carries each assistant record's turn_run_id +
+// status, so a landed reply is the honest, route-real proof the turn finished.
+// Failure is deliberately NOT inferred here — the timeline has no reliable
+// run-level failure status (a capability error_kind can precede a successful
+// recovery); genuine failures arrive on the live SSE channel, and a dropped-SSE
+// run that produced nothing falls through to the caller's honest timeout.
+/**
+ * @param {TimelineRecord[]} records
+ * @param {string | null | undefined} runId
+ * @returns {boolean}
+ */
+export function runReplyLandedInTimeline(records, runId) {
+  if (!runId || !Array.isArray(records)) return false;
+  return records.some((record) => {
+    if (!record) return false;
+    // Only a finalized assistant *message* proves the turn finished. Match on
+    // kind directly (not roleForRecord, which maps tool_result → assistant) so a
+    // mid-run tool result never clears 'processing' early.
+    if (record.kind !== 'assistant' && record.kind !== 'assistant_message') return false;
+    if ((record.turn_run_id || null) !== runId) return false;
+    const status = String(record.status || '').toLowerCase();
+    return status !== 'pending' && status !== 'streaming';
+  });
+}
+
 /**
  * @param {TimelineRecord[]} records
  * @param {PendingMessage[]} pendingMessages

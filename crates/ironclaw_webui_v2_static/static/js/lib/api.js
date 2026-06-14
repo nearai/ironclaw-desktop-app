@@ -415,14 +415,14 @@ export function normalizeAttachmentPayloads(attachments) {
 
 // --- Timeline ---
 
-export function fetchTimeline({ threadId, limit, cursor } = {}) {
+export function fetchTimeline({ threadId, limit, cursor, signal } = {}) {
   const url = new URL(
     `${V2_BASE}/threads/${encodeURIComponent(threadId)}/timeline`,
     window.location.origin
   );
   if (limit != null) url.searchParams.set('limit', String(limit));
   if (cursor) url.searchParams.set('cursor', cursor);
-  return apiFetch(url.pathname + url.search);
+  return apiFetch(url.pathname + url.search, { signal });
 }
 
 // --- Streaming (SSE) ---
@@ -474,12 +474,10 @@ export function cancelRun({ threadId, runId, reason, clientActionId: clientId } 
   );
 }
 
-export function fetchRunState({ threadId, runId, signal } = {}) {
-  return apiFetch(
-    `${V2_BASE}/threads/${encodeURIComponent(threadId)}/runs/${encodeURIComponent(runId)}`,
-    { signal }
-  );
-}
+// (No bare GET /threads/{id}/runs/{id}: the gateway registers only
+// .../runs/{id}/cancel and .../gates/{ref}/resolve. Run completion is read from
+// the registered timeline route — see runReplyLandedInTimeline + useChat's
+// SSE-drop fallback — never a 404-guaranteed run-state GET.)
 
 // --- Gate resolution ---
 
