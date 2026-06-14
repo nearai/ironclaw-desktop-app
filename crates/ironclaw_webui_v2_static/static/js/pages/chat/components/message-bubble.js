@@ -9,6 +9,7 @@ import { saveBlob } from '../../../lib/save-file.js';
 import {
   buildDocxBlob,
   buildPdfBlob,
+  collectMermaidExportImages,
   copyWorkProduct,
   downloadDocx,
   downloadHtml,
@@ -331,7 +332,7 @@ export function MessageBubble({ message, messages = [], onRetry }) {
   const hiddenAttachmentCount = fileAttachments.length - visibleAttachments.length;
 
   return html`
-    <div className=${messageOuterClass(isUser, isAssistantWorkProduct)}>
+    <div className=${messageOuterClass(isUser, isAssistantWorkProduct)} data-message-root="1">
       <div className=${messageShellClass(isUser, isAssistantWorkProduct)}>
         ${imagePreviews.length > 0 &&
         html`
@@ -665,8 +666,17 @@ function AssistantExportActions({
   popoverSide = 'top'
 }) {
   const [menuOpen, setMenuOpen] = React.useState(false);
+  const rootRef = React.useRef(null);
   const title = titleFromMarkdown(content) || 'Assistant response';
   const subject = String(subjectLabel || 'assistant response');
+
+  // Embed rendered mermaid diagrams (the user clicked "Render diagram") as
+  // real images in the DOCX; un-rendered diagrams keep the source-only export.
+  const exportDocxWithDiagrams = async () => {
+    const messageRoot = rootRef.current?.closest?.('[data-message-root]');
+    const images = messageRoot ? await collectMermaidExportImages(messageRoot) : [];
+    return downloadDocx(content, 'assistant-response.docx', images.length ? { images } : undefined);
+  };
   const exportOptions = [
     {
       id: 'md',
@@ -690,7 +700,7 @@ function AssistantExportActions({
       id: 'docx',
       label: 'DOCX',
       description: 'Word document',
-      action: async () => downloadDocx(content)
+      action: exportDocxWithDiagrams
     },
     {
       id: 'json',
@@ -731,65 +741,69 @@ function AssistantExportActions({
   };
 
   return html`
-    <button
-      type="button"
-      onClick=${() => saveToWork(title, content)}
-      className=${actionClass('primary')}
-      aria-label=${`Save ${subject} to Work`}
-    >
-      Save to Work
-    </button>
-    <${Popover}
-      open=${menuOpen}
-      onClose=${() => setMenuOpen(false)}
-      align="start"
-      side=${popoverSide}
-      className="w-[min(22rem,calc(100vw-2rem))] max-w-none p-2"
-      trigger=${html`
-        <button
-          type="button"
-          onClick=${() => setMenuOpen((value) => !value)}
-          className=${actionClass()}
-          aria-label=${`Export ${subject}`}
-          aria-expanded=${menuOpen ? 'true' : 'false'}
-        >
-          <${Icon} name="download" className="h-3.5 w-3.5" />
-          Export
-          <${Icon}
-            name="chevron"
-            className=${['h-3 w-3', menuOpen ? 'rotate-180' : ''].join(' ')}
-          />
-        </button>
-      `}
-    >
-      <div
-        className="mb-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-iron-400"
+    <span ref=${rootRef} className="contents">
+      <button
+        type="button"
+        onClick=${() => saveToWork(title, content)}
+        className=${actionClass('primary')}
+        aria-label=${`Save ${subject} to Work`}
       >
-        Download work product
-      </div>
-      <div className="grid gap-1">
-        ${exportOptions.map(
-          (option) => html`
-            <button
-              key=${option.id}
-              type="button"
-              onClick=${() => runExport(option)}
-              className="flex w-full min-w-0 items-center gap-2 rounded-[8px] px-2 py-2 text-left text-sm text-iron-100 hover:bg-white/5"
-            >
-              <${Icon}
-                name=${option.id.includes('thread') ? 'chat' : 'file'}
-                className="h-4 w-4 shrink-0 text-signal"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">${option.label}</span>
-                <span className="block truncate text-xs text-iron-400">${option.description}</span>
-              </span>
-              <${Icon} name="download" className="h-3.5 w-3.5 shrink-0 text-iron-400" />
-            </button>
-          `
-        )}
-      </div>
-    <//>
+        Save to Work
+      </button>
+      <${Popover}
+        open=${menuOpen}
+        onClose=${() => setMenuOpen(false)}
+        align="start"
+        side=${popoverSide}
+        className="w-[min(22rem,calc(100vw-2rem))] max-w-none p-2"
+        trigger=${html`
+          <button
+            type="button"
+            onClick=${() => setMenuOpen((value) => !value)}
+            className=${actionClass()}
+            aria-label=${`Export ${subject}`}
+            aria-expanded=${menuOpen ? 'true' : 'false'}
+          >
+            <${Icon} name="download" className="h-3.5 w-3.5" />
+            Export
+            <${Icon}
+              name="chevron"
+              className=${['h-3 w-3', menuOpen ? 'rotate-180' : ''].join(' ')}
+            />
+          </button>
+        `}
+      >
+        <div
+          className="mb-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-iron-400"
+        >
+          Download work product
+        </div>
+        <div className="grid gap-1">
+          ${exportOptions.map(
+            (option) => html`
+              <button
+                key=${option.id}
+                type="button"
+                onClick=${() => runExport(option)}
+                className="flex w-full min-w-0 items-center gap-2 rounded-[8px] px-2 py-2 text-left text-sm text-iron-100 hover:bg-white/5"
+              >
+                <${Icon}
+                  name=${option.id.includes('thread') ? 'chat' : 'file'}
+                  className="h-4 w-4 shrink-0 text-signal"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">${option.label}</span>
+                  <span className="block truncate text-xs text-iron-400"
+                    >${option.description}</span
+                  >
+                </span>
+                <${Icon} name="download" className="h-3.5 w-3.5 shrink-0 text-iron-400" />
+              </button>
+            `
+          )}
+        </div>
+      <//>
+    </span>
   `;
 }
 

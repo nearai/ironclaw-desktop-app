@@ -99,6 +99,25 @@ function buildStoredZipBuffer(entries) {
   return Buffer.concat([...chunks, ...central, eocd].map((chunk) => Buffer.from(chunk)));
 }
 
+// Read a stored-method (uncompressed) ZIP's local entries, preserving raw
+// bytes so binary parts (PNG media) can be inspected byte-for-byte.
+function readStoredZipEntries(bytes) {
+  const buffer = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes);
+  const entries = new Map();
+  let offset = 0;
+  while (offset + 30 <= buffer.length && buffer.readUInt32LE(offset) === 0x04034b50) {
+    const compressedSize = buffer.readUInt32LE(offset + 18);
+    const nameLength = buffer.readUInt16LE(offset + 26);
+    const extraLength = buffer.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + nameLength + extraLength;
+    const name = buffer.slice(nameStart, nameStart + nameLength).toString('utf8');
+    entries.set(name, buffer.slice(dataStart, dataStart + compressedSize));
+    offset = dataStart + compressedSize;
+  }
+  return entries;
+}
+
 function buildSmokeDocxBuffer() {
   return buildStoredZipBuffer([
     [
@@ -694,6 +713,27 @@ try {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     Buffer.from('PK\u0003\u0004dummy docx package bytes for static smoke', 'binary')
   );
+  // VIZ-3: the assistant reply carries a mermaid fence so the rendered run can
+  // click "Render diagram" and prove the DOCX export embeds the rasterized PNG
+  // (browser canvas) while still preserving the diagram source.
+  const SMOKE_MERMAID_SOURCE = [
+    'graph TD',
+    '  A[Client instructions] --> B[Draft DOCX]',
+    '  B --> C[Review and export]'
+  ].join('\n');
+  const SMOKE_ASSISTANT_REPLY = [
+    '# Services agreement',
+    '',
+    '## Scope',
+    '',
+    'Prepared from the uploaded template with export-ready sections.',
+    '',
+    '## Workflow diagram',
+    '',
+    '```mermaid',
+    SMOKE_MERMAID_SOURCE,
+    '```'
+  ].join('\n');
   await page.route(`${gatewayOrigin}/api/gateway/status`, async (route) => {
     await route.fulfill({
       contentType: 'application/json',
@@ -804,8 +844,7 @@ try {
             {
               kind: 'assistant',
               message_id: 'msg-assistant-smoke',
-              content:
-                '# Services agreement\n\n## Scope\n\nPrepared from the uploaded template with export-ready sections.',
+              content: SMOKE_ASSISTANT_REPLY,
               sequence: 2,
               turn_run_id: 'run-smoke',
               created_at: '2026-06-02T08:00:01.000Z'
@@ -829,7 +868,7 @@ try {
           type: 'final_reply',
           reply: {
             turn_run_id: 'run-smoke',
-            text: '# Services agreement\n\n## Scope\n\nPrepared from the uploaded template with export-ready sections.',
+            text: SMOKE_ASSISTANT_REPLY,
             generated_at: '2026-06-02T08:00:01.000Z'
           }
         })}\n\n`
@@ -1972,6 +2011,74 @@ try {
     !docxText.includes('Prepared from the uploaded template')
   ) {
     throw new Error(`DOCX export is not a parseable Word package: ${docxText.slice(0, 300)}`);
+  }
+
+  // VIZ-3: render the mermaid diagram, then export DOCX again — it must now
+  // embed the rasterized PNG as a real media part AND keep the source. Reload
+  // the thread first so the assistant bubble is freshly mounted (the long
+  // attachment/preview flow above can re-render the message and reset the
+  // markdown body's innerHTML before its enhancement runs).
+  await page.goto(`http://127.0.0.1:${port}${appBasePath}/chat/thread-smoke`, {
+    waitUntil: 'domcontentloaded'
+  });
+  const mermaidCard = page.locator('[data-md-renderer="mermaid"]').first();
+  try {
+    await mermaidCard.waitFor({ state: 'attached', timeout: 20_000 });
+  } catch (err) {
+    await mkdir('output/playwright', { recursive: true });
+    await page
+      .screenshot({ path: 'output/playwright/static-mermaid-card-missing.png', fullPage: true })
+      .catch(() => {});
+    const diag = await page.evaluate(() => ({
+      cards: document.querySelectorAll('[data-md-renderer="mermaid"]').length,
+      mermaidCode: document.querySelectorAll('code.language-mermaid').length,
+      bodyHasGraph: (document.body?.innerText || '').includes('graph TD')
+    }));
+    throw new Error(`mermaid diagram card never mounted: ${JSON.stringify(diag)}`, { cause: err });
+  }
+  await mermaidCard.getByRole('button', { name: 'Render diagram' }).click();
+  await mermaidCard.locator('.v2-mermaid-card__output svg').waitFor({
+    state: 'attached',
+    timeout: 20_000
+  });
+  const diagramDocxExport = await downloadAssistantExport('DOCX', 'assistant-response.docx');
+  const diagramDocxEntries = readStoredZipEntries(diagramDocxExport);
+  const mediaEntry = [...diagramDocxEntries.entries()].find(([name]) =>
+    name.startsWith('word/media/')
+  );
+  if (!mediaEntry) {
+    throw new Error('rendered-diagram DOCX export did not embed a word/media image part');
+  }
+  const [mediaName, mediaBytes] = mediaEntry;
+  // The media part must be real PNG bytes (magic 0x89 P N G).
+  if (
+    !/^word\/media\/image\d+\.png$/.test(mediaName) ||
+    mediaBytes[0] !== 0x89 ||
+    mediaBytes[1] !== 0x50 ||
+    mediaBytes[2] !== 0x4e ||
+    mediaBytes[3] !== 0x47
+  ) {
+    throw new Error(
+      `rendered-diagram DOCX media part is not a PNG: ${mediaName} ${Array.from(
+        mediaBytes.slice(0, 4)
+      )}`
+    );
+  }
+  const diagramDocumentXml = diagramDocxEntries.get('word/document.xml')?.toString('utf8') || '';
+  const diagramContentTypes = diagramDocxEntries.get('[Content_Types].xml')?.toString('utf8') || '';
+  if (
+    !diagramDocumentXml.includes('<w:drawing>') ||
+    !/<a:blip r:embed="rIdImage\d+"\/>/.test(diagramDocumentXml) ||
+    !diagramDocumentXml.includes('graph TD') ||
+    !diagramDocumentXml.includes('Mermaid diagram source') ||
+    !diagramContentTypes.includes('Extension="png" ContentType="image/png"')
+  ) {
+    throw new Error(
+      `rendered-diagram DOCX missing inline drawing, source, or PNG content-type:\n${diagramDocumentXml.slice(
+        0,
+        400
+      )}`
+    );
   }
 
   const jsonExport = JSON.parse(

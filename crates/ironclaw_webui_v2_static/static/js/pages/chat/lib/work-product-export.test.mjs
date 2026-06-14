@@ -185,6 +185,91 @@ test('static exports preserve Mermaid diagram source in every work-product forma
   assert.doesNotMatch(documentXml, /```/);
 });
 
+// VIZ-3: when a rendered mermaid PNG is supplied, the DOCX embeds it as a real
+// image part (word/media + content-type + relationship + inline drawing) AND
+// keeps the labeled source below it. Rasterization needs a browser canvas, so
+// this canvas-less node test passes a fixed PNG buffer straight to the builder.
+const PNG_FIXTURE = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1f, 0x15, 0xc4,
+  0x89, 0x00, 0x00, 0x00, 0x0a, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0x00, 0x01, 0x00, 0x00,
+  0x05, 0x00, 0x01, 0x0d, 0x0a, 0x2d, 0xb4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae,
+  0x42, 0x60, 0x82
+]);
+
+test('DOCX embeds a rendered mermaid PNG as a real image part and keeps the source', async () => {
+  const mermaidSource = [
+    'graph TD',
+    '  A[Client instructions] --> B[Draft DOCX]',
+    '  B --> C[Review and export]'
+  ].join('\n');
+  const docx = buildDocxBlob(MERMAID_WORK_PRODUCT_MARKDOWN, {
+    images: [{ source: mermaidSource, png: PNG_FIXTURE, width: 640, height: 360 }]
+  });
+  assert.equal(docx.type, DOCX_MIME);
+  const { entries, binary } = unzipStoredEntriesWithBinary(
+    new Uint8Array(await docx.arrayBuffer())
+  );
+
+  // A media PNG part exists and its bytes are byte-identical to the source PNG.
+  const mediaNames = [...entries.keys()].filter((name) => name.startsWith('word/media/'));
+  assert.equal(mediaNames.length, 1, 'exactly one media image part');
+  assert.match(mediaNames[0], /^word\/media\/image1\.png$/);
+  assert.deepEqual([...binary.get(mediaNames[0])], [...PNG_FIXTURE], 'PNG bytes survive the zip');
+
+  // Content-types declares the PNG default; rels wires the image relationship.
+  assert.match(
+    entries.get('[Content_Types].xml'),
+    /<Default Extension="png" ContentType="image\/png"\/>/
+  );
+  const rels = entries.get('word/_rels/document.xml.rels');
+  assert.match(
+    rels,
+    /Id="rIdImage1" Type="http:\/\/schemas\.openxmlformats\.org\/officeDocument\/2006\/relationships\/image" Target="media\/image1\.png"/
+  );
+
+  // The document has an inline drawing that embeds the relationship, and STILL
+  // carries the label + source code so nothing is lost.
+  const documentXml = entries.get('word/document.xml');
+  assert.match(documentXml, /<w:drawing>/);
+  assert.match(documentXml, /<a:blip r:embed="rIdImage1"\/>/);
+  assert.match(documentXml, /<wp:extent cx="\d+" cy="\d+"\/>/);
+  assert.match(documentXml, /Mermaid diagram source/);
+  assert.match(documentXml, /graph TD/);
+  assert.match(documentXml, /Draft DOCX/);
+});
+
+test('DOCX without supplied images is byte-identical to the source-only export', async () => {
+  const withoutOption = new Uint8Array(
+    await buildDocxBlob(MERMAID_WORK_PRODUCT_MARKDOWN).arrayBuffer()
+  );
+  const withEmptyImages = new Uint8Array(
+    await buildDocxBlob(MERMAID_WORK_PRODUCT_MARKDOWN, { images: [] }).arrayBuffer()
+  );
+  assert.deepEqual(
+    [...withEmptyImages],
+    [...withoutOption],
+    'no images => no media part, no drawing'
+  );
+  const { entries } = unzipStoredEntriesWithBinary(withoutOption);
+  assert.ok(![...entries.keys()].some((name) => name.startsWith('word/media/')), 'no media part');
+  assert.doesNotMatch(entries.get('[Content_Types].xml'), /Extension="png"/);
+  assert.doesNotMatch(entries.get('word/document.xml'), /<w:drawing>/);
+});
+
+test('DOCX skips the drawing when the supplied image source does not match a fence', async () => {
+  const docx = buildDocxBlob(MERMAID_WORK_PRODUCT_MARKDOWN, {
+    images: [{ source: 'graph LR\n  X --> Y', png: PNG_FIXTURE, width: 320, height: 180 }]
+  });
+  const { entries } = unzipStoredEntriesWithBinary(new Uint8Array(await docx.arrayBuffer()));
+  assert.ok(
+    ![...entries.keys()].some((name) => name.startsWith('word/media/')),
+    'no media for unmatched source'
+  );
+  assert.doesNotMatch(entries.get('word/document.xml'), /<w:drawing>/);
+  assert.match(entries.get('word/document.xml'), /graph TD/, 'source still preserved');
+});
+
 // workproduct-2: the PDF must not truncate long content at 32 lines and must
 // word-wrap lines that exceed the page width, paginating into multiple pages.
 test('PDF export paginates long content instead of truncating at 32 lines', async () => {
@@ -204,7 +289,10 @@ test('PDF export paginates long content instead of truncating at 32 lines', asyn
   assert.ok(pageCount > 1, `expected multiple page objects, saw ${pageCount}`);
   const countMatch = latin1.match(/\/Type \/Pages \/Kids \[([^\]]*)\] \/Count (\d+)/);
   assert.ok(countMatch, 'has a /Pages node with /Kids and /Count');
-  const kidsRefs = countMatch[1].trim().split(/\s+(?=\d+ 0 R)/).filter(Boolean).length;
+  const kidsRefs = countMatch[1]
+    .trim()
+    .split(/\s+(?=\d+ 0 R)/)
+    .filter(Boolean).length;
   assert.equal(Number(countMatch[2]), pageCount, '/Count matches the number of Page objects');
   assert.equal(kidsRefs, pageCount, '/Kids lists one ref per Page object');
 });
@@ -304,6 +392,28 @@ function unzipStoredEntries(bytes) {
     offset = dataStart + compressedSize;
   }
   return entries;
+}
+
+// Like unzipStoredEntries but also keeps the raw bytes per entry, so binary
+// parts (PNG media) can be asserted byte-for-byte without text-decode mangling.
+function unzipStoredEntriesWithBinary(bytes) {
+  const entries = new Map();
+  const binary = new Map();
+  const decoder = new TextDecoder();
+  let offset = 0;
+  while (offset + 30 <= bytes.length && readU32(bytes, offset) === 0x04034b50) {
+    const compressedSize = readU32(bytes, offset + 18);
+    const fileNameLength = readU16(bytes, offset + 26);
+    const extraLength = readU16(bytes, offset + 28);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + fileNameLength + extraLength;
+    const name = decoder.decode(bytes.slice(nameStart, nameStart + fileNameLength));
+    const raw = bytes.slice(dataStart, dataStart + compressedSize);
+    entries.set(name, decoder.decode(raw));
+    binary.set(name, raw);
+    offset = dataStart + compressedSize;
+  }
+  return { entries, binary };
 }
 
 function readU16(bytes, offset) {

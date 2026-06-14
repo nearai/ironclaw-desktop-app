@@ -33,12 +33,148 @@ export function downloadJson(message, filename = 'assistant-response.json') {
   return downloadBlob(filename, buildJsonBlob(message));
 }
 
-export function downloadDocx(content, filename = 'assistant-response.docx') {
-  return downloadBlob(filename, buildDocxBlob(content));
+export function downloadDocx(content, filename = 'assistant-response.docx', options) {
+  return downloadBlob(filename, buildDocxBlob(content, options));
 }
 
 export function downloadPdf(content, filename = 'assistant-response.pdf') {
   return downloadBlob(filename, buildPdfBlob(content));
+}
+
+// Rasterize already-rendered mermaid diagrams under `rootEl` into PNG buffers
+// keyed by their fence source, so the DOCX export can embed the picture (not
+// just the source). Only cards the user has rendered ([data-rendered="1"] with
+// an <svg>) are collected; un-rendered diagrams fall back to the source-only
+// path. Returns [] in any non-browser context (no canvas) so callers can pass
+// the result straight to buildDocxBlob without guarding.
+export async function collectMermaidExportImages(rootEl) {
+  if (!rootEl || typeof document === 'undefined' || typeof document.createElement !== 'function') {
+    return [];
+  }
+  const cards =
+    typeof rootEl.querySelectorAll === 'function'
+      ? Array.from(rootEl.querySelectorAll('[data-md-renderer="mermaid"]'))
+      : [];
+  const images = [];
+  for (const card of cards) {
+    const svg = card.querySelector?.('.v2-mermaid-card__output svg') || card.querySelector?.('svg');
+    const source = card.querySelector?.('.v2-mermaid-card__source pre')?.textContent;
+    if (!svg || !source) continue;
+    try {
+      const png = await rasterizeSvgToPng(svg);
+      if (png) {
+        images.push({
+          source: String(source),
+          png: png.bytes,
+          width: png.width,
+          height: png.height
+        });
+      }
+    } catch {
+      // A diagram that cannot be rasterized just keeps the source-only export.
+    }
+  }
+  return images;
+}
+
+function svgPixelSize(svg) {
+  let width = 0;
+  let height = 0;
+  try {
+    const box = typeof svg.getBBox === 'function' ? svg.getBBox() : null;
+    if (box) {
+      width = box.width;
+      height = box.height;
+    }
+  } catch {
+    // getBBox throws when the node is not laid out; fall through to attributes.
+  }
+  if (!width || !height) {
+    const rect =
+      typeof svg.getBoundingClientRect === 'function' ? svg.getBoundingClientRect() : null;
+    if (rect && rect.width && rect.height) {
+      width = rect.width;
+      height = rect.height;
+    }
+  }
+  if (!width || !height) {
+    const vb = (svg.getAttribute?.('viewBox') || '')
+      .trim()
+      .split(/[\s,]+/)
+      .map(Number);
+    if (vb.length === 4 && vb[2] > 0 && vb[3] > 0) {
+      width = vb[2];
+      height = vb[3];
+    }
+  }
+  return {
+    width: Math.max(1, Math.round(width || 800)),
+    height: Math.max(1, Math.round(height || 450))
+  };
+}
+
+function rasterizeSvgToPng(svg) {
+  const { width, height } = svgPixelSize(svg);
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  if (!clone.getAttribute('width')) clone.setAttribute('width', String(width));
+  if (!clone.getAttribute('height')) clone.setAttribute('height', String(height));
+  const serialized = new XMLSerializer().serializeToString(clone);
+  // Encode as UTF-8 base64 so multi-byte glyphs in the diagram survive the
+  // data URL; btoa() alone mangles characters above U+00FF.
+  const encoded =
+    typeof TextEncoder !== 'undefined'
+      ? bytesToBase64(new TextEncoder().encode(serialized))
+      : btoa(unescape(encodeURIComponent(serialized)));
+  const dataUrl = `data:image/svg+xml;base64,${encoded}`;
+  // Render at 2x for a crisp embed, but clamp pixels so a huge graph cannot
+  // allocate an unbounded canvas.
+  const scale = 2;
+  const canvasWidth = Math.min(4000, Math.round(width * scale));
+  const canvasHeight = Math.min(4000, Math.round(height * scale));
+
+  return new Promise((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        // Opaque background: Word renders PNG alpha as black, which would hide a
+        // dark-themed diagram. Paint the diagram surface first.
+        ctx.fillStyle = '#0b1220';
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+        ctx.drawImage(image, 0, 0, canvasWidth, canvasHeight);
+        const dataPng = canvas.toDataURL('image/png');
+        const bytes = dataUrlToBytes(dataPng);
+        resolve(bytes ? { bytes, width: canvasWidth, height: canvasHeight } : null);
+      } catch {
+        resolve(null);
+      }
+    };
+    image.onerror = () => resolve(null);
+    image.src = dataUrl;
+  });
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+function dataUrlToBytes(dataUrl) {
+  const comma = String(dataUrl || '').indexOf(',');
+  if (comma < 0) return null;
+  const binary = atob(dataUrl.slice(comma + 1));
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
 }
 
 export function buildMarkdownBlob(content) {
@@ -73,8 +209,19 @@ export function buildJsonBlob(message) {
   );
 }
 
-export function buildDocxBlob(content) {
-  const { documentXml, relationships } = documentPartsFromMarkdown(String(content || ''));
+// `options.images` is an optional list of pre-rasterized mermaid diagrams keyed
+// by their fence source: { source, png: Uint8Array, width, height }. When a
+// mermaid fence in the content matches a provided image, the DOCX embeds the
+// PNG as a real `word/media/imageN.png` part with an inline w:drawing, then
+// keeps the labeled source code block below it. Rasterization needs a browser
+// canvas, so it happens at the UI layer (collectMermaidExportImages); when no
+// images are supplied the bytes are identical to the source-only export, which
+// is why the canvas-less node test path stays unchanged.
+export function buildDocxBlob(content, options = {}) {
+  const { documentXml, relationships, mediaParts } = documentPartsFromMarkdown(
+    String(content || ''),
+    normalizeExportImages(options.images)
+  );
   const relsXml = relationshipsXml([
     {
       id: 'rIdNumbering',
@@ -85,16 +232,65 @@ export function buildDocxBlob(content) {
   ]);
   const rootRels =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
-  const contentTypes =
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/></Types>';
+  // The PNG Default content-type override is only added when at least one image
+  // part exists, so an image-free export keeps the exact prior [Content_Types].
+  const pngDefault = mediaParts.length ? '<Default Extension="png" ContentType="image/png"/>' : '';
+  const contentTypes = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/>${pngDefault}<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/></Types>`;
   const bytes = zipStore([
     { name: '[Content_Types].xml', data: contentTypes },
     { name: '_rels/.rels', data: rootRels },
     { name: 'word/_rels/document.xml.rels', data: relsXml },
     { name: 'word/document.xml', data: documentXml },
-    { name: 'word/numbering.xml', data: numberingXml() }
+    { name: 'word/numbering.xml', data: numberingXml() },
+    ...mediaParts.map((part) => ({ name: `word/media/${part.filename}`, data: part.png }))
   ]);
   return new Blob([bytes], { type: DOCX_MIME });
+}
+
+// EMU is the OOXML drawing unit: 914400 per inch. Cap the embedded diagram at
+// 6 inches wide (page text width on a 1" margin US Letter) and scale height by
+// the source aspect ratio so wide mermaid graphs stay inside the margins.
+const DOCX_EMU_PER_PX = 9525;
+const DOCX_MAX_IMAGE_WIDTH_EMU = 6 * 914400;
+
+function normalizeExportImages(images) {
+  if (!Array.isArray(images)) return [];
+  const out = [];
+  for (const image of images) {
+    const png = image?.png;
+    const source = String(image?.source || '');
+    const isBytes = png instanceof Uint8Array && png.length > 0;
+    if (!source || !isBytes) continue;
+    const width = Number.isFinite(image.width) && image.width > 0 ? Math.round(image.width) : 0;
+    const height = Number.isFinite(image.height) && image.height > 0 ? Math.round(image.height) : 0;
+    out.push({ source, png, width, height });
+  }
+  return out;
+}
+
+function imageDrawingXml(part) {
+  const naturalWidthEmu = (part.width || 800) * DOCX_EMU_PER_PX;
+  const naturalHeightEmu = (part.height || 450) * DOCX_EMU_PER_PX;
+  const scale =
+    naturalWidthEmu > DOCX_MAX_IMAGE_WIDTH_EMU ? DOCX_MAX_IMAGE_WIDTH_EMU / naturalWidthEmu : 1;
+  const widthEmu = Math.max(1, Math.round(naturalWidthEmu * scale));
+  const heightEmu = Math.max(1, Math.round(naturalHeightEmu * scale));
+  const docPrId = part.imageNumber;
+  const name = `Diagram ${part.imageNumber}`;
+  return (
+    `<w:p><w:r><w:drawing>` +
+    `<wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">` +
+    `<wp:extent cx="${widthEmu}" cy="${heightEmu}"/>` +
+    `<wp:docPr id="${docPrId}" name="${escapeXmlAttr(name)}" descr="${escapeXmlAttr(MERMAID_EXPORT_LABEL)}"/>` +
+    `<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">` +
+    `<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+    `<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">` +
+    `<pic:nvPicPr><pic:cNvPr id="${docPrId}" name="${escapeXmlAttr(name)}"/><pic:cNvPicPr/></pic:nvPicPr>` +
+    `<pic:blipFill><a:blip r:embed="${part.relationshipId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>` +
+    `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${widthEmu}" cy="${heightEmu}"/></a:xfrm>` +
+    `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>` +
+    `</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`
+  );
 }
 
 // PDF text layout: 14pt Helvetica on US Letter (612x792). Start the baseline at
@@ -254,17 +450,46 @@ function downloadBlob(filename, blob) {
   return saveBlob(blob, filename);
 }
 
-function documentPartsFromMarkdown(content) {
+function documentPartsFromMarkdown(content, images = []) {
   const state = {
     relationships: [],
-    linkIds: new Map()
+    linkIds: new Map(),
+    images,
+    mediaParts: []
   };
   const body = markdownBlocks(content, state).join('');
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <w:body>${body}<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr></w:body>
 </w:document>`;
-  return { documentXml, relationships: state.relationships };
+  return { documentXml, relationships: state.relationships, mediaParts: state.mediaParts };
+}
+
+// Register a rendered PNG for a matched mermaid fence: one media part, one
+// drawing relationship, and the inline w:drawing paragraph that references it.
+function docxMermaidImageXml(source, state) {
+  const images = Array.isArray(state?.images) ? state.images : [];
+  if (!images.length) return '';
+  const trimmed = String(source || '').trim();
+  const match = images.find((image) => image.source.trim() === trimmed);
+  if (!match) return '';
+  const imageNumber = state.mediaParts.length + 1;
+  const filename = `image${imageNumber}.png`;
+  const relationshipId = `rIdImage${imageNumber}`;
+  state.mediaParts.push({
+    filename,
+    png: match.png,
+    width: match.width,
+    height: match.height,
+    imageNumber,
+    relationshipId
+  });
+  state.relationships.push({
+    id: relationshipId,
+    type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+    target: `media/${filename}`
+  });
+  return imageDrawingXml(state.mediaParts[state.mediaParts.length - 1]);
 }
 
 function markdownBlocks(content, state) {
@@ -272,6 +497,8 @@ function markdownBlocks(content, state) {
   const blocks = [];
   let inCode = false;
   let codeLanguage = '';
+  let mermaidSource = [];
+  let mermaidLabelIndex = -1;
   let tableRows = [];
   let tableSourceRows = [];
 
@@ -290,18 +517,29 @@ function markdownBlocks(content, state) {
     if (fence) {
       flushTable();
       if (inCode) {
+        // On closing a mermaid fence, splice the rendered diagram drawing in
+        // front of the label paragraph (so the image reads above its source).
+        if (isMermaidLanguage(codeLanguage) && mermaidLabelIndex >= 0) {
+          const drawing = docxMermaidImageXml(mermaidSource.join('\n'), state);
+          if (drawing) blocks.splice(mermaidLabelIndex, 0, drawing);
+        }
         inCode = false;
         codeLanguage = '';
+        mermaidSource = [];
+        mermaidLabelIndex = -1;
       } else {
         inCode = true;
         codeLanguage = fence.language;
         if (isMermaidLanguage(codeLanguage)) {
+          mermaidSource = [];
+          mermaidLabelIndex = blocks.length;
           blocks.push(paragraphXml(MERMAID_EXPORT_LABEL, {}, state));
         }
       }
       continue;
     }
     if (inCode) {
+      if (isMermaidLanguage(codeLanguage)) mermaidSource.push(line);
       blocks.push(paragraphXml(line, { code: true }, state));
       continue;
     }

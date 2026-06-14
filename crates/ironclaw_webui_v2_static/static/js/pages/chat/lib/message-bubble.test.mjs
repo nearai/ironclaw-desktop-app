@@ -49,7 +49,8 @@ function createMessageBubbleContext(overrides = {}) {
   return {
     React: {
       useCallback: (fn) => fn,
-      useState: (initial) => [initial, () => {}]
+      useState: (initial) => [initial, () => {}],
+      useRef: (initial) => ({ current: initial })
     },
     globalThis: {},
     html: (strings, ...values) => ({ strings: Array.from(strings), values }),
@@ -66,6 +67,7 @@ function createMessageBubbleContext(overrides = {}) {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
       }),
     buildPdfBlob: (content) => new Blob([content], { type: 'application/pdf' }),
+    collectMermaidExportImages: () => Promise.resolve([]),
     downloadDocx: () => {},
     downloadHtml: () => {},
     downloadJson: () => {},
@@ -84,7 +86,10 @@ function createMessageBubbleContext(overrides = {}) {
     generatedFileArtifactsForMessage: (message) =>
       message.role === 'assistant' ? message.generatedFiles || message.generated_files || [] : [],
     generatedFileKindLabel: (artifact) =>
-      String(artifact.filename || '').split('.').pop()?.toUpperCase() || 'FILE',
+      String(artifact.filename || '')
+        .split('.')
+        .pop()
+        ?.toUpperCase() || 'FILE',
     generatedFilePreviewAttachment: (artifact) => ({
       filename: artifact.filename,
       mime_type: artifact.mime_type,
