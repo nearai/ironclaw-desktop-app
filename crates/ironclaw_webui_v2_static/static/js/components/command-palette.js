@@ -5,6 +5,7 @@ import { primaryRoutes } from '../app/routes.js';
 
 const COMMAND_ROUTE_LABELS = {
   chat: 'Go to Chat',
+  work: 'Go to Work',
   automations: 'Go to Automations',
   extensions: 'Go to Connections',
   settings: 'Go to Settings'
@@ -28,6 +29,7 @@ export function buildCommandPaletteActions({
     icon:
       {
         chat: 'chat',
+        work: 'file',
         automations: 'calendar',
         extensions: 'plug',
         settings: 'settings'

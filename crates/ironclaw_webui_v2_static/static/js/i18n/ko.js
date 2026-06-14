@@ -520,11 +520,14 @@ registerPack('ko', {
 
   // Chat — new v2 keys
   'chat.heroTitle': '안녕하세요, 무엇을 도와드릴까요?',
+  'chat.heroMorning': '좋은 아침입니다. IronClaw가 무엇을 처리할까요?',
+  'chat.heroAfternoon': '좋은 오후입니다. IronClaw가 어떤 일을 진행할까요?',
+  'chat.heroEvening': '좋은 저녁입니다. 오늘 밤 IronClaw가 무엇을 마무리할까요?',
   'chat.heroDesc': '목표, 저장소 질문, 리뷰 요청 또는 작업이 필요한 파일로 시작하세요.',
   'chat.suggestion1Desc': '런타임 상태, 채널, 도구, 열려 있는 작업을 점검합니다.',
   'chat.suggestion2Desc': '정확성 위험, 막힌 승인, 후속 조치를 확인합니다.',
   'chat.suggestion3Desc': '설정, 인증, 페어링, 사용 가능한 기능을 확인합니다.',
-  'chat.heroPlaceholder': 'IronClaw에 무엇이든 물어보세요.',
+  'chat.heroPlaceholder': '문서, 메모 또는 작업을 IronClaw에 맡기세요…',
   'chat.followUpPlaceholder': '후속 변경 요청',
   'chat.attachFiles': '파일 첨부',
   'chat.modeAutoReview': '자동 리뷰',

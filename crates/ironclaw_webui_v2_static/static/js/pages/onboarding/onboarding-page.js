@@ -31,7 +31,17 @@ const FEATURED = [
 // One provider row: logo + name/subtitle on the left, the auth action(s) on the
 // right. Stacks vertically on mobile (actions wrap onto their own line) and sits
 // on a single line from `sm` up.
-function FeaturedProviderRow({ entry, provider, configured, isBusy, login, t, onUse, onSetUp }) {
+function FeaturedProviderRow({
+  entry,
+  provider,
+  configured,
+  showReady,
+  isBusy,
+  login,
+  t,
+  onUse,
+  onSetUp
+}) {
   const name = t(entry.nameKey);
 
   // Desktop: NEAR AI sign-in runs in a dedicated app window (the
@@ -138,7 +148,7 @@ function FeaturedProviderRow({ entry, provider, configured, isBusy, login, t, on
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-[var(--v2-text-strong)]">${name}</span>
-            ${configured &&
+            ${showReady &&
             html`<${Badge} tone="positive" label=${t('onboarding.ready')} size="sm" />`}
           </div>
           <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
@@ -444,6 +454,8 @@ export function OnboardingPage() {
                         entry=${entry}
                         provider=${provider}
                         configured=${isProviderConfigured(provider, state.builtinOverrides)}
+                        showReady=${state.activeProviderId === provider.id ||
+                        provider.has_api_key === true}
                         isBusy=${state.isBusy}
                         login=${login}
                         t=${t}

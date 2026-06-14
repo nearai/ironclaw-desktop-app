@@ -516,11 +516,14 @@ registerPack('ar', {
 
   // Chat — new v2 keys
   'chat.heroTitle': 'مرحبًا، بماذا تحتاج إلى المساعدة؟',
+  'chat.heroMorning': 'صباح الخير. ما الذي تريد أن يتولاه IronClaw؟',
+  'chat.heroAfternoon': 'مساء الخير. ما المهمة التي تريد أن يمضي بها IronClaw قدمًا؟',
+  'chat.heroEvening': 'مساء الخير. ما الذي تريد أن ينهيه IronClaw الليلة؟',
   'chat.heroDesc': 'ابدأ بهدف، أو سؤال عن المستودع، أو طلب مراجعة، أو ملفات تحتاج إلى عمل.',
   'chat.suggestion1Desc': 'افحص حالة وقت التشغيل والقنوات والأدوات والعمل المفتوح.',
   'chat.suggestion2Desc': 'ابحث عن مخاطر الصحة والموافقات المحظورة والمتابعات.',
   'chat.suggestion3Desc': 'تحقق من الإعداد والمصادقة والإقران والقدرات المتاحة.',
-  'chat.heroPlaceholder': 'اسأل IronClaw أي شيء.',
+  'chat.heroPlaceholder': 'سلّم IronClaw مستندًا أو ملاحظة أو مهمة…',
   'chat.followUpPlaceholder': 'اطلب تغييرات متابعة',
   'chat.attachFiles': 'إرفاق ملفات',
   'chat.modeAutoReview': 'مراجعة تلقائية',

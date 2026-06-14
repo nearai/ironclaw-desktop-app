@@ -9,14 +9,20 @@ function visibleRouteIds() {
 
 test('desktop primary information architecture stays simple for normal users', () => {
   assert.equal(defaultRoute, '/chat');
-  assert.deepEqual(visibleRouteIds(), ['chat', 'extensions', 'settings']);
+  assert.deepEqual(visibleRouteIds(), ['chat', 'work', 'extensions', 'settings']);
+});
+
+test('saved work surface is a registered, visible route', () => {
+  const work = primaryRoutes.find((route) => route.id === 'work');
+  assert.ok(work, 'work route should be registered');
+  assert.equal(work.hidden, false);
+  assert.equal(work.path, '/work');
 });
 
 test('backend-blocked and specialist routes stay deep-link only', () => {
   const hiddenIds = new Set(primaryRoutes.filter((route) => route.hidden).map((route) => route.id));
 
   for (const id of [
-    'work',
     'workspace',
     'projects',
     'jobs',

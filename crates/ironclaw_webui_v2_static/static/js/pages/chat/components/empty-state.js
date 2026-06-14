@@ -342,17 +342,24 @@ function FrontDoorPanel({ needsYou, handled }) {
 }
 
 function FrontDoorSection({ title, emptyTitle, emptyDetail, tone, items }) {
+  // Color is attribution, not decoration: gold/warning only earns its place when
+  // there are real items to point at. An empty count stays muted so a quiet desk
+  // never glows with a meaningless "0".
+  const populated = items.length > 0;
   const toneClass =
     tone === 'gold'
       ? 'bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]'
       : 'bg-[var(--v2-warning-soft)] text-[var(--v2-warning-text)]';
+  const countToneClass = populated
+    ? toneClass
+    : 'bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)]';
   return html`
     <section className="min-w-0" aria-label=${title} data-testid=${`frontdoor-${tone}`}>
       <div className="mb-2 flex items-center justify-between gap-3">
         <div className="text-[11px] font-semibold uppercase text-[var(--v2-text-faint)]">
           ${title}
         </div>
-        <span className=${`rounded-[6px] px-2 py-0.5 text-[11px] font-semibold ${toneClass}`}>
+        <span className=${`rounded-[6px] px-2 py-0.5 text-[11px] font-semibold ${countToneClass}`}>
           ${items.length}
         </span>
       </div>

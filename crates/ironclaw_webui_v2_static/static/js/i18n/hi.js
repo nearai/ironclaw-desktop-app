@@ -519,12 +519,15 @@ registerPack('hi', {
 
   // Chat — new v2 keys
   'chat.heroTitle': 'नमस्ते, आपको किसमें मदद चाहिए?',
+  'chat.heroMorning': 'सुप्रभात. IronClaw किस काम को संभाले?',
+  'chat.heroAfternoon': 'नमस्कार. IronClaw किस काम को आगे बढ़ाए?',
+  'chat.heroEvening': 'शुभ संध्या. आज रात IronClaw किस काम को पूरा करे?',
   'chat.heroDesc':
     'किसी लक्ष्य, रेपो प्रश्न, समीक्षा अनुरोध या काम की जरूरत वाली फाइलों से शुरू करें.',
   'chat.suggestion1Desc': 'रनटाइम स्थिति, चैनल, टूल और खुले काम की जांच करें.',
   'chat.suggestion2Desc': 'सहीपन के जोखिम, रुकी हुई स्वीकृतियां और फॉलो-अप देखें.',
   'chat.suggestion3Desc': 'सेटअप, ऑथ, पेयरिंग और उपलब्ध क्षमताओं की पुष्टि करें.',
-  'chat.heroPlaceholder': 'IronClaw से कुछ भी पूछें.',
+  'chat.heroPlaceholder': 'IronClaw को कोई दस्तावेज़, नोट या काम सौंपें…',
   'chat.followUpPlaceholder': 'फॉलो-अप बदलाव मांगें',
   'chat.attachFiles': 'फाइलें संलग्न करें',
   'chat.modeAutoReview': 'ऑटो-रिव्यू',

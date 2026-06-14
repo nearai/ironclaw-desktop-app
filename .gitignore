@@ -46,3 +46,4 @@ output/
 .deps/
 
 .review/
+docs/design/imported-system/

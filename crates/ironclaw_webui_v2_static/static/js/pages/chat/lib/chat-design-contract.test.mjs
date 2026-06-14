@@ -30,3 +30,14 @@ test('primary chat status states use semantic desktop tokens', async () => {
 
   assert.deepEqual(violations, []);
 });
+
+test('message bubble does not paint system or assistant turns in warning copper', async () => {
+  const messageBubble = path.join(chatRoot, 'components', 'message-bubble.js');
+  const source = await readFile(messageBubble, 'utf8');
+
+  assert.doesNotMatch(
+    source,
+    /copper/,
+    'message-bubble.js must use neutral/semantic tokens, not the warning copper accent'
+  );
+});

@@ -185,6 +185,109 @@ test('static exports preserve Mermaid diagram source in every work-product forma
   assert.doesNotMatch(documentXml, /```/);
 });
 
+// workproduct-2: the PDF must not truncate long content at 32 lines and must
+// word-wrap lines that exceed the page width, paginating into multiple pages.
+test('PDF export paginates long content instead of truncating at 32 lines', async () => {
+  const content = Array.from({ length: 120 }, (_, index) => `Line ${index + 1} of the export`).join(
+    '\n'
+  );
+  const latin1 = new TextDecoder('latin1').decode(
+    new Uint8Array(await buildPdfBlob(content).arrayBuffer())
+  );
+
+  // Nothing is dropped: the first and the last source line both survive.
+  assert.match(latin1, /\(Line 1 of the export\) Tj/);
+  assert.match(latin1, /\(Line 120 of the export\) Tj/);
+
+  // More than one page object exists and /Count + /Kids agree on the page total.
+  const pageCount = (latin1.match(/\/Type \/Page\b(?!s)/g) || []).length;
+  assert.ok(pageCount > 1, `expected multiple page objects, saw ${pageCount}`);
+  const countMatch = latin1.match(/\/Type \/Pages \/Kids \[([^\]]*)\] \/Count (\d+)/);
+  assert.ok(countMatch, 'has a /Pages node with /Kids and /Count');
+  const kidsRefs = countMatch[1].trim().split(/\s+(?=\d+ 0 R)/).filter(Boolean).length;
+  assert.equal(Number(countMatch[2]), pageCount, '/Count matches the number of Page objects');
+  assert.equal(kidsRefs, pageCount, '/Kids lists one ref per Page object');
+});
+
+test('PDF export word-wraps a long line on word boundaries within ~95 chars', async () => {
+  const longWordRun = Array.from({ length: 40 }, (_, index) => `word${index}`).join(' ');
+  const latin1 = new TextDecoder('latin1').decode(
+    new Uint8Array(await buildPdfBlob(longWordRun).arrayBuffer())
+  );
+
+  // Each emitted text fragment ((...) Tj) must fit within the wrap width, and
+  // wrapping happens at spaces so no word is split when it fits.
+  const fragments = [...latin1.matchAll(/\(([^)]*)\) Tj/g)].map((match) => match[1]);
+  assert.ok(fragments.length > 1, 'long line wrapped into multiple fragments');
+  for (const fragment of fragments) {
+    assert.ok(fragment.length <= 95, `wrapped fragment "${fragment}" exceeds 95 chars`);
+  }
+  // First and last whole words are preserved across the wrap.
+  assert.ok(fragments.some((fragment) => fragment.startsWith('word0 ')));
+  assert.ok(fragments.some((fragment) => fragment.endsWith('word39')));
+});
+
+// Byte-accuracy must survive pagination: the prior regression (offsets measured
+// in UTF-16 units) would now corrupt every page's xref entry, so re-assert it
+// against multi-page, non-ASCII content.
+test('multi-page PDF keeps byte-accurate xref entries for every object', async () => {
+  const content = Array.from(
+    { length: 90 },
+    (_, index) => `Café Résumé line ${index + 1} — Москва`
+  ).join('\n');
+  const latin1 = new TextDecoder('latin1').decode(
+    new Uint8Array(await buildPdfBlob(content).arrayBuffer())
+  );
+
+  const trailer = latin1.match(/startxref\n(\d+)\n%%EOF/);
+  assert.ok(trailer, 'has startxref/%%EOF trailer');
+  const startxref = Number(trailer[1]);
+  assert.equal(latin1.slice(startxref, startxref + 4), 'xref', 'startxref lands on xref keyword');
+
+  const entryRe = /^(\d{10}) 00000 n /gm;
+  let entry;
+  let index = 0;
+  while ((entry = entryRe.exec(latin1.slice(startxref)))) {
+    index += 1;
+    const off = Number(entry[1]);
+    const header = `${index} 0 obj`;
+    assert.equal(
+      latin1.slice(off, off + header.length),
+      header,
+      `xref entry ${index} points at its object header`
+    );
+  }
+  // 3 base objects + 2 per page; with 90 lines there is more than one page.
+  assert.ok(index >= 7, `expected >=7 objects across multiple pages, saw ${index}`);
+});
+
+// workproduct-3: a binary artifact has no text `content`, so a JSON export of it
+// produces a hollow payload (empty content, metadata-only attachment). This is
+// why work-page gates the JSON button behind `content` and routes binaries to
+// "Save original" — assert the hollow-payload shape that motivates the gate.
+test('JSON export of a binary artifact (no text content) is hollow, not a real file', async () => {
+  const json = JSON.parse(
+    await buildJsonBlob({
+      role: 'assistant',
+      content: '',
+      attachments: [
+        {
+          kind: 'work_item',
+          filename: 'report.pdf',
+          mime_type: 'application/pdf',
+          size: 20480
+        }
+      ]
+    }).text()
+  );
+  assert.equal(json.content, '', 'binary JSON export carries no document bytes');
+  assert.equal(json.attachments[0].filename, 'report.pdf');
+  assert.equal(json.attachments[0].mime_type, 'application/pdf');
+  // The actual bytes are NOT embedded — confirming JSON is the wrong export for
+  // binaries and "Save original" must be used instead.
+  assert.equal(json.attachments[0].data_base64, undefined);
+});
+
 function unzipStoredEntries(bytes) {
   const entries = new Map();
   const decoder = new TextDecoder();

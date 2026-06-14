@@ -104,7 +104,7 @@ registerPack('en', {
 
   // Chat — input
   'chat.placeholder': 'Message IronClaw...',
-  'chat.heroPlaceholder': 'Ask IronClaw anything.',
+  'chat.heroPlaceholder': 'Hand IronClaw a document, note, or task…',
   'chat.followUpPlaceholder': 'Ask for follow-up changes',
   'chat.send': 'Send message',
   'chat.addToMessage': 'Add to message',

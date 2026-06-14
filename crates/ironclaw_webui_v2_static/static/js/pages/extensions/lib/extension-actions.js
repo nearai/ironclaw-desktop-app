@@ -143,6 +143,20 @@ export function connectorSetupGuidance(source, { state, connectPhase } = {}) {
   return null;
 }
 
+export function registryStatusBadge(entry, connectPhase) {
+  const phase = connectPhase?.phase || '';
+
+  if (phase === 'blocked-google-client-id') {
+    return { tone: 'danger', label: 'BLOCKED' };
+  }
+
+  if (phase === 'needs-token' || connectorSetupGuidance(entry, { connectPhase })?.title) {
+    return { tone: 'warning', label: 'NEEDS SETUP' };
+  }
+
+  return { tone: 'muted', label: 'AVAILABLE' };
+}
+
 export function setupReadyForActivation({ secrets = [], fields = [] } = {}) {
   if (fields.length > 0 || secrets.length === 0) {
     return false;

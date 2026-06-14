@@ -55,8 +55,13 @@ function firstReadyArtifact(item) {
 }
 
 function findArtifact(item, artifactId) {
-  const artifacts = safeList(item?.artifacts);
-  return artifacts.find((artifact) => artifact?.id === artifactId) || firstReadyArtifact(item);
+  // With an explicit id, require an exact match — never silently substitute a
+  // different artifact for a deep link that no longer resolves. Only the no-id
+  // case falls back to the first ready artifact.
+  if (artifactId) {
+    return safeList(item?.artifacts).find((artifact) => artifact?.id === artifactId) || null;
+  }
+  return firstReadyArtifact(item);
 }
 
 function EmptyWorkState({ missing }) {
@@ -134,39 +139,41 @@ function WorkExportActions({ item, artifact }) {
         <${Icon} name="copy" className="h-4 w-4" />
         ${busy === 'Copy' ? 'Copying...' : 'Copy'}
       </button>`}
-      ${[
-        ...(content
-          ? [
-              ['Markdown', 'download', () => downloadMarkdown(content, `${stem}.md`)],
-              ['DOCX', 'download', () => downloadDocx(content, `${stem}.docx`)],
-              ['PDF', 'download', () => downloadPdf(content, `${stem}.pdf`)],
-              ['HTML', 'download', () => downloadHtml(content, `${stem}.html`)]
-            ]
-          : []),
-        [
-          'JSON',
-          'download',
-          () =>
-            downloadJson(
-              {
-                role: 'assistant',
-                content,
-                attachments: [
+      ${(content
+        ? [
+            ['Markdown', 'download', () => downloadMarkdown(content, `${stem}.md`)],
+            ['DOCX', 'download', () => downloadDocx(content, `${stem}.docx`)],
+            ['PDF', 'download', () => downloadPdf(content, `${stem}.pdf`)],
+            ['HTML', 'download', () => downloadHtml(content, `${stem}.html`)],
+            // JSON export only when there is text content; for binary artifacts
+            // (content === '') it would write a hollow file, so those rely on
+            // the "Save original" control above to preserve the real bytes.
+            [
+              'JSON',
+              'download',
+              () =>
+                downloadJson(
                   {
-                    kind: 'work_item',
-                    item_id: item?.id,
-                    artifact_id: artifact?.id,
-                    title,
-                    filename: artifact?.filename || null,
-                    mime_type: artifact?.mime_type || null,
-                    size: artifact?.size || null
-                  }
-                ]
-              },
-              `${stem}.json`
-            )
-        ]
-      ].map(
+                    role: 'assistant',
+                    content,
+                    attachments: [
+                      {
+                        kind: 'work_item',
+                        item_id: item?.id,
+                        artifact_id: artifact?.id,
+                        title,
+                        filename: artifact?.filename || null,
+                        mime_type: artifact?.mime_type || null,
+                        size: artifact?.size || null
+                      }
+                    ]
+                  },
+                  `${stem}.json`
+                )
+            ]
+          ]
+        : []
+      ).map(
         ([label, icon, action]) => html`
           <button
             key=${label}
@@ -237,10 +244,15 @@ export function WorkPage() {
   const selectedItem =
     items.find((item) => item?.id === requestedItemId) || (!requestedItemId ? items[0] : null);
   const selectedArtifact = findArtifact(selectedItem, requestedArtifactId);
-  const missing = Boolean(requestedItemId && !selectedItem);
+  // "missing" = a deep link pointed at something that no longer resolves: an
+  // item id with no matching item, or an artifact id with no matching artifact.
+  // Either way we show the "not found" state instead of substituting a doc.
+  const missing = Boolean(
+    (requestedItemId && !selectedItem) || (requestedArtifactId && !selectedArtifact)
+  );
 
   if (!items.length || missing || !selectedItem || !selectedArtifact) {
-    return html`<${EmptyWorkState} missing=${missing || Boolean(requestedArtifactId)} />`;
+    return html`<${EmptyWorkState} missing=${missing} />`;
   }
 
   const content = artifactTextContent(selectedArtifact);

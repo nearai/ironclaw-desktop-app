@@ -511,11 +511,14 @@ registerPack('zh-CN', {
 
   // Chat — new v2 keys
   'chat.heroTitle': '你好，需要我帮你做什么？',
+  'chat.heroMorning': '早上好。今天想让 IronClaw 帮你处理什么？',
+  'chat.heroAfternoon': '下午好。想让 IronClaw 推进哪件事？',
+  'chat.heroEvening': '晚上好。今晚想让 IronClaw 收尾什么？',
   'chat.heroDesc': '可以从一个目标、仓库问题、审查请求，或需要处理的文件开始。',
   'chat.suggestion1Desc': '检查运行时状态、渠道、工具和未完成工作。',
   'chat.suggestion2Desc': '查找正确性风险、被阻塞的审批和后续事项。',
   'chat.suggestion3Desc': '验证设置、认证、配对和可用能力。',
-  'chat.heroPlaceholder': '向 IronClaw 提问。',
+  'chat.heroPlaceholder': '把文档、笔记或任务交给 IronClaw…',
   'chat.followUpPlaceholder': '请求后续修改',
   'chat.attachFiles': '附加文件',
   'chat.modeAutoReview': '自动审查',

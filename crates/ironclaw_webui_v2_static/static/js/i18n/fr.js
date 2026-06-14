@@ -523,6 +523,9 @@ registerPack('fr', {
 
   // Chat — nouvelles cles v2
   'chat.heroTitle': 'Bonjour, de quoi avez-vous besoin ?',
+  'chat.heroMorning': "Bonjour. De quoi IronClaw doit-il s'occuper ?",
+  'chat.heroAfternoon': 'Bon apres-midi. Quelle tache IronClaw doit-il faire avancer ?',
+  'chat.heroEvening': 'Bonsoir. Que doit terminer IronClaw ce soir ?',
   'chat.heroDesc':
     'Commencez par un objectif, une question sur le depot, une demande de revue ou des fichiers a traiter.',
   'chat.suggestion1Desc':
@@ -531,7 +534,7 @@ registerPack('fr', {
     'Rechercher les risques de justesse, les approbations bloquees et les suivis.',
   'chat.suggestion3Desc':
     "Verifier la configuration, l'authentification, l'appairage et les capacites disponibles.",
-  'chat.heroPlaceholder': "Demandez n'importe quoi a IronClaw.",
+  'chat.heroPlaceholder': 'Confiez a IronClaw un document, une note ou une tache…',
   'chat.followUpPlaceholder': 'Demander des modifications de suivi',
   'chat.attachFiles': 'Joindre des fichiers',
   'chat.modeAutoReview': 'Revue automatique',

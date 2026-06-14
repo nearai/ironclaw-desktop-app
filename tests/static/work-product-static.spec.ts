@@ -113,6 +113,96 @@ test('static work product: assistant generated DOCX chip saves to Work and reloa
   );
 });
 
+test('static work product: sidebar Work entry appears after a save and opens the Work route', async ({
+  page
+}) => {
+  await installWorkProductMocks(page);
+  // workproduct-1: the Work nav slot is hidden until at least one work product
+  // exists. Seeding ironclaw-work-items must reveal it and route to /v2/work.
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'ironclaw-work-items',
+      JSON.stringify([
+        {
+          id: 'work-nav-1',
+          title: 'Sidebar work entry',
+          objective: 'Saved work product from chat.',
+          status: 'active',
+          created_at: '2026-06-13T15:00:00.000Z',
+          updated_at: '2026-06-13T15:00:00.000Z',
+          links: [],
+          artifacts: [
+            {
+              id: 'artifact-nav-1',
+              type: 'document',
+              title: 'Sidebar work entry',
+              status: 'ready',
+              provenance: ['chat'],
+              content: '# Sidebar work entry\n\nSeeded so the Work nav slot appears.',
+              content_format: 'markdown'
+            }
+          ]
+        }
+      ])
+    );
+  });
+
+  await page.goto('/v2/chat?token=static-work-token');
+  await expect(
+    page.getByRole('heading', { name: 'What should IronClaw handle next?' })
+  ).toBeVisible();
+
+  const workNavLink = page.getByRole('link', { name: 'Work', exact: true });
+  await expect(workNavLink).toBeVisible();
+  await expect(workNavLink).toHaveAttribute('href', '/v2/work');
+
+  await workNavLink.click();
+  await expect(page).toHaveURL(/\/v2\/work(\?|$)/);
+  await expect(page.locator('article h1').first()).toHaveText('Sidebar work entry');
+});
+
+test('static work product: a stale deep link shows "Saved work not found"', async ({ page }) => {
+  await installWorkProductMocks(page);
+  // workproduct-4: an item id that resolves to nothing must show the honest
+  // not-found state, never silently substitute another saved artifact.
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'ironclaw-work-items',
+      JSON.stringify([
+        {
+          id: 'work-real-1',
+          title: 'A real saved item',
+          status: 'active',
+          created_at: '2026-06-13T15:00:00.000Z',
+          updated_at: '2026-06-13T15:00:00.000Z',
+          links: [],
+          artifacts: [
+            {
+              id: 'artifact-real-1',
+              type: 'document',
+              title: 'A real saved item',
+              status: 'ready',
+              provenance: ['chat'],
+              content: '# A real saved item\n\nShould not be substituted for a bad deep link.',
+              content_format: 'markdown'
+            }
+          ]
+        }
+      ])
+    );
+  });
+
+  await page.goto('/v2/work?item=does-not-exist&artifact=also-missing&token=static-work-token');
+
+  await expect(page.getByRole('heading', { name: 'Saved work not found' })).toBeVisible();
+  await expect(
+    page.getByText('That saved artifact is no longer in this desktop profile.')
+  ).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Back to chat' })).toBeVisible();
+  // The honest not-found state never leaks the unrelated saved artifact.
+  await expect(page.getByText('A real saved item')).toHaveCount(0);
+});
+
 async function installWorkProductMocks(page: Page) {
   await page.route(/\/(api|auth)\//, async (route: Route) => {
     const url = new URL(route.request().url());

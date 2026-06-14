@@ -8,7 +8,8 @@ import {
   connectorKey,
   connectorSetupGuidance,
   primaryExtensionAction,
-  registryConnectButtonState
+  registryConnectButtonState,
+  registryStatusBadge
 } from '../lib/extension-actions.js';
 
 /* Card layout (Option B): self-contained bordered card. Capabilities collapse
@@ -475,6 +476,7 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
   const [kwOpen, setKwOpen] = React.useState(false);
   const connectButton = registryConnectButtonState(connectPhase, entry);
   const guidance = connectorSetupGuidance(entry, { connectPhase });
+  const statusBadge = registryStatusBadge(entry, connectPhase);
   const runConnectAction = () => {
     if (connectButton.action === 'manual_setup' && onManualSetup) {
       onManualSetup(entry);
@@ -501,7 +503,7 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
             <span className="min-w-0 truncate text-sm font-semibold text-[var(--v2-text-strong)]">
               ${displayName}
             </span>
-            <${Badge} tone="muted" label="available" size="sm" />
+            <${Badge} tone=${statusBadge.tone} label=${statusBadge.label} size="sm" />
           </div>
           <div className=${META}>
             <span>${kindLabel}</span>

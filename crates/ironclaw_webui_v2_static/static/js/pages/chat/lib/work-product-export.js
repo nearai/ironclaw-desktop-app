@@ -97,38 +97,78 @@ export function buildDocxBlob(content) {
   return new Blob([bytes], { type: DOCX_MIME });
 }
 
-export function buildPdfBlob(content) {
-  const lines = linesForPdf(String(content || ''));
-  const streamText = [
+// PDF text layout: 14pt Helvetica on US Letter (612x792). Start the baseline at
+// Y=760 (72pt from the top) and step 20pt per line; once the next baseline would
+// drop below ~72pt of bottom margin, start a new page. Object layout is kept
+// sequential so the byte-measured xref stays valid:
+//   1 Catalog, 2 Pages, 3 Font, then per page [Page obj, Content obj].
+const PDF_TOP_Y = 760;
+const PDF_LINE_HEIGHT = 20;
+const PDF_BOTTOM_Y = 72;
+
+function paginatePdfLines(lines) {
+  const pages = [];
+  let current = [];
+  let y = PDF_TOP_Y;
+  for (const line of lines) {
+    if (current.length && y < PDF_BOTTOM_Y) {
+      pages.push(current);
+      current = [];
+      y = PDF_TOP_Y;
+    }
+    current.push(line);
+    y -= PDF_LINE_HEIGHT;
+  }
+  if (current.length) pages.push(current);
+  return pages.length ? pages : [['IronClaw export']];
+}
+
+function pdfContentStream(pageLines) {
+  return [
     'BT',
     '/F1 14 Tf',
-    '72 760 Td',
-    ...lines.map((line, index) =>
-      index === 0 ? `(${escapePdfText(line)}) Tj` : `0 -20 Td (${escapePdfText(line)}) Tj`
+    `72 ${PDF_TOP_Y} Td`,
+    ...pageLines.map((line, index) =>
+      index === 0
+        ? `(${escapePdfText(line)}) Tj`
+        : `0 -${PDF_LINE_HEIGHT} Td (${escapePdfText(line)}) Tj`
     ),
     'ET'
   ].join('\n');
+}
+
+export function buildPdfBlob(content) {
+  const lines = linesForPdf(String(content || ''));
+  const pages = paginatePdfLines(lines);
   // The content stream is emitted as WinAnsi single-byte so the base-14
   // Helvetica renders it AND one character is exactly one byte. The PDF
   // structure (xref offsets, startxref, /Length) is measured in BYTES, never
   // in JS string .length — a UTF-16 code-unit count would diverge from the
   // UTF-8 bytes a Blob writes and corrupt every offset for non-ASCII text.
-  const streamBytes = encodeWinAnsi(streamText);
+  const kids = pages.map((_, index) => `${4 + index * 2} 0 R`).join(' ');
   const objects = [
     encodeWinAnsi('<< /Type /Catalog /Pages 2 0 R >>'),
-    encodeWinAnsi('<< /Type /Pages /Kids [3 0 R] /Count 1 >>'),
-    encodeWinAnsi(
-      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>'
-    ),
+    encodeWinAnsi(`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`),
     encodeWinAnsi(
       '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'
-    ),
-    concatBytes([
-      encodeWinAnsi(`<< /Length ${streamBytes.length} >>\nstream\n`),
-      streamBytes,
-      encodeWinAnsi('\nendstream')
-    ])
+    )
   ];
+  pages.forEach((pageLines, index) => {
+    const contentObjNumber = 5 + index * 2;
+    objects.push(
+      encodeWinAnsi(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObjNumber} 0 R >>`
+      )
+    );
+    const streamBytes = encodeWinAnsi(pdfContentStream(pageLines));
+    objects.push(
+      concatBytes([
+        encodeWinAnsi(`<< /Length ${streamBytes.length} >>\nstream\n`),
+        streamBytes,
+        encodeWinAnsi('\nendstream')
+      ])
+    );
+  });
   const chunks = [];
   let length = 0;
   const push = (bytes) => {
@@ -451,11 +491,49 @@ function linesForPdf(content) {
     }
     const text = stripMarkdown(line).trim();
     if (text) {
-      lines.push(text);
+      for (const wrapped of wrapPdfLine(text)) {
+        lines.push(wrapped);
+      }
     }
-    if (lines.length >= 32) break;
   }
   return lines.length ? lines : ['IronClaw export'];
+}
+
+// Word-wrap a single logical line at ~95 chars on word boundaries so PDF text
+// stays inside the MediaBox instead of running off the right edge. A single word
+// longer than the limit is hard-split so it can still paginate.
+const PDF_WRAP_WIDTH = 95;
+
+function wrapPdfLine(text) {
+  const value = String(text || '');
+  if (value.length <= PDF_WRAP_WIDTH) return [value];
+  const out = [];
+  let current = '';
+  for (const word of value.split(/\s+/)) {
+    if (!word) continue;
+    if (word.length > PDF_WRAP_WIDTH) {
+      if (current) {
+        out.push(current);
+        current = '';
+      }
+      let rest = word;
+      while (rest.length > PDF_WRAP_WIDTH) {
+        out.push(rest.slice(0, PDF_WRAP_WIDTH));
+        rest = rest.slice(PDF_WRAP_WIDTH);
+      }
+      current = rest;
+      continue;
+    }
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length > PDF_WRAP_WIDTH) {
+      out.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) out.push(current);
+  return out.length ? out : [''];
 }
 
 function annotateMermaidFences(content) {

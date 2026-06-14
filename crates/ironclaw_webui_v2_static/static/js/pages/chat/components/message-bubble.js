@@ -39,7 +39,7 @@ const ROLE_STYLES = {
   assistantWorkProduct:
     'mr-auto w-full max-w-full rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_26%,var(--v2-panel-border))] bg-[var(--v2-card-bg)] px-5 py-4 text-iron-100 shadow-[var(--v2-card-shadow)]',
   system:
-    'mx-auto rounded-[18px] border border-copper/20 bg-copper/10 px-4 py-3 text-center text-copper',
+    'mx-auto rounded-[18px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3 text-center text-[var(--v2-text-muted)]',
   error:
     'mx-auto rounded-[18px] border border-[color-mix(in_srgb,var(--v2-danger-text)_32%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-center text-[var(--v2-danger-text)]'
 };
@@ -67,12 +67,9 @@ function assistantResponseLooksLikeWorkProduct(role, content) {
   if (role !== 'assistant') return false;
   const text = String(content || '').trim();
   if (!text) return false;
-  return (
-    /^#{1,3}\s+\S/m.test(text) ||
-    /\n#{1,3}\s+\S/m.test(text) ||
-    /\n\s*(?:[-*]|\d+\.)\s+\S/.test(text) ||
-    /\n\|[^|\n]+\|/.test(text)
-  );
+  const hasHeading = /^#{1,3}\s+\S/m.test(text) || /\n#{1,3}\s+\S/m.test(text);
+  const hasRealTable = /^\|.*\|\n\s*\|[\s:|-]+\|/m.test(text);
+  return hasHeading || hasRealTable;
 }
 
 function messageShellClass(isUser, isAssistantWorkProduct) {

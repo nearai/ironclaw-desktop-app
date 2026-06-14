@@ -10,6 +10,7 @@ import {
   isGoogleConnector,
   primaryExtensionAction,
   registryConnectButtonState,
+  registryStatusBadge,
   setupReadyForActivation
 } from './extension-actions.js';
 
@@ -168,6 +169,61 @@ test('connectorSetupGuidance gives honest connector-specific setup copy', () => 
     connectorSetupGuidance({ package_ref: { id: 'workspace' } })?.body,
     /local folder|gateway/
   );
+});
+
+test('registryStatusBadge flags a blocked Google client id as BLOCKED', () => {
+  assert.deepEqual(
+    registryStatusBadge(
+      { package_ref: { id: 'tools/gmail' } },
+      { phase: 'blocked-google-client-id' }
+    ),
+    { tone: 'danger', label: 'BLOCKED' }
+  );
+});
+
+test('registryStatusBadge flags a needs-token connector as NEEDS SETUP', () => {
+  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/custom' } }, { phase: 'needs-token' }), {
+    tone: 'warning',
+    label: 'NEEDS SETUP'
+  });
+});
+
+test('registryStatusBadge flags connectors with resting setup guidance as NEEDS SETUP', () => {
+  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'mcp-servers/notion' } }), {
+    tone: 'warning',
+    label: 'NEEDS SETUP'
+  });
+  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'channels/slack' } }), {
+    tone: 'warning',
+    label: 'NEEDS SETUP'
+  });
+});
+
+test('registryStatusBadge flags blocked Google before its setup guidance', () => {
+  // blocked-google-client-id also produces guidance.title; BLOCKED must win.
+  assert.deepEqual(
+    registryStatusBadge(
+      { package_ref: { id: 'tools/google_calendar' } },
+      { phase: 'blocked-google-client-id' }
+    ),
+    { tone: 'danger', label: 'BLOCKED' }
+  );
+});
+
+test('registryStatusBadge leaves a plain connector AVAILABLE at rest', () => {
+  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/web_search' } }), {
+    tone: 'muted',
+    label: 'AVAILABLE'
+  });
+  // Google has no resting setup-guidance title, so it reads ready until a phase says otherwise.
+  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/gmail' } }), {
+    tone: 'muted',
+    label: 'AVAILABLE'
+  });
+  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/web_search' } }, undefined), {
+    tone: 'muted',
+    label: 'AVAILABLE'
+  });
 });
 
 test('registryConnectButtonState keeps running and connected phases disabled', () => {

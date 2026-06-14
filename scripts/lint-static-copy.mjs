@@ -18,6 +18,10 @@ const forbidden = [
     pattern: /\b(OpenRouter|Anthropic|Claude|ChatGPT)\b/i
   },
   {
+    name: '"ask me anything" front-door framing',
+    pattern: /ask\b.*\banything/i
+  },
+  {
     name: 'provider marketplace framing',
     pattern: /\bprovider marketplace\b/i
   },
@@ -46,10 +50,7 @@ const forbidden = [
 ];
 
 const KEY_LIKE_STRING = /^[a-z][a-z0-9_.-]*$/i;
-const MAYBE_FORBIDDEN = new RegExp(
-  forbidden.map((rule) => rule.pattern.source).join('|'),
-  'i'
-);
+const MAYBE_FORBIDDEN = new RegExp(forbidden.map((rule) => rule.pattern.source).join('|'), 'i');
 
 function walk(target) {
   const fullPath = path.join(repoRoot, target);

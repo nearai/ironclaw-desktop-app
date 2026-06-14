@@ -9,7 +9,7 @@ import {
 test('command palette mirrors the simplified visible desktop routes', () => {
   assert.deepEqual(
     visibleCommandRoutes().map((route) => route.id),
-    ['chat', 'extensions', 'settings']
+    ['chat', 'work', 'extensions', 'settings']
   );
 });
 
@@ -22,6 +22,7 @@ test('command palette actions do not expose hidden product surfaces', () => {
   const labels = actions.map((action) => action.label);
 
   assert.equal(labels.includes('Go to Chat'), true);
+  assert.equal(labels.includes('Go to Work'), true);
   assert.equal(labels.includes('Go to Automations'), false);
   assert.equal(labels.includes('Go to Connections'), true);
   assert.equal(labels.includes('Go to Settings'), true);

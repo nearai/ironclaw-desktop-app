@@ -521,13 +521,16 @@ registerPack('uk', {
 
   // Chat — new v2 keys
   'chat.heroTitle': 'Привіт, з чим потрібна допомога?',
+  'chat.heroMorning': 'Доброго ранку. Що IronClaw має взяти на себе?',
+  'chat.heroAfternoon': 'Доброго дня. Яке завдання IronClaw має просунути?',
+  'chat.heroEvening': 'Доброго вечора. Що IronClaw має завершити сьогодні ввечері?',
   'chat.heroDesc':
     'Почніть з цілі, питання про репозиторій, запиту на ревʼю або файлів, які потребують роботи.',
   'chat.suggestion1Desc': 'Перевірити стан runtime, канали, інструменти та відкриту роботу.',
   'chat.suggestion2Desc': 'Знайти ризики коректності, заблоковані погодження та подальші дії.',
   'chat.suggestion3Desc':
     'Перевірити налаштування, автентифікацію, спарювання та доступні можливості.',
-  'chat.heroPlaceholder': 'Запитайте IronClaw про що завгодно.',
+  'chat.heroPlaceholder': 'Передайте IronClaw документ, нотатку або завдання…',
   'chat.followUpPlaceholder': 'Попросіть подальші зміни',
   'chat.attachFiles': 'Прикріпити файли',
   'chat.modeAutoReview': 'Авторевʼю',

@@ -129,6 +129,19 @@ test('assistant work-product actions are visible without hover and can wrap', ()
   assert.match(actionClass, /\bmax-w-full\b/);
 });
 
+test('system messages render on a neutral surface, not warning copper', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const { messageBodyClass } = context.globalThis.__testExports;
+  const systemClass = messageBodyClass('system', false, false);
+
+  assert.doesNotMatch(systemClass, /copper/);
+  assert.match(systemClass, /border-\[var\(--v2-panel-border\)\]/);
+  assert.match(systemClass, /bg-\[var\(--v2-surface-soft\)\]/);
+  assert.match(systemClass, /text-\[var\(--v2-text-muted\)\]/);
+});
+
 test('plain assistant prose is borderless while user turns keep the blue bubble', () => {
   const context = createMessageBubbleContext();
 
@@ -146,6 +159,60 @@ test('plain assistant prose is borderless while user turns keep the blue bubble'
   assert.match(userClass, /rounded-\[18px\]/);
   assert.match(messageShellClass(false, false), /max-w-\[min\(760px,92vw\)\]/);
   assert.match(messageShellClass(true, false), /max-w-\[min\(680px,86vw\)\]/);
+});
+
+test('plain prose and bare lists stay borderless, real document work gets the artifact panel', () => {
+  const context = createMessageBubbleContext();
+
+  vm.runInNewContext(messageBubbleSourceForTest(), context);
+  const { assistantResponseLooksLikeWorkProduct } = context.globalThis.__testExports;
+
+  // Plain prose stays borderless.
+  assert.equal(assistantResponseLooksLikeWorkProduct('assistant', 'Sure, I can help.'), false);
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct('assistant', 'Here are a few thoughts.\nLet me know.'),
+    false
+  );
+  // A lone list must NOT be over-promoted (chat-2 regression).
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct('assistant', 'Quick picks:\n- first\n- second\n- third'),
+    false
+  );
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct('assistant', 'Steps:\n1. open\n2. close'),
+    false
+  );
+  // A single pipe row (not a real markdown table) must NOT be over-promoted.
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct('assistant', 'Inline | pipe | text\nstays prose'),
+    false
+  );
+
+  // A heading still promotes.
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct('assistant', '# Services agreement\n\n## Scope'),
+    true
+  );
+  // A list under a heading still promotes (the heading carries it).
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct('assistant', '## Plan\n\n- step one\n- step two'),
+    true
+  );
+  // A real header+separator markdown table still promotes.
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct(
+      'assistant',
+      'Comparison:\n| Name | Cost |\n| --- | --- |\n| A | 1 |\n| B | 2 |'
+    ),
+    true
+  );
+  assert.equal(
+    assistantResponseLooksLikeWorkProduct(
+      'assistant',
+      '| Name | Cost |\n| :--- | ---: |\n| A | 1 |'
+    ),
+    true
+  );
 });
 
 test('assistant markdown work product renders as a first-class artifact panel', () => {

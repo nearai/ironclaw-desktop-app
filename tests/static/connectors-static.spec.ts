@@ -119,6 +119,54 @@ test('static connectors: registry clicks keep slash refs out of lifecycle URLs',
   }
 });
 
+test('static connectors: registry surfaces honest BLOCKED and NEEDS SETUP readiness at rest', async ({
+  page
+}) => {
+  // connections-1: a card may not imply readiness the gateway cannot prove. The
+  // registry status badge reads a projected connect phase, so an at-rest card
+  // shows BLOCKED (hosted Google OAuth unavailable) or NEEDS SETUP (credentials
+  // required) instead of a fake "connected" state.
+  const calls: CapturedCall[] = [];
+  await installConnectorMocks(page, calls, [
+    {
+      id: 'gmail',
+      display_name: 'Gmail',
+      kind: 'wasm_tool',
+      description: 'Read, triage, draft, and prepare email work with approval gates.',
+      package_ref: { kind: 'extension', id: 'tools/gmail' },
+      keywords: ['email', 'google', 'inbox'],
+      connectPhase: { phase: 'blocked-google-client-id' }
+    },
+    {
+      id: 'notion',
+      display_name: 'Notion',
+      kind: 'mcp_server',
+      description: 'Search team knowledge, draft pages, and keep decisions visible.',
+      package_ref: { kind: 'extension', id: 'mcp-servers/notion' },
+      keywords: ['knowledge', 'docs', 'wiki'],
+      connectPhase: { phase: 'needs-token' }
+    }
+  ]);
+
+  await page.goto('/v2/extensions/registry?token=connector-static-token');
+
+  const gmailCard = page.getByTestId('registry-card-gmail');
+  await expect(gmailCard).toBeVisible();
+  await expect(gmailCard.getByText('BLOCKED', { exact: true })).toBeVisible();
+  await expect(gmailCard.getByText('AVAILABLE', { exact: true })).toHaveCount(0);
+
+  const notionCard = page.getByTestId('registry-card-notion');
+  await expect(notionCard).toBeVisible();
+  await expect(notionCard.getByText('NEEDS SETUP', { exact: true })).toBeVisible();
+  await expect(notionCard.getByText('AVAILABLE', { exact: true })).toHaveCount(0);
+
+  // At-rest readiness is descriptive only — no install/lifecycle calls fire
+  // just from rendering the catalog.
+  expect(calls.filter((call) => call.path === '/api/webchat/v2/extensions/install')).toHaveLength(
+    0
+  );
+});
+
 test('static connectors: chat connect prompts open an honest extension setup path', async ({
   page
 }) => {
@@ -130,7 +178,9 @@ test('static connectors: chat connect prompts open an honest extension setup pat
     page.getByRole('heading', { name: 'What should IronClaw handle next?' })
   ).toBeVisible();
 
-  await page.getByPlaceholder('Ask IronClaw anything.').fill('connect notion for my team docs');
+  await page
+    .getByPlaceholder('Hand IronClaw a document, note, or task…')
+    .fill('connect notion for my team docs');
   await page.getByRole('button', { name: 'Send message' }).click();
 
   const recovery = page.getByTestId('connector-recovery-card');
@@ -250,7 +300,11 @@ function hasPath(calls: CapturedCall[], path: string) {
   return calls.some((call) => call.path === path);
 }
 
-async function installConnectorMocks(page: Page, calls: CapturedCall[]) {
+async function installConnectorMocks(
+  page: Page,
+  calls: CapturedCall[],
+  entries: unknown[] = registryEntries
+) {
   await page.route(/\/(api|auth)\//, async (route: Route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -321,7 +375,7 @@ async function installConnectorMocks(page: Page, calls: CapturedCall[]) {
       return json(route, { automations: [], next_cursor: null });
     }
     if (path === '/api/webchat/v2/extensions/registry') {
-      return json(route, { entries: registryEntries });
+      return json(route, { entries });
     }
     if (path === '/api/webchat/v2/extensions' && method === 'GET') {
       return json(route, { extensions: [] });

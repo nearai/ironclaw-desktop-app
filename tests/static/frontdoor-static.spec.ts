@@ -79,7 +79,83 @@ test('static front door: cold open shows backed needs-you and handled receipts',
   expect(consoleIssues).toEqual([]);
 });
 
-async function installFrontDoorMocks(page: Page) {
+test('static front door: empty desk keeps zero-state pills neutral and shows at most one setup nudge', async ({
+  page
+}) => {
+  // No seeded attention state, no automations, no threads => both Needs you and
+  // Handled render their empty zero-state. onboarding-desk-3: the count pill must
+  // stay on muted tokens (no gold/warning glow on a meaningless "0"). chat-3/DT-1:
+  // the prepared desk surfaces a single "Open setup" connect affordance (the NEAR
+  // AI Cloud panel when setup is blocked) — never duplicate competing nudges.
+  await installFrontDoorMocks(page, { threads: [], automations: [] });
+
+  await page.goto('/v2/chat?token=frontdoor-static-token');
+  await expect(
+    page.getByRole('heading', { name: 'What should IronClaw handle next?' })
+  ).toBeVisible();
+
+  const panel = page.getByTestId('frontdoor-panel');
+  await expect(panel).toBeVisible();
+
+  for (const tone of ['warning', 'gold']) {
+    const section = panel.getByTestId(`frontdoor-${tone}`);
+    await expect(section).toBeVisible();
+    // The empty section renders its zero-state copy, never a real item link.
+    await expect(section.getByRole('link')).toHaveCount(0);
+    const countPill = section.locator('span').filter({ hasText: /^0$/ });
+    await expect(countPill).toHaveCount(1);
+    const pillClass = (await countPill.first().getAttribute('class')) || '';
+    expect(pillClass).toContain('var(--v2-surface-soft)');
+    expect(pillClass).toContain('var(--v2-text-muted)');
+    expect(pillClass).not.toContain('var(--v2-gold-soft)');
+    expect(pillClass).not.toContain('var(--v2-warning-soft)');
+  }
+
+  await expect(panel.getByText('Nothing waiting on you.')).toBeVisible();
+  await expect(panel.getByText('No completed receipts yet.')).toBeVisible();
+
+  // chat-3/DT-1: the prepared desk carries at most one "Open setup" affordance
+  // (the single connect panel when setup is blocked; none when a provider is ready).
+  expect(await page.getByRole('link', { name: 'Open setup' }).count()).toBeLessThanOrEqual(1);
+  expect(await page.getByRole('button', { name: 'Open setup' }).count()).toBeLessThanOrEqual(1);
+});
+
+async function installFrontDoorMocks(
+  page: Page,
+  overrides: { threads?: unknown[]; automations?: unknown[] } = {}
+) {
+  const threads = overrides.threads ?? [
+    {
+      id: 'thread-needs-you',
+      thread_id: 'thread-needs-you',
+      title: 'Legal review approval',
+      turn_count: 4,
+      updated_at: '2026-06-13T17:45:00.000Z'
+    },
+    {
+      id: 'thread-recent',
+      thread_id: 'thread-recent',
+      title: 'Draft launch memo',
+      turn_count: 2,
+      updated_at: '2026-06-13T16:30:00.000Z'
+    }
+  ];
+  const automations = overrides.automations ?? [
+    {
+      id: 'daily-digest',
+      name: 'Daily digest',
+      state: 'active',
+      source: { type: 'schedule', cron: '0 8 * * *' },
+      last_status: 'ok',
+      last_run_at: '2026-06-13T17:30:00.000Z',
+      next_run_at: '2026-06-14T08:00:00.000Z',
+      created_at: '2026-06-01T08:00:00.000Z'
+    }
+  ];
+  await installFrontDoorRoutes(page, threads, automations);
+}
+
+async function installFrontDoorRoutes(page: Page, threads: unknown[], automations: unknown[]) {
   await page.route(/\/(api|auth)\//, async (route: Route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -95,42 +171,10 @@ async function installFrontDoorMocks(page: Page) {
       return json(route, { ok: true, models: ['auto', 'z-ai/glm-4.5'] });
     }
     if (path === '/api/webchat/v2/threads' && method === 'GET') {
-      return json(route, {
-        threads: [
-          {
-            id: 'thread-needs-you',
-            thread_id: 'thread-needs-you',
-            title: 'Legal review approval',
-            turn_count: 4,
-            updated_at: '2026-06-13T17:45:00.000Z'
-          },
-          {
-            id: 'thread-recent',
-            thread_id: 'thread-recent',
-            title: 'Draft launch memo',
-            turn_count: 2,
-            updated_at: '2026-06-13T16:30:00.000Z'
-          }
-        ],
-        next_cursor: null
-      });
+      return json(route, { threads, next_cursor: null });
     }
     if (path === '/api/webchat/v2/automations' && method === 'GET') {
-      return json(route, {
-        automations: [
-          {
-            id: 'daily-digest',
-            name: 'Daily digest',
-            state: 'active',
-            source: { type: 'schedule', cron: '0 8 * * *' },
-            last_status: 'ok',
-            last_run_at: '2026-06-13T17:30:00.000Z',
-            next_run_at: '2026-06-14T08:00:00.000Z',
-            created_at: '2026-06-01T08:00:00.000Z'
-          }
-        ],
-        next_cursor: null
-      });
+      return json(route, { automations, next_cursor: null });
     }
     if (path === '/api/webchat/v2/extensions/registry') {
       return json(route, { entries: [] });

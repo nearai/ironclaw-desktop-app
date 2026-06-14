@@ -4,9 +4,11 @@ import { Icon } from '../design-system/icons.js';
 import { React, html } from '../lib/html.js';
 import { useT } from '../lib/i18n.js';
 import { cn } from '../utils/cn.js';
+import { readSavedWorkItems } from '../pages/chat/lib/work-product-save.js';
 
 const ROUTE_ICONS = {
   chat: 'chat',
+  work: 'file',
   workspace: 'layers',
   projects: 'folder',
   jobs: 'pulse',
@@ -19,6 +21,13 @@ const ROUTE_ICONS = {
 };
 
 const navRoutes = primaryRoutes.filter((r) => !r.hidden);
+
+// Respect the deliberate hidden-IA: the Work entry only earns a sidebar slot
+// once the user has saved at least one work product. First run shows no dead
+// link to an empty surface.
+export function hasSavedWork() {
+  return readSavedWorkItems().length > 0;
+}
 
 function NavItem({ route, label, onNavigate }) {
   return html`
@@ -100,9 +109,21 @@ function ExpandableNavItem({ route, label, subRoutes, onNavigate }) {
 
 export function SidebarNav({ onNewChat, isCreating, isAdmin = true, onNavigate }) {
   const t = useT();
+  const location = useLocation();
+  const showWork = React.useMemo(
+    () => hasSavedWork(),
+    // Re-check saved work on navigation so the entry appears once a work
+    // product is saved (e.g. after returning from chat) without a reload.
+    [location.pathname]
+  );
   const visibleRoutes = React.useMemo(
-    () => navRoutes.filter((route) => isAdmin || route.id !== 'admin'),
-    [isAdmin]
+    () =>
+      navRoutes.filter((route) => {
+        if (route.id === 'admin' && !isAdmin) return false;
+        if (route.id === 'work' && !showWork) return false;
+        return true;
+      }),
+    [isAdmin, showWork]
   );
 
   return html`

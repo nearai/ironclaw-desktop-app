@@ -523,12 +523,15 @@ registerPack('de', {
 
   // Chat — neue v2-Schluessel
   'chat.heroTitle': 'Hallo, wobei brauchst du Hilfe?',
+  'chat.heroMorning': 'Guten Morgen. Was soll IronClaw fuer dich uebernehmen?',
+  'chat.heroAfternoon': 'Guten Tag. Was soll IronClaw voranbringen?',
+  'chat.heroEvening': 'Guten Abend. Was soll IronClaw heute Abend abschliessen?',
   'chat.heroDesc':
     'Beginne mit einem Ziel, einer Repo-Frage, einer Review-Anfrage oder Dateien, die bearbeitet werden muessen.',
   'chat.suggestion1Desc': 'Runtime-Zustand, Kanaele, Tools und offene Arbeit pruefen.',
   'chat.suggestion2Desc': 'Nach Korrektheitsrisiken, blockierten Freigaben und Follow-ups suchen.',
   'chat.suggestion3Desc': 'Setup, Authentifizierung, Pairing und verfuegbare Funktionen pruefen.',
-  'chat.heroPlaceholder': 'Frag IronClaw etwas.',
+  'chat.heroPlaceholder': 'Gib IronClaw ein Dokument, eine Notiz oder eine Aufgabe…',
   'chat.followUpPlaceholder': 'Folgeaenderungen anfordern',
   'chat.attachFiles': 'Dateien anhaengen',
   'chat.modeAutoReview': 'Auto-Review',

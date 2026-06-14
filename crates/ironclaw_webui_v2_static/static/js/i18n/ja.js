@@ -518,11 +518,14 @@ registerPack('ja', {
 
   // Chat — new v2 keys
   'chat.heroTitle': 'こんにちは。何を手伝いましょうか?',
+  'chat.heroMorning': 'おはようございます。IronClaw に何を任せますか?',
+  'chat.heroAfternoon': 'こんにちは。IronClaw にどの作業を進めさせますか?',
+  'chat.heroEvening': 'こんばんは。今夜 IronClaw に何を仕上げさせますか?',
   'chat.heroDesc': '目標、リポジトリの質問、レビュー依頼、作業が必要なファイルから始められます。',
   'chat.suggestion1Desc': 'ランタイムの状態、チャネル、ツール、未完了の作業を確認します。',
   'chat.suggestion2Desc': '正確性のリスク、ブロックされた承認、フォローアップを探します。',
   'chat.suggestion3Desc': 'セットアップ、認証、ペアリング、利用可能な機能を確認します。',
-  'chat.heroPlaceholder': 'IronClaw に何でも聞いてください。',
+  'chat.heroPlaceholder': 'ドキュメント、メモ、タスクを IronClaw に渡してください…',
   'chat.followUpPlaceholder': 'フォローアップ変更を依頼',
   'chat.attachFiles': 'ファイルを添付',
   'chat.modeAutoReview': '自動レビュー',

@@ -5,7 +5,7 @@ export const defaultRoute = '/chat';
 // Unhide a route only when its visible workflow is honest and supported.
 export const primaryRoutes = [
   { id: 'chat', path: '/chat', labelKey: 'nav.chat' },
-  { id: 'work', path: '/work', labelKey: 'nav.work', hidden: true },
+  { id: 'work', path: '/work', labelKey: 'nav.work', hidden: false },
   { id: 'workspace', path: '/workspace', labelKey: 'nav.workspace', hidden: true },
   { id: 'projects', path: '/projects', labelKey: 'nav.projects', hidden: true },
   { id: 'jobs', path: '/jobs', labelKey: 'nav.jobs', hidden: true },

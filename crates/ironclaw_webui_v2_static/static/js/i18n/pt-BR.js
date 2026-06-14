@@ -521,13 +521,16 @@ registerPack('pt-BR', {
 
   // Chat — novas chaves v2
   'chat.heroTitle': 'Ola, em que voce precisa de ajuda?',
+  'chat.heroMorning': 'Bom dia. Do que o IronClaw deve cuidar?',
+  'chat.heroAfternoon': 'Boa tarde. Qual tarefa o IronClaw deve tocar adiante?',
+  'chat.heroEvening': 'Boa noite. O que o IronClaw deve finalizar hoje a noite?',
   'chat.heroDesc':
     'Comece com uma meta, uma pergunta sobre o repositorio, um pedido de revisao ou arquivos que precisam de trabalho.',
   'chat.suggestion1Desc': 'Inspecionar a saude do runtime, canais, ferramentas e trabalho aberto.',
   'chat.suggestion2Desc': 'Procurar riscos de correcao, aprovacoes bloqueadas e acompanhamentos.',
   'chat.suggestion3Desc':
     'Verificar configuracao, autenticacao, pareamento e capacidades disponiveis.',
-  'chat.heroPlaceholder': 'Pergunte qualquer coisa ao IronClaw.',
+  'chat.heroPlaceholder': 'Entregue ao IronClaw um documento, nota ou tarefa…',
   'chat.followUpPlaceholder': 'Peca alteracoes de acompanhamento',
   'chat.attachFiles': 'Anexar arquivos',
   'chat.modeAutoReview': 'Revisao automatica',

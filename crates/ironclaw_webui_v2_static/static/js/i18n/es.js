@@ -522,6 +522,9 @@ registerPack('es', {
 
   // Chat — claves nuevas de v2
   'chat.heroTitle': 'Hola, ¿en que necesitas ayuda?',
+  'chat.heroMorning': 'Buenos dias. ¿De que se encarga IronClaw?',
+  'chat.heroAfternoon': 'Buenas tardes. ¿Que tarea hace avanzar IronClaw?',
+  'chat.heroEvening': 'Buenas noches. ¿Que cierra IronClaw esta noche?',
   'chat.heroDesc':
     'Empieza con un objetivo, una pregunta sobre el repositorio, una solicitud de revision o archivos que necesiten trabajo.',
   'chat.suggestion1Desc':
@@ -529,7 +532,7 @@ registerPack('es', {
   'chat.suggestion2Desc': 'Busca riesgos de correccion, aprobaciones bloqueadas y seguimientos.',
   'chat.suggestion3Desc':
     'Verifica configuracion, autenticacion, emparejamiento y capacidades disponibles.',
-  'chat.heroPlaceholder': 'Pregunta cualquier cosa a IronClaw.',
+  'chat.heroPlaceholder': 'Pasa a IronClaw un documento, una nota o una tarea…',
   'chat.followUpPlaceholder': 'Pide cambios de seguimiento',
   'chat.attachFiles': 'Adjuntar archivos',
   'chat.modeAutoReview': 'Revision automatica',

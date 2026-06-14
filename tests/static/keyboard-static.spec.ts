@@ -128,7 +128,7 @@ test('static keyboard: composer reaches model, add sheet, and send controls in o
     page.getByRole('heading', { name: 'What should IronClaw handle next?' })
   ).toBeVisible();
 
-  const composer = page.getByPlaceholder('Ask IronClaw anything.');
+  const composer = page.getByPlaceholder('Hand IronClaw a document, note, or task…');
   await composer.fill('Draft a services agreement from my attachment');
   await composer.focus();
 
