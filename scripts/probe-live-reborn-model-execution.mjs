@@ -112,6 +112,20 @@ function backendEnv(mode) {
       OPENROUTER_MODEL: process.env.IRONCLAW_PROBE_OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3-0324'
     };
   }
+  if (mode === 'nearai-live') {
+    const key = process.env.NEARAI_API_KEY;
+    if (!key) throw new Error('NEARAI_API_KEY not set; cannot run nearai-live execution proof');
+    // The real NEAR AI Cloud path: an API key against the cloud-api.near.ai
+    // OpenAI-compatible endpoint (NOT private.near.ai, which is only the NEP-413
+    // wallet-sign-in host). Mirrors the fixed sidecar.rs nearai api-key branch.
+    return {
+      LLM_BACKEND: 'nearai',
+      NEARAI_BASE_URL: process.env.NEARAI_BASE_URL || 'https://cloud-api.near.ai',
+      NEARAI_API_URL: process.env.NEARAI_API_URL || 'https://cloud-api.near.ai/v1',
+      NEARAI_MODEL: process.env.NEARAI_MODEL || 'deepseek-ai/DeepSeek-V4-Flash',
+      NEARAI_API_KEY: key
+    };
+  }
   throw new Error(`unknown mode ${mode}`);
 }
 
@@ -353,6 +367,10 @@ async function main() {
   for (const mode of requested) {
     if (mode === 'openrouter' && !process.env.OPENROUTER_API_KEY) {
       evidence.modes.push({ mode, skipped: true, reason: 'OPENROUTER_API_KEY not set' });
+      continue;
+    }
+    if (mode === 'nearai-live' && !process.env.NEARAI_API_KEY) {
+      evidence.modes.push({ mode, skipped: true, reason: 'NEARAI_API_KEY not set' });
       continue;
     }
     // eslint-disable-next-line no-await-in-loop

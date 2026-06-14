@@ -199,10 +199,20 @@ pub async fn spawn(
             } else {
                 "auto".to_owned()
             };
+            // NEAR AI Cloud completions live at cloud-api.near.ai (OpenAI-compatible,
+            // API-key auth). private.near.ai is ONLY the NEP-413 wallet-sign-in host.
+            // Mirror the gateway's native default (ironclaw_llm config.rs): an API key
+            // routes to cloud-api; a wallet session token routes to private.near.ai.
+            // Pointing the API-key path at private.near.ai 401s ("session not found").
+            let (nearai_base, nearai_api) = if api_key.is_some() {
+                ("https://cloud-api.near.ai", "https://cloud-api.near.ai/v1")
+            } else {
+                ("https://private.near.ai", "https://private.near.ai/v1")
+            };
             envs.extend([
                 ("LLM_BACKEND".into(), "nearai".into()),
-                ("NEARAI_BASE_URL".into(), "https://private.near.ai".into()),
-                ("NEARAI_API_URL".into(), "https://private.near.ai/v1".into()),
+                ("NEARAI_BASE_URL".into(), nearai_base.into()),
+                ("NEARAI_API_URL".into(), nearai_api.into()),
                 ("NEARAI_MODEL".into(), selected),
                 (
                     "IRONCLAW_DESKTOP_NEARAI_AUTH_CONFIGURED".into(),
@@ -218,11 +228,13 @@ pub async fn spawn(
                     .into(),
                 ),
             ]);
-            if let Some(token) = session_token {
-                envs.push(("NEARAI_SESSION_TOKEN".into(), token));
-            }
+            // Prefer the API key (cloud-api path); fall back to the wallet session
+            // token only when no API key is configured. Never send both — the two
+            // endpoints expect different credentials.
             if let Some(key) = api_key {
                 envs.push(("NEARAI_API_KEY".into(), key));
+            } else if let Some(token) = session_token {
+                envs.push(("NEARAI_SESSION_TOKEN".into(), token));
             }
             if !auth_configured {
                 log::warn!(
