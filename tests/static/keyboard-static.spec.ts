@@ -203,10 +203,86 @@ test('static keyboard: command palette navigates without exposing hidden surface
     await expect(palette.getByText(hidden, { exact: false })).toHaveCount(0);
   }
 
-  await page.getByPlaceholder(/Type a command or search/).fill('connections');
+  // DT-5: a search with no hits is a dignified, directed empty state, not a
+  // bare dead-end. It names what to try next instead of just "No matches".
+  const search = page.getByPlaceholder(/Type a command or search/);
+  await search.fill('zzzqqq-no-such-command');
+  const empty = palette.getByTestId('command-palette-empty');
+  await expect(empty).toBeVisible();
+  await expect(empty.getByText('No matches')).toBeVisible();
+  await expect(empty.getByText(/section name like Chat or Settings/)).toBeVisible();
+
+  await search.fill('connections');
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/\/v2\/extensions/);
   await expect(page.getByRole('heading', { name: 'No apps connected yet' })).toBeVisible();
+});
+
+test('static keyboard: command palette traps focus, closes from a row, and returns focus', async ({
+  page
+}) => {
+  // The Bridge palette must honor the Mac keyboard contract end to end: focus is
+  // trapped while it is open, Escape closes it even after Tab moves focus off the
+  // search field onto a result row, and focus returns to the control that opened
+  // it instead of being stranded on <body>.
+  await installStaticInteractionMocks(page);
+  await page.goto('/v2/chat?token=static-keyboard-token');
+
+  const opener = page.getByRole('button', { name: 'New', exact: true }).first();
+  await opener.focus();
+  await page.keyboard.press('Control+K');
+
+  const palette = page.getByRole('dialog', { name: 'Command palette' });
+  await expect(palette).toBeVisible();
+
+  // Tab cycles within the dialog; it never falls behind the modal.
+  for (let i = 0; i < 12; i += 1) {
+    await page.keyboard.press('Tab');
+    const inside = await page.evaluate(() => {
+      const dialog = document.querySelector('[role="dialog"][aria-label="Command palette"]');
+      return !!dialog && dialog.contains(document.activeElement);
+    });
+    expect(inside, `focus stays inside the palette after ${i + 1} tab(s)`).toBe(true);
+  }
+
+  // Escape resolves even when a result row (not the input) holds focus.
+  await palette.getByRole('button', { name: 'New chat' }).focus();
+  await page.keyboard.press('Escape');
+  await expect(palette).toHaveCount(0);
+
+  // Focus returns to the opener.
+  await expect(opener).toBeFocused();
+});
+
+test('static palette at 390px: rows clear 44px and the dialog does not overflow', async ({
+  page
+}) => {
+  // Mobile-first law: palette rows are real tap targets at 390px (they were 36px
+  // before this pass) and the dialog must not push horizontal overflow.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installStaticInteractionMocks(page);
+  await page.goto('/v2/chat?token=static-keyboard-token');
+  await page.keyboard.press('Control+K');
+
+  const palette = page.getByRole('dialog', { name: 'Command palette' });
+  await expect(palette).toBeVisible();
+
+  const rows = palette.locator('li > button');
+  const count = await rows.count();
+  expect(count).toBeGreaterThan(0);
+  for (let i = 0; i < count; i += 1) {
+    const box = await rows.nth(i).boundingBox();
+    expect(box, `palette row ${i} should have a measurable box`).not.toBeNull();
+    expect(box!.height, `palette row ${i} height >=44px`).toBeGreaterThanOrEqual(44);
+  }
+
+  const docOverflow = await page.evaluate(() => {
+    const de = document.documentElement;
+    return de.scrollWidth - de.clientWidth;
+  });
+  expect(docOverflow, 'no horizontal overflow at 390px with the palette open').toBeLessThanOrEqual(
+    1
+  );
 });
 
 test('static shell at 390px: app-shell chrome controls stay >=44px and the nav rail does not overflow', async ({

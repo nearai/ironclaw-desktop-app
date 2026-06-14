@@ -6,7 +6,6 @@ import { primaryRoutes } from '../app/routes.js';
 const COMMAND_ROUTE_LABELS = {
   chat: 'Go to Chat',
   work: 'Go to Work',
-  automations: 'Go to Automations',
   extensions: 'Go to Connections',
   settings: 'Go to Settings'
 };
@@ -30,7 +29,6 @@ export function buildCommandPaletteActions({
       {
         chat: 'chat',
         work: 'file',
-        automations: 'calendar',
         extensions: 'plug',
         settings: 'settings'
       }[route.id] || 'bolt',
@@ -38,6 +36,7 @@ export function buildCommandPaletteActions({
     run: () => navigate(route.path)
   }));
 
+  // Keep same-group rows contiguous so each group prints a single header.
   return [
     {
       id: 'new-chat',
@@ -46,14 +45,14 @@ export function buildCommandPaletteActions({
       group: 'Actions',
       run: () => onNewChat?.()
     },
-    ...navigation,
     {
       id: 'toggle-theme',
       label: 'Toggle theme',
       icon: 'moon',
       group: 'Actions',
       run: () => onToggleTheme?.()
-    }
+    },
+    ...navigation
   ];
 }
 
@@ -72,6 +71,9 @@ export function CommandPalette({
   const [query, setQuery] = React.useState('');
   const [active, setActive] = React.useState(0);
   const inputRef = React.useRef(null);
+  const dialogRef = React.useRef(null);
+  const activeRowRef = React.useRef(null);
+  const restoreFocusRef = React.useRef(null);
 
   const commands = React.useMemo(() => {
     const actions = buildCommandPaletteActions({ navigate, onNewChat, onToggleTheme, isAdmin });
@@ -93,15 +95,28 @@ export function CommandPalette({
 
   React.useEffect(() => {
     if (!open) return;
+    // Remember what had focus so we can hand it back when the palette closes,
+    // and keep keyboard users from being stranded on <body>.
+    restoreFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setQuery('');
     setActive(0);
     const id = window.requestAnimationFrame(() => inputRef.current?.focus());
-    return () => window.cancelAnimationFrame(id);
+    return () => {
+      window.cancelAnimationFrame(id);
+      restoreFocusRef.current?.focus?.();
+      restoreFocusRef.current = null;
+    };
   }, [open]);
 
   React.useEffect(() => {
     setActive((i) => Math.min(i, Math.max(0, filtered.length - 1)));
   }, [filtered.length]);
+
+  // Keep the highlighted row visible as arrow keys walk a long list.
+  React.useEffect(() => {
+    activeRowRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [active, filtered.length]);
 
   const exec = React.useCallback(
     (command) => {
@@ -111,6 +126,14 @@ export function CommandPalette({
     },
     [onClose]
   );
+
+  const focusables = React.useCallback(() => {
+    const root = dialogRef.current;
+    if (!root) return [];
+    return Array.from(
+      root.querySelectorAll('input, button, [href], [tabindex]:not([tabindex="-1"])')
+    ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
+  }, []);
 
   const onKeyDown = React.useCallback(
     (event) => {
@@ -126,9 +149,23 @@ export function CommandPalette({
       } else if (event.key === 'Escape') {
         event.preventDefault();
         onClose();
+      } else if (event.key === 'Tab') {
+        // Trap focus inside the dialog so Tab never falls behind the modal.
+        const items = focusables();
+        if (items.length === 0) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        const activeEl = document.activeElement;
+        if (event.shiftKey && activeEl === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && activeEl === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     },
-    [filtered, active, exec, onClose]
+    [filtered, active, exec, onClose, focusables]
   );
 
   if (!open) return null;
@@ -137,6 +174,8 @@ export function CommandPalette({
 
   return html`
     <div
+      ref=${dialogRef}
+      onKeyDown=${onKeyDown}
       className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[12vh]"
       role="dialog"
       aria-modal="true"
@@ -157,7 +196,6 @@ export function CommandPalette({
             ref=${inputRef}
             value=${query}
             onInput=${(e) => setQuery(e.currentTarget.value)}
-            onKeyDown=${onKeyDown}
             placeholder="Type a command or search…"
             className="h-12 w-full border-0 bg-transparent text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)]"
           />
@@ -168,12 +206,19 @@ export function CommandPalette({
         </div>
         <ul className="max-h-[50vh] overflow-y-auto p-1.5">
           ${filtered.length === 0 &&
-          html`<li className="px-3 py-6 text-center text-sm text-[var(--v2-text-faint)]">
-            No matches
+          html`<li
+            className="flex flex-col items-center gap-1 px-3 py-7 text-center"
+            data-testid="command-palette-empty"
+          >
+            <span className="text-sm font-medium text-[var(--v2-text)]">No matches</span>
+            <span className="text-xs text-[var(--v2-text-faint)]">
+              Try a section name like Chat or Settings, or part of a thread title.
+            </span>
           </li>`}
           ${filtered.map((command, index) => {
             const showGroup = command.group !== lastGroup;
             lastGroup = command.group;
+            const isActive = index === active;
             return html`
               ${showGroup &&
               html`<li
@@ -182,14 +227,14 @@ export function CommandPalette({
               >
                 ${command.group}
               </li>`}
-              <li key=${command.id}>
+              <li key=${command.id} ref=${isActive ? activeRowRef : null}>
                 <button
                   type="button"
                   onMouseEnter=${() => setActive(index)}
                   onClick=${() => exec(command)}
                   className=${[
-                    'flex w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left text-sm',
-                    index === active
+                    'flex min-h-[44px] w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left text-sm',
+                    isActive
                       ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
                       : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]'
                   ].join(' ')}
