@@ -11,6 +11,26 @@ let mermaidLoadPromise = null;
 let mermaidConfigured = false;
 let mermaidRenderSeq = 0;
 
+// Sanitized SVG cache keyed by mermaid fence source. React owns the markdown
+// body innerHTML; any commit with a changed __html re-sets it and wipes the
+// imperatively-built mermaid card (rendered SVG included). When the body is
+// re-enhanced we restore the previously rendered diagram from this cache so an
+// unrelated re-render never forces the user to render the diagram again and
+// never drops the SVG the DOCX export depends on.
+const mermaidRenderCache = new Map();
+const MERMAID_CACHE_LIMIT = 64;
+
+function cacheMermaidRender(source, svg) {
+  const key = String(source || '');
+  if (!key || !svg) return;
+  mermaidRenderCache.delete(key);
+  mermaidRenderCache.set(key, svg);
+  while (mermaidRenderCache.size > MERMAID_CACHE_LIMIT) {
+    const oldest = mermaidRenderCache.keys().next().value;
+    mermaidRenderCache.delete(oldest);
+  }
+}
+
 function resolveStaticAsset(path) {
   const resolver = window.__IRONCLAW_STATIC_ASSET__;
   if (typeof resolver === 'function') return resolver(path);
@@ -100,6 +120,7 @@ export function resetMarkdownRendererTestState() {
   mermaidLoadPromise = null;
   mermaidConfigured = false;
   mermaidRenderSeq = 0;
+  mermaidRenderCache.clear();
 }
 
 function highlightCodeElement(codeEl) {
@@ -188,14 +209,22 @@ function enhanceMermaidBlock(pre, codeEl) {
   card.appendChild(output);
   card.appendChild(sourceDetails);
 
+  const applyRenderedSvg = (svg) => {
+    output.innerHTML = svg;
+    output.hidden = false;
+    output.classList.remove('v2-mermaid-card__output--error');
+    card.dataset.rendered = '1';
+    renderButton.disabled = true;
+    renderButton.textContent = 'Rendered';
+  };
+
   renderButton.addEventListener('click', async () => {
     renderButton.disabled = true;
     renderButton.textContent = 'Rendering...';
     try {
-      output.innerHTML = await renderMermaidDiagram(source);
-      output.hidden = false;
-      card.dataset.rendered = '1';
-      renderButton.textContent = 'Rendered';
+      const svg = await renderMermaidDiagram(source);
+      cacheMermaidRender(source, svg);
+      applyRenderedSvg(svg);
     } catch (error) {
       output.hidden = false;
       output.textContent = `Could not render diagram: ${error?.message || error}`;
@@ -204,6 +233,11 @@ function enhanceMermaidBlock(pre, codeEl) {
       renderButton.textContent = 'Retry render';
     }
   });
+
+  // Restore a previously rendered diagram (e.g. after a re-render re-set the
+  // markdown body innerHTML) without re-running mermaid or re-prompting the user.
+  const cached = mermaidRenderCache.get(String(source));
+  if (cached) applyRenderedSvg(cached);
 }
 
 /* Enhance rendered <pre> code blocks in place: syntax highlight, a hover
@@ -290,6 +324,13 @@ export function enhanceRenderedMarkdown(root) {
 export function MarkdownRenderer({ content, className = '' }) {
   const ref = React.useRef(null);
 
+  // Runs after every commit (no dep array). React owns the body innerHTML and
+  // re-sets it whenever the rendered HTML changes, which wipes the imperatively
+  // built mermaid card and code-block toolbars. Without re-enhancing on every
+  // commit, a re-render that re-sets the body while content is unchanged would
+  // leave the enhancements silently gone. Re-enhancement is idempotent: the
+  // data-enhanced / data-md-renderer / dataset.icHighlighted guards skip nodes
+  // that are already enhanced, and rendered mermaid SVGs are restored from cache.
   React.useLayoutEffect(() => {
     const root = ref.current;
     if (!root) return undefined;
@@ -297,7 +338,7 @@ export function MarkdownRenderer({ content, className = '' }) {
     queueMicrotask(() => enhanceRenderedMarkdown(root));
     const frame = requestAnimationFrame(() => enhanceRenderedMarkdown(root));
     return () => cancelAnimationFrame(frame);
-  }, [content]);
+  });
 
   return html`
     <div

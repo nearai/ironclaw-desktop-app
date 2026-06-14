@@ -103,6 +103,72 @@ test('renderMermaidDiagram sanitizes rendered SVG output', async () => {
   }
 });
 
+test('re-enhancing after a body re-set restores a previously rendered Mermaid SVG', async () => {
+  resetMarkdownRendererTestState();
+  const dom = new JSDOM('<!doctype html><body><section id="root"></section></body>', {
+    url: 'http://127.0.0.1:1420/v2/chat'
+  });
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+
+  window.mermaid = {
+    initialize() {},
+    render: async () => ({ svg: '<svg><text>rendered diagram</text></svg>' })
+  };
+  window.DOMPurify = { sanitize: (svg) => svg };
+
+  const bodyHtml = '<pre><code class="language-mermaid">graph TD\nA-->B</code></pre>';
+
+  try {
+    const root = document.getElementById('root');
+
+    // First enhancement: the user clicks "Render diagram".
+    root.innerHTML = bodyHtml;
+    enhanceRenderedMarkdown(root);
+    const card = root.querySelector('[data-md-renderer="mermaid"]');
+    assert.ok(card);
+    const renderButton = Array.from(card.querySelectorAll('button')).find(
+      (b) => b.textContent === 'Render diagram'
+    );
+    assert.ok(renderButton);
+    renderButton.dispatchEvent(new dom.window.Event('click'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const renderedOutput = card.querySelector('.v2-mermaid-card__output');
+    assert.match(renderedOutput.innerHTML, /rendered diagram/);
+    assert.equal(card.dataset.rendered, '1');
+
+    // Simulate React re-committing the markdown body innerHTML on a re-render:
+    // every imperatively built node (the card + rendered SVG) is wiped.
+    root.innerHTML = bodyHtml;
+    assert.equal(root.querySelectorAll('[data-md-renderer="mermaid"]').length, 0);
+
+    // Re-enhancement must restore the rendered diagram from cache without a
+    // second click and without re-prompting the user.
+    enhanceRenderedMarkdown(root);
+    const restoredCard = root.querySelector('[data-md-renderer="mermaid"]');
+    assert.ok(restoredCard);
+    assert.equal(restoredCard.dataset.rendered, '1');
+    const restoredOutput = restoredCard.querySelector('.v2-mermaid-card__output');
+    assert.equal(restoredOutput.hidden, false);
+    assert.match(restoredOutput.innerHTML, /rendered diagram/);
+    assert.ok(restoredOutput.querySelector('svg'));
+    const restoredButton = Array.from(restoredCard.querySelectorAll('button')).find((b) =>
+      ['Rendered', 'Render diagram', 'Retry render'].includes(b.textContent)
+    );
+    assert.equal(restoredButton.textContent, 'Rendered');
+    assert.equal(restoredButton.disabled, true);
+  } finally {
+    delete window.mermaid;
+    delete window.DOMPurify;
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+    dom.window.close();
+  }
+});
+
 test('enhanceRenderedMarkdown upgrades already-enhanced Mermaid blocks', () => {
   resetMarkdownRendererTestState();
   const dom = new JSDOM(

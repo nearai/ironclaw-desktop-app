@@ -40,6 +40,14 @@ const mermaidReply = [
   '  A[Review request] --> B{Needs approval?}',
   '  B -->|Yes| C[Ask user]',
   '  B -->|No| D[Ship receipt]',
+  '```',
+  '',
+  'And the helper:',
+  '',
+  '```js',
+  'function ship(receipt) {',
+  '  return receipt.approved;',
+  '}',
   '```'
 ].join('\n');
 
@@ -59,6 +67,64 @@ test('static mermaid renderer is lazy, on-click, and renders sanitized SVG', asy
   await expect(page.locator('.v2-mermaid-card__output svg')).toBeVisible({ timeout: 15_000 });
   await expect(page.locator('.v2-mermaid-card__output script')).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Rendered' })).toBeDisabled();
+});
+
+test('rendered diagram and code-block toolbar survive a bubble re-render', async ({ page }) => {
+  await installMermaidApiMocks(page);
+
+  await page.goto('http://127.0.0.1:1420/v2/chat/thread-mermaid?token=static-mermaid-token');
+  await expect(page.getByText('Here is the flow:')).toBeVisible();
+  await expect(page.locator('[data-md-renderer="mermaid"]')).toBeVisible();
+
+  // Render the diagram, then confirm the regular code block was enhanced with
+  // its hover toolbar (the Copy button lives in the imperatively-built wrap).
+  await page.getByRole('button', { name: 'Render diagram' }).click();
+  await expect(page.locator('.v2-mermaid-card__output svg')).toBeVisible({ timeout: 15_000 });
+  // The code-block toolbar's Copy button is built imperatively inside the
+  // markdown body (the mermaid card's button reads "Copy source", not "Copy").
+  const codeCopyButton = page.locator('.markdown-body button').filter({ hasText: /^Copy$/ });
+  await expect(codeCopyButton).toHaveCount(1);
+
+  // Force React to re-commit the markdown body innerHTML exactly the way it does
+  // on a re-render: re-set __html to the pre-enhancement markup, reconstructed
+  // from the still-present source <pre>s. This wipes every imperatively-built
+  // node (mermaid card + rendered SVG + code toolbars).
+  const wiped = await page.evaluate(() => {
+    const body = document.querySelector('.markdown-body');
+    if (!body) return false;
+    const mermaidPre = document.querySelector('.v2-mermaid-card__source pre');
+    const codePre = Array.from(body.querySelectorAll('pre')).find(
+      (pre) => !pre.closest('.v2-mermaid-card__source')
+    );
+    if (!mermaidPre || !codePre) return false;
+    // Strip enhancement markers so the markup matches what renderMarkdown emits
+    // on a fresh React commit (no data-enhanced / data-icHighlighted).
+    const clean = (pre: Element) => {
+      const copy = pre.cloneNode(true) as HTMLElement;
+      copy.removeAttribute('data-enhanced');
+      copy.querySelectorAll('code').forEach((code) => {
+        code.removeAttribute('data-ic-highlighted');
+        code.removeAttribute('style');
+        code.className = code.className.replace(/\bhljs\b/g, '').trim();
+      });
+      return copy.outerHTML;
+    };
+    body.innerHTML =
+      '<p>Here is the flow:</p>' + clean(mermaidPre) + '<p>And the helper:</p>' + clean(codePre);
+    return !document.querySelector('[data-md-renderer="mermaid"]');
+  });
+  expect(wiped).toBe(true);
+
+  // Trigger a real bubble re-render with unchanged message content (Copy flips a
+  // sibling useState). The fixed layout effect must run and re-enhance, and the
+  // mermaid render cache must restore the rendered SVG without a second click.
+  await page.getByRole('button', { name: 'Copy message' }).click();
+
+  await expect(page.locator('[data-md-renderer="mermaid"]')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.v2-mermaid-card__output svg')).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.v2-mermaid-card__output script')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Rendered' })).toBeDisabled();
+  await expect(codeCopyButton).toHaveCount(1);
 });
 
 async function installMermaidApiMocks(page: Page) {
