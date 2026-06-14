@@ -773,6 +773,14 @@ export class FetchEventStream {
       }
       this.onopen?.();
       await this.read(response.body);
+      // A clean server-side stream end (reader `done`) is NOT a normal terminal
+      // state for a long-lived SSE channel. Native EventSource treats a closed
+      // connection as a disconnect and reconnects; without mirroring that, the
+      // channel goes silently dead behind a "connected" badge. Dispatch an error
+      // so useSSE's reconnect path fires. dispatchError is a no-op once closed
+      // (user navigated away / close() called), so an intentional teardown stays
+      // quiet.
+      this.dispatchError(new ApiError('Event stream closed by server', { status: 0 }));
     } catch (err) {
       if (err?.name !== 'AbortError') this.dispatchError(err);
     }

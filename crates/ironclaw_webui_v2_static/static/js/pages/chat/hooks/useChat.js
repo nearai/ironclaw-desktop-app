@@ -14,6 +14,7 @@ import {
   resolveExtensionRecoveryAction
 } from '../../../lib/channel-connect.js';
 import { queryClient } from '../../../lib/query-client.js';
+import { toast } from '../../../lib/toast.js';
 import { React } from '../../../lib/html.js';
 import { useChatEvents } from '../lib/useChatEvents.js';
 import { failureMessageForRunStatus } from '../lib/failureMessages.js';
@@ -550,6 +551,7 @@ export function useChat(threadId) {
   // run_id and gate_ref come from the live `pendingGate` (set by the
   // gate / auth_required event) so the UI doesn't have to plumb them
   // through every approve-action call site.
+  const gateResolveInFlightRef = React.useRef(false);
   const resolveGate = React.useCallback(
     async (resolution, opts = {}) => {
       if (!pendingGate) return;
@@ -557,14 +559,34 @@ export function useChat(threadId) {
       if (!runId || !gateRef) {
         throw new Error('resolveGate requires a pending gate with run_id and gate_ref');
       }
-      await resolveGateRequest({
-        threadId,
-        runId,
-        gateRef,
-        resolution,
-        always: opts.always,
-        credentialRef: opts.credentialRef
-      });
+      // Block double-fire: a second click while the decision is in flight would
+      // submit a duplicate approve/deny for the same sacred gate.
+      if (gateResolveInFlightRef.current) return;
+      gateResolveInFlightRef.current = true;
+      try {
+        await resolveGateRequest({
+          threadId,
+          runId,
+          gateRef,
+          resolution,
+          always: opts.always,
+          credentialRef: opts.credentialRef
+        });
+      } catch (err) {
+        // A failed resolution must NOT leave the gate silently stuck or throw an
+        // unhandled rejection. Keep the gate mounted and actionable, tell the
+        // user, and let them retry — the most safety-critical surface in the
+        // product cannot fail blind.
+        gateResolveInFlightRef.current = false;
+        toast(
+          `Couldn't submit your decision — ${err?.message || 'connection failed'}. Try again.`,
+          {
+            tone: 'error'
+          }
+        );
+        return;
+      }
+      gateResolveInFlightRef.current = false;
       const shouldContinueProcessing =
         resolution === 'approved' || resolution === 'credential_provided';
       setPendingGate(null);

@@ -21,6 +21,14 @@ import { TypingIndicator } from './components/typing-indicator.js';
 import { useChat } from './hooks/useChat.js';
 import { buildRuntimeContext } from './lib/runtime-context.js';
 
+// Retry is intentionally not wired. Re-sending a failed turn cannot honestly
+// restore its attachment bytes (the error row keeps only chip metadata) and the
+// gateway exposes no resend endpoint, so a Retry button would be a dead
+// affordance — which the design laws forbid. message-bubble renders the button
+// only when onRetry is provided, so passing null keeps it hidden until a real
+// content+attachment-preserving retry exists.
+const RETRY_NOT_WIRED = null;
+
 export function Chat({
   threads,
   activeThreadId,
@@ -44,7 +52,6 @@ export function Chat({
     activeRun,
     send,
     cancelRun,
-    retryMessage,
     approve,
     recoverHistory,
     loadMore,
@@ -181,7 +188,7 @@ export function Chat({
             isLoading=${historyLoading}
             hasMore=${hasMore}
             onLoadMore=${loadMore}
-            onRetryMessage=${retryMessage}
+            onRetryMessage=${RETRY_NOT_WIRED}
           >
             ${recoveryNotice &&
             html` <${RecoveryNotice} notice=${recoveryNotice} onRecover=${recoverHistory} /> `}

@@ -261,7 +261,9 @@ test('FetchEventStream parses split frames, named events, comments, and final bu
       new ReadableStream({
         start(controller) {
           controller.enqueue(encoder.encode(': heartbeat\r\n\r\nid: gate-1\r\nevent: gate\r\n'));
-          controller.enqueue(encoder.encode('data: {"tool":"send_email"}\r\ndata: confirm\r\n\r\n'));
+          controller.enqueue(
+            encoder.encode('data: {"tool":"send_email"}\r\ndata: confirm\r\n\r\n')
+          );
           controller.enqueue(encoder.encode('data: tail frame without delimiter'));
           controller.close();
         }
@@ -321,6 +323,75 @@ test('FetchEventStream surfaces HTTP errors through onerror', async () => {
     assert.equal(errors[0].name, 'ApiError');
     assert.equal(errors[0].status, 503);
     assert.equal(errors[0].statusText, 'Service Unavailable');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('FetchEventStream treats a clean server stream-end as a disconnect (fires onerror so reconnect runs)', async () => {
+  const originalFetch = globalThis.fetch;
+  const encoder = new TextEncoder();
+  const errors = [];
+  const messages = [];
+
+  globalThis.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode('data: hello\r\n\r\n'));
+          controller.close();
+        }
+      }),
+      { status: 200, headers: { 'content-type': 'text/event-stream' } }
+    );
+
+  try {
+    const stream = new FetchEventStream(new URL('http://127.0.0.1:3000/events'), '');
+    stream.onmessage = (event) => messages.push(event);
+    stream.onerror = (error) => errors.push(error);
+
+    await waitFor(() => messages.length === 1 && errors.length === 1);
+
+    // The frame still delivered, then the clean close surfaced as an error so
+    // useSSE's reconnect path fires instead of the channel going silently dead.
+    assert.equal(messages[0].data, 'hello');
+    assert.equal(errors[0].name, 'ApiError');
+    assert.equal(errors[0].status, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('FetchEventStream does not fire onerror when closed before the stream ends', async () => {
+  const originalFetch = globalThis.fetch;
+  const encoder = new TextEncoder();
+  const errors = [];
+
+  let streamController = null;
+  globalThis.fetch = async () =>
+    new Response(
+      new ReadableStream({
+        start(controller) {
+          streamController = controller;
+          controller.enqueue(encoder.encode('data: one\r\n\r\n'));
+        }
+      }),
+      { status: 200, headers: { 'content-type': 'text/event-stream' } }
+    );
+
+  try {
+    const stream = new FetchEventStream(new URL('http://127.0.0.1:3000/events'), '');
+    let got = 0;
+    stream.onmessage = () => {
+      got += 1;
+    };
+    stream.onerror = (error) => errors.push(error);
+    await waitFor(() => got === 1);
+    // Intentional teardown: close() then end the stream — no error should fire.
+    stream.close();
+    streamController.close();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(errors.length, 0);
   } finally {
     globalThis.fetch = originalFetch;
   }
