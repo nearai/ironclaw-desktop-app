@@ -2838,7 +2838,7 @@ ${ue}`;if(E.current.gateKey!==pe&&(E.current={gateKey:pe,credentialRef:null,inFl
         </div>
       </div>
     </div>
-  `}function FU({item:e,artifact:t}){let[a,n]=g.default.useState(""),s=D_(t),r=t?.title||e?.title||"IronClaw work product",i=LU(r),o=Uc(t),l=t?.filename||`${i}.${or(t).toLowerCase()}`,u=async(m,f)=>{n(m);try{await f(),ht(`${m} ready`,{tone:"success"})}catch{ht(`Could not ${m.toLowerCase()}`,{tone:"error"})}finally{n("")}},d="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] px-3 text-sm font-medium text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_36%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)] disabled:opacity-60";return c`
+  `}function FU({item:e,artifact:t}){let[a,n]=g.default.useState(""),s=D_(t),r=t?.title||e?.title||"IronClaw work product",i=LU(r),o=Uc(t),l=t?.filename||`${i}.${or(t).toLowerCase()}`,u=async(m,f)=>{n(m);try{await f(),ht(`${m} ready`,{tone:"success"})}catch{ht(`Could not ${m.toLowerCase()}`,{tone:"error"})}finally{n("")}},d="inline-flex min-h-[44px] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] px-3 text-sm font-medium text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_36%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)] disabled:opacity-60";return c`
     <div className="flex flex-wrap gap-2">
       ${o&&c`<button
         type="button"
@@ -2905,7 +2905,9 @@ ${ue}`;if(E.current.gateKey!==pe&&(E.current={gateKey:pe,credentialRef:null,inFl
   `}function j_(){let[e]=_v(),[t,a]=g.default.useState(()=>si());g.default.useEffect(()=>{a(si())},[]);let n=e.get("item")||"",s=e.get("artifact")||"",r=t.find(m=>m?.id===n)||(n?null:t[0]),i=OU(r,s),o=!!(n&&!r||s&&!i);if(!t.length||o||!r||!i)return c`<${UU} missing=${o} />`;let l=D_(i),u=bf(r.links).find(m=>m?.kind==="thread"),d=bf(i.provenance).join(", ")||"chat";return c`
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="v2-page-entrance flex-1 p-4 sm:p-6">
-        <div className="mx-auto grid max-w-7xl gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div
+          className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[320px_minmax(0,1fr)]"
+        >
           <aside
             className="h-fit rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3 shadow-[var(--v2-card-shadow)]"
             aria-label="Saved work"
@@ -2920,7 +2922,7 @@ ${ue}`;if(E.current.gateKey!==pe&&(E.current={gateKey:pe,credentialRef:null,inFl
                 Local artifacts saved from chat.
               </p>
             </div>
-            <div className="mt-2 grid gap-1">
+            <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-1">
               ${t.slice(0,30).map(m=>{let f=A_(m),p=f?Tm(m.id,f.id):"/work",h=m.id===r.id;return c`
                   <${Ze}
                     key=${m.id}
@@ -2948,10 +2950,11 @@ ${ue}`;if(E.current.gateKey!==pe&&(E.current={gateKey:pe,credentialRef:null,inFl
                 <div
                   className="flex flex-wrap items-center gap-2 text-xs text-[var(--v2-text-muted)]"
                 >
+                  ${""}
                   <span
-                    className="rounded-full border border-[color-mix(in_srgb,var(--v2-success-text)_34%,var(--v2-panel-border))] bg-[var(--v2-success-soft)] px-2 py-1 text-[var(--v2-success-text)]"
+                    className="rounded-full border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-2 py-1 text-[var(--v2-gold-text)]"
                   >
-                    ${i.type==="file"||i.data_base64?`${or(i)} artifact`:"Ready artifact"}
+                    ${i.type==="file"||i.data_base64?`${or(i)} artifact`:"Generated artifact"}
                   </span>
                   <span>${E_(r.updated_at||r.created_at)}</span>
                   <span>Source: ${d}</span>
@@ -2969,11 +2972,16 @@ ${ue}`;if(E.current.gateKey!==pe&&(E.current={gateKey:pe,credentialRef:null,inFl
                         as=${Ze}
                         to=${`/chat/${encodeURIComponent(u.ref)}`}
                         variant="secondary"
-                        size="sm"
+                        className="min-h-[44px]"
                       >
                         Open thread
                       <//>
-                    `:c`<${T} as=${Ze} to="/chat" variant="secondary" size="sm">
+                    `:c`<${T}
+                      as=${Ze}
+                      to="/chat"
+                      variant="secondary"
+                      className="min-h-[44px]"
+                    >
                       Back to chat
                     <//>`}
               </div>

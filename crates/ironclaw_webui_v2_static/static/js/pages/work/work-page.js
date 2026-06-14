@@ -114,8 +114,11 @@ function WorkExportActions({ item, artifact }) {
     }
   };
 
+  // Mobile-first tap-target floor (>=44px at 390px): these export controls were
+  // 36px. The shared app shell, palette, and connectors already enforce a 44px
+  // floor at 390px (keyboard-static.spec.ts); the saved-work controls now match.
   const actionClass =
-    'inline-flex h-9 items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] px-3 text-sm font-medium text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_36%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)] disabled:opacity-60';
+    'inline-flex min-h-[44px] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] px-3 text-sm font-medium text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_36%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)] disabled:opacity-60';
 
   return html`
     <div className="flex flex-wrap gap-2">
@@ -262,7 +265,9 @@ export function WorkPage() {
   return html`
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="v2-page-entrance flex-1 p-4 sm:p-6">
-        <div className="mx-auto grid max-w-7xl gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <div
+          className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[320px_minmax(0,1fr)]"
+        >
           <aside
             className="h-fit rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3 shadow-[var(--v2-card-shadow)]"
             aria-label="Saved work"
@@ -277,7 +282,7 @@ export function WorkPage() {
                 Local artifacts saved from chat.
               </p>
             </div>
-            <div className="mt-2 grid gap-1">
+            <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-1">
               ${items.slice(0, 30).map((item) => {
                 const artifact = firstReadyArtifact(item);
                 const href = artifact ? workArtifactHref(item.id, artifact.id) : '/work';
@@ -315,12 +320,20 @@ export function WorkPage() {
                 <div
                   className="flex flex-wrap items-center gap-2 text-xs text-[var(--v2-text-muted)]"
                 >
+                  ${
+                    /* Gold = the agent's hand (DESIGN.md color meaning). A saved
+                    work product is generated agent work, so the header badge is
+                    gold to match the "Generated document" chip in chat and the
+                    file-artifact preview below — not success-green, which is a
+                    status this surface cannot prove and read inconsistently
+                    against the gold body chip. */ ''
+                  }
                   <span
-                    className="rounded-full border border-[color-mix(in_srgb,var(--v2-success-text)_34%,var(--v2-panel-border))] bg-[var(--v2-success-soft)] px-2 py-1 text-[var(--v2-success-text)]"
+                    className="rounded-full border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-2 py-1 text-[var(--v2-gold-text)]"
                   >
                     ${selectedArtifact.type === 'file' || selectedArtifact.data_base64
                       ? `${generatedFileKindLabel(selectedArtifact)} artifact`
-                      : 'Ready artifact'}
+                      : 'Generated artifact'}
                   </span>
                   <span>${readableDate(selectedItem.updated_at || selectedItem.created_at)}</span>
                   <span>Source: ${provenance}</span>
@@ -339,12 +352,17 @@ export function WorkPage() {
                         as=${Link}
                         to=${`/chat/${encodeURIComponent(linkedThread.ref)}`}
                         variant="secondary"
-                        size="sm"
+                        className="min-h-[44px]"
                       >
                         Open thread
                       <//>
                     `
-                  : html`<${Button} as=${Link} to="/chat" variant="secondary" size="sm">
+                  : html`<${Button}
+                      as=${Link}
+                      to="/chat"
+                      variant="secondary"
+                      className="min-h-[44px]"
+                    >
                       Back to chat
                     <//>`}
               </div>

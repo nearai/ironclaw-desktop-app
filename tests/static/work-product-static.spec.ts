@@ -203,6 +203,139 @@ test('static work product: a stale deep link shows "Saved work not found"', asyn
   await expect(page.getByText('A real saved item')).toHaveCount(0);
 });
 
+test('static work product: reader badge attributes generated agent work in gold, not success-green', async ({
+  page
+}) => {
+  await installWorkProductMocks(page);
+  // Color meaning (DESIGN.md): gold is the agent's hand (generated work);
+  // success-green is a status this reader cannot prove. The header badge must
+  // resolve to the gold token and read "Generated artifact", matching the chat
+  // "Generated document" chip and the gold file-artifact preview on this page.
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'ironclaw-work-items',
+      JSON.stringify([
+        {
+          id: 'work-badge-1',
+          title: 'Gold badge item',
+          status: 'active',
+          created_at: '2026-06-13T15:00:00.000Z',
+          updated_at: '2026-06-13T15:00:00.000Z',
+          links: [],
+          artifacts: [
+            {
+              id: 'artifact-badge-1',
+              type: 'document',
+              title: 'Gold badge item',
+              status: 'ready',
+              provenance: ['chat'],
+              content: '# Gold badge item\n\nBody.',
+              content_format: 'markdown'
+            }
+          ]
+        }
+      ])
+    );
+  });
+
+  await page.goto('/v2/work?item=work-badge-1&artifact=artifact-badge-1&token=static-work-token');
+
+  const badge = page.getByText('Generated artifact', { exact: true });
+  await expect(badge).toBeVisible();
+  // No success/readiness language survives in the reader badge.
+  await expect(page.getByText('Ready artifact')).toHaveCount(0);
+
+  // The badge text color resolves to the gold token, never the success token.
+  const colors = await badge.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    const root = getComputedStyle(document.documentElement);
+    return {
+      badge: cs.color,
+      gold: root.getPropertyValue('--v2-gold-text').trim(),
+      success: root.getPropertyValue('--v2-success-text').trim()
+    };
+  });
+  const norm = (value: string) => value.replace(/\s+/g, '').toLowerCase();
+  expect(norm(colors.badge)).toBe(norm(toRgb(colors.gold)));
+  expect(norm(colors.badge)).not.toBe(norm(toRgb(colors.success)));
+});
+
+test('static work product at 390px: reader has no horizontal overflow and 44px tap targets', async ({
+  page
+}) => {
+  await installWorkProductMocks(page);
+  // Mobile-first law: at 390px the reader pane and the saved-work list must stay
+  // inside the viewport (the single-column grid tracks were unconstrained `auto`
+  // and blew past the container by ~85px), and the export/thread controls must
+  // clear the 44px tap-target floor enforced across the shell/palette/connectors.
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'ironclaw-work-items',
+      JSON.stringify([
+        {
+          id: 'work-mobile-1',
+          title:
+            'Services agreement draft for Northstar Ops engagement with a deliberately long title',
+          objective:
+            'Saved work product from chat. A long objective line that should wrap, not push the reader pane off the right edge of a 390px viewport.',
+          status: 'active',
+          created_at: '2026-06-13T15:00:00.000Z',
+          updated_at: '2026-06-13T15:00:00.000Z',
+          links: [{ kind: 'thread', ref: 'thread-services', label: 'Services thread' }],
+          artifacts: [
+            {
+              id: 'artifact-mobile-1',
+              type: 'document',
+              title: 'Services agreement draft',
+              status: 'ready',
+              provenance: ['thread:thread-services'],
+              content:
+                '# Services agreement draft\n\nAcme Labs hires Northstar Ops.\n\n- Fee: $42,000',
+              content_format: 'markdown'
+            }
+          ]
+        }
+      ])
+    );
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/v2/work?item=work-mobile-1&artifact=artifact-mobile-1&token=static-work-token');
+  await expect(page.locator('article h1').first()).toBeVisible();
+
+  // No element runs past the right viewport edge: check the document and the
+  // inner scroll container (the page scrolls vertically, so a horizontal blowout
+  // hides inside the .overflow-y-auto wrapper rather than the documentElement).
+  const docOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth
+  );
+  expect(docOverflow, 'no document horizontal overflow at 390px').toBeLessThanOrEqual(1);
+
+  const scrollerOverflow = await page
+    .locator('div.overflow-y-auto')
+    .first()
+    .evaluate((el) => el.scrollWidth - el.clientWidth);
+  expect(scrollerOverflow, 'no inner-scroller horizontal overflow at 390px').toBeLessThanOrEqual(1);
+
+  // Export controls + the thread link are real touch targets at 390px (>=44px).
+  for (const name of ['Copy', 'Markdown', 'DOCX', 'PDF', 'HTML', 'JSON']) {
+    const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+    expect(box, `${name} should have a measurable box`).not.toBeNull();
+    expect(box!.height, `${name} height >=44px at 390px`).toBeGreaterThanOrEqual(44);
+  }
+  const threadLink = await page.getByRole('link', { name: 'Open thread' }).boundingBox();
+  expect(threadLink, 'Open thread should have a measurable box').not.toBeNull();
+  expect(threadLink!.height, 'Open thread height >=44px at 390px').toBeGreaterThanOrEqual(44);
+});
+
+function toRgb(value: string): string {
+  const hex = value.trim();
+  const match = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!match) return hex; // already rgb()/rgba() or a token we compare verbatim
+  const int = parseInt(match[1], 16);
+  return `rgb(${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255})`;
+}
+
 async function installWorkProductMocks(page: Page) {
   await page.route(/\/(api|auth)\//, async (route: Route) => {
     const url = new URL(route.request().url());
