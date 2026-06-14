@@ -25,6 +25,20 @@ export function isSlackChannelEnabled(enabledChannels) {
   return ['slack', 'slack_v2', 'slack-v2'].some((channel) => enabledChannels.includes(channel));
 }
 
+// Desktop chat is "on" only when a live transport is actually connected.
+// Gateway reachability alone (no SSE/WS) is honest-neutral, not green —
+// "SSE: 0 · WS: 0" must never sit next to a success pill.
+export function deriveDesktopChatState({ gatewayOffline, sseConnections, wsConnections }) {
+  if (gatewayOffline) {
+    return { enabled: false, statusLabel: 'unavailable', statusTone: 'warning' };
+  }
+  const liveConnections = (sseConnections || 0) + (wsConnections || 0);
+  if (liveConnections > 0) {
+    return { enabled: true, statusLabel: 'on', statusTone: 'success' };
+  }
+  return { enabled: false, statusLabel: 'idle', statusTone: 'muted' };
+}
+
 export function deriveSlackMessagingState({
   gatewayOffline,
   enabledChannels,
@@ -68,6 +82,15 @@ export function ChannelsTab({
     statusLabel: slackStatusLabel,
     statusTone: slackStatusTone
   } = deriveSlackMessagingState({ gatewayOffline, enabledChannels, connectableChannels });
+  const {
+    enabled: desktopChatEnabled,
+    statusLabel: desktopChatStatusLabel,
+    statusTone: desktopChatStatusTone
+  } = deriveDesktopChatState({
+    gatewayOffline,
+    sseConnections: status.sse_connections,
+    wsConnections: status.ws_connections
+  });
 
   return html`
     <div className="space-y-5">
@@ -86,9 +109,9 @@ export function ChannelsTab({
         <${BuiltinRow}
           name="Desktop chat"
           description="The live chat connection used by this app"
-          enabled=${!gatewayOffline}
-          statusLabel=${gatewayOffline ? 'unavailable' : 'on'}
-          statusTone=${gatewayOffline ? 'warning' : 'success'}
+          enabled=${desktopChatEnabled}
+          statusLabel=${desktopChatStatusLabel}
+          statusTone=${desktopChatStatusTone}
           detail=${'SSE: ' +
           (status.sse_connections || 0) +
           ' · WS: ' +

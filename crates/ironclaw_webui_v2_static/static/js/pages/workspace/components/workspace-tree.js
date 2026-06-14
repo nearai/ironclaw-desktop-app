@@ -41,7 +41,7 @@ function TreeNode({ entry, depth, selectedPath, expandedPaths, onToggleDirectory
         <button
           type="button"
           onClick=${() => onToggleDirectory(entry.path)}
-          className="flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text-strong)]"
+          className="flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 text-left text-sm text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text-strong)]"
           style=${{ paddingLeft: `${8 + depth * 16}px` }}
           aria-expanded=${isExpanded}
         >
@@ -79,7 +79,7 @@ function TreeNode({ entry, depth, selectedPath, expandedPaths, onToggleDirectory
       type="button"
       onClick=${() => onSelectFile(entry.path)}
       className=${[
-        'flex min-h-8 w-full items-center gap-2 rounded-md px-2 text-left text-sm',
+        'flex min-h-[44px] w-full items-center gap-2 rounded-md px-2 text-left text-sm',
         selectedPath === entry.path
           ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
           : 'text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text-strong)]'

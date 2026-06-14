@@ -401,6 +401,98 @@ test('static shell at 390px: app-shell chrome controls stay >=44px and the nav r
   expect(docOverflow, 'no horizontal overflow at 390px with the rail open').toBeLessThanOrEqual(1);
 });
 
+test('static shell: sidebar interactive elements expose a visible focus-visible affordance', async ({
+  page
+}) => {
+  // Keyboard-nav law (a11y-depth-1): the sidebar nav links + New-chat button had
+  // no focus-visible ring, so keyboard users could not see where focus landed in
+  // the rail. A single global `button:focus-visible, a:focus-visible` rule now
+  // lives beside the input ring in styles/app.css. Two-part guard: the global
+  // rule must survive bundling, and a keyboard-focused rail item must actually
+  // pick up a visible affordance (outline or ring) distinct from its idle state.
+  await installStaticInteractionMocks(page);
+  await page.goto('/v2/chat?token=static-keyboard-token');
+  await expect(
+    page.getByRole('heading', { name: 'What should IronClaw handle next?' })
+  ).toBeVisible();
+
+  const rail = page.locator('aside');
+  await expect(rail).toBeVisible();
+
+  // (1) The global focus-visible ring rule is present in a loaded stylesheet.
+  const hasGlobalFocusVisibleRule = await page.evaluate(() => {
+    for (const sheet of Array.from(document.styleSheets)) {
+      let rules: CSSRuleList;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        continue; // cross-origin sheet; skip
+      }
+      for (const rule of Array.from(rules)) {
+        const selector = (rule as CSSStyleRule).selectorText || '';
+        if (/:focus-visible/.test(selector) && /\b(a|button)\b/.test(selector)) {
+          const style = (rule as CSSStyleRule).style;
+          const declares =
+            (style.outline && style.outline !== 'none') ||
+            style.outlineWidth ||
+            style.outlineColor ||
+            style.boxShadow;
+          if (declares) return true;
+        }
+      }
+    }
+    return false;
+  });
+  expect(
+    hasGlobalFocusVisibleRule,
+    'a global a/button :focus-visible ring rule must be present in the bundled stylesheet'
+  ).toBe(true);
+
+  // (2) A keyboard-focused rail nav item is reachable and gains a visible
+  // affordance under :focus-visible (keyboard focus, not a programmatic .focus()
+  // which does not reliably trigger :focus-visible in Chromium).
+  const chatNav = rail.getByRole('link', { name: 'Chat', exact: true });
+  await expect(chatNav).toBeVisible();
+  const idle = await chatNav.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { outlineWidth: s.outlineWidth, boxShadow: s.boxShadow };
+  });
+
+  // Drive focus from the keyboard so the engine sets the focus-visible state.
+  await page.evaluate(() => {
+    document.body.setAttribute('tabindex', '-1');
+    document.body.focus();
+  });
+  for (let i = 0; i < 40; i += 1) {
+    await page.keyboard.press('Tab');
+    const onChatNav = await page.evaluate(() => {
+      const active = document.activeElement as HTMLElement | null;
+      return !!active && active.matches('aside a') && (active.textContent || '').trim() === 'Chat';
+    });
+    if (onChatNav) break;
+  }
+  await expect(chatNav).toBeFocused();
+
+  const focused = await chatNav.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { outlineWidth: s.outlineWidth, boxShadow: s.boxShadow };
+  });
+  const affordanceChanged =
+    focused.outlineWidth !== idle.outlineWidth || focused.boxShadow !== idle.boxShadow;
+  const hasVisibleAffordance =
+    (focused.outlineWidth !== '' &&
+      focused.outlineWidth !== '0px' &&
+      focused.outlineWidth !== 'medium') ||
+    (focused.boxShadow !== 'none' && focused.boxShadow !== '');
+  expect(
+    affordanceChanged && hasVisibleAffordance,
+    `keyboard-focused sidebar nav item must show a visible focus affordance: ${JSON.stringify({
+      idle,
+      focused
+    })}`
+  ).toBe(true);
+});
+
 test('static keyboard: connections and setup pages expose primary actions to tab focus', async ({
   page
 }) => {

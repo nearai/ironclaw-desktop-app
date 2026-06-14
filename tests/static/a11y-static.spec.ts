@@ -214,6 +214,14 @@ const surfaces: Surface[] = [
     authenticated: true,
     waitFor: async (page) => {
       await expect(page.getByRole('heading', { name: 'No projects yet' })).toBeVisible();
+
+      // No fake readiness: the projects overview endpoint does not exist yet
+      // (useProjectsOverview status:'todo' over a {todo:true} stub), so the
+      // four-tile live metrics strip — including a green "Spend today" tile —
+      // must not render hardcoded zeros as a polling dashboard. Mirrors the jobs
+      // gate below; only the dignified empty state stands.
+      await expect(page.getByText('Spend today')).toHaveCount(0);
+      await expect(page.getByText('Active missions')).toHaveCount(0);
     }
   },
   {
@@ -252,6 +260,14 @@ const surfaces: Surface[] = [
     waitFor: async (page) => {
       await expect(page.getByRole('heading', { name: 'Execution loops' })).toBeVisible();
       await expect(page.getByText('No missions match')).toBeVisible();
+
+      // No fake readiness: the missions overview shares the projects {todo:true}
+      // stub (useMissions status:'todo'), so the four-tile signal/warning/green
+      // metrics strip must not render over empty stubs. Mirrors the jobs gate;
+      // "Total missions" only appears in that strip, never in the empty state.
+      await expect(page.getByText('Total missions')).toHaveCount(0);
+      await expect(page.getByText('Spawned threads')).toHaveCount(0);
+
       // Empty/loading dignity (DSYS-2): the empty state names a real next action
       // (missions are created inside projects) instead of dead-ending. Scope to
       // main content so we assert the empty-state CTA, not the sidebar nav link.

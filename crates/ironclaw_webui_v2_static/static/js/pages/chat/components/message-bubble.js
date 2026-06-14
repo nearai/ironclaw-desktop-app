@@ -497,7 +497,7 @@ export function MessageBubble({ message, messages = [], onRetry }) {
               </button>
             `}
             ${timeLabel &&
-            html`<span className="font-mono text-[10px] text-iron-500">${timeLabel}</span>`}
+            html`<span className="font-mono text-[10px] text-iron-400">${timeLabel}</span>`}
           </div>
         `}
       </div>

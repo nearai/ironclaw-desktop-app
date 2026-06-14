@@ -81,6 +81,7 @@ export function SidebarFooter({ theme, toggleTheme, profile, onSignOut }) {
         onClick=${toggleTheme}
         className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
         title=${theme === 'dark' ? t('theme.light') : t('theme.dark')}
+        aria-label=${theme === 'dark' ? t('theme.light') : t('theme.dark')}
       >
         <${Icon} name=${theme === 'dark' ? 'sun' : 'moon'} className="h-4 w-4" />
       </button>
@@ -88,6 +89,7 @@ export function SidebarFooter({ theme, toggleTheme, profile, onSignOut }) {
         onClick=${onSignOut}
         className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
         title=${t('header.signOut')}
+        aria-label=${t('header.signOut')}
       >
         <${Icon} name="logout" className="h-4 w-4" />
       </button>

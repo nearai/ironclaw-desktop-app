@@ -121,7 +121,7 @@ export function UserDetail({ userId, onBack }) {
             >
             <button
               onClick=${() => setConfirmDelete(true)}
-              className="v2-button inline-flex h-10 items-center justify-center rounded-md border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 text-sm font-semibold text-[var(--v2-danger-text)] hover:bg-[color-mix(in_srgb,var(--v2-danger-soft)_70%,var(--v2-danger-text))]"
+              className="v2-button inline-flex min-h-[44px] items-center justify-center rounded-md border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 text-sm font-semibold text-[var(--v2-danger-text)] hover:bg-[color-mix(in_srgb,var(--v2-danger-soft)_70%,var(--v2-danger-text))]"
             >
               ${t('admin.users.delete')}
             </button>
@@ -142,7 +142,11 @@ export function UserDetail({ userId, onBack }) {
                 ${newToken.token || newToken.plaintext_token}
               </code>
             </div>
-            <button onClick=${clearToken} className="text-iron-300 hover:text-white">
+            <button
+              onClick=${clearToken}
+              aria-label=${t('shortcuts.close')}
+              className="text-iron-300 hover:text-white"
+            >
               <${Icon} name="close" className="h-4 w-4" />
             </button>
           </div>
@@ -194,7 +198,7 @@ export function UserDetail({ userId, onBack }) {
             <select
               value=${role || user.role}
               onChange=${(e) => setRole(e.target.value)}
-              className="v2-select h-9 rounded-md border border-white/12 bg-white/[0.04] px-3 text-sm text-iron-100 outline-none focus:border-signal/45"
+              className="v2-select min-h-[44px] rounded-md border border-white/12 bg-white/[0.04] px-3 text-sm text-iron-100 outline-none focus:border-signal/45"
             >
               <option value="member">${t('admin.users.member')}</option>
               <option value="admin">${t('admin.users.admin')}</option>
@@ -296,7 +300,7 @@ export function UserDetail({ userId, onBack }) {
               >
               <button
                 onClick=${handleDelete}
-                className="v2-button inline-flex h-10 items-center justify-center rounded-md bg-[var(--v2-danger-soft)] px-4 text-sm font-semibold text-[var(--v2-danger-text)] hover:bg-[color-mix(in_srgb,var(--v2-danger-soft)_70%,var(--v2-danger-text))]"
+                className="v2-button inline-flex min-h-[44px] items-center justify-center rounded-md bg-[var(--v2-danger-soft)] px-4 text-sm font-semibold text-[var(--v2-danger-text)] hover:bg-[color-mix(in_srgb,var(--v2-danger-soft)_70%,var(--v2-danger-text))]"
               >
                 ${t('admin.users.delete')}
               </button>

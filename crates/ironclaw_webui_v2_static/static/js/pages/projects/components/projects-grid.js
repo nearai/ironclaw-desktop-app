@@ -81,7 +81,7 @@ function ProjectCard({ project, onOpen, t }) {
           <div>
             ${t('projects.card.spendToday', { value: formatCurrency(project.cost_today_usd || 0) })}
           </div>
-          <div className="mt-1 text-xs uppercase tracking-[0.16em] text-iron-500">
+          <div className="mt-1 text-xs uppercase tracking-[0.16em] text-iron-400">
             ${formatProjectRelativeTime(project.last_activity)}
           </div>
         </div>

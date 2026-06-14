@@ -72,7 +72,7 @@ function EmptyWorkState({ missing }) {
           className="mx-auto flex min-h-[60vh] max-w-2xl flex-col items-center justify-center text-center"
         >
           <div
-            className="grid h-12 w-12 place-items-center rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] text-[var(--v2-accent-text)]"
+            className="grid h-12 w-12 place-items-center rounded-[14px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
           >
             <${Icon} name="file" className="h-5 w-5" />
           </div>

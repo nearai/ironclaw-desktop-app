@@ -17,6 +17,11 @@ export function useProjectsOverview() {
 
   return {
     overview: query.data || { attention: [], projects: [] },
+    // No v2 projects endpoint exists yet: `fetchProjectsOverview` is a stub
+    // (`{ projects: [], todo: true }`). `status:'todo'` lets the page suppress
+    // the live-looking metrics summary strip instead of presenting hardcoded
+    // zeros as a real, polling dashboard ("No fake readiness").
+    status: query.data?.todo ? 'todo' : 'ready',
     isLoading: query.isLoading,
     isRefreshing: query.isFetching,
     error: query.error || null,

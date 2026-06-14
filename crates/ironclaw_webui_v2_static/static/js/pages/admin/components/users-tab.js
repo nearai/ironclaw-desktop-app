@@ -51,7 +51,11 @@ function TokenBanner({ token, onDismiss }) {
             <//>
           </div>
         </div>
-        <button onClick=${onDismiss} className="text-iron-300 hover:text-iron-100">
+        <button
+          onClick=${onDismiss}
+          aria-label=${t('shortcuts.close')}
+          className="text-iron-300 hover:text-iron-100"
+        >
           <${Icon} name="close" className="h-4 w-4" />
         </button>
       </div>
@@ -100,7 +104,7 @@ function CreateUserForm({ onCreate, isCreating, error }) {
               value=${name}
               onChange=${(e) => setName(e.target.value)}
               required
-              className="h-9 w-full rounded-md border border-iron-700 bg-iron-800/70 px-3 text-sm text-iron-100 outline-none placeholder:text-iron-400 focus:border-signal/45"
+              className="min-h-[44px] w-full rounded-md border border-iron-700 bg-iron-800/70 px-3 text-sm text-iron-100 outline-none placeholder:text-iron-400 focus:border-signal/45"
               placeholder=${t('admin.users.displayNamePlaceholder')}
             />
           </div>
@@ -110,7 +114,7 @@ function CreateUserForm({ onCreate, isCreating, error }) {
               type="email"
               value=${email}
               onChange=${(e) => setEmail(e.target.value)}
-              className="h-9 w-full rounded-md border border-iron-700 bg-iron-800/70 px-3 text-sm text-iron-100 outline-none placeholder:text-iron-400 focus:border-signal/45"
+              className="min-h-[44px] w-full rounded-md border border-iron-700 bg-iron-800/70 px-3 text-sm text-iron-100 outline-none placeholder:text-iron-400 focus:border-signal/45"
               placeholder=${t('admin.users.emailPlaceholder')}
             />
           </div>
@@ -119,7 +123,7 @@ function CreateUserForm({ onCreate, isCreating, error }) {
             <select
               value=${role}
               onChange=${(e) => setRole(e.target.value)}
-              className="v2-select h-9 w-full rounded-md border border-iron-700 bg-iron-800/70 px-3 text-sm text-iron-100 outline-none focus:border-signal/45"
+              className="v2-select min-h-[44px] w-full rounded-md border border-iron-700 bg-iron-800/70 px-3 text-sm text-iron-100 outline-none focus:border-signal/45"
             >
               <option value="member">${t('admin.users.member')}</option>
               <option value="admin">${t('admin.users.admin')}</option>
@@ -157,7 +161,7 @@ function ConfirmModal({ title, message, confirmLabel, onConfirm, onCancel }) {
           <${Button} variant="ghost" onClick=${onCancel}>${t('admin.users.cancel')}<//>
           <button
             onClick=${onConfirm}
-            className="v2-button inline-flex h-10 items-center justify-center rounded-md bg-[var(--v2-danger-soft)] px-4 text-sm font-semibold text-[var(--v2-danger-text)] hover:bg-[color-mix(in_srgb,var(--v2-danger-soft)_65%,var(--v2-danger-text))]"
+            className="v2-button inline-flex min-h-[44px] items-center justify-center rounded-md bg-[var(--v2-danger-soft)] px-4 text-sm font-semibold text-[var(--v2-danger-text)] hover:bg-[color-mix(in_srgb,var(--v2-danger-soft)_65%,var(--v2-danger-text))]"
           >
             ${confirmLabel}
           </button>
@@ -353,7 +357,7 @@ export function AdminUsersTab({ selectedUserId, onSelectUser }) {
               placeholder=${t('admin.users.searchPlaceholder')}
               value=${search}
               onChange=${(e) => setSearch(e.target.value)}
-              className="h-8 w-48 rounded-md border border-iron-700 bg-iron-800/70 px-3 text-xs text-iron-100 outline-none placeholder:text-iron-400 focus:border-signal/45"
+              className="min-h-[44px] w-48 rounded-md border border-iron-700 bg-iron-800/70 px-3 text-xs text-iron-100 outline-none placeholder:text-iron-400 focus:border-signal/45"
             />
             <div className="flex gap-1">
               ${FILTERS.map(
@@ -362,7 +366,7 @@ export function AdminUsersTab({ selectedUserId, onSelectUser }) {
                     key=${f.value}
                     onClick=${() => setFilter(f.value)}
                     className=${[
-                      'rounded-md px-2.5 py-1.5 text-[11px] font-medium',
+                      'inline-flex min-h-[44px] items-center rounded-md px-2.5 py-1.5 text-[11px] font-medium',
                       filter === f.value
                         ? 'border border-signal/35 bg-signal/10 text-iron-100'
                         : 'border border-transparent text-iron-300 hover:text-iron-100'

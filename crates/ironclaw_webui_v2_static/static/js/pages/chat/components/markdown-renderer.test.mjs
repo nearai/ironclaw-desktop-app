@@ -70,6 +70,108 @@ test('ensureMermaidJs lazy-loads Mermaid through the static asset loader once', 
   }
 });
 
+test('configureMermaid themes off live v2 tokens, not hardcoded dark/blue', async () => {
+  resetMarkdownRendererTestState();
+  const dom = new JSDOM(
+    [
+      '<!doctype html>',
+      '<html data-theme="light">',
+      '<head><style>',
+      ':root{--v2-surface-soft:#f0f4f8;--v2-text-strong:#101820;',
+      '--v2-accent:#0091fd;--v2-text-muted:#5d6b7c;--v2-text:#263241;}',
+      '</style></head><body></body></html>'
+    ].join(''),
+    { url: 'http://127.0.0.1:1420/v2/chat' }
+  );
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+
+  const initializes = [];
+  window.__IRONCLAW_LOAD_SCRIPT__ = async () => {
+    window.mermaid = {
+      initialize: (options) => initializes.push(options),
+      render: async () => ({ svg: '<svg></svg>' })
+    };
+  };
+
+  try {
+    await ensureMermaidJs();
+    assert.equal(initializes.length, 1);
+    const cfg = initializes[0];
+    // The fix must not force dark or the off-brand Tailwind blue-500.
+    assert.notEqual(cfg.theme, 'dark');
+    assert.equal(cfg.securityLevel, 'strict');
+    assert.equal(cfg.startOnLoad, false);
+    assert.equal(cfg.themeVariables.background, 'transparent');
+    // Border is the v2 accent token, never #3b82f6.
+    assert.equal(cfg.themeVariables.primaryBorderColor, '#0091fd');
+    assert.notEqual(cfg.themeVariables.primaryBorderColor, '#3b82f6');
+    assert.equal(cfg.themeVariables.primaryColor, '#f0f4f8');
+    assert.equal(cfg.themeVariables.primaryTextColor, '#101820');
+    assert.equal(cfg.themeVariables.textColor, '#263241');
+    assert.equal(cfg.themeVariables.lineColor, '#5d6b7c');
+  } finally {
+    delete window.mermaid;
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+    dom.window.close();
+  }
+});
+
+test('configureMermaid re-themes when the in-app theme toggles', async () => {
+  resetMarkdownRendererTestState();
+  const dom = new JSDOM(
+    [
+      '<!doctype html>',
+      '<html data-theme="light">',
+      '<head><style>',
+      ':root{--v2-text-strong:#101820;}',
+      ':root[data-theme="dark"]{--v2-text-strong:#f4f8ff;}',
+      '</style></head><body></body></html>'
+    ].join(''),
+    { url: 'http://127.0.0.1:1420/v2/chat' }
+  );
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+
+  const initializes = [];
+  window.__IRONCLAW_LOAD_SCRIPT__ = async () => {
+    window.mermaid = {
+      initialize: (options) => initializes.push(options),
+      render: async () => ({ svg: '<svg></svg>' })
+    };
+  };
+
+  try {
+    await ensureMermaidJs();
+    // Same theme: the cached mermaid path must not reconfigure.
+    await ensureMermaidJs();
+    assert.equal(initializes.length, 1);
+    assert.equal(initializes[0].themeVariables.primaryTextColor, '#101820');
+
+    // Toggle to dark — the one-time guard must no longer block re-theming.
+    document.documentElement.setAttribute('data-theme', 'dark');
+    await ensureMermaidJs();
+    assert.equal(initializes.length, 2);
+    assert.equal(initializes[1].themeVariables.primaryTextColor, '#f4f8ff');
+
+    // Toggle back to light reconfigures again.
+    document.documentElement.setAttribute('data-theme', 'light');
+    await ensureMermaidJs();
+    assert.equal(initializes.length, 3);
+    assert.equal(initializes[2].themeVariables.primaryTextColor, '#101820');
+  } finally {
+    delete window.mermaid;
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+    dom.window.close();
+  }
+});
+
 test('renderMermaidDiagram sanitizes rendered SVG output', async () => {
   resetMarkdownRendererTestState();
   const dom = new JSDOM('<!doctype html><body></body>', { url: 'http://127.0.0.1:1420/v2/chat' });

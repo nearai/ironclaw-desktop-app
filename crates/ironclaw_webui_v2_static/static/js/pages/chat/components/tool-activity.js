@@ -252,7 +252,7 @@ function ToolDetailPanel({
             </button>
           `
         )}
-        <span className="ml-auto px-1 py-1 font-mono text-[10px] text-iron-500">
+        <span className="ml-auto px-1 py-1 font-mono text-[10px] text-iron-400">
           ${toolStatus === 'error'
             ? t('tool.exitError')
             : toolStatus === 'running'

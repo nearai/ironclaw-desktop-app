@@ -194,17 +194,17 @@ function connectorGlyph(kind) {
         </svg>
       `;
     case 'workspace':
-      return html`<${Icon} name="folder" className="h-5 w-5 text-[var(--v2-accent-text)]" />`;
+      return html`<${Icon} name="folder" className="h-5 w-5 text-[var(--v2-text-muted)]" />`;
     case 'web':
       return html`<${Icon} name="search" className="h-5 w-5 text-[var(--v2-info-text)]" />`;
     case 'routine':
       return html`<${Icon} name="clock" className="h-5 w-5 text-[var(--v2-warning-text)]" />`;
     case 'channel':
-      return html`<${Icon} name="send" className="h-5 w-5 text-[var(--v2-accent-text)]" />`;
+      return html`<${Icon} name="send" className="h-5 w-5 text-[var(--v2-text-muted)]" />`;
     case 'knowledge':
-      return html`<${Icon} name="layers" className="h-5 w-5 text-[var(--v2-accent-text)]" />`;
+      return html`<${Icon} name="layers" className="h-5 w-5 text-[var(--v2-text-muted)]" />`;
     default:
-      return html`<${Icon} name="plug" className="h-5 w-5 text-[var(--v2-accent-text)]" />`;
+      return html`<${Icon} name="plug" className="h-5 w-5 text-[var(--v2-text-muted)]" />`;
   }
 }
 

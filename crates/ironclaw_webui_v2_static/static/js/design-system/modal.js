@@ -171,7 +171,7 @@ export function ModalHeader({ children, onClose, className = '' }) {
           type="button"
           onClick=${onClose}
           aria-label="Close"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px]
+          className="grid min-h-[44px] min-w-[44px] shrink-0 place-items-center rounded-[10px]
               border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)]
               text-[var(--v2-text-muted)]
               hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"

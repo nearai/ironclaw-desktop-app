@@ -49,10 +49,8 @@ function GatewayReadinessNotice({ gatewayError, providerError, pathname, onRetry
           <div className="mt-1 leading-5 text-[var(--v2-text-muted)]">${detail}</div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <${Button} type="button" variant="secondary" size="sm" onClick=${onRetry}> Retry <//>
-          <${Button} as=${Link} to="/settings/inference" variant="primary" size="sm">
-            Open setup
-          <//>
+          <${Button} type="button" variant="secondary" onClick=${onRetry}> Retry <//>
+          <${Button} as=${Link} to="/settings/inference" variant="primary"> Open setup <//>
         </div>
       </div>
     </div>

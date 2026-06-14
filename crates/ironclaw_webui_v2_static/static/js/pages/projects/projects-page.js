@@ -196,7 +196,16 @@ export function ProjectsPage() {
             result=${inspectorState.actionResult}
             onDismiss=${inspectorState.clearActionResult}
           />
-          <${ProjectsSummaryStrip} overview=${overviewState.overview} />
+          ${
+            // No v2 projects endpoint exists yet (useProjectsOverview
+            // status:'todo'). The summary strip renders a four-tile live metrics
+            // ledger including a green "Spend today" tile; showing hardcoded
+            // zeros as a polling dashboard implies tracking the gateway cannot
+            // prove. Gate it on a real backend — the projects grid still renders
+            // below with its honest empty state. Mirrors jobs-page.js:221.
+            overviewState.status !== 'todo' &&
+            html`<${ProjectsSummaryStrip} overview=${overviewState.overview} />`
+          }
           <${ProjectsAttentionStrip}
             items=${overviewState.overview.attention}
             onOpenItem=${handleOpenAttention}

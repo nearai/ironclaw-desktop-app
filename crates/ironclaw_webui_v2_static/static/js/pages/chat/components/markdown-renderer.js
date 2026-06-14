@@ -8,7 +8,7 @@ const MERMAID_VENDOR_PATH = 'vendor/mermaid.min.js';
 
 let highlightLoadPromise = null;
 let mermaidLoadPromise = null;
-let mermaidConfigured = false;
+let mermaidConfiguredTheme = null;
 let mermaidRenderSeq = 0;
 
 // Sanitized SVG cache keyed by mermaid fence source. React owns the markdown
@@ -68,23 +68,48 @@ export function ensureHighlightJs() {
   return highlightLoadPromise;
 }
 
+// Resolve a v2 design token to its computed value so mermaid's inline-styled
+// SVG (which the app.css token shims never reach) tracks the live theme. Falls
+// back to the supplied default when no document/value is available (tests).
+function readToken(name, fallback) {
+  if (typeof window === 'undefined' || typeof window.getComputedStyle !== 'function')
+    return fallback;
+  if (typeof document === 'undefined' || !document.documentElement) return fallback;
+  const value = window.getComputedStyle(document.documentElement).getPropertyValue(name);
+  const trimmed = value && value.trim();
+  return trimmed || fallback;
+}
+
+function currentThemeKey() {
+  if (typeof document === 'undefined' || !document.documentElement) return 'light';
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+
 function configureMermaid(mermaid) {
-  if (!mermaid || mermaidConfigured) return mermaid;
+  if (!mermaid) return mermaid;
+  // Re-theme on the in-app light/dark toggle: configuration is keyed by the
+  // active theme, so a toggle reconfigures mermaid instead of being blocked by
+  // a one-time guard, while repeated renders in the same theme stay cheap.
+  const themeKey = currentThemeKey();
+  if (mermaidConfiguredTheme === themeKey) return mermaid;
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',
-    theme: 'dark',
+    // 'base' is mermaid's neutral, theme-variable-driven palette; pairing it
+    // with v2 tokens keeps light-theme diagrams from being forced dark.
+    theme: 'base',
     themeVariables: {
       background: 'transparent',
-      primaryColor: '#111827',
-      primaryTextColor: '#f8fafc',
-      primaryBorderColor: '#3b82f6',
-      lineColor: '#8aa0b4',
-      textColor: '#f8fafc',
+      primaryColor: readToken('--v2-surface-soft', '#f0f4f8'),
+      primaryTextColor: readToken('--v2-text-strong', '#101820'),
+      // Was Tailwind blue-500 (#3b82f6); v2 accent is the user-action signal.
+      primaryBorderColor: readToken('--v2-accent', '#0091fd'),
+      lineColor: readToken('--v2-text-muted', '#5d6b7c'),
+      textColor: readToken('--v2-text', '#263241'),
       fontFamily: 'Inter Variable, Inter, sans-serif'
     }
   });
-  mermaidConfigured = true;
+  mermaidConfiguredTheme = themeKey;
   return mermaid;
 }
 
@@ -118,7 +143,7 @@ export async function renderMermaidDiagram(source) {
 export function resetMarkdownRendererTestState() {
   highlightLoadPromise = null;
   mermaidLoadPromise = null;
-  mermaidConfigured = false;
+  mermaidConfiguredTheme = null;
   mermaidRenderSeq = 0;
   mermaidRenderCache.clear();
 }

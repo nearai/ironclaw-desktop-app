@@ -1936,6 +1936,27 @@ try {
       `attachment preview did not show the embedded text: ${previewContent.slice(0, 120)}`
     );
   }
+  // Tap-target floor on the SHARED dialog close button: the attachment preview
+  // is built on design-system ModalHeader, whose close (X) was 32px (grid h-8
+  // w-8) in every dialog before this pass. One shared fix lifted it to the 44px
+  // mobile tap-target floor; assert it on a real rendered dialog so it cannot
+  // silently regress to a sub-floor target across the whole modal surface.
+  const previewDialog = page.locator('[role="dialog"][aria-modal="true"]', {
+    has: page.locator('[data-testid="attachment-preview-text"]')
+  });
+  const previewClose = previewDialog.getByRole('button', { name: 'Close' }).first();
+  await previewClose.waitFor({ state: 'visible', timeout: 5000 });
+  const previewCloseBox = await previewClose.boundingBox();
+  if (!previewCloseBox) {
+    throw new Error('attachment preview close button had no layout box');
+  }
+  if (previewCloseBox.height < 44 || previewCloseBox.width < 44) {
+    throw new Error(
+      `shared modal close button is below the 44px tap-target floor: ${JSON.stringify(
+        previewCloseBox
+      )}`
+    );
+  }
   await page.keyboard.press('Escape');
   await page
     .locator('[data-testid="attachment-preview-text"]')

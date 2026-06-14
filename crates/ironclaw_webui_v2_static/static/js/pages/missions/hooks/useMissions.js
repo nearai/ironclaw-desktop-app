@@ -75,6 +75,11 @@ export function useMissions() {
     projects,
     missions,
     summary: summarizeMissions(missions),
+    // No v2 missions endpoint exists yet: `fetchProjectsOverview`/`fetchMissions`
+    // are stubs (`{ todo: true }`). `status:'todo'` lets the page suppress the
+    // live-looking metrics ledger instead of presenting hardcoded zeros as a
+    // real, polling dashboard ("No fake readiness").
+    status: projectsQuery.data?.todo ? 'todo' : 'ready',
     isLoading: projectsQuery.isLoading || missionQueries.some((query) => query.isLoading),
     isRefreshing: projectsQuery.isFetching || missionQueries.some((query) => query.isFetching),
     error: projectsQuery.error || missionQueries.find((query) => query.error)?.error || null,

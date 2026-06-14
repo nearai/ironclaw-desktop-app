@@ -94,6 +94,13 @@ export function DashboardTab({ onSelectUser, onNavigateTab }) {
   const summaryQuery = useUsageSummary();
   const { users, query: usersQuery } = useAdminUsers();
   const summary = summaryQuery.data || {};
+  // No v2 admin usage endpoint exists yet (useUsageSummary todoStatus:'todo'):
+  // the System-overview and 30-day-usage tiles would render hardcoded zeros as a
+  // 30s-polling live ledger, implying tracking the gateway cannot prove. Gate
+  // both metric panels on a real backend (mirror jobs-page). The Recent-users
+  // table below reads local roster state, so it stays and shows its honest
+  // "No users yet." state.
+  const status = summaryQuery.todoStatus;
   const userStats = summarizeUsers(users);
   const usage30d = summary.usage_30d || {};
   const jobs = summary.jobs || {};
@@ -117,7 +124,8 @@ export function DashboardTab({ onSelectUser, onNavigateTab }) {
 
   return html`
     <div className="space-y-5">
-      <${Panel} className="p-5 sm:p-6">
+      ${status !== 'todo' &&
+      html`<${Panel} className="p-5 sm:p-6">
         <div className="mb-5 flex items-center justify-between">
           <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
             ${t('admin.dashboard.systemOverview')}
@@ -138,7 +146,7 @@ export function DashboardTab({ onSelectUser, onNavigateTab }) {
           <${StatCard}
             label=${t('admin.dashboard.activeUsers')}
             value=${String(userStats.active)}
-            tone="success"
+            tone=${userStats.active > 0 ? 'success' : 'muted'}
           />
           <${StatCard}
             label=${t('admin.dashboard.suspended')}
@@ -151,9 +159,9 @@ export function DashboardTab({ onSelectUser, onNavigateTab }) {
             tone="signal"
           />
         </div>
-      <//>
-
-      <${Panel} className="p-5 sm:p-6">
+      <//>`}
+      ${status !== 'todo' &&
+      html`<${Panel} className="p-5 sm:p-6">
         <h3 className="mb-5 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
           ${t('admin.dashboard.usage30d')}
         </h3>
@@ -179,7 +187,7 @@ export function DashboardTab({ onSelectUser, onNavigateTab }) {
             tone=${(jobs.in_progress || 0) > 0 ? 'success' : 'muted'}
           />
         </div>
-      <//>
+      <//>`}
 
       <${Panel} className="p-5 sm:p-6">
         <div className="mb-5 flex items-center justify-between">

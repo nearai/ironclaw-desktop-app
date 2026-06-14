@@ -74,11 +74,13 @@ export function RoutinesList({
             value=${search}
             onInput=${(event) => onSearchChange(event.target.value)}
             placeholder="Search routine name, trigger, or action"
+            aria-label="Search routine name, trigger, or action"
             className="h-11 rounded-md border border-iron-700 bg-iron-950/90 px-3 text-sm text-iron-100 outline-none focus:border-signal/45"
           />
           <select
             value=${statusFilter}
             onChange=${(event) => onStatusFilterChange(event.target.value)}
+            aria-label="Filter routines by status"
             className="v2-select h-11 rounded-md border border-iron-700 bg-iron-950/90 px-3 text-sm text-iron-100 outline-none focus:border-signal/45"
           >
             ${FILTERS.map(
