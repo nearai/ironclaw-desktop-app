@@ -33,7 +33,11 @@ import { useSSE } from './useSSE.js';
 
 const AUTH_TOKEN_FLOW_TIMEOUT_MS = 30000;
 const RUN_STATE_FALLBACK_POLL_MS = 1500;
-const RUN_STATE_FALLBACK_MAX_ATTEMPTS = 20;
+// Long generations (e.g. drafting a full agreement) routinely run well past 30s.
+// Cutting off at 20 polls surfaced a premature "no result" card while the run
+// was still producing — and the thinking indicator vanished with it. Poll for
+// ~90s so a slow-but-real reply still lands and the working state stays visible.
+const RUN_STATE_FALLBACK_MAX_ATTEMPTS = 60;
 const AUTH_GATE_CREDENTIAL_STORED_ERROR = 'credential_stored_gate_resolution_failed';
 const OAUTH_CALLBACK_CHANNEL = 'ironclaw-product-auth';
 const OAUTH_CALLBACK_STORAGE_KEY = 'ironclaw:product-auth:oauth-complete';
