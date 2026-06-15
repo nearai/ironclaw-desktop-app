@@ -80,7 +80,7 @@ and let Connections/Settings stay honest about what is actually ready.
 
 The shipped app exposes three top-level surfaces in the sidebar:
 
-- **Chat** — the home surface for asks, files, approvals, and generated work product. Markdown rendering, code-block copy, PDF/Office/text attachments, OCR for scanned PDFs, and retry on failure are built in.
+- **Chat** — the home surface for asks, files, approvals, and generated work product. Markdown rendering, code-block copy, PDF/Office/text attachments, OCR for scanned PDFs, one-click download of files the agent generates in your workspace, and retry on failure are built in.
 - **Connections** — inspect, install, configure, and honestly block workspace apps such as Gmail, Google Calendar, Notion, Slack, MCP servers, and channel integrations.
 - **Settings** — per-profile gateway config, Keychain-backed tokens, NEAR AI Cloud model selection, language.
 
@@ -97,6 +97,7 @@ App-wide controls:
 - **Model management** is now a focused NEAR AI Cloud workflow in **Settings → Inference** to keep chat execution clear and fast.
 - **Extension setup** uses safer lifecycle calls (`install`, `activate`, `configure`) with honest state on failure.
 - File attach + work-product export now routes through durable thread/message persistence so exports and outputs can be re-opened reliably.
+- **Files the agent generates are downloadable from the thread** — a file written to your `/workspace` surfaces as an inline download chip; one click saves it through the native macOS save dialog.
 
 ### Current Screenshots
 
