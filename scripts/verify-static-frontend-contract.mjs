@@ -1,6 +1,7 @@
 import { access, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as esbuild from 'esbuild';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const staticRoot = path.join(repoRoot, 'crates', 'ironclaw_webui_v2_static', 'static');
@@ -102,15 +103,33 @@ async function assertStaticRoot() {
 }
 
 async function assertBundleFreshness() {
-  const bundle = await stat(path.join(staticRoot, 'js', 'main.bundle.js'));
-  const entry = await stat(path.join(staticRoot, 'js', 'main.js'));
   const css = await stat(path.join(staticRoot, 'styles', 'tailwind.generated.css'));
-
-  if (bundle.mtimeMs + 1000 < entry.mtimeMs) {
-    fail('js/main.bundle.js is older than js/main.js; run npm run prepare:webui-static');
-  }
   if (css.size < 1024) {
     fail('styles/tailwind.generated.css is unexpectedly small; run npm run prepare:webui-static');
+  }
+
+  // Content check, not mtime. The old heuristic (bundle.mtime >= entry.mtime) is
+  // bypassable — a deep-source edit committed without regenerating, or a clone/CI
+  // checkout that resets mtimes, both pass it while shipping a stale bundle.
+  // Instead, re-bundle js/main.js in memory with the EXACT prepare-webui-static
+  // options and require a byte-for-byte match with the committed bundle.
+  const result = await esbuild.build({
+    entryPoints: [path.join(staticRoot, 'js', 'main.js')],
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2020',
+    minify: true,
+    sourcemap: false,
+    write: false,
+    logLevel: 'silent'
+  });
+  const rebuilt = result.outputFiles?.[0]?.text ?? '';
+  const committed = await readFile(path.join(staticRoot, 'js', 'main.bundle.js'), 'utf8');
+  if (rebuilt.trimEnd() !== committed.trimEnd()) {
+    fail(
+      'js/main.bundle.js does not match js/main.js (stale bundle); run npm run prepare:webui-static'
+    );
   }
 }
 
