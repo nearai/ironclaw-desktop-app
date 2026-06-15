@@ -518,6 +518,7 @@ registerPack('ar', {
   'nav.docs': 'الوثائق',
 
   // Chat — new v2 keys
+  'chat.fileDownloadFailed': 'تعذر تنزيل هذا الملف',
   'chat.heroTitle': 'مرحبًا، بماذا تحتاج إلى المساعدة؟',
   'chat.heroMorning': 'صباح الخير. ما الذي تريد أن يتولاه IronClaw؟',
   'chat.heroAfternoon': 'مساء الخير. ما المهمة التي تريد أن يمضي بها IronClaw قدمًا؟',

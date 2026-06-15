@@ -523,6 +523,7 @@ registerPack('uk', {
   'nav.docs': 'Документація',
 
   // Chat — new v2 keys
+  'chat.fileDownloadFailed': 'Не вдалося завантажити цей файл',
   'chat.heroTitle': 'Привіт, з чим потрібна допомога?',
   'chat.heroMorning': 'Доброго ранку. Що IronClaw має взяти на себе?',
   'chat.heroAfternoon': 'Доброго дня. Яке завдання IronClaw має просунути?',

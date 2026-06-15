@@ -522,6 +522,7 @@ registerPack('ko', {
   'nav.docs': '문서',
 
   // Chat — new v2 keys
+  'chat.fileDownloadFailed': '파일을 다운로드하지 못했습니다',
   'chat.heroTitle': '안녕하세요, 무엇을 도와드릴까요?',
   'chat.heroMorning': '좋은 아침입니다. IronClaw가 무엇을 처리할까요?',
   'chat.heroAfternoon': '좋은 오후입니다. IronClaw가 어떤 일을 진행할까요?',

@@ -524,6 +524,7 @@ registerPack('es', {
   'nav.docs': 'Documentacion',
 
   // Chat — claves nuevas de v2
+  'chat.fileDownloadFailed': 'No se pudo descargar ese archivo',
   'chat.heroTitle': 'Hola, ¿en que necesitas ayuda?',
   'chat.heroMorning': 'Buenos dias. ¿De que se encarga IronClaw?',
   'chat.heroAfternoon': 'Buenas tardes. ¿Que tarea hace avanzar IronClaw?',

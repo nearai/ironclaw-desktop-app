@@ -388,6 +388,66 @@ export function listThreads({ limit, cursor } = {}) {
   return apiFetch(url.pathname + url.search);
 }
 
+// --- Project filesystem (download / navigation) ---
+
+function projectFilesBase(threadId) {
+  return `${V2_BASE}/threads/${encodeURIComponent(threadId)}/files`;
+}
+
+// List a directory under the thread's project workspace. `path` defaults to the
+// workspace root server-side when omitted.
+export function listProjectFiles({ threadId, path } = {}) {
+  if (!threadId) return Promise.reject(new Error('threadId is required'));
+  const url = new URL(projectFilesBase(threadId), window.location.origin);
+  if (path) url.searchParams.set('path', path);
+  return apiFetch(url.pathname + url.search);
+}
+
+// Metadata for a single project path (used to show a chip's size/icon).
+export function statProjectFile({ threadId, path } = {}) {
+  if (!threadId || !path) {
+    return Promise.reject(new Error('threadId and path are required'));
+  }
+  const url = new URL(`${projectFilesBase(threadId)}/stat`, window.location.origin);
+  url.searchParams.set('path', path);
+  return apiFetch(url.pathname + url.search);
+}
+
+// Fetch a project file's bytes as a Blob. The content route is bearer-only, so
+// a plain `<a download>` cannot carry the token — callers fetch here and hand
+// the Blob to `lib/save-file.js::saveBlob` to trigger the native save.
+//
+// Routes through the same gateway transport as `apiFetch` (gatewayFetch +
+// gatewayUrl + dynamic credentials) so the request reaches the desktop sidecar
+// origin and the Tauri HTTP shim, not the WebView origin. `apiFetch` itself
+// can't be reused here — it parses JSON/text, and we need the raw Blob.
+export async function fetchProjectFileBlob({ threadId, path } = {}) {
+  if (!threadId || !path) {
+    throw new Error('threadId and path are required');
+  }
+  const token = readStoredToken();
+  const headers = new Headers();
+  headers.set('Accept', 'application/octet-stream');
+  if (token) headers.set('Authorization', `Bearer ${token}`);
+  const url = new URL(`${projectFilesBase(threadId)}/content`, window.location.origin);
+  url.searchParams.set('path', path);
+  const response = await gatewayFetch(gatewayUrl(url.pathname + url.search), {
+    credentials: gatewayOrigin() ? 'omit' : 'same-origin',
+    headers
+  });
+  if (!response.ok) {
+    const { text, payload } = await parseErrorBody(response);
+    throw new ApiError(text || response.statusText, {
+      status: response.status,
+      statusText: response.statusText,
+      body: text,
+      headers: response.headers,
+      payload
+    });
+  }
+  return response.blob();
+}
+
 // --- Automations ---
 
 export function listAutomations({ limit } = {}) {

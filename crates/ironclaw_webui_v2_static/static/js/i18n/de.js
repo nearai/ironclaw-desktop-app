@@ -525,6 +525,7 @@ registerPack('de', {
   'nav.docs': 'Dokumentation',
 
   // Chat — neue v2-Schluessel
+  'chat.fileDownloadFailed': 'Diese Datei konnte nicht heruntergeladen werden',
   'chat.heroTitle': 'Hallo, wobei brauchst du Hilfe?',
   'chat.heroMorning': 'Guten Morgen. Was soll IronClaw fuer dich uebernehmen?',
   'chat.heroAfternoon': 'Guten Tag. Was soll IronClaw voranbringen?',

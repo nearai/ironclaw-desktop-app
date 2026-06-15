@@ -521,6 +521,7 @@ registerPack('hi', {
   'nav.docs': 'दस्तावेज़',
 
   // Chat — new v2 keys
+  'chat.fileDownloadFailed': 'वह फ़ाइल डाउनलोड नहीं हो सकी',
   'chat.heroTitle': 'नमस्ते, आपको किसमें मदद चाहिए?',
   'chat.heroMorning': 'सुप्रभात. IronClaw किस काम को संभाले?',
   'chat.heroAfternoon': 'नमस्कार. IronClaw किस काम को आगे बढ़ाए?',

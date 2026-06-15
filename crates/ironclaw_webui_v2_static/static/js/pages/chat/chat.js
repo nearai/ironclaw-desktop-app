@@ -189,6 +189,7 @@ export function Chat({
             hasMore=${hasMore}
             onLoadMore=${loadMore}
             onRetryMessage=${RETRY_NOT_WIRED}
+            threadId=${activeThreadId}
           >
             ${recoveryNotice &&
             html` <${RecoveryNotice} notice=${recoveryNotice} onRecover=${recoverHistory} /> `}

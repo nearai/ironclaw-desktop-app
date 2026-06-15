@@ -523,6 +523,7 @@ registerPack('pt-BR', {
   'nav.docs': 'Documentacao',
 
   // Chat — novas chaves v2
+  'chat.fileDownloadFailed': 'Não foi possível baixar esse arquivo',
   'chat.heroTitle': 'Ola, em que voce precisa de ajuda?',
   'chat.heroMorning': 'Bom dia. Do que o IronClaw deve cuidar?',
   'chat.heroAfternoon': 'Boa tarde. Qual tarefa o IronClaw deve tocar adiante?',

@@ -57,6 +57,7 @@ function createMessageBubbleContext(overrides = {}) {
     MarkdownRenderer() {},
     ToolActivity() {},
     AttachmentPreviewModal() {},
+    ProjectFileChips() {},
     Icon() {},
     Popover() {},
     Blob,

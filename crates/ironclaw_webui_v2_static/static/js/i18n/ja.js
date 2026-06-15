@@ -520,6 +520,7 @@ registerPack('ja', {
   'nav.docs': 'ドキュメント',
 
   // Chat — new v2 keys
+  'chat.fileDownloadFailed': 'そのファイルをダウンロードできませんでした',
   'chat.heroTitle': 'こんにちは。何を手伝いましょうか?',
   'chat.heroMorning': 'おはようございます。IronClaw に何を任せますか?',
   'chat.heroAfternoon': 'こんにちは。IronClaw にどの作業を進めさせますか?',

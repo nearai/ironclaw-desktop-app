@@ -525,6 +525,7 @@ registerPack('fr', {
   'nav.docs': 'Documentation',
 
   // Chat — nouvelles cles v2
+  'chat.fileDownloadFailed': 'Impossible de télécharger ce fichier',
   'chat.heroTitle': 'Bonjour, de quoi avez-vous besoin ?',
   'chat.heroMorning': "Bonjour. De quoi IronClaw doit-il s'occuper ?",
   'chat.heroAfternoon': 'Bon apres-midi. Quelle tache IronClaw doit-il faire avancer ?',

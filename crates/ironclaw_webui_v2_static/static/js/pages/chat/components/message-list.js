@@ -25,6 +25,7 @@ export function MessageList({
   hasMore,
   onLoadMore,
   onRetryMessage,
+  threadId,
   children
 }) {
   const t = useT();
@@ -110,6 +111,7 @@ export function MessageList({
                     message=${item.message}
                     messages=${messages}
                     onRetry=${onRetryMessage}
+                    threadId=${threadId}
                   />
                 </div>`
           )}

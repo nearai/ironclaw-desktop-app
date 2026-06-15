@@ -62,6 +62,7 @@ registerPack('en', {
   'login.oauthProvider': 'Continue with {provider}',
 
   // Chat — empty state
+  'chat.fileDownloadFailed': "Couldn't download that file",
   'chat.heroTitle': 'Hello, what do you need help with?',
   'chat.heroMorning': 'What should IronClaw handle next?',
   'chat.heroAfternoon': 'What should IronClaw handle next?',

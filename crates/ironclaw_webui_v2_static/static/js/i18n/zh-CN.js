@@ -513,6 +513,7 @@ registerPack('zh-CN', {
   'nav.docs': '文档',
 
   // Chat — new v2 keys
+  'chat.fileDownloadFailed': '无法下载该文件',
   'chat.heroTitle': '你好，需要我帮你做什么？',
   'chat.heroMorning': '早上好。今天想让 IronClaw 帮你处理什么？',
   'chat.heroAfternoon': '下午好。想让 IronClaw 推进哪件事？',

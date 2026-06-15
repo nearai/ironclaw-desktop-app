@@ -2,6 +2,7 @@ import { React, html } from '../../../lib/html.js';
 import { MarkdownRenderer } from './markdown-renderer.js';
 import { ToolActivity } from './tool-activity.js';
 import { AttachmentPreviewModal } from './attachment-preview.js';
+import { ProjectFileChips } from './project-file-chips.js';
 import { Icon } from '../../../design-system/icons.js';
 import { Popover } from '../../../design-system/popover.js';
 import { toast } from '../../../lib/toast.js';
@@ -228,7 +229,7 @@ function ThinkingDisclosure({ content }) {
   `;
 }
 
-export function MessageBubble({ message, messages = [], onRetry }) {
+export function MessageBubble({ message, messages = [], onRetry, threadId }) {
   const {
     role,
     content,
@@ -463,6 +464,11 @@ export function MessageBubble({ message, messages = [], onRetry }) {
             open=${Boolean(generatedFilePreview)}
             onClose=${() => setGeneratedFilePreview(null)}
             attachment=${generatedFilePreview}
+          />`}
+          ${(role === 'assistant' || role === 'user') &&
+          html`<${ProjectFileChips}
+            threadId=${threadId}
+            content=${typeof content === 'string' ? content : ''}
           />`}
         </div>
 
