@@ -101,6 +101,7 @@ export function MessageList({
               : html`<div
                   key=${item.id}
                   data-message-id=${item.id}
+                  aria-current=${find.activeMatchId === item.id ? 'true' : undefined}
                   className=${find.activeMatchId === item.id
                     ? 'scroll-mt-20 rounded-[14px] ring-2 ring-[var(--v2-accent)] ring-offset-2 ring-offset-[var(--v2-canvas)]'
                     : 'scroll-mt-20'}

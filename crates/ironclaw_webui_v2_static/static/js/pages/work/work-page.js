@@ -286,7 +286,7 @@ function WorkActivityLedger({ items }) {
                       </span>
                     </span>
                     <span className="shrink-0 text-xs text-[var(--v2-text-faint)]">
-                      ${readableDate(entry.timestamp)}
+                      ${entry.kind === 'saved' ? readableDate(entry.timestamp) : ''}
                     </span>
                   <//>
                 </li>
@@ -501,7 +501,7 @@ export function WorkPage() {
 
             <div className="space-y-5 px-5 py-5">
               <div
-                role="tablist"
+                role="group"
                 aria-label="Work view"
                 className="inline-flex rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-0.5"
               >
@@ -510,8 +510,7 @@ export function WorkPage() {
                     html`<button
                       key=${mode}
                       type="button"
-                      role="tab"
-                      aria-selected=${view === mode}
+                      aria-pressed=${view === mode}
                       onClick=${() => setView(mode)}
                       className=${[
                         'min-h-[44px] rounded-[8px] px-3 text-sm font-medium',

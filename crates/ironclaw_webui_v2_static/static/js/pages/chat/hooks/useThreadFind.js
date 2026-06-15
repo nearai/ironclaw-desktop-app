@@ -110,8 +110,10 @@ export function useThreadFind({ messages, containerRef, hasMore, onLoadMore }) {
     query,
     setQuery,
     matchCount: matchIds.length,
-    // 1-based position for display; 0 when there are no matches.
-    currentIndex: matchIds.length ? index + 1 : 0,
+    // 1-based position for display; 0 when there are no matches. Clamp in render
+    // so a query that shrinks the match set never flashes an out-of-range number
+    // before the index-reconciling effect runs.
+    currentIndex: matchIds.length ? Math.min(index, matchIds.length - 1) + 1 : 0,
     activeMatchId,
     hasMore: Boolean(hasMore),
     openFind,
