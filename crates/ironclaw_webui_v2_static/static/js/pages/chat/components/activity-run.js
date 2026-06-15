@@ -6,7 +6,10 @@ import { ToolActivity } from './tool-activity.js';
 
 export function ActivityRun({ activity }) {
   const summary = summarizeActivity(activity);
-  const [expanded, setExpanded] = React.useState(false);
+  // Show the agent's reasoning + tool steps live while the run is in progress
+  // (the user asked to watch the agent think). A completed activity mounts as a
+  // quiet collapsed receipt, per the Handled-Receipts design. Manual toggle works.
+  const [expanded, setExpanded] = React.useState(!summary.isComplete);
 
   if (summary.isComplete) {
     return html`
@@ -158,15 +161,28 @@ function ActivityItem({ item }) {
 
 function ReasoningItem({ content }) {
   if (!content) return null;
+  // The agent's live reasoning. Gold = agent action (Design Law); v2 tokens so it
+  // reads on the light surface (the prior iron-* dark styling was off-theme).
   return html`
-    <div className="flex gap-3">
-      <div
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-iron-800 text-iron-100"
+    <div className="flex gap-2.5">
+      <span
+        className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+        aria-hidden="true"
       >
-        <${Icon} name="spark" className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 max-w-[85%] flex-1 border-l-2 border-white/10 pl-3 text-iron-300">
-        <${MarkdownRenderer} content=${content} className="text-[13px]" />
+        <${Icon} name="spark" className="h-3.5 w-3.5" />
+      </span>
+      <div
+        className="min-w-0 flex-1 border-l-2 border-[color-mix(in_srgb,var(--v2-gold)_22%,var(--v2-panel-border))] pl-3"
+      >
+        <div
+          className="mb-0.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-gold-text)]"
+        >
+          Thinking
+        </div>
+        <${MarkdownRenderer}
+          content=${content}
+          className="text-[13px] text-[var(--v2-text-muted)]"
+        />
       </div>
     </div>
   `;
