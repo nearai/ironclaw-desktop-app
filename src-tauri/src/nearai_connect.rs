@@ -237,11 +237,15 @@ async fn mint_api_key(access_token: &str) -> Result<String, String> {
 
     let workspace_id = resolve_workspace_id(&client, access_token).await?;
 
-    // python-style: name must be non-empty + unique per workspace. Tag with the
-    // host so repeat connects don't collide on the duplicate-name guard.
+    // The key name must be UNIQUE per workspace — NEAR AI returns 409 Conflict
+    // on a duplicate. The host alone is constant, so every re-Connect collided
+    // with the prior key; append a short unique suffix so reconnecting always
+    // mints a fresh key. The host keeps it recognizable in the cloud.near.ai
+    // console.
     let name = format!(
-        "IronClaw Desktop ({})",
-        hostname().unwrap_or_else(|| "mac".into())
+        "IronClaw Desktop {} {}",
+        hostname().unwrap_or_else(|| "mac".into()),
+        &uuid::Uuid::new_v4().to_string()[..8]
     );
     let resp = client
         .post(format!("{CLOUD_API}/v1/workspaces/{workspace_id}/api-keys"))
