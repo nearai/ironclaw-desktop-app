@@ -215,15 +215,27 @@ function activeProfileFromSettings(settings) {
   };
 }
 
-async function runningSidecarOrigin() {
+async function runningSidecarOrigin({ attempts = 1, delayMs = 0 } = {}) {
   if (!inTauri()) return '';
-  try {
-    const status = await tauriInvoke('sidecar_status');
-    if (status?.running && Number.isFinite(Number(status.port))) {
-      return normalizeOrigin(`http://127.0.0.1:${Number(status.port)}`);
+  // The bundled sidecar auto-boots asynchronously at app launch and needs a
+  // couple of seconds to bind its port and pass /api/health. The WebView
+  // bootstrap can win that race; finding no sidecar yet, it would fall back to
+  // a stale profile baseUrl and strand the user on "connecting" (and "could
+  // not load conversations") until a manual Retry. Poll sidecar_status briefly
+  // so a normal launch connects on its own.
+  const total = Math.max(1, attempts);
+  for (let attempt = 0; attempt < total; attempt += 1) {
+    try {
+      const status = await tauriInvoke('sidecar_status');
+      if (status?.running && Number.isFinite(Number(status.port))) {
+        return normalizeOrigin(`http://127.0.0.1:${Number(status.port)}`);
+      }
+    } catch (err) {
+      console.warn('[ironclaw] sidecar status bootstrap failed', err);
     }
-  } catch (err) {
-    console.warn('[ironclaw] sidecar status bootstrap failed', err);
+    if (delayMs > 0 && attempt < total - 1) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
   }
   return '';
 }
@@ -243,7 +255,9 @@ export async function bootstrapDesktopSession() {
     profile?.remoteBaseUrl ||
     profile?.localBaseUrl ||
     DEFAULT_DESKTOP_GATEWAY_ORIGIN;
-  const sidecarOrigin = await runningSidecarOrigin();
+  // Wait out the local sidecar's async auto-boot (~2-3s typical) before
+  // settling on an origin, so a cold launch connects without a manual Retry.
+  const sidecarOrigin = await runningSidecarOrigin({ attempts: 20, delayMs: 400 });
   const origin = sidecarOrigin || normalizeOrigin(baseUrl) || DEFAULT_DESKTOP_GATEWAY_ORIGIN;
   bootstrappedDesktopGatewayOrigin = origin;
   localStorage.setItem(DESKTOP_GATEWAY_ORIGIN_KEY, origin);

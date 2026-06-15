@@ -216,20 +216,20 @@ test('modelDisplayName keeps NEAR model choices readable without provider plumbi
   assert.equal(modelDisplayName('auto'), 'Auto');
   assert.equal(modelDisplayName('z-ai/glm-4.5'), 'GLM 4.5');
   assert.equal(modelDisplayName('gpt-oss-120b'), 'GPT OSS 120B');
-  assert.equal(modelDisplayName('qwen/qwen3.5'), 'NEAR fast model');
+  assert.equal(modelDisplayName('qwen/qwen3.5'), 'Qwen3.5');
 });
 
-test('modelDisplayName neutralizes provider-looking model ids in normal UI', () => {
-  const labels = [
-    modelDisplayName('anthropic/claude-sonnet-4.5'),
-    modelDisplayName('openrouter/anthropic/claude-3-opus'),
-    modelDisplayName('chatgpt-4o')
-  ];
-
-  assert.deepEqual(labels, [
-    'NEAR premium reasoning',
-    'NEAR premium reasoning',
-    'NEAR premium reasoning'
-  ]);
-  assert.doesNotMatch(labels.join('\n'), /openrouter|anthropic|claude|chatgpt/i);
+test('modelDisplayName renders the real NEAR AI Cloud catalog id, not a generic tier', () => {
+  // The picker must show the actual model the gateway returns (a bare id),
+  // derived into a readable name — never collapsed into a generic tier label.
+  // A trailing dash-version (claude-haiku-4-5) reads as a dot; existing dots
+  // and size/precision tags are preserved.
+  assert.equal(modelDisplayName('anthropic/claude-haiku-4-5'), 'Claude Haiku 4.5');
+  assert.equal(modelDisplayName('anthropic/claude-opus-4-7'), 'Claude Opus 4.7');
+  assert.equal(modelDisplayName('anthropic/claude-sonnet-4.5'), 'Claude Sonnet 4.5');
+  assert.equal(modelDisplayName('deepseek-ai/DeepSeek-V4-Flash'), 'DeepSeek V4 Flash');
+  assert.equal(modelDisplayName('google/gemini-2.5-pro'), 'Gemini 2.5 Pro');
+  assert.equal(modelDisplayName('moonshotai/kimi-k2.6'), 'Kimi K2.6');
+  assert.equal(modelDisplayName('openai/gpt-5.5'), 'GPT 5.5');
+  assert.equal(modelDisplayName('zai-org/GLM-5.1-FP8'), 'GLM 5.1 FP8');
 });

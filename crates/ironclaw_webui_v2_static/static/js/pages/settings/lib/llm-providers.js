@@ -59,10 +59,13 @@ function modelDisplaySegment(segment) {
   const acronym = {
     ai: 'AI',
     api: 'API',
+    fp8: 'FP8',
     glm: 'GLM',
     gpt: 'GPT',
     llm: 'LLM',
-    oss: 'OSS'
+    oss: 'OSS',
+    tee: 'TEE',
+    vl: 'VL'
   }[lower];
   if (acronym) return acronym;
   if (/^\d+(?:\.\d+)?[a-z]$/i.test(value)) {
@@ -75,18 +78,24 @@ function modelDisplaySegment(segment) {
 export function modelDisplayName(model) {
   const raw = String(model || '').trim();
   if (!raw) return '';
-  const lower = raw.toLowerCase();
-  if (lower === 'auto') return 'Auto';
-  if (/openrouter|anthropic|claude|chatgpt/.test(lower)) return 'NEAR premium reasoning';
-  if (/qwen/.test(lower)) return 'NEAR fast model';
+  if (raw.toLowerCase() === 'auto') return 'Auto';
 
+  // Derive a readable label from the bare model id the gateway returns: drop
+  // the vendor prefix, space the separators, preserve version dots. The
+  // catalog carries no display-name field, so format the id rather than
+  // collapsing every entry into one generic tier label — the picker has to let
+  // the user distinguish the individual models NEAR AI Cloud routes to.
   const token =
     raw
       .split(/[/:]/)
       .map((part) => part.trim())
       .filter(Boolean)
       .at(-1) || raw;
-  return token
+  // A trailing "major-minor" version written with a dash reads better as a
+  // dot; only collapse two digits AT THE END so a trailing size/precision tag
+  // keeps its structure.
+  const normalized = token.replace(/(\d+)-(\d+)$/, '$1.$2');
+  return normalized
     .replace(/\.(?=\d)/g, 'DOTMARK')
     .split(/[\s._-]+/)
     .map((part) => modelDisplaySegment(part.replace(/DOTMARK/g, '.')))

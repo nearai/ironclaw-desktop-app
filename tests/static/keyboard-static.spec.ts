@@ -166,8 +166,12 @@ test('static keyboard: model selector opens, closes, and keeps setup reachable',
   await expect(dialog.locator('div').filter({ hasText: /^Active$/ })).toHaveCount(1);
   await expect(dialog.getByText('Available models')).toBeVisible();
   await expect(dialog.getByText('GLM 4.5')).toBeVisible();
-  await expect(dialog.getByText('NEAR premium reasoning', { exact: true })).toHaveCount(1);
-  await expect(dialog.getByText(/z-ai\/glm|anthropic|claude|openrouter|chatgpt/i)).toHaveCount(0);
+  // The picker shows the real model catalog (derived from the gateway's bare
+  // ids), not a generic tier label — the user must be able to tell models apart.
+  await expect(dialog.getByText('Claude Sonnet 4.5')).toBeVisible();
+  await expect(dialog.getByText('GPT OSS 120B')).toBeVisible();
+  // ...but raw vendor-prefixed ids never leak into the picker copy.
+  await expect(dialog.getByText(/z-ai\/|anthropic\/|openrouter\//i)).toHaveCount(0);
   await expect(dialog.getByPlaceholder('Enter a NEAR AI model id')).toHaveCount(0);
   await expect(dialog.getByRole('button', { name: 'Use a model ID' })).toBeVisible();
   await dialog.getByRole('button', { name: 'Use a model ID' }).click();

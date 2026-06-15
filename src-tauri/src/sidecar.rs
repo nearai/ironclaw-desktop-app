@@ -199,20 +199,8 @@ pub async fn spawn(
             } else {
                 "auto".to_owned()
             };
-            // NEAR AI Cloud completions live at cloud-api.near.ai (OpenAI-compatible,
-            // API-key auth). private.near.ai is ONLY the NEP-413 wallet-sign-in host.
-            // Mirror the gateway's native default (ironclaw_llm config.rs): an API key
-            // routes to cloud-api; a wallet session token routes to private.near.ai.
-            // Pointing the API-key path at private.near.ai 401s ("session not found").
-            let (nearai_base, nearai_api) = if api_key.is_some() {
-                ("https://cloud-api.near.ai", "https://cloud-api.near.ai/v1")
-            } else {
-                ("https://private.near.ai", "https://private.near.ai/v1")
-            };
             envs.extend([
                 ("LLM_BACKEND".into(), "nearai".into()),
-                ("NEARAI_BASE_URL".into(), nearai_base.into()),
-                ("NEARAI_API_URL".into(), nearai_api.into()),
                 ("NEARAI_MODEL".into(), selected),
                 (
                     "IRONCLAW_DESKTOP_NEARAI_AUTH_CONFIGURED".into(),
@@ -228,18 +216,36 @@ pub async fn spawn(
                     .into(),
                 ),
             ]);
-            // Prefer the API key (cloud-api path); fall back to the wallet session
-            // token only when no API key is configured. Never send both — the two
-            // endpoints expect different credentials.
+            // Only point the sidecar at a NEAR endpoint when we actually hold a
+            // credential. CRITICAL: the Reborn binary aborts at boot if
+            // NEARAI_BASE_URL is set without a key ("NEARAI_API_KEY is required
+            // when NEARAI_BASE_URL is set"). Setting it unconditionally wedged
+            // every unauthenticated first run — the sidecar crash-looped and the
+            // UI sat on "connecting"/"could not load conversations" forever. With
+            // no desktop credential we leave the endpoint unset so the gateway
+            // boots clean; the user's NEAR AI Cloud key (entered in Settings) is
+            // then applied via the gateway provider store (providers.json) with no
+            // restart needed.
+            //
+            // When a credential IS present: an API key routes to cloud-api.near.ai
+            // (OpenAI-compatible, key auth); a NEP-413 wallet session token routes
+            // to private.near.ai. Never send both — the endpoints expect different
+            // credentials, and pointing the API-key path at private.near.ai 401s.
             if let Some(key) = api_key {
+                envs.push(("NEARAI_BASE_URL".into(), "https://cloud-api.near.ai".into()));
+                envs.push((
+                    "NEARAI_API_URL".into(),
+                    "https://cloud-api.near.ai/v1".into(),
+                ));
                 envs.push(("NEARAI_API_KEY".into(), key));
             } else if let Some(token) = session_token {
+                envs.push(("NEARAI_BASE_URL".into(), "https://private.near.ai".into()));
+                envs.push(("NEARAI_API_URL".into(), "https://private.near.ai/v1".into()));
                 envs.push(("NEARAI_SESSION_TOKEN".into(), token));
-            }
-            if !auth_configured {
+            } else {
                 log::warn!(
                     target: "ironclaw_sidecar",
-                    "NEAR.AI Cloud selected without a local session/API credential; starting sidecar with model=auto and execution unverified"
+                    "NEAR.AI Cloud selected without a desktop credential; booting gateway unauthenticated (Settings / provider store supplies the key)"
                 );
             }
         }
@@ -417,8 +423,17 @@ fn pick_free_port() -> Result<u16, String> {
 /// re-injects the NEAR.AI credentials it vetted via the backend env block.
 fn inherited_sidecar_env() -> Vec<(String, String)> {
     const EXACT: [&str; 11] = [
-        "HOME", "PATH", "TMPDIR", "USER", "LOGNAME", "SHELL", "LANG", "TZ", "RUST_LOG",
-        "RUST_BACKTRACE", "SSL_CERT_FILE",
+        "HOME",
+        "PATH",
+        "TMPDIR",
+        "USER",
+        "LOGNAME",
+        "SHELL",
+        "LANG",
+        "TZ",
+        "RUST_LOG",
+        "RUST_BACKTRACE",
+        "SSL_CERT_FILE",
     ];
     std::env::vars()
         .filter(|(key, _)| {
