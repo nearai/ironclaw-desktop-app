@@ -16,9 +16,17 @@ export function buildFrontDoorData({
   threadStates = new Map(),
   automations = [],
   now = Date.now(),
+  lastSeenAt = 0,
   limit = 3
 } = {}) {
   const normalizedThreads = normalizeThreads(threads);
+  // "What moved while you were away": scheduled automations are the only
+  // background actor in this binary (threads have no out-of-band producer), so a
+  // settled automation run newer than the device's last-seen watermark is the
+  // honest signal. lastSeenAt = 0 (first visit / no watermark) shows nothing.
+  const sinceAwayAll = lastSeenAt ? sinceAwayAutomations(automations, lastSeenAt, now) : [];
+  const sinceAway = sinceAwayAll.slice(0, limit);
+  const sinceAwayTotal = sinceAwayAll.length;
   const needsYouAll = normalizedThreads
     .map((thread) => {
       const state = stateForThread(thread, threadStates);
@@ -44,14 +52,64 @@ export function buildFrontDoorData({
   const needsYou = needsYouAll.slice(0, limit);
   const needsYouTotal = needsYouAll.length;
 
+  // Don't double-list an automation run: if it's already under "Since your last
+  // visit", keep it out of "Handled" so each settled run shows exactly once.
+  const sinceAwayKeys = new Set(sinceAwayAll.map((item) => item.id.replace(/^away-/, '')));
   const handled = [
-    ...completedAutomationReceipts(automations, now),
+    ...completedAutomationReceipts(automations, now, sinceAwayKeys),
     ...recentThreadReceipts(normalizedThreads, threadStates, now)
   ]
     .sort(compareByTimestampDesc)
     .slice(0, limit);
 
-  return { needsYou, needsYouTotal, handled };
+  return { sinceAway, sinceAwayTotal, needsYou, needsYouTotal, handled };
+}
+
+// A settled automation run (completed or failed) whose last run landed after the
+// last-seen watermark — the "moved while you were away" signal. Running/unknown
+// states are not settled events, so they are excluded.
+function sinceAwayAutomations(automations, lastSeenAt, now) {
+  return (Array.isArray(automations) ? automations : [])
+    .map((automation) => {
+      const timestamp = automation?.last_run_at || automation?.lastRunAt || null;
+      const ranAt = Date.parse(timestamp || '');
+      if (!Number.isFinite(ranAt) || ranAt <= lastSeenAt) return null;
+      const outcome = automationRunOutcome(
+        automation?.last_status || automation?.lastStatus || automation?.last_status_label
+      );
+      if (!outcome) return null;
+      return {
+        id: `away-${automation.id || automation.display_name || automation.name}`,
+        kind: 'automation',
+        icon: outcome.icon,
+        title: automation.display_name || automation.name || 'Scheduled automation',
+        badge: outcome.badge,
+        detail: automation.last_run_label
+          ? `Ran ${automation.last_run_label}.`
+          : 'Ran while you were away.',
+        href: '/automations',
+        timestamp,
+        age: relativeAge(timestamp, now)
+      };
+    })
+    .filter(Boolean)
+    .sort(compareByTimestampDesc);
+}
+
+function automationRunOutcome(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (
+    normalized === 'ok' ||
+    normalized === 'done' ||
+    normalized === 'completed' ||
+    normalized === 'success'
+  ) {
+    return { badge: 'Completed', icon: 'check' };
+  }
+  if (normalized === 'failed' || normalized === 'error') {
+    return { badge: 'Failed', icon: 'flag' };
+  }
+  return null;
 }
 
 function normalizeThreads(threads) {
@@ -92,9 +150,11 @@ function normalizeThreadState(value) {
   return '';
 }
 
-function completedAutomationReceipts(automations, now) {
+function completedAutomationReceipts(automations, now, excludeKeys = new Set()) {
   return (Array.isArray(automations) ? automations : [])
     .filter((automation) => {
+      const key = automation?.id || automation?.display_name || automation?.name;
+      if (key && excludeKeys.has(key)) return false;
       const status = String(
         automation?.last_status || automation?.lastStatus || automation?.last_status_label || ''
       ).toLowerCase();

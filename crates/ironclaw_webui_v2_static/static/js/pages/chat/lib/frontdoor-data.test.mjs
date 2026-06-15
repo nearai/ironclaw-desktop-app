@@ -103,3 +103,81 @@ test('relativeAge keeps the front door compact', () => {
   assert.equal(relativeAge('2026-06-11T18:00:00.000Z', now), '2d ago');
   assert.equal(relativeAge('', now), '');
 });
+
+test('buildFrontDoorData surfaces automations that ran since the last-seen watermark', () => {
+  const lastSeenAt = Date.parse('2026-06-13T12:00:00.000Z');
+  const automations = [
+    {
+      id: 'a',
+      display_name: 'Digest',
+      last_status: 'ok',
+      last_run_at: '2026-06-13T15:00:00.000Z',
+      last_run_label: '3:00 PM'
+    },
+    {
+      id: 'b',
+      display_name: 'Sync',
+      last_status: 'failed',
+      last_run_at: '2026-06-13T17:30:00.000Z'
+    },
+    {
+      id: 'c',
+      display_name: 'Old run',
+      last_status: 'ok',
+      last_run_at: '2026-06-13T09:00:00.000Z'
+    },
+    {
+      id: 'd',
+      display_name: 'In flight',
+      last_status: 'running',
+      last_run_at: '2026-06-13T17:45:00.000Z'
+    }
+  ];
+  const data = buildFrontDoorData({ now, lastSeenAt, automations, threads: [] });
+  // Newest settled run first; pre-watermark and non-terminal runs excluded.
+  assert.deepEqual(
+    data.sinceAway.map((item) => [item.title, item.badge, item.href]),
+    [
+      ['Sync', 'Failed', '/automations'],
+      ['Digest', 'Completed', '/automations']
+    ]
+  );
+  assert.equal(data.sinceAwayTotal, 2);
+});
+
+test('buildFrontDoorData shows nothing "since away" on a first visit (no watermark)', () => {
+  const automations = [
+    { id: 'a', display_name: 'Digest', last_status: 'ok', last_run_at: '2026-06-13T17:00:00.000Z' }
+  ];
+  const data = buildFrontDoorData({ now, lastSeenAt: 0, automations, threads: [] });
+  assert.deepEqual(data.sinceAway, []);
+  assert.equal(data.sinceAwayTotal, 0);
+});
+
+test('a completed automation shown under "since away" is not duplicated under handled', () => {
+  const lastSeenAt = Date.parse('2026-06-13T12:00:00.000Z');
+  const automations = [
+    {
+      id: 'recent',
+      display_name: 'Recent digest',
+      last_status: 'ok',
+      last_run_at: '2026-06-13T16:00:00.000Z'
+    },
+    {
+      id: 'older',
+      display_name: 'Older digest',
+      last_status: 'ok',
+      last_run_at: '2026-06-13T08:00:00.000Z'
+    }
+  ];
+  const data = buildFrontDoorData({ now, lastSeenAt, automations, threads: [] });
+  assert.deepEqual(
+    data.sinceAway.map((i) => i.title),
+    ['Recent digest']
+  );
+  // The recent one is under "since away"; only the older completed run remains in handled.
+  assert.deepEqual(
+    data.handled.map((i) => i.title),
+    ['Older digest']
+  );
+});

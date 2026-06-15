@@ -45,6 +45,27 @@ function visibleLlmSnapshot(snapshot = {}) {
   return { providers, active };
 }
 
+const FRONT_DOOR_LAST_SEEN_KEY = 'ironclaw:frontdoor:lastSeenAt';
+
+function readFrontDoorLastSeen() {
+  try {
+    const value = Number(
+      window.localStorage && window.localStorage.getItem(FRONT_DOOR_LAST_SEEN_KEY)
+    );
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeFrontDoorLastSeen(value) {
+  try {
+    if (window.localStorage) window.localStorage.setItem(FRONT_DOOR_LAST_SEEN_KEY, String(value));
+  } catch {
+    // localStorage unavailable (private mode) — the brief just stays empty.
+  }
+}
+
 export function EmptyState({
   threads = [],
   threadStates,
@@ -81,14 +102,24 @@ export function EmptyState({
   const recentThreads = rawThreads
     .filter((thread) => (thread?.thread_id || thread?.id) && (thread.title || '').trim())
     .slice(0, 3);
+  // Device-local last-seen watermark for the "Since your last visit" brief.
+  // Captured once on mount (the value when the user arrived), then advanced to
+  // now — so what shows is real change since the previous landing visit, not a
+  // server "presence" claim.
+  const lastSeenRef = React.useRef(readFrontDoorLastSeen());
+  React.useEffect(() => {
+    writeFrontDoorLastSeen(Date.now());
+  }, []);
+  const lastSeenAt = lastSeenRef.current;
   const frontDoor = React.useMemo(
     () =>
       buildFrontDoorData({
         threads: rawThreads,
         threadStates,
-        automations: normalizeAutomations(automationsQuery.data)
+        automations: normalizeAutomations(automationsQuery.data),
+        lastSeenAt
       }),
-    [rawThreads, threadStates, automationsQuery.data]
+    [rawThreads, threadStates, automationsQuery.data, lastSeenAt]
   );
   const providersSnapshot = providersQuery.data;
   const visibleProvidersSnapshot = visibleLlmSnapshot(providersSnapshot || {});
@@ -281,6 +312,8 @@ export function EmptyState({
           `}
 
           <${FrontDoorPanel}
+            sinceAway=${frontDoor.sinceAway}
+            sinceAwayTotal=${frontDoor.sinceAwayTotal}
             needsYou=${frontDoor.needsYou}
             needsYouTotal=${frontDoor.needsYouTotal}
             handled=${frontDoor.handled}
@@ -329,12 +362,21 @@ export function EmptyState({
   `;
 }
 
-function FrontDoorPanel({ needsYou, needsYouTotal, handled }) {
+function FrontDoorPanel({ sinceAway = [], sinceAwayTotal = 0, needsYou, needsYouTotal, handled }) {
   return html`
     <div
       className="mt-4 grid gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
       data-testid="frontdoor-panel"
     >
+      ${sinceAway.length > 0 &&
+      html`<${FrontDoorSection}
+        title="Since your last visit"
+        emptyTitle=""
+        emptyDetail=""
+        tone="gold"
+        items=${sinceAway}
+        count=${sinceAwayTotal}
+      />`}
       <${FrontDoorSection}
         title="Needs you"
         emptyTitle="Nothing waiting on you."
