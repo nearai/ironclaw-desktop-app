@@ -6,10 +6,10 @@ import { useT } from '../../../lib/i18n.js';
 import {
   completeNearaiWalletLogin,
   fetchLlmProviders,
+  restartDesktopSidecar,
   setActiveLlm,
   startNearaiLogin,
-  testLlmProviderConnection,
-  upsertLlmProvider
+  testLlmProviderConnection
 } from '../lib/settings-api.js';
 
 const WALLET_LOGIN_TIMEOUT_MS = 300_000;
@@ -146,18 +146,11 @@ export function useProviderLogin({ onSuccess } = {}) {
           // so the desktop signs in inside a dedicated app window: the Rust
           // command captures ?token= from the allowlisted callback navigation
           // (cancelling it so the token never reaches the remote SPA),
-          // validates against /v1/users/me, and vaults it. The upsert below
-          // hot-swaps the LIVE sidecar — no restart, no key paste.
-          const token = await tauriInvoke('nearai_browser_login', { provider });
-          const snapshot = await fetchLlmProviders().catch(() => null);
-          const nearai = (snapshot?.providers || []).find((item) => item.id === 'nearai') || {};
-          await upsertLlmProvider({
-            id: 'nearai',
-            name: nearai.name || 'NEAR AI',
-            adapter: nearai.adapter || 'nearai',
-            base_url: nearai.base_url || '',
-            api_key: token
-          });
+          // validates against /v1/users/me, and vaults it in the keychain.
+          // Restart the sidecar so it respawns with the token in its env — do
+          // NOT upsert a nearai provider def (that breaks gateway list-models).
+          await tauriInvoke('nearai_browser_login', { provider });
+          await restartDesktopSidecar();
           if (await pollUntilActive('nearai', NEARAI_POLL_DEADLINE_MS)) {
             await finishActive();
             return;

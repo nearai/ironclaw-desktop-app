@@ -1,4 +1,6 @@
 import { React } from '../../../lib/html.js';
+import { isDesktopRuntime } from '../../../lib/api.js';
+import { storeNearaiCredential } from '../lib/settings-api.js';
 import { useLlmProviders } from './useLlmProviders.js';
 
 function matchesProvider(provider, query) {
@@ -63,6 +65,16 @@ export function useProviderManagementActions({ settings, gatewayStatus, searchQu
 
   const handleSave = React.useCallback(
     async ({ form, apiKey, provider }) => {
+      // NEAR AI Cloud on desktop: the pasted key goes to the OS keychain and the
+      // sidecar restarts to pick it up — never a provider upsert (a user nearai
+      // provider def breaks the gateway's list-models). Rust classifies an `sk-`
+      // key to cloud-api.near.ai.
+      if (provider?.id === 'nearai' && isDesktopRuntime() && apiKey?.trim()) {
+        await storeNearaiCredential(apiKey.trim());
+        await providerState.refresh();
+        showMessage('success', t('llm.providerConfigured', { name: 'NEAR AI Cloud' }));
+        return;
+      }
       if (provider?.builtin) {
         await providerState.saveBuiltinProvider({ provider, form, apiKey });
         showMessage('success', t('llm.providerConfigured', { name: provider.name || provider.id }));

@@ -931,11 +931,14 @@ async fn start_sidecar(
         .map(|s| s.trim())
         .filter(|s| !s.is_empty());
     let backend_cfg = match provider {
-        Some("nearai") => BackendConfig::Nearai {
-            model: clean_model_id(model_id.as_deref()),
-            session_token: nearai_session_token_for_profile(&profile_id),
-            api_key: env_secret("NEARAI_API_KEY"),
-        },
+        Some("nearai") => {
+            let (api_key, session_token) = nearai_credential_for_profile(&profile_id);
+            BackendConfig::Nearai {
+                model: clean_model_id(model_id.as_deref()),
+                session_token,
+                api_key,
+            }
+        }
         Some("openai") => {
             let api_key = keychain::get_llm_provider_credential(&profile_id, "openai")?
                 .filter(|s| !s.is_empty())
@@ -966,10 +969,11 @@ async fn start_sidecar(
         }
         None => {
             let BackendKind::Nearai = backend.unwrap_or(BackendKind::Nearai);
+            let (api_key, session_token) = nearai_credential_for_profile(&profile_id);
             BackendConfig::Nearai {
                 model: clean_model_id(model_id.as_deref()),
-                session_token: nearai_session_token_for_profile(&profile_id),
-                api_key: env_secret("NEARAI_API_KEY"),
+                session_token,
+                api_key,
             }
         }
     };
@@ -995,12 +999,28 @@ fn env_secret(name: &str) -> Option<String> {
         .and_then(|value| clean_config_string(Some(&value)))
 }
 
-fn nearai_session_token_for_profile(profile_id: &str) -> Option<String> {
-    keychain::get_llm_provider_credential(profile_id, "nearai")
+/// Resolve the NEAR.AI credential for a profile and classify it so the sidecar
+/// routes to the right host. A NEAR AI Cloud API key (`sk-…`, used at
+/// cloud-api.near.ai) travels as `api_key`; a NEP-413 wallet/browser session
+/// token (used at private.near.ai) travels as `session_token`. The desktop
+/// keychain slot is shared (`llm-nearai:<profile>`) and written by both the
+/// API-key paste and the browser-login flow; env vars are the developer
+/// fallback. Never returns both — the two hosts expect different credentials.
+/// Returns `(api_key, session_token)`.
+fn nearai_credential_for_profile(profile_id: &str) -> (Option<String>, Option<String>) {
+    let stored = keychain::get_llm_provider_credential(profile_id, "nearai")
         .ok()
         .flatten()
-        .and_then(|value| clean_config_string(Some(&value)))
-        .or_else(|| env_secret("NEARAI_SESSION_TOKEN"))
+        .and_then(|value| clean_config_string(Some(&value)));
+    let (stored_api, stored_session) = match stored {
+        Some(value) if value.starts_with("sk-") => (Some(value), None),
+        Some(value) => (None, Some(value)),
+        None => (None, None),
+    };
+    (
+        stored_api.or_else(|| env_secret("NEARAI_API_KEY")),
+        stored_session.or_else(|| env_secret("NEARAI_SESSION_TOKEN")),
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -1089,11 +1109,14 @@ fn backend_config_for_selection(selection: &SidecarBootSelection) -> Result<Back
         .map(str::trim)
         .filter(|provider| !provider.is_empty());
     match provider {
-        Some("nearai") => Ok(BackendConfig::Nearai {
-            model: selection.model_id.clone(),
-            session_token: nearai_session_token_for_profile(&selection.profile_id),
-            api_key: env_secret("NEARAI_API_KEY"),
-        }),
+        Some("nearai") => {
+            let (api_key, session_token) = nearai_credential_for_profile(&selection.profile_id);
+            Ok(BackendConfig::Nearai {
+                model: selection.model_id.clone(),
+                session_token,
+                api_key,
+            })
+        }
         Some("openai") => {
             let api_key = keychain::get_llm_provider_credential(&selection.profile_id, "openai")?
                 .filter(|s| !s.is_empty())
@@ -1124,10 +1147,11 @@ fn backend_config_for_selection(selection: &SidecarBootSelection) -> Result<Back
         )),
         None => {
             let BackendKind::Nearai = selection.backend.unwrap_or(BackendKind::Nearai);
+            let (api_key, session_token) = nearai_credential_for_profile(&selection.profile_id);
             Ok(BackendConfig::Nearai {
                 model: selection.model_id.clone(),
-                session_token: nearai_session_token_for_profile(&selection.profile_id),
-                api_key: env_secret("NEARAI_API_KEY"),
+                session_token,
+                api_key,
             })
         }
     }
