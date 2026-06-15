@@ -6,6 +6,7 @@ import { queryClient } from './lib/query-client.js';
 import { I18nProvider } from './lib/i18n.js';
 import { bootstrapDesktopSession, storeToken } from './lib/api.js';
 import { maybeRunPackagedWebviewSmoke } from './lib/packaged-smoke.js';
+import { installZoomControls } from './lib/zoom.js';
 import './i18n/en.js';
 import './i18n/es.js';
 import './i18n/fr.js';
@@ -20,6 +21,7 @@ import './i18n/ko.js';
 
 async function boot() {
   maybeRunPackagedWebviewSmoke();
+  installZoomControls();
 
   try {
     const desktopSession = await bootstrapDesktopSession();

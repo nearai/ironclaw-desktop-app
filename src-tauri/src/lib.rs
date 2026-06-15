@@ -903,6 +903,26 @@ async fn get_or_create_local_token(app: AppHandle) -> Result<String, String> {
     keychain::get_or_create_local_token(&app)
 }
 
+/// Set the main window's native webview zoom (browser-style uniform scale, so the
+/// layout never reflow-breaks). Driven by the JS Cmd/Ctrl +/-/0 handler, which
+/// persists the factor in localStorage and re-applies it on boot. Clamped to a
+/// sane range. Returns the applied factor.
+#[tauri::command]
+async fn set_webview_zoom(app: AppHandle, factor: f64) -> Result<f64, String> {
+    let clamped = if factor.is_finite() {
+        factor.clamp(0.5, 3.0)
+    } else {
+        1.0
+    };
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "main window not found".to_string())?;
+    window
+        .set_zoom(clamped)
+        .map_err(|e| format!("set webview zoom: {e}"))?;
+    Ok(clamped)
+}
+
 // ---- Sidecar lifecycle ----------------------------------------------------
 
 #[tauri::command]
@@ -1864,6 +1884,7 @@ pub fn run() {
             update_tray_recent,
             show_main_window,
             open_mini_window,
+            set_webview_zoom,
             record_crash,
             list_crashes,
             clear_crashes,

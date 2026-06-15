@@ -26,7 +26,8 @@
         "visible": true,
         "focus": true,
         "center": true,
-        "resizable": true
+        "resizable": true,
+        "zoomHotkeysEnabled": true
       }
     ],
     "security": {
