@@ -24,6 +24,7 @@ mod crashes;
 mod fs_mount;
 mod ironhub;
 mod keychain;
+mod nearai_connect;
 mod nearai_login;
 mod notes_export;
 mod ocr_assets;
@@ -1835,6 +1836,7 @@ pub fn run() {
             build_provenance,
             ocr_assets_port,
             nearai_login::nearai_browser_login,
+            nearai_connect::nearai_connect_loopback,
             get_llm_provider_credential,
             has_llm_provider_credential,
             set_llm_provider_credential,

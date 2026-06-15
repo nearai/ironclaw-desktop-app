@@ -142,14 +142,13 @@ export function useProviderLogin({ onSuccess } = {}) {
       setNearaiBusy(true);
       try {
         if (isDesktopRuntime()) {
-          // private.near.ai only accepts its own origin as frontend_callback,
-          // so the desktop signs in inside a dedicated app window: the Rust
-          // command captures ?token= from the allowlisted callback navigation
-          // (cancelling it so the token never reaches the remote SPA),
-          // validates against /v1/users/me, and vaults it in the keychain.
-          // Restart the sidecar so it respawns with the token in its env — do
-          // NOT upsert a nearai provider def (that breaks gateway list-models).
-          await tauriInvoke('nearai_browser_login', { provider });
+          // Connect in the user's own browser session (where they're already
+          // signed in): the Rust command opens cloud-api.near.ai/v1/auth/<provider>
+          // with a loopback callback, captures the token, mints a long-lived sk-
+          // API key, and vaults it in the keychain. Then restart the sidecar so it
+          // respawns with the key in its env — never an upsert (a user nearai
+          // provider def breaks gateway list-models).
+          await tauriInvoke('nearai_connect_loopback', { provider });
           await restartDesktopSidecar();
           if (await pollUntilActive('nearai', NEARAI_POLL_DEADLINE_MS)) {
             await finishActive();
