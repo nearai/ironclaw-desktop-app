@@ -21,7 +21,7 @@ registerPack('en', {
   'nav.projects': 'Projects',
   'nav.jobs': 'Jobs',
   'nav.routines': 'Routines',
-  'nav.automations': 'Automations',
+  'nav.automations': 'Scheduled',
   'nav.missions': 'Missions',
   'nav.extensions': 'Connections',
   'nav.settings': 'Settings',
@@ -694,8 +694,9 @@ registerPack('en', {
 
   // Automations page
   'automations.eyebrow': 'Scheduled work',
-  'automations.title': 'Automations',
-  'automations.description': 'Scheduled automations only.',
+  'automations.title': 'Scheduled',
+  'automations.description':
+    'Recurring work IronClaw runs on a schedule. IronClaw sets these up during a conversation, so ask in chat to create one.',
   'automations.filterLabel': 'Automation status filter',
   'automations.filter.all': 'All',
   'automations.filter.active': 'Active',

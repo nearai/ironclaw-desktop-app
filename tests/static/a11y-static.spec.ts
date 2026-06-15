@@ -194,7 +194,7 @@ const surfaces: Surface[] = [
     path: '/v2/automations',
     authenticated: true,
     waitFor: async (page) => {
-      await expect(page.getByRole('heading', { name: 'Automations', exact: true })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Scheduled', exact: true })).toBeVisible();
       await expect(page.getByText('No scheduled automations yet.')).toBeVisible();
     }
   },
@@ -415,7 +415,7 @@ test('static automations: backed rows attribute enabled state in gold, not the l
   // attribution; only a real completed run keeps the success tone.
   await installStaticApiMocks(page, mixedAutomations);
   await page.goto('/v2/automations?token=static-a11y-token');
-  await expect(page.getByRole('heading', { name: 'Automations', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Scheduled', exact: true })).toBeVisible();
   await expect(page.getByText('Daily news digest')).toBeVisible();
 
   const rows = page.locator('table tbody tr');

@@ -10,7 +10,9 @@ export const primaryRoutes = [
   { id: 'projects', path: '/projects', labelKey: 'nav.projects', hidden: true },
   { id: 'jobs', path: '/jobs', labelKey: 'nav.jobs', hidden: true },
   { id: 'routines', path: '/routines', labelKey: 'nav.routines', hidden: true },
-  { id: 'automations', path: '/automations', labelKey: 'nav.automations', hidden: true },
+  // Scheduled work the agent already created is a real, read-only viewer
+  // (listAutomations). routines stays hidden — its API is still a TODO stub.
+  { id: 'automations', path: '/automations', labelKey: 'nav.automations', hidden: false },
   { id: 'missions', path: '/missions', labelKey: 'nav.missions', hidden: true },
   { id: 'extensions', path: '/extensions', labelKey: 'nav.extensions' },
   { id: 'settings', path: '/settings', labelKey: 'nav.settings', hidden: false },

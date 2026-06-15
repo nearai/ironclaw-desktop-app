@@ -34,6 +34,9 @@ export function AutomationsList({ automations, filter, onFilterChange, onRefresh
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--v2-text-muted)]">
               ${t('automations.description')}
             </p>
+            <${Button} as=${Link} to="/chat" variant="secondary" className="mt-3">
+              ${t('nav.chat')}
+            <//>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -83,10 +86,7 @@ export function AutomationsList({ automations, filter, onFilterChange, onRefresh
               description=${hasAutomations
                 ? t('automations.empty.matchingDescription')
                 : t('automations.empty.noneDescription')}
-            >
-              ${!hasAutomations &&
-              html`<${Button} as=${Link} to="/chat" variant="primary">${t('nav.chat')}<//>`}
-            <//>
+            />
           `
         : html`
             <${Panel} className="overflow-hidden">

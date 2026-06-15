@@ -9,7 +9,9 @@ function visibleRouteIds() {
 
 test('desktop primary information architecture stays simple for normal users', () => {
   assert.equal(defaultRoute, '/chat');
-  assert.deepEqual(visibleRouteIds(), ['chat', 'work', 'extensions', 'settings']);
+  // 'automations' (labelled "Scheduled") is a real, gateway-backed read-only
+  // viewer of recurring work the agent created — promoted into primary nav.
+  assert.deepEqual(visibleRouteIds(), ['chat', 'work', 'automations', 'extensions', 'settings']);
 });
 
 test('saved work surface is a registered, visible route', () => {
@@ -22,15 +24,10 @@ test('saved work surface is a registered, visible route', () => {
 test('backend-blocked and specialist routes stay deep-link only', () => {
   const hiddenIds = new Set(primaryRoutes.filter((route) => route.hidden).map((route) => route.id));
 
-  for (const id of [
-    'workspace',
-    'projects',
-    'jobs',
-    'routines',
-    'automations',
-    'missions',
-    'admin'
-  ]) {
+  // 'automations' was promoted to visible nav (real read-only viewer); the rest
+  // stay deep-link only until their backends are real ('routines' is still a
+  // TODO stub, so it must stay hidden).
+  for (const id of ['workspace', 'projects', 'jobs', 'routines', 'missions', 'admin']) {
     assert.equal(hiddenIds.has(id), true, `${id} should not appear in primary navigation`);
   }
 });
