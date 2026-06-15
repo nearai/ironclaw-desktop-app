@@ -9,6 +9,9 @@ import { GoogleOauthCard } from './google-oauth-card.js';
 import { SettingsGroup } from './settings-field.js';
 import { SettingsSearchEmpty } from './settings-search-empty.js';
 import { modelExecutionReadiness } from '../../../lib/model-readiness.js';
+import { useProviderLogin } from '../hooks/useProviderLogin.js';
+import { ProviderLoginStatus } from './provider-login-status.js';
+import { Button } from '../../../design-system/button.js';
 
 export function InferenceTab({
   settings,
@@ -23,6 +26,11 @@ export function InferenceTab({
   const backend = 'NEAR AI Cloud';
   const model = gatewayStatus?.llm_model || settings.selected_model || 'NEAR AI Cloud default';
   const readiness = modelExecutionReadiness(gatewayStatus);
+  // When NEAR AI Cloud has not completed a live run, surface a Connect action on
+  // this main panel. The provider-management Connect buttons only render when
+  // NEAR is *not* the active provider, which dead-ends a gateway that reports
+  // NEAR active-but-unverified — so this is the always-reachable sign-in entry.
+  const login = useProviderLogin();
   // The embeddings/sampling field cards write through `useSettings.save`, which
   // has no v2 persistence endpoint yet (status:'todo'). Rendering live toggles
   // and inputs that silently fail to save is fake readiness — gate them on a
@@ -60,6 +68,39 @@ export function InferenceTab({
 
   return html`
     <div className="space-y-5">
+      ${!readiness.verified &&
+      html`
+        <${Card} padding="none" className="p-4 sm:p-5">
+          <h3
+            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
+          >
+            Connect NEAR AI Cloud
+          </h3>
+          <p className="mt-1 text-sm text-[var(--v2-text-muted)]">
+            Sign in to start. IronClaw opens your browser to authorize, then connects automatically,
+            with no API key to copy.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <${Button}
+              type="button"
+              variant="primary"
+              disabled=${login.nearaiBusy}
+              onClick=${() => login.startNearai('google')}
+            >
+              Continue with Google
+            <//>
+            <${Button}
+              type="button"
+              variant="secondary"
+              disabled=${login.nearaiBusy}
+              onClick=${() => login.startNearai('github')}
+            >
+              Continue with GitHub
+            <//>
+          </div>
+          <${ProviderLoginStatus} login=${login} />
+        <//>
+      `}
       ${showProviderSummary &&
       html`
         <${Card} padding="none" className="p-4 sm:p-5">

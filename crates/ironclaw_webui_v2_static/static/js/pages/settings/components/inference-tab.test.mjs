@@ -70,10 +70,18 @@ function renderInferenceTab({ searchQuery = '' } = {}) {
   const ProviderManagement = 'ProviderManagement';
   const context = {
     Badge: 'Badge',
+    Button: 'Button',
     Card: 'Card',
     GoogleOauthCard: 'GoogleOauthCard',
     INFERENCE_FIELDS: [],
+    ProviderLoginStatus: 'ProviderLoginStatus',
     ProviderManagement,
+    useProviderLogin: () => ({
+      nearaiBusy: false,
+      nearaiError: '',
+      startNearai: () => {},
+      startNearaiWallet: () => {}
+    }),
     React: {
       useEffect: () => {},
       useState: (initial) => [typeof initial === 'function' ? initial() : initial, () => {}]
