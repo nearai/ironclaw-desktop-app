@@ -21,6 +21,14 @@ function detectLanguage() {
   return 'en';
 }
 
+// Right-to-left locales. Arabic ships + auto-detects, so the shell must set the
+// document direction or the whole UI renders mirrored-wrong.
+const RTL_LANGUAGES = new Set(['ar']);
+
+export function directionFor(lang) {
+  return RTL_LANGUAGES.has(String(lang || '')) ? 'rtl' : 'ltr';
+}
+
 const packs = {};
 
 export function registerPack(lang, translations) {
@@ -53,10 +61,12 @@ export function I18nProvider({ children }) {
       localStorage.setItem(STORAGE_KEY, next);
     } catch (_) {}
     document.documentElement.lang = next;
+    document.documentElement.dir = directionFor(next);
   }, []);
 
   React.useEffect(() => {
     document.documentElement.lang = lang;
+    document.documentElement.dir = directionFor(lang);
   }, [lang]);
 
   const t = React.useCallback((key, params) => translate(lang, key, params), [lang]);
