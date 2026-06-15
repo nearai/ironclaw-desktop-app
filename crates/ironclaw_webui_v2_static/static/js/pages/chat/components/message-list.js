@@ -2,8 +2,10 @@ import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { ActivityRun } from './activity-run.js';
 import { MessageBubble } from './message-bubble.js';
+import { ThreadFindBar } from './thread-find-bar.js';
 import { Icon } from '../../../design-system/icons.js';
 import { groupMessages } from '../lib/message-groups.js';
+import { useThreadFind } from '../hooks/useThreadFind.js';
 
 function messageListScrollClass() {
   return 'flex flex-1 overflow-y-auto px-4 pb-24 pt-6 sm:px-5 sm:pb-28 lg:px-8';
@@ -58,9 +60,22 @@ export function MessageList({
   }, []);
 
   const grouped = React.useMemo(() => groupMessages(messages), [messages]);
+  const find = useThreadFind({ messages, containerRef, hasMore, onLoadMore });
 
   return html`
     <div className="relative flex min-h-0 flex-1">
+      ${find.open &&
+      html`<${ThreadFindBar}
+        query=${find.query}
+        onQueryChange=${find.setQuery}
+        matchCount=${find.matchCount}
+        currentIndex=${find.currentIndex}
+        onNext=${find.next}
+        onPrev=${find.prev}
+        onClose=${find.close}
+        hasMore=${find.hasMore}
+        onSearchEarlier=${find.searchEarlier}
+      />`}
       <div
         ref=${containerRef}
         onScroll=${onScroll}
@@ -83,12 +98,19 @@ export function MessageList({
           ${grouped.map((item) =>
             item.type === 'activity-run'
               ? html`<${ActivityRun} key=${item.id} activity=${item.activity} />`
-              : html`<${MessageBubble}
+              : html`<div
                   key=${item.id}
-                  message=${item.message}
-                  messages=${messages}
-                  onRetry=${onRetryMessage}
-                />`
+                  data-message-id=${item.id}
+                  className=${find.activeMatchId === item.id
+                    ? 'scroll-mt-20 rounded-[14px] ring-2 ring-[var(--v2-accent)] ring-offset-2 ring-offset-[var(--v2-canvas)]'
+                    : 'scroll-mt-20'}
+                >
+                  <${MessageBubble}
+                    message=${item.message}
+                    messages=${messages}
+                    onRetry=${onRetryMessage}
+                  />
+                </div>`
           )}
           ${children}
         </div>

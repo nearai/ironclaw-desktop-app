@@ -27,8 +27,23 @@ function createMessageListContext() {
     useT: () => (key) => key,
     ActivityRun() {},
     MessageBubble() {},
+    ThreadFindBar() {},
     Icon() {},
-    groupMessages: (messages) => messages.map((message) => ({ id: message.id, message }))
+    groupMessages: (messages) => messages.map((message) => ({ id: message.id, message })),
+    useThreadFind: () => ({
+      open: false,
+      query: '',
+      setQuery() {},
+      matchCount: 0,
+      currentIndex: 0,
+      activeMatchId: null,
+      hasMore: false,
+      openFind() {},
+      close() {},
+      next() {},
+      prev() {},
+      searchEarlier() {}
+    })
   };
 }
 
