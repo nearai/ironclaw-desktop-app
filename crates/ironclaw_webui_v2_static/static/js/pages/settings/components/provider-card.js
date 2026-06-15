@@ -163,12 +163,9 @@ export function ProviderCard({
           <//>
         `
       : null;
-  // Desktop builds hide GitHub/Google: NEAR's server only accepts hosted
-  // (private.near.ai) callbacks, so browser SSO cannot complete locally.
-  // API key + wallet are the working desktop paths.
-  // Desktop SSO runs in a dedicated app window (token captured from the
-  // allowlisted callback navigation) — the buttons work everywhere now.
-  const showBrowserSso = true;
+  // NEAR AI sign-in offers API key, wallet, and GitHub/Google. Desktop SSO runs
+  // in a dedicated app window (token captured from the allowlisted callback
+  // navigation), so the browser-SSO buttons work everywhere.
   const loginActions =
     !isActive && provider.id === 'nearai'
       ? html`
@@ -182,27 +179,24 @@ export function ProviderCard({
           >
             ${t('onboarding.nearWallet')}
           <//>
-          ${showBrowserSso &&
-          html`
-            <${Button}
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled=${loginBusy}
-              onClick=${() => onNearaiLogin('github')}
-            >
-              GitHub
-            <//>
-            <${Button}
-              type="button"
-              variant="secondary"
-              size="sm"
-              disabled=${loginBusy}
-              onClick=${() => onNearaiLogin('google')}
-            >
-              Google
-            <//>
-          `}
+          <${Button}
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled=${loginBusy}
+            onClick=${() => onNearaiLogin('github')}
+          >
+            GitHub
+          <//>
+          <${Button}
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled=${loginBusy}
+            onClick=${() => onNearaiLogin('google')}
+          >
+            Google
+          <//>
         `
       : null;
   const canUseProvider =
