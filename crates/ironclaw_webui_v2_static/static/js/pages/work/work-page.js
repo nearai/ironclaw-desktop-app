@@ -19,6 +19,7 @@ import {
   textPreviewForGeneratedFileArtifact
 } from '../chat/lib/generated-file-artifacts.js';
 import { saveBlob } from '../../lib/save-file.js';
+import { workItemSearchMatch } from './lib/work-search.js';
 
 function safeList(value) {
   return Array.isArray(value) ? value : [];
@@ -275,10 +276,19 @@ export function WorkPage() {
   // Filter by title, then page: show the first N and let the user expand the
   // rest so saved work past the 30th item is always reachable (search finds it
   // even unexpanded).
-  const filterQuery = workFilter.trim().toLowerCase();
-  const filteredItems = filterQuery
-    ? items.filter((item) => (item.title || '').toLowerCase().includes(filterQuery))
-    : items;
+  const filterQuery = workFilter.trim();
+  // Title + body search: match the query against each item's title and artifact
+  // text, keeping a one-line snippet for body-only hits so saved work is findable
+  // by content, not just name.
+  const searchResults = filterQuery
+    ? items
+        .map((item) => ({ item, ...workItemSearchMatch(item, filterQuery) }))
+        .filter((r) => r.match)
+    : null;
+  const filteredItems = searchResults ? searchResults.map((r) => r.item) : items;
+  const snippetById = new Map(
+    (searchResults || []).filter((r) => r.snippet).map((r) => [r.item.id, r.snippet])
+  );
   const visibleItems = showAllWork
     ? filteredItems
     : filteredItems.slice(0, WORK_LIST_VISIBLE_LIMIT);
@@ -318,7 +328,7 @@ export function WorkPage() {
                   setWorkFilter(event.currentTarget.value);
                   setShowAllWork(false);
                 }}
-                placeholder="Filter saved work…"
+                placeholder="Search saved work…"
                 className="h-9 min-h-[44px] w-full rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[13px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
               />
             </div>`}
@@ -327,6 +337,7 @@ export function WorkPage() {
                 const artifact = firstReadyArtifact(item);
                 const href = artifact ? workArtifactHref(item.id, artifact.id) : '/work';
                 const active = item.id === selectedItem.id;
+                const snippet = snippetById.get(item.id);
                 return html`
                   <${Link}
                     key=${item.id}
@@ -344,6 +355,11 @@ export function WorkPage() {
                     <span className="mt-1 block text-xs text-[var(--v2-text-faint)]">
                       ${readableDate(item.updated_at || item.created_at)}
                     </span>
+                    ${snippet &&
+                    html`<span
+                      className="mt-1 block text-xs leading-5 text-[var(--v2-text-muted)] line-clamp-2"
+                      >${snippet}</span
+                    >`}
                   <//>
                 `;
               })}
