@@ -6,10 +6,38 @@ import {
 
 export const WORK_ITEMS_KEY = 'ironclaw-work-items';
 const MAX_WORK_ITEMS = 500;
+const MAX_RECEIPTS = 20;
+
+// Derive a saved item's dossier provenance from the thread's rendered messages:
+// the original ask (first user turn) and the receipts of what the agent actually
+// did (the tool-activity rows). Pure + honest — only real transcript data, never
+// invented. Approvals/follow-ups stay empty until the gateway exposes them.
+export function dossierFromMessages(messages = []) {
+  const list = Array.isArray(messages) ? messages : [];
+  const firstUser = list.find(
+    (message) => message && message.role === 'user' && String(message.content || '').trim()
+  );
+  const ask = firstUser ? String(firstUser.content).trim().slice(0, 2000) : '';
+  const receipts = list
+    .filter(
+      (message) =>
+        message && message.role === 'tool_activity' && (message.toolName || message.toolStatus)
+    )
+    .slice(0, MAX_RECEIPTS)
+    .map((message) => ({
+      label: String(message.toolName || 'tool').slice(0, 80),
+      status: String(message.toolStatus || '').slice(0, 40),
+      detail: String(message.toolResultPreview || message.toolDetail || '')
+        .trim()
+        .slice(0, 280)
+    }));
+  return { ask, receipts };
+}
 
 export function saveAssistantResponseToWork({
   title,
   content,
+  messages = [],
   threadId = currentThreadId(),
   threadLabel = 'Chat thread',
   storage = defaultStorage(),
@@ -23,6 +51,7 @@ export function saveAssistantResponseToWork({
   const workId = idFactory('work');
   const artifactId = idFactory('artifact');
   const linkedThread = safeText(threadId, '');
+  const { ask, receipts } = dossierFromMessages(messages);
   const item = {
     id: workId,
     title: safeTitle,
@@ -41,7 +70,7 @@ export function saveAssistantResponseToWork({
           }
         ]
       : [],
-    dossier: [],
+    dossier: ask ? [{ kind: 'ask', label: 'The ask', text: ask }] : [],
     approvalBoundaries: [],
     artifacts: [
       {
@@ -55,7 +84,7 @@ export function saveAssistantResponseToWork({
       }
     ],
     watches: [],
-    receipts: [],
+    receipts,
     openApprovals: [],
     followUps: [],
     nextAction: 'Review saved work product.'

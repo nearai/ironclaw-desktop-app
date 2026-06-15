@@ -267,6 +267,10 @@ export function WorkPage() {
   const content = artifactTextContent(selectedArtifact);
   const linkedThread = safeList(selectedItem.links).find((link) => link?.kind === 'thread');
   const provenance = safeList(selectedArtifact.provenance).join(', ') || 'chat';
+  // Dossier provenance captured at save time (work-product-save.dossierFromMessages):
+  // the original ask + the receipts of what the agent actually did.
+  const askEntry = safeList(selectedItem.dossier).find((entry) => entry?.kind === 'ask');
+  const receipts = safeList(selectedItem.receipts);
 
   // Filter by title, then page: show the first N and let the user expand the
   // rest so saved work past the 30th item is always reachable (search finds it
@@ -418,6 +422,63 @@ export function WorkPage() {
 
             <div className="space-y-5 px-5 py-5">
               <${WorkExportActions} item=${selectedItem} artifact=${selectedArtifact} />
+              ${askEntry?.text &&
+              html`<section
+                className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
+                data-testid="dossier-ask"
+              >
+                <div
+                  className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+                >
+                  The ask
+                </div>
+                <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-[var(--v2-text)]">
+                  ${askEntry.text}
+                </p>
+              </section>`}
+              ${receipts.length > 0 &&
+              html`<section
+                className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
+                data-testid="dossier-receipts"
+              >
+                <div
+                  className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+                >
+                  What IronClaw did
+                </div>
+                <ul className="mt-2 grid gap-1.5">
+                  ${receipts.map(
+                    (receipt, index) => html`
+                      <li
+                        key=${index}
+                        className="grid grid-cols-[auto_1fr] items-baseline gap-2 text-sm"
+                      >
+                        <span
+                          className="grid h-6 w-6 place-items-center rounded-[6px] border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+                        >
+                          <${Icon} name="bolt" className="h-3.5 w-3.5" />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="font-medium text-[var(--v2-text-strong)]"
+                            >${receipt.label}</span
+                          >${receipt.status
+                            ? html`<span className="ml-2 text-xs text-[var(--v2-text-faint)]"
+                                >${receipt.status}</span
+                              >`
+                            : ''}
+                          ${receipt.detail
+                            ? html`<span
+                                className="mt-0.5 block truncate text-xs text-[var(--v2-text-muted)]"
+                                title=${receipt.detail}
+                                >${receipt.detail}</span
+                              >`
+                            : ''}
+                        </span>
+                      </li>
+                    `
+                  )}
+                </ul>
+              </section>`}
               <div
                 className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas)] p-4 sm:p-6"
                 data-testid="saved-work-artifact"

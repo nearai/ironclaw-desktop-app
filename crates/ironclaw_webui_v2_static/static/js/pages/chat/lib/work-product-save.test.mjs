@@ -3,11 +3,63 @@ import test from 'node:test';
 
 import {
   currentThreadId,
+  dossierFromMessages,
   openSavedWorkProduct,
   saveAssistantResponseToWork,
   saveGeneratedFileArtifactToWork,
   workArtifactHref
 } from './work-product-save.js';
+
+test('dossierFromMessages extracts the ask (first user turn) and tool-activity receipts', () => {
+  const messages = [
+    { role: 'user', content: 'Draft the Q3 board memo.' },
+    {
+      role: 'tool_activity',
+      toolName: 'read_file',
+      toolStatus: 'done',
+      toolResultPreview: 'Read board-notes.md (4 KB)'
+    },
+    { role: 'assistant', content: 'Here is the memo...' },
+    { role: 'user', content: 'tighten it' }
+  ];
+  const { ask, receipts } = dossierFromMessages(messages);
+  assert.equal(ask, 'Draft the Q3 board memo.');
+  assert.deepEqual(receipts, [
+    { label: 'read_file', status: 'done', detail: 'Read board-notes.md (4 KB)' }
+  ]);
+});
+
+test('dossierFromMessages is empty when there is no user turn or no tools', () => {
+  assert.deepEqual(dossierFromMessages([{ role: 'assistant', content: 'hi' }]), {
+    ask: '',
+    receipts: []
+  });
+  assert.deepEqual(dossierFromMessages([]), { ask: '', receipts: [] });
+  assert.deepEqual(dossierFromMessages(null), { ask: '', receipts: [] });
+});
+
+test('saveAssistantResponseToWork populates the dossier ask + receipts from messages', () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => (values.has(key) ? values.get(key) : null),
+    setItem: (key, value) => values.set(key, String(value))
+  };
+  const saved = saveAssistantResponseToWork({
+    title: 'Summary',
+    content: 'The contract says...',
+    messages: [
+      { role: 'user', content: 'Summarize the contract.' },
+      { role: 'tool_activity', toolName: 'extract', toolStatus: 'done' }
+    ],
+    threadId: 't1',
+    storage,
+    now: '2026-06-15T00:00:00.000Z',
+    idFactory: (prefix) => `${prefix}-x`
+  });
+  assert.equal(saved.item.dossier[0].kind, 'ask');
+  assert.equal(saved.item.dossier[0].text, 'Summarize the contract.');
+  assert.equal(saved.item.receipts[0].label, 'extract');
+});
 
 function memoryStorage(seed = {}) {
   const values = new Map(Object.entries(seed));
@@ -136,7 +188,10 @@ test('saveGeneratedFileArtifactToWork persists generated file bytes as a reloada
   assert.equal(saved.artifact.type, 'file');
   assert.equal(saved.artifact.filename, 'services-agreement.docx');
   assert.equal(saved.artifact.content_format, 'base64');
-  assert.equal(saved.artifact.data_base64, Buffer.from('PK docx payload', 'utf8').toString('base64'));
+  assert.equal(
+    saved.artifact.data_base64,
+    Buffer.from('PK docx payload', 'utf8').toString('base64')
+  );
 
   const workItems = JSON.parse(storage.getItem('ironclaw-work-items'));
   assert.equal(workItems[0].objective, 'DOCX generated in chat.');
@@ -157,9 +212,12 @@ test('currentThreadId reads static chat paths and query links', () => {
 test('openSavedWorkProduct navigates to the saved artifact URL', () => {
   const calls = [];
   assert.equal(
-    openSavedWorkProduct({ href: workArtifactHref('work/with spaces', 'artifact#1') }, {
-      assign: (href) => calls.push(href)
-    }),
+    openSavedWorkProduct(
+      { href: workArtifactHref('work/with spaces', 'artifact#1') },
+      {
+        assign: (href) => calls.push(href)
+      }
+    ),
     true
   );
   assert.deepEqual(calls, ['/work?item=work%2Fwith+spaces&artifact=artifact%231']);
@@ -169,7 +227,10 @@ test('workArtifactHref preserves the hosted /v2 static app prefix', () => {
   const previousWindow = globalThis.window;
   globalThis.window = { location: { pathname: '/v2/chat/thread-1' } };
   try {
-    assert.equal(workArtifactHref('work-1', 'artifact-2'), '/v2/work?item=work-1&artifact=artifact-2');
+    assert.equal(
+      workArtifactHref('work-1', 'artifact-2'),
+      '/v2/work?item=work-1&artifact=artifact-2'
+    );
   } finally {
     globalThis.window = previousWindow;
   }

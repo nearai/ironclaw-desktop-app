@@ -753,7 +753,7 @@ function AssistantExportActions({
     <span ref=${rootRef} className="contents">
       <button
         type="button"
-        onClick=${() => saveToWork(title, content)}
+        onClick=${() => saveToWork(title, content, messages)}
         className=${actionClass('primary')}
         aria-label=${`Save ${subject} to Work`}
       >
@@ -837,9 +837,9 @@ function actionClass(tone = 'default') {
   ].join(' ');
 }
 
-function saveToWork(title, content) {
+function saveToWork(title, content, messages = []) {
   try {
-    const saved = saveAssistantResponseToWork({ title, content });
+    const saved = saveAssistantResponseToWork({ title, content, messages });
     if (!saved) {
       toast('Nothing to save', { tone: 'error' });
       return;
