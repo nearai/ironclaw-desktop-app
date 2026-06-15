@@ -19,7 +19,7 @@ export function buildFrontDoorData({
   limit = 3
 } = {}) {
   const normalizedThreads = normalizeThreads(threads);
-  const needsYou = normalizedThreads
+  const needsYouAll = normalizedThreads
     .map((thread) => {
       const state = stateForThread(thread, threadStates);
       const presentation = NEEDS_PRESENTATION[state];
@@ -37,8 +37,12 @@ export function buildFrontDoorData({
       };
     })
     .filter(Boolean)
-    .sort(compareByTimestampDesc)
-    .slice(0, limit);
+    .sort(compareByTimestampDesc);
+  // Show the top N rows but report the TRUE pending count — under-reporting how
+  // many decisions are waiting on a "Needs you" surface would understate the
+  // user's real queue. needsYouTotal lets the renderer show "+N more".
+  const needsYou = needsYouAll.slice(0, limit);
+  const needsYouTotal = needsYouAll.length;
 
   const handled = [
     ...completedAutomationReceipts(automations, now),
@@ -47,7 +51,7 @@ export function buildFrontDoorData({
     .sort(compareByTimestampDesc)
     .slice(0, limit);
 
-  return { needsYou, handled };
+  return { needsYou, needsYouTotal, handled };
 }
 
 function normalizeThreads(threads) {

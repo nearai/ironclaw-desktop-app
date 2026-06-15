@@ -48,6 +48,25 @@ test('buildFrontDoorData ranks backed needs-you threads before ordinary recent w
     ['Draft launch memo']
   );
   assert.equal(data.handled[0].badge, 'Recent work');
+  // With ≤ limit needs-you items, the true total equals the rendered count.
+  assert.equal(data.needsYouTotal, 2);
+});
+
+test('buildFrontDoorData reports the true needs-you total even when rows are truncated', () => {
+  const threadStates = new Map();
+  const threads = [];
+  for (let i = 0; i < 5; i += 1) {
+    threadStates.set(`gate-${i}`, THREAD_STATE.NEEDS_ATTENTION);
+    threads.push({
+      id: `gate-${i}`,
+      title: `Pending ${i}`,
+      updated_at: `2026-06-13T1${i}:00:00.000Z`
+    });
+  }
+  const data = buildFrontDoorData({ now, threadStates, threads, automations: [], limit: 3 });
+  // Only the top 3 rows render, but the badge must report all 5 waiting.
+  assert.equal(data.needsYou.length, 3);
+  assert.equal(data.needsYouTotal, 5);
 });
 
 test('buildFrontDoorData surfaces completed automation receipts without faking failed ones', () => {

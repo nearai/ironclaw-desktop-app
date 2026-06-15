@@ -66,7 +66,13 @@ export function EmptyState({
     queryFn: fetchLlmProviders,
     staleTime: 60_000
   });
-  const rawThreads = threads.length > 0 ? threads : threadsQuery.data?.threads || [];
+  // The cached ['threads'] query is an infinite query (paged); flatten its pages.
+  // Tolerate the legacy { threads } shape too so this never silently empties.
+  const cachedThreads =
+    threadsQuery.data?.pages?.flatMap((page) => page?.threads || []) ||
+    threadsQuery.data?.threads ||
+    [];
+  const rawThreads = threads.length > 0 ? threads : cachedThreads;
   const automationsQuery = useQuery({
     queryKey: ['automations'],
     queryFn: () => listAutomations({ limit: 10 }),
@@ -274,7 +280,11 @@ export function EmptyState({
             </div>
           `}
 
-          <${FrontDoorPanel} needsYou=${frontDoor.needsYou} handled=${frontDoor.handled} />
+          <${FrontDoorPanel}
+            needsYou=${frontDoor.needsYou}
+            needsYouTotal=${frontDoor.needsYouTotal}
+            handled=${frontDoor.handled}
+          />
 
           <div className="mt-4 grid gap-2">
             ${suggestions.map(
@@ -319,7 +329,7 @@ export function EmptyState({
   `;
 }
 
-function FrontDoorPanel({ needsYou, handled }) {
+function FrontDoorPanel({ needsYou, needsYouTotal, handled }) {
   return html`
     <div
       className="mt-4 grid gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
@@ -331,6 +341,7 @@ function FrontDoorPanel({ needsYou, handled }) {
         emptyDetail="Approvals and auth gates appear here when they are backed by a thread."
         tone="warning"
         items=${needsYou}
+        count=${needsYouTotal}
       />
       <${FrontDoorSection}
         title="Handled"
@@ -343,11 +354,14 @@ function FrontDoorPanel({ needsYou, handled }) {
   `;
 }
 
-function FrontDoorSection({ title, emptyTitle, emptyDetail, tone, items }) {
+function FrontDoorSection({ title, emptyTitle, emptyDetail, tone, items, count }) {
+  // The badge reports the TRUE total (count) when provided, even though only the
+  // top rows render — never under-report how many items actually need the user.
+  const total = typeof count === 'number' ? count : items.length;
   // Color is attribution, not decoration: gold/warning only earns its place when
   // there are real items to point at. An empty count stays muted so a quiet desk
   // never glows with a meaningless "0".
-  const populated = items.length > 0;
+  const populated = total > 0;
   const toneClass =
     tone === 'gold'
       ? 'bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]'
@@ -362,47 +376,58 @@ function FrontDoorSection({ title, emptyTitle, emptyDetail, tone, items }) {
           ${title}
         </div>
         <span className=${`rounded-[6px] px-2 py-0.5 text-[11px] font-semibold ${countToneClass}`}>
-          ${items.length}
+          ${total}
         </span>
       </div>
       <div className="grid gap-2">
-        ${items.length > 0
-          ? items.map(
-              (item) => html`
-                <${Link}
-                  key=${item.id}
-                  to=${item.href}
-                  className="grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 hover:border-[color-mix(in_srgb,var(--v2-accent)_42%,var(--v2-panel-border))]"
-                >
-                  <span className=${`grid h-8 w-8 place-items-center rounded-[8px] ${toneClass}`}>
-                    <${Icon} name=${item.icon} className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="flex min-w-0 items-center gap-2">
-                      <span className="truncate text-sm font-semibold text-[var(--v2-text-strong)]">
-                        ${item.title}
+        ${populated
+          ? html`
+              ${items.map(
+                (item) => html`
+                  <${Link}
+                    key=${item.id}
+                    to=${item.href}
+                    className="grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 hover:border-[color-mix(in_srgb,var(--v2-accent)_42%,var(--v2-panel-border))]"
+                  >
+                    <span className=${`grid h-8 w-8 place-items-center rounded-[8px] ${toneClass}`}>
+                      <${Icon} name=${item.icon} className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span
+                          className="truncate text-sm font-semibold text-[var(--v2-text-strong)]"
+                        >
+                          ${item.title}
+                        </span>
+                        <span
+                          className="shrink-0 rounded-[4px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em] text-[var(--v2-text-faint)]"
+                        >
+                          ${item.badge}
+                        </span>
                       </span>
                       <span
-                        className="shrink-0 rounded-[4px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em] text-[var(--v2-text-faint)]"
+                        className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-[var(--v2-text-muted)]"
+                        title=${item.age ? `${item.age} · ${item.detail}` : item.detail}
                       >
-                        ${item.badge}
+                        ${item.age
+                          ? html`<span className="text-[var(--v2-text-faint)]"
+                              >${item.age} ·
+                            </span>`
+                          : ''}${item.detail}
                       </span>
                     </span>
-                    <span
-                      className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-[var(--v2-text-muted)]"
-                      title=${item.age ? `${item.age} · ${item.detail}` : item.detail}
+                    <span className="self-start text-xs font-semibold text-[var(--v2-accent-text)]"
+                      >Open</span
                     >
-                      ${item.age
-                        ? html`<span className="text-[var(--v2-text-faint)]">${item.age} · </span>`
-                        : ''}${item.detail}
-                    </span>
-                  </span>
-                  <span className="self-start text-xs font-semibold text-[var(--v2-accent-text)]"
-                    >Open</span
-                  >
-                <//>
-              `
-            )
+                  <//>
+                `
+              )}
+              ${total > items.length
+                ? html`<div className="px-3 py-1.5 text-[11px] text-[var(--v2-text-faint)]">
+                    +${total - items.length} more in your threads
+                  </div>`
+                : ''}
+            `
           : html`
               <div
                 className="rounded-[8px] border border-dashed border-[var(--v2-panel-border)] px-3 py-2"
