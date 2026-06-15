@@ -20,6 +20,7 @@ import {
 } from '../chat/lib/generated-file-artifacts.js';
 import { saveBlob } from '../../lib/save-file.js';
 import { workItemSearchMatch } from './lib/work-search.js';
+import { buildWorkLedger } from './lib/work-ledger.js';
 
 function safeList(value) {
   return Array.isArray(value) ? value : [];
@@ -237,6 +238,65 @@ function SavedFileArtifactPreview({ artifact }) {
 
 const WORK_LIST_VISIBLE_LIMIT = 30;
 
+// Trust Ledger: a cross-matter, reverse-chron stream of saved-work events and the
+// agent receipts behind them. Honest by construction — device-local, saved-work
+// scope, stated plainly. Each row links to its matter.
+function WorkActivityLedger({ items }) {
+  const ledger = buildWorkLedger(items);
+  return html`
+    <div className="space-y-3" data-testid="work-activity-ledger">
+      <p
+        className="rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
+      >
+        A device-local record of work you have saved and the actions behind it. A full server-side
+        audit log is not available on this gateway yet.
+      </p>
+      ${ledger.length === 0
+        ? html`<p className="px-1 py-2 text-sm text-[var(--v2-text-muted)]">
+            No activity recorded yet.
+          </p>`
+        : html`<ol className="grid gap-1.5">
+            ${ledger.map(
+              (entry) => html`
+                <li key=${entry.id}>
+                  <${Link}
+                    to=${workArtifactHref(entry.matterId, entry.artifactId)}
+                    className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[8px] border border-transparent px-2 py-2 hover:border-[var(--v2-panel-border)] hover:bg-[var(--v2-surface-soft)]"
+                  >
+                    <span
+                      className=${`grid h-7 w-7 shrink-0 place-items-center rounded-[7px] ${
+                        entry.kind === 'saved'
+                          ? 'border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-faint)]'
+                          : 'border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]'
+                      }`}
+                    >
+                      <${Icon}
+                        name=${entry.kind === 'saved' ? 'file' : 'bolt'}
+                        className="h-3.5 w-3.5"
+                      />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm text-[var(--v2-text-strong)]">
+                        ${entry.kind === 'saved' ? `Saved ${entry.label}` : entry.label}
+                      </span>
+                      <span className="block truncate text-xs text-[var(--v2-text-faint)]">
+                        ${entry.kind === 'saved'
+                          ? 'Work product'
+                          : `in ${entry.matter}`}${entry.status ? ` · ${entry.status}` : ''}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs text-[var(--v2-text-faint)]">
+                      ${readableDate(entry.timestamp)}
+                    </span>
+                  <//>
+                </li>
+              `
+            )}
+          </ol>`}
+    </div>
+  `;
+}
+
 export function WorkPage() {
   const [params] = useSearchParams();
   const [items, setItems] = React.useState(() => readSavedWorkItems());
@@ -244,6 +304,8 @@ export function WorkPage() {
   // sidebar list hard-capped at 30 and everything older was unreachable.
   const [workFilter, setWorkFilter] = React.useState('');
   const [showAllWork, setShowAllWork] = React.useState(false);
+  // 'saved' = per-matter reader; 'activity' = the cross-matter Trust Ledger.
+  const [view, setView] = React.useState('saved');
 
   React.useEffect(() => {
     setItems(readSavedWorkItems());
@@ -437,75 +499,105 @@ export function WorkPage() {
             </div>
 
             <div className="space-y-5 px-5 py-5">
-              <${WorkExportActions} item=${selectedItem} artifact=${selectedArtifact} />
-              ${askEntry?.text &&
-              html`<section
-                className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
-                data-testid="dossier-ask"
-              >
-                <div
-                  className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-                >
-                  The ask
-                </div>
-                <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-[var(--v2-text)]">
-                  ${askEntry.text}
-                </p>
-              </section>`}
-              ${receipts.length > 0 &&
-              html`<section
-                className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
-                data-testid="dossier-receipts"
-              >
-                <div
-                  className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-                >
-                  What IronClaw did
-                </div>
-                <ul className="mt-2 grid gap-1.5">
-                  ${receipts.map(
-                    (receipt, index) => html`
-                      <li
-                        key=${index}
-                        className="grid grid-cols-[auto_1fr] items-baseline gap-2 text-sm"
-                      >
-                        <span
-                          className="grid h-6 w-6 place-items-center rounded-[6px] border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
-                        >
-                          <${Icon} name="bolt" className="h-3.5 w-3.5" />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="font-medium text-[var(--v2-text-strong)]"
-                            >${receipt.label}</span
-                          >${receipt.status
-                            ? html`<span className="ml-2 text-xs text-[var(--v2-text-faint)]"
-                                >${receipt.status}</span
-                              >`
-                            : ''}
-                          ${receipt.detail
-                            ? html`<span
-                                className="mt-0.5 block truncate text-xs text-[var(--v2-text-muted)]"
-                                title=${receipt.detail}
-                                >${receipt.detail}</span
-                              >`
-                            : ''}
-                        </span>
-                      </li>
-                    `
-                  )}
-                </ul>
-              </section>`}
               <div
-                className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas)] p-4 sm:p-6"
-                data-testid="saved-work-artifact"
+                role="tablist"
+                aria-label="Work view"
+                className="inline-flex rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-0.5"
               >
-                ${content
-                  ? html`<${MarkdownRenderer}
-                      content=${content}
-                      className="max-w-none text-[14px] leading-7 text-[var(--v2-text)]"
-                    />`
-                  : html`<${SavedFileArtifactPreview} artifact=${selectedArtifact} />`}
+                ${['saved', 'activity'].map(
+                  (mode) =>
+                    html`<button
+                      key=${mode}
+                      type="button"
+                      role="tab"
+                      aria-selected=${view === mode}
+                      onClick=${() => setView(mode)}
+                      className=${[
+                        'min-h-[44px] rounded-[8px] px-3 text-sm font-medium',
+                        view === mode
+                          ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
+                          : 'text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]'
+                      ].join(' ')}
+                    >
+                      ${mode === 'saved' ? 'Saved' : 'Activity'}
+                    </button>`
+                )}
               </div>
+              ${view === 'activity'
+                ? html`<${WorkActivityLedger} items=${items} />`
+                : html`
+                    <${WorkExportActions} item=${selectedItem} artifact=${selectedArtifact} />
+                    ${askEntry?.text &&
+                    html`<section
+                      className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
+                      data-testid="dossier-ask"
+                    >
+                      <div
+                        className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+                      >
+                        The ask
+                      </div>
+                      <p
+                        className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-[var(--v2-text)]"
+                      >
+                        ${askEntry.text}
+                      </p>
+                    </section>`}
+                    ${receipts.length > 0 &&
+                    html`<section
+                      className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
+                      data-testid="dossier-receipts"
+                    >
+                      <div
+                        className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+                      >
+                        What IronClaw did
+                      </div>
+                      <ul className="mt-2 grid gap-1.5">
+                        ${receipts.map(
+                          (receipt, index) => html`
+                            <li
+                              key=${index}
+                              className="grid grid-cols-[auto_1fr] items-baseline gap-2 text-sm"
+                            >
+                              <span
+                                className="grid h-6 w-6 place-items-center rounded-[6px] border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+                              >
+                                <${Icon} name="bolt" className="h-3.5 w-3.5" />
+                              </span>
+                              <span className="min-w-0">
+                                <span className="font-medium text-[var(--v2-text-strong)]"
+                                  >${receipt.label}</span
+                                >${receipt.status
+                                  ? html`<span className="ml-2 text-xs text-[var(--v2-text-faint)]"
+                                      >${receipt.status}</span
+                                    >`
+                                  : ''}
+                                ${receipt.detail
+                                  ? html`<span
+                                      className="mt-0.5 block truncate text-xs text-[var(--v2-text-muted)]"
+                                      title=${receipt.detail}
+                                      >${receipt.detail}</span
+                                    >`
+                                  : ''}
+                              </span>
+                            </li>
+                          `
+                        )}
+                      </ul>
+                    </section>`}
+                    <div
+                      className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas)] p-4 sm:p-6"
+                      data-testid="saved-work-artifact"
+                    >
+                      ${content
+                        ? html`<${MarkdownRenderer}
+                            content=${content}
+                            className="max-w-none text-[14px] leading-7 text-[var(--v2-text)]"
+                          />`
+                        : html`<${SavedFileArtifactPreview} artifact=${selectedArtifact} />`}
+                    </div>
+                  `}
             </div>
           </article>
         </div>
