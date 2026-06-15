@@ -57,11 +57,20 @@ export function useThreadFind({ messages, containerRef, hasMore, onLoadMore }) {
     return undefined;
   }, [open, activeMatchId, containerRef]);
 
-  const openFind = React.useCallback(() => setOpen(true), []);
+  // Remember what had focus when find opened so closing restores it instead of
+  // dropping focus to <body>.
+  const restoreFocusRef = React.useRef(null);
+  const openFind = React.useCallback(() => {
+    restoreFocusRef.current = typeof document !== 'undefined' ? document.activeElement : null;
+    setOpen(true);
+  }, []);
   const close = React.useCallback(() => {
     setOpen(false);
     setQuery('');
     setIndex(0);
+    const toRestore = restoreFocusRef.current;
+    restoreFocusRef.current = null;
+    if (toRestore && typeof toRestore.focus === 'function') toRestore.focus();
   }, []);
   const next = React.useCallback(() => {
     setIndex((i) => (matchIds.length ? (i + 1) % matchIds.length : 0));
@@ -77,8 +86,16 @@ export function useThreadFind({ messages, containerRef, hasMore, onLoadMore }) {
     const onKeyDown = (event) => {
       const key = String(event.key || '').toLowerCase();
       if ((event.metaKey || event.ctrlKey) && key === 'f') {
+        // Don't hijack the find chord while the user is typing in another
+        // editable field (e.g. the composer); only intercept when focus is on
+        // the transcript/chrome, so an active edit is never stolen. Once the
+        // bar is open, let the chord through (its own input is editable).
+        const el = typeof document !== 'undefined' ? document.activeElement : null;
+        const tag = el && el.tagName ? el.tagName.toLowerCase() : '';
+        const inEditable = tag === 'input' || tag === 'textarea' || (el && el.isContentEditable);
+        if (inEditable && !open) return;
         event.preventDefault();
-        setOpen(true);
+        openFind();
       } else if (key === 'escape' && open) {
         event.preventDefault();
         close();
@@ -86,7 +103,7 @@ export function useThreadFind({ messages, containerRef, hasMore, onLoadMore }) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [open, close]);
+  }, [open, close, openFind]);
 
   return {
     open,

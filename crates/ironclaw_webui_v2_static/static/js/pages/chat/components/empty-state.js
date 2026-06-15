@@ -376,6 +376,7 @@ function FrontDoorPanel({ sinceAway = [], sinceAwayTotal = 0, needsYou, needsYou
         tone="gold"
         items=${sinceAway}
         count=${sinceAwayTotal}
+        moreLabel="more on Scheduled"
       />`}
       <${FrontDoorSection}
         title="Needs you"
@@ -396,7 +397,15 @@ function FrontDoorPanel({ sinceAway = [], sinceAwayTotal = 0, needsYou, needsYou
   `;
 }
 
-function FrontDoorSection({ title, emptyTitle, emptyDetail, tone, items, count }) {
+function FrontDoorSection({
+  title,
+  emptyTitle,
+  emptyDetail,
+  tone,
+  items,
+  count,
+  moreLabel = 'more in your threads'
+}) {
   // The badge reports the TRUE total (count) when provided, even though only the
   // top rows render — never under-report how many items actually need the user.
   const total = typeof count === 'number' ? count : items.length;
@@ -466,7 +475,7 @@ function FrontDoorSection({ title, emptyTitle, emptyDetail, tone, items, count }
               )}
               ${total > items.length
                 ? html`<div className="px-3 py-1.5 text-[11px] text-[var(--v2-text-faint)]">
-                    +${total - items.length} more in your threads
+                    +${total - items.length} ${moreLabel}
                   </div>`
                 : ''}
             `

@@ -52,7 +52,7 @@ export function ThreadFindBar({
         onInput=${(event) => onQueryChange(event.currentTarget.value)}
         onKeyDown=${onKeyDown}
         placeholder=${t('chat.find.placeholder')}
-        className="min-h-[36px] min-w-0 flex-1 bg-transparent px-1 text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)]"
+        className="min-h-[44px] min-w-0 flex-1 bg-transparent px-1 text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)]"
       />
       <span
         className="shrink-0 font-mono text-[11px] tabular-nums text-[var(--v2-text-faint)]"
@@ -82,7 +82,7 @@ export function ThreadFindBar({
       html`<button
         type="button"
         onClick=${onSearchEarlier}
-        className="shrink-0 rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--v2-accent-text)] hover:bg-[var(--v2-surface-muted)]"
+        className="inline-flex min-h-[44px] shrink-0 items-center rounded-[8px] px-2 py-1 text-[11px] font-medium text-[var(--v2-accent-text)] hover:bg-[var(--v2-surface-muted)]"
       >
         ${t('chat.find.earlier')}
       </button>`}

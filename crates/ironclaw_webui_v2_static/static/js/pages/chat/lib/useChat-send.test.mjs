@@ -4,6 +4,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 import { messagesFromTimeline, buildDurableAttachmentBlock } from './history-messages.js';
+import { flattenCachedThreads } from './thread-cache.js';
 import {
   looksLikeChannelConnectCommand,
   resolveChannelConnectCommand,
@@ -77,6 +78,7 @@ test('useChat.send: accepted ref reconciles pending message on timeline reload',
     loadPending,
     pendingMessageId,
     buildDurableAttachmentBlock,
+    flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
     createThreadRequest: async () => {
@@ -219,6 +221,7 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
     loadPending,
     pendingMessageId,
     buildDurableAttachmentBlock,
+    flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
     createThreadRequest: async () => {
@@ -355,6 +358,7 @@ test('useChat.cancelRun clears local state before cancel request resolves', asyn
     loadPending,
     pendingMessageId,
     buildDurableAttachmentBlock,
+    flattenCachedThreads,
     cancelRunRequest: async (request) => {
       cancelRequest = request;
       return new Promise((resolve) => {
@@ -439,6 +443,7 @@ test('useChat.cancelRun completion does not clear a newer run', async () => {
     loadPending,
     pendingMessageId,
     buildDurableAttachmentBlock,
+    flattenCachedThreads,
     cancelRunRequest: async () =>
       new Promise((resolve) => {
         resolveCancelRequest = resolve;
@@ -521,6 +526,7 @@ test('useChat.send: channel connect requests return an action without submitting
     loadPending,
     pendingMessageId,
     buildDurableAttachmentBlock,
+    flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
     createThreadRequest: async () => {
@@ -599,6 +605,7 @@ test('useChat.send: extension connect requests show setup action without submitt
     loadPending,
     pendingMessageId,
     buildDurableAttachmentBlock,
+    flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
     createThreadRequest: async () => {
@@ -669,6 +676,7 @@ test('useChat.send: unmatched channel connect requests submit the prompt', async
     loadPending,
     pendingMessageId,
     buildDurableAttachmentBlock,
+    flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
     createThreadRequest: async () => {
@@ -753,6 +761,7 @@ test('useChat.send: connectable channel fetch failures fall back to extension se
     loadPending,
     pendingMessageId,
     buildDurableAttachmentBlock,
+    flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
     console: {
@@ -810,6 +819,9 @@ test('useChat.send: connectable channel fetch failures fall back to extension se
   assert.equal(sentContent, null);
   assert.equal(response.channel_connect_action.channel, 'slack');
   assert.equal(response.channel_connect_action.strategy, 'extension_setup_link');
-  assert.equal(response.channel_connect_action.action.href, '/extensions/registry?setup=1&focus=slack');
+  assert.equal(
+    response.channel_connect_action.action.href,
+    '/extensions/registry?setup=1&focus=slack'
+  );
   assert.equal(loggedErrors[0][0], 'Failed to resolve connectable channels:');
 });

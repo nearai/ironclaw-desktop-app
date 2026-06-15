@@ -385,6 +385,7 @@ export function WorkPage() {
               </span>
               <input
                 type="text"
+                aria-label="Search saved work"
                 value=${workFilter}
                 onInput=${(event) => {
                   setWorkFilter(event.currentTarget.value);

@@ -244,13 +244,23 @@ export function SidebarThreads({
         <div className="mt-1 flex flex-col gap-2 overflow-y-auto [scrollbar-width:thin]">
           ${threads.length === 0 &&
           (isLoading
-            ? html`<div className="flex flex-col gap-1.5 px-1 py-2" aria-hidden="true">
+            ? html`<div
+                role="status"
+                aria-live="polite"
+                className="flex flex-col gap-1.5 px-1 py-2"
+              >
+                <span className="sr-only">Loading conversations…</span>
                 ${[1, 2, 3, 4].map(
-                  (i) => html`<div key=${i} className="v2-skeleton h-8 w-full rounded-[8px]" />`
+                  (i) =>
+                    html`<div
+                      key=${i}
+                      aria-hidden="true"
+                      className="v2-skeleton h-8 w-full rounded-[8px]"
+                    />`
                 )}
               </div>`
             : isError
-              ? html`<div className="px-3 py-2">
+              ? html`<div role="alert" className="px-3 py-2">
                   <p className="text-[12px] text-[var(--v2-danger-text)]">
                     Could not load conversations.
                   </p>
@@ -270,6 +280,8 @@ export function SidebarThreads({
           totalMatches === 0 &&
           (hasMore || isLoadingMore
             ? html`<div
+                role="status"
+                aria-live="polite"
                 className="flex items-center gap-2 px-3 py-2 text-[12px] text-[var(--v2-text-faint)]"
               >
                 <${Icon} name="search" className="h-3.5 w-3.5" /> Searching older conversations…

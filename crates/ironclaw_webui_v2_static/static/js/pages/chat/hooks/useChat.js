@@ -19,6 +19,7 @@ import { React } from '../../../lib/html.js';
 import { useChatEvents } from '../lib/useChatEvents.js';
 import { buildDurableAttachmentBlock, runReplyLandedInTimeline } from '../lib/history-messages.js';
 import { upsertRunFailureMessage } from '../lib/message-upsert.js';
+import { flattenCachedThreads } from '../lib/thread-cache.js';
 import {
   addPending,
   loadPending,
@@ -56,9 +57,8 @@ function credentialStoredGateResolutionError(cause) {
 }
 
 function threadNeedsSidebarRefresh(threadId) {
-  const cached = queryClient.getQueryData?.(['threads']);
-  const threads = cached?.threads;
-  if (!Array.isArray(threads)) return true;
+  const threads = flattenCachedThreads(queryClient.getQueryData?.(['threads']));
+  if (threads.length === 0) return true;
   const thread = threads.find((item) => item.thread_id === threadId || item.id === threadId);
   return !thread?.title;
 }
