@@ -2,18 +2,18 @@
 // Rendered live-chat proof: drives the REAL static UI (Playwright-rendered DOM)
 // against a REAL Reborn sidecar booted exactly like the desktop's first run
 // (NEAR.AI default backend, no credential), then proves:
-//   1. First-run gate: /welcome onboarding renders because /llm/providers has
-//      no active provider — no fake-ready chat.
+//   1. First-run gate: /chat renders a NEAR AI Cloud setup gate because
+//      /llm/providers has no active provider — no fake-ready send.
 //   2. NEAR.AI sign-in surfaces a real auth_url from
 //      /api/webchat/v2/llm/nearai/login.
-//   3. A provider configured through the real Settings routes
-//      (upsert + set-active) flips the providers snapshot, and a chat prompt
-//      then produces a REAL assistant reply rendered in the thread.
+//   3. When an explicit NEAR credential is present, the real Settings route
+//      configures NEAR AI Cloud and a chat prompt produces a REAL assistant
+//      reply rendered in the thread.
 //   4. The user turn stays visible across a full page reload.
 //
-// Requires OPENROUTER_API_KEY in the environment for step 3 (never written to
-// disk; screenshots are taken only outside the key-entry dialog). Skips the
-// live-model leg with exit 2 when the key is absent.
+// Requires NEARAI_SESSION_TOKEN or NEARAI_API_KEY in the environment for step 3
+// (never written to disk; screenshots are taken only outside key-entry UI).
+// Skips the live-model leg with exit 2 when the credential is absent.
 //
 // Artifacts: output/rendered-live-proof/<timestamp>/
 import { chromium } from '@playwright/test';
@@ -30,11 +30,11 @@ const bundledSidecar = path.join(
   'src-tauri/target/release/bundle/macos/IronClaw.app/Contents/MacOS/ironclaw-reborn',
 );
 const uiPort = Number(process.env.RENDERED_LIVE_PROOF_UI_PORT || '17640');
-const model = process.env.RENDERED_LIVE_PROOF_MODEL || 'deepseek/deepseek-v4-pro';
+const model = process.env.RENDERED_LIVE_PROOF_MODEL || 'auto';
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const artifactDir = path.join(repoRoot, 'output/rendered-live-proof', timestamp);
 
-const openrouterKey = process.env.OPENROUTER_API_KEY || '';
+const nearaiCredential = process.env.NEARAI_SESSION_TOKEN || process.env.NEARAI_API_KEY || '';
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -234,55 +234,78 @@ async function main() {
     // ---- Step 1: honest first-run gate ----
     await page.goto(`http://127.0.0.1:${uiPort}/v2/index.html`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2500);
-    const welcomeVisible = await page
-      .getByText(/Welcome to IronClaw/i)
-      .first()
-      .isVisible()
-      .catch(() => false);
-    await page.screenshot({ path: path.join(artifactDir, '01-first-run-onboarding.png'), fullPage: false });
-    step('first-run renders onboarding (no active provider)', welcomeVisible, {
-      url: page.url()
+    const firstRunText = await page.locator('body').innerText().catch(() => '');
+    const setupGateVisible =
+      firstRunText.includes('Connect NEAR AI Cloud before sending your first message') &&
+      firstRunText.includes('Open setup');
+    await page.screenshot({ path: path.join(artifactDir, '01-first-run-chat-setup-gate.png'), fullPage: false });
+    step('first-run renders chat setup gate (no active provider)', setupGateVisible, {
+      url: page.url(),
+      hasSendBlock: firstRunText.includes('Connect NEAR AI Cloud before sending your first message'),
+      hasSetupAction: firstRunText.includes('Open setup')
     });
 
     // ---- Step 2: NEAR.AI login surfaces a real auth_url ----
     const loginProbe = await nodeFetchSidecar('/api/webchat/v2/llm/nearai/login', {
       method: 'POST',
-      body: JSON.stringify({ provider: 'github' }),
+      body: JSON.stringify({ provider: 'github', origin: sidecarOrigin }),
     });
     const loginBody = await loginProbe.json().catch(() => ({}));
-    proof.nearai_login = { status: loginProbe.status, has_auth_url: Boolean(loginBody?.auth_url) };
+    proof.nearai_login = {
+      status: loginProbe.status,
+      has_auth_url: Boolean(loginBody?.auth_url),
+      error: typeof loginBody?.error === 'string' ? loginBody.error.slice(0, 300) : null,
+      message: typeof loginBody?.message === 'string' ? loginBody.message.slice(0, 300) : null,
+    };
     step('NEAR.AI login route returns auth_url', Boolean(loginBody?.auth_url), {
       status: loginProbe.status,
       auth_url_host: loginBody?.auth_url ? new URL(loginBody.auth_url).host : null,
     });
 
-    const githubButton = page.getByRole('button', { name: 'GitHub' }).first();
-    const githubVisible = await githubButton.isVisible().catch(() => false);
-    step('NEAR.AI GitHub sign-in rendered in onboarding', githubVisible, {});
+    await page.getByText('Open setup').first().click();
+    await page.waitForTimeout(1500);
+    const settingsText = await page.locator('body').innerText().catch(() => '');
+    await page.screenshot({ path: path.join(artifactDir, '02-settings-inference-signin.png'), fullPage: false });
+    step('NEAR.AI GitHub sign-in rendered in setup', settingsText.includes('NEAR AI Cloud') && settingsText.includes('GitHub'), {
+      url: page.url(),
+      hasNearAi: settingsText.includes('NEAR AI Cloud'),
+      hasGithub: settingsText.includes('GitHub'),
+    });
 
-    if (!openrouterKey) {
-      proof.live_model_leg = 'skipped: OPENROUTER_API_KEY not set';
+    if (!nearaiCredential) {
+      proof.live_model_leg = 'skipped: NEARAI_SESSION_TOKEN/NEARAI_API_KEY not set';
       await writeFile(path.join(artifactDir, 'proof.json'), JSON.stringify(proof, null, 2));
       console.log(`artifacts: ${artifactDir}`);
       process.exitCode = 2;
       return;
     }
 
-    // ---- Step 3: configure a real provider through the real routes ----
+    // ---- Step 3: configure NEAR AI Cloud through the real routes ----
     const upsert = await nodeFetchSidecar('/api/webchat/v2/llm/providers', {
       method: 'POST',
       body: JSON.stringify({
-        id: 'openrouter',
-        name: 'OpenRouter',
-        adapter: 'openai_compatible',
-        base_url: 'https://openrouter.ai/api/v1',
+        id: 'nearai',
+        name: 'NEAR AI Cloud',
+        adapter: 'nearai',
+        base_url: '',
         default_model: model,
-        api_key: openrouterKey,
+        api_key: nearaiCredential,
         set_active: true,
         model,
       }),
     });
-    step('provider upsert + set-active accepted', upsert.ok, { status: upsert.status });
+    const upsertBody = await upsert.json().catch(() => ({}));
+    proof.nearai_provider_config = {
+      status: upsert.status,
+      ok: upsert.ok,
+      error: typeof upsertBody?.error === 'string' ? upsertBody.error.slice(0, 300) : null,
+      message: typeof upsertBody?.message === 'string' ? upsertBody.message.slice(0, 300) : null,
+    };
+    step('NEAR AI provider credential accepted', upsert.ok, {
+      status: upsert.status,
+      error: proof.nearai_provider_config.error,
+      message: proof.nearai_provider_config.message,
+    });
 
     const providers = await (await nodeFetchSidecar('/api/webchat/v2/llm/providers')).json();
     proof.active_provider = providers?.active || null;
@@ -292,12 +315,65 @@ async function main() {
     });
 
     // ---- Step 4: rendered chat send -> real assistant reply ----
-    await page.goto(`http://127.0.0.1:${uiPort}/v2/index.html#/chat`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`http://127.0.0.1:${uiPort}/v2/chat`, { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(2500);
-    await page.screenshot({ path: path.join(artifactDir, '02-chat-after-provider-active.png') });
+    await page.screenshot({ path: path.join(artifactDir, '03-chat-after-provider-active.png') });
 
     const composer = page.locator('textarea').first();
     const composerVisible = await composer.isVisible().catch(() => false);
     step('chat composer rendered once provider active', composerVisible, { url: page.url() });
 
-    const promptText = 'Reply with exactly: IR
+    const promptText = 'Reply with exactly: IRONCLAW_RENDERED_LIVE_CHAT_OK.';
+    await composer.fill(promptText);
+    await page.getByRole('button', { name: /send/i }).first().click();
+
+    let bodyText = '';
+    for (let i = 0; i < 80; i += 1) {
+      bodyText = await page.locator('body').innerText().catch(() => '');
+      if (bodyText.includes('IRONCLAW_RENDERED_LIVE_CHAT_OK')) break;
+      await delay(1000);
+    }
+    await page.screenshot({ path: path.join(artifactDir, '04-chat-after-send.png') });
+    step('user turn stays visible after send', bodyText.includes(promptText), {});
+    step('assistant reply rendered in thread', bodyText.includes('IRONCLAW_RENDERED_LIVE_CHAT_OK'), {});
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(2500);
+    const reloadedText = await page.locator('body').innerText().catch(() => '');
+    await page.screenshot({ path: path.join(artifactDir, '05-chat-after-reload.png') });
+    step('user turn survives reload', reloadedText.includes(promptText), {});
+
+    await writeFile(path.join(artifactDir, 'proof.json'), JSON.stringify(proof, null, 2));
+    console.log(`artifacts: ${artifactDir}`);
+  } catch (err) {
+    proof.error = err instanceof Error ? err.message : String(err);
+    proof.sidecar_log_tail = sidecarLog.join('').split('\n').slice(-30);
+    await writeFile(path.join(artifactDir, 'proof.json'), JSON.stringify(proof, null, 2)).catch(() => {});
+    console.error(`artifacts: ${artifactDir}`);
+    throw err;
+  } finally {
+    if (browser) await browser.close().catch(() => {});
+    if (ui.exitCode == null) {
+      ui.kill('SIGTERM');
+      await Promise.race([
+        new Promise((resolve) => ui.once('exit', resolve)),
+        delay(3000).then(() => ui.kill('SIGKILL')),
+      ]).catch(() => {});
+    }
+    if (sidecar.exitCode == null) {
+      sidecar.kill('SIGTERM');
+      await Promise.race([
+        new Promise((resolve) => sidecar.once('exit', resolve)),
+        delay(3000).then(() => sidecar.kill('SIGKILL')),
+      ]).catch(() => {});
+    }
+    if (process.env.KEEP_RENDERED_LIVE_PROOF_HOME !== '1') {
+      await rm(homeDir, { recursive: true, force: true }).catch(() => {});
+    }
+  }
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exitCode = process.exitCode || 1;
+});
