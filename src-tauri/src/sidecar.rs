@@ -194,10 +194,14 @@ pub async fn spawn(
             let api_key =
                 clean_secret(api_key.as_deref()).or_else(|| clean_secret(env_api_key.as_deref()));
             let auth_configured = session_token.is_some() || api_key.is_some();
+            // NEAR AI Cloud default model. We send a real slug, not "auto":
+            // the gateway passes NEARAI_MODEL through verbatim (no auto->default
+            // mapping on main), so "auto" 400s as a missing model. glm-5.2 is a
+            // verified-live cloud-api.near.ai slug; an explicit UI pick still wins.
             let selected = if auth_configured {
-                selected_model(model, "auto")
+                selected_model(model, "z-ai/glm-5.2")
             } else {
-                "auto".to_owned()
+                "z-ai/glm-5.2".to_owned()
             };
             envs.extend([
                 ("LLM_BACKEND".into(), "nearai".into()),
