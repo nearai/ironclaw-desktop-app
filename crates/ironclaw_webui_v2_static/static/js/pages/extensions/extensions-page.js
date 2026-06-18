@@ -1,18 +1,23 @@
-import { Navigate, useParams } from 'react-router';
+import { Navigate, useParams, useSearchParams } from 'react-router';
 import { React, html } from '../../lib/html.js';
 import { ActionToast } from './components/action-toast.js';
 import { ChannelsTab } from './components/channels-tab.js';
 import { ConfigureModal } from './components/configure-modal.js';
+import { InstalledTab } from './components/installed-tab.js';
 import { McpTab } from './components/mcp-tab.js';
 import { RegistryTab } from './components/registry-tab.js';
 import { useExtensions } from './hooks/useExtensions.js';
+import { resolveConnectorDeepLink } from './lib/connector-deep-link.js';
 
 export function ExtensionsPage() {
   const { tab = 'registry' } = useParams();
+  const [searchParams] = useSearchParams();
   const [configuring, setConfiguring] = React.useState(null);
+  const handledFocusRef = React.useRef(null);
 
   const {
     status,
+    extensions,
     channels,
     mcpServers,
     channelRegistry,
@@ -43,6 +48,22 @@ export function ExtensionsPage() {
     [activate]
   );
 
+  // Connector deep links (`?focus=<kind>/<id>&setup=1`) auto-open the setup
+  // modal so a "Configure Gmail" link lands straight on the credential form,
+  // on whichever tab the connector lives. Resolve once the catalog has loaded;
+  // the handled-ref guard keeps a closed modal from reopening while the query
+  // string is still on the URL.
+  const focusRef = searchParams.get('focus');
+  const wantsSetup = searchParams.get('setup') === '1';
+  React.useEffect(() => {
+    if (!focusRef || !wantsSetup || isLoading) return;
+    if (handledFocusRef.current === focusRef) return;
+    const connector = resolveConnectorDeepLink(focusRef, { extensions, catalogEntries });
+    if (!connector) return;
+    handledFocusRef.current = focusRef;
+    setConfiguring(connector);
+  }, [focusRef, wantsSetup, isLoading, extensions, catalogEntries]);
+
   if (isLoading) {
     return html`
       <div className="flex h-full flex-col overflow-y-auto">
@@ -68,11 +89,14 @@ export function ExtensionsPage() {
     `;
   }
 
-  if (tab === 'installed') {
-    return html`<${Navigate} to="/extensions/registry" replace />`;
-  }
-
   const tabContent = {
+    installed: html`<${InstalledTab}
+      extensions=${extensions}
+      onActivate=${activate}
+      onConfigure=${handleConfigure}
+      onRemove=${remove}
+      isBusy=${isBusy}
+    />`,
     channels: html`<${ChannelsTab}
       status=${status}
       channels=${channels}

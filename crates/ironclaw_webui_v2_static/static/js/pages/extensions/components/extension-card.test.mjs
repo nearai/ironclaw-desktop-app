@@ -142,6 +142,10 @@ function makeContext() {
       return null;
     }
 
+    if (state === "failed") {
+      return "configure";
+    }
+
     return "activate";
   }
 

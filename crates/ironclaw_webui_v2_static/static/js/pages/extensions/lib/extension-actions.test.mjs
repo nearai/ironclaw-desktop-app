@@ -92,6 +92,28 @@ test("primaryExtensionAction hides activation for active extensions", () => {
   );
 });
 
+test("primaryExtensionAction routes a failed connector to configure, never Activate", () => {
+  // A backend runtime blocker leaves the connector 'failed'. Offering Activate
+  // would imply fake readiness; the honest affordance is to reopen setup.
+  assert.equal(
+    primaryExtensionAction({
+      package_ref: { kind: "extension", id: "gmail" },
+      kind: "wasm_tool",
+      onboarding_state: "failed",
+    }),
+    "configure",
+  );
+  // wasm_channel stays suppressed even when failed (pairing surface owns it).
+  assert.equal(
+    primaryExtensionAction({
+      package_ref: { kind: "extension", id: "telegram" },
+      kind: "wasm_channel",
+      onboarding_state: "failed",
+    }),
+    null,
+  );
+});
+
 test("extensionIsActive accepts card payload lifecycle fields", () => {
   assert.equal(extensionIsActive({ active: true }), true);
   assert.equal(extensionIsActive({ activationStatus: "ready" }), true);

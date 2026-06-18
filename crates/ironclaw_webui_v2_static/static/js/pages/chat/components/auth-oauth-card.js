@@ -98,7 +98,7 @@ export function AuthOauthCard({ gate, onCancel }) {
       ${error &&
       html`
         <div
-          className="mt-3 rounded-md border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs text-red-200"
+          className="mt-3 rounded-md border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-2 text-xs text-[var(--v2-danger-text)]"
           role="alert"
         >
           ${error}

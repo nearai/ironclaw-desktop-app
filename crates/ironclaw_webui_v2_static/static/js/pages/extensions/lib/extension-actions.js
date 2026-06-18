@@ -21,6 +21,14 @@ export function primaryExtensionAction(ext) {
     return null;
   }
 
+  // A failed lifecycle means the last setup/activation attempt did not stick —
+  // often a backend that stored the credential but cannot run the connector
+  // yet. The honest primary affordance is to reopen configuration, never a
+  // bare Activate that would imply this connector is ready to switch on.
+  if (state === 'failed') {
+    return 'configure';
+  }
+
   return 'activate';
 }
 
