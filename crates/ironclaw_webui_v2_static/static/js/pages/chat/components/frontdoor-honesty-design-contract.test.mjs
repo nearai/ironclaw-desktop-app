@@ -84,7 +84,7 @@ test("suggestion chips use semantic tokens and a blue user-action hover", () => 
 test("approval card escalates egress rows to danger tone for high-risk gates", () => {
   assert.match(
     approvalCard,
-    /risk\.tone === "danger"/,
+    /risk\.tone === ['"]danger['"]/,
     "approval card must branch row emphasis on risk.tone",
   );
   assert.match(

@@ -29,7 +29,14 @@ export function AttachmentPreviewModal({ attachment, onClose }) {
   const [status, setStatus] = React.useState('loading');
   const [view, setView] = React.useState({});
 
-  const mode = attachment ? attachmentPreviewMode(attachment.mime_type) : 'download';
+  // Content-parsed attachments (desktop reload) carry the extracted text inline
+  // but have no landed bytes to fetch — render that text directly.
+  const inlineText = attachment ? attachment.embedded_text || attachment.extractedText || '' : '';
+  const mode = !attachment
+    ? 'download'
+    : inlineText && !attachment.fetch_url && !attachment.preview_url
+      ? 'text'
+      : attachmentPreviewMode(attachment.mime_type);
 
   React.useEffect(() => {
     if (!attachment) return undefined;
@@ -40,6 +47,13 @@ export function AttachmentPreviewModal({ attachment, onClose }) {
     // and there is nothing landed to fetch yet.
     if (!attachment.fetch_url && attachment.preview_url) {
       setView({ dataUrl: attachment.preview_url, downloadUrl: attachment.preview_url });
+      setStatus('ready');
+      return undefined;
+    }
+    // Content-parsed attachment (desktop reload): no bytes to fetch, but the
+    // durable manifest carried the model-read extracted text — show it directly.
+    if (!attachment.fetch_url && inlineText) {
+      setView({ text: inlineText, truncated: false });
       setStatus('ready');
       return undefined;
     }
@@ -141,6 +155,7 @@ function PreviewBody({ mode, view, filename }) {
     case 'text':
       return html`<div className="w-full">
         <pre
+          data-testid="attachment-preview-text"
           className="max-h-[70vh] w-full overflow-auto whitespace-pre-wrap break-words rounded bg-iron-900/60 p-3 text-xs text-iron-200"
         >
 ${view.text}</pre

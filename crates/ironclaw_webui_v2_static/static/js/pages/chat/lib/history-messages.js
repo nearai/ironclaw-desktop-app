@@ -7,7 +7,7 @@
 // behind the project mount, the cards render from the refs).
 
 import { attachmentKindFromMime, formatBytes } from './attachments.js';
-import { attachmentUrl } from '../../../lib/api.js';
+import { attachmentUrl, isDesktopRuntime } from '../../../lib/api.js';
 
 // Project a stored `AttachmentRef` (snake_case wire shape) into the
 // render shape `MessageBubble` consumes. The timeline never carries bytes,
@@ -45,6 +45,111 @@ function attachmentsFromRecord(record, threadId) {
   });
 }
 
+// -----------------------------------------------------------------------------
+// Desktop durable-attachment manifest parsing (restore of the pre-refactor
+// contract; locked by smoke-webui-static.mjs + durable-attachment-block.test.mjs).
+// The bundled Reborn sidecar drops the first-class `attachments` field from its
+// timeline echo and inlines an `<attachments ic="1">` manifest into message
+// content. On reload we parse that block back into render-shape chips (carrying
+// the embedded extracted text for the preview modal) and strip it from the
+// visible transcript. Only OUR sentinel-tagged (`ic="1"`) blocks parse, so an
+// assistant reply that quotes or mimics the format is never mistaken for a
+// manifest (which would truncate the message + render phantom chips).
+// -----------------------------------------------------------------------------
+const SENTINEL_BLOCK_PATTERN = /\n{0,2}<attachments ic="1">\n([\s\S]*?)\n<\/attachments>\s*$/;
+const LEGACY_BLOCK_PATTERN = /\n{0,2}<attachments>\n([\s\S]*?)\n<\/attachments>\s*$/;
+
+// Replace each length-prefixed `extracted_text` fenced section with an
+// `embedded_text_ref: N` marker and collect the text out-of-band. Slicing by the
+// declared char count (not the `---` fence) means a document whose own text
+// contains `---` or manifest-look-alike lines cannot corrupt the parse.
+function captureEmbeddedExtractedText(blockBody) {
+  const headerPattern = /extracted_text_chars:\s*(\d+)\nextracted_text:\n---\n/g;
+  const texts = [];
+  let body = '';
+  let index = 0;
+  for (;;) {
+    headerPattern.lastIndex = index;
+    const match = headerPattern.exec(blockBody);
+    if (!match) {
+      body += blockBody.slice(index);
+      return { body, texts };
+    }
+    body += blockBody.slice(index, match.index);
+    const contentStart = match.index + match[0].length;
+    const contentEnd = contentStart + Number(match[1]);
+    texts.push(blockBody.slice(contentStart, contentEnd));
+    body += `embedded_text_ref: ${texts.length - 1}\n`;
+    index = blockBody.startsWith('\n---', contentEnd) ? contentEnd + 4 : contentEnd;
+  }
+}
+
+function sizeLabelForBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} bytes`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function sizeLabelForBase64(value) {
+  const clean = String(value || '').replace(/\s+/g, '');
+  if (!clean) return '';
+  const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
+  const bytes = Math.max(0, Math.floor((clean.length * 3) / 4) - padding);
+  return sizeLabelForBytes(bytes);
+}
+
+// Parse a durable attachment manifest out of message content into render-shape
+// chips, returning the content with the block stripped. `allowLegacy` also
+// accepts pre-sentinel `<attachments>` blocks already persisted in old threads
+// (user records only, since manifests only ride on user sends).
+export function parseDurableAttachmentBlock(rawContent, opts = {}) {
+  const raw = String(rawContent || '');
+  const blockMatch =
+    raw.match(SENTINEL_BLOCK_PATTERN) ||
+    (opts.allowLegacy ? raw.match(LEGACY_BLOCK_PATTERN) : null);
+  if (!blockMatch) return { content: raw, attachments: [] };
+
+  const attachments = [];
+  const { body, texts } = captureEmbeddedExtractedText(blockMatch[1]);
+  const chunks = body
+    .split(/\nAttachment\s+\d+:\n/g)
+    .map((chunk) => chunk.trim())
+    .filter(Boolean);
+
+  for (const chunk of chunks) {
+    const attachment = {};
+    for (const line of chunk.split('\n')) {
+      const splitAt = line.indexOf(':');
+      if (splitAt === -1) continue;
+      const key = line.slice(0, splitAt).trim();
+      const value = line.slice(splitAt + 1).trim();
+      if (key === 'filename') attachment.filename = value;
+      if (key === 'mime_type') attachment.mime_type = value;
+      if (key === 'extraction_status') attachment.extraction_status = value;
+      if (key === 'embedded_text_ref') {
+        const ref = Number(value);
+        if (Number.isInteger(ref) && texts[ref] !== undefined) {
+          attachment.embedded_text = texts[ref];
+        }
+      }
+      if (key === 'data_base64') {
+        attachment.data_base64 = value;
+        attachment.size_label = sizeLabelForBase64(value);
+      }
+      if (key === 'size' && value && !attachment.size_label) {
+        attachment.size_label = sizeLabelForBytes(Number(value));
+      }
+    }
+    if (attachment.filename || attachment.mime_type || attachment.data_base64) {
+      attachment.kind = attachmentKindFromMime(attachment.mime_type);
+      attachments.push(attachment);
+    }
+  }
+
+  return { content: raw.slice(0, blockMatch.index).trimEnd(), attachments };
+}
+
 export function messagesFromTimeline(records, pendingMessages = [], threadId = null) {
   const seen = new Set();
   const messages = [];
@@ -80,11 +185,24 @@ export function messagesFromTimeline(records, pendingMessages = [], threadId = n
     const role = roleForRecord(record);
     const isBusyRejected =
       role === 'user' && (record.status === 'rejected_busy' || record.status === 'deferred_busy');
+    let content = record.content || '';
+    let attachments = attachmentsFromRecord(record, threadId);
+    // Desktop sidecar drops the first-class `attachments` field and inlines the
+    // durable manifest into `content`. When no first-class refs are present on a
+    // user record, parse the chips back out (sentinel-gated, web-safe) and strip
+    // the manifest from the visible transcript.
+    if (isDesktopRuntime() && role === 'user' && (!attachments || attachments.length === 0)) {
+      const parsed = parseDurableAttachmentBlock(content, { allowLegacy: true });
+      if (parsed.attachments.length > 0) {
+        content = parsed.content;
+        attachments = parsed.attachments;
+      }
+    }
     messages.push({
       id,
       role,
-      content: record.content || '',
-      attachments: attachmentsFromRecord(record, threadId),
+      content,
+      attachments,
       timestamp: timestampForRecord(record),
       kind: record.kind,
       status: isBusyRejected ? 'error' : record.status,

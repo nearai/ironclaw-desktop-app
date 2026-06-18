@@ -46,7 +46,7 @@ test('the full provider catalog (all adapters) is preserved', () => {
   // ADAPTER_OPTIONS must keep every web adapter; the desktop NEAR-only set is a
   // separate, additive narrowing helper, never a replacement of the catalog.
   assert.match(providers, /open_ai_completions/);
-  assert.match(providers, /"anthropic"/);
-  assert.match(providers, /"ollama"/);
-  assert.match(providers, /"nearai"/);
+  assert.match(providers, /['"]anthropic['"]/);
+  assert.match(providers, /['"]ollama['"]/);
+  assert.match(providers, /['"]nearai['"]/);
 });

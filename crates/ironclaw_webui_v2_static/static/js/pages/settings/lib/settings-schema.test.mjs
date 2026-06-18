@@ -29,8 +29,8 @@ test('desktop NEAR-only embeddings narrowing is gated behind isDesktopRuntime()'
   // The narrowing branch must be reached only under the desktop runtime gate,
   // and it must carry the NEAR-only option + relabel + fixed-single-option flag.
   assert.match(source, /isDesktopRuntime\(\)/);
-  assert.match(source, /options: \["nearai"\]/);
-  assert.match(source, /optionLabels: \{ nearai: "NEAR AI Cloud" \}/);
+  assert.match(source, /options: \[['"]nearai['"]\]/);
+  assert.match(source, /optionLabels: \{ nearai: ['"]NEAR AI Cloud['"] \}/);
   assert.match(source, /allowDefault: false/);
 });
 
