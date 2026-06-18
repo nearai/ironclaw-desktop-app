@@ -136,7 +136,9 @@ Whichever bucket you're in, the sequence is the same:
    (toast renders, masked value masks); they are NOT useful for
    testing Tauri IPC plumbing (mock it and you've tested your
    mock).
-3. Run `npm run check` and `npm run test` locally until they pass.
+3. Run the static gate locally until it passes — at least `npm run test:static`
+   and `npm run smoke:webui-static` (the full PR gate is in
+   `.github/workflows/check.yml`).
 4. If you touched Rust, run `cargo check --manifest-path
    src-tauri/Cargo.toml` and `cargo clippy --manifest-path
    src-tauri/Cargo.toml -- -D warnings`.
@@ -148,7 +150,7 @@ Whichever bucket you're in, the sequence is the same:
 
 | Workflow         | Trigger                | Hard-fails on                                         |
 | ---------------- | ---------------------- | ----------------------------------------------------- |
-| `check.yml`      | PR + push to main      | `npm run check`, `npm run verify:static-frontend`, `npm run smoke:webui-static`, `npm run test`, `npm run build`, `cargo check` |
+| `check.yml`      | PR + push to main      | `verify:static-frontend`, `check:static-bundle`, `lint:static-tokens`, `lint:static-copy`, `test:design-static`, `smoke:webui-static`, `smoke:gate-enforcement`, `test:a11y-static`, `test:static`, `test:scripts`, `cargo check`/`cargo test` |
 | `check.yml`      | PR + push to main      | `cargo clippy` (currently `continue-on-error: true`; warn-don't-block) |
 | `style-guard.yml`| PR                     | Hardcoded `#00d4ff` / `#4ca7e6` / `#2882c8` / `#00bcd4` outside the allowlist |
 | `release.yml`    | tag `v*`               | Full `tauri build` for both arches; signs updater artifacts if secrets present |
