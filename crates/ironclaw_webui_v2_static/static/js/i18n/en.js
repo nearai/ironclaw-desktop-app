@@ -169,6 +169,7 @@ registerPack('en', {
     'Waiting for authorization to complete… You can close the popup tab once you’ve approved access.',
   'authGate.expiresAt': 'Expires',
   'authGate.oauthProviderFallback': 'the provider',
+  'authGate.serviceUnavailable': 'Service unavailable',
   'authGate.pillAuthorize': 'Authorize',
   'authGate.pillEnterToken': 'Enter token',
   'authGate.unsupportedChallenge': 'Open settings to complete this authentication step.',

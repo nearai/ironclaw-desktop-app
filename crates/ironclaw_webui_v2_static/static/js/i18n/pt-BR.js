@@ -142,6 +142,7 @@ registerPack('pt-BR', {
     'Aguardando a conclusão da autorização… Você pode fechar a guia pop-up depois de aprovar o acesso.',
   'authGate.expiresAt': 'Expira',
   'authGate.oauthProviderFallback': 'o provedor',
+  'authGate.serviceUnavailable': 'Serviço indisponível',
   'authGate.pillAuthorize': 'Autorizar',
   'authGate.pillEnterToken': 'Insira o token',
   'authGate.unsupportedChallenge':

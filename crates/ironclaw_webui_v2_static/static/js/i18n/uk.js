@@ -142,6 +142,7 @@ registerPack('uk', {
     'Очікування завершення авторизації… Ви можете закрити спливаючу вкладку, коли схвалите доступ.',
   'authGate.expiresAt': 'Термін дії закінчується',
   'authGate.oauthProviderFallback': 'постачальник',
+  'authGate.serviceUnavailable': 'Сервіс недоступний',
   'authGate.pillAuthorize': 'Авторизуватися',
   'authGate.pillEnterToken': 'Введіть маркер',
   'authGate.unsupportedChallenge': 'Відкрийте налаштування, щоб завершити цей крок автентифікації.',

@@ -144,6 +144,7 @@ registerPack('es', {
     'Esperando a que se complete la autorización... Puede cerrar la pestaña emergente una vez que haya aprobado el acceso.',
   'authGate.expiresAt': 'Caduca',
   'authGate.oauthProviderFallback': 'el proveedor',
+  'authGate.serviceUnavailable': 'Servicio no disponible',
   'authGate.pillAuthorize': 'Autorizar',
   'authGate.pillEnterToken': 'Ingresar token',
   'authGate.unsupportedChallenge': 'Abrir configuración para completar este paso de autenticación.',
