@@ -62,7 +62,11 @@ export function AutomationsPage() {
                     </div>
                   </div>
                 `}
-                <${AutomationsSummaryStrip} summary=${automationsState.summary} />
+                <${AutomationsSummaryStrip}
+                  summary=${automationsState.summary}
+                  activeFilter=${filter}
+                  onSelectFilter=${setFilter}
+                />
                 <${AutomationDeliveryDefaultsPanel} deliveryState=${deliveryState} />
 
                 ${automationsState.isLoading

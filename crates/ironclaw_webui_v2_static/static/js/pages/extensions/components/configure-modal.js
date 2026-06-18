@@ -3,10 +3,12 @@ import { Icon } from '../../../design-system/icons.js';
 import { Input } from '../../../design-system/input.js';
 import { isDesktopRuntime } from '../../../lib/api.js';
 import { React, html } from '../../../lib/html.js';
+import { useT } from '../../../lib/i18n.js';
 import { useExtensionSetup, useOauthSetup, useSetupSubmit } from '../hooks/useExtensions.js';
 import { setupReadyForActivation } from '../lib/extension-actions.js';
 
 export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
+  const t = useT();
   const extensionName = extension?.displayName || extension?.packageRef?.id || 'Extension';
   const {
     secrets = [],
@@ -70,7 +72,10 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
 
   if (isLoading) {
     return html`
-      <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
+      <${ModalShell}
+        onClose=${onClose}
+        title=${t('extensions.configureName').replace('{name}', extensionName)}
+      >
         <div className="space-y-3">
           ${[1, 2].map(
             (i) => html`<div key=${i} className="v2-skeleton h-10 w-full rounded-md" />`
@@ -82,9 +87,12 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
 
   if (error) {
     return html`
-      <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
+      <${ModalShell}
+        onClose=${onClose}
+        title=${t('extensions.configureName').replace('{name}', extensionName)}
+      >
         <p className="text-sm text-[var(--v2-danger-text)]">
-          Failed to load setup: ${error.message}
+          ${t('extensions.loadFailed')} ${error.message}
         </p>
       <//>
     `;
@@ -92,16 +100,20 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
 
   if (secrets.length === 0 && fields.length === 0) {
     return html`
-      <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
-        <p className="text-sm text-[var(--v2-text-muted)]">
-          No configuration required for this extension.
-        </p>
+      <${ModalShell}
+        onClose=${onClose}
+        title=${t('extensions.configureName').replace('{name}', extensionName)}
+      >
+        <p className="text-sm text-[var(--v2-text-muted)]">${t('extensions.noConfigRequired')}</p>
       <//>
     `;
   }
 
   return html`
-    <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
+    <${ModalShell}
+      onClose=${onClose}
+      title=${t('extensions.configureName').replace('{name}', extensionName)}
+    >
       ${onboarding?.credential_instructions &&
       html`
         <p className="mb-4 text-sm leading-6 text-[var(--v2-text-muted)]">
@@ -143,13 +155,13 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                 ${secret.optional &&
                 html`
                   <span className="font-mono text-[10px] text-[var(--v2-text-faint)]">
-                    optional
+                    ${t('common.optional')}
                   </span>
                 `}
                 ${secret.provided &&
                 html`
                   <span className="font-mono text-[10px] text-[var(--v2-positive-text)]">
-                    configured
+                    ${t('common.configured')}
                   </span>
                 `}
               </label>
@@ -160,8 +172,8 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                     >
                       <span className="text-xs text-[var(--v2-text-muted)]">
                         ${secret.provided
-                          ? 'Authorization is configured.'
-                          : 'Authorize this provider in a browser popup.'}
+                          ? t('extensions.authConfigured')
+                          : t('extensions.authPopup')}
                       </span>
                       <${Button}
                         variant=${secret.provided ? 'secondary' : 'primary'}
@@ -170,10 +182,10 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                         disabled=${oauthMutation.isPending}
                       >
                         ${oauthMutation.isPending
-                          ? 'Opening...'
+                          ? t('extensions.opening')
                           : secret.provided
-                            ? 'Reconnect'
-                            : 'Authorize'}
+                            ? t('extensions.reconnect')
+                            : t('extensions.authorize')}
                       <//>
                     </div>
                   `
@@ -195,7 +207,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                     !secret.provided &&
                     html`
                       <p className="mt-1 text-xs text-[var(--v2-text-faint)]">
-                        Auto-generated if left blank
+                        ${t('extensions.autoGenerated')}
                       </p>
                     `}
                   `}
@@ -212,7 +224,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                 ${field.optional &&
                 html`
                   <span className="font-mono text-[10px] text-[var(--v2-text-faint)]">
-                    optional
+                    ${t('common.optional')}
                   </span>
                 `}
               </label>
@@ -258,7 +270,9 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
       `}
 
       <div className="mt-6 flex items-center justify-end gap-3">
-        <${Button} variant="ghost" className="min-h-[44px]" onClick=${onClose}>Cancel<//>
+        <${Button} variant="ghost" className="min-h-[44px]" onClick=${onClose}
+          >${t('common.cancel')}<//
+        >
         ${canActivate &&
         html`
           <${Button}
@@ -277,7 +291,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
             onClick=${handleSubmit}
             disabled=${submitMutation.isPending}
           >
-            ${submitMutation.isPending ? 'Saving…' : 'Save'}
+            ${submitMutation.isPending ? 'Saving…' : t('common.save')}
           <//>
         `}
       </div>

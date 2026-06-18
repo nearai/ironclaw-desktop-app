@@ -346,8 +346,13 @@ export function enhanceRenderedMarkdown(root) {
   });
 }
 
-export function MarkdownRenderer({ content, className = '' }) {
+function MarkdownRendererImpl({ content, className = '' }) {
   const ref = React.useRef(null);
+
+  // marked.parse + DOMPurify.sanitize are expensive during token-by-token
+  // streaming; memoize the rendered HTML so an unchanged-content re-render
+  // (e.g. a sibling state update) doesn't re-parse the whole document.
+  const rendered = React.useMemo(() => renderMarkdown(content), [content]);
 
   // Runs after every commit (no dep array). React owns the body innerHTML and
   // re-sets it whenever the rendered HTML changes, which wipes the imperatively
@@ -369,7 +374,11 @@ export function MarkdownRenderer({ content, className = '' }) {
     <div
       ref=${ref}
       className=${['markdown-body', className].join(' ')}
-      dangerouslySetInnerHTML=${{ __html: renderMarkdown(content) }}
+      dangerouslySetInnerHTML=${{ __html: rendered }}
     />
   `;
 }
+
+// Memoized so a bubble whose content/className are unchanged skips re-rendering
+// (and the expensive re-parse) when an unrelated sibling in the list updates.
+export const MarkdownRenderer = React.memo(MarkdownRendererImpl);

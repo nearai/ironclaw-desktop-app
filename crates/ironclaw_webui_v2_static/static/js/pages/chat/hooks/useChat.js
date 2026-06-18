@@ -66,6 +66,15 @@ function submitResponseResumedTurnGate(response) {
   return response?.continuation?.type === 'turn_gate_resume';
 }
 
+function resolveGateOutcome(response) {
+  if (response?.outcome) return response.outcome;
+  const status = String(response?.status || '').toLowerCase();
+  if (status === 'queued' || status === 'running') return 'resumed';
+  if (status === 'cancelled' || response?.already_terminal === true) return 'cancelled';
+  if (response?.already_terminal === false) return 'resumed';
+  return null;
+}
+
 function isPendingOAuthGate(gate) {
   return gate?.kind === 'auth_required' && gate?.challengeKind === 'oauth_url';
 }
@@ -157,6 +166,7 @@ export function useChat(threadId) {
 
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [pendingGate, setPendingGate] = React.useState(null);
+  const locallyResolvedGatesRef = React.useRef(new Map());
   const authTokenSubmitRef = React.useRef({
     gateKey: null,
     credentialRef: null,
@@ -175,6 +185,7 @@ export function useChat(threadId) {
     setPendingGate(null);
     setActiveRun(null);
     setChannelConnectAction(null);
+    locallyResolvedGatesRef.current.clear();
   }, [threadId]);
 
   const cooldownSeconds = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
@@ -243,6 +254,7 @@ export function useChat(threadId) {
     setPendingGate,
     setActiveRun,
     activeRunRef,
+    locallyResolvedGatesRef,
     // Reborn's projection bridge does not yet emit `Text` items for
     // assistant replies, and never emits `capability_display_preview`
     // items in the projection state — the assistant reply and the rich
@@ -479,7 +491,7 @@ export function useChat(threadId) {
       if (!runId || !gateRef) {
         throw new Error('resolveGate requires a pending gate with run_id and gate_ref');
       }
-      await resolveGateRequest({
+      const response = await resolveGateRequest({
         threadId,
         runId,
         gateRef,
@@ -487,13 +499,23 @@ export function useChat(threadId) {
         always: opts.always,
         credentialRef: opts.credentialRef
       });
-      const shouldContinueProcessing =
-        resolution === 'approved' || resolution === 'credential_provided';
+      const outcome = resolveGateOutcome(response);
+      locallyResolvedGatesRef.current.set(`${runId}\n${gateRef}`, {
+        resolution,
+        outcome
+      });
       setPendingGate(null);
-      setIsProcessing(shouldContinueProcessing);
-      if (!shouldContinueProcessing) {
-        setActiveRun(null);
+      if (outcome === 'resumed') {
+        setIsProcessing(true);
+        setActiveRun({
+          runId: response?.run_id || runId,
+          threadId: response?.thread_id || threadId,
+          status: response?.status || 'queued'
+        });
+        return;
       }
+      setIsProcessing(false);
+      setActiveRun(null);
     },
     [pendingGate, threadId]
   );

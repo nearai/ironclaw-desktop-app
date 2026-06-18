@@ -62,6 +62,9 @@ function createConfigureModalHarness() {
     globalThis: {},
     html,
     isDesktopRuntime: () => true,
+    // Passthrough i18n: this test asserts v2 styling tokens + shared inputs,
+    // not copy, so returning the key is sufficient.
+    useT: () => (key) => key,
     React: {
       useCallback: (fn) => fn,
       useEffect: () => {},

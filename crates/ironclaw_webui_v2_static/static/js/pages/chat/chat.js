@@ -19,6 +19,12 @@ import { NEW_DRAFT_KEY } from './lib/draft-store.js';
 import { buildRuntimeContext } from './lib/runtime-context.js';
 import { buildScopedLogsPath } from '../logs/lib/logs-data.js';
 
+// Grace window before clearing a thread's sidebar state badge. A run that
+// transitions RUNNING -> (briefly idle) -> NEEDS_ATTENTION, or a thread opened
+// while a run is mid-flight, would otherwise flicker the dot off and back on.
+// Deferring the clear and cancelling it on the next state change absorbs the gap.
+const THREAD_STATE_CLEAR_GRACE_MS = 1500;
+
 export function Chat({
   threads,
   activeThreadId,
@@ -134,14 +140,20 @@ export function Chat({
    * enrichment. Both are deferred follow-ups; see
    * docs/webui-v2-followup-picks-02-05.md. */
   React.useEffect(() => {
-    if (!activeThreadId) return;
+    if (!activeThreadId) return undefined;
     if (pendingGate) {
       setThreadState(activeThreadId, THREAD_STATE.NEEDS_ATTENTION);
-    } else if (isProcessing) {
-      setThreadState(activeThreadId, THREAD_STATE.RUNNING);
-    } else {
-      clearThreadState(activeThreadId);
+      return undefined;
     }
+    if (isProcessing) {
+      setThreadState(activeThreadId, THREAD_STATE.RUNNING);
+      return undefined;
+    }
+    // Defer the clear: a momentary idle between RUNNING and NEEDS_ATTENTION (or
+    // opening a thread mid-run) must not flicker the badge off. An incoming
+    // gate/processing change cancels this before it fires.
+    const timer = setTimeout(() => clearThreadState(activeThreadId), THREAD_STATE_CLEAR_GRACE_MS);
+    return () => clearTimeout(timer);
   }, [activeThreadId, pendingGate, isProcessing]);
 
   const [shortcutsOpen, setShortcutsOpen] = React.useState(false);

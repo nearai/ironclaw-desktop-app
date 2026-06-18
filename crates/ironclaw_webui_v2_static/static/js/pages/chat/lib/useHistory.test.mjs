@@ -23,7 +23,7 @@ function useHistorySourceForTest() {
   }
   return `${lines.join(
     "\n",
-  )}\nglobalThis.__testExports = { useHistory, mergePreservingClientOnly };`;
+  )}\nglobalThis.__testExports = { useHistory, mergeFullRefresh };`;
 }
 
 function createReactStub({ setCalls = [] } = {}) {
@@ -81,10 +81,10 @@ test("useHistory records a load error when timeline fetch fails", async () => {
   assert.equal(consoleErrors.length, 1);
 });
 
-test("mergePreservingClientOnly keeps err-* bubbles and lets the timeline win otherwise", () => {
+test("mergeFullRefresh keeps err-* bubbles (preserveClientOnly) and lets the timeline win otherwise", () => {
   const context = { globalThis: {}, React: createReactStub() };
   vm.runInNewContext(useHistorySourceForTest(), context);
-  const { mergePreservingClientOnly } = context.globalThis.__testExports;
+  const { mergeFullRefresh } = context.globalThis.__testExports;
 
   const timeline = [
     { id: "msg-user-1", role: "user" },
@@ -97,7 +97,7 @@ test("mergePreservingClientOnly keeps err-* bubbles and lets the timeline win ot
     { id: "err-run-1", role: "error", content: "run failed" },
   ];
 
-  const merged = mergePreservingClientOnly(timeline, current);
+  const merged = mergeFullRefresh(timeline, current, { preserveClientOnly: true });
 
   // Timeline order is authoritative and the rich tool card replaces the
   // sparse live one; the client-only err-* bubble is preserved at the end.
@@ -108,4 +108,32 @@ test("mergePreservingClientOnly keeps err-* bubbles and lets the timeline win ot
   const toolCard = merged.find((m) => m.id === "tool-abc");
   assert.equal(toolCard.toolParameters, "{}");
   assert.equal(toolCard.toolResultPreview, "ok");
+});
+
+test("mergeFullRefresh preserves an in-progress tool_activity/thinking row the fresh timeline lacks", () => {
+  const context = { globalThis: {}, React: createReactStub() };
+  vm.runInNewContext(useHistorySourceForTest(), context);
+  const { mergeFullRefresh } = context.globalThis.__testExports;
+
+  const timeline = [
+    { id: "msg-user-1", role: "user" },
+    { id: "msg-assistant-1", role: "assistant" },
+  ];
+  const current = [
+    { id: "msg-user-1", role: "user" },
+    { id: "tool-live", role: "tool_activity", toolResultPreview: "running" },
+    { id: "thinking-live", role: "thinking", content: "…" },
+    { id: "err-run-9", role: "error", content: "boom" },
+  ];
+
+  // Plain full refresh (preserveClientOnly = false): in-progress runtime
+  // activity the timeline has not projected yet is preserved so it doesn't
+  // flicker out mid-run; the err-* bubble is NOT (that needs preserveClientOnly).
+  const merged = mergeFullRefresh(timeline, current);
+  // Compare via join (not deepEqual): `merged` is built inside the VM realm, so
+  // its array prototype differs from this realm's and deepStrictEqual would
+  // report a spurious cross-realm mismatch.
+  const idList = merged.map((m) => m.id).join(",");
+  assert.equal(idList, "msg-user-1,msg-assistant-1,tool-live,thinking-live");
+  assert.ok(!idList.split(",").includes("err-run-9"));
 });

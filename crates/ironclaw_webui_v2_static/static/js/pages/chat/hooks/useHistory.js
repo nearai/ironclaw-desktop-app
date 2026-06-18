@@ -125,9 +125,7 @@ export function useHistory(threadId, options = {}) {
         // issuing identity's key.
         if (!cursor) {
           const cachedMessages = historyCache.get(key)?.messages || [];
-          const cacheMerged = preserveClientOnly
-            ? mergePreservingClientOnly(renderable, cachedMessages)
-            : renderable;
+          const cacheMerged = mergeFullRefresh(renderable, cachedMessages, { preserveClientOnly });
           putCache(key, { messages: cacheMerged, nextCursor });
         }
 
@@ -138,10 +136,8 @@ export function useHistory(threadId, options = {}) {
           let merged;
           if (cursor) {
             merged = mergePage(renderable, prev.messages);
-          } else if (preserveClientOnly) {
-            merged = mergePreservingClientOnly(renderable, prev.messages);
           } else {
-            merged = renderable;
+            merged = mergeFullRefresh(renderable, prev.messages, { preserveClientOnly });
           }
           if (cursor) putCache(key, { messages: merged, nextCursor });
           return {
@@ -218,10 +214,23 @@ function mergePage(older, current) {
 // bubbles (`err-*`) are appended client-side on a terminal failed/recovery
 // status and never persist as timeline records; a settle-triggered reload
 // must keep them, appended after the authoritative timeline messages.
-function mergePreservingClientOnly(timeline, current) {
-  const ids = new Set(timeline.map((m) => m?.id).filter(Boolean));
+function isRuntimeActivityMessage(message) {
+  return message?.role === 'tool_activity' || message?.role === 'thinking';
+}
+
+// Merge a fresh full-refresh timeline over the current view, preserving
+// client-only rows the timeline does not (yet) carry: in-progress runtime
+// activity (tool_activity / thinking projections never land in the timeline,
+// so a mid-run refresh would otherwise drop them and flicker) ALWAYS, and the
+// `err-*` client failure bubbles only when preserveClientOnly is set.
+function mergeFullRefresh(fresh, current, { preserveClientOnly = false } = {}) {
+  const ids = new Set(fresh.map((m) => m?.id).filter(Boolean));
   const preserved = current.filter(
-    (m) => m && typeof m.id === 'string' && !ids.has(m.id) && m.id.startsWith('err-')
+    (m) =>
+      m &&
+      typeof m.id === 'string' &&
+      !ids.has(m.id) &&
+      (isRuntimeActivityMessage(m) || (preserveClientOnly && m.id.startsWith('err-')))
   );
-  return [...timeline, ...preserved];
+  return [...fresh, ...preserved];
 }
