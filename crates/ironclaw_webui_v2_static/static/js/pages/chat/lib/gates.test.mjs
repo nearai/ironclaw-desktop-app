@@ -1,135 +1,173 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+import vm from "node:vm";
 
-import { formatGateParameters, gateFromEvent, gateFromProjection } from './gates.js';
+function loadGates() {
+  const source = readFileSync(new URL("./gates.js", import.meta.url), "utf8")
+    .replace("export function gateFromEvent", "function gateFromEvent")
+    .replace("export function gateFromProjection", "function gateFromProjection");
+  const context = { globalThis: {} };
+  vm.runInNewContext(
+    `${source}\nglobalThis.__testExports = { gateFromEvent, gateFromProjection };`,
+    context,
+  );
+  return context.globalThis.__testExports;
+}
 
-test('gateFromEvent preserves approval tool metadata and allow-always support', () => {
-  const gate = gateFromEvent('gate', {
-    request_id: 'approval-request-1',
-    turn_run_id: 'run-1',
-    gate_ref: 'gate-1',
-    headline: 'Approve sending an email',
-    body: 'IronClaw wants to send a customer email.',
-    tool_name: 'send_email',
-    description: 'Send email to customer@example.com',
-    parameters: {
-      to: 'customer@example.com',
-      subject: 'Services agreement'
+function plain(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+test("gateFromEvent maps approval always-allow affordance", () => {
+  const { gateFromEvent } = loadGates();
+
+  assert.deepEqual(
+    plain(gateFromEvent("gate", {
+      turn_run_id: "run-1",
+      gate_ref: "gate:approval",
+      headline: "Approval required",
+      body: "Review the action.",
+      allow_always: true,
+    })),
+    {
+      kind: "gate",
+      runId: "run-1",
+      gateRef: "gate:approval",
+      headline: "Approval required",
+      body: "Review the action.",
+      allowAlways: true,
     },
-    allow_always: true
-  });
-
-  assert.deepEqual(gate, {
-    kind: 'gate',
-    requestId: 'approval-request-1',
-    runId: 'run-1',
-    gateRef: 'gate-1',
-    headline: 'Approve sending an email',
-    body: 'IronClaw wants to send a customer email.',
-    toolName: 'send_email',
-    description: 'Send email to customer@example.com',
-    parameters: '{\n  "to": "customer@example.com",\n  "subject": "Services agreement"\n}',
-    allowAlways: true
-  });
+  );
 });
 
-test('gateFromEvent maps Reborn approval_context into approval card details', () => {
-  const gate = gateFromEvent('gate', {
-    turn_run_id: 'run-context-1',
-    gate_ref: 'gate-context-1',
-    headline: 'Approve external request',
-    body: 'This action needs approval before anything leaves the machine.',
+test("gateFromEvent defaults missing always-allow affordance to false", () => {
+  const { gateFromEvent } = loadGates();
+
+  assert.deepEqual(
+    plain(gateFromEvent("gate", {
+      turn_run_id: "run-1",
+      gate_ref: "gate:resource",
+      headline: "Resource unavailable",
+      body: "Try later.",
+    })),
+    {
+      kind: "gate",
+      runId: "run-1",
+      gateRef: "gate:resource",
+      headline: "Resource unavailable",
+      body: "Try later.",
+      allowAlways: false,
+    },
+  );
+});
+test("gateFromEvent maps approval context into readable approval card props", () => {
+  const { gateFromEvent } = loadGates();
+
+  const gate = plain(gateFromEvent("gate", {
+    turn_run_id: "run-1",
+    gate_ref: "gate:approval-1",
+    headline: "Approval required",
+    body: "capability requires approval",
     allow_always: true,
     approval_context: {
-      tool_name: 'http_post',
-      action: { label: 'POST request', method: 'POST' },
-      scope: { label: 'This endpoint', reusable: false },
-      reason: 'Send the prepared payload to the webhook.',
+      tool_name: "builtin.http",
+      action: { label: "Run tool" },
+      scope: { label: "This request only", reusable: false },
+      reason: "approval required for Dispatch of builtin.http",
       destination: {
-        label: 'Webhook endpoint',
-        domain: 'hooks.example.com',
-        url: 'https://hooks.example.com/inbound'
+        label: "GET https://example.com",
+        url: "https://example.com",
+        domain: "example.com",
       },
       details: [
-        { label: 'Estimated transfer', value: '4096 bytes' },
-        { label: 'Payload', value: 'services agreement summary' }
-      ]
-    }
-  });
+        { label: "Capability", value: "builtin.http" },
+        { label: "Estimated network egress", value: "4096 bytes" },
+      ],
+    },
+  }));
 
-  assert.deepEqual(gate, {
-    kind: 'gate',
-    requestId: 'gate-context-1',
-    runId: 'run-context-1',
-    gateRef: 'gate-context-1',
-    headline: 'Approve external request',
-    body: 'This action needs approval before anything leaves the machine.',
-    toolName: 'http_post',
-    description: 'Send the prepared payload to the webhook.',
-    parameters:
-      '{\n' +
-      '  "action": "POST request",\n' +
-      '  "method": "POST",\n' +
-      '  "scope": "This endpoint",\n' +
-      '  "reusable_scope": false,\n' +
-      '  "reason": "Send the prepared payload to the webhook.",\n' +
-      '  "destination": "Webhook endpoint",\n' +
-      '  "destination_domain": "hooks.example.com",\n' +
-      '  "destination_url": "https://hooks.example.com/inbound",\n' +
-      '  "details": {\n' +
-      '    "Estimated transfer": "4096 bytes",\n' +
-      '    "Payload": "services agreement summary"\n' +
-      '  }\n' +
-      '}',
-    allowAlways: true
+  assert.equal(gate.allowAlways, true);
+  assert.equal(gate.toolName, "builtin.http");
+  assert.equal(gate.description, "approval required for Dispatch of builtin.http");
+  assert.equal(gate.destination.domain, "example.com");
+  assert.deepEqual(gate.approvalScope, {
+    label: "This request only",
+    reusable: false,
   });
+  assert.deepEqual(gate.approvalDetails, [
+    { label: "Action", value: "Run tool" },
+    { label: "Destination", value: "GET https://example.com" },
+    { label: "Scope", value: "This request only" },
+    { label: "Capability", value: "builtin.http" },
+    { label: "Estimated network egress", value: "4096 bytes" },
+  ]);
+  assert.match(gate.parameters, /Estimated network egress: 4096 bytes/);
 });
 
-test('gateFromEvent keeps explicit flat parameters ahead of approval_context fallback', () => {
-  const gate = gateFromEvent('gate', {
-    turn_run_id: 'run-flat-1',
-    gate_ref: 'gate-flat-1',
-    headline: 'Approve send',
-    tool_name: 'send_email',
-    description: 'Send email',
-    parameters: { to: 'legal@example.com' },
-    approval_context: {
-      tool_name: 'http_post',
-      action: { label: 'POST request', method: 'POST' },
-      scope: { label: 'This endpoint', reusable: false },
-      destination: { label: 'Webhook endpoint' }
-    }
-  });
+test("gateFromEvent keeps modern auth prompts without challenge kind off token card", () => {
+  const { gateFromEvent } = loadGates();
 
-  assert.equal(gate.toolName, 'send_email');
-  assert.equal(gate.description, 'Send email');
-  assert.equal(gate.parameters, '{\n  "to": "legal@example.com"\n}');
+  assert.deepEqual(
+    plain(gateFromEvent("auth_required", {
+      turn_run_id: "run-auth",
+      auth_request_ref: "gate:auth",
+      headline: "Authentication required",
+      body: "Google authentication required",
+      provider: "google",
+    })),
+    {
+      kind: "auth_required",
+      challengeKind: "other",
+      runId: "run-auth",
+      gateRef: "gate:auth",
+      provider: "google",
+      accountLabel: "",
+      authorizationUrl: null,
+      expiresAt: null,
+      headline: "Authentication required",
+      body: "Google authentication required",
+    },
+  );
 });
 
-test('gateFromProjection keeps projected gate honest without fabricating tool metadata', () => {
-  const gate = gateFromProjection('run-2', {
-    gate_ref: 'gate-2',
-    headline: 'Approval required',
-    allow_always: true
-  });
+test("gateFromEvent preserves legacy auth prompts as manual token prompts", () => {
+  const { gateFromEvent } = loadGates();
 
-  assert.deepEqual(gate, {
-    kind: 'gate',
-    requestId: 'gate-2',
-    runId: 'run-2',
-    gateRef: 'gate-2',
-    headline: 'Approval required',
-    body: '',
-    toolName: '',
-    description: '',
-    parameters: '',
-    allowAlways: true
-  });
+  assert.equal(
+    gateFromEvent("auth_required", {
+      turn_run_id: "run-auth",
+      auth_request_ref: "gate:auth",
+    }).challengeKind,
+    "manual_token",
+  );
 });
 
-test('formatGateParameters returns strings as-is and hides absent values', () => {
-  assert.equal(formatGateParameters('{"already":"redacted"}'), '{"already":"redacted"}');
-  assert.equal(formatGateParameters(null), '');
-  assert.equal(formatGateParameters(undefined), '');
-  assert.equal(formatGateParameters(''), '');
+test("gateFromProjection builds a minimal mono-shaped gate from a projection item", () => {
+  const { gateFromProjection } = loadGates();
+
+  assert.deepEqual(
+    plain(
+      gateFromProjection("run-2", {
+        gate_ref: "gate:approval",
+        headline: "Approval required",
+        allow_always: true,
+      }),
+    ),
+    {
+      kind: "gate",
+      runId: "run-2",
+      gateRef: "gate:approval",
+      headline: "Approval required",
+      body: "",
+      allowAlways: true,
+    },
+  );
+});
+
+test("gateFromProjection returns null without an active run id", () => {
+  const { gateFromProjection } = loadGates();
+
+  assert.equal(gateFromProjection(null, { gate_ref: "gate:approval" }), null);
+  assert.equal(gateFromProjection("run-2", null), null);
 });

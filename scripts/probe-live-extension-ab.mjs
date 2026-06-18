@@ -58,17 +58,21 @@ async function runScenario({ origin, token, label, filename, text }) {
     `Diagnostic: read the attached file and reply with "${MARKER}: " followed by the company ` +
     'name on its first line, verbatim. If you cannot read the attachment content for any ' +
     'reason, reply with "CANNOT_READ: " followed by a one-sentence reason. Use no connectors.';
-  const send = await api('POST', `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/messages`, {
-    client_action_id: `ext-ab-msg-${label}-${timestamp}`,
-    content: prompt,
-    attachments: [
-      {
-        name: filename,
-        mime_type: 'text/plain',
-        data_base64: Buffer.from(text, 'utf8').toString('base64')
-      }
-    ]
-  });
+  const send = await api(
+    'POST',
+    `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/messages`,
+    {
+      client_action_id: `ext-ab-msg-${label}-${timestamp}`,
+      content: prompt,
+      attachments: [
+        {
+          name: filename,
+          mime_type: 'text/plain',
+          data_base64: Buffer.from(text, 'utf8').toString('base64')
+        }
+      ]
+    }
+  );
 
   let reply = null;
   for (let attempt = 0; attempt < 36 && !reply; attempt += 1) {

@@ -1,4 +1,4 @@
-import { React, html } from '../../../lib/html.js';
+import { html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { Icon } from '../../../design-system/icons.js';
 
@@ -11,62 +11,6 @@ const SHORTCUTS = [
 
 export function KeyboardShortcuts({ open, onClose }) {
   const t = useT();
-  const panelRef = React.useRef(null);
-  const restoreFocusRef = React.useRef(null);
-
-  // Move focus into the dialog on open and return it to the opener on close, so
-  // keyboard users are never stranded behind the modal or on <body>.
-  React.useEffect(() => {
-    if (!open) return undefined;
-    restoreFocusRef.current =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const id = window.requestAnimationFrame(() => {
-      const panel = panelRef.current;
-      if (!panel) return;
-      const target = panel.querySelector(
-        'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])'
-      );
-      (target instanceof HTMLElement ? target : panel).focus();
-    });
-    return () => {
-      window.cancelAnimationFrame(id);
-      restoreFocusRef.current?.focus?.();
-      restoreFocusRef.current = null;
-    };
-  }, [open]);
-
-  // Esc closes from anywhere inside; Tab/Shift-Tab stay trapped in the panel.
-  const onKeyDown = (event) => {
-    if (event.key === 'Escape') {
-      event.preventDefault();
-      onClose?.();
-      return;
-    }
-    if (event.key !== 'Tab') return;
-    const panel = panelRef.current;
-    if (!panel) return;
-    const items = Array.from(
-      panel.querySelectorAll(
-        'input, select, textarea, button, [href], [tabindex]:not([tabindex="-1"])'
-      )
-    ).filter((el) => !el.hasAttribute('disabled') && el.offsetParent !== null);
-    if (items.length === 0) {
-      event.preventDefault();
-      panel.focus();
-      return;
-    }
-    const first = items[0];
-    const last = items[items.length - 1];
-    const activeEl = document.activeElement;
-    if (event.shiftKey && (activeEl === first || activeEl === panel)) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && activeEl === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
-
   if (!open) return null;
 
   return html`
@@ -75,7 +19,6 @@ export function KeyboardShortcuts({ open, onClose }) {
       role="dialog"
       aria-modal="true"
       aria-label=${t('shortcuts.title')}
-      onKeyDown=${onKeyDown}
     >
       <button
         type="button"
@@ -84,9 +27,7 @@ export function KeyboardShortcuts({ open, onClose }) {
         className="absolute inset-0 bg-black/50"
       ></button>
       <div
-        ref=${panelRef}
-        tabindex=${-1}
-        className="relative w-full max-w-md rounded-2xl border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-5 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.8)] outline-none"
+        className="relative w-full max-w-md rounded-2xl border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-5 shadow-[0_30px_60px_-20px_rgba(0,0,0,0.8)]"
       >
         <div className="mb-4 flex items-center gap-2">
           <span

@@ -1,6 +1,16 @@
 import { React, html } from '../lib/html.js';
 import { Icon } from '../design-system/icons.js';
 import { ConfirmDialog } from '../design-system/confirm-dialog.js';
+import { useT } from '../lib/i18n.js';
+import { getPinnedIds, subscribePins, togglePin } from '../lib/pin-store.js';
+
+/* React adapter for the pinned-thread store. Lives here (not in pin-store.js)
+ * so the store stays a pure, unit-testable module free of a React import. */
+function usePinnedIds() {
+  const [set, setSet] = React.useState(getPinnedIds);
+  React.useEffect(() => subscribePins(setSet), []);
+  return set;
+}
 import { THREAD_STATE, useThreadStates } from '../lib/thread-state.js';
 import {
   byActivityDesc,
@@ -41,7 +51,8 @@ function presentationFor(state) {
   return state ? STATE_PRESENTATION[state] || null : null;
 }
 
-function ThreadItem({ thread, isActive, presentation, onSelect, onDelete }) {
+function ThreadItem({ thread, isActive, isPinned, presentation, onSelect, onDelete }) {
+  const t = useT();
   const activityIso = threadActivityIso(thread);
   const timeLabel = formatThreadActivityLabel(activityIso);
   const timeTitle = formatThreadActivityTooltip(activityIso);
@@ -54,14 +65,23 @@ function ThreadItem({ thread, isActive, presentation, onSelect, onDelete }) {
       // Failure surfaces inline in the dialog (no native window.alert): the
       // onConfirm promise rejecting keeps the dialog open with the error.
       setConfirmDelete({
-        message: 'Delete this chat? This cannot be undone.',
-        title: 'Delete chat',
-        confirmLabel: 'Delete',
+        message: t('chat.deleteThreadConfirm'),
+        title: t('common.deleteChat'),
+        confirmLabel: t('common.delete'),
         tone: 'danger',
         onConfirm: () => Promise.resolve(onDelete?.(thread.id))
       });
     },
-    [onDelete, thread.id]
+    [onDelete, thread.id, t]
+  );
+
+  const handleTogglePin = React.useCallback(
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      togglePin(thread.id);
+    },
+    [thread.id]
   );
 
   return html`
@@ -103,12 +123,28 @@ function ThreadItem({ thread, isActive, presentation, onSelect, onDelete }) {
           ${presentation ? presentation.label : timeLabel}
         </span>`}
       </button>
+      <button
+        type="button"
+        onClick=${handleTogglePin}
+        title=${isPinned ? t('common.unpin') : t('common.pin')}
+        aria-label=${isPinned ? t('common.unpin') : t('common.pin')}
+        aria-pressed=${isPinned ? 'true' : 'false'}
+        className=${cn(
+          'my-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] transition',
+          isPinned
+            ? 'text-[var(--v2-accent-text)]'
+            : 'opacity-0 text-[var(--v2-text-faint)] group-hover:opacity-100 focus:opacity-100',
+          'hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-accent-text)]'
+        )}
+      >
+        <${Icon} name="pin" className="h-3.5 w-3.5" strokeWidth=${2} />
+      </button>
       ${onDelete &&
       html`<button
         type="button"
         onClick=${handleDelete}
-        title="Delete chat"
-        aria-label="Delete chat"
+        title=${t('common.deleteChat')}
+        aria-label=${t('common.deleteChat')}
         className=${cn(
           'my-1 mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px]',
           'opacity-0 transition group-hover:opacity-100 focus:opacity-100',
@@ -122,7 +158,7 @@ function ThreadItem({ thread, isActive, presentation, onSelect, onDelete }) {
   `;
 }
 
-function ThreadGroup({ label, items, activeThreadId, states, onSelect, onDelete }) {
+function ThreadGroup({ label, items, activeThreadId, states, pinnedIds, onSelect, onDelete }) {
   if (items.length === 0) return null;
   return html`
     <div className="flex flex-col gap-1">
@@ -137,6 +173,7 @@ function ThreadGroup({ label, items, activeThreadId, states, onSelect, onDelete 
             key=${thread.id}
             thread=${thread}
             isActive=${thread.id === activeThreadId}
+            isPinned=${pinnedIds.has(thread.id)}
             presentation=${presentationFor(states.get(thread.id))}
             onSelect=${onSelect}
             onDelete=${onDelete}
@@ -162,11 +199,17 @@ export function SidebarThreads({
   const [collapsed, setCollapsed] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const states = useThreadStates();
+  const pinnedIds = usePinnedIds();
+  const t = useT();
 
   /* Two-group partition (replaces the previous date-bucketed layout):
-   *   - Pinned: active thread + any thread with a non-idle state.
-   *     These are the rows you care about right now regardless of age.
+   *   - Pinned: threads the user has explicitly pinned (see lib/pin-store).
+   *     The active thread is no longer auto-pinned — switching threads
+   *     used to shuffle the active one into PINNED, which this fixes.
    *   - Recent: everything else, newest-first by updated_at || created_at.
+   *
+   * Per-thread state (running / needs-attention) still renders its dot
+   * wherever the thread lands; it no longer forces a thread into PINNED.
    *
    * Title search runs before partitioning so the filter still matches
    * any thread, pinned or not. */
@@ -179,9 +222,7 @@ export function SidebarThreads({
     const pinnedList = [];
     const recentList = [];
     for (const thread of filtered) {
-      const isActive = thread.id === activeThreadId;
-      const hasState = states.has(thread.id);
-      if (isActive || hasState) {
+      if (pinnedIds.has(thread.id)) {
         pinnedList.push(thread);
       } else {
         recentList.push(thread);
@@ -194,7 +235,7 @@ export function SidebarThreads({
       recent: recentList,
       totalMatches: pinnedList.length + recentList.length
     };
-  }, [threads, query, activeThreadId, states]);
+  }, [threads, query, pinnedIds]);
 
   // Search-miss auto-load: while a search has no loaded matches but older pages
   // exist, page through them so a thread on page 3 is still findable. Bounded —
@@ -215,7 +256,7 @@ export function SidebarThreads({
         <span
           className="flex-1 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--v2-text-faint)]"
         >
-          Conversations
+          ${t('chat.conversations')}
         </span>
         <${Icon}
           name="chevron"
@@ -237,7 +278,7 @@ export function SidebarThreads({
             type="text"
             value=${query}
             onInput=${(event) => setQuery(event.currentTarget.value)}
-            placeholder="Search chats…"
+            placeholder=${t('common.searchChats')}
             className="h-8 min-h-[44px] w-full rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[12px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
           />
         </div>`}
@@ -249,7 +290,7 @@ export function SidebarThreads({
                 aria-live="polite"
                 className="flex flex-col gap-1.5 px-1 py-2"
               >
-                <span className="sr-only">Loading conversations…</span>
+                <span className="sr-only">${t('chat.loadingConversations')}</span>
                 ${[1, 2, 3, 4].map(
                   (i) =>
                     html`<div
@@ -262,7 +303,7 @@ export function SidebarThreads({
             : isError
               ? html`<div role="alert" className="px-3 py-2">
                   <p className="text-[12px] text-[var(--v2-danger-text)]">
-                    Could not load conversations.
+                    ${t('chat.loadFailed')}
                   </p>
                   ${onRetry &&
                   html`<button
@@ -270,11 +311,11 @@ export function SidebarThreads({
                     onClick=${() => onRetry()}
                     className="mt-1.5 inline-flex min-h-[44px] items-center gap-1 rounded-[6px] px-2 py-1 text-[12px] font-medium text-[var(--v2-accent-text)] hover:bg-[var(--v2-surface-muted)]"
                   >
-                    <${Icon} name="retry" className="h-3.5 w-3.5" /> Retry
+                    <${Icon} name="retry" className="h-3.5 w-3.5" /> ${t('common.retry')}
                   </button>`}
                 </div>`
               : html`<div className="px-3 py-2 text-[12px] text-[var(--v2-text-faint)]">
-                  No conversations yet
+                  ${t('chat.noConversations')}
                 </div>`)}
           ${threads.length > 0 &&
           totalMatches === 0 &&
@@ -284,25 +325,27 @@ export function SidebarThreads({
                 aria-live="polite"
                 className="flex items-center gap-2 px-3 py-2 text-[12px] text-[var(--v2-text-faint)]"
               >
-                <${Icon} name="search" className="h-3.5 w-3.5" /> Searching older conversations…
+                <${Icon} name="search" className="h-3.5 w-3.5" /> ${t('chat.searchingOlder')}
               </div>`
             : html`<div className="px-3 py-2 text-[12px] text-[var(--v2-text-faint)]">
-                No chats match “${query}”
+                ${t('common.noChatsMatch').replace('{query}', query)}
               </div>`)}
 
           <${ThreadGroup}
-            label="Pinned"
+            label=${t('common.pinned')}
             items=${pinned}
             activeThreadId=${activeThreadId}
             states=${states}
+            pinnedIds=${pinnedIds}
             onSelect=${onSelect}
             onDelete=${onDelete}
           />
           <${ThreadGroup}
-            label="Recent"
+            label=${t('common.recent')}
             items=${recent}
             activeThreadId=${activeThreadId}
             states=${states}
+            pinnedIds=${pinnedIds}
             onSelect=${onSelect}
             onDelete=${onDelete}
           />
@@ -314,7 +357,7 @@ export function SidebarThreads({
             disabled=${isLoadingMore}
             className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-[var(--v2-panel-border)] px-3 text-[12px] font-medium text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:opacity-60"
           >
-            ${isLoadingMore ? 'Loading…' : 'Load older conversations'}
+            ${isLoadingMore ? t('common.loading') : t('chat.loadOlder')}
           </button>`}
         </div>
       `}

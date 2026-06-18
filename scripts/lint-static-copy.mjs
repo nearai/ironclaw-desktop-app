@@ -15,7 +15,14 @@ const ignoredPathSegments = new Set(['vendor']);
 const forbidden = [
   {
     name: 'third-party model brand in normal desktop copy',
-    pattern: /\b(OpenRouter|Anthropic|Claude|ChatGPT)\b/i
+    pattern: /\b(OpenRouter|Anthropic|Claude|ChatGPT)\b/i,
+    // Provider-picker labels in settings/onboarding are config vocabulary,
+    // not desktop marketing copy. Allow them when the entire string is a
+    // provider name + at most one config noun (no verb, no sentence).
+    allow: (text) =>
+      /^(?:OpenRouter|Anthropic(?: API)?|Claude(?: API)?|ChatGPT)(?: (?:API|chat|Plus|Pro|subscription|plans?))?$/.test(
+        text.trim()
+      ) || /^Bring your own (?:Anthropic|Claude|OpenRouter|ChatGPT) API key\.$/.test(text.trim())
   },
   {
     name: '"ask me anything" front-door framing',

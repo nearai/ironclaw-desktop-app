@@ -7,12 +7,17 @@ import { Icon } from '../../../design-system/icons.js';
 import { groupMessages } from '../lib/message-groups.js';
 import { useThreadFind } from '../hooks/useThreadFind.js';
 
+// Scroll container reserves bottom space so the last row never sits under the
+// fixed composer; the jump-to-latest control is anchored to the scroll edge and
+// straddles it (translate-y-1/2) rather than floating above (bottom-4). Pinned
+// as standalone helpers so the rendered-geometry tests can assert the classes
+// without rendering the whole list.
 function messageListScrollClass() {
   return 'flex flex-1 overflow-y-auto px-4 pb-24 pt-6 sm:px-5 sm:pb-28 lg:px-8';
 }
 
 function messageListContentClass() {
-  return 'mx-auto flex w-full max-w-5xl flex-col gap-5';
+  return 'mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-5';
 }
 
 function jumpToLatestClass() {
@@ -26,6 +31,7 @@ export function MessageList({
   onLoadMore,
   onRetryMessage,
   threadId,
+  pending = false,
   children
 }) {
   const t = useT();
@@ -33,11 +39,20 @@ export function MessageList({
   const shouldScrollRef = React.useRef(true);
   const [atBottom, setAtBottom] = React.useState(true);
 
+  // Keep the latest content in view. Re-runs on new messages and when the
+  // run state flips — the typing indicator / streamed reply are rendered as
+  // children (not in `messages`), so they wouldn't trigger this otherwise.
+  // The rAF defers the scroll until after layout so `scrollHeight` reflects
+  // the just-rendered row (avatar header, markdown, code blocks).
   React.useEffect(() => {
     const el = containerRef.current;
     if (!el || !shouldScrollRef.current) return;
-    el.scrollTop = el.scrollHeight;
-  }, [messages]);
+    const raf = window.requestAnimationFrame(() => {
+      const node = containerRef.current;
+      if (node) node.scrollTop = node.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(raf);
+  }, [messages, pending]);
 
   const onScroll = React.useCallback(() => {
     const el = containerRef.current;
@@ -64,7 +79,7 @@ export function MessageList({
   const find = useThreadFind({ messages, containerRef, hasMore, onLoadMore });
 
   return html`
-    <div className="relative flex min-h-0 flex-1">
+    <div className="relative flex min-h-0 min-w-0 flex-1">
       ${find.open &&
       html`<${ThreadFindBar}
         query=${find.query}

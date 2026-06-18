@@ -135,7 +135,12 @@ async function main() {
         .first()
         .innerText()
         .catch(() => '');
-      results.push({ surface: surface.name, path: surface.path, file, heading: heading.slice(0, 80) });
+      results.push({
+        surface: surface.name,
+        path: surface.path,
+        file,
+        heading: heading.slice(0, 80)
+      });
     }
     // Dark mode pass on onboarding for the hero typography check.
     await page.emulateMedia({ colorScheme: 'dark' });

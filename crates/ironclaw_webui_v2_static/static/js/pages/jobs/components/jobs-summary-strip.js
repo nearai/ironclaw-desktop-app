@@ -36,7 +36,7 @@ const SUMMARY_CARDS = [
     key: 'stuck',
     label: 'Stuck',
     tone: 'danger',
-    detail: 'Agent work needing recovery or your attention.'
+    detail: 'Agent work needing recovery or intervention.'
   }
 ];
 

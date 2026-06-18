@@ -18,11 +18,10 @@ function FeedbackBanner({ result, onDismiss }) {
   if (!result) return null;
 
   const tone = {
-    success:
-      'border-[color-mix(in_srgb,var(--v2-positive-text)_36%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]',
+    success: 'border-mint/30 bg-mint/10 text-mint',
     error:
       'border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]',
-    info: 'border-[color-mix(in_srgb,var(--v2-accent-text)_32%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
+    info: 'border-signal/30 bg-signal/10 text-signal'
   };
 
   return html`
@@ -212,15 +211,7 @@ export function JobsPage() {
             result=${detailState.promptResult}
             onDismiss=${detailState.clearPromptResult}
           />
-          ${
-            // No v2 jobs endpoint exists yet (useJobs status:'todo'). The summary
-            // strip renders a six-tile live metrics ledger; showing hardcoded
-            // zeros as a polling dashboard implies tracking the gateway cannot
-            // prove. Gate it on a real backend — the dignified empty list still
-            // renders below with its honest "No jobs yet" state.
-            jobsState.status !== 'todo' &&
-            html`<${JobsSummaryStrip} summary=${jobsState.summary} />`
-          }
+          <${JobsSummaryStrip} summary=${jobsState.summary} />
           ${detailContent}
         </div>
       </div>

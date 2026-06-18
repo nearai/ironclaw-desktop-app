@@ -29,7 +29,11 @@ use serde::Deserialize;
 use tauri::AppHandle;
 
 const CLOUD_API: &str = "https://cloud-api.near.ai";
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(300);
+// A system-browser OAuth gives no signal when the user closes the window, so the
+// loopback can only give up on this timeout. Keep it short enough that an
+// abandoned sign-in frees the connect button quickly (the UI also offers an
+// explicit Cancel that abandons the attempt immediately).
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(120);
 const PORT_MIN: u16 = 8765;
 const PORT_MAX: u16 = 8800;
 const ACCEPT_POLL: Duration = Duration::from_millis(60);

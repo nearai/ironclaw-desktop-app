@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from 'react-router';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router';
 import { useInterfaceTheme } from '../design-system/theme.js';
 import { Button } from '../design-system/button.js';
 import { useGatewayStatus } from '../hooks/useGatewayStatus.js';
@@ -6,6 +6,8 @@ import { useLlmProviders } from '../pages/settings/hooks/useLlmProviders.js';
 import { useSidebar } from '../hooks/useSidebar.js';
 import { html } from '../lib/html.js';
 import { useT } from '../lib/i18n.js';
+import { toast } from '../lib/toast.js';
+import { deleteThreadErrorMessage } from '../lib/thread-errors.js';
 import { useThreads } from '../pages/chat/hooks/useThreads.js';
 import { Sidebar } from '../components/sidebar.js';
 import { PageHeader } from '../components/page-header.js';
@@ -57,9 +59,8 @@ function GatewayReadinessNotice({ gatewayError, providerError, pathname, onRetry
   `;
 }
 
-export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
+export function GatewayLayout({ token, profile, isChecking = false, isAdmin, onSignOut }) {
   const t = useT();
-  const location = useLocation();
   const { theme, toggleTheme } = useInterfaceTheme();
   const statusQuery = useGatewayStatus(token);
   const threadsState = useThreads();
@@ -68,10 +69,18 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
   });
   const status = statusQuery.data;
 
-  // Chat is the front door. Model setup remains truthful in the composer and
-  // Settings; the layout no longer redirects first-run users into provider
-  // management before they can see the product surface.
-  const llmProviders = useLlmProviders({ settings: {}, gatewayStatus: status });
+  // No first-run redirect: the chat front door is the prepared desk and renders
+  // its own "Connect NEAR AI Cloud" setup callout as the primary action when no
+  // model is active, so a no-model user sets up in place instead of being
+  // bounced to /welcome. (Sign-in itself is still gated by RequireAuth.) The
+  // provider snapshot below powers the inline model/setup affordances.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const llmProviders = useLlmProviders({
+    settings: {},
+    gatewayStatus: status,
+    enabled: isAdmin
+  });
 
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   React.useEffect(() => {
@@ -84,9 +93,22 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
-  // The current thread contract has no delete endpoint, so the sidebar renders no
-  // delete affordance (SidebarThreads conditionally renders the
-  // trash button on `onDelete`).
+
+  const handleDeleteThread = React.useCallback(
+    async (threadId) => {
+      const wasActive = threadsState.activeThreadId === threadId;
+      try {
+        await threadsState.deleteThread(threadId);
+        if (wasActive) {
+          navigate('/chat', { replace: true });
+        }
+      } catch (error) {
+        console.error('Failed to delete thread:', error);
+        toast(deleteThreadErrorMessage(error, t), { tone: 'error' });
+      }
+    },
+    [navigate, threadsState, t]
+  );
 
   return html`
     <div className="flex h-[100dvh] overflow-hidden bg-[var(--v2-canvas)]">
@@ -114,6 +136,7 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
           onClose=${sidebar.close}
           onNewChat=${sidebar.newChat}
           onSelectThread=${sidebar.selectThread}
+          onDeleteThread=${handleDeleteThread}
         />
       </div>
 
@@ -129,11 +152,24 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
               llmProviders.refresh?.();
             }}
           />
+          ${statusQuery.error &&
+          html`
+            <div
+              className=${cn(
+                'm-4 rounded-[14px] border px-4 py-3 text-sm',
+                'border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))]',
+                'bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]'
+              )}
+            >
+              ${statusQuery.error.message || t('error.gatewayConnection')}
+            </div>
+          `}
           <${Outlet}
             context=${{
               gatewayStatus: status,
               gatewayStatusQuery: statusQuery,
               currentUser: profile,
+              isChecking,
               isAdmin,
               threadsState
             }}
@@ -146,7 +182,6 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
         threadsState=${threadsState}
         onNewChat=${sidebar.newChat}
         onToggleTheme=${toggleTheme}
-        isAdmin=${isAdmin}
       />
       <${ToastViewport} />
     </div>

@@ -12,11 +12,28 @@
 // `ironclaw_product_workflow::webui_inbound` and
 // `ironclaw_product_workflow::reborn_services::types`. The error
 // envelope mirrors `RebornServicesError`.
+//
+// This file is the single shared client for BOTH the hosted web SPA and
+// the packaged desktop (Tauri) app. The desktop transport layer below is
+// a strict no-op on web: outside a Tauri WebView `gatewayOrigin()` returns
+// "", `gatewayUrl(path)` returns `path` unchanged, and `gatewayFetch`
+// falls back to the global `fetch`, so web behavior is byte-for-byte the
+// hosted client's. Desktop-only routing engages only behind
+// `isDesktopRuntime()` / `gatewayOrigin()` gates.
 
 const TOKEN_KEY = 'ironclaw_token';
 const V2_BASE = '/api/webchat/v2';
 const DESKTOP_GATEWAY_ORIGIN_KEY = 'ironclaw:desktop-gateway-origin';
 const DEFAULT_DESKTOP_GATEWAY_ORIGIN = 'http://127.0.0.1:3100';
+
+// --- Desktop (Tauri) transport layer ---
+//
+// Everything in this section is inert on the web: each entry point first
+// checks `inTauri()` and returns the web-equivalent value when false. The
+// shared fetch paths (`apiFetch`, the SSE/WS connectors, the auth calls,
+// the project-files API) route through `gatewayFetch(gatewayUrl(path), ...)`
+// with credentials chosen by `gatewayOrigin()`. On web that resolves to
+// `fetch(path, { credentials: "same-origin", ... })` — unchanged.
 
 let tauriFetchPromise = null;
 let bootstrappedDesktopGatewayOrigin = '';
@@ -69,6 +86,8 @@ function normalizeOrigin(value) {
   }
 }
 
+// On web this returns "" (no Tauri), which makes `gatewayUrl` a pass-through
+// and `apiFetch` use `credentials: "same-origin"` — the hosted behavior.
 export function gatewayOrigin() {
   if (!inTauri()) return '';
   return (
@@ -79,6 +98,8 @@ export function gatewayOrigin() {
   );
 }
 
+// Resolve a same-origin app path to the desktop gateway origin. On web
+// `gatewayOrigin()` is "" so the original `path` is returned unchanged.
 export function gatewayUrl(path) {
   if (!path || /^[a-z][a-z0-9+.-]*:/i.test(path)) return path;
   const origin = gatewayOrigin();
@@ -92,7 +113,10 @@ async function loadTauriFetch() {
   return tauriFetchPromise;
 }
 
-async function gatewayFetch(input, options = {}) {
+// On web `loadTauriFetch()` returns null, so this is exactly the global
+// `fetch`. In the desktop WebView it routes through the Tauri HTTP shim so
+// requests reach the sidecar/gateway origin rather than the WebView origin.
+export async function gatewayFetch(input, options = {}) {
   const fetchImpl = (await loadTauriFetch()) || fetch;
   return fetchImpl(input, options);
 }
@@ -338,6 +362,43 @@ async function parseErrorBody(response) {
   }
 }
 
+// Turn a snake_case / kebab-case wire token into a readable phrase, e.g.
+// `service_unavailable` -> "Service unavailable".
+function humanizeErrorToken(token) {
+  return String(token)
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/^\w/, (char) => char.toUpperCase());
+}
+
+// Derive a human-readable message from a WebChat v2 error response.
+//
+// The wire envelope (`ironclaw_webui_v2::WebUiV2HttpErrorBody`) carries only
+// snake_case enum codes — `kind` (the user-renderable family, e.g.
+// `service_unavailable`), `error` (a coarse code), and an optional
+// `validation_code` + `field` — never prose. Throwing the raw JSON body as the
+// error message means a dialog shows `{"error":"...","kind":"..."}`, which reads
+// as "no error" to a user. Humanize the most specific token instead, and only
+// fall back to a non-JSON body when it is short enough to be a real message.
+export function describeApiError({ payload, body, statusText } = {}) {
+  if (payload && typeof payload === 'object') {
+    if (payload.validation_code) {
+      const base = humanizeErrorToken(payload.validation_code);
+      return payload.field ? `${base} (${payload.field})` : base;
+    }
+    const code = payload.kind || payload.error;
+    if (code) {
+      const base = humanizeErrorToken(code);
+      return payload.field ? `${base} (${payload.field})` : base;
+    }
+  }
+  const trimmed = (body || '').trim();
+  if (trimmed && trimmed.length <= 200 && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return trimmed;
+  }
+  return statusText || 'Request failed';
+}
+
 export async function apiFetch(path, options = {}) {
   const token = readStoredToken();
   const headers = new Headers(options.headers || {});
@@ -349,6 +410,9 @@ export async function apiFetch(path, options = {}) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
+  // Web: gatewayUrl(path) === path, gatewayFetch === fetch,
+  // gatewayOrigin() === "" so credentials stay "same-origin" — identical to
+  // the hosted client. Desktop: routes to the gateway origin with "omit".
   const response = await gatewayFetch(gatewayUrl(path), {
     credentials: gatewayOrigin() ? 'omit' : 'same-origin',
     ...options,
@@ -357,7 +421,7 @@ export async function apiFetch(path, options = {}) {
 
   if (!response.ok) {
     const { text, payload } = await parseErrorBody(response);
-    throw new ApiError(text || response.statusText, {
+    throw new ApiError(describeApiError({ payload, body: text, statusText: response.statusText }), {
       status: response.status,
       statusText: response.statusText,
       body: text,
@@ -371,6 +435,10 @@ export async function apiFetch(path, options = {}) {
 }
 
 // --- Threads ---
+
+export function fetchSession() {
+  return apiFetch(`${V2_BASE}/session`);
+}
 
 export function createThread({ clientActionId: clientId, requestedThreadId } = {}) {
   const body = { client_action_id: clientId || clientActionId() };
@@ -388,7 +456,21 @@ export function listThreads({ limit, cursor } = {}) {
   return apiFetch(url.pathname + url.search);
 }
 
+export function deleteThread({ threadId } = {}) {
+  if (!threadId) {
+    return Promise.reject(new Error('threadId is required'));
+  }
+  return apiFetch(`${V2_BASE}/threads/${encodeURIComponent(threadId)}`, {
+    method: 'DELETE'
+  });
+}
+
 // --- Project filesystem (download / navigation) ---
+//
+// Desktop-only surface: the desktop frontend lists and downloads files from a
+// thread's project workspace. The routes are served by the desktop sidecar.
+// These build same-origin paths and go through `apiFetch` / the shared gateway
+// transport, so on web they behave like any other v2 call (no special-casing).
 
 function projectFilesBase(threadId) {
   return `${V2_BASE}/threads/${encodeURIComponent(threadId)}/files`;
@@ -413,14 +495,22 @@ export function statProjectFile({ threadId, path } = {}) {
   return apiFetch(url.pathname + url.search);
 }
 
-// Fetch a project file's bytes as a Blob. The content route is bearer-only, so
-// a plain `<a download>` cannot carry the token — callers fetch here and hand
-// the Blob to `lib/save-file.js::saveBlob` to trigger the native save.
-//
-// Routes through the same gateway transport as `apiFetch` (gatewayFetch +
-// gatewayUrl + dynamic credentials) so the request reaches the desktop sidecar
-// origin and the Tauri HTTP shim, not the WebView origin. `apiFetch` itself
-// can't be reused here — it parses JSON/text, and we need the raw Blob.
+// Same-origin relative URL for a project file's bytes. Feeds the shared
+// `fetchAttachmentBlob` (which attaches the bearer) so project-file chips can
+// reuse the message-attachment preview modal: it carries the same byte-fetch
+// shape as `attachmentUrl(...)`.
+export function projectFileContentUrl({ threadId, path } = {}) {
+  if (!threadId || !path) {
+    throw new Error('projectFileContentUrl requires threadId and path');
+  }
+  const url = new URL(`${projectFilesBase(threadId)}/content`, window.location.origin);
+  url.searchParams.set('path', path);
+  return url.pathname + url.search;
+}
+
+// Fetch a project file's bytes as a Blob directly. Used on desktop where
+// the content route is behind the sidecar origin and `fetchAttachmentBlob`'s
+// cross-origin guard must be bypassed via the gateway transport.
 export async function fetchProjectFileBlob({ threadId, path } = {}) {
   if (!threadId || !path) {
     throw new Error('threadId and path are required');
@@ -437,7 +527,7 @@ export async function fetchProjectFileBlob({ threadId, path } = {}) {
   });
   if (!response.ok) {
     const { text, payload } = await parseErrorBody(response);
-    throw new ApiError(text || response.statusText, {
+    throw new ApiError(describeApiError({ payload, body: text, statusText: response.statusText }), {
       status: response.status,
       statusText: response.statusText,
       body: text,
@@ -450,23 +540,73 @@ export async function fetchProjectFileBlob({ threadId, path } = {}) {
 
 // --- Automations ---
 
-export function listAutomations({ limit } = {}) {
+export function listAutomations({ limit, runLimit } = {}) {
   const params = new URLSearchParams();
   if (limit != null) params.set('limit', String(limit));
+  if (runLimit != null) params.set('run_limit', String(runLimit));
   const query = params.toString();
   return apiFetch(`${V2_BASE}/automations${query ? `?${query}` : ''}`);
 }
 
+// --- Outbound delivery preferences ---
+
+export function getOutboundPreferences() {
+  return apiFetch(`${V2_BASE}/outbound/preferences`);
+}
+
+export function listOutboundDeliveryTargets() {
+  return apiFetch(`${V2_BASE}/outbound/targets`);
+}
+
+export function setOutboundPreferences({ finalReplyTargetId } = {}) {
+  return apiFetch(`${V2_BASE}/outbound/preferences`, {
+    method: 'POST',
+    body: JSON.stringify({
+      final_reply_target_id: finalReplyTargetId ?? null
+    })
+  });
+}
+
+// --- Operator logs ---
+
+export function queryOperatorLogs({
+  limit,
+  cursor,
+  level,
+  target,
+  threadId,
+  runId,
+  turnId,
+  toolCallId,
+  toolName,
+  source
+} = {}) {
+  const url = new URL(`${V2_BASE}/operator/logs`, window.location.origin);
+  if (limit != null) url.searchParams.set('limit', String(limit));
+  if (cursor) url.searchParams.set('cursor', cursor);
+  if (level) url.searchParams.set('level', level);
+  if (target) url.searchParams.set('target', target);
+  if (threadId) url.searchParams.set('thread_id', threadId);
+  if (runId) url.searchParams.set('run_id', runId);
+  if (turnId) url.searchParams.set('turn_id', turnId);
+  if (toolCallId) url.searchParams.set('tool_call_id', toolCallId);
+  if (toolName) url.searchParams.set('tool_name', toolName);
+  if (source) url.searchParams.set('source', source);
+  return apiFetch(url.pathname + url.search);
+}
+
 // --- Messages ---
 
-export function sendMessage({ threadId, content, attachments, clientActionId: clientId }) {
+// `attachments` is an array of `WebUiInboundAttachment`
+// (`{ mime_type, filename, data_base64 }`). Omitted from the body when
+// empty so a text-only send keeps the original wire shape.
+export function sendMessage({ threadId, content, attachments = [], clientActionId: clientId }) {
   const body = {
     client_action_id: clientId || clientActionId(),
-    content: String(content || '')
+    content
   };
-  const normalizedAttachments = normalizeAttachmentPayloads(attachments);
-  if (normalizedAttachments.length > 0) {
-    body.attachments = normalizedAttachments;
+  if (attachments.length > 0) {
+    body.attachments = attachments;
   }
   return apiFetch(`${V2_BASE}/threads/${encodeURIComponent(threadId)}/messages`, {
     method: 'POST',
@@ -474,6 +614,11 @@ export function sendMessage({ threadId, content, attachments, clientActionId: cl
   });
 }
 
+// Desktop-only helper: the desktop composer collects attachments in a looser
+// shape (`name`/`base64`/`data_base64`) and uses this to coerce them into the
+// `WebUiInboundAttachment` wire shape with sanitized header values. The web
+// composer already builds the wire shape and passes it straight to
+// `sendMessage`, so this is unused on web but exported for the desktop frontend.
 export function normalizeAttachmentPayloads(attachments) {
   return (attachments || [])
     .map((attachment) => ({
@@ -499,11 +644,96 @@ export function fetchTimeline({ threadId, limit, cursor, signal } = {}) {
   return apiFetch(url.pathname + url.search, { signal });
 }
 
+// --- Attachments ---
+
+// Path for one landed attachment's bytes. The (thread, message, attachment)
+// triple addresses it: an attachment id is only unique within its message.
+// Fails fast on a missing part rather than building a path with the literal
+// "undefined" — this URL feeds `fetchAttachmentBlob`, which attaches the bearer,
+// so an unintended path must never be requested.
+export function attachmentUrl({ threadId, messageId, attachmentId } = {}) {
+  if (!threadId || !messageId || !attachmentId) {
+    throw new Error('attachmentUrl requires threadId, messageId, and attachmentId');
+  }
+  return (
+    `${V2_BASE}/threads/${encodeURIComponent(threadId)}` +
+    `/messages/${encodeURIComponent(messageId)}` +
+    `/attachments/${encodeURIComponent(attachmentId)}`
+  );
+}
+
+// Fetch an attachment's bytes with the session bearer and return them as a
+// `Blob`. `<img>`/`<audio>`/`<iframe>` cannot send an Authorization header, so
+// (unlike SSE, which uses a `?token=` shim) the bytes are fetched here and the
+// caller picks the CSP-appropriate representation (data URL for images/media,
+// blob URL for PDF frames, text for text). Throws on a non-OK response so the
+// caller can fall back to a placeholder.
+export async function fetchAttachmentBlob(path) {
+  // The bearer is a critical sink: never attach it to an off-origin URL. The
+  // caller always passes a relative same-origin path (`attachmentUrl(...)`);
+  // reject anything that resolves cross-origin before sending the token.
+  const url = new URL(path, window.location.origin);
+  if (url.origin !== window.location.origin) {
+    throw new ApiError('Invalid attachment URL.', {
+      status: 400,
+      statusText: 'Bad Request'
+    });
+  }
+  const token = readStoredToken();
+  const headers = new Headers();
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  // Routes through the shared gateway transport so desktop reaches the sidecar
+  // origin; on web `gatewayUrl` is a pass-through and `gatewayFetch` is `fetch`
+  // with `credentials: "same-origin"`. The off-origin guard above runs against
+  // the WebView/window origin and is unaffected by the transport rewrite.
+  const requestPath = url.pathname + url.search;
+  const response = await gatewayFetch(gatewayUrl(requestPath), {
+    credentials: gatewayOrigin() ? 'omit' : 'same-origin',
+    headers
+  });
+  if (!response.ok) {
+    const { text, payload } = await parseErrorBody(response);
+    throw new ApiError(describeApiError({ payload, body: text, statusText: response.statusText }), {
+      status: response.status,
+      statusText: response.statusText,
+      body: text,
+      payload
+    });
+  }
+  return await response.blob();
+}
+
+// Read a `Blob` into a `data:` URL. Used for images and media, whose CSP
+// directives (`img-src`/`media-src 'self' data:`) allow data URLs but not
+// `blob:` — and a data URL needs no `revokeObjectURL` lifecycle.
+export function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error('attachment read failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Convenience: fetch an attachment's bytes and return a `data:` URL for an
+// `<img>` thumbnail. CSP-safe (`img-src 'self' data:`); never a `blob:` URL.
+export async function fetchAttachmentDataUrl(path) {
+  return blobToDataUrl(await fetchAttachmentBlob(path));
+}
+
 // --- Streaming (SSE) ---
 
 // `EventSource` cannot set request headers, so the token rides as a
 // query param. The composition middleware accepts `?token=` for this
 // route specifically (in-scope "SSE query-token exception" from #3886).
+//
+// Web: `gatewayOrigin()` is "" so the URL is built against
+// `window.location.origin` and a native `EventSource` is returned — the
+// hosted behavior. Desktop: the URL targets the gateway origin and a
+// `FetchEventStream` is used because the Tauri WebView's `EventSource` cannot
+// reach the cross-origin sidecar (and cannot carry the bearer header).
 export function openEventStream({ threadId, afterCursor } = {}) {
   const url = new URL(
     `${V2_BASE}/threads/${encodeURIComponent(threadId)}/events`,
@@ -524,6 +754,9 @@ export function openEventStream({ threadId, afterCursor } = {}) {
 // browser sends Origin automatically; the bearer travels via the
 // `?token=` URL parameter (the WS handshake API in browsers has no
 // way to set a custom request header).
+//
+// Web: base === `window.location.origin`, identical to the hosted client.
+// Desktop: base === the gateway origin so the socket reaches the sidecar.
 export function openEventSocket({ threadId } = {}) {
   const base = gatewayOrigin() || window.location.origin;
   const scheme = base.startsWith('https:') ? 'wss:' : 'ws:';
@@ -623,12 +856,34 @@ export function setupExtension(extensionName, { action, payload } = {}) {
 
 // --- Gateway status ---
 //
-// Queries the real `/api/gateway/status` route via `apiFetch`. When that
-// route is absent (404) the desktop build derives readiness from local
-// settings + vaulted credentials instead of failing the page. Any other
-// HTTP error propagates so callers can surface it.
+// Issue #3886 Hard Non-Goal: the browser must not call legacy gateway routes
+// without a v2 counterpart. On WEB this stays a pure no-op stub — it sends no
+// HTTP request and returns a zeroed shape so any consumer reading
+// `data.engine_v2_enabled`, `data.llm_backend`, etc. resolves cleanly to
+// falsey values (byte-for-byte the hosted behavior). When a v2 equivalent
+// lands, replace the web stub body with the real wire call.
+//
+// On DESKTOP the route exists on the local sidecar, so the desktop build
+// queries the real `/api/gateway/status` via `apiFetch` and, when that route
+// is absent (404), derives readiness from local settings + vaulted credentials
+// instead of failing the page. Any other HTTP error propagates so callers can
+// surface it.
 
 export async function gatewayStatus() {
+  if (!isDesktopRuntime()) {
+    // TODO: requires v2 gateway-status endpoint. Returning a zeroed
+    // shape so any consumer reading `data.engine_v2_enabled`,
+    // `data.llm_backend`, etc. resolves cleanly to falsey values.
+    return Promise.resolve({
+      engine_v2_enabled: false,
+      restart_enabled: false,
+      total_connections: null,
+      llm_backend: null,
+      llm_model: null,
+      todo: true
+    });
+  }
+
   try {
     return await apiFetch('/api/gateway/status');
   } catch (err) {
@@ -716,6 +971,10 @@ function providerDisplayLabel(providerId) {
 // a short-lived `login_ticket`; the SPA exchanges it over same-origin
 // JSON for the real bearer. Logout sends the current bearer so the
 // server-side session can be revoked.
+//
+// Each call routes through the shared gateway transport. On web that is the
+// global `fetch` against the same origin with `credentials: "same-origin"` —
+// identical to the hosted client.
 
 export async function fetchAuthProviders() {
   // Unauthenticated GET — the server returns `{ providers: [] }`
@@ -788,6 +1047,15 @@ export async function logout() {
   }
 }
 
+// --- Desktop SSE transport ---
+//
+// Desktop-only. A WebView `EventSource` cannot reach the cross-origin sidecar
+// and cannot carry a bearer header, so the desktop SSE path uses a
+// fetch-backed reader (through `gatewayFetch`, which goes via the Tauri HTTP
+// shim). `openEventStream` instantiates this only when `gatewayOrigin()` is
+// set, so it is never constructed on web. Mirrors enough of the `EventSource`
+// surface (`addEventListener`, `removeEventListener`, `onopen`/`onerror`/
+// `onmessage`, `close`) for `useSSE` to consume it interchangeably.
 export class FetchEventStream {
   constructor(url, token) {
     this.url = url;

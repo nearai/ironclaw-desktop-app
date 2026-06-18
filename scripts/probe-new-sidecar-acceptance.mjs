@@ -178,7 +178,11 @@ async function main() {
         client_action_id: `accept-msg-${timestamp}`,
         content: `${prompt}${sentinelBlock}`,
         attachments: [
-          { name: 'ledger.csv', mime_type: 'text/plain', data_base64: Buffer.from('x').toString('base64') }
+          {
+            name: 'ledger.csv',
+            mime_type: 'text/plain',
+            data_base64: Buffer.from('x').toString('base64')
+          }
         ]
       }
     );
@@ -270,7 +274,10 @@ async function main() {
   } finally {
     if (child.exitCode == null) {
       child.kill('SIGTERM');
-      await Promise.race([new Promise((r) => child.once('exit', r)), delay(3000).then(() => child.kill('SIGKILL'))]);
+      await Promise.race([
+        new Promise((r) => child.once('exit', r)),
+        delay(3000).then(() => child.kill('SIGKILL'))
+      ]);
     }
     await rm(home, { recursive: true, force: true });
   }

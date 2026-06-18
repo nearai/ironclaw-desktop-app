@@ -140,15 +140,8 @@ export function MissionsPage() {
             result=${missionsState.actionResult}
             onDismiss=${missionsState.clearActionResult}
           />
-          ${
-            // No v2 missions endpoint exists yet (useMissions status:'todo'). The
-            // summary strip renders a four-tile live metrics ledger; showing
-            // hardcoded zeros as a polling dashboard implies tracking the gateway
-            // cannot prove. Gate it on a real backend — the dignified empty list
-            // still renders below with its honest "No missions yet" state.
-            missionsState.status !== 'todo' &&
-            html`<${MissionsSummaryStrip} summary=${missionsState.summary} />`
-          }
+          <${MissionsSummaryStrip} summary=${missionsState.summary} />
+
           ${missionsState.isLoading
             ? html`
                 <div className="space-y-4">

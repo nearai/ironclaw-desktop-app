@@ -109,7 +109,8 @@ function backendEnv(mode) {
     return {
       LLM_BACKEND: 'openrouter',
       OPENROUTER_API_KEY: key,
-      OPENROUTER_MODEL: process.env.IRONCLAW_PROBE_OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3-0324'
+      OPENROUTER_MODEL:
+        process.env.IRONCLAW_PROBE_OPENROUTER_MODEL || 'deepseek/deepseek-chat-v3-0324'
     };
   }
   if (mode === 'nearai-live') {
@@ -289,8 +290,7 @@ async function runMode(sidecar, mode, evidence) {
     const assistants = timelineMessages(lastTimeline).filter((m) =>
       messageKind(m).startsWith('assistant')
     );
-    const failureCategory =
-      lastRun?.failure?.category || lastRun?.failure_category || null;
+    const failureCategory = lastRun?.failure?.category || lastRun?.failure_category || null;
     const failureSummary = lastRun?.failure?.summary || lastRun?.failure_summary || null;
 
     result.run_status = lastRun?.status || null;
@@ -329,8 +329,7 @@ async function runMode(sidecar, mode, evidence) {
         attachment_extracted: result.attachment_extracted_text_observed,
         send_accepted: send.res.ok
       };
-      result.pass =
-        result.contract.assistant_reply_rendered && result.contract.send_accepted;
+      result.pass = result.contract.assistant_reply_rendered && result.contract.send_accepted;
     }
   } catch (err) {
     result.error = err.message || String(err);

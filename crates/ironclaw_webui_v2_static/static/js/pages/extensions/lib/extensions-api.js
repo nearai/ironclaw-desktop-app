@@ -2,6 +2,11 @@
 // - The browser talks only to `/api/webchat/v2/extensions/*` endpoints.
 // - The v2 backend owns the registry/list/install/activate/remove/setup
 //   projection and maps those operations to the extension registry.
+// - Lifecycle routes take the canonical bare extension id (e.g. `gmail`,
+//   `google-calendar`, `slack`, `notion`) in the path. The backend catalog
+//   keys extensions by that dash-cased name, so `canonicalExtensionName`
+//   strips any `kind/id` catalog prefix and dash-cases the leaf before it
+//   crosses the wire. Install keeps the full `package_ref` in the body.
 
 import { apiFetch, setupExtension } from '../../../lib/api.js';
 import { buildCustomMcpInstallPayload } from './custom-mcp.js';

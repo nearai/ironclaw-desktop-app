@@ -20,7 +20,7 @@ const ROUTE_ICONS = {
   admin: 'shield'
 };
 
-const navRoutes = primaryRoutes.filter((r) => !r.hidden);
+const navRoutes = primaryRoutes.filter((r) => r.id !== 'chat' && !r.hidden);
 
 // Respect the deliberate hidden-IA: the Work entry only earns a sidebar slot
 // once the user has saved at least one work product. First run shows no dead
@@ -107,7 +107,7 @@ function ExpandableNavItem({ route, label, subRoutes, onNavigate }) {
   `;
 }
 
-export function SidebarNav({ onNewChat, isCreating, isAdmin = true, onNavigate }) {
+export function SidebarNav({ onNewChat, isCreating, isAdmin = false, onNavigate }) {
   const t = useT();
   const location = useLocation();
   const showWork = React.useMemo(
@@ -145,7 +145,8 @@ export function SidebarNav({ onNewChat, isCreating, isAdmin = true, onNavigate }
       <nav className="mt-2 flex flex-col gap-1">
         ${visibleRoutes.map((route) => {
           const subRoutes = (EXPANDABLE_SUB_ROUTES[route.id] || []).filter(
-            (subRoute) => isAdmin || !(route.id === 'settings' && subRoute.id === 'users')
+            (subRoute) =>
+              isAdmin || !(route.id === 'settings' && ['users', 'inference'].includes(subRoute.id))
           );
           if (subRoutes.length > 0) {
             return html`

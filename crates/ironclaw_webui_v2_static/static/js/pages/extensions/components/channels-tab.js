@@ -1,65 +1,56 @@
 import { StatusPill } from '../../../design-system/primitives.js';
-import { Card, CardLabel } from '../../../design-system/card.js';
 import { html } from '../../../lib/html.js';
+import { useT } from '../../../lib/i18n.js';
+import { SlackChannelPicker } from '../../../components/slack-channel-picker.js';
+import { SlackPairingSection } from '../../../components/slack-pairing-section.js';
 import { ExtensionCard, RegistryCard } from './extension-card.js';
 import { PairingSection } from './pairing-section.js';
-import { redeemPairingCode } from '../lib/pairing-api.js';
-
-const SLACK_PAIRING_I18N_KEYS = {
-  title: 'pairing.slackTitle',
-  instructions: 'pairing.slackInstructions',
-  placeholder: 'pairing.slackPlaceholder',
-  action: 'pairing.connect',
-  success: 'pairing.slackSuccess',
-  error: 'pairing.slackError',
-  empty: 'pairing.none'
-};
-
-const SLACK_PAIRING_QUERY_KEYS = [['extensions'], ['pairing', 'slack'], ['connectable-channels']];
 
 function packageId(item) {
   return item.package_ref?.id || '';
 }
 
-export function isSlackChannelEnabled(enabledChannels) {
-  return ['slack', 'slack_v2', 'slack-v2'].some((channel) => enabledChannels.includes(channel));
+export function isSlackPackage(item) {
+  return packageId(item) === 'slack';
 }
 
-// Desktop chat is "on" only when a live transport is actually connected.
-// Gateway reachability alone (no SSE/WS) is honest-neutral, not green —
-// "SSE: 0 · WS: 0" must never sit next to a success pill.
-export function deriveDesktopChatState({ gatewayOffline, sseConnections, wsConnections }) {
-  if (gatewayOffline) {
-    return { enabled: false, statusLabel: 'unavailable', statusTone: 'warning' };
-  }
-  const liveConnections = (sseConnections || 0) + (wsConnections || 0);
-  if (liveConnections > 0) {
-    return { enabled: true, statusLabel: 'on', statusTone: 'success' };
-  }
-  return { enabled: false, statusLabel: 'idle', statusTone: 'muted' };
+export function isSlackAdminManagedAction(connectAction) {
+  return connectAction?.channel === 'slack' && connectAction.strategy === 'admin_managed_channels';
 }
 
-export function deriveSlackMessagingState({
-  gatewayOffline,
-  enabledChannels,
-  connectableChannels
-}) {
-  if (gatewayOffline) {
-    return {
-      enabled: false,
-      connectAction: null,
-      statusLabel: 'unavailable',
-      statusTone: 'warning'
-    };
-  }
-  const enabled = isSlackChannelEnabled(enabledChannels);
-  const connectAction = connectableChannels?.find((channel) => channel.channel === 'slack');
-  return {
-    enabled,
-    connectAction,
-    statusLabel: enabled ? 'on' : connectAction ? 'connect' : 'off',
-    statusTone: enabled ? 'success' : connectAction ? 'info' : 'muted'
-  };
+export function isSlackInboundProofCodeAction(connectAction) {
+  return connectAction?.channel === 'slack' && connectAction.strategy === 'inbound_proof_code';
+}
+
+export function findSlackConnectAction(connectableChannels) {
+  return findSlackConnectActions(connectableChannels)[0] || null;
+}
+
+export function findSlackConnectActions(connectableChannels) {
+  const channels = connectableChannels || [];
+  const actions = [
+    channels.find(isSlackAdminManagedAction),
+    channels.find(isSlackInboundProofCodeAction)
+  ].filter(Boolean);
+  if (actions.length > 0) return actions;
+  const fallback = channels.find((channel) => channel.channel === 'slack');
+  return fallback ? [fallback] : [];
+}
+
+export function SlackConnectActionSections({ slackConnectAction, slackConnectActions }) {
+  const actions = slackConnectActions || (slackConnectAction ? [slackConnectAction] : []);
+  const sections = actions
+    .map((action) => {
+      if (isSlackAdminManagedAction(action)) {
+        return html`<${SlackChannelPicker} action=${action.action} />`;
+      }
+      if (isSlackInboundProofCodeAction(action)) {
+        return html`<${SlackPairingSection} action=${action.action} />`;
+      }
+      return null;
+    })
+    .filter(Boolean);
+  return sections.length > 0 ? html`<div className="space-y-3">${sections}</div>` : null;
 }
 
 export function ChannelsTab({
@@ -67,106 +58,86 @@ export function ChannelsTab({
   channels,
   connectableChannels,
   channelRegistry,
-  loadError,
   onActivate,
   onConfigure,
   onRemove,
   onInstall,
   isBusy
 }) {
-  const gatewayOffline = Boolean(loadError);
+  const t = useT();
+  const installedChannels = channels || [];
   const enabledChannels = status.enabled_channels || [];
-  const {
-    enabled: slackEnabled,
-    connectAction: slackConnectAction,
-    statusLabel: slackStatusLabel,
-    statusTone: slackStatusTone
-  } = deriveSlackMessagingState({ gatewayOffline, enabledChannels, connectableChannels });
-  const {
-    enabled: desktopChatEnabled,
-    statusLabel: desktopChatStatusLabel,
-    statusTone: desktopChatStatusTone
-  } = deriveDesktopChatState({
-    gatewayOffline,
-    sseConnections: status.sse_connections,
-    wsConnections: status.ws_connections
-  });
+  const slackConnectActions = findSlackConnectActions(connectableChannels);
+  const hasInstalledSlackPackage = installedChannels.some(isSlackPackage);
+  const showLegacySlackConnectActions = slackConnectActions.length > 0 && !hasInstalledSlackPackage;
 
   return html`
     <div className="space-y-5">
-      ${gatewayOffline &&
-      html`
-        <div
-          className="rounded-[14px] border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3 text-sm leading-6 text-[var(--v2-warning-text)]"
-          role="status"
+      <div
+        className="rounded-[18px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-5 shadow-[var(--v2-shadow-sm)] sm:p-6"
+      >
+        <h3
+          className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
         >
-          IronClaw cannot reach the local gateway yet. Messaging setup will unlock when the gateway
-          is available.
-        </div>
-      `}
-      <${Card} variant="bordered" radius="lg" padding="md">
-        <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Built-in messaging paths <//>
+          ${t('channels.builtIn')}
+        </h3>
         <${BuiltinRow}
-          name="Desktop chat"
-          description="The live chat connection used by this app"
-          enabled=${desktopChatEnabled}
-          statusLabel=${desktopChatStatusLabel}
-          statusTone=${desktopChatStatusTone}
+          name="Web Gateway"
+          description=${t('channels.webGatewayDesc') || 'Browser-based chat with SSE streaming'}
+          enabled=${true}
           detail=${'SSE: ' +
           (status.sse_connections || 0) +
           ' · WS: ' +
           (status.ws_connections || 0)}
         />
         <${BuiltinRow}
-          name="External webhook"
-          description="A controlled inbound path for approved external events"
-          enabled=${!gatewayOffline && enabledChannels.includes('http')}
-          statusLabel=${gatewayOffline ? 'unavailable' : undefined}
-          statusTone=${gatewayOffline ? 'warning' : undefined}
-          detail=${gatewayOffline ? null : 'ENABLE_HTTP=true'}
+          name="HTTP Webhook"
+          description=${t('channels.httpWebhookDesc') ||
+          'Inbound webhook endpoint for external integrations'}
+          enabled=${enabledChannels.includes('http')}
+          detail="ENABLE_HTTP=true"
         />
-        <${BuiltinRow}
-          name="Slack"
-          description="DMs and app mentions from the workspace Slack app"
-          enabled=${slackEnabled}
-          statusLabel=${slackStatusLabel}
-          statusTone=${slackStatusTone}
-          detail=${gatewayOffline ? null : 'Workspace Slack app'}
-        >
-          ${slackConnectAction &&
-          html`<${PairingSection}
-            channel="slack"
-            redeemFn=${redeemPairingCode}
-            i18nKeys=${SLACK_PAIRING_I18N_KEYS}
-            copy=${slackConnectAction.action}
-            queryKeys=${SLACK_PAIRING_QUERY_KEYS}
-            showPendingRequests=${false}
-          />`}
-        <//>
         <${BuiltinRow}
           name="CLI"
-          description="Local command bridge for development and debugging"
-          enabled=${!gatewayOffline && enabledChannels.includes('cli')}
-          statusLabel=${gatewayOffline ? 'unavailable' : undefined}
-          statusTone=${gatewayOffline ? 'warning' : undefined}
-          detail=${gatewayOffline ? null : 'ironclaw run --cli'}
+          description=${t('channels.cliDesc') || 'Terminal interface with TUI or simple REPL'}
+          enabled=${enabledChannels.includes('cli')}
+          detail="ironclaw run --cli"
         />
         <${BuiltinRow}
-          name="Developer bridge"
-          description="Low-level local testing path"
-          enabled=${!gatewayOffline && enabledChannels.includes('repl')}
-          statusLabel=${gatewayOffline ? 'unavailable' : undefined}
-          statusTone=${gatewayOffline ? 'warning' : undefined}
-          detail=${gatewayOffline ? null : 'ironclaw run --repl'}
+          name="REPL"
+          description=${t('channels.replDesc') || 'Minimal read-eval-print loop for testing'}
+          enabled=${enabledChannels.includes('repl')}
+          detail="ironclaw run --repl"
         />
-      <//>
+        ${showLegacySlackConnectActions &&
+        html`
+          <${BuiltinRow}
+            name=${t('channels.slack') || 'Slack'}
+            description=${t('channels.slackDesc') || 'Tenant app channel for DMs and app mentions'}
+            enabled=${false}
+            statusLabel="legacy"
+            statusTone="muted"
+            detail=${t('channels.slackDetail') || 'Tenant Slack app install'}
+          >
+            <${SlackConnectActionSections}
+              slackConnectActions=${slackConnectActions}
+            />
+          </${BuiltinRow}>
+        `}
+      </div>
 
-      ${channels.length > 0 &&
+      ${installedChannels.length > 0 &&
       html`
-        <${Card} variant="bordered" radius="lg" padding="md">
-          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Connected messaging apps <//>
+        <div
+          className="rounded-[18px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-5 shadow-[var(--v2-shadow-sm)] sm:p-6"
+        >
+          <h3
+            className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+          >
+            ${t('channels.messaging')}
+          </h3>
           <div className="grid grid-cols-1 gap-4">
-            ${channels.map(
+            ${installedChannels.map(
               (ch) => html`
                 <div key=${packageId(ch)} className="flex flex-col gap-3">
                   <${ExtensionCard}
@@ -176,6 +147,10 @@ export function ChannelsTab({
                     onRemove=${onRemove}
                     isBusy=${isBusy}
                   />
+                  ${isSlackPackage(ch) &&
+                  html`<${SlackConnectActionSections}
+                    slackConnectActions=${slackConnectActions}
+                  />`}
                   ${(ch.onboarding_state === 'pairing_required' ||
                     ch.onboarding_state === 'pairing') &&
                   html` <${PairingSection} channel=${packageId(ch)} /> `}
@@ -183,12 +158,18 @@ export function ChannelsTab({
               `
             )}
           </div>
-        <//>
+        </div>
       `}
       ${channelRegistry.length > 0 &&
       html`
-        <${Card} variant="bordered" radius="lg" padding="md">
-          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Available messaging apps <//>
+        <div
+          className="rounded-[18px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-5 shadow-[var(--v2-shadow-sm)] sm:p-6"
+        >
+          <h3
+            className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+          >
+            ${t('channels.availableChannels')}
+          </h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             ${channelRegistry.map(
               (entry) => html`
@@ -201,7 +182,7 @@ export function ChannelsTab({
               `
             )}
           </div>
-        <//>
+        </div>
       `}
     </div>
   `;

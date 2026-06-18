@@ -5,6 +5,13 @@
  * backend does not currently send a risk classification) and a literal safety
  * summary. Missing target/destination/data stays visibly unknown instead of
  * being inferred from prose.
+ *
+ * Gate-shape compatibility: `gates.js#gateFromEvent` (mono) emits structured
+ * `approvalDetails` (and a newline-joined `parameters` string), while the
+ * desktop fork emitted a JSON `parameters` string. This card consumes both —
+ * it parses JSON parameters when present and otherwise reconstructs a
+ * parameters object from `approvalDetails` so the safety summary renders the
+ * same rows under either gate shape.
  */
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
@@ -96,6 +103,22 @@ function parseParameters(parameters) {
   }
 }
 
+// Mono's `gateFromEvent` carries structured `approvalDetails`
+// (`[{ label, value }]`) rather than a JSON parameters blob. When the
+// parameters string isn't JSON-parseable, reconstruct a parameters object
+// from those details (keyed by lowercased label) so the safety summary still
+// has something to match TARGET/DESTINATION/OUTBOUND keys against.
+function parametersFromApprovalDetails(approvalDetails) {
+  if (!Array.isArray(approvalDetails) || approvalDetails.length === 0) return null;
+  const parameters = {};
+  for (const detail of approvalDetails) {
+    const label = String(detail?.label || '').trim();
+    if (!label || detail?.value == null) continue;
+    parameters[label.toLowerCase().replace(/\s+/g, '_')] = String(detail.value);
+  }
+  return Object.keys(parameters).length > 0 ? parameters : null;
+}
+
 function summarizeValue(value) {
   if (value == null || value === '') return '';
   if (Array.isArray(value)) {
@@ -169,13 +192,16 @@ function findOutboundSummary(parameters, keys, labels) {
 
 export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
   const t = useT();
-  const { toolName, headline, body, parameters, allowAlways } = gate;
+  const { toolName, headline, body, parameters, allowAlways, approvalDetails } = gate;
   const description = gate.description || body || '';
   const displayName = toolName || headline || t('approval.thisTool');
   const visibleDescription =
     description && description !== displayName && description !== headline ? description : '';
   const [always, setAlways] = React.useState(false);
-  const parsedParameters = React.useMemo(() => parseParameters(parameters), [parameters]);
+  const parsedParameters = React.useMemo(
+    () => parseParameters(parameters) || parametersFromApprovalDetails(approvalDetails),
+    [parameters, approvalDetails]
+  );
 
   const risk = React.useMemo(
     () => classifyRisk(toolName || headline, description, parameters),
@@ -282,9 +308,19 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
             (row) => html`
               <div
                 key=${row.label}
+                data-row-tone=${row.emphasis && row.value
+                  ? risk.tone === 'danger'
+                    ? 'danger'
+                    : 'structured'
+                  : 'plain'}
                 className=${'grid gap-1' +
                 (row.emphasis && row.value
-                  ? ' rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_22%,var(--v2-panel-border))] bg-[var(--v2-canvas-strong)] px-2.5 py-2'
+                  ? risk.tone === 'danger'
+                    ? // High-risk gate (send/trade/export/delete/write/publish): the
+                      // destination + outbound-data rows decide whether money moves or
+                      // data leaves. Emphasize them in danger tone, not decorative gold.
+                      ' rounded-[8px] border border-[color-mix(in_srgb,var(--v2-danger-text)_28%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-2.5 py-2'
+                    : ' rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_22%,var(--v2-panel-border))] bg-[var(--v2-canvas-strong)] px-2.5 py-2'
                   : '')}
               >
                 <dt
@@ -295,7 +331,9 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
                 <dd
                   className=${'text-sm leading-5 ' +
                   (row.emphasis && row.value
-                    ? 'font-medium text-[var(--v2-text-strong)]'
+                    ? risk.tone === 'danger'
+                      ? 'font-semibold text-[var(--v2-danger-text)]'
+                      : 'font-medium text-[var(--v2-text-strong)]'
                     : 'text-[var(--v2-text-muted)]')}
                 >
                   ${row.value || t('approval.notSpecified')}

@@ -71,16 +71,27 @@ async function main() {
   // Exactly the UI's send shape: prompt + durable block (with embedded
   // extracted text), plus the first-class attachment field.
   const block = buildDurableAttachmentBlock(
-    [{ name: attachment.name, mime_type: attachment.mime_type, size: 173000, data_base64: attachment.data_base64 }],
+    [
+      {
+        name: attachment.name,
+        mime_type: attachment.mime_type,
+        size: 173000,
+        data_base64: attachment.data_base64
+      }
+    ],
     { contentBytes: Buffer.byteLength(prompt, 'utf8') }
   );
   const content = `${prompt}${block}`;
 
-  const send = await api('POST', `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/messages`, {
-    client_action_id: `embed-probe-msg-${timestamp}`,
-    content,
-    attachments: [attachment]
-  });
+  const send = await api(
+    'POST',
+    `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/messages`,
+    {
+      client_action_id: `embed-probe-msg-${timestamp}`,
+      content,
+      attachments: [attachment]
+    }
+  );
 
   let reply = null;
   for (let attempt = 0; attempt < 36 && !reply; attempt += 1) {

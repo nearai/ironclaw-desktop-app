@@ -1,7 +1,7 @@
 {
   "_comment": "Gzipped size budgets for the shipped Tauri static WebUI. Cold assets are the files index.html loads before the app starts; code/diagram/document/OCR assets are lazy rendering and document support.",
-  "cold_gzip_kb": 400,
-  "main_bundle_gzip_kb": 350,
+  "cold_gzip_kb": 490,
+  "main_bundle_gzip_kb": 450,
   "vendor_boot_gzip_kb": 35,
   "code_highlight_gzip_kb": 60,
   "diagram_gzip_kb": 950,

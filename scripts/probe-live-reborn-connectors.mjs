@@ -2,20 +2,14 @@
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 const bundledSidecar = path.join(
   repoRoot,
-  'src-tauri/target/release/bundle/macos/IronClaw.app/Contents/MacOS/ironclaw-reborn',
+  'src-tauri/target/release/bundle/macos/IronClaw.app/Contents/MacOS/ironclaw-reborn'
 );
 const releaseSidecar = path.join(repoRoot, 'src-tauri/target/release/ironclaw-reborn');
 const artifactDir = path.join(repoRoot, 'output/live-connector-probe');
@@ -88,11 +82,9 @@ function summarizeResponse(body) {
     'blockers',
     'error',
     'message',
-    'reason',
+    'reason'
   ];
-  return Object.fromEntries(
-    Object.entries(sanitized).filter(([key]) => allowedKeys.includes(key)),
-  );
+  return Object.fromEntries(Object.entries(sanitized).filter(([key]) => allowedKeys.includes(key)));
 }
 
 async function main() {
@@ -125,9 +117,9 @@ async function main() {
         'tools/google_calendar',
         'mcp-servers/notion',
         'channels/slack',
-        'tools/slack_tool',
-      ],
-    },
+        'tools/slack_tool'
+      ]
+    }
   };
 
   // Hermetic env: ambient LLM credentials/endpoints (developer shells, CI,
@@ -136,8 +128,8 @@ async function main() {
   // provider at boot and exit before any connector route is reachable.
   const inheritedEnv = Object.fromEntries(
     Object.entries(process.env).filter(
-      ([key]) => !/^(ANTHROPIC_|OPENAI_|OPENROUTER_|NEARAI_|LLM_)/.test(key),
-    ),
+      ([key]) => !/^(ANTHROPIC_|OPENAI_|OPENROUTER_|NEARAI_|LLM_)/.test(key)
+    )
   );
 
   const child = spawn(sidecar, ['serve', '--host', '127.0.0.1', '--port', String(port)], {
@@ -150,9 +142,9 @@ async function main() {
       XDG_DATA_HOME: path.join(homeDir, '.local/share'),
       IRONCLAW_REBORN_WEBUI_TOKEN: token,
       IRONCLAW_REBORN_WEBUI_USER_ID: 'codex-live-connector-probe',
-      RUST_LOG: process.env.RUST_LOG || 'warn',
+      RUST_LOG: process.env.RUST_LOG || 'warn'
     },
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: ['ignore', 'pipe', 'pipe']
   });
 
   child.stdout.on('data', (chunk) => sidecarLog.push(chunk.toString()));
@@ -163,7 +155,7 @@ async function main() {
       child.kill('SIGTERM');
       await Promise.race([
         new Promise((resolve) => child.once('exit', resolve)),
-        delay(3000).then(() => child.kill('SIGKILL')),
+        delay(3000).then(() => child.kill('SIGKILL'))
       ]);
     }
   }
@@ -175,7 +167,7 @@ async function main() {
     const response = await fetch(`${origin}${pathname}`, {
       method,
       headers,
-      body: requestBody,
+      body: requestBody
     });
     const responseBody = await parseJsonResponse(response);
     const record = {
@@ -185,7 +177,7 @@ async function main() {
       request: sanitize(body),
       status: response.status,
       ok: response.ok,
-      response: summarizeResponse(responseBody),
+      response: summarizeResponse(responseBody)
     };
     evidence.probes.push(record);
     return { response, body: responseBody, record };
@@ -202,14 +194,14 @@ async function main() {
         // 200 from the webchat threads listing proves routing + bearer auth
         // are actually serving, which is the readiness this probe needs.
         const response = await fetch(`${origin}/api/webchat/v2/threads`, {
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { Authorization: `Bearer ${token}` }
         });
         if (response.ok) {
           healthy = true;
           evidence.health = {
             route: '/api/webchat/v2/threads',
             status: response.status,
-            ok: true,
+            ok: true
           };
           break;
         }
@@ -220,15 +212,26 @@ async function main() {
     }
     if (!healthy) throw new Error('sidecar did not become healthy');
 
-    await request('unauthenticated extensions begin is rejected', 'POST', '/api/webchat/v2/extensions/gmail/setup', {
-      action: 'begin',
-      payload: { catalog_ref: 'tools/gmail' },
-    }, { auth: false });
+    await request(
+      'unauthenticated extensions begin is rejected',
+      'POST',
+      '/api/webchat/v2/extensions/gmail/setup',
+      {
+        action: 'begin',
+        payload: { catalog_ref: 'tools/gmail' }
+      },
+      { auth: false }
+    );
 
-    await request('slash-prefixed catalog ref path is rejected', 'POST', '/api/webchat/v2/extensions/tools%2Fgmail/setup', {
-      action: 'begin',
-      payload: { catalog_ref: 'tools/gmail' },
-    });
+    await request(
+      'slash-prefixed catalog ref path is rejected',
+      'POST',
+      '/api/webchat/v2/extensions/tools%2Fgmail/setup',
+      {
+        action: 'begin',
+        payload: { catalog_ref: 'tools/gmail' }
+      }
+    );
 
     // Drive the exact route sequence the rendered UI uses
     // (extensions-api.js): GET /setup discovery -> POST /install with the
@@ -236,26 +239,48 @@ async function main() {
     // discovery's fresh invocation_id -> GET /extensions truth check ->
     // manual-token product auth fallback -> POST /activate.
     const connectors = [
-      { name: 'gmail', provider: 'google', accountLabel: 'Smoke Google', dummyToken: 'ya29.smoke-google-live-probe' },
-      { name: 'google-calendar', provider: 'google', accountLabel: 'Smoke Google Calendar', dummyToken: 'ya29.smoke-calendar-live-probe' },
-      { name: 'notion', provider: 'notion', accountLabel: 'Smoke Notion', dummyToken: 'secret_notion_live_probe' },
+      {
+        name: 'gmail',
+        provider: 'google',
+        accountLabel: 'Smoke Google',
+        dummyToken: 'ya29.smoke-google-live-probe'
+      },
+      {
+        name: 'google-calendar',
+        provider: 'google',
+        accountLabel: 'Smoke Google Calendar',
+        dummyToken: 'ya29.smoke-calendar-live-probe'
+      },
+      {
+        name: 'notion',
+        provider: 'notion',
+        accountLabel: 'Smoke Notion',
+        dummyToken: 'secret_notion_live_probe'
+      }
     ];
 
     for (const connector of connectors) {
       const discovery = await request(
         `${connector.name} setup discovery`,
         'GET',
-        `/api/webchat/v2/extensions/${connector.name}/setup`,
+        `/api/webchat/v2/extensions/${connector.name}/setup`
       );
       if (!discovery.response.ok) {
-        contractViolations.push(`${connector.name}: GET /setup discovery failed (${discovery.response.status})`);
+        contractViolations.push(
+          `${connector.name}: GET /setup discovery failed (${discovery.response.status})`
+        );
         continue;
       }
       const secret = (discovery.body?.secrets || [])[0];
 
-      const install = await request(`${connector.name} install`, 'POST', '/api/webchat/v2/extensions/install', {
-        package_ref: { kind: 'extension', id: connector.name },
-      });
+      const install = await request(
+        `${connector.name} install`,
+        'POST',
+        '/api/webchat/v2/extensions/install',
+        {
+          package_ref: { kind: 'extension', id: connector.name }
+        }
+      );
       if (!install.response.ok) {
         contractViolations.push(`${connector.name}: install failed (${install.response.status})`);
       }
@@ -272,56 +297,80 @@ async function main() {
           account_label: secret?.setup?.account_label || `${connector.provider} credential`,
           scopes: secret?.setup?.scopes || [],
           expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-          invocation_id: secret?.setup?.invocation_id,
-        },
+          invocation_id: secret?.setup?.invocation_id
+        }
       );
       const oauthHonestlyBlocked =
         oauth.response.status === 503 && oauth.body?.code === 'backend_unavailable';
       if (!oauth.response.ok && !oauthHonestlyBlocked) {
         contractViolations.push(
-          `${connector.name}: oauth/start neither succeeded nor blocked honestly (${oauth.response.status} ${JSON.stringify(oauth.body)})`,
+          `${connector.name}: oauth/start neither succeeded nor blocked honestly (${oauth.response.status} ${JSON.stringify(oauth.body)})`
         );
       }
 
-      const preAuthList = await request(`${connector.name} pre-auth truth`, 'GET', '/api/webchat/v2/extensions');
+      const preAuthList = await request(
+        `${connector.name} pre-auth truth`,
+        'GET',
+        '/api/webchat/v2/extensions'
+      );
       const preAuthEntry = (preAuthList.body?.extensions || []).find(
-        (ext) => ext?.package_ref?.id === connector.name,
+        (ext) => ext?.package_ref?.id === connector.name
       );
       if (preAuthEntry?.authenticated === true) {
         contractViolations.push(
-          `${connector.name}: backend claims authenticated:true before any credential exists`,
+          `${connector.name}: backend claims authenticated:true before any credential exists`
         );
       }
 
-      const setup = await request(`${connector.name} product auth setup`, 'POST', '/api/reborn/product-auth/manual-token/setup', {
-        provider: connector.provider,
-        account_label: connector.accountLabel,
-      });
+      const setup = await request(
+        `${connector.name} product auth setup`,
+        'POST',
+        '/api/reborn/product-auth/manual-token/setup',
+        {
+          provider: connector.provider,
+          account_label: connector.accountLabel
+        }
+      );
       const interactionId = setup.body?.interaction_id;
       const invocationId = setup.body?.invocation_id;
       if (interactionId && invocationId) {
-        await request(`${connector.name} product auth secret-submit`, 'POST', '/api/reborn/product-auth/manual-token/secret-submit', {
-          interaction_id: interactionId,
-          invocation_id: invocationId,
-          token: connector.dummyToken,
-        });
+        await request(
+          `${connector.name} product auth secret-submit`,
+          'POST',
+          '/api/reborn/product-auth/manual-token/secret-submit',
+          {
+            interaction_id: interactionId,
+            invocation_id: invocationId,
+            token: connector.dummyToken
+          }
+        );
       } else {
-        contractViolations.push(`${connector.name}: manual-token setup returned no interaction/invocation id`);
+        contractViolations.push(
+          `${connector.name}: manual-token setup returned no interaction/invocation id`
+        );
       }
 
       // Known upstream defect probe: /activate without a verified credential
       // currently succeeds and flips `authenticated` to true. The desktop UI
       // never offers Activate in auth_required state (extension-actions.js),
       // so this documents backend truthfulness rather than failing the run.
-      const activate = await request(`${connector.name} activate pre-auth (upstream truth)`, 'POST', `/api/webchat/v2/extensions/${connector.name}/activate`);
+      const activate = await request(
+        `${connector.name} activate pre-auth (upstream truth)`,
+        'POST',
+        `/api/webchat/v2/extensions/${connector.name}/activate`
+      );
       if (activate.response.ok) {
-        const postList = await request(`${connector.name} post-activate truth`, 'GET', '/api/webchat/v2/extensions');
+        const postList = await request(
+          `${connector.name} post-activate truth`,
+          'GET',
+          '/api/webchat/v2/extensions'
+        );
         const postEntry = (postList.body?.extensions || []).find(
-          (ext) => ext?.package_ref?.id === connector.name,
+          (ext) => ext?.package_ref?.id === connector.name
         );
         if (postEntry?.authenticated === true) {
           upstreamDefects.push(
-            `${connector.name}: POST /activate without credentials succeeded and reported authenticated:true`,
+            `${connector.name}: POST /activate without credentials succeeded and reported authenticated:true`
           );
         }
       }
@@ -333,16 +382,17 @@ async function main() {
     evidence.sidecar_exit_code = child.exitCode;
     evidence.sidecar_exit_signal = child.signalCode;
     evidence.sidecar_log_tail = sidecarLog.join('').split('\n').slice(-30);
-    const expectedSecurityRejections = evidence.probes.filter((probe) =>
-      (probe.label.includes('unauthenticated') && probe.status === 401) ||
-      (probe.label.includes('slash-prefixed') && probe.status === 400)
+    const expectedSecurityRejections = evidence.probes.filter(
+      (probe) =>
+        (probe.label.includes('unauthenticated') && probe.status === 401) ||
+        (probe.label.includes('slash-prefixed') && probe.status === 400)
     );
     const oauthOutcomes = evidence.probes
       .filter((probe) => probe.label.includes('oauth start'))
       .map((probe) => ({
         label: probe.label,
         status: probe.status,
-        honest_blocked: probe.status === 503,
+        honest_blocked: probe.status === 503
       }));
     evidence.summary = {
       total: evidence.probes.length,
@@ -352,11 +402,13 @@ async function main() {
       contract_violations: contractViolations,
       upstream_defects: upstreamDefects,
       failed_or_blocked: evidence.probes.filter((probe) => !probe.ok).length,
-      failed_or_blocked_labels: evidence.probes.filter((probe) => !probe.ok).map((probe) => ({
-        label: probe.label,
-        status: probe.status,
-        response: probe.response,
-      })),
+      failed_or_blocked_labels: evidence.probes
+        .filter((probe) => !probe.ok)
+        .map((probe) => ({
+          label: probe.label,
+          status: probe.status,
+          response: probe.response
+        }))
     };
     await writeFile(artifactPath, `${JSON.stringify(evidence, null, 2)}\n`);
     if (process.env.KEEP_LIVE_CONNECTOR_PROBE_HOME !== '1') {
@@ -369,11 +421,11 @@ async function main() {
     JSON.stringify(
       {
         health: evidence.health,
-        summary: evidence.summary,
+        summary: evidence.summary
       },
       null,
-      2,
-    ),
+      2
+    )
   );
 
   const unexpected = evidence.probes.filter((probe) => {
@@ -383,16 +435,18 @@ async function main() {
     return false;
   });
   if (unexpected.length) {
-    throw new Error(`Live connector probe found unexpected permissive routing: ${JSON.stringify(unexpected)}`);
+    throw new Error(
+      `Live connector probe found unexpected permissive routing: ${JSON.stringify(unexpected)}`
+    );
   }
   if (evidence.summary.contract_violations.length) {
     throw new Error(
-      `Live connector probe found product-contract violations:\n${evidence.summary.contract_violations.join('\n')}`,
+      `Live connector probe found product-contract violations:\n${evidence.summary.contract_violations.join('\n')}`
     );
   }
   if (evidence.summary.upstream_defects.length) {
     console.warn(
-      `KNOWN UPSTREAM DEFECTS (not failing the probe; UI guards these states):\n${evidence.summary.upstream_defects.join('\n')}`,
+      `KNOWN UPSTREAM DEFECTS (not failing the probe; UI guards these states):\n${evidence.summary.upstream_defects.join('\n')}`
     );
   }
 }

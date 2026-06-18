@@ -1,10 +1,6 @@
 import { React, html } from '../../lib/html.js';
-import {
-  THREAD_STATE,
-  clearThreadState,
-  setThreadState,
-  useThreadStates
-} from '../../lib/thread-state.js';
+import { useT } from '../../lib/i18n.js';
+import { THREAD_STATE, clearThreadState, setThreadState } from '../../lib/thread-state.js';
 import { ApprovalCard } from './components/approval-card.js';
 import { AuthGenericCard } from './components/auth-generic-card.js';
 import { AuthOauthCard } from './components/auth-oauth-card.js';
@@ -19,15 +15,9 @@ import { RecoveryNotice } from './components/recovery-notice.js';
 import { SuggestionChips } from './components/suggestion-chips.js';
 import { TypingIndicator } from './components/typing-indicator.js';
 import { useChat } from './hooks/useChat.js';
+import { NEW_DRAFT_KEY } from './lib/draft-store.js';
 import { buildRuntimeContext } from './lib/runtime-context.js';
-
-// Retry is intentionally not wired. Re-sending a failed turn cannot honestly
-// restore its attachment bytes (the error row keeps only chip metadata) and the
-// gateway exposes no resend endpoint, so a Retry button would be a dead
-// affordance — which the design laws forbid. message-bubble renders the button
-// only when onRetry is provided, so passing null keeps it hidden until a real
-// content+attachment-preserving retry exists.
-const RETRY_NOT_WIRED = null;
+import { buildScopedLogsPath } from '../logs/lib/logs-data.js';
 
 export function Chat({
   threads,
@@ -38,6 +28,7 @@ export function Chat({
   composerResetKey = '',
   gatewayStatus
 }) {
+  const t = useT();
   const {
     messages,
     isProcessing,
@@ -46,12 +37,14 @@ export function Chat({
     suggestions,
     sseStatus,
     historyLoading,
+    historyLoadError,
     hasMore,
     cooldownSeconds,
     recoveryNotice,
     activeRun,
     send,
     cancelRun,
+    retryMessage,
     approve,
     recoverHistory,
     loadMore,
@@ -59,7 +52,6 @@ export function Chat({
     submitAuthToken,
     dismissChannelConnectAction
   } = useChat(activeThreadId);
-  const threadStates = useThreadStates();
 
   const activeThread = React.useMemo(
     () => threads.find((thread) => thread.id === activeThreadId) || null,
@@ -71,9 +63,15 @@ export function Chat({
   );
   const hasMessages =
     messages.length > 0 || isProcessing || Boolean(pendingGate) || Boolean(channelConnectAction);
-  const showLanding = !historyLoading && !hasMessages;
+  // Don't show the landing composer when history failed to load — show the
+  // error banner instead so the user is not misled into thinking the thread
+  // is empty.
+  const showLanding = !historyLoading && !hasMessages && !historyLoadError;
   const composerDisabled = (isProcessing && !pendingGate) || cooldownSeconds > 0;
   const composerStatusText = cooldownSeconds > 0 ? `Retry in ${cooldownSeconds}s` : undefined;
+  // Scope the persisted composer draft to the open thread (or the
+  // shared new-conversation slot when there's no active thread yet).
+  const composerDraftKey = activeThreadId || NEW_DRAFT_KEY;
   const canCancelRun = Boolean(
     activeThreadId &&
     activeRun?.runId &&
@@ -81,6 +79,11 @@ export function Chat({
     isProcessing &&
     !pendingGate
   );
+  const scopedLogsHref = React.useMemo(() => {
+    if (!activeThreadId) return null;
+    const runId = activeRun?.threadId === activeThreadId ? activeRun.runId : null;
+    return buildScopedLogsPath({ threadId: activeThreadId, runId }, { absolute: true });
+  }, [activeRun, activeThreadId]);
 
   const handleSend = React.useCallback(
     async (content, { images = [], attachments = [] } = {}) => {
@@ -120,10 +123,9 @@ export function Chat({
    * working.
    *
    * Invariant: useChat resets pendingGate (and isProcessing reaches a
-   * fresh value) on threadId change via the sibling effect at
-   * useChat.js:136-140, so within a single React commit batch we never
-   * observe stale state from a previous thread paired with a new
-   * activeThreadId.
+   * fresh value) on threadId change via the thread-reset effect in
+   * useChat, so within a single React commit batch we never observe
+   * stale state from a previous thread paired with a new activeThreadId.
    *
    * Coverage gap (writer is per-active-thread only): this seam only
    * flags whichever thread the user is currently viewing. Cross-thread
@@ -165,16 +167,37 @@ export function Chat({
       <div className="flex min-w-0 flex-1 flex-col">
         <${ConnectionStatus} status=${sseStatus} />
 
+        ${scopedLogsHref &&
+        html`
+          <div
+            className="flex justify-end border-b border-[var(--v2-panel-border)] bg-[var(--v2-canvas-strong)] px-4 py-1.5"
+          >
+            <a
+              href=${scopedLogsHref}
+              className="rounded-[6px] px-2 py-1 text-xs font-medium text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+            >
+              ${t('nav.logs')}
+            </a>
+          </div>
+        `}
+        ${historyLoadError &&
+        html`
+          <div
+            className="mx-4 mt-3 rounded-lg border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]"
+            role="alert"
+          >
+            ${historyLoadError}
+          </div>
+        `}
         ${showLanding &&
         html`
           <${EmptyState}
-            threads=${threads}
-            threadStates=${threadStates}
             onSuggestion=${handleSuggestion}
             onSend=${handleSend}
             disabled=${composerDisabled}
             initialText=${composerDraft}
             resetKey=${composerResetKey}
+            draftKey=${composerDraftKey}
             context=${runtimeContext}
             statusText=${composerStatusText}
             canCancel=${canCancelRun}
@@ -188,8 +211,9 @@ export function Chat({
             isLoading=${historyLoading}
             hasMore=${hasMore}
             onLoadMore=${loadMore}
-            onRetryMessage=${RETRY_NOT_WIRED}
+            onRetryMessage=${retryMessage}
             threadId=${activeThreadId}
+            pending=${isProcessing}
           >
             ${recoveryNotice &&
             html` <${RecoveryNotice} notice=${recoveryNotice} onRecover=${recoverHistory} /> `}
@@ -241,6 +265,7 @@ export function Chat({
             disabled=${composerDisabled}
             initialText=${composerDraft}
             resetKey=${composerResetKey}
+            draftKey=${composerDraftKey}
             context=${runtimeContext}
             statusText=${composerStatusText}
             canCancel=${canCancelRun}

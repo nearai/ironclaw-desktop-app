@@ -3,7 +3,8 @@ import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 
 /* Status dot colour by tool status. Running uses the shared semantic motion
-   hook, which only animates when the user has not requested reduced motion. */
+   class, which only animates under prefers-reduced-motion: no-preference (see
+   .v2-breathing-dot in app.css) — this keeps the calm-motion policy satisfied. */
 const DOT_STYLE = {
   running: 'bg-[var(--v2-accent)] v2-breathing-dot',
   success: 'bg-[var(--v2-positive-text)]',
@@ -14,7 +15,7 @@ const STATUS_WORD = { success: 'ok', error: 'err', running: 'run' };
 
 /* Tool chatter should never become the product. Every run collapses into a
    human summary by default; failures expand themselves so the reason stays
-   visible. */
+   visible. (Runs of this length or shorter render each call as its own row.) */
 export const TOOL_RUN_COLLAPSE_AFTER = 0;
 
 export function ToolActivity({ activity }) {
@@ -252,7 +253,7 @@ function ToolDetailPanel({
             </button>
           `
         )}
-        <span className="ml-auto px-1 py-1 font-mono text-[10px] text-iron-400">
+        <span className="ml-auto px-1 py-1 font-mono text-[10px] text-iron-500">
           ${toolStatus === 'error'
             ? t('tool.exitError')
             : toolStatus === 'running'

@@ -1,7 +1,9 @@
 import { React, html } from '../lib/html.js';
+import { useT } from '../lib/i18n.js';
 import { useNavigate } from 'react-router';
 import { Icon } from '../design-system/icons.js';
 import { primaryRoutes } from '../app/routes.js';
+import { readSavedWorkItems } from '../pages/chat/lib/work-product-save.js';
 
 const COMMAND_ROUTE_LABELS = {
   chat: 'Go to Chat',
@@ -16,11 +18,34 @@ export function visibleCommandRoutes({ isAdmin = false } = {}) {
   );
 }
 
+// Cap the number of saved-work rows the palette injects so a 500-item store
+// can't flood the launcher; the title filter reaches the rest by name.
+const MAX_PALETTE_WORK_ITEMS = 8;
+
+function savedWorkActions(navigate, workItems) {
+  return (Array.isArray(workItems) ? workItems : [])
+    .filter((item) => item && item.id)
+    .slice(0, MAX_PALETTE_WORK_ITEMS)
+    .map((item) => {
+      const artifactId = Array.isArray(item.artifacts) ? item.artifacts[0]?.id : null;
+      const params = new URLSearchParams({ item: String(item.id) });
+      if (artifactId) params.set('artifact', String(artifactId));
+      return {
+        id: `work-${item.id}`,
+        label: item.title || 'Untitled work',
+        icon: 'file',
+        group: 'Saved work',
+        run: () => navigate(`/work?${params.toString()}`)
+      };
+    });
+}
+
 export function buildCommandPaletteActions({
   navigate,
   onNewChat,
   onToggleTheme,
-  isAdmin = false
+  isAdmin = false,
+  workItems = []
 }) {
   const navigation = visibleCommandRoutes({ isAdmin }).map((route) => ({
     id: `go-${route.id}`,
@@ -52,7 +77,10 @@ export function buildCommandPaletteActions({
       group: 'Actions',
       run: () => onToggleTheme?.()
     },
-    ...navigation
+    ...navigation,
+    // Work product must be findable later (design law): saved dossiers are
+    // reachable by title from the Bridge, not only via "Go to Work".
+    ...savedWorkActions(navigate, workItems)
   ];
 }
 
@@ -68,15 +96,25 @@ export function CommandPalette({
   isAdmin = false
 }) {
   const navigate = useNavigate();
+  const t = useT();
   const [query, setQuery] = React.useState('');
   const [active, setActive] = React.useState(0);
+  // Saved work lives in localStorage; re-read each time the palette opens so a
+  // dossier saved this session is immediately findable by title.
+  const [workItems, setWorkItems] = React.useState([]);
   const inputRef = React.useRef(null);
   const dialogRef = React.useRef(null);
   const activeRowRef = React.useRef(null);
   const restoreFocusRef = React.useRef(null);
 
   const commands = React.useMemo(() => {
-    const actions = buildCommandPaletteActions({ navigate, onNewChat, onToggleTheme, isAdmin });
+    const actions = buildCommandPaletteActions({
+      navigate,
+      onNewChat,
+      onToggleTheme,
+      isAdmin,
+      workItems
+    });
     const threads = (threadsState?.threads || []).map((thread) => ({
       id: `thread-${thread.id}`,
       label: thread.title || `Thread ${thread.id.slice(0, 8)}`,
@@ -85,7 +123,7 @@ export function CommandPalette({
       run: () => navigate(`/chat/${thread.id}`)
     }));
     return [...actions, ...threads];
-  }, [threadsState, navigate, onNewChat, onToggleTheme, isAdmin]);
+  }, [threadsState, navigate, onNewChat, onToggleTheme, isAdmin, workItems]);
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -101,6 +139,7 @@ export function CommandPalette({
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setQuery('');
     setActive(0);
+    setWorkItems(readSavedWorkItems());
     const id = window.requestAnimationFrame(() => inputRef.current?.focus());
     return () => {
       window.cancelAnimationFrame(id);
@@ -196,7 +235,7 @@ export function CommandPalette({
             ref=${inputRef}
             value=${query}
             onInput=${(e) => setQuery(e.currentTarget.value)}
-            placeholder="Type a command or search…"
+            placeholder=${t('command.placeholder')}
             className="h-12 w-full border-0 bg-transparent text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)]"
           />
           <kbd
@@ -210,9 +249,11 @@ export function CommandPalette({
             className="flex flex-col items-center gap-1 px-3 py-7 text-center"
             data-testid="command-palette-empty"
           >
-            <span className="text-sm font-medium text-[var(--v2-text)]">No matches</span>
+            <span className="text-sm font-medium text-[var(--v2-text)]"
+              >${t('command.noMatches')}</span
+            >
             <span className="text-xs text-[var(--v2-text-faint)]">
-              Try a section name like Chat or Settings, or part of a thread title.
+              ${t('command.noMatchesHint')}
             </span>
           </li>`}
           ${filtered.map((command, index) => {

@@ -1,34 +1,28 @@
 export const API_KEY_UNCHANGED = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
-export const DESKTOP_PRIMARY_LLM_PROVIDER_ID = 'nearai';
 
-export const ADAPTER_OPTIONS = [{ value: 'nearai', label: 'NEAR AI Cloud' }];
+// The full web provider model: every adapter the hosted gateway can route to.
+// The desktop app narrows the *visible* set to NEAR AI Cloud at the
+// `isDesktopRuntime()` gate (see `filterDesktopVisibleLlmProviders` /
+// `useLlmProviders`), but the catalog itself is never trimmed \u2014 web keeps the
+// complete set.
+export const ADAPTER_OPTIONS = [
+  { value: 'open_ai_completions', label: 'OpenAI Compatible' },
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'ollama', label: 'Ollama' },
+  { value: 'nearai', label: 'NEAR AI' }
+];
+
+// Desktop-only: the single provider id the packaged app surfaces in normal
+// (non-advanced) mode. Additive \u2014 web ignores it.
+export const DESKTOP_PRIMARY_LLM_PROVIDER_ID = 'nearai';
 
 export function adapterLabel(adapter) {
   return ADAPTER_OPTIONS.find((item) => item.value === adapter)?.label || adapter;
 }
 
-export function parseCustomProviders(value) {
-  if (Array.isArray(value)) return value;
-  if (!value || typeof value !== 'string') return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (_) {
-    return [];
-  }
-}
-
-export function parseBuiltinOverrides(value) {
-  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
-  if (!value || typeof value !== 'string') return {};
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch (_) {
-    return {};
-  }
-}
-
+// Desktop-only helpers (additive). The desktop app presents NEAR AI Cloud as
+// the sole normal model path; these narrow a provider list to it. Callers gate
+// their use behind `isDesktopRuntime()` so web keeps the full provider list.
 export function isDesktopVisibleLlmProvider(providerOrId) {
   const id = typeof providerOrId === 'string' ? providerOrId : providerOrId?.id;
   return String(id || '').toLowerCase() === DESKTOP_PRIMARY_LLM_PROVIDER_ID;
@@ -39,19 +33,11 @@ export function filterDesktopVisibleLlmProviders(providers) {
   return providers.filter(isDesktopVisibleLlmProvider);
 }
 
-export function providerEffectiveBaseUrl(provider, overrides) {
-  const override = provider.builtin ? overrides[provider.id] || {} : {};
-  return override.base_url || provider.env_base_url || provider.base_url || '';
-}
-
-export function providerDisplayModel(provider, overrides, activeId, selectedModel) {
-  const override = provider.builtin ? overrides[provider.id] || {} : {};
-  if (provider.id === activeId) {
-    return selectedModel || override.model || provider.env_model || provider.default_model || '';
-  }
-  return override.model || provider.env_model || provider.default_model || '';
-}
-
+// Desktop-only (additive): derive a readable label from the bare model id the
+// gateway returns. The NEAR AI Cloud catalog carries no display-name field, so
+// the desktop picker formats the id rather than collapsing every entry into one
+// generic tier label. Web does not call this (it shows raw model ids), so it is
+// inert there.
 function modelDisplaySegment(segment) {
   const value = String(segment || '').trim();
   if (!value) return '';
@@ -81,10 +67,7 @@ export function modelDisplayName(model) {
   if (raw.toLowerCase() === 'auto') return 'Auto';
 
   // Derive a readable label from the bare model id the gateway returns: drop
-  // the vendor prefix, space the separators, preserve version dots. The
-  // catalog carries no display-name field, so format the id rather than
-  // collapsing every entry into one generic tier label — the picker has to let
-  // the user distinguish the individual models NEAR AI Cloud routes to.
+  // the vendor prefix, space the separators, preserve version dots.
   const token =
     raw
       .split(/[/:]/)
@@ -103,6 +86,41 @@ export function modelDisplayName(model) {
     .join(' ');
 }
 
+export function parseCustomProviders(value) {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+export function parseBuiltinOverrides(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (!value || typeof value !== 'string') return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+export function providerEffectiveBaseUrl(provider, overrides) {
+  const override = provider.builtin ? overrides[provider.id] || {} : {};
+  return override.base_url || provider.env_base_url || provider.base_url || '';
+}
+
+export function providerDisplayModel(provider, overrides, activeId, selectedModel) {
+  const override = provider.builtin ? overrides[provider.id] || {} : {};
+  if (provider.id === activeId) {
+    return selectedModel || override.model || provider.env_model || provider.default_model || '';
+  }
+  return override.model || provider.env_model || provider.default_model || '';
+}
+
 export function providerDefaultModel(provider, overrides) {
   const override = provider.builtin ? overrides[provider.id] || {} : {};
   return override.model || provider.env_model || provider.default_model || '';
@@ -116,6 +134,10 @@ export function providerAcceptsApiKey(provider) {
 }
 
 export function isProviderConfigured(provider, overrides) {
+  // Desktop-only: a synthetic offline-NEAR fallback entry is never "configured"
+  // (the gateway is unreachable). The flag is only set by the desktop
+  // `fallbackNearaiSnapshot`; web snapshots never carry it, so this is inert on
+  // web.
   if (provider?.synthetic_unavailable) return false;
   const override = provider.builtin ? overrides[provider.id] || {} : {};
   const needsKey = provider.builtin
@@ -148,6 +170,7 @@ export function groupProvidersByStatus(providers, overrides, activeProviderId) {
 }
 
 export function providerMissingReason(provider, overrides) {
+  // Desktop-only synthetic offline-NEAR fallback (see `isProviderConfigured`).
   if (provider?.synthetic_unavailable) return 'gateway';
   const override = provider.builtin ? overrides[provider.id] || {} : {};
   const needsKey = provider.builtin
@@ -191,4 +214,17 @@ export function providerIdFromName(name) {
 
 export function isValidProviderId(id) {
   return /^[a-z0-9_-]+$/.test(id);
+}
+
+// After a model-discovery fetch, decide which model to commit to the form.
+// The model field is a controlled <Select>: when it is empty (or holds a value
+// no longer in the fetched list) the browser shows the first <option> while the
+// form value stays stale, and re-picking that already-shown option fires no
+// change event — so a save would persist an empty/wrong model. Returns the
+// model to commit, or `null` to keep the current selection (already valid).
+export function nextModelAfterFetch(currentModel, fetchedModels) {
+  if (!Array.isArray(fetchedModels) || fetchedModels.length === 0) return null;
+  const trimmed = (currentModel || '').trim();
+  if (!trimmed || !fetchedModels.includes(trimmed)) return fetchedModels[0];
+  return null;
 }

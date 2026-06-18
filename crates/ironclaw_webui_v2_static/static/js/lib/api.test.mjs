@@ -1,432 +1,181 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import assert from "node:assert/strict";
+import test from "node:test";
 
-import { FetchEventStream, gatewayStatus, listAutomations, sendMessage } from './api.js';
+import {
+  attachmentUrl,
+  deleteThread,
+  fetchAttachmentBlob,
+  fetchAttachmentDataUrl,
+  listAutomations,
+} from "./api.js";
 
-function waitFor(assertion, { timeout = 1000, interval = 10 } = {}) {
-  const started = Date.now();
-  return new Promise((resolve, reject) => {
-    const tick = () => {
-      try {
-        const result = assertion();
-        if (result) {
-          resolve(result);
-          return;
-        }
-      } catch (err) {
-        reject(err);
-        return;
-      }
-      if (Date.now() - started > timeout) {
-        reject(new Error('Timed out waiting for assertion'));
-        return;
-      }
-      setTimeout(tick, interval);
-    };
-    tick();
-  });
-}
-
-test('listAutomations reads through the v2 automations route', async () => {
+test("listAutomations reads through the v2 automations route", async () => {
   const calls = [];
   globalThis.sessionStorage = {
-    getItem: () => 'token-1',
+    getItem: () => "token-1",
     setItem: () => {},
-    removeItem: () => {}
+    removeItem: () => {},
   };
   globalThis.fetch = async (path, options) => {
     calls.push({ path, options });
     return new Response(JSON.stringify({ automations: [] }), {
       status: 200,
-      headers: { 'content-type': 'application/json' }
+      headers: { "content-type": "application/json" },
     });
   };
 
-  const response = await listAutomations({ limit: 50 });
+  const response = await listAutomations({ limit: 50, runLimit: 25 });
 
   assert.deepEqual(response, { automations: [] });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].path, '/api/webchat/v2/automations?limit=50');
-  assert.equal(calls[0].options.credentials, 'same-origin');
-  assert.equal(calls[0].options.headers.get('Authorization'), 'Bearer token-1');
+  assert.equal(calls[0].path, "/api/webchat/v2/automations?limit=50&run_limit=25");
+  assert.equal(calls[0].options.credentials, "same-origin");
+  assert.equal(calls[0].options.headers.get("Authorization"), "Bearer token-1");
 });
 
-test('listAutomations propagates api errors from the automations route', async () => {
+test("listAutomations propagates api errors from the automations route", async () => {
   globalThis.sessionStorage = {
-    getItem: () => '',
+    getItem: () => "",
     setItem: () => {},
-    removeItem: () => {}
+    removeItem: () => {},
   };
   globalThis.fetch = async () =>
-    new Response('temporarily unavailable', {
+    new Response("temporarily unavailable", {
       status: 503,
-      statusText: 'Service Unavailable',
-      headers: { 'content-type': 'text/plain' }
+      statusText: "Service Unavailable",
+      headers: { "content-type": "text/plain" },
     });
 
   await assert.rejects(listAutomations({ limit: 50 }), (error) => {
-    assert.equal(error.name, 'ApiError');
+    assert.equal(error.name, "ApiError");
     assert.equal(error.status, 503);
-    assert.equal(error.statusText, 'Service Unavailable');
-    assert.equal(error.body, 'temporarily unavailable');
+    assert.equal(error.statusText, "Service Unavailable");
+    assert.equal(error.body, "temporarily unavailable");
     return true;
   });
 });
 
-test('sendMessage sends composer attachments as Reborn attachment payloads', async () => {
+test("deleteThread sends DELETE to the encoded thread route", async () => {
   const calls = [];
   globalThis.sessionStorage = {
-    getItem: () => 'token-1',
+    getItem: () => "token-1",
     setItem: () => {},
-    removeItem: () => {}
+    removeItem: () => {},
   };
   globalThis.fetch = async (path, options) => {
     calls.push({ path, options });
     return new Response(
-      JSON.stringify({
-        outcome: 'submitted',
-        thread_id: 'thread-1',
-        run_id: 'run-1'
-      }),
+      JSON.stringify({ thread_id: "thread/needs encoding", deleted: true }),
       {
         status: 200,
-        headers: { 'content-type': 'application/json' }
+        headers: { "content-type": "application/json" },
       }
     );
   };
 
-  await sendMessage({
-    threadId: 'thread-1',
-    content: 'draft from the attachment',
-    attachments: [
-      {
-        name: 'template.pdf',
-        mime_type: 'application/pdf',
-        data_base64: 'dGVtcGxhdGU=',
-        size: 8
-      }
-    ],
-    clientActionId: 'action-1'
+  const response = await deleteThread({ threadId: "thread/needs encoding" });
+
+  assert.deepEqual(response, {
+    thread_id: "thread/needs encoding",
+    deleted: true,
   });
-
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].path, '/api/webchat/v2/threads/thread-1/messages');
-  const body = JSON.parse(calls[0].options.body);
-  assert.equal(body.client_action_id, 'action-1');
-  assert.equal(body.content, 'draft from the attachment');
-  assert.deepEqual(body.attachments, [
-    {
-      filename: 'template.pdf',
-      mime_type: 'application/pdf',
-      base64: 'dGVtcGxhdGU='
-    }
-  ]);
+  assert.equal(calls[0].path, "/api/webchat/v2/threads/thread%2Fneeds%20encoding");
+  assert.equal(calls[0].options.method, "DELETE");
+  assert.equal(calls[0].options.credentials, "same-origin");
+  assert.equal(calls[0].options.headers.get("Authorization"), "Bearer token-1");
 });
 
-test('gatewayStatus fallback keeps default NEAR.AI sendable while execution is unverified', async () => {
-  const originalWindow = globalThis.window;
-  const originalLocalStorage = globalThis.localStorage;
-  const originalSessionStorage = globalThis.sessionStorage;
-  const encoder = new TextEncoder();
-  const calls = [];
-
-  const storage = {
-    getItem: () => '',
+test("deleteThread rejects before fetch when thread id is missing", async () => {
+  let fetchCalled = false;
+  globalThis.sessionStorage = {
+    getItem: () => "token-1",
     setItem: () => {},
-    removeItem: () => {}
+    removeItem: () => {},
   };
-  globalThis.localStorage = storage;
-  globalThis.sessionStorage = storage;
-  globalThis.window = {
-    __TAURI_INTERNALS__: {
-      invoke: async (command, args = {}) => {
-        calls.push({ command, args });
-        if (command === 'gateway_http_fetch') {
-          return {
-            status: 404,
-            status_text: 'Not Found',
-            url: args.request.url,
-            headers: [['content-type', 'text/plain']],
-            data: Array.from(encoder.encode('Not Found'))
-          };
-        }
-        if (command === 'get_settings') {
-          return {
-            activeProfileId: 'default',
-            profiles: [
-              {
-                id: 'default',
-                llmProviderId: 'nearai',
-                llmBackend: 'nearai',
-                llmModelId: 'auto'
-              }
-            ]
-          };
-        }
-        if (command === 'has_llm_provider_credential') return false;
-        throw new Error(`unexpected command ${command}`);
-      }
-    }
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    throw new Error("fetch should not be called");
   };
 
-  try {
-    const status = await gatewayStatus();
+  await assert.rejects(deleteThread(), /threadId is required/);
 
-    assert.equal(status.llm_backend, 'nearai');
-    assert.equal(status.llm_model, 'auto');
-    assert.equal(status.model_readiness, 'unverified');
-    assert.equal(status.model_execution_failure_category, undefined);
-    assert.equal(status.model_execution_failure_summary, undefined);
-    assert.ok(!calls.some((call) => call.command === 'has_llm_provider_credential'));
-  } finally {
-    globalThis.window = originalWindow;
-    globalThis.localStorage = originalLocalStorage;
-    globalThis.sessionStorage = originalSessionStorage;
-  }
+  assert.equal(fetchCalled, false);
 });
 
-test('gatewayStatus fallback blocks BYO-key providers when desktop credentials are missing', async () => {
-  const originalWindow = globalThis.window;
-  const originalLocalStorage = globalThis.localStorage;
-  const originalSessionStorage = globalThis.sessionStorage;
-  const encoder = new TextEncoder();
-  const calls = [];
+test("attachmentUrl encodes the (thread, message, attachment) triple", () => {
+  assert.equal(
+    attachmentUrl({ threadId: "t 1", messageId: "m/1", attachmentId: "a:1" }),
+    "/api/webchat/v2/threads/t%201/messages/m%2F1/attachments/a%3A1",
+  );
+});
 
-  const storage = {
-    getItem: () => '',
+test("attachmentUrl fails fast when a part is missing", () => {
+  // Never build a `.../undefined/...` path that would later carry the bearer.
+  assert.throws(() => attachmentUrl({ messageId: "m1", attachmentId: "a1" }));
+  assert.throws(() => attachmentUrl({ threadId: "t1", attachmentId: "a1" }));
+  assert.throws(() => attachmentUrl({ threadId: "t1", messageId: "m1" }));
+  assert.throws(() => attachmentUrl());
+});
+
+// Regression: the thumbnail must be a `data:` URL, never a `blob:` object URL.
+// The SPA's CSP is `img-src 'self' data:`, so a blob URL was refused and the
+// thumbnail never rendered. Reverting to `URL.createObjectURL` would throw here.
+test("fetchAttachmentDataUrl returns a data URL and never mints a blob URL", async () => {
+  globalThis.window = { location: { origin: "https://app.test" } };
+  globalThis.sessionStorage = {
+    getItem: () => "token-1",
     setItem: () => {},
-    removeItem: () => {}
+    removeItem: () => {},
   };
-  globalThis.localStorage = storage;
-  globalThis.sessionStorage = storage;
-  globalThis.window = {
-    __TAURI_INTERNALS__: {
-      invoke: async (command, args = {}) => {
-        calls.push({ command, args });
-        if (command === 'gateway_http_fetch') {
-          return {
-            status: 404,
-            status_text: 'Not Found',
-            url: args.request.url,
-            headers: [['content-type', 'text/plain']],
-            data: Array.from(encoder.encode('Not Found'))
-          };
-        }
-        if (command === 'get_settings') {
-          return {
-            activeProfileId: 'default',
-            profiles: [
-              {
-                id: 'default',
-                llmProviderId: 'openai',
-                llmBackend: 'openai',
-                llmModelId: 'gpt-4o'
-              }
-            ]
-          };
-        }
-        if (command === 'has_llm_provider_credential') return false;
-        throw new Error(`unexpected command ${command}`);
-      }
+  globalThis.fetch = async () =>
+    new Response(new Uint8Array([1, 2, 3, 4]), {
+      status: 200,
+      headers: { "content-type": "image/png" },
+    });
+  // Keep the real `URL` constructor (the same-origin guard needs `new URL`);
+  // only poison `createObjectURL` so a blob-URL regression fails the test.
+  // Save/restore the previous value so we don't leak global state into other
+  // tests (order-independence).
+  const priorCreateObjectURL = globalThis.URL.createObjectURL;
+  globalThis.URL.createObjectURL = () => {
+    throw new Error("blob: URLs violate the SPA CSP img-src 'self' data:");
+  };
+  globalThis.FileReader = class {
+    readAsDataURL() {
+      this.result = "data:image/png;base64,AQIDBA==";
+      if (this.onload) this.onload();
     }
   };
 
   try {
-    const status = await gatewayStatus();
-
-    assert.equal(status.llm_backend, 'openai');
-    assert.equal(status.llm_model, 'gpt-4o');
-    assert.equal(status.model_readiness, 'blocked');
-    assert.equal(status.model_execution_failure_category, 'model_credentials_unavailable');
-    assert.match(status.model_execution_failure_summary, /non-NEAR model provider/i);
-    assert.ok(calls.some((call) => call.command === 'has_llm_provider_credential'));
+    const url = await fetchAttachmentDataUrl(
+      attachmentUrl({ threadId: "t1", messageId: "m1", attachmentId: "a1" }),
+    );
+    assert.ok(url.startsWith("data:"), `expected a data URL, got ${url}`);
   } finally {
-    globalThis.window = originalWindow;
-    globalThis.localStorage = originalLocalStorage;
-    globalThis.sessionStorage = originalSessionStorage;
+    globalThis.URL.createObjectURL = priorCreateObjectURL;
   }
 });
 
-test('FetchEventStream parses split frames, named events, comments, and final buffered data', async () => {
-  const originalFetch = globalThis.fetch;
-  const encoder = new TextEncoder();
-  const calls = [];
-  const namedEvents = [];
-  const messages = [];
-  let opened = false;
-
-  globalThis.fetch = async (url, options) => {
-    calls.push({ url: String(url), options });
-    return new Response(
-      new ReadableStream({
-        start(controller) {
-          controller.enqueue(encoder.encode(': heartbeat\r\n\r\nid: gate-1\r\nevent: gate\r\n'));
-          controller.enqueue(
-            encoder.encode('data: {"tool":"send_email"}\r\ndata: confirm\r\n\r\n')
-          );
-          controller.enqueue(encoder.encode('data: tail frame without delimiter'));
-          controller.close();
-        }
-      }),
-      {
-        status: 200,
-        headers: { 'content-type': 'text/event-stream' }
-      }
-    );
+// The bearer is a critical sink: an off-origin attachment URL must be rejected
+// before the token is attached.
+test("fetchAttachmentBlob rejects an off-origin URL before sending the bearer", async () => {
+  globalThis.window = { location: { origin: "https://app.test" } };
+  globalThis.sessionStorage = {
+    getItem: () => "token-1",
+    setItem: () => {},
+    removeItem: () => {},
+  };
+  let fetchCalled = false;
+  globalThis.fetch = async () => {
+    fetchCalled = true;
+    throw new Error("fetch should not be reached for an off-origin URL");
   };
 
-  try {
-    const stream = new FetchEventStream(new URL('http://127.0.0.1:3000/events'), 'token-1');
-    stream.onopen = () => {
-      opened = true;
-    };
-    stream.onmessage = (event) => messages.push(event);
-    stream.addEventListener('gate', (event) => namedEvents.push(event));
-
-    await waitFor(() => opened && namedEvents.length === 1 && messages.length === 1);
-
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].options.headers.Accept, 'text/event-stream');
-    assert.equal(calls[0].options.headers.Authorization, 'Bearer token-1');
-    assert.deepEqual(namedEvents[0], {
-      type: 'gate',
-      data: '{"tool":"send_email"}\nconfirm',
-      lastEventId: 'gate-1'
-    });
-    assert.deepEqual(messages[0], {
-      type: 'message',
-      data: 'tail frame without delimiter',
-      lastEventId: ''
-    });
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test('FetchEventStream surfaces HTTP errors through onerror', async () => {
-  const originalFetch = globalThis.fetch;
-  const errors = [];
-
-  globalThis.fetch = async () =>
-    new Response('no stream here', {
-      status: 503,
-      statusText: 'Service Unavailable',
-      headers: { 'content-type': 'text/plain' }
-    });
-
-  try {
-    const stream = new FetchEventStream(new URL('http://127.0.0.1:3000/events'), '');
-    stream.onerror = (error) => errors.push(error);
-
-    await waitFor(() => errors.length === 1);
-
-    assert.equal(errors[0].name, 'ApiError');
-    assert.equal(errors[0].status, 503);
-    assert.equal(errors[0].statusText, 'Service Unavailable');
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test('FetchEventStream treats a clean server stream-end as a disconnect (fires onerror so reconnect runs)', async () => {
-  const originalFetch = globalThis.fetch;
-  const encoder = new TextEncoder();
-  const errors = [];
-  const messages = [];
-
-  globalThis.fetch = async () =>
-    new Response(
-      new ReadableStream({
-        start(controller) {
-          controller.enqueue(encoder.encode('data: hello\r\n\r\n'));
-          controller.close();
-        }
-      }),
-      { status: 200, headers: { 'content-type': 'text/event-stream' } }
-    );
-
-  try {
-    const stream = new FetchEventStream(new URL('http://127.0.0.1:3000/events'), '');
-    stream.onmessage = (event) => messages.push(event);
-    stream.onerror = (error) => errors.push(error);
-
-    await waitFor(() => messages.length === 1 && errors.length === 1);
-
-    // The frame still delivered, then the clean close surfaced as an error so
-    // useSSE's reconnect path fires instead of the channel going silently dead.
-    assert.equal(messages[0].data, 'hello');
-    assert.equal(errors[0].name, 'ApiError');
-    assert.equal(errors[0].status, 0);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test('FetchEventStream does not fire onerror when closed before the stream ends', async () => {
-  const originalFetch = globalThis.fetch;
-  const encoder = new TextEncoder();
-  const errors = [];
-
-  let streamController = null;
-  globalThis.fetch = async () =>
-    new Response(
-      new ReadableStream({
-        start(controller) {
-          streamController = controller;
-          controller.enqueue(encoder.encode('data: one\r\n\r\n'));
-        }
-      }),
-      { status: 200, headers: { 'content-type': 'text/event-stream' } }
-    );
-
-  try {
-    const stream = new FetchEventStream(new URL('http://127.0.0.1:3000/events'), '');
-    let got = 0;
-    stream.onmessage = () => {
-      got += 1;
-    };
-    stream.onerror = (error) => errors.push(error);
-    await waitFor(() => got === 1);
-    // Intentional teardown: close() then end the stream — no error should fire.
-    stream.close();
-    streamController.close();
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    assert.equal(errors.length, 0);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test('FetchEventStream aborts the in-flight fetch when closed', async () => {
-  const originalFetch = globalThis.fetch;
-  let capturedSignal = null;
-  const errors = [];
-
-  globalThis.fetch = async (_url, options) => {
-    capturedSignal = options.signal;
-    return new Promise((_resolve, reject) => {
-      capturedSignal.addEventListener(
-        'abort',
-        () => {
-          const error = new Error('aborted');
-          error.name = 'AbortError';
-          reject(error);
-        },
-        { once: true }
-      );
-    });
-  };
-
-  try {
-    const stream = new FetchEventStream(new URL('http://127.0.0.1:3000/events'), '');
-    stream.onerror = (error) => errors.push(error);
-
-    await waitFor(() => capturedSignal);
-    stream.close();
-    await waitFor(() => capturedSignal.aborted);
-
-    assert.deepEqual(errors, []);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  await assert.rejects(
+    fetchAttachmentBlob("https://evil.example/steal"),
+    (error) => error.name === "ApiError" && error.status === 400,
+  );
+  assert.equal(fetchCalled, false);
 });

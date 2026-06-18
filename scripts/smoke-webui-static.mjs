@@ -1007,6 +1007,22 @@ try {
       await route.fallback();
       return;
     }
+    if (webchatPath === '/api/webchat/v2/session') {
+      // Mirror the real bundled Reborn sidecar: the local desktop user is the
+      // operator, so the session grants operator_webui_config. Verified against
+      // `ironclaw-reborn serve` /api/webchat/v2/session (tenant reborn-cli,
+      // capabilities.operator_webui_config = true). Without this the UI derives
+      // isAdmin=false and admin-only surfaces (the AI-setup/inference tab) hide.
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          tenant_id: 'reborn-cli',
+          user_id: 'local-user',
+          capabilities: { operator_webui_config: true }
+        })
+      });
+      return;
+    }
     if (webchatPath === '/api/webchat/v2/extensions/registry') {
       await route.fulfill({
         contentType: 'application/json',

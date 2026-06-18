@@ -2,7 +2,9 @@ import { React, html } from '../../../lib/html.js';
 import { Button } from '../../../design-system/button.js';
 import { Card, CardLabel } from '../../../design-system/card.js';
 import { FormField, Input } from '../../../design-system/input.js';
+import { isDesktopRuntime } from '../../../lib/api.js';
 import { appScopedPath } from '../../../lib/app-path.js';
+import { useT } from '../../../lib/i18n.js';
 import { ExtensionCard, RegistryCard } from './extension-card.js';
 import { validateCustomMcpInput } from '../lib/custom-mcp.js';
 
@@ -21,19 +23,25 @@ export function McpTab({
   onAddCustom,
   isBusy
 }) {
+  const t = useT();
   const isEmpty = mcpServers.length === 0 && mcpRegistry.length === 0;
+  // Custom MCP install posts a Reborn `{ name, url, kind: 'mcp_server' }`
+  // payload that only the desktop sidecar accepts today. Web has no install
+  // route for it, so the card is hidden off the desktop runtime instead of
+  // offering an action that would 400 at the gateway.
+  const showCustomMcp = isDesktopRuntime();
   return html`
     <div className="space-y-5">
-      <${CustomMcpServerCard} onAddCustom=${onAddCustom} isBusy=${isBusy} />
+      ${showCustomMcp &&
+      html`<${CustomMcpServerCard} onAddCustom=${onAddCustom} isBusy=${isBusy} />`}
       ${isEmpty &&
       html`
         <${Card} variant="bordered" radius="lg" padding="lg">
           <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">
-            No knowledge apps connected
+            ${t('extensions.emptyMcpTitle')}
           </h3>
           <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
-            Connect Notion or another knowledge source from Browse so IronClaw can search team
-            context before drafting or deciding.
+            ${t('extensions.emptyMcpDesc')}
           </p>
           <${Button}
             as="a"
@@ -42,12 +50,12 @@ export function McpTab({
             size="sm"
             className="mt-4 min-h-[44px] px-3.5"
           >
-            Browse knowledge apps
+            ${t('extensions.browseKnowledgeApps')}
           <//>
           ${loadError &&
           html`
             <p className="mt-3 text-sm leading-6 text-[var(--v2-warning-text)]" role="status">
-              The local gateway is unavailable, so app setup cannot start yet.
+              ${t('extensions.gatewayUnavailable')}
             </p>
           `}
         <//>
@@ -55,7 +63,7 @@ export function McpTab({
       ${mcpServers.length > 0 &&
       html`
         <${Card} variant="bordered" radius="lg" padding="md">
-          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Connected knowledge apps <//>
+          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> ${t('mcp.installed')} <//>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             ${mcpServers.map(
               (ext) => html`
@@ -75,7 +83,9 @@ export function McpTab({
       ${mcpRegistry.length > 0 &&
       html`
         <${Card} variant="bordered" radius="lg" padding="md">
-          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Available knowledge apps <//>
+          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]">
+            ${t('ext.registry.availableTitle')}
+          <//>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
             ${mcpRegistry.map(
               (entry) => html`

@@ -56,21 +56,35 @@ export function cx(...classes) {
 /**
  * A labelled metric card used in summary strips and admin dashboards.
  *
+ * The default indicator is a quiet accent dot (color driven by `tone`). For
+ * backwards-compat, callers that pass `badgeLabel` still get the original
+ * labelled Badge chip instead of the dot.
+ *
  * Props
  *   label      string
  *   value      string | number
- *   tone       Badge tone
+ *   tone       Badge tone (also drives the quiet dot color)
+ *   badgeLabel string (optional) — when provided, renders the labelled Badge
+ *     chip (the legacy behaviour) instead of the quiet dot. Pass a translated
+ *     label so the chip is not an English tone name.
  *   detail     string (optional sub-text)
  *   showDivider boolean
  *   className  string
+ *   valueClassName string (optional) — overrides the value font-size classes.
+ *     Defaults to the large numeric size; pass a smaller size for text values
+ *     (e.g. a date) that would otherwise truncate. Note: `cn()` only
+ *     concatenates (no tailwind-merge), so this REPLACES the size classes
+ *     rather than appending to them.
  */
 export function StatCard({
   label,
   value,
   tone = 'muted',
+  badgeLabel,
   detail,
   showDivider = true,
-  className = ''
+  className = '',
+  valueClassName = 'text-[1.75rem] md:text-[2rem]'
 }) {
   return html`
     <div
@@ -88,20 +102,25 @@ export function StatCard({
             ${label}
           </div>
           <div
-            className="mt-3 truncate text-[1.75rem] font-medium tracking-[-0.05em] text-[var(--v2-text-strong)] md:text-[2rem]"
+            className=${cn(
+              'mt-3 truncate font-medium tracking-[-0.05em] text-[var(--v2-text-strong)]',
+              valueClassName
+            )}
           >
             ${value}
           </div>
           ${detail &&
           html`<div className="mt-2 text-xs leading-5 text-[var(--v2-text-muted)]">${detail}</div>`}
         </div>
-        <span
-          aria-hidden="true"
-          className=${cn(
-            'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
-            STAT_DOT_COLOR[tone] ?? STAT_DOT_COLOR.muted
-          )}
-        />
+        ${badgeLabel != null
+          ? html`<${Badge} tone=${tone} label=${badgeLabel} />`
+          : html`<span
+              aria-hidden="true"
+              className=${cn(
+                'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
+                STAT_DOT_COLOR[tone] ?? STAT_DOT_COLOR.muted
+              )}
+            />`}
       </div>
     </div>
   `;

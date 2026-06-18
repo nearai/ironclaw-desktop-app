@@ -9,14 +9,22 @@ import { NetworkingTab } from './components/networking-tab.js';
 import { RestartBanner } from './components/restart-banner.js';
 import { SkillsTab } from './components/skills-tab.js';
 import { ToolsTab } from './components/tools-tab.js';
+import { TraceCommonsTab } from './components/trace-commons-tab.js';
 import { UsersTab } from './components/users-tab.js';
 import { useSettings } from './hooks/useSettings.js';
 
 export function SettingsPage() {
   const t = useT();
-  const { tab = 'inference' } = useParams();
-  const { gatewayStatus, gatewayStatusQuery, isAdmin = true } = useOutletContext();
+  const { tab: requestedTab } = useParams();
+  const { gatewayStatus, gatewayStatusQuery, isAdmin = false } = useOutletContext();
+  const defaultTab = isAdmin ? 'inference' : 'language';
+  const tab = requestedTab || defaultTab;
   const { settings, query, status, save, savedKeys, needsRestart, saveError } = useSettings();
+  const [searchQuery, setSearchQuery] = React.useState('');
+
+  React.useEffect(() => {
+    setSearchQuery('');
+  }, [tab]);
 
   const isLoading = query.isLoading;
 
@@ -28,6 +36,7 @@ export function SettingsPage() {
       onSave=${save}
       savedKeys=${savedKeys}
       isLoading=${isLoading}
+      searchQuery=${searchQuery}
     />`,
     agent: html`<${AgentTab}
       settings=${settings}
@@ -35,23 +44,32 @@ export function SettingsPage() {
       onSave=${save}
       savedKeys=${savedKeys}
       isLoading=${isLoading}
+      searchQuery=${searchQuery}
     />`,
-    channels: html`<${ChannelsTab} />`,
+    channels: html`<${ChannelsTab} searchQuery=${searchQuery} />`,
     networking: html`<${NetworkingTab}
       settings=${settings}
       settingsStatus=${status}
       onSave=${save}
       savedKeys=${savedKeys}
       isLoading=${isLoading}
+      searchQuery=${searchQuery}
     />`,
-    tools: html`<${ToolsTab} />`,
-    skills: html`<${SkillsTab} />`,
-    users: html`<${UsersTab} />`,
-    language: html`<${LanguageTab} />`
+    tools: html`<${ToolsTab} searchQuery=${searchQuery} />`,
+    skills: html`<${SkillsTab} searchQuery=${searchQuery} />`,
+    traces: html`<${TraceCommonsTab} searchQuery=${searchQuery} />`,
+    users: html`<${UsersTab} searchQuery=${searchQuery} />`,
+    language: html`<${LanguageTab} searchQuery=${searchQuery} />`
   };
 
-  if (!tabContent[tab] || (!isAdmin && tab === 'users')) {
-    return html`<${Navigate} to="/settings/inference" replace />`;
+  const isOperatorTab = (id) => id === 'users' || id === 'inference';
+  const tabContentHas = (id) => Object.prototype.hasOwnProperty.call(tabContent, id);
+  const visibleTabIds = Object.keys(tabContent).filter((id) => isAdmin || !isOperatorTab(id));
+  const defaultTabIsVisible = tabContentHas(defaultTab) && visibleTabIds.includes(defaultTab);
+  const redirectTab = defaultTabIsVisible ? defaultTab : visibleTabIds[0] || 'language';
+
+  if (!tabContentHas(tab) || (!isAdmin && isOperatorTab(tab))) {
+    return html`<${Navigate} to=${`/settings/${redirectTab}`} replace />`;
   }
 
   return html`

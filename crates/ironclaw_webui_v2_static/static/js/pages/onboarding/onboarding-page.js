@@ -1,4 +1,4 @@
-import { useNavigate, useOutletContext } from 'react-router';
+import { Navigate, useNavigate, useOutletContext } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { React, html } from '../../lib/html.js';
 import { isDesktopRuntime } from '../../lib/api.js';
@@ -10,14 +10,15 @@ import { Icon } from '../../design-system/icons.js';
 import { ProviderDialog } from '../settings/components/provider-dialog.js';
 import { ProviderLoginStatus } from '../settings/components/provider-login-status.js';
 import { useProviderManagementActions } from '../settings/hooks/useProviderManagementActions.js';
-import { useProviderLogin } from '../settings/hooks/useProviderLogin.js';
+import { isLocalDevOrigin, useProviderLogin } from '../settings/hooks/useProviderLogin.js';
 import { isProviderConfigured } from '../settings/lib/llm-providers.js';
 import { setActiveLlm, testLlmProviderConnection } from '../settings/lib/settings-api.js';
 import { ProviderLogo } from './provider-logos.js';
 
 // First-run model setup. The desktop product contract is NEAR AI Cloud by
 // default; generic Reborn provider support stays hidden until an explicit
-// advanced-provider mode exists.
+// advanced-provider mode exists. The web preview shares the same NEAR AI Cloud
+// flow; desktop-only behavior is gated on isDesktopRuntime().
 const RESUME_SESSION_TIMEOUT_MS = 4000;
 const FEATURED = [
   {
@@ -29,8 +30,9 @@ const FEATURED = [
 ];
 
 // One provider row: logo + name/subtitle on the left, the auth action(s) on the
-// right. Stacks vertically on mobile (actions wrap onto their own line) and sits
-// on a single line from `sm` up.
+// right. The three NEAR AI Cloud sign-in controls (continue / Google / Wallet)
+// are all real tap targets at `md` height — the screen's whole job is sign-in,
+// so the secondary actions never drop to the sub-44px `sm` size.
 function FeaturedProviderRow({
   entry,
   provider,
@@ -44,81 +46,45 @@ function FeaturedProviderRow({
 }) {
   const name = t(entry.nameKey);
 
-  // Desktop: NEAR AI sign-in runs in a dedicated app window (the
-  // server only accepts private.near.ai callbacks; the window captures the
-  // token from that navigation). Keep first-run focused on cloud sign-in;
-  // fallback setup stays in Settings.
+  // Desktop: NEAR AI sign-in runs in a dedicated app window (the server only
+  // accepts private.near.ai callbacks; the window captures the token from that
+  // navigation). Keep first-run focused on cloud sign-in; fallback setup stays
+  // in Settings.
   let actions;
   if (entry.auth === 'nearai') {
-    if (isDesktopRuntime()) {
-      actions = html`
-        <${Button}
-          type="button"
-          variant="primary"
-          size="md"
-          fullWidth=${true}
-          className="col-span-2"
-          disabled=${login.nearaiBusy}
-          onClick=${() => login.startNearai('github')}
-        >
-          ${t('onboarding.continue')}
-        <//>
-        <${Button}
-          type="button"
-          variant="secondary"
-          size="md"
-          fullWidth=${true}
-          disabled=${login.nearaiBusy}
-          onClick=${() => login.startNearai('google')}
-        >
-          ${t('onboarding.continueGoogle')}
-        <//>
-        <${Button}
-          type="button"
-          variant="secondary"
-          size="md"
-          fullWidth=${true}
-          disabled=${login.nearaiBusy}
-          onClick=${login.startNearaiWallet}
-        >
-          ${t('onboarding.continueWallet')}
-        <//>
-      `;
-    } else {
-      actions = html`
-        <${Button}
-          type="button"
-          variant="primary"
-          size="md"
-          fullWidth=${true}
-          className="col-span-2"
-          disabled=${login.nearaiBusy}
-          onClick=${() => login.startNearai('github')}
-        >
-          ${t('onboarding.continue')}
-        <//>
-        <${Button}
-          type="button"
-          variant="secondary"
-          size="md"
-          fullWidth=${true}
-          disabled=${login.nearaiBusy}
-          onClick=${() => login.startNearai('google')}
-        >
-          ${t('onboarding.continueGoogle')}
-        <//>
-        <${Button}
-          type="button"
-          variant="secondary"
-          size="md"
-          fullWidth=${true}
-          disabled=${login.nearaiBusy}
-          onClick=${login.startNearaiWallet}
-        >
-          ${t('onboarding.continueWallet')}
-        <//>
-      `;
-    }
+    actions = html`
+      <${Button}
+        type="button"
+        variant="primary"
+        size="md"
+        fullWidth=${true}
+        className="col-span-2"
+        disabled=${login.nearaiBusy}
+        onClick=${() => login.startNearai('github')}
+      >
+        ${t('onboarding.continue')}
+      <//>
+      <${Button}
+        type="button"
+        variant="secondary"
+        size="md"
+        fullWidth=${true}
+        disabled=${login.nearaiBusy}
+        onClick=${() => login.startNearai('google')}
+      >
+        ${t('onboarding.continueGoogle')}
+      <//>
+      <${Button}
+        type="button"
+        variant="secondary"
+        size="md"
+        fullWidth=${true}
+        disabled=${login.nearaiBusy}
+        onClick=${login.startNearaiWallet}
+      >
+        ${t('onboarding.continueWallet')}
+      <//>
+    `;
   } else if (configured) {
     actions = html`<${Button}
       type="button"
@@ -163,6 +129,9 @@ function FeaturedProviderRow({
   `;
 }
 
+// First-run trust rows are static product promises, not agent artifacts, so the
+// color law applies: gold is the agent's hand and is never used as decoration.
+// The icon tile stays on neutral surface/border tokens.
 function TrustRow({ icon, title, body }) {
   return html`
     <div
@@ -181,7 +150,139 @@ function TrustRow({ icon, title, body }) {
   `;
 }
 
+// Compact "Set up" control for NEAR AI Cloud onboarding rows: a single trigger
+// that opens a dropdown holding the real auth choices (Add API key, NEAR
+// Wallet, GitHub, Google). Keeping the SSO choices behind the dropdown stops the
+// first-run row from fanning four buttons across the surface, while the trigger
+// stays a single honest tap target. The dropdown closes on Escape and on the
+// configure action. Additive — used by the onboarding rows; the inline auth
+// buttons remain for the primary NEAR flow.
+function NearAiSetupMenu({ provider, isBusy, login, t, onSetUp }) {
+  const [open, setOpen] = React.useState(false);
+  const containerRef = React.useRef(null);
+
+  // While the dropdown is open, close it on Escape and on an outside click so
+  // it behaves like a real menu (focus does not get trapped on first-run).
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    const onPointerDown = (event) => {
+      const node = containerRef.current;
+      if (node && typeof node.contains === 'function' && !node.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [open]);
+
+  const triggerDisabled = Boolean(isBusy) || Boolean(login?.nearaiBusy);
+
+  return html`
+    <div ref=${containerRef} className="relative inline-flex">
+      <${Button}
+        type="button"
+        variant="primary"
+        size="sm"
+        disabled=${triggerDisabled}
+        aria-haspopup="menu"
+        aria-expanded=${open ? 'true' : 'false'}
+        onClick=${() => setOpen((value) => !value)}
+      >
+        ${t('onboarding.setUp')}
+        <${Icon} name="chevron-down" className="ml-1 h-3.5 w-3.5" />
+      <//>
+      ${open &&
+      html`
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-10 mt-1 grid min-w-[12rem] gap-1 rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-1 shadow-lg"
+        >
+          <${Button}
+            type="button"
+            variant="secondary"
+            size="md"
+            fullWidth=${true}
+            disabled=${isBusy}
+            onClick=${() => {
+              setOpen(false);
+              onSetUp(provider);
+            }}
+          >
+            ${t('llm.addApiKey')}
+          <//>
+          <${Button}
+            type="button"
+            variant="secondary"
+            size="md"
+            fullWidth=${true}
+            disabled=${login?.nearaiBusy}
+            onClick=${() => {
+              setOpen(false);
+              login.startNearaiWallet();
+            }}
+          >
+            ${t('onboarding.nearWallet')}
+          <//>
+          <${Button}
+            type="button"
+            variant="secondary"
+            size="md"
+            fullWidth=${true}
+            disabled=${login?.nearaiBusy}
+            onClick=${() => {
+              setOpen(false);
+              login.startNearai('github');
+            }}
+          >
+            ${'GitHub'}
+          <//>
+          <${Button}
+            type="button"
+            variant="secondary"
+            size="md"
+            fullWidth=${true}
+            disabled=${login?.nearaiBusy}
+            onClick=${() => {
+              setOpen(false);
+              login.startNearai('google');
+            }}
+          >
+            ${'Google'}
+          <//>
+        </div>
+      `}
+    </div>
+  `;
+}
+
 export function OnboardingPage() {
+  // First-run setup is admin-only ONLY when reached as the nested /welcome under
+  // the authenticated layout — that route supplies an outlet context carrying the
+  // caller's admin status, and a signed-in non-admin bounces to chat. The
+  // top-level /welcome is the unauthenticated first-run entry (desktop's
+  // unauthenticatedRoute) and the browser static preview: no outlet context, no
+  // session yet, so the admin gate does not apply and the onboarding renders
+  // directly. Gating it there would redirect every first-run visitor straight
+  // back out before they could sign in.
+  const outlet = useOutletContext();
+  if (outlet) {
+    const { isAdmin = false, isChecking = false } = outlet;
+    if (isChecking) return null;
+    if (!isAdmin) {
+      return html`<${Navigate} to="/chat" replace />`;
+    }
+  }
+  return html`<${OperatorOnboardingPage} />`;
+}
+
+function OperatorOnboardingPage() {
   const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -231,35 +332,44 @@ export function OnboardingPage() {
   const showFallbackAccess = providerAccessBlocked;
   const primaryAuthVariant = providerAccessBlocked ? 'secondary' : 'primary';
   const desktopRuntime = isDesktopRuntime();
+  // A browser-served static preview (npm run dev:webui-static, or any loopback
+  // origin without the Tauri shim) can never start the local sidecar, so its
+  // gateway-unavailable copy must say that plainly instead of implying a desktop
+  // restart will fix it. Design law: no fake readiness.
+  const staticPreview = !desktopRuntime && isLocalDevOrigin();
   const accessStatusTitle = providerSnapshotPending
     ? desktopRuntime
-      ? 'Checking local gateway'
-      : 'Checking preview gateway'
+      ? t('onboarding.gatewayCheckingDesktop')
+      : t('onboarding.gatewayCheckingWeb')
     : providerSnapshotUnavailable
       ? desktopRuntime
-        ? 'Gateway not available'
-        : 'Static preview needs a gateway'
-      : 'Ready to sign in';
+        ? t('onboarding.gatewayUnavailableDesktop')
+        : staticPreview
+          ? t('onboarding.staticPreviewUnavailable')
+          : t('onboarding.gatewayUnavailableWeb')
+      : t('onboarding.gatewayReady');
   const gatewayPendingCopy = desktopRuntime
-    ? 'Checking the local gateway for NEAR AI Cloud access.'
-    : 'Checking the gateway configured for this browser preview.';
+    ? t('onboarding.gatewayPendingCopyDesktop')
+    : t('onboarding.gatewayPendingCopyWeb');
   const gatewayUnavailableCopy = desktopRuntime
-    ? 'IronClaw cannot reach the local sidecar yet. Restart the app or start the sidecar, then sign in with NEAR AI Cloud.'
-    : 'This browser preview cannot start the desktop sidecar. Run the packaged app or npm run tauri dev for sign-in; use npm run dev:webui-static only for UI smoke tests against an already running gateway.';
+    ? t('onboarding.gatewayUnavailableCopyDesktop')
+    : staticPreview
+      ? t('onboarding.staticPreviewUnavailableCopy')
+      : t('onboarding.gatewayUnavailableCopyWeb');
   const gatewayFollowupCopy = desktopRuntime
-    ? 'Finish the access step once the gateway is reachable. IronClaw will keep model routing on NEAR AI Cloud.'
-    : 'For a working desktop session, launch IronClaw through Tauri so the sidecar and native auth bridge are available.';
+    ? t('onboarding.gatewayFollowupCopyDesktop')
+    : t('onboarding.gatewayFollowupCopyWeb');
 
   // NEAR AI login shares the same backend flow as the Inference tab; on success
   // here we head straight to chat.
   const navigateToChat = React.useCallback(() => navigate('/chat'), [navigate]);
   const login = useProviderLogin({ onSuccess: navigateToChat });
 
-  // Resume an existing NEAR AI session instead of demanding a fresh sign-in.
-  // A returning user (or a machine that signed in via the CLI) already holds
-  // a working session the sidecar loaded — verify it with a real connection
-  // test, activate it, and go straight to chat. Sign-in stays the path for
-  // genuinely new machines.
+  // Resume an existing NEAR AI session instead of demanding a fresh sign-in. A
+  // returning user (or a machine that signed in via the CLI) already holds a
+  // working session the sidecar loaded — verify it with a real connection test,
+  // activate it, and go straight to chat. Sign-in stays the path for genuinely
+  // new machines.
   const resumeAttemptedRef = React.useRef(false);
   React.useEffect(() => {
     if (resumeAttemptedRef.current || state.isLoading) return;
@@ -338,7 +448,7 @@ export function OnboardingPage() {
           <div
             className="mb-4 inline-flex h-7 items-center rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-[11px] font-semibold text-[var(--v2-text-muted)]"
           >
-            NEAR AI Cloud native
+            ${t('onboarding.nativeBadge')}
           </div>
           <h1
             className="max-w-[16ch] text-[32px] font-semibold leading-[1.06] text-[var(--v2-text-strong)] sm:text-[40px]"
@@ -409,9 +519,12 @@ export function OnboardingPage() {
                           </span>
                         </span>
                       </div>
-                      <p className="text-sm leading-6 text-[var(--v2-text-muted)]">
-                        ${gatewayFollowupCopy}
-                      </p>
+                      ${providerSnapshotPending &&
+                      html`
+                        <p className="text-sm leading-6 text-[var(--v2-text-muted)]">
+                          ${gatewayFollowupCopy}
+                        </p>
+                      `}
                       <div className="grid grid-cols-2 gap-2">
                         <${Button}
                           type="button"

@@ -20,6 +20,10 @@ import { isGoogleConnector } from '../lib/extension-actions.js';
 const OAUTH_SETUP_REFRESH_MS = 2000;
 const OAUTH_SETUP_TIMEOUT_MS = 10 * 60 * 1000;
 
+// Activation only counts as "connected" when the gateway returns positive
+// credential proof. A bare `success: true` with a generic lifecycle message
+// (or any blocker / explicit `*_ready: false`) is treated as not-yet-connected
+// so the UI never pretends a connector works before it actually does.
 function activationProvedConnected(res) {
   if (!res || typeof res !== 'object') return false;
   if (res.success === false) return false;
@@ -56,36 +60,53 @@ function activationFailureMessage(res) {
   );
 }
 
+// Channel-surface classification. Defined locally (rather than imported from
+// extensions-schema.js) so it is evaluated as part of this module's own scope
+// — the merge logic runs at render time and must not depend on a sibling
+// import resolving. Kept byte-identical to extensions-schema.isChannelExtensionKind.
+function isChannelExtensionKind(kind) {
+  return kind === 'wasm_channel' || kind === 'channel';
+}
+
+function packageId(item) {
+  return item?.package_ref?.id || null;
+}
+
+function displayName(item) {
+  return item?.display_name || packageId(item) || '';
+}
+
+function catalogId(prefix, item, index) {
+  return packageId(item) || `${prefix}:${displayName(item) || 'unknown'}:${index}`;
+}
+
+function catalogSort(a, b) {
+  if (a.installed !== b.installed) return a.installed ? -1 : 1;
+  return displayName(a.entry || a.extension).localeCompare(displayName(b.entry || b.extension));
+}
+
 export function useExtensions() {
   const queryClient = useQueryClient();
 
   const statusQuery = useQuery({
     queryKey: ['gateway-status-extensions'],
     queryFn: gatewayStatus,
-    staleTime: 10_000,
-    retry: 1,
-    retryDelay: 600
+    staleTime: 10_000
   });
 
   const extensionsQuery = useQuery({
     queryKey: ['extensions'],
-    queryFn: fetchExtensions,
-    retry: 1,
-    retryDelay: 600
+    queryFn: fetchExtensions
   });
 
   const registryQuery = useQuery({
     queryKey: ['extension-registry'],
-    queryFn: fetchExtensionRegistry,
-    retry: 1,
-    retryDelay: 600
+    queryFn: fetchExtensionRegistry
   });
 
   const connectableChannelsQuery = useQuery({
     queryKey: ['connectable-channels'],
-    queryFn: listConnectableChannels,
-    retry: 1,
-    retryDelay: 600
+    queryFn: listConnectableChannels
   });
 
   const invalidate = React.useCallback(() => {
@@ -185,18 +206,43 @@ export function useExtensions() {
   const extensions = extensionsQuery.data?.extensions || [];
   const registry = registryQuery.data?.entries || [];
   const connectableChannels = connectableChannelsQuery.data?.channels || [];
-
-  const channels = extensions.filter((e) => e.kind === 'wasm_channel');
-  const mcpServers = extensions.filter((e) => e.kind === 'mcp_server');
-  const tools = extensions.filter((e) => e.kind !== 'wasm_channel' && e.kind !== 'mcp_server');
-
-  const channelRegistry = registry.filter(
-    (e) => (e.kind === 'wasm_channel' || e.kind === 'channel') && !e.installed
+  const extensionById = new Map(
+    extensions.map((extension) => [packageId(extension), extension]).filter(([id]) => Boolean(id))
   );
+  const registryIds = new Set(registry.map((entry) => packageId(entry)).filter(Boolean));
+  const catalogEntries = [
+    ...registry.map((entry, index) => {
+      const id = packageId(entry);
+      const extension = id ? extensionById.get(id) || null : null;
+      return {
+        id: catalogId('registry', entry, index),
+        installed: Boolean(extension || entry.installed),
+        entry,
+        extension
+      };
+    }),
+    ...extensions
+      .filter((extension) => {
+        const id = packageId(extension);
+        return !id || !registryIds.has(id);
+      })
+      .map((extension, index) => ({
+        id: catalogId('installed', extension, index),
+        installed: true,
+        entry: null,
+        extension
+      }))
+  ].sort(catalogSort);
+
+  const isChannel = (entry) => isChannelExtensionKind(entry.kind);
+  const channels = extensions.filter(isChannel);
+  const mcpServers = extensions.filter((e) => e.kind === 'mcp_server');
+  const tools = extensions.filter((e) => !isChannel(e) && e.kind !== 'mcp_server');
+
+  const channelRegistry = registry.filter((e) => isChannel(e) && !e.installed);
   const mcpRegistry = registry.filter((e) => e.kind === 'mcp_server' && !e.installed);
   const toolRegistry = registry.filter(
-    (e) =>
-      e.kind !== 'mcp_server' && e.kind !== 'wasm_channel' && e.kind !== 'channel' && !e.installed
+    (e) => e.kind !== 'mcp_server' && !isChannel(e) && !e.installed
   );
 
   const loadError =
@@ -222,6 +268,7 @@ export function useExtensions() {
     mcpRegistry,
     toolRegistry,
     registry,
+    catalogEntries,
     loadError,
     connectableChannels,
     isLoading,
@@ -258,9 +305,19 @@ export function useSetupSubmit(packageRef, onSuccess) {
 
   return useMutation({
     mutationFn: ({ secrets, fields }) => submitExtensionSetup(packageRef, secrets, fields),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['extensions'] });
-      queryClient.invalidateQueries({ queryKey: ['extension-setup', packageKey] });
+    // Await the active refetch BEFORE signaling success: invalidateQueries only
+    // marks queries stale, so closing the modal on the bare mutation result would
+    // dismiss it while the connector list still reads "setup needed" until a
+    // background refetch lands — a fake-readiness flash. Resolving the active
+    // refetch first means the caller acts on gateway-confirmed state.
+    onSuccess: async (res) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['extensions'], refetchType: 'active' }),
+        queryClient.invalidateQueries({
+          queryKey: ['extension-setup', packageKey],
+          refetchType: 'active'
+        })
+      ]);
       if (onSuccess) onSuccess(res);
     }
   });
@@ -359,34 +416,6 @@ export function useOauthSetup(packageRef) {
   });
 }
 
-export function usePairing(channel, options = {}) {
-  const query = useQuery({
-    queryKey: ['pairing', channel],
-    queryFn: () => fetchPairingRequests(channel),
-    enabled: Boolean(channel) && options.enabled !== false,
-    refetchInterval: 5000
-  });
-
-  const queryClient = useQueryClient();
-
-  const approveMutation = useMutation({
-    mutationFn: ({ code }) => approvePairingCode(channel, code),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['pairing', channel] });
-      queryClient.invalidateQueries({ queryKey: ['extensions'] });
-    }
-  });
-
-  return {
-    requests: query.data?.requests || [],
-    isLoading: query.isLoading,
-    approve: approveMutation.mutate,
-    isApproving: approveMutation.isPending,
-    result: approveMutation.isSuccess ? approveMutation.data : null,
-    error: approveMutation.isError ? approveMutation.error : null
-  };
-}
-
 // One-click connect: install -> read setup -> (DCR/OAuth: system-browser
 // consent + poll) -> activate. Manual-token connectors stop at 'needs-token'
 // so the caller can open the token form instead, never a fake Connect.
@@ -480,4 +509,32 @@ export function useConnectExtension() {
   );
 
   return { connect, connectState };
+}
+
+export function usePairing(channel, options = {}) {
+  const query = useQuery({
+    queryKey: ['pairing', channel],
+    queryFn: () => fetchPairingRequests(channel),
+    enabled: Boolean(channel) && options.enabled !== false,
+    refetchInterval: 5000
+  });
+
+  const queryClient = useQueryClient();
+
+  const approveMutation = useMutation({
+    mutationFn: ({ code }) => approvePairingCode(channel, code),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['pairing', channel] });
+      queryClient.invalidateQueries({ queryKey: ['extensions'] });
+    }
+  });
+
+  return {
+    requests: query.data?.requests || [],
+    isLoading: query.isLoading,
+    approve: approveMutation.mutate,
+    isApproving: approveMutation.isPending,
+    result: approveMutation.isSuccess ? approveMutation.data : null,
+    error: approveMutation.isError ? approveMutation.error : null
+  };
 }

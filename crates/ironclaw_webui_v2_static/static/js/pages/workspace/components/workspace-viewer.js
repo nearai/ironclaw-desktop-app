@@ -105,7 +105,6 @@ export function WorkspaceViewer({
               <textarea
                 value=${draft}
                 onInput=${(event) => onDraftChange(event.target.value)}
-                aria-label=${t('workspace.edit')}
                 className="h-full min-h-[460px] w-full resize-none rounded-xl border border-white/10 bg-iron-950/80 p-4 font-mono text-sm leading-6 text-white outline-none focus:border-signal/45"
                 spellcheck=${false}
               />

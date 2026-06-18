@@ -1,248 +1,131 @@
-import assert from 'node:assert/strict';
-import test from 'node:test';
+import assert from "node:assert/strict";
+import test from "node:test";
 
 import {
-  GOOGLE_OAUTH_SETTINGS_PATH,
-  connectorFamily,
-  connectorKey,
-  connectorSetupGuidance,
-  googleOauthSettingsHref,
-  isGoogleConnector,
+  extensionIsActive,
   primaryExtensionAction,
-  registryConnectButtonState,
-  registryStatusBadge,
-  setupReadyForActivation
-} from './extension-actions.js';
+  setupReadyForActivation,
+} from "./extension-actions.js";
 
-const notionRef = { kind: 'extension', id: 'notion' };
+const notionRef = { kind: "extension", id: "notion" };
 
-test('primaryExtensionAction opens configuration before OAuth-required activation', () => {
+test("primaryExtensionAction opens configuration before OAuth-required activation", () => {
   assert.equal(
     primaryExtensionAction({
       package_ref: notionRef,
-      kind: 'mcp_server',
-      onboarding_state: 'auth_required'
+      kind: "mcp_server",
+      onboarding_state: "auth_required",
     }),
-    'configure'
+    "configure",
   );
 });
 
-test('primaryExtensionAction activates configured inactive MCP extensions', () => {
+test("primaryExtensionAction activates configured inactive MCP extensions", () => {
   assert.equal(
     primaryExtensionAction({
       package_ref: notionRef,
-      kind: 'mcp_server',
-      activation_status: 'installed'
+      kind: "mcp_server",
+      activation_status: "installed",
     }),
-    'activate'
+    "activate",
   );
 });
 
-test('primaryExtensionAction reopens setup for failed extensions', () => {
+test("primaryExtensionAction activates manifest-backed channels and suppresses legacy wasm channels", () => {
+  assert.equal(
+    primaryExtensionAction({
+      package_ref: { kind: "extension", id: "slack" },
+      kind: "channel",
+      activation_status: "installed",
+    }),
+    "activate",
+  );
+  assert.equal(
+    primaryExtensionAction({
+      package_ref: { kind: "extension", id: "telegram" },
+      kind: "wasm_channel",
+      activation_status: "installed",
+    }),
+    null,
+  );
+});
+
+test("primaryExtensionAction suppresses Activate for channel kind in pairing states", () => {
+  assert.equal(
+    primaryExtensionAction({
+      package_ref: { kind: "extension", id: "slack" },
+      kind: "channel",
+      onboarding_state: "pairing_required",
+    }),
+    null,
+    "kind:channel + pairing_required should return null (pairing section owns it)",
+  );
+  assert.equal(
+    primaryExtensionAction({
+      package_ref: { kind: "extension", id: "slack" },
+      kind: "channel",
+      onboarding_state: "pairing",
+    }),
+    null,
+    "kind:channel + pairing should return null (pairing section owns it)",
+  );
+  // Installed state must still return activate — this is the manifest-backed channel activation path.
+  assert.equal(
+    primaryExtensionAction({
+      package_ref: { kind: "extension", id: "slack" },
+      kind: "channel",
+      activation_status: "installed",
+    }),
+    "activate",
+    "kind:channel + installed should still return activate",
+  );
+});
+
+test("primaryExtensionAction hides activation for active extensions", () => {
   assert.equal(
     primaryExtensionAction({
       package_ref: notionRef,
-      kind: 'mcp_server',
-      activation_status: 'failed'
+      kind: "mcp_server",
+      active: true,
     }),
-    'configure'
+    null,
   );
 });
 
-test('primaryExtensionAction hides activation for active extensions', () => {
-  assert.equal(
-    primaryExtensionAction({
-      package_ref: notionRef,
-      kind: 'mcp_server',
-      active: true
-    }),
-    null
-  );
+test("extensionIsActive accepts card payload lifecycle fields", () => {
+  assert.equal(extensionIsActive({ active: true }), true);
+  assert.equal(extensionIsActive({ activationStatus: "ready" }), true);
+  assert.equal(extensionIsActive({ onboardingState: "auth_required" }), false);
 });
 
-test('setupReadyForActivation waits until all setup secrets are provided', () => {
+test("setupReadyForActivation waits until all setup secrets are provided", () => {
   assert.equal(
     setupReadyForActivation({
       secrets: [{ provided: true }, { provided: true }],
-      fields: []
+      fields: [],
     }),
-    true
+    true,
   );
   assert.equal(
     setupReadyForActivation({
       secrets: [{ provided: true }, { provided: false }],
-      fields: []
+      fields: [],
     }),
-    false
+    false,
   );
   assert.equal(
     setupReadyForActivation({
       secrets: [{ provided: true }],
-      fields: [{ name: 'workspace' }]
+      fields: [{ name: "workspace" }],
     }),
-    false
+    false,
   );
-});
-
-test('registryConnectButtonState makes manual-token setup actionable', () => {
-  assert.deepEqual(registryConnectButtonState({ phase: 'needs-token' }), {
-    label: 'Open setup',
-    disabled: false,
-    action: 'manual_setup',
-    variant: 'secondary'
-  });
-});
-
-test('connector helpers identify catalog refs without leaking slash-prefixed lifecycle names', () => {
-  assert.equal(connectorKey({ package_ref: { id: 'tools/google_calendar' } }), 'google-calendar');
-  assert.equal(connectorKey({ packageRef: { id: 'channels/slack_tool' } }), 'slack');
-  assert.equal(connectorFamily({ package_ref: { id: 'mcp-servers/notion' } }), 'notion');
-  assert.equal(isGoogleConnector({ package_ref: { id: 'tools/gmail' } }), true);
-  assert.equal(isGoogleConnector({ package_ref: { id: 'tools/google_drive' } }), true);
-  assert.equal(isGoogleConnector({ package_ref: { id: 'tools/google_sheets' } }), true);
-  assert.equal(isGoogleConnector({ package_ref: { id: 'mcp-servers/notion' } }), false);
-});
-
-test('Google connector guidance points blocked users to the settings client-id target', () => {
-  const guidance = connectorSetupGuidance(
-    { package_ref: { id: 'tools/gmail' } },
-    { connectPhase: { phase: 'blocked-google-client-id' } }
+  assert.equal(
+    setupReadyForActivation({
+      extension: { active: true },
+      secrets: [{ provided: true }],
+      fields: [],
+    }),
+    false,
   );
-
-  assert.equal(guidance.title, 'Needs Google sign-in setup');
-  assert.equal(guidance.href, GOOGLE_OAUTH_SETTINGS_PATH);
-  assert.match(guidance.body, /Desktop app client ID/);
-  assert.deepEqual(
-    registryConnectButtonState(
-      { phase: 'blocked-google-client-id' },
-      { package_ref: { id: 'tools/google_calendar' } }
-    ),
-    {
-      label: 'Open Google setup',
-      disabled: false,
-      action: 'google_settings',
-      variant: 'secondary',
-      href: GOOGLE_OAUTH_SETTINGS_PATH
-    }
-  );
-});
-
-test('Google connector guidance stays scoped inside the hosted /v2 app', () => {
-  const previousWindow = globalThis.window;
-  globalThis.window = { location: { pathname: '/v2/extensions/registry' } };
-
-  try {
-    assert.equal(googleOauthSettingsHref(), '/v2/settings/inference#google-oauth');
-    assert.equal(
-      connectorSetupGuidance(
-        { package_ref: { id: 'tools/gmail' } },
-        { connectPhase: { phase: 'blocked-google-client-id' } }
-      ).href,
-      '/v2/settings/inference#google-oauth'
-    );
-    assert.equal(
-      registryConnectButtonState(
-        { phase: 'blocked-google-client-id' },
-        { package_ref: { id: 'tools/google_calendar' } }
-      ).href,
-      '/v2/settings/inference#google-oauth'
-    );
-  } finally {
-    if (previousWindow === undefined) {
-      delete globalThis.window;
-    } else {
-      globalThis.window = previousWindow;
-    }
-  }
-});
-
-test('connectorSetupGuidance gives honest connector-specific setup copy', () => {
-  assert.match(
-    connectorSetupGuidance({ package_ref: { id: 'mcp-servers/notion' } })?.body,
-    /opens Notion/
-  );
-  assert.match(
-    connectorSetupGuidance({ package_ref: { id: 'channels/slack' } })?.body,
-    /workspace install|pairing/
-  );
-  assert.match(
-    connectorSetupGuidance({ package_ref: { id: 'workspace' } })?.body,
-    /local folder|gateway/
-  );
-});
-
-test('registryStatusBadge flags a blocked Google client id as BLOCKED', () => {
-  assert.deepEqual(
-    registryStatusBadge(
-      { package_ref: { id: 'tools/gmail' } },
-      { phase: 'blocked-google-client-id' }
-    ),
-    { tone: 'danger', label: 'BLOCKED' }
-  );
-});
-
-test('registryStatusBadge flags a needs-token connector as NEEDS SETUP', () => {
-  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/custom' } }, { phase: 'needs-token' }), {
-    tone: 'warning',
-    label: 'NEEDS SETUP'
-  });
-});
-
-test('registryStatusBadge flags connectors with resting setup guidance as NEEDS SETUP', () => {
-  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'mcp-servers/notion' } }), {
-    tone: 'warning',
-    label: 'NEEDS SETUP'
-  });
-  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'channels/slack' } }), {
-    tone: 'warning',
-    label: 'NEEDS SETUP'
-  });
-});
-
-test('registryStatusBadge flags blocked Google before its setup guidance', () => {
-  // blocked-google-client-id also produces guidance.title; BLOCKED must win.
-  assert.deepEqual(
-    registryStatusBadge(
-      { package_ref: { id: 'tools/google_calendar' } },
-      { phase: 'blocked-google-client-id' }
-    ),
-    { tone: 'danger', label: 'BLOCKED' }
-  );
-});
-
-test('registryStatusBadge leaves a plain connector AVAILABLE at rest', () => {
-  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/web_search' } }), {
-    tone: 'muted',
-    label: 'AVAILABLE'
-  });
-  // Google has no resting setup-guidance title, so it reads ready until a phase says otherwise.
-  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/gmail' } }), {
-    tone: 'muted',
-    label: 'AVAILABLE'
-  });
-  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/web_search' } }, undefined), {
-    tone: 'muted',
-    label: 'AVAILABLE'
-  });
-});
-
-test('registryConnectButtonState keeps running and connected phases disabled', () => {
-  assert.deepEqual(registryConnectButtonState({ phase: 'waiting' }), {
-    label: 'Finish in your browser...',
-    disabled: true,
-    action: 'wait',
-    variant: 'primary'
-  });
-  assert.deepEqual(registryConnectButtonState({ phase: 'connected' }), {
-    label: 'Connected',
-    disabled: true,
-    action: 'none',
-    variant: 'secondary'
-  });
-  assert.deepEqual(registryConnectButtonState({ phase: 'error' }), {
-    label: 'Retry connect',
-    disabled: false,
-    action: 'connect',
-    variant: 'primary'
-  });
 });

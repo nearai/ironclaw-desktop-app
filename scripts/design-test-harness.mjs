@@ -115,7 +115,7 @@ const checks = [
         label: 'message/artifact grammar contract',
         args: [
           '--test',
-          'crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/message-bubble.test.mjs'
+          'crates/ironclaw_webui_v2_static/static/js/pages/chat/components/message-bubble.test.mjs'
         ]
       }
     ],
@@ -153,7 +153,7 @@ const checks = [
         file: 'crates/ironclaw_webui_v2_static/static/js/pages/chat/components/empty-state.js',
         includes: [
           'Nothing waiting on you.',
-          'Approvals and auth gates appear here when they are backed by a thread.',
+          'Threads waiting on your approval or recovery appear here.',
           'No completed receipts yet.',
           'Completed actions, automations, and recent work appear here once IronClaw has evidence.'
         ]
@@ -166,7 +166,7 @@ const checks = [
       {
         label: 'knowledge-app empty state has a next action',
         file: 'crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/mcp-tab.js',
-        includes: ['No knowledge apps connected', 'Browse knowledge apps']
+        includes: ['extensions.emptyMcpTitle', 'extensions.browseKnowledgeApps']
       },
       {
         label: 'skeleton primitive is non-animated',

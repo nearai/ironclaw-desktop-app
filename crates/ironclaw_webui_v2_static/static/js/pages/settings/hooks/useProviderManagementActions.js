@@ -16,6 +16,9 @@ export function useProviderManagementActions({ settings, gatewayStatus, searchQu
   const [dialogProvider, setDialogProvider] = React.useState(null);
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [message, setMessage] = React.useState(null);
+  // Desktop-only: deletes route through the design-system ConfirmDialog (native
+  // `window.confirm` does not render on the macOS overlay window). Web keeps
+  // `window.confirm` — see `handleDelete`.
   const [confirmRequest, setConfirmRequest] = React.useState(null);
   const messageTimerRef = React.useRef(null);
 
@@ -65,10 +68,11 @@ export function useProviderManagementActions({ settings, gatewayStatus, searchQu
 
   const handleSave = React.useCallback(
     async ({ form, apiKey, provider }) => {
-      // NEAR AI Cloud on desktop: the pasted key goes to the OS keychain and the
+      // Desktop NEAR AI Cloud: the pasted key goes to the OS keychain and the
       // sidecar restarts to pick it up — never a provider upsert (a user nearai
-      // provider def breaks the gateway's list-models). Rust classifies an `sk-`
-      // key to cloud-api.near.ai.
+      // provider def breaks the gateway's list-models). Rust classifies an
+      // `sk-` key to cloud-api.near.ai. Gated behind `isDesktopRuntime()`, so
+      // web always falls through to the upsert paths below.
       if (provider?.id === 'nearai' && isDesktopRuntime() && apiKey?.trim()) {
         await storeNearaiCredential(apiKey.trim());
         await providerState.refresh();
@@ -94,22 +98,35 @@ export function useProviderManagementActions({ settings, gatewayStatus, searchQu
   );
 
   const handleDelete = React.useCallback(
-    (provider) => {
-      setConfirmRequest({
-        message: t('llm.confirmDelete', { id: provider.id }),
-        title: t('llm.deleteTitle'),
-        confirmLabel: t('llm.deleteConfirm'),
-        tone: 'danger',
-        onConfirm: async () => {
-          try {
-            await providerState.deleteCustomProvider(provider);
-            showMessage('success', t('llm.providerDeleted'));
-          } catch (err) {
-            showMessage('error', err.message);
-            throw err; // keep the dialog open with the failure visible
+    async (provider) => {
+      // Desktop: confirm through the design-system ConfirmDialog (native
+      // `window.confirm` does not render on the overlay window). Web: keep the
+      // synchronous `window.confirm` the hosted UI has always used.
+      if (isDesktopRuntime()) {
+        setConfirmRequest({
+          message: t('llm.confirmDelete', { id: provider.id }),
+          title: t('llm.deleteTitle'),
+          confirmLabel: t('llm.deleteConfirm'),
+          tone: 'danger',
+          onConfirm: async () => {
+            try {
+              await providerState.deleteCustomProvider(provider);
+              showMessage('success', t('llm.providerDeleted'));
+            } catch (err) {
+              showMessage('error', err.message);
+              throw err; // keep the dialog open with the failure visible
+            }
           }
-        }
-      });
+        });
+        return;
+      }
+      if (!window.confirm(t('llm.confirmDelete', { id: provider.id }))) return;
+      try {
+        await providerState.deleteCustomProvider(provider);
+        showMessage('success', t('llm.providerDeleted'));
+      } catch (err) {
+        showMessage('error', err.message);
+      }
     },
     [providerState, showMessage, t]
   );

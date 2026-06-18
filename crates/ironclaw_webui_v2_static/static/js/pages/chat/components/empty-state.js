@@ -2,22 +2,133 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { Icon } from '../../../design-system/icons.js';
 import { listAutomations } from '../../../lib/api.js';
+import { isDesktopRuntime } from '../../../lib/api.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { normalizeAutomations } from '../../automations/lib/automations-presenters.js';
 import { filterDesktopVisibleLlmProviders } from '../../settings/lib/llm-providers.js';
 import { fetchLlmProviders } from '../../settings/lib/settings-api.js';
+import { useThreadStates } from '../../../lib/thread-state.js';
 import { buildFrontDoorData } from '../lib/frontdoor-data.js';
 import { ChatInput } from './chat-input.js';
 
-// Anticipation over interrogation: the front door greets by time of day,
-// offers the threads you were just working in, and showcases tasks the app
-// can genuinely finish today (document summarize / draft / spreadsheet
-// analysis — all backed by the client-side extractors). Suggestion clicks
-// PREFILL the composer rather than firing blind, since two of the three
-// start with attaching a file.
-function greetingKey() {
-  const hour = new Date().getHours();
+// Two landings share this entry point. Web (mono, source of truth) shows the
+// calm hero + three example prompts and forwards `draftKey` so the composer
+// keeps its per-thread draft. Desktop shows the anticipatory front door —
+// time-of-day greeting, recent threads, automations brief — which depends on
+// the heavy front-door data (`frontdoor-data`), automations, and the LLM
+// provider snapshot. That whole subsystem is gated behind `isDesktopRuntime()`
+// (the guard tolerates the import-stripping unit harness).
+export function EmptyState(props) {
+  const isDesktop = typeof isDesktopRuntime === 'function' && isDesktopRuntime();
+  return isDesktop
+    ? html`<${DesktopFrontDoor} ...${props} />`
+    : html`<${WebLanding} ...${props} />`;
+}
+
+/* ----------------------------------------------------------------------------
+ * Web landing — mono's hero. Keeps `draftKey` flowing to the composer.
+ * ------------------------------------------------------------------------- */
+function WebLanding({
+  onSuggestion,
+  onSend,
+  disabled,
+  initialText,
+  resetKey,
+  draftKey,
+  context,
+  statusText,
+  canCancel,
+  onCancel
+}) {
+  const t = useT();
+  const suggestions = [
+    {
+      icon: 'tool',
+      title: t('chat.suggestion1'),
+      detail: t('chat.suggestion1Desc')
+    },
+    {
+      icon: 'shield',
+      title: t('chat.suggestion2'),
+      detail: t('chat.suggestion2Desc')
+    },
+    {
+      icon: 'plug',
+      title: t('chat.suggestion3'),
+      detail: t('chat.suggestion3Desc')
+    }
+  ];
+
+  return html`
+    <div
+      className="v2-page-entrance flex min-h-0 flex-1 flex-col items-center justify-center px-4 py-8 sm:px-8 lg:px-12"
+    >
+      <div className="w-full max-w-5xl text-center">
+        <h2
+          className="mx-auto max-w-[16ch] text-4xl font-semibold leading-[1.04] text-white sm:text-5xl lg:text-6xl"
+        >
+          ${t('chat.heroTitle')}
+        </h2>
+        <p className="mx-auto mt-4 max-w-[64ch] text-base leading-relaxed text-iron-300">
+          ${t('chat.heroDesc')}
+        </p>
+      </div>
+
+      <div className="mt-9 w-full max-w-5xl">
+        <${ChatInput}
+          onSend=${onSend}
+          disabled=${disabled}
+          initialText=${initialText}
+          resetKey=${resetKey}
+          draftKey=${draftKey}
+          variant="hero"
+          context=${context}
+          statusText=${statusText}
+          canCancel=${canCancel}
+          onCancel=${onCancel}
+        />
+      </div>
+
+      <div className="mt-8 grid w-full max-w-5xl gap-2">
+        ${suggestions.map(
+          (item) => html`
+            <button
+              type="button"
+              key=${item.title}
+              onClick=${() => onSuggestion(item.title)}
+              className="v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-white/10 px-2 py-4 text-left hover:border-signal/35"
+            >
+              <span
+                className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-iron-300 group-hover:border-signal/35 group-hover:text-signal"
+              >
+                <${Icon} name=${item.icon} className="h-4 w-4" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-iron-100"> ${item.title} </span>
+                <span className="mt-0.5 block text-sm text-iron-300"> ${item.detail} </span>
+              </span>
+            </button>
+          `
+        )}
+      </div>
+    </div>
+  `;
+}
+
+/* ----------------------------------------------------------------------------
+ * Desktop front door — anticipation over interrogation: greets by time of day,
+ * offers the threads you were just working in, and showcases tasks the app can
+ * genuinely finish today (document summarize / draft / spreadsheet analysis —
+ * all backed by the client-side extractors). Suggestion clicks PREFILL the
+ * composer rather than firing blind, since two of the three start with
+ * attaching a file. This whole path is desktop-only (see EmptyState gate).
+ * ------------------------------------------------------------------------- */
+// Three distinct i18n keys, one per part of day, so the greeting reads as a
+// real time-of-day acknowledgement rather than a single static line. Exported
+// so the hour-branch contract test can pin the morning/afternoon/evening split
+// without rendering the whole front door.
+export function greetingKey(hour = new Date().getHours()) {
   if (hour < 12) return 'chat.heroMorning';
   if (hour < 18) return 'chat.heroAfternoon';
   return 'chat.heroEvening';
@@ -66,7 +177,7 @@ function writeFrontDoorLastSeen(value) {
   }
 }
 
-export function EmptyState({
+function DesktopFrontDoor({
   threads = [],
   threadStates,
   onSuggestion: _onSuggestion,
@@ -80,6 +191,11 @@ export function EmptyState({
   onCancel
 }) {
   const t = useT();
+  // The state map is sourced internally so the shared chat.js does not need a
+  // desktop-only prop; the prop is honored when chat.js does pass it. The hook
+  // is always called (rules of hooks) and the prop simply overrides its value.
+  const liveThreadStates = useThreadStates();
+  const resolvedThreadStates = threadStates || liveThreadStates;
   // Reads the cached threads list (loaded by the sidebar); no extra traffic.
   const threadsQuery = useQuery({ queryKey: ['threads'], enabled: false });
   const providersQuery = useQuery({
@@ -87,8 +203,9 @@ export function EmptyState({
     queryFn: fetchLlmProviders,
     staleTime: 60_000
   });
-  // The cached ['threads'] query is an infinite query (paged); flatten its pages.
-  // Tolerate the legacy { threads } shape too so this never silently empties.
+  // The cached ['threads'] query is an infinite query (paged); flatten its
+  // pages. Tolerate the legacy { threads } shape too so this never silently
+  // empties.
   const cachedThreads =
     threadsQuery.data?.pages?.flatMap((page) => page?.threads || []) ||
     threadsQuery.data?.threads ||
@@ -115,11 +232,11 @@ export function EmptyState({
     () =>
       buildFrontDoorData({
         threads: rawThreads,
-        threadStates,
+        threadStates: resolvedThreadStates,
         automations: normalizeAutomations(automationsQuery.data),
         lastSeenAt
       }),
-    [rawThreads, threadStates, automationsQuery.data, lastSeenAt]
+    [rawThreads, resolvedThreadStates, automationsQuery.data, lastSeenAt]
   );
   const providersSnapshot = providersQuery.data;
   const visibleProvidersSnapshot = visibleLlmSnapshot(providersSnapshot || {});
@@ -156,7 +273,11 @@ export function EmptyState({
   ];
   const setupBlocked =
     context?.sendBlocked === true || providerSetupRequired || providerSetupFailed;
-  const suggestionsBlocked = Boolean(setupBlocked || disabled);
+  // Suggestions are example prompts the user cannot run until a model is
+  // connected — and while the gateway check is still in flight. Hide them
+  // entirely in those states rather than rendering a dead, clickable-looking
+  // grid (design law: no fake readiness).
+  const suggestionsBlocked = Boolean(setupBlocked || providerSetupChecking || disabled);
   const briefRows = [
     providerSetupChecking
       ? {
@@ -194,7 +315,7 @@ export function EmptyState({
 
   return html`
     <div
-      className="v2-page-entrance flex min-h-0 flex-1 items-center overflow-y-auto px-4 py-6 sm:px-8 lg:px-12"
+      className="v2-page-entrance flex min-h-0 flex-1 items-start overflow-y-auto px-4 py-6 sm:px-8 lg:px-12"
     >
       <div
         className="mx-auto grid w-full max-w-6xl gap-7 lg:grid-cols-[1.08fr_0.92fr] lg:items-start"
@@ -279,22 +400,11 @@ export function EmptyState({
         </section>
 
         <section className="min-w-0">
-          <${ChatInput}
-            onSend=${onSend}
-            disabled=${disabled}
-            initialText=${draft || initialText}
-            resetKey=${`${resetKey}-${draftKey}`}
-            variant="hero"
-            context=${context}
-            statusText=${statusText}
-            canCancel=${canCancel}
-            onCancel=${onCancel}
-          />
-
           ${setupBlocked &&
           html`
             <div
-              className="mt-3 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
+              className="mb-3 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
+              data-testid="frontdoor-setup-callout"
             >
               <div className="text-sm font-semibold text-[var(--v2-text-strong)]">
                 Connect NEAR AI Cloud once, then ask naturally.
@@ -311,6 +421,18 @@ export function EmptyState({
             </div>
           `}
 
+          <${ChatInput}
+            onSend=${onSend}
+            disabled=${disabled}
+            initialText=${draft || initialText}
+            resetKey=${`${resetKey}-${draftKey}`}
+            variant="hero"
+            context=${context}
+            statusText=${statusText}
+            canCancel=${canCancel}
+            onCancel=${onCancel}
+          />
+
           <${FrontDoorPanel}
             sinceAway=${frontDoor.sinceAway}
             sinceAwayTotal=${frontDoor.sinceAwayTotal}
@@ -319,43 +441,40 @@ export function EmptyState({
             handled=${frontDoor.handled}
           />
 
-          <div className="mt-4 grid gap-2">
-            ${suggestions.map(
-              (item) => html`
-                <button
-                  type="button"
-                  key=${item.title}
-                  disabled=${suggestionsBlocked}
-                  onClick=${() => prefill(item.prompt)}
-                  className=${[
-                    'v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-3 text-left',
-                    suggestionsBlocked
-                      ? 'cursor-not-allowed opacity-60'
-                      : 'hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))]'
-                  ].join(' ')}
-                >
-                  <span
-                    className="grid h-8 w-8 place-items-center rounded-[8px] border border-[var(--v2-panel-border)] text-[var(--v2-text-muted)] group-hover:border-[var(--v2-accent)] group-hover:text-[var(--v2-accent-text)]"
+          ${!suggestionsBlocked &&
+          html`
+            <div className="mt-4 grid gap-2" data-testid="frontdoor-suggestions">
+              ${suggestions.map(
+                (item) => html`
+                  <button
+                    type="button"
+                    key=${item.title}
+                    onClick=${() => prefill(item.prompt)}
+                    className="v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-3 text-left hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))]"
                   >
-                    <${Icon} name=${item.icon} className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-[var(--v2-text-strong)]">
-                      ${item.title}
+                    <span
+                      className="grid h-8 w-8 place-items-center rounded-[8px] border border-[var(--v2-panel-border)] text-[var(--v2-text-muted)] group-hover:border-[var(--v2-accent)] group-hover:text-[var(--v2-accent-text)]"
+                    >
+                      <${Icon} name=${item.icon} className="h-4 w-4" />
                     </span>
-                    <span className="mt-0.5 block text-sm leading-5 text-[var(--v2-text-muted)]">
-                      ${item.detail}
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-[var(--v2-text-strong)]">
+                        ${item.title}
+                      </span>
+                      <span className="mt-0.5 block text-sm leading-5 text-[var(--v2-text-muted)]">
+                        ${item.detail}
+                      </span>
                     </span>
-                  </span>
-                  <span
-                    className="self-start whitespace-nowrap text-xs font-medium text-[var(--v2-text-faint)]"
-                  >
-                    ${suggestionsBlocked ? 'Setup first' : t('chat.suggestionUse')}
-                  </span>
-                </button>
-              `
-            )}
-          </div>
+                    <span
+                      className="self-start whitespace-nowrap text-xs font-medium text-[var(--v2-text-faint)]"
+                    >
+                      ${t('chat.suggestionUse')}
+                    </span>
+                  </button>
+                `
+              )}
+            </div>
+          `}
         </section>
       </div>
     </div>
@@ -381,18 +500,19 @@ function FrontDoorPanel({ sinceAway = [], sinceAwayTotal = 0, needsYou, needsYou
       <${FrontDoorSection}
         title="Needs you"
         emptyTitle="Nothing waiting on you."
-        emptyDetail="Approvals and auth gates appear here when they are backed by a thread."
+        emptyDetail="Threads waiting on your approval or recovery appear here."
         tone="warning"
         items=${needsYou}
         count=${needsYouTotal}
       />
-      <${FrontDoorSection}
+      ${handled.length > 0 &&
+      html`<${FrontDoorSection}
         title="Handled"
         emptyTitle="No completed receipts yet."
         emptyDetail="Completed actions, automations, and recent work appear here once IronClaw has evidence."
         tone="gold"
         items=${handled}
-      />
+      />`}
     </div>
   `;
 }

@@ -167,9 +167,8 @@ async function main() {
     'Do not use connectors, external tools, email, Slack, Notion, or Calendar.';
   // Mirror the desktop UI: append a base64-free durable attachment manifest so
   // the timeline preserves every attachment chip across a reload.
-  const { buildDurableAttachmentBlock } = await import(
-    '../crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/history-messages.js'
-  );
+  const { buildDurableAttachmentBlock } =
+    await import('../crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/history-messages.js');
   const contentWithManifest = `${prompt}${buildDurableAttachmentBlock(attachments)}`;
 
   const send = await request(

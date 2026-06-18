@@ -9,19 +9,23 @@
 // (`[report.csv](/workspace/report.csv)`) are caught by the same scan.
 const WORKSPACE_FILE_PATH = /\/workspace\/[A-Za-z0-9._\-/]+\.[A-Za-z0-9]+/g;
 
+// Strip fenced (```…```) and inline (`…`) code spans. A path that the assistant
+// only *displays* in a shell snippet (`cat /workspace/.env`) must not become a
+// real, one-click download chip — code spans are illustrative, not file
+// references. Fenced blocks are removed first so their inner backticks don't
+// throw off the inline pass.
+function stripCodeSpans(content) {
+  return content.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`]*`/g, ' ');
+}
+
 // Extract de-duplicated workspace file paths, preserving first-seen order.
 export function extractWorkspaceFilePaths(content) {
   if (typeof content !== 'string' || !content) return [];
-  // Don't surface a download for a path the agent merely *displayed* in a code
-  // example (e.g. `cat /workspace/.env`): strip fenced and inline code spans
-  // before scanning so only paths in real prose / markdown-link hrefs render as
-  // chips. Markdown links keep their href (parens, not backticks).
-  const scannable = content.replace(/```[\s\S]*?```/g, ' ').replace(/`[^`]*`/g, ' ');
   const seen = new Set();
   const paths = [];
-  for (const match of scannable.matchAll(WORKSPACE_FILE_PATH)) {
-    // Trailing punctuation often rides along when a path ends a sentence or
-    // closes a markdown link.
+  for (const match of stripCodeSpans(content).matchAll(WORKSPACE_FILE_PATH)) {
+    // Strip trailing punctuation that rides along when a path ends a sentence
+    // or closes a markdown link (e.g. `/workspace/report.csv).`).
     const path = match[0].replace(/[.,;:)\]]+$/, '');
     if (!seen.has(path)) {
       seen.add(path);

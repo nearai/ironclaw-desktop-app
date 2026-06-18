@@ -4,10 +4,22 @@ import { Card } from '../../../design-system/card.js';
 import { Icon } from '../../../design-system/icons.js';
 import { Select } from '../../../design-system/input.js';
 import { React, html } from '../../../lib/html.js';
+import { isDesktopRuntime } from '../../../lib/api.js';
 import { useT } from '../../../lib/i18n.js';
+import {
+  adapterLabel,
+  isProviderConfigured,
+  modelDisplayName,
+  providerAcceptsApiKey,
+  providerDisplayModel,
+  providerEffectiveBaseUrl,
+  providerMissingReason
+} from '../lib/llm-providers.js';
 
-// Active model switcher: the backend's live model list in a select,
-// applied through the same set-active route the chat popover uses.
+// Desktop-only (additive): active model switcher backed by the gateway's live
+// model list, applied through the same set-active route the chat popover uses.
+// Only the desktop ProviderManagement renders it (behind `isDesktopRuntime()`);
+// it is exported here so it sits beside the card it complements.
 export function ActiveModelPicker({ provider, currentModel, onListModels, onApplyModel, t }) {
   const [models, setModels] = React.useState(null);
   const [choice, setChoice] = React.useState(currentModel || '');
@@ -84,15 +96,6 @@ export function ActiveModelPicker({ provider, currentModel, onListModels, onAppl
     </div>
   `;
 }
-import {
-  adapterLabel,
-  isProviderConfigured,
-  modelDisplayName,
-  providerAcceptsApiKey,
-  providerDisplayModel,
-  providerEffectiveBaseUrl,
-  providerMissingReason
-} from '../lib/llm-providers.js';
 
 export function ProviderCard({
   provider,
@@ -105,17 +108,25 @@ export function ProviderCard({
   onDelete,
   onNearaiLogin,
   onNearaiWallet,
+  onCodexLogin,
   loginBusy
 }) {
   const t = useT();
+  const desktop = isDesktopRuntime();
   const isActive = provider.id === activeProviderId;
-  const displayName = provider.id === 'nearai' ? 'NEAR AI Cloud' : provider.name || provider.id;
+  // Desktop relabels the NEAR provider to "NEAR AI Cloud"; web shows the raw
+  // provider name/id (behavior equals today's mono).
+  const displayName =
+    desktop && provider.id === 'nearai' ? 'NEAR AI Cloud' : provider.name || provider.id;
   const configured = isProviderConfigured(provider, builtinOverrides);
   const baseUrl = providerEffectiveBaseUrl(provider, builtinOverrides);
   const model = providerDisplayModel(provider, builtinOverrides, activeProviderId, selectedModel);
-  const modelLabel = modelDisplayName(model || provider.default_model || '');
+  // Desktop derives a readable model label; web shows the raw id.
+  const rawModel = model || provider.default_model || '';
+  const modelLabel = desktop ? modelDisplayName(rawModel) : rawModel;
   const missing = providerMissingReason(provider, builtinOverrides);
   const acceptsApiKey = providerAcceptsApiKey(provider);
+  // `gateway` is only produced for the desktop synthetic-offline fallback.
   const missingLabel =
     missing === 'gateway'
       ? t('llm.gatewayUnavailable')
@@ -142,11 +153,17 @@ export function ProviderCard({
         ${adapterLabel(provider.adapter)} · ${modelLabel || t('llm.none')}
       </span>`;
 
-  const isLoginProvider = provider.id === 'nearai';
+  // On web the Codex provider keeps its dedicated device-code sign-in; the
+  // desktop app surfaces only NEAR AI Cloud, so its filtered list never reaches
+  // an `openai_codex` card.
+  const isLoginProvider = provider.id === 'nearai' || provider.id === 'openai_codex';
   const hasApiKey = provider.api_key_set === true || provider.has_api_key === true;
+  // Desktop labels the NEAR key action "useNearApiKey"; web uses "addApiKey"
+  // (behavior equals today's mono).
+  const nearApiKeyLabel = desktop ? t('llm.useNearApiKey') : t('llm.addApiKey');
   const configureLabel = provider.builtin
     ? provider.id === 'nearai' && acceptsApiKey && !hasApiKey
-      ? t('llm.useNearApiKey')
+      ? nearApiKeyLabel
       : t('llm.configure')
     : t('common.edit');
   const apiKeyAction =
@@ -163,9 +180,6 @@ export function ProviderCard({
           <//>
         `
       : null;
-  // NEAR AI sign-in offers API key, wallet, and GitHub/Google. Desktop SSO runs
-  // in a dedicated app window (token captured from the allowlisted callback
-  // navigation), so the browser-SSO buttons work everywhere.
   const loginActions =
     !isActive && provider.id === 'nearai'
       ? html`
@@ -198,7 +212,19 @@ export function ProviderCard({
             Google
           <//>
         `
-      : null;
+      : !isActive && provider.id === 'openai_codex'
+        ? html`
+            <${Button}
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled=${loginBusy}
+              onClick=${onCodexLogin}
+            >
+              ${t('onboarding.codexSignIn')}
+            <//>
+          `
+        : null;
   const canUseProvider =
     !isActive &&
     configured &&
@@ -228,7 +254,9 @@ export function ProviderCard({
           ${missing === 'gateway'
             ? t('common.retry')
             : missing === 'api_key'
-              ? t('llm.useNearApiKey')
+              ? provider.id === 'nearai'
+                ? nearApiKeyLabel
+                : t('llm.addApiKey')
               : t('llm.configure')}
         <//>
       `
@@ -334,6 +362,7 @@ export function ProviderCard({
               <div className="mt-1 truncate font-mono">${modelLabel || t('llm.none')}</div>
             </div>
           </div>
+
           <div
             className="mt-4 flex flex-wrap justify-end gap-2 border-t border-[var(--v2-panel-border)] pt-3"
           >

@@ -1,28 +1,23 @@
-import { Navigate, useLocation, useParams } from 'react-router';
+import { Navigate, useParams } from 'react-router';
 import { React, html } from '../../lib/html.js';
 import { ActionToast } from './components/action-toast.js';
 import { ChannelsTab } from './components/channels-tab.js';
 import { ConfigureModal } from './components/configure-modal.js';
-import { InstalledTab } from './components/installed-tab.js';
 import { McpTab } from './components/mcp-tab.js';
 import { RegistryTab } from './components/registry-tab.js';
 import { useExtensions } from './hooks/useExtensions.js';
 
 export function ExtensionsPage() {
-  const { tab = 'installed' } = useParams();
-  const location = useLocation();
+  const { tab = 'registry' } = useParams();
   const [configuring, setConfiguring] = React.useState(null);
-  const handledSetupLinkRef = React.useRef('');
 
   const {
     status,
-    extensions,
     channels,
     mcpServers,
-    tools,
     channelRegistry,
     mcpRegistry,
-    toolRegistry,
+    catalogEntries,
     loadError,
     connectableChannels,
     isLoading,
@@ -47,27 +42,6 @@ export function ExtensionsPage() {
     },
     [activate]
   );
-
-  React.useEffect(() => {
-    if (isLoading || configuring) return;
-    const params = new URLSearchParams(location.search || '');
-    if (params.get('setup') !== '1') return;
-    const setupLinkKey = `${location.pathname}?${location.search}`;
-    if (handledSetupLinkRef.current === setupLinkKey) return;
-    const targetId = canonicalExtensionId(params.get('focus'));
-    if (!targetId) return;
-    const target = extensions.find((extension) =>
-      [extension?.package_ref?.id, extension?.id, extension?.display_name].some(
-        (value) => canonicalExtensionId(value) === targetId
-      )
-    );
-    if (!target?.package_ref) return;
-    handledSetupLinkRef.current = setupLinkKey;
-    setConfiguring({
-      packageRef: target.package_ref,
-      displayName: target.display_name || targetId
-    });
-  }, [configuring, extensions, isLoading, location.pathname, location.search]);
 
   if (isLoading) {
     return html`
@@ -94,20 +68,16 @@ export function ExtensionsPage() {
     `;
   }
 
+  if (tab === 'installed') {
+    return html`<${Navigate} to="/extensions/registry" replace />`;
+  }
+
   const tabContent = {
-    installed: html`<${InstalledTab}
-      extensions=${extensions}
-      onActivate=${activate}
-      onConfigure=${handleConfigure}
-      onRemove=${remove}
-      isBusy=${isBusy}
-    />`,
     channels: html`<${ChannelsTab}
       status=${status}
       channels=${channels}
       connectableChannels=${connectableChannels}
       channelRegistry=${channelRegistry}
-      loadError=${loadError}
       onActivate=${activate}
       onConfigure=${handleConfigure}
       onRemove=${remove}
@@ -126,18 +96,18 @@ export function ExtensionsPage() {
       isBusy=${isBusy}
     />`,
     registry: html`<${RegistryTab}
-      toolRegistry=${toolRegistry}
-      channelRegistry=${channelRegistry}
-      mcpRegistry=${mcpRegistry}
+      catalogEntries=${catalogEntries}
       loadError=${loadError}
       onInstall=${install}
+      onActivate=${activate}
       onConfigure=${handleConfigure}
+      onRemove=${remove}
       isBusy=${isBusy}
     />`
   };
 
   if (!tabContent[tab]) {
-    return html`<${Navigate} to="/extensions/installed" replace />`;
+    return html`<${Navigate} to="/extensions/registry" replace />`;
   }
 
   return html`
@@ -160,14 +130,4 @@ export function ExtensionsPage() {
       `}
     </div>
   `;
-}
-
-function canonicalExtensionId(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '';
-  const withoutCatalogPrefix = raw.includes('/') ? raw.split('/').pop() : raw;
-  const normalized = withoutCatalogPrefix.toLowerCase().replaceAll('_', '-');
-  if (normalized === 'google-calendar') return 'google-calendar';
-  if (normalized === 'slack-tool') return 'slack';
-  return normalized;
 }

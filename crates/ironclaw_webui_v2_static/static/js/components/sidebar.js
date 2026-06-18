@@ -5,6 +5,7 @@ import { appScopedPath } from '../lib/app-path.js';
 import { SidebarFooter } from './sidebar-footer.js';
 import { SidebarNav } from './sidebar-nav.js';
 import { SidebarThreads } from './sidebar-threads.js';
+import { SidebarTraceCredits } from './sidebar-trace-credits.js';
 
 export function Sidebar({
   threadsState,
@@ -42,6 +43,8 @@ export function Sidebar({
         isAdmin=${isAdmin}
         onNavigate=${onClose}
       />
+
+      <${SidebarTraceCredits} />
 
       <div className="mt-3 flex min-h-0 flex-1 flex-col">
         <${SidebarThreads}

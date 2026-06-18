@@ -10,8 +10,18 @@ import { SettingsSearchEmpty } from './settings-search-empty.js';
 
 export function SkillsTab({ searchQuery = '' }) {
   const t = useT();
-  const { skills, query, status, installSkill, removeSkill, isInstalling, isRemoving } =
-    useSkills();
+  const {
+    skills,
+    query,
+    status,
+    fetchSkillContent,
+    installSkill,
+    removeSkill,
+    updateSkill,
+    isInstalling,
+    isRemoving,
+    isUpdating
+  } = useSkills();
   const [actionError, setActionError] = React.useState('');
   const [actionResult, setActionResult] = React.useState('');
   const [confirmRemove, setConfirmRemove] = React.useState(null);
@@ -47,59 +57,78 @@ export function SkillsTab({ searchQuery = '' }) {
     [removeSkill, t]
   );
 
-  if (query.isLoading) {
-    return html`
-      <div className="space-y-4">
-        ${installPanel}
-        <${Card} padding="md">
-          <div className="v2-skeleton mb-4 h-3 w-24 rounded" />
-          ${[1, 2, 3].map(
-            (i) => html`
-              <div
-                key=${i}
-                className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-4 first:border-0"
-              >
-                <div>
-                  <div className="v2-skeleton h-4 w-32 rounded" />
-                  <div className="v2-skeleton mt-1 h-3 w-48 rounded" />
-                </div>
-                <div className="v2-skeleton h-6 w-20 rounded-full" />
-              </div>
-            `
-          )}
-        <//>
-      </div>
-    `;
-  }
-
-  if (query.error) {
-    return html`
-      <div className="space-y-4">
-        ${installPanel}
-        <${Card} padding="md">
-          <p className="text-sm text-[var(--v2-danger-text)]">
-            ${t('skills.failedLoad', { message: query.error.message })}
-          </p>
-        <//>
-      </div>
-    `;
-  }
-
-  const filteredSkills = skills.filter((skill) =>
-    matchesSearch(searchQuery, [
-      skill.name,
-      skill.id,
-      skill.description,
-      skill.keywords,
-      skill.trust_level,
-      skill.version
-    ])
+  const handleUpdate = React.useCallback(
+    async (name, content) => {
+      if (!content.trim()) {
+        setActionError(t('skills.contentRequired'));
+        setActionResult('');
+        return { success: false, message: t('skills.contentRequired') };
+      }
+      setActionError('');
+      setActionResult('');
+      try {
+        const response = await updateSkill({ name, content });
+        if (!response?.success) {
+          setActionError(response?.message || t('skills.updateFailed'));
+          return response;
+        }
+        setActionResult(response.message || t('skills.updated', { name }));
+        return response;
+      } catch (err) {
+        const message = err.message || t('skills.updateFailed');
+        setActionError(message);
+        return { success: false, message };
+      }
+    },
+    [t, updateSkill]
   );
 
-  if (skills.length === 0) {
-    return html`
-      <div className="space-y-4">
-        ${installPanel}
+  let body;
+  if (query.isLoading) {
+    body = html`
+      <${Card} padding="md">
+        <div className="v2-skeleton mb-4 h-3 w-24 rounded" />
+        ${[1, 2, 3].map(
+          (i) => html`
+            <div
+              key=${i}
+              className="flex items-center justify-between border-t border-[var(--v2-panel-border)] py-4 first:border-0"
+            >
+              <div>
+                <div className="v2-skeleton h-4 w-32 rounded" />
+                <div className="v2-skeleton mt-1 h-3 w-48 rounded" />
+              </div>
+              <div className="v2-skeleton h-6 w-20 rounded-full" />
+            </div>
+          `
+        )}
+      <//>
+    `;
+  } else if (query.error) {
+    body = html`
+      <${Card} padding="md">
+        <p className="text-sm text-[var(--v2-danger-text)]">
+          ${t('skills.failedLoad', { message: query.error.message })}
+        </p>
+      <//>
+    `;
+  } else {
+    const filteredSkills = skills.filter((skill) =>
+      matchesSearch(searchQuery, [
+        skill.name,
+        skill.id,
+        skill.description,
+        skill.keywords,
+        skill.trust_level,
+        skill.source_kind,
+        skill.version
+      ])
+    );
+
+    const skillGroups = groupSkills(filteredSkills);
+
+    if (skills.length === 0) {
+      body = html`
         <${Card} padding="lg">
           <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">
             ${t('skills.noInstalled')}
@@ -108,43 +137,83 @@ export function SkillsTab({ searchQuery = '' }) {
             ${t('skills.noInstalledDesc')}
           </p>
         <//>
-      </div>
-    `;
-  }
-
-  if (filteredSkills.length === 0) {
-    return html`
-      <div className="space-y-4">
-        ${installPanel}
-        <${SettingsSearchEmpty} query=${searchQuery} />
-      </div>
-    `;
+      `;
+    } else if (filteredSkills.length === 0) {
+      body = html`<${SettingsSearchEmpty} query=${searchQuery} />`;
+    } else {
+      body = html`
+        <div id="skills-list">
+          ${skillGroups.map(
+            (group) => html`
+              <${SkillGroup}
+                key=${group.id}
+                title=${t(group.labelKey)}
+                skills=${group.skills}
+                onEdit=${fetchSkillContent}
+                onRemove=${handleRemove}
+                onUpdate=${handleUpdate}
+                isRemoving=${isRemoving}
+                isUpdating=${isUpdating}
+              />
+            `
+          )}
+        </div>
+      `;
+    }
   }
 
   return html`
     <div className="space-y-4">
       ${installPanel}
       <${SkillActionResult} error=${actionError} result=${actionResult} />
-      <${Card} padding="md">
-        <h3
-          className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-        >
-          ${t('skills.installed')}
-        </h3>
-        ${filteredSkills.map(
-          (skill) => html`
-            <${SkillCard}
-              key=${skill.name || skill.id}
-              skill=${skill}
-              onRemove=${handleRemove}
-              isRemoving=${isRemoving}
-            />
-          `
-        )}
-      <//>
+      ${body}
       <${ConfirmDialog} request=${confirmRemove} onClose=${() => setConfirmRemove(null)} />
     </div>
   `;
+}
+
+function SkillGroup({ title, skills, onEdit, onRemove, onUpdate, isRemoving, isUpdating }) {
+  if (skills.length === 0) return null;
+  return html`
+    <${Card} padding="md">
+      <h3
+        className="mb-4 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
+      >
+        ${title}
+      </h3>
+      ${skills.map(
+        (skill) => html`
+          <${SkillCard}
+            key=${`${skill.source_kind || 'skill'}:${skill.name || skill.id}`}
+            skill=${skill}
+            onEdit=${onEdit}
+            onRemove=${onRemove}
+            onUpdate=${onUpdate}
+            isRemoving=${isRemoving}
+            isUpdating=${isUpdating}
+          />
+        `
+      )}
+    <//>
+  `;
+}
+
+function groupSkills(skills) {
+  const groups = [
+    { id: 'user', labelKey: 'skills.group.user', skills: [] },
+    { id: 'system', labelKey: 'skills.group.system', skills: [] },
+    { id: 'workspace', labelKey: 'skills.group.workspace', skills: [] }
+  ];
+  const fallback = groups[0];
+
+  for (const skill of skills) {
+    const sourceKind = skill.source_kind || '';
+    const group =
+      sourceKind === 'system' ? groups[1] : sourceKind === 'workspace' ? groups[2] : fallback;
+    group.skills.push(skill);
+  }
+
+  return groups.filter((group) => group.skills.length > 0);
 }
 
 function SkillActionResult({ error, result }) {

@@ -1,13 +1,16 @@
 import { React, html } from '../../../lib/html.js';
-import { Link } from 'react-router';
+import { useNavigate } from 'react-router';
 import { Button } from '../../../design-system/button.js';
-import { Card, CardLabel } from '../../../design-system/card.js';
 import { Icon } from '../../../design-system/icons.js';
-import { Input } from '../../../design-system/input.js';
 import { useT } from '../../../lib/i18n.js';
-import { ConnectorAppIcon, RegistryCard } from './extension-card.js';
-import { useConnectExtension } from '../hooks/useExtensions.js';
+import { ConnectorAppIcon, ExtensionCard, RegistryCard } from './extension-card.js';
 
+// Curated chief-of-staff connection set. These are the high-leverage apps
+// IronClaw should support; they render even when the gateway exposes no live
+// catalog so the Connections surface stays a prepared desk (design law: no
+// blank prompt) while staying honest about what is actually connectable
+// (design law: no fake readiness — buttons stay disabled until the catalog is
+// real).
 export const CORE_CONNECTIONS = [
   {
     id: 'gmail',
@@ -99,6 +102,9 @@ export const CORE_CONNECTIONS = [
   }
 ];
 
+// Outcome-first workflows the connection layer should unlock. Each maps to the
+// curated surfaces it needs, plus a chat draft so a user can start from the
+// outcome rather than wiring apps first.
 export const ACCEPTANCE_WORKFLOWS = [
   {
     id: 'daily-news-digest',
@@ -169,12 +175,12 @@ export const ACCEPTANCE_WORKFLOWS = [
   }
 ];
 
-function packageId(entry) {
-  return entry.package_ref?.id || '';
+function packageId(item) {
+  return item?.package_ref?.id || '';
 }
 
-export function projectedConnectPhase(entry) {
-  return entry?.connectPhase || entry?.connect_phase || null;
+function catalogItem(entry) {
+  return entry.entry || entry.extension || {};
 }
 
 export function coreConnectionButtonState({ entry, gatewayOffline, catalogUnavailable, isBusy }) {
@@ -250,39 +256,46 @@ export function workflowCatalogStatus(
 }
 
 export function RegistryTab({
-  toolRegistry,
-  channelRegistry,
-  mcpRegistry,
+  catalogEntries,
   loadError,
   onInstall,
+  onActivate,
   onConfigure,
+  onRemove,
   isBusy
 }) {
   const t = useT();
-  const { connect, connectState } = useConnectExtension();
-  const allAvailable = [...toolRegistry, ...channelRegistry, ...mcpRegistry];
   const [filter, setFilter] = React.useState('');
+  const query = filter.trim().toLowerCase();
 
-  const filtered = filter
-    ? allAvailable.filter(
-        (e) =>
-          (e.display_name || packageId(e)).toLowerCase().includes(filter.toLowerCase()) ||
-          (e.description || '').toLowerCase().includes(filter.toLowerCase()) ||
-          (e.keywords || []).some((kw) => kw.toLowerCase().includes(filter.toLowerCase()))
-      )
-    : allAvailable;
-  const openManualSetup = React.useCallback(
-    (entry) => {
-      if (!entry?.package_ref || !onConfigure) return;
-      onConfigure({
-        packageRef: entry.package_ref,
-        displayName: entry.display_name || packageId(entry)
-      });
-    },
-    [onConfigure]
+  const filtered = query
+    ? catalogEntries.filter((entry) => {
+        const item = catalogItem(entry);
+        return (
+          (item.display_name || packageId(item)).toLowerCase().includes(query) ||
+          (item.description || '').toLowerCase().includes(query) ||
+          (item.keywords || []).some((kw) => kw.toLowerCase().includes(query))
+        );
+      })
+    : catalogEntries;
+
+  const installedEntries = filtered.filter((entry) => entry.installed && entry.extension);
+  const registryOnlyInstalledEntries = filtered.filter(
+    (entry) => entry.installed && !entry.extension && entry.entry
   );
+  const installedCount = installedEntries.length + registryOnlyInstalledEntries.length;
+  const availableEntries = filtered.filter((entry) => !entry.installed && entry.entry);
 
-  if (allAvailable.length === 0) {
+  // Raw registry entries present in the catalog (unfiltered) drive which curated
+  // workflow surfaces count as connectable.
+  const catalogRawEntries = catalogEntries
+    .filter((entry) => entry.entry)
+    .map((entry) => entry.entry);
+
+  // "Catalog" means the registry. When the gateway exposes no installable
+  // registry entries, show the curated prepared-desk surface — even if some
+  // extensions are already installed (those live in the Installed tab).
+  if (catalogRawEntries.length === 0) {
     return html`<${CoreConnectionsEmpty}
       loadError=${loadError}
       onInstall=${onInstall}
@@ -293,47 +306,88 @@ export function RegistryTab({
   return html`
     <div className="space-y-4">
       <div className="flex items-center gap-3">
-        <${Input}
+        <input
           type="text"
           value=${filter}
           onChange=${(e) => setFilter(e.target.value)}
           placeholder=${t('ext.registry.searchPlaceholder')}
-          size="sm"
-          className="min-h-[44px] flex-1"
+          className="h-9 flex-1 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-sm text-[var(--v2-text)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
         />
         <span className="font-mono text-[11px] text-[var(--v2-text-faint)]">
-          ${filtered.length} / ${allAvailable.length}
+          ${filtered.length} / ${catalogEntries.length}
         </span>
       </div>
 
-      <${Card} variant="bordered" radius="lg" padding="md">
-        <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]">
-          ${t('ext.registry.availableTitle')}
-        <//>
+      <div
+        className="rounded-[18px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-5 shadow-[var(--v2-shadow-sm)] sm:p-6"
+      >
         ${filtered.length === 0
           ? html`<p className="py-4 text-sm text-[var(--v2-text-muted)]">
               ${t('ext.registry.noMatch')}
             </p>`
-          : html`<div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-              ${filtered.map(
-                (entry) => html`
-                  <${RegistryCard}
-                    key=${packageId(entry)}
-                    entry=${entry}
-                    onConnect=${connect}
-                    onManualSetup=${openManualSetup}
-                    connectPhase=${connectState[packageId(entry)] || projectedConnectPhase(entry)}
-                    onInstall=${onInstall}
-                    isBusy=${isBusy}
-                  />
-                `
-              )}
-            </div>`}
-      <//>
+          : html`
+              ${installedCount > 0 &&
+              html`
+                <h3
+                  className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+                >
+                  ${t('extensions.installed')}
+                </h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                  ${installedEntries.map(
+                    (entry) => html`
+                      <${ExtensionCard}
+                        key=${entry.id}
+                        ext=${entry.extension || entry.entry}
+                        onActivate=${onActivate}
+                        onConfigure=${onConfigure}
+                        onRemove=${onRemove}
+                        isBusy=${isBusy}
+                      />
+                    `
+                  )}
+                  ${registryOnlyInstalledEntries.map(
+                    (entry) => html`
+                      <${RegistryCard}
+                        key=${entry.id}
+                        entry=${entry.entry}
+                        statusLabel=${t('extensions.installed')}
+                        isBusy=${isBusy}
+                      />
+                    `
+                  )}
+                </div>
+              `}
+              ${availableEntries.length > 0 &&
+              html`
+                <h3
+                  className=${[
+                    'mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]',
+                    installedCount > 0 ? 'mt-6' : ''
+                  ].join(' ')}
+                >
+                  ${t('ext.registry.availableTitle')}
+                </h3>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+                  ${availableEntries.map(
+                    (entry) => html`
+                      <${RegistryCard}
+                        key=${entry.id}
+                        entry=${entry.entry}
+                        onInstall=${onInstall}
+                        isBusy=${isBusy}
+                      />
+                    `
+                  )}
+                </div>
+              `}
+            `}
+      </div>
+
       <${AcceptanceWorkflowsPanel}
         gatewayOffline=${false}
         catalogUnavailable=${false}
-        availableEntries=${allAvailable}
+        availableEntries=${catalogRawEntries}
       />
     </div>
   `;
@@ -364,17 +418,9 @@ function CoreConnectionsEmpty({ loadError, onInstall, isBusy }) {
             </p>
           </div>
           <div
-            className=${[
-              'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold',
-              gatewayOffline || catalogUnavailable
-                ? 'border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] text-[var(--v2-warning-text)]'
-                : 'border-[color-mix(in_srgb,var(--v2-positive-text)_34%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]'
-            ].join(' ')}
+            className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--v2-warning-text)]"
           >
-            <${Icon}
-              name=${gatewayOffline || catalogUnavailable ? 'pulse' : 'check'}
-              className="h-3.5 w-3.5"
-            />
+            <${Icon} name="pulse" className="h-3.5 w-3.5" />
             ${gatewayOffline ? 'Gateway offline' : 'Catalog unavailable'}
           </div>
         </div>
@@ -403,6 +449,7 @@ function CoreConnectionsEmpty({ loadError, onInstall, isBusy }) {
 }
 
 function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable, availableEntries = [] }) {
+  const navigate = useNavigate();
   const connectionsById = Object.fromEntries(CORE_CONNECTIONS.map((entry) => [entry.id, entry]));
   const status = acceptanceWorkflowStatus({
     gatewayOffline,
@@ -508,14 +555,14 @@ function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable, availabl
                 >
                   ${workflowStatus.label}
                 </span>
-                <${Link}
-                  to="/chat"
-                  state=${{ composerDraft: workflow.prompt }}
+                <button
+                  type="button"
+                  onClick=${() => navigate('/chat', { state: { composerDraft: workflow.prompt } })}
                   aria-label=${`Draft prompt for ${workflow.title}`}
                   className="inline-flex h-11 shrink-0 items-center rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-semibold text-[var(--v2-text-strong)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
                 >
                   Draft prompt
-                <//>
+                </button>
               </div>
             </article>
           `;

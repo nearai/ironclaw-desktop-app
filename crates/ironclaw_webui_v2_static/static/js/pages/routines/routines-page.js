@@ -1,6 +1,5 @@
 import { useNavigate, useParams } from 'react-router';
 import { Button } from '../../design-system/button.js';
-import { ConfirmDialog } from '../../design-system/confirm-dialog.js';
 import { React, html } from '../../lib/html.js';
 import { FeedbackBanner } from '../projects/components/feedback-banner.js';
 import { RoutineDetailPanel } from './components/routine-detail-panel.js';
@@ -16,7 +15,6 @@ export function RoutinesPage() {
   const routinesState = useRoutines();
   const detailState = useRoutineDetail(routineId);
   const filters = useRoutineFilters(routinesState.routines);
-  const [confirmDelete, setConfirmDelete] = React.useState(null);
 
   const handleRoutineAction = React.useCallback(async (action, targetId) => {
     try {
@@ -27,17 +25,14 @@ export function RoutinesPage() {
   }, []);
 
   const handleDelete = React.useCallback(
-    (targetId, name) => {
-      setConfirmDelete({
-        message: `Delete routine "${name}"? This cannot be undone.`,
-        title: 'Delete routine',
-        confirmLabel: 'Delete',
-        tone: 'danger',
-        onConfirm: async () => {
-          await routinesState.deleteRoutine({ routineId: targetId });
-          navigate('/routines');
-        }
-      });
+    async (targetId, name) => {
+      if (!window.confirm(`Delete routine "${name}"?`)) return;
+      try {
+        await routinesState.deleteRoutine({ routineId: targetId });
+        navigate('/routines');
+      } catch {
+        // Mutation hooks own the visible result state.
+      }
     },
     [navigate, routinesState]
   );
@@ -126,7 +121,6 @@ export function RoutinesPage() {
             : detailContent}
         </div>
       </div>
-      <${ConfirmDialog} request=${confirmDelete} onClose=${() => setConfirmDelete(null)} />
     </div>
   `;
 }

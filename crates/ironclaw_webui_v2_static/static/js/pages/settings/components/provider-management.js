@@ -1,7 +1,10 @@
 import { useQueryClient } from '@tanstack/react-query';
+import { Button } from '../../../design-system/button.js';
 import { Card } from '../../../design-system/card.js';
 import { ConfirmDialog } from '../../../design-system/confirm-dialog.js';
+import { Icon } from '../../../design-system/icons.js';
 import { React, html } from '../../../lib/html.js';
+import { isDesktopRuntime } from '../../../lib/api.js';
 import { useT } from '../../../lib/i18n.js';
 import { SettingsSearchEmpty } from './settings-search-empty.js';
 import { ActiveModelPicker, ProviderCard } from './provider-card.js';
@@ -38,6 +41,9 @@ function GroupHeader({ label, count, dotClass }) {
   `;
 }
 
+// Desktop-only (additive): the active NEAR AI Cloud model selector, surfaced
+// above the provider rows. Web never renders this (it is gated behind
+// `isDesktopRuntime()` in ProviderManagement).
 export function ActiveModelPanel({ provider, currentModel, onListModels, onApplyModel, t }) {
   if (!provider || provider.can_list_models === false) return null;
   const displayName = provider.id === 'nearai' ? 'NEAR AI Cloud' : provider.name || provider.id;
@@ -81,15 +87,17 @@ export function ActiveModelPanel({ provider, currentModel, onListModels, onApply
 
 export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }) {
   const t = useT();
+  const desktop = isDesktopRuntime();
   const actions = useProviderManagementActions({ settings, gatewayStatus, searchQuery, t });
   const state = actions.providerState;
-  // NEAR AI authenticate via login flows; on success the snapshot
+  // NEAR AI / Codex authenticate via login flows; on success the snapshot
   // refresh re-renders the now-active card in place (no navigation here).
   const login = useProviderLogin();
-  const loginBusy = login.nearaiBusy;
+  const loginBusy = login.nearaiBusy || login.codexBusy;
   const queryClient = useQueryClient();
-  // Apply a model on the ACTIVE provider via the same set-active route the
-  // chat popover uses; the snapshot invalidation re-renders every consumer.
+  // Desktop only: apply a model on the ACTIVE provider via the same set-active
+  // route the chat popover uses; the snapshot invalidation re-renders every
+  // consumer.
   const applyModel = React.useCallback(
     async (provider, model) => {
       await setActiveLlm({ provider_id: provider.id, model });
@@ -98,6 +106,150 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
     [queryClient]
   );
 
+  if (desktop) {
+    return DesktopProviderManagement({
+      t,
+      actions,
+      state,
+      login,
+      loginBusy,
+      applyModel,
+      searchQuery
+    });
+  }
+
+  // --- Web (canonical mono behavior) ---
+  if (searchQuery && actions.filteredProviders.length === 0) {
+    return html`<${SettingsSearchEmpty} query=${searchQuery} />`;
+  }
+
+  const groups = groupProvidersByStatus(
+    actions.filteredProviders,
+    state.builtinOverrides,
+    state.activeProviderId
+  );
+
+  return html`
+    <${Card} className="p-4 sm:p-6">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3
+            className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
+          >
+            ${t('llm.providers')}
+          </h3>
+          <p className="mt-1 text-sm text-[var(--v2-text-muted)]">${t('llm.providersDesc')}</p>
+        </div>
+        <${Button}
+          type="button"
+          variant="secondary"
+          size="sm"
+          className="gap-2"
+          onClick=${() => actions.openDialog(null)}
+        >
+          <${Icon} name="plus" className="h-3.5 w-3.5" />
+          ${t('llm.addProvider')}
+        <//>
+      </div>
+
+      ${actions.message &&
+      html`
+        <div
+          className=${[
+            'mb-4 rounded-md border px-3 py-2 text-sm',
+            actions.message.tone === 'error'
+              ? 'border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]'
+              : 'border-mint/30 bg-mint/10 text-mint'
+          ].join(' ')}
+          role="status"
+        >
+          ${actions.message.text}
+        </div>
+      `}
+
+      <${ProviderLoginStatus} login=${login} />
+
+      ${state.isLoading
+        ? html`<div className="text-sm text-[var(--v2-text-muted)]">${t('common.loading')}</div>`
+        : state.error
+          ? html`<div className="text-sm text-[var(--v2-danger-text)]">
+              ${t('error.loadFailed', { what: t('llm.providers'), message: state.error.message })}
+            </div>`
+          : html`
+              <div className="space-y-1">
+                ${GROUP_ORDER.flatMap((group) => {
+                  const items = groups[group.key];
+                  if (!items.length) return [];
+                  return [
+                    html`
+                      <section
+                        key=${group.key}
+                        data-testid="llm-provider-group"
+                        data-provider-status=${group.key}
+                        className="mb-3"
+                      >
+                        <${GroupHeader}
+                          label=${t(group.labelKey)}
+                          count=${items.length}
+                          dotClass=${group.dotClass}
+                        />
+                        <div className="space-y-2">
+                          ${items.map(
+                            (provider) => html`
+                              <${ProviderCard}
+                                key=${provider.id}
+                                provider=${provider}
+                                activeProviderId=${state.activeProviderId}
+                                selectedModel=${state.selectedModel}
+                                builtinOverrides=${state.builtinOverrides}
+                                isBusy=${state.isBusy}
+                                onUse=${actions.handleUse}
+                                onConfigure=${actions.openDialog}
+                                onDelete=${actions.handleDelete}
+                                onNearaiLogin=${login.startNearai}
+                                onNearaiWallet=${login.startNearaiWallet}
+                                onCodexLogin=${login.startCodex}
+                                loginBusy=${loginBusy}
+                              />
+                            `
+                          )}
+                        </div>
+                      </section>
+                    `
+                  ];
+                })}
+              </div>
+            `}
+
+      <${ProviderDialog}
+        open=${actions.isDialogOpen}
+        provider=${actions.dialogProvider}
+        allProviderIds=${actions.allProviderIds}
+        builtinOverrides=${state.builtinOverrides}
+        onClose=${actions.closeDialog}
+        onSave=${actions.handleSave}
+        onTest=${state.testConnection}
+        onListModels=${state.listModels}
+      />
+    <//>
+  `;
+}
+
+// --- Desktop (NEAR AI Cloud only) ---
+// Narrows the provider list to NEAR AI Cloud, collapses the active provider
+// into an ActiveModelPanel, hides custom-provider creation, surfaces
+// gateway-unreachable guidance for the synthetic offline fallback, and confirms
+// deletes through the design-system ConfirmDialog. Reached only behind
+// `isDesktopRuntime()`.
+function DesktopProviderManagement({
+  t,
+  actions,
+  state,
+  login,
+  loginBusy,
+  applyModel,
+  searchQuery
+}) {
   const visibleProviders = filterDesktopVisibleLlmProviders(actions.filteredProviders);
 
   if (searchQuery && visibleProviders.length === 0) {

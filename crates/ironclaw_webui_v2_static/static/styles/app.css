@@ -3,46 +3,43 @@
    All component-level visual styling lives in JS design-system files.
    ════════════════════════════════════════════════════════════════════ */
 
-/* ── Type foundation ─────────────────────────────────────────────────
-   The whole scale was designed for Inter Variable, but no font ever
-   shipped — every install silently fell back to system fonts. Self-host
-   it (46 KB, variable 100–900). Relative URL so it resolves under both
-   the packaged root and the hosted /v2 prefix. */
+/* ── Type foundation — Inter Variable ────────────────────────────── */
 @font-face {
   font-family: "Inter Variable";
-  src: url("../fonts/inter-variable.woff2") format("woff2-variations");
-  font-weight: 100 900;
   font-style: normal;
+  font-weight: 100 900;
   font-display: swap;
+  src: url("../fonts/inter-variable.woff2") format("woff2");
 }
 
 /* ── Light theme ─────────────────────────────────────────────────── */
 :root {
   color-scheme: light;
+  font-family: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 
   /* Canvas / surfaces */
-  --v2-canvas:        #f6f8fb;
+  --v2-canvas:        #f4f7fb;
   --v2-canvas-strong: #ffffff;
   --v2-surface:       #ffffff;
-  --v2-surface-soft:  #f0f4f8;
-  --v2-surface-muted: #e7edf4;
+  --v2-surface-soft:  #eef4fa;
+  --v2-surface-muted: #e4edf5;
 
   /* Card tokens — used by Card component */
-  --v2-card-bg:     rgba(255, 255, 255, 0.96);
-  --v2-card-border: rgba(24, 38, 55, 0.1);
+  --v2-card-bg:     rgba(255, 255, 255, 0.92);
+  --v2-card-border: rgba(19, 45, 68, 0.12);
   --v2-card-shadow: none;
 
   /* Panel border (nav items, dividers, form borders) */
-  --v2-panel-border: rgba(24, 38, 55, 0.1);
+  --v2-panel-border: rgba(19, 45, 68, 0.12);
 
   /* Rail (input bg in dark) */
   --v2-rail:    #edf3f8;
   --v2-input-bg: #ffffff;
 
   /* Typography */
-  --v2-text:        #263241;
-  --v2-text-strong: #101820;
-  --v2-text-muted:  #5d6b7c;
+  --v2-text:        #243244;
+  --v2-text-strong: #0f1720;
+  --v2-text-muted:  #5f7183;
   --v2-text-faint:  #67707c;
   --v2-inverse:     #ffffff;
   --v2-ink:         #0f1720;
@@ -50,17 +47,11 @@
   /* Controls */
   --v2-select-chevron: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2712%27%20height%3D%2712%27%20viewBox%3D%270%200%2012%2012%27%20fill%3D%27none%27%20stroke%3D%27%235f7183%27%20stroke-width%3D%271.8%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M2.5%204.5%206%208l3.5-3.5%27/%3E%3C/svg%3E");
 
-  /* Accent — signal blue (DESIGN.md: the user's hand) */
-  --v2-accent:       #0091fd;
-  --v2-accent-strong:#0077d4;
-  --v2-accent-soft:  rgba(0, 145, 253, 0.12);
+  /* Accent — signal blue */
+  --v2-accent:       #2e9de2;
+  --v2-accent-strong:#1678bd;
+  --v2-accent-soft:  rgba(76, 167, 230, 0.12);
   --v2-accent-text:  #0a64ba;
-  --v2-accent-btn:   #0077d4;
-
-  /* The agent's hand (DESIGN.md): gold — generated work, proposals */
-  --v2-gold:      #b07a00;
-  --v2-gold-soft: rgba(251, 191, 36, 0.16);
-  --v2-gold-text: #8a6100;
 
   /* Semantic colours */
   --v2-positive-soft: rgba(32, 210, 154, 0.13);
@@ -72,49 +63,50 @@
   --v2-info-soft:     rgba(76, 167, 230, 0.12);
   --v2-info-text:     #136aa6;
 
+  /* Flat signal-blue button fill (no gradient) */
+  --v2-accent-btn: #0077d4;
+
+  /* The agent's hand (DESIGN.md): gold — generated work, proposals */
+  --v2-gold:      #b07a00;
+  --v2-gold-soft: rgba(251, 191, 36, 0.16);
+  --v2-gold-text: #8a6100;
+
   background: var(--v2-canvas);
 }
 
-/* ── Dark theme — explicit operator mode, signal blue, agent gold ── */
+/* ── Dark theme ─────────────────────────────────────────────────── */
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --v2-canvas:        var(--bg-canvas, #0a0f1c);
-  --v2-canvas-strong: #070b15;
-  --v2-surface:       var(--bg-surface, #101828);
-  --v2-surface-soft:  var(--bg-surface-subtle, rgba(148, 180, 255, 0.045));
-  --v2-surface-muted: rgba(148, 180, 255, 0.09);
+  --v2-canvas:        var(--bg-canvas, #111114);
+  --v2-canvas-strong: #0d0d10;
+  --v2-surface:       var(--bg-surface, #1b1b1f);
+  --v2-surface-soft:  var(--bg-surface-subtle, rgba(255, 255, 255, 0.03));
+  --v2-surface-muted: rgba(255, 255, 255, 0.07);
 
-  /* Card tokens in dark: hairline navy border, no decorative shadow. */
-  --v2-card-bg:     #101828;
-  --v2-card-border: rgba(148, 180, 255, 0.09);
-  --v2-card-shadow: none;
+  /* Card tokens in dark: transparent border + drop shadow */
+  --v2-card-bg:     #1b1b1f;
+  --v2-card-border: rgba(255, 255, 255, 0);
+  --v2-card-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
 
-  --v2-panel-border: rgba(148, 180, 255, 0.11);
+  --v2-panel-border: rgba(255, 255, 255, 0.1);
 
-  --v2-rail:     #0c1322;
-  --v2-input-bg: #0c1322;
+  --v2-rail:     #151519;
+  --v2-input-bg: #151519;
 
-  --v2-text:        rgba(232, 240, 252, 0.86);
-  --v2-text-strong: var(--text-primary, #f4f8ff);
-  --v2-text-muted:  var(--text-secondary, rgba(196, 211, 235, 0.62));
+  --v2-text:        rgba(255, 255, 255, 0.82);
+  --v2-text-strong: var(--text-primary, #ffffff);
+  --v2-text-muted:  var(--text-secondary, rgba(255, 255, 255, 0.6));
   --v2-text-faint:  var(--text-tertiary, rgba(196, 211, 235, 0.66));
-  --v2-inverse:     var(--text-inverse, #0a0f1c);
-  --v2-ink:         var(--accent-primary, #0091fd);
+  --v2-inverse:     var(--text-inverse, #111111);
+  --v2-ink:         var(--accent-primary, #4ca7e6);
 
   --v2-select-chevron: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2712%27%20height%3D%2712%27%20viewBox%3D%270%200%2012%2012%27%20fill%3D%27none%27%20stroke%3D%27%23ffffff%27%20stroke-opacity%3D%270.55%27%20stroke-width%3D%271.8%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M2.5%204.5%206%208l3.5-3.5%27/%3E%3C/svg%3E");
 
-  /* The user's hand (DESIGN.md): signal blue #0091fd */
-  --v2-accent:        var(--accent-primary,        #0091fd);
-  --v2-accent-strong: var(--accent-primary-strong, #0077d4);
-  --v2-accent-soft:   rgba(0, 145, 253, 0.16);
-  --v2-accent-text:   var(--text-brand,            #5fb8ff);
-  --v2-accent-btn:    #0077d4;
-
-  /* The agent's hand (DESIGN.md): gold — generated work, proposals */
-  --v2-gold:      #fbbf24;
-  --v2-gold-soft: rgba(251, 191, 36, 0.14);
-  --v2-gold-text: #fbbf24;
+  --v2-accent:        var(--accent-primary,        #4ca7e6);
+  --v2-accent-strong: var(--accent-primary-strong, #2882c8);
+  --v2-accent-soft:   rgba(76, 167, 230, 0.14);
+  --v2-accent-text:   var(--text-brand,            #8fc8f2);
 
   --v2-positive-soft: rgba(32, 210, 154, 0.13);
   --v2-positive-text: var(--text-positive, #20d29a);
@@ -122,8 +114,14 @@
   --v2-warning-text:  var(--accent-warning, #f5c15b);
   --v2-danger-soft:   rgba(255, 100, 128, 0.13);
   --v2-danger-text:   var(--text-danger, #ff6480);
-  --v2-info-soft:     rgba(0, 145, 253, 0.15);
-  --v2-info-text:     var(--accent-primary-soft, #5fb8ff);
+  --v2-info-soft:     rgba(76, 167, 230, 0.14);
+  --v2-info-text:     var(--accent-primary-soft, #8fc8f2);
+
+  --v2-accent-btn: #0077d4;
+
+  --v2-gold:      #fbbf24;
+  --v2-gold-soft: rgba(251, 191, 36, 0.14);
+  --v2-gold-text: #fbbf24;
 }
 
 :root[data-theme="light"] {
@@ -152,28 +150,11 @@ body {
   letter-spacing: 0;
   background: var(--v2-canvas);
   color: var(--v2-text);
-  font-family:
-    "Inter Variable",
-    -apple-system,
-    BlinkMacSystemFont,
-    "SF Pro Text",
-    "Helvetica Neue",
-    Arial,
-    sans-serif;
-  /* DESIGN.md: numbers use tabular figures by default. */
-  font-variant-numeric: tabular-nums;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
 }
 
 /* Font inheritance for form elements */
 button, input, select, textarea {
   font: inherit;
-}
-
-/* Product typography stays calm: no squeezed marketing caps or negative display tracking. */
-[class*="tracking-"] {
-  letter-spacing: 0 !important;
 }
 
 button {
@@ -203,19 +184,6 @@ input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--v2-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--v2-accent) 28%, transparent);
-}
-
-/* App-wide visible focus for keyboard nav. Mouse/touch users keep a clean
-   surface (:focus-visible only). Inputs already ring via the rule above; this
-   covers buttons, links, and other interactive roles. */
-button:focus-visible,
-a:focus-visible,
-[role="button"]:focus-visible,
-[tabindex]:focus-visible,
-summary:focus-visible {
-  outline: 2px solid var(--v2-accent);
-  outline-offset: 2px;
-  border-radius: 6px;
 }
 
 /* ── Animation keyframes ─────────────────────────────────────────── */
@@ -273,10 +241,7 @@ summary:focus-visible {
 }
 
 [class~="bg-signal"],[class~="bg-signal/60"] {
-  background-color: var(--v2-accent-btn) !important; color: #ffffff !important;
-}
-[class~="hover:bg-signal"]:hover,[class~="hover:bg-signal/60"]:hover {
-  background-color: color-mix(in srgb, var(--v2-accent-btn) 88%, #000) !important; color: #ffffff !important;
+  background-color: var(--v2-accent) !important; color: #ffffff !important;
 }
 [class~="bg-signal/10"],[class~="bg-signal/12"],[class~="bg-signal/15"],
 [class~="hover:bg-signal/10"]:hover,[class~="hover:bg-signal/15"]:hover {
@@ -324,7 +289,7 @@ summary:focus-visible {
   background: var(--v2-card-bg);
   border: 1px solid var(--v2-card-border);
   box-shadow: var(--v2-card-shadow);
-  border-radius: 12px;
+  border-radius: 1.25rem;
 }
 
 .v2-skeleton {
@@ -342,7 +307,7 @@ summary:focus-visible {
   border: 1px solid var(--v2-panel-border);
   background: var(--v2-card-bg);
   box-shadow: var(--v2-card-shadow);
-  border-radius: 16px;
+  border-radius: 1.25rem;
 }
 
 /* Base button reset — kept for components still using raw <button>/<label> with v2-button */
@@ -370,11 +335,11 @@ summary:focus-visible {
 }
 .v2-button-primary {
   background: var(--v2-accent-btn);
-  border: 1px solid transparent;
+  border: 1px solid rgba(76, 167, 230, 0.72);
   color: #ffffff;
 }
 .v2-button-primary:hover {
-  background: color-mix(in srgb, var(--v2-accent-btn) 88%, #000);
+  background: color-mix(in srgb, var(--v2-accent-btn) 85%, white);
 }
 
 /* Page-level animation wrapper */
@@ -392,157 +357,138 @@ summary:focus-visible {
 }
 
 /* ── Motion policy ───────────────────────────────────────────────── */
-/* Calm by default: no transitions, no decorative motion. The only recurring
-   motion allowed here carries live/running meaning and yields to reduced
-   motion. Loading placeholders remain static; no shimmer, bounce, or pulse. */
+/* The v2 UI is intended to be fully static: no CSS transitions/animations. */
 *, *::before, *::after {
   animation: none !important;
   transition: none !important;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .v2-breathing-dot {
-    animation: v2-breathe 2.4s ease-in-out infinite !important;
-  }
+/* The typing indicator is the single intentional exception: the three dots
+   loop to signal the assistant is working. The class selector outranks the
+   universal `*` rule above (both !important), so the animation survives.
+   Suppressed again under prefers-reduced-motion to respect that opt-out. */
+@keyframes v2-typing-bounce {
+  0%, 80%, 100% { transform: translateY(0);    opacity: 0.45; }
+  40%           { transform: translateY(-4px); opacity: 1; }
+}
+.v2-typing-dot {
+  animation: v2-typing-bounce 1.4s ease-in-out infinite !important;
+}
+.v2-typing-dot:nth-child(2) { animation-delay: 0.15s !important; }
+.v2-typing-dot:nth-child(3) { animation-delay: 0.3s  !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  .v2-typing-dot { animation: none !important; }
 }
 
 /* ── Markdown body ───────────────────────────────────────────────── */
 
 .markdown-body {
   max-width: 100%;
-  overflow-wrap: anywhere;
+  min-width: 0;
 }
 .markdown-body h1,.markdown-body h2,.markdown-body h3,.markdown-body h4 {
   margin-top: 1em; margin-bottom: 0.5em; font-weight: 600;
   color: var(--v2-text-strong);
 }
-.markdown-body p              { margin-bottom: 0.75em; line-height: 1.65; }
+.markdown-body                { font-size: 1em; line-height: 1.7; }
+.markdown-body p              { margin-bottom: 0.8em; line-height: inherit; }
 .markdown-body ul,.markdown-body ol { margin-bottom: 0.75em; padding-left: 1.5em; }
 .markdown-body li             { margin-bottom: 0.25em; }
 .markdown-body code {
   font-family: "Geist Mono","SF Mono","JetBrains Mono",ui-monospace,monospace;
-  font-size: 0.875em; background: var(--v2-surface-muted);
+  font-size: 0.9em; background: var(--v2-surface-muted);
   padding: 0.15em 0.4em; border-radius: 4px;
+}
+.markdown-code-frame {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 .markdown-body pre {
   background: var(--v2-surface-soft); border: 1px solid var(--v2-panel-border);
-  border-radius: 8px; padding: 0.75em 1em; overflow-x: auto; margin-bottom: 0.75em;
+  border-radius: 8px; box-sizing: border-box; width: 100%; max-width: 100%;
+  min-width: 0; padding: 0.75em 1em;
+  overflow-x: auto; white-space: pre; margin-bottom: 0.75em;
 }
-.markdown-body pre code { background: transparent; padding: 0; border-radius: 0; font-size: 0.8125em; }
+.markdown-body pre code {
+  display: inline; background: transparent; padding: 0; border-radius: 0;
+  font-size: 0.9em; line-height: 1.65; white-space: inherit;
+}
 .markdown-body blockquote {
   border-left: 3px solid var(--v2-panel-border); padding-left: 1em;
   margin-left: 0; margin-bottom: 0.75em; color: var(--v2-text-muted);
 }
 .markdown-body a { color: var(--v2-info-text); text-decoration: none; }
 .markdown-body a:hover { text-decoration: underline; }
-.markdown-body svg,
-.markdown-body img,
-.markdown-body video,
-.markdown-body canvas {
-  display: block;
-  max-width: 100%;
-  height: auto;
-}
-.markdown-body table {
-  display: block;
-  min-width: 100%;
-  max-width: 100%;
-  width: max-content;
-  overflow-x: auto;
-  border-collapse: collapse;
-  margin-bottom: 0.75em;
-}
+.markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 0.75em; }
 .markdown-body th,.markdown-body td {
   border: 1px solid var(--v2-panel-border); padding: 0.4em 0.6em; text-align: left;
-  min-width: min(14rem, 72vw); overflow-wrap: anywhere; vertical-align: top;
 }
 .markdown-body th { background: var(--v2-surface-soft); font-weight: 600; }
 .markdown-body hr { border: 0; border-top: 1px solid var(--v2-panel-border); margin: 1em 0; }
-
-.v2-mermaid-card {
-  max-width: 100%;
-  margin-bottom: 0.75em;
-  overflow: hidden;
-  border: 1px solid var(--v2-panel-border);
-  border-radius: 8px;
-  background: var(--v2-surface-soft);
-}
-
-.v2-mermaid-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.55rem 0.7rem;
-  border-bottom: 1px solid var(--v2-panel-border);
-}
-
-.v2-mermaid-card__label {
-  color: var(--v2-text-muted);
-  font-size: 0.72rem;
-  font-weight: 650;
-  letter-spacing: 0;
-  text-transform: uppercase;
-}
-
-.v2-mermaid-card__actions {
-  display: inline-flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 0.35rem;
-}
-
-.v2-mermaid-card__button {
-  border: 1px solid var(--v2-panel-border);
-  border-radius: 6px;
-  background: var(--v2-surface);
+.markdown-body pre code { color: var(--v2-text); }
+.markdown-body pre code.hljs {
+  display: block;
+  background: transparent;
   color: var(--v2-text);
-  cursor: pointer;
-  font-size: 0.72rem;
-  padding: 0.25rem 0.5rem;
 }
-
-.v2-mermaid-card__button:hover:not(:disabled),
-.v2-mermaid-card__button:focus-visible {
-  border-color: color-mix(in srgb, var(--v2-accent) 42%, var(--v2-panel-border));
+.markdown-body .hljs-keyword,
+.markdown-body .hljs-selector-tag,
+.markdown-body .hljs-built_in,
+.markdown-body .hljs-type {
+  color: var(--v2-accent-text);
+}
+.markdown-body .hljs-string,
+.markdown-body .hljs-regexp,
+.markdown-body .hljs-template-variable {
+  color: var(--v2-positive-text);
+}
+.markdown-body .hljs-number,
+.markdown-body .hljs-literal,
+.markdown-body .hljs-symbol,
+.markdown-body .hljs-bullet {
+  color: var(--v2-warning-text);
+}
+.markdown-body .hljs-comment,
+.markdown-body .hljs-quote {
+  color: var(--v2-text-muted);
+  font-style: italic;
+}
+.markdown-body .hljs-title,
+.markdown-body .hljs-section,
+.markdown-body .hljs-name {
+  color: var(--v2-info-text);
+}
+.markdown-body .hljs-attr,
+.markdown-body .hljs-attribute,
+.markdown-body .hljs-variable,
+.markdown-body .hljs-params {
   color: var(--v2-text-strong);
 }
-
-.v2-mermaid-card__button:disabled {
-  cursor: default;
-  opacity: 0.72;
-}
-
-.v2-mermaid-card__output {
-  overflow-x: auto;
-  padding: 0.75rem;
-}
-
-.v2-mermaid-card__output svg {
-  display: block;
-  max-width: 100%;
-  height: auto;
-  margin: 0 auto;
-}
-
-.v2-mermaid-card__output--error {
+.markdown-body .hljs-meta,
+.markdown-body .hljs-doctag {
   color: var(--v2-danger-text);
-  font-size: 0.8rem;
 }
 
-.v2-mermaid-card__source {
-  border-top: 1px solid var(--v2-panel-border);
-}
+/* ════════════════════════════════════════════════════════════════════
+   Desktop convergence — additive motion (appended).
+   The convergence tokens (--v2-accent-btn, --v2-gold*) live in the primary
+   :root / :root[data-theme="dark"] scopes above so the contrast guard, which
+   parses the first block per theme, resolves them. Consumed by the
+   design-system Button, Badge/StatCard gold tone, and the .v2-breathing-dot
+   live-indicator motion below.
+   ════════════════════════════════════════════════════════════════════ */
 
-.v2-mermaid-card__source summary {
-  cursor: pointer;
-  padding: 0.45rem 0.7rem;
-  color: var(--v2-text-muted);
-  font-size: 0.72rem;
-}
-
-.v2-mermaid-card__source pre {
-  margin: 0;
-  border-width: 1px 0 0;
-  border-radius: 0;
+/* ── Breathing-dot motion ────────────────────────────────────────── */
+/* The live-status dot (Badge/StatCard "success"/"positive"/"signal") carries
+   running meaning, so it is the one recurring motion allowed. The class is a
+   no-op above; this override gives it the breathe animation, gated behind
+   prefers-reduced-motion so the opt-out is respected. */
+@media (prefers-reduced-motion: no-preference) {
+  .v2-breathing-dot {
+    animation: v2-breathe 2.4s ease-in-out infinite !important;
+  }
 }

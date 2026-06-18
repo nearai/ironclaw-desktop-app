@@ -1,8 +1,8 @@
 import { apiFetch, tauriInvoke } from '../../../lib/api.js';
 
-// Settings endpoints depend on v1 `/api/settings/*`, `/api/llm/*`,
-// `/api/tools/*`, `/api/skills/*`, etc. Extension reads use the v2
-// registry/list endpoints; the remaining settings APIs are TODO stubs.
+// Settings endpoints depend on v1 `/api/settings/*`, `/api/tools/*`, etc.
+// LLM, extension, and skills reads use v2 endpoints. Remaining settings APIs
+// are TODO stubs.
 
 export function fetchSettingsExport() {
   return Promise.resolve({ settings: {}, todo: true });
@@ -41,13 +41,14 @@ export function setActiveLlm(payload) {
   });
 }
 
-// Desktop-only NEAR AI Cloud credential path. Both the API-key paste and the
-// browser-login flow funnel through here: store the credential in the OS
-// keychain and restart the bundled sidecar so it respawns with the credential
-// in its env. This deliberately does NOT call `upsertLlmProvider` — a user
-// `nearai` provider definition makes the gateway's list-models return 400, so
-// the picker can't load the catalog. An `sk-` value is classified Rust-side and
-// routed to cloud-api.near.ai; a session token routes to private.near.ai.
+// Desktop-only NEAR AI Cloud credential path (additive). Both the API-key paste
+// and the browser-login flow funnel through here: store the credential in the
+// OS keychain and restart the bundled sidecar so it respawns with the
+// credential in its env. This deliberately does NOT call `upsertLlmProvider` —
+// a user `nearai` provider definition makes the gateway's list-models return
+// 400, so the picker can't load the catalog. An `sk-` value is classified
+// Rust-side and routed to cloud-api.near.ai; a session token routes to
+// private.near.ai. Callers gate this behind `isDesktopRuntime()`.
 async function activeDesktopProfileId() {
   const settings = (await tauriInvoke('get_settings').catch(() => null)) || {};
   const profiles = Array.isArray(settings.profiles) ? settings.profiles : [];
@@ -73,6 +74,7 @@ export async function storeNearaiCredential(value) {
   });
   return restartDesktopSidecar();
 }
+
 export function testLlmProviderConnection(payload, options = {}) {
   return apiFetch('/api/webchat/v2/llm/test-connection', {
     method: 'POST',
@@ -105,6 +107,14 @@ export function completeNearaiWalletLogin(payload) {
   });
 }
 
+// Begin an OpenAI Codex (ChatGPT subscription) device-code login. Returns
+// { user_code, verification_uri } to display; a background task polls for
+// authorization, stores the tokens, and makes Codex active once authorized.
+export function startCodexLogin() {
+  return apiFetch('/api/webchat/v2/llm/codex/login', {
+    method: 'POST'
+  });
+}
 export function fetchTools() {
   return Promise.resolve({ tools: [], todo: true });
 }
@@ -118,13 +128,43 @@ export function fetchExtensionRegistry() {
   return apiFetch('/api/webchat/v2/extensions/registry');
 }
 export function fetchSkills() {
-  return Promise.resolve({ skills: [], todo: true });
+  return apiFetch('/api/webchat/v2/skills');
 }
-export function installSkill(_payload) {
-  return Promise.resolve({ success: false, message: 'TODO: requires v2 skills endpoint' });
+export function fetchSkillContent(name) {
+  return apiFetch(`/api/webchat/v2/skills/${encodeURIComponent(name)}`);
 }
-export function removeSkill(_name) {
-  return Promise.resolve({ success: false, message: 'TODO: requires v2 skills endpoint' });
+export function installSkill(payload) {
+  return apiFetch('/api/webchat/v2/skills/install', {
+    method: 'POST',
+    headers: { 'X-Confirm-Action': 'true' },
+    body: JSON.stringify(payload)
+  });
+}
+export function updateSkill(name, payload) {
+  return apiFetch(`/api/webchat/v2/skills/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    headers: { 'X-Confirm-Action': 'true' },
+    body: JSON.stringify(payload)
+  });
+}
+export function removeSkill(name) {
+  return apiFetch(`/api/webchat/v2/skills/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+    headers: { 'X-Confirm-Action': 'true' }
+  });
+}
+// Trace Commons credits — read-only, scoped server-side to the
+// authenticated caller. The response is the contributor-local view as
+// of the last credit sync; the authoritative ledger is server-side.
+export function fetchTraceCredits() {
+  return apiFetch('/api/webchat/v2/traces/credit');
+}
+// Authorize a held (manual-review) trace for submission. No request body —
+// the submission id is in the path. Returns { authorized: bool }.
+export function authorizeTraceHold(submissionId) {
+  return apiFetch(`/api/webchat/v2/traces/holds/${encodeURIComponent(submissionId)}/authorize`, {
+    method: 'POST'
+  });
 }
 export function fetchUsers() {
   return Promise.resolve({ users: [], todo: true });

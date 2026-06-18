@@ -77,7 +77,8 @@ async function main() {
   try {
     let healthy = false;
     for (let i = 0; i < 80 && !healthy; i += 1) {
-      if (child.exitCode != null) throw new Error(`sidecar exited early: ${log.join('').slice(-400)}`);
+      if (child.exitCode != null)
+        throw new Error(`sidecar exited early: ${log.join('').slice(-400)}`);
       try {
         const r = await fetch(`${origin}/api/webchat/v2/threads`, {
           headers: { Authorization: `Bearer ${token}` }

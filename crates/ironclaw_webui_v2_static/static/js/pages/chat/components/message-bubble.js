@@ -1,11 +1,14 @@
 import { React, html } from '../../../lib/html.js';
 import { MarkdownRenderer } from './markdown-renderer.js';
 import { ToolActivity } from './tool-activity.js';
+import { Avatar } from './avatar.js';
 import { AttachmentPreviewModal } from './attachment-preview.js';
 import { ProjectFileChips } from './project-file-chips.js';
 import { Icon } from '../../../design-system/icons.js';
 import { Popover } from '../../../design-system/popover.js';
+import { useT } from '../../../lib/i18n.js';
 import { toast } from '../../../lib/toast.js';
+import { isDesktopRuntime } from '../../../lib/api.js';
 import { saveBlob } from '../../../lib/save-file.js';
 import {
   buildDocxBlob,
@@ -31,10 +34,22 @@ import {
   generatedFilePreviewAttachment
 } from '../lib/generated-file-artifacts.js';
 
+// `typeof isDesktopRuntime === 'function'` guards the runtime read so the
+// component renders under the import-stripping unit harness; the reconciled
+// test injects `isDesktopRuntime: () => true` to exercise the desktop path.
+// On the web build this stays false, so the generated-work-product / file-chip
+// rendering (which pulls the desktop-only export + save-file + project-file
+// libraries) never mounts and the bubble stays the lean mono document view.
+function desktopWorkProductEnabled() {
+  return typeof isDesktopRuntime === 'function' && isDesktopRuntime();
+}
+
 /* Bicolor attribution (DESIGN.md): signal blue is the user's hand and gold is
    reserved for agent provenance, approvals, receipts, and generated work.
    User turns stay in a restrained blue bubble; plain assistant prose stays
-   borderless and document-like; generated work gets the gold artifact panel. */
+   borderless and document-like; generated work gets the gold artifact panel.
+   System / error stay as centered notices on neutral v2 surfaces, never the
+   warning accent (see chat-design-contract.test). */
 const ROLE_STYLES = {
   user: 'ml-auto rounded-[18px] border border-signal/25 bg-signal/10 px-4 py-3 text-iron-100',
   assistant: 'mr-auto text-iron-100',
@@ -96,7 +111,9 @@ function messageOuterClass(isUser, isAssistantWorkProduct) {
 
 function messageBodyClass(role, isOptimistic, isAssistantWorkProduct) {
   return [
-    'text-sm leading-6',
+    // Mono is canonical for web: keep the readable document size (see
+    // message-bubble.test "readable typography"), not the compact desktop size.
+    'text-base leading-7',
     isAssistantWorkProduct
       ? ROLE_STYLES.assistantWorkProduct
       : ROLE_STYLES[role] || ROLE_STYLES.assistant,
@@ -229,7 +246,7 @@ function ThinkingDisclosure({ content }) {
   `;
 }
 
-export function MessageBubble({ message, messages = [], onRetry, threadId }) {
+function MessageBubbleImpl({ message, messages = [], onRetry, threadId }) {
   const {
     role,
     content,
@@ -243,28 +260,35 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
     timestamp
   } = message;
   const isUser = role === 'user';
+  const t = useT();
+  const desktopWorkProduct = desktopWorkProductEnabled();
   const [copied, setCopied] = React.useState(false);
   const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
-  // Hook order: declared with the other hooks, before every role-based
-  // early return below (see the crash note on `copy`).
+  // Hook order: declared with the other hooks, before every role-based early
+  // return below (see the crash note on `copy`).
   const [attachmentPreview, setAttachmentPreview] = React.useState(null);
   const [generatedFilePreview, setGeneratedFilePreview] = React.useState(null);
-  // All hooks must run before the role-based early returns below.
-  // A message can change role in place across renders (e.g. an
-  // optimistic bubble upgrading, or a streaming role shift), so
-  // declaring `copy` after the early returns made the hook count
-  // jump between renders and crashed the thread with "Rendered more
-  // hooks than during the previous render". Keep every hook here.
+  // All hooks must run before the role-based early returns below. A message can
+  // change role in place across renders (e.g. an optimistic bubble upgrading,
+  // or a streaming role shift), so declaring `copy` after the early returns
+  // made the hook count jump between renders and crashed the thread with
+  // "Rendered more hooks than during the previous render". Keep every hook here.
   const copy = React.useCallback(async () => {
     try {
-      await copyWorkProduct(typeof content === 'string' ? content : '');
+      // copyWorkProduct preserves markdown fidelity on desktop; on web the
+      // plain clipboard write is enough.
+      if (desktopWorkProduct) {
+        await copyWorkProduct(typeof content === 'string' ? content : '');
+      } else {
+        await navigator.clipboard.writeText(typeof content === 'string' ? content : '');
+      }
       setCopied(true);
       toast('Copied to clipboard', { tone: 'success' });
       setTimeout(() => setCopied(false), 1400);
     } catch {
       toast('Copy failed', { tone: 'error' });
     }
-  }, [content]);
+  }, [content, desktopWorkProduct]);
 
   if (role === 'tool_activity' || (toolCalls && toolCalls.length > 0)) {
     const activity =
@@ -313,12 +337,15 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
   const timeLabel = formatTimestamp(timestamp);
   const showActions = (role === 'assistant' || role === 'user') && !isOptimistic;
   const displayContent = messageContentForDisplay({ role, content, attachments });
-  const generatedFileArtifacts = generatedFileArtifactsForMessage(message);
+  // Generated work-product treatment depends on the desktop-only export +
+  // save-file + artifact libraries, so it is gated by the runtime. On web the
+  // assistant prose just renders as a plain document.
+  const generatedFileArtifacts = desktopWorkProduct
+    ? generatedFileArtifactsForMessage(message)
+    : [];
   const hasGeneratedFiles = generatedFileArtifacts.length > 0;
-  const isAssistantMarkdownWorkProduct = assistantResponseLooksLikeWorkProduct(
-    role,
-    displayContent
-  );
+  const isAssistantMarkdownWorkProduct =
+    desktopWorkProduct && assistantResponseLooksLikeWorkProduct(role, displayContent);
   const isAssistantWorkProduct = isAssistantMarkdownWorkProduct || hasGeneratedFiles;
   const showInlineActions = showActions && !isAssistantWorkProduct;
   const imagePreviews = imagePreviewsForMessage({ images, attachments });
@@ -331,10 +358,32 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
     attachmentsExpanded
   );
   const hiddenAttachmentCount = fileAttachments.length - visibleAttachments.length;
+  // Persistent identity for the two conversational roles (mono web view);
+  // system / error stay as centered notices without an avatar. Suppressed for
+  // the desktop gold work-product panel, which carries its own artifact header.
+  const showIdentity = (role === 'user' || role === 'assistant') && !isAssistantWorkProduct;
+  const identityName = isUser ? t('chat.identityUser') : t('chat.identityAssistant');
 
   return html`
-    <div className=${messageOuterClass(isUser, isAssistantWorkProduct)} data-message-root="1">
+    <div
+      className=${messageOuterClass(isUser, isAssistantWorkProduct)}
+      data-message-root="1"
+      data-testid=${`msg-${role}`}
+    >
       <div className=${messageShellClass(isUser, isAssistantWorkProduct)}>
+        ${showIdentity &&
+        html`
+          <div
+            className=${['flex items-center gap-2 px-1', isUser ? 'flex-row-reverse' : ''].join(
+              ' '
+            )}
+          >
+            <${Avatar} role=${role} />
+            <span className="text-xs font-medium text-[var(--v2-text-muted)]">
+              ${identityName}
+            </span>
+          </div>
+        `}
         ${imagePreviews.length > 0 &&
         html`
           <div className=${imageThumbnailStripClass(isUser)} data-testid="message-image-thumbnails">
@@ -465,7 +514,8 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
             onClose=${() => setGeneratedFilePreview(null)}
             attachment=${generatedFilePreview}
           />`}
-          ${(role === 'assistant' || role === 'user') &&
+          ${desktopWorkProduct &&
+          (role === 'assistant' || role === 'user') &&
           html`<${ProjectFileChips}
             threadId=${threadId}
             content=${typeof content === 'string' ? content : ''}
@@ -486,7 +536,8 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
                 <${Icon} name=${copied ? 'check' : 'copy'} className="h-3.5 w-3.5" />
                 ${copied ? 'Copied' : 'Copy'}
               </button>
-              ${role === 'assistant' &&
+              ${desktopWorkProduct &&
+              role === 'assistant' &&
               html`<${AssistantExportActions} content=${content || ''} messages=${messages} />`}
             `}
             ${status === 'error' &&
@@ -593,7 +644,7 @@ function GeneratedFileArtifactCard({ artifact, onPreview }) {
       setBusy('');
     }
   };
-  const saveToWork = () => {
+  const saveToWorkProduct = () => {
     try {
       const saved = saveGeneratedFileArtifactToWork({ artifact });
       if (!saved) {
@@ -654,7 +705,7 @@ function GeneratedFileArtifactCard({ artifact, onPreview }) {
         </button>
         <button
           type="button"
-          onClick=${saveToWork}
+          onClick=${saveToWorkProduct}
           className=${actionClass('primary')}
           aria-label=${`Save ${filename} to Work`}
         >
@@ -678,8 +729,8 @@ function AssistantExportActions({
 
   // Embed rendered mermaid diagrams (the user clicked "Render diagram") as real
   // images in the DOCX and PDF; un-rendered diagrams keep the source-only
-  // export. The same rasterized images feed both formats (DOCX uses the PNG, PDF
-  // uses the JPEG variant) so screen and export stay in lockstep.
+  // export. The same rasterized images feed both formats (DOCX uses the PNG,
+  // PDF uses the JPEG variant) so screen and export stay in lockstep.
   const collectRenderedDiagramImages = async () => {
     const messageRoot = rootRef.current?.closest?.('[data-message-root]');
     return messageRoot ? await collectMermaidExportImages(messageRoot) : [];
@@ -759,7 +810,7 @@ function AssistantExportActions({
     <span ref=${rootRef} className="contents">
       <button
         type="button"
-        onClick=${() => saveToWork(title, content, messages)}
+        onClick=${() => saveResponseToWork(title, content, messages)}
         className=${actionClass('primary')}
         aria-label=${`Save ${subject} to Work`}
       >
@@ -843,7 +894,7 @@ function actionClass(tone = 'default') {
   ].join(' ');
 }
 
-function saveToWork(title, content, messages = []) {
+function saveResponseToWork(title, content, messages = []) {
   try {
     const saved = saveAssistantResponseToWork({ title, content, messages });
     if (!saved) {
@@ -885,3 +936,11 @@ function titleFromMarkdown(markdown) {
     .find((candidate) => candidate.trim());
   return (line || 'Assistant response').replace(/^#+\s*/, '').trim();
 }
+
+// Memoized: during streaming the message list re-renders on every chunk, but
+// only the streaming message's `message` reference changes. Bubbles whose
+// `message`/`onRetry` props are unchanged skip re-rendering (and so skip
+// re-parsing their markdown). Relies on unchanged messages keeping a stable
+// object identity across `setMessages` updates, and on `onRetry` being a stable
+// callback from the parent.
+export const MessageBubble = React.memo(MessageBubbleImpl);

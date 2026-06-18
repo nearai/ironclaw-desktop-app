@@ -17,9 +17,14 @@ import { ExtensionsPage } from '../pages/extensions/extensions-page.js';
 import { SettingsPage } from '../pages/settings/settings-page.js';
 import { AdminPage } from '../pages/admin/admin-page.js';
 import { LogsPage } from '../pages/logs/logs-page.js';
+import { isDesktopRuntime } from '../lib/api.js';
 import { appBasePath, appScopedPath } from '../lib/app-path.js';
 
-const unauthenticatedRoute = '/welcome';
+// Where RequireAuth sends an unauthenticated visitor. The desktop shell has no
+// hosted login surface, so it routes to the top-level `/welcome` onboarding;
+// the hosted web SPA routes to `/login`. Resolved once at module load from the
+// runtime so the route table is stable for a given build.
+const unauthenticatedRoute = isDesktopRuntime() ? '/welcome' : '/login';
 
 function AuthLoading() {
   return html`
@@ -82,6 +87,7 @@ function AuthenticatedLayout({ auth }) {
       <${GatewayLayout}
         token=${auth.token}
         profile=${auth.profile}
+        isChecking=${auth.isChecking}
         isAdmin=${auth.isAdmin}
         onSignOut=${auth.signOut}
       />
@@ -108,6 +114,7 @@ export function App() {
         <${Route} path="/" element=${html`<${AuthenticatedLayout} auth=${auth} />`}>
           <${Route} index element=${html`<${Navigate} to=${defaultRoute} replace />`} />
           <${Route} path="overview" element=${html`<${Navigate} to=${defaultRoute} replace />`} />
+          <${Route} path="welcome" element=${html`<${OnboardingPage} />`} />
           <${Route} path="chat" element=${html`<${ChatPage} />`} />
           <${Route} path="chat/:threadId" element=${html`<${ChatPage} />`} />
           <${Route} path="work" element=${html`<${WorkPage} />`} />

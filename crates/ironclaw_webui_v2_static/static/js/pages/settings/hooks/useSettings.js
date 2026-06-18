@@ -5,6 +5,7 @@ import {
   importSettings as importSettingsPayload,
   updateSetting
 } from '../lib/settings-api.js';
+import { throwIfApiFailed } from '../lib/api-result.js';
 import { RESTART_REQUIRED_KEYS } from '../lib/settings-schema.js';
 
 export function useSettings() {
@@ -16,22 +17,28 @@ export function useSettings() {
   });
 
   const settings = query.data?.settings || {};
-  // No v2 settings-write endpoint exists yet: `fetchSettingsExport`/`updateSetting`
-  // are stubs (`{ todo: true }` / `{ success: false }`). `status:'todo'` lets the
-  // consuming tabs gate their write controls behind a real backend instead of
-  // implying a capability the gateway cannot prove ("No fake readiness").
+  // No v2 settings-write endpoint exists yet: `fetchSettingsExport` may resolve
+  // with `{ todo: true }`. `status:'todo'` lets the consuming write tabs (agent,
+  // networking, inference) gate their controls behind a real backend instead of
+  // implying a capability the gateway cannot prove ("No fake readiness"). The
+  // save path itself stays guarded by `throwIfApiFailed`, so a `{ success: false }`
+  // write never flashes a fake "Saved" indicator.
   const status = query.data?.todo ? 'todo' : 'ready';
 
   const [savedKeys, setSavedKeys] = React.useState({});
   const [needsRestart, setNeedsRestart] = React.useState(false);
 
   const mutation = useMutation({
-    mutationFn: ({ key, value }) => updateSetting(key, value),
+    // A resolved response with `success: false` is a failed save, not a
+    // success — surface it so the UI shows the error rather than a fake
+    // "Saved" indicator (and never flips `needsRestart`).
+    mutationFn: async ({ key, value }) =>
+      throwIfApiFailed(await updateSetting(key, value), 'Save failed'),
     onSuccess: (data, { key, value }) => {
-      // The stub resolves the promise even though nothing persisted. Only treat a
-      // write as saved when the gateway actually confirms it — otherwise the
-      // "Saved" indicator and the restart banner would assert a change that never
-      // reached the backend.
+      // `throwIfApiFailed` already rejects an explicit `{ success: false }`, but a
+      // `{ todo: true }` stub resolves as a non-failure and would otherwise flash a
+      // fake "Saved" / flip `needsRestart`. Bail out before asserting a persisted
+      // change the gateway never actually made ("No fake readiness").
       if (data?.success === false || data?.todo) {
         return;
       }
@@ -61,6 +68,8 @@ export function useSettings() {
   const importMutation = useMutation({
     mutationFn: importSettingsPayload,
     onSuccess: (data, payload) => {
+      // Mirror the save gate: a stub import that resolves `{ success: false }` /
+      // `{ todo: true }` must not invalidate or assert a restart it never made.
       if (data?.success === false || data?.todo) {
         return;
       }
