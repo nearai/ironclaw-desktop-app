@@ -237,7 +237,7 @@ Targets used in our code: `ironclaw_tray`, `ironclaw_sidecar`, `ironclaw_keychai
 
 ## Pre-commit hooks
 
-`simple-git-hooks` runs `prettier --check` on changed files before commit (via `lint-staged` — see the `lint-staged` block in `package.json`). Pre-push runs the full `npm run check` + `npm run test` suite, which mirrors what CI runs in `.github/workflows/check.yml`.
+`simple-git-hooks` runs `prettier --check` on changed files before commit (via `lint-staged` — see the `lint-staged` block in `package.json`). Pre-push runs the static gate suite (`verify:static-frontend`, `check:static-bundle`, the static lints, `test:design-static`, the WebUI + gate-enforcement smokes, `test:a11y-static`, `test:static`, `test:scripts`), which mirrors what CI runs in `.github/workflows/check.yml`.
 
 Hooks auto-install on fresh clones: `npm install` triggers the `prepare` script, which runs `simple-git-hooks` and wires `.git/hooks/pre-commit` and `.git/hooks/pre-push`.
 
@@ -272,27 +272,25 @@ npm run tauri build -- --target universal-apple-darwin
 ## Static checks
 
 ```bash
-npm run check    # svelte-check + TypeScript
 npm run verify:static-frontend
+npm run prepare:webui-static # rebuild the esbuild static bundle + Tailwind CSS
 npm run smoke:webui-static # deterministic rendered UI smoke; does not prove live OAuth
-npm run test:e2e # default rendered static WebUI smoke
-npm run build    # vite frontend build (no Tauri compile)
+npm run test:static # node:test suites for the static React UI
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
 ### Accessibility
 
-`tests/e2e/a11y.spec.ts` is an automated axe-core sweep that visits every
-top-level surface (`/dashboard`, `/desk`, `/streams`, `/`, `/canvas`,
-`/knowledge`, `/memory`, `/skills`, `/routines`, `/jobs`, `/logs`,
-`/extensions`, `/admin`, `/settings`, `/missions`) and asserts the route has
-no critical/serious axe violations. Heading-less workspaces (chat, the Desk,
-the canvas) expose an `aria-label`'d region landmark on their root, which the
-sweep waits on instead of an `<h1>`. Runs in CI on every PR
-via `.github/workflows/e2e.yml` and locally via:
+`npm run test:a11y-static` (Playwright + `@axe-core/playwright`, config
+`playwright.static.config.ts`) is an automated axe-core sweep over the rendered
+static WebUI. It asserts each top-level surface has no critical/serious axe
+violations; heading-less workspaces (chat, the Desk, the canvas) expose an
+`aria-label`'d region landmark on their root, which the sweep waits on instead
+of an `<h1>`. Runs in CI on every PR via `.github/workflows/check.yml` and
+locally via:
 
 ```bash
-npm run test:e2e:legacy -- a11y.spec.ts
+npm run test:a11y-static
 ```
 
 How to read the output:
@@ -438,81 +436,21 @@ The script reads your configured SSH alias (`IRONCLAW_SSH_ALIAS`) and resolves
 the gateway token from the live IronClaw process env. Always exits 0 (it's a
 discovery tool, not a CI gate).
 
-## Bundle analysis
+## Bundle size budget (CI-enforced)
 
-The static-adapter output lives at `build/_app/immutable/` after `npm run
-build`. Four scripts under `scripts/` give you a zero-dep view of what
-shipped:
+`npm run check:static-bundle` (`scripts/check-static-bundle-size.mjs`) enforces
+gzipped-size ceilings on the shipped static WebUI assets under
+`crates/ironclaw_webui_v2_static/static`, measured against
+`scripts/static-bundle-budget.json` (main bundle, vendor boot, the lazy
+code/diagram/document/OCR groups, total, and largest asset). It runs on every
+PR via `.github/workflows/check.yml` after the static WebUI contract and smoke
+gates, and is part of the pre-push hook.
 
-```bash
-# Walk the build, report per-file raw + gzip size, line count, top-5 largest.
-# Writes /tmp/ironclaw-bundle-report.txt. Auto-runs `npm run build` if
-# build/ is missing (force a rebuild with FORCE_BUILD=1).
-bash scripts/analyze-bundle.sh
-
-# Diff the current build against scripts/bundle-baseline.json. Exits 3 if
-# total gzip grew >10% or any stable-path file grew >25%. Accept the new
-# sizes with UPDATE_BASELINE=1.
-bash scripts/bundle-compare.sh
-
-# Spin up the legacy Vite app on :1420, probe a handful of routes for TTFB
-# + total transfer time, count critical resources, kill the server. Writes
-# /tmp/ironclaw-perf-snapshot.txt. Smoke test only — not Lighthouse.
-bash scripts/perf-snapshot.sh
-```
-
-`scripts/bundle-baseline.json` is the committed reference for
-`bundle-compare.sh`. Refresh it intentionally after a release lands a real
-size change:
-
-```bash
-UPDATE_BASELINE=1 bash scripts/bundle-compare.sh
-```
-
-TODO: wire `bundle-compare.sh` into the PR workflow under
-`.github/workflows/` so each PR posts a bundle diff comment against
-`main`'s baseline. For v1 the scripts are local-only.
-
-### Bundle size budget (CI-enforced)
-
-`scripts/check-bundle-size.sh` enforces hard ceilings on the gzipped JS
-shipped to users. It sums `build/_app/immutable/{entry,chunks,nodes}/*.js`
-(CSS/fonts/images excluded — those rarely cause regressions) and compares
-against `scripts/bundle-budget.json`:
-
-```json
-{
-  "total_gzip_kb": 360,
-  "entry_gzip_kb": 6,
-  "largest_chunk_gzip_kb": 55
-}
-```
-
-Exit codes: `0` under budget, `1` over (fails CI), `2` within 90% of budget
-(warning — CI treats this as a soft signal, not a block). The check runs on
-every PR via `.github/workflows/check.yml` after the static WebUI contract and
-smoke gates.
-
-To run locally:
-
-```bash
-bash scripts/check-bundle-size.sh             # builds first, then checks
-SKIP_BUILD=1 bash scripts/check-bundle-size.sh   # use existing build/
-```
-
-**Bumping the budget intentionally.** When a feature legitimately needs the
-size (new vendor dep, new route bundle, etc.) and the bump survives a
-`bundle-compare.sh` sanity check, edit `scripts/bundle-budget.json` in the
-same PR that adds the dep. Convention: leave ~10% headroom above the new
-actuals so the next minor change doesn't immediately re-trip the gate. Keep
-the bump justified in the commit message so future reviewers can sanity-check
-the trade-off (a fat dep that landed for one feature is the kind of thing
-that should get noticed twice).
-
-If a bump is _not_ intentional — i.e. the check failed on your PR and you
-weren't expecting it — run `bash scripts/bundle-compare.sh` to see which
-files grew and decide whether the regression is fixable (lazy-load, tree-
-shake, drop the import) before raising the budget.
+**Bumping the budget intentionally.** When a feature legitimately needs the size
+(new vendor dep, new route surface), edit `scripts/static-bundle-budget.json` in
+the same PR and justify the bump in the commit message. Convention: leave a
+little headroom above the new actuals so the next minor change doesn't
+immediately re-trip the gate.
 
 ## Troubleshooting
 

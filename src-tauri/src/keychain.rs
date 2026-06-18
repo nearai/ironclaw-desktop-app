@@ -374,8 +374,8 @@ pub fn get_or_create_local_token(app: &AppHandle) -> Result<String, String> {
 // Validates the pure-function behavior of the file-fallback path
 // (account sanitisation, path layout, plaintext round-trip) without
 // touching the keychain or requiring an `AppHandle`. The Tauri-side
-// `pub fn get` / `pub fn set` are exercised via the JS-side vitest
-// suites and the live `scripts/dev-up.sh` smoke test.
+// `pub fn get` / `pub fn set` are exercised via the live
+// `scripts/dev-up.sh` smoke test.
 
 #[cfg(test)]
 mod tests {
