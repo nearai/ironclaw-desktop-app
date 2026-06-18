@@ -81,6 +81,9 @@ test('useChat.send: accepted ref reconciles pending message on timeline reload',
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       throw new Error('thread should already exist');
     },
@@ -224,6 +227,9 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       throw new Error('thread should already exist');
     },
@@ -295,16 +301,15 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
   for (const attachment of attachmentScenarios) {
     assert.equal(sentArgs.content.includes(attachment.base64), false);
   }
-  // The wire carries chip metadata but NO bytes: the Reborn byte-landing path
-  // (#4644) is incomplete and 500s on any data_base64 under the DevOnly
-  // composition, and the model reads the document only through the inlined
-  // durable block above. See attachmentsForWire / GATEWAY_LANDS_ATTACHMENT_BYTES.
+  // The wire carries bytes again: latest Reborn main lands first-class
+  // attachments while the durable block remains as the backward-compatible
+  // model-readable/reload path for older sidecars.
   assert.deepEqual(
     JSON.parse(JSON.stringify(sentArgs.attachments)),
     attachmentScenarios.map((attachment) => ({
       name: attachment.filename,
       mime_type: attachment.mime_type,
-      data_base64: '',
+      data_base64: attachment.base64,
       size: attachment.size
     }))
   );
@@ -366,6 +371,9 @@ test('useChat.cancelRun clears local state before cancel request resolves', asyn
       });
     },
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       throw new Error('createThread should not run');
     },
@@ -449,6 +457,9 @@ test('useChat.cancelRun completion does not clear a newer run', async () => {
         resolveCancelRequest = resolve;
       }),
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       throw new Error('createThread should not run');
     },
@@ -529,6 +540,9 @@ test('useChat.send: channel connect requests return an action without submitting
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       createThreadCalled = true;
       throw new Error('connect action should not create a thread');
@@ -608,6 +622,9 @@ test('useChat.send: extension connect requests show setup action without submitt
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       createThreadCalled = true;
       throw new Error('connect action should not create a thread');
@@ -679,6 +696,9 @@ test('useChat.send: unmatched channel connect requests submit the prompt', async
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       createThreadCalled = true;
       return { thread: { thread_id: 'thread-created' } };
@@ -764,6 +784,9 @@ test('useChat.send: connectable channel fetch failures fall back to extension se
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     console: {
       error: (...args) => loggedErrors.push(args)
     },
@@ -824,4 +847,155 @@ test('useChat.send: connectable channel fetch failures fall back to extension se
     '/extensions/registry?setup=1&focus=slack'
   );
   assert.equal(loggedErrors[0][0], 'Failed to resolve connectable channels:');
+});
+
+function createResolveGateContext({
+  stateUpdates = [],
+  resolveGateResponse = {
+    outcome: 'resumed',
+    run_id: 'run-1',
+    thread_id: 'thread-1',
+    status: 'queued'
+  }
+} = {}) {
+  const pendingGate = { runId: 'run-1', gateRef: 'gate-1' };
+  const context = {
+    AbortController,
+    TextEncoder,
+    Date,
+    Error,
+    Map,
+    Math,
+    React: createReactStub({
+      initialByIndex: new Map([
+        [2, { runId: 'run-1', threadId: 'thread-1', status: 'running' }],
+        [4, true],
+        [5, pendingGate]
+      ]),
+      setCalls: stateUpdates
+    }),
+    addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
+    flattenCachedThreads,
+    cancelRunRequest: async () => {},
+    clearTimeout,
+    createThreadRequest: async () => {
+      throw new Error('createThread should not run');
+    },
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    globalThis: {},
+    listConnectableChannels: async () => ({ channels: [] }),
+    looksLikeChannelConnectCommand,
+    queryClient: {
+      fetchQuery: async () => ({ channels: [] }),
+      invalidateQueries: () => {}
+    },
+    recordAcceptedMessageRef,
+    removePending,
+    replacePending,
+    resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
+    resolveGateRequest: async () => resolveGateResponse,
+    resetToolActivityState: () => {},
+    sendMessage: async () => {
+      throw new Error('sendMessage should not run');
+    },
+    setInterval,
+    setTimeout,
+    submitManualToken: async () => {},
+    toast: () => {},
+    useChatEvents: (args) => {
+      context.chatEventsArgs = args;
+      return () => {};
+    },
+    useHistory: () => ({
+      messages: [],
+      hasMore: false,
+      nextCursor: null,
+      isLoading: false,
+      loadHistory: () => {},
+      setMessages: () => {}
+    }),
+    useSSE: () => ({ status: 'idle' })
+  };
+  return context;
+}
+
+test('useChat.resolveGate: denied resumed gate keeps processing and activeRun', async () => {
+  const stateUpdates = [];
+  const context = createResolveGateContext({ stateUpdates });
+
+  vm.runInNewContext(useChatSourceForTest(), context);
+
+  const chat = context.globalThis.__testExports.useChat('thread-1');
+  await chat.resolveGate('denied');
+
+  assert.equal(stateUpdates.filter((u) => u.index === 5).at(-1).value, null);
+  assert.equal(stateUpdates.filter((u) => u.index === 4).at(-1).value, true);
+  assert.equal(
+    stateUpdates.some((u) => u.index === 2 && u.value === null),
+    false,
+    'resolveGate must not clear activeRun for resumed gates'
+  );
+  assert.deepEqual(
+    JSON.parse(
+      JSON.stringify(context.chatEventsArgs.locallyResolvedGatesRef.current.get('run-1\ngate-1'))
+    ),
+    { resolution: 'denied', outcome: 'resumed' }
+  );
+});
+
+test('useChat.resolveGate: cancelled resumed auth keeps processing until follow-up settles', async () => {
+  const stateUpdates = [];
+  const context = createResolveGateContext({ stateUpdates });
+
+  vm.runInNewContext(useChatSourceForTest(), context);
+
+  const chat = context.globalThis.__testExports.useChat('thread-1');
+  await chat.resolveGate('cancelled');
+
+  assert.equal(stateUpdates.filter((u) => u.index === 5).at(-1).value, null);
+  assert.equal(stateUpdates.filter((u) => u.index === 4).at(-1).value, true);
+  assert.equal(
+    stateUpdates.some((u) => u.index === 2 && u.value === null),
+    false,
+    'resolveGate must not clear activeRun for resumed auth gates'
+  );
+  assert.deepEqual(
+    JSON.parse(
+      JSON.stringify(context.chatEventsArgs.locallyResolvedGatesRef.current.get('run-1\ngate-1'))
+    ),
+    { resolution: 'cancelled', outcome: 'resumed' }
+  );
+});
+
+test('useChat.resolveGate: terminal cancelled clears processing and activeRun', async () => {
+  const stateUpdates = [];
+  const context = createResolveGateContext({
+    stateUpdates,
+    resolveGateResponse: {
+      outcome: 'cancelled',
+      run_id: 'run-1',
+      thread_id: 'thread-1',
+      status: 'cancelled'
+    }
+  });
+
+  vm.runInNewContext(useChatSourceForTest(), context);
+
+  const chat = context.globalThis.__testExports.useChat('thread-1');
+  await chat.resolveGate('cancelled');
+
+  assert.equal(stateUpdates.filter((u) => u.index === 5).at(-1).value, null);
+  assert.equal(stateUpdates.filter((u) => u.index === 4).at(-1).value, false);
+  assert.equal(stateUpdates.filter((u) => u.index === 2).at(-1).value, null);
+  assert.deepEqual(
+    JSON.parse(
+      JSON.stringify(context.chatEventsArgs.locallyResolvedGatesRef.current.get('run-1\ngate-1'))
+    ),
+    { resolution: 'cancelled', outcome: 'cancelled' }
+  );
 });

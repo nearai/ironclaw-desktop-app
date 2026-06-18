@@ -11,12 +11,11 @@ export { loadPdfjs } from './pdf-text-extract.js';
 
 // Client-side text extraction for binary documents.
 //
-// The bundled Reborn sidecar inlines TEXT attachments into the model's
-// context but has no binary extractors — a raw PDF/DOCX/XLSX payload never
-// reaches the model at all (it reports "no files attached"). Until the
-// sidecar grows real extraction, the composer extracts text here and ships
-// it as the attachment payload: original filename preserved for the thread,
-// mime text/plain so the backend inlines the content.
+// Latest Reborn main can land first-class attachment payloads, but desktop
+// keeps client-side extraction for large PDFs/DOCX/XLSX and older sidecars.
+// Extracted documents ship as text/plain payloads plus a durable manifest, so
+// the model can read them without forcing giant binary uploads through the
+// local WebView request path.
 
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 const DOCM_MIME = 'application/vnd.ms-word.document.macroEnabled.12';

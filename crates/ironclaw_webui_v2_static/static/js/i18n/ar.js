@@ -239,15 +239,23 @@ registerPack('ar', {
 
   'workspace.title': 'مساحة العمل',
   'workspace.subtitle': 'ذاكرة دائمة',
+  'workspace.readOnly': 'للقراءة فقط',
+  'workspace.filterPlaceholder': 'تصفية حسب الاسم...',
+  'workspace.emptyDir': 'هذا المجلد فارغ.',
   'workspace.refresh': 'تحديث',
   'workspace.refreshing': 'جارٍ التحديث',
   'workspace.loading': 'جارٍ التحميل...',
   'workspace.searching': 'جارٍ البحث...',
   'workspace.noResults': 'لا نتائج.',
   'workspace.noFiles': 'لا توجد ملفات في مساحة العمل.',
+  'workspace.noMatches': 'لا شيء يطابق هذا الفلتر.',
   'workspace.breadcrumbRoot': 'workspace',
   'workspace.pickFileTitle': 'اختر ملفًا من مساحة العمل',
-  'workspace.pickFileDesc': 'اختر وثيقة ذاكرة من الشجرة أو نتائج البحث لعرضها وتحريرها.',
+  'workspace.pickFileDesc': 'اختر ملفًا من الشجرة لمعاينته أو تنزيله. هذا العارض للقراءة فقط.',
+  'workspace.download': 'تنزيل',
+  'workspace.binaryPreviewUnavailable':
+    'لا توجد معاينة مضمنة لهذا النوع من الملفات. نزله لعرض المحتوى.',
+  'workspace.fileMeta': '{mime} - {size} بايت',
   'workspace.edit': 'تحرير',
   'workspace.cancel': 'إلغاء',
   'workspace.save': 'حفظ',
@@ -533,6 +541,8 @@ registerPack('ar', {
   'chat.modeAutoReview': 'مراجعة تلقائية',
   'chat.runtimeLocal': 'العمل محليًا',
   'chat.statusWorking': 'جارٍ العمل',
+  'chat.deleteFailed': 'تعذّر حذف هذه المحادثة.',
+  'chat.deleteBusy': 'لا يمكن حذف محادثة أثناء تشغيلها. أوقفها أولاً ثم حاول مرة أخرى.',
 
   // Extensions tabs — new v2 keys
   'extensions.installed': 'مثبتة',

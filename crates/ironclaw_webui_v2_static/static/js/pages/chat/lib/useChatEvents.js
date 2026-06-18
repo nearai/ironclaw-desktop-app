@@ -1,12 +1,9 @@
 import { React } from '../../../lib/html.js';
 import { gateFromEvent, gateFromProjection } from './gates.js';
-import {
-  isTerminalToolStatus,
-  toolCardFromActivity,
-  toolCardFromPreview
-} from './history-messages.js';
+import { toolCardFromActivity, toolCardFromPreview } from './history-messages.js';
 import { failureMessageForRunStatus } from './failureMessages.js';
 import { upsertRunFailureMessage } from './message-upsert.js';
+import { ensureGateToolActivity, upsertToolActivityMessage } from './tool-activity-state.js';
 
 // Handler factory for v2 `WebChatV2EventFrame` events.
 //
@@ -37,13 +34,19 @@ export function useChatEvents({
   setPendingGate,
   setActiveRun,
   activeRunRef,
+  locallyResolvedGatesRef,
+  toolActivityStateRef,
+  onRunSettled,
   onRunCompleted,
   onRunFailed
 }) {
-  // Track which runIds we've already announced completion for so that
-  // SSE replays (reconnect with `last-event-id`, repeated snapshots)
-  // don't trigger duplicate timeline refetches.
-  const completedRunsRef = React.useRef(new Set());
+  // Track which runIds we've already settled so that SSE replays
+  // (reconnect with `last-event-id`, repeated snapshots) don't trigger
+  // duplicate timeline refetches. A run settles on any terminal status,
+  // not only success — every terminal run reloads the timeline so tool
+  // input/output previews are recovered from the durable record even when
+  // the run failed, was cancelled, or needs recovery.
+  const settledRunsRef = React.useRef(new Set());
   // Last `run_status.run_id` we've observed, persisted across event
   // frames. Used by `applyProjectionItems` to correlate an `item.gate`
   // (which doesn't carry `run_id`) with the active run so resolveGate
@@ -93,8 +96,11 @@ export function useChatEvents({
           // upgrade the same bubble in place.
           const activity = frame.activity;
           if (!activity || !activity.invocation_id) return;
-          const card = toolCardFromActivity(activity);
-          upsertToolFromActivity(setMessages, activity.invocation_id, card);
+          upsertToolActivityMessage(
+            setMessages,
+            toolCardFromActivity(activity),
+            toolActivityStateRef
+          );
           return;
         }
 
@@ -106,7 +112,7 @@ export function useChatEvents({
           const preview = frame.preview;
           if (!preview || !preview.invocation_id) return;
           const card = toolCardFromPreview(preview);
-          upsertToolFromPreview(setMessages, preview.invocation_id, card);
+          upsertToolActivityMessage(setMessages, card, toolActivityStateRef);
           return;
         }
 
@@ -114,6 +120,7 @@ export function useChatEvents({
         case 'auth_required': {
           const pending = gateFromEvent(type, frame.prompt);
           if (pending) {
+            ensureGateToolActivity(setMessages, pending, toolActivityStateRef);
             setPendingGate(pending);
             setActiveRun?.({
               runId: pending.runId,
@@ -143,11 +150,28 @@ export function useChatEvents({
           return;
         }
 
-        case 'cancelled':
-        case 'failed': {
+        case 'cancelled': {
+          const runId = frame.run_state?.run_id || activeRunRef?.current?.runId || null;
           setPendingGate(null);
           setIsProcessing(false);
           setActiveRun?.(null);
+          settleRun({ settledRunsRef, onRunSettled, onRunCompleted, runId, success: false });
+          return;
+        }
+
+        case 'failed': {
+          const runState = frame.run_state || {};
+          const runId = runState.run_id || activeRunRef?.current?.runId || null;
+          setPendingGate(null);
+          setIsProcessing(false);
+          setActiveRun?.(null);
+          appendRunFailureMessage(setMessages, onRunFailed, {
+            runId,
+            status: runState.status || 'failed',
+            failureCategory: failureCategoryFromRunState(runState),
+            failureSummary: null
+          });
+          settleRun({ settledRunsRef, onRunSettled, onRunCompleted, runId, success: false });
           return;
         }
 
@@ -161,12 +185,15 @@ export function useChatEvents({
             setIsProcessing,
             setPendingGate,
             setActiveRun,
+            onRunSettled,
             onRunCompleted,
             onRunFailed,
-            completedRunsRef,
+            settledRunsRef,
             latestRunIdRef,
             promptRunIdRef,
-            activeRunRef
+            activeRunRef,
+            locallyResolvedGatesRef,
+            toolActivityStateRef
           });
           return;
         }
@@ -183,6 +210,9 @@ export function useChatEvents({
       setPendingGate,
       setActiveRun,
       activeRunRef,
+      locallyResolvedGatesRef,
+      toolActivityStateRef,
+      onRunSettled,
       onRunCompleted,
       onRunFailed
     ]
@@ -199,6 +229,14 @@ const TERMINAL_RUN_STATUSES = new Set([
 
 const SUCCESS_RUN_STATUSES = new Set(['completed', 'succeeded']);
 const PROMPT_RUN_STATUSES = new Set(['blocked_auth', 'blocked_approval', 'blocked_resource']);
+
+function settleRun({ settledRunsRef, onRunSettled, onRunCompleted, runId, success }) {
+  if (!runId || !settledRunsRef?.current) return;
+  if (settledRunsRef.current.has(runId)) return;
+  settledRunsRef.current.add(runId);
+  onRunSettled?.(runId, { success });
+  if (success) onRunCompleted?.(runId);
+}
 
 function clearPendingGateForRun(setPendingGate, runId, promptRunIdRef) {
   if (!runId) return;
@@ -228,12 +266,15 @@ function applyProjectionItems({
   setIsProcessing,
   setPendingGate,
   setActiveRun,
+  onRunSettled,
   onRunCompleted,
   onRunFailed,
-  completedRunsRef,
+  settledRunsRef,
   latestRunIdRef,
   promptRunIdRef,
-  activeRunRef
+  activeRunRef,
+  locallyResolvedGatesRef,
+  toolActivityStateRef
 }) {
   // Snapshot the run_id surfaced by the most recent `run_status` item
   // we've seen — either earlier in this same items batch, or carried
@@ -263,7 +304,64 @@ function applyProjectionItems({
       const isStaleTerminalStatus = Boolean(
         isTerminalStatus && runId && streamActiveRunId && streamActiveRunId !== runId
       );
-      if (isStaleLocalRunStatus || isStaleTerminalStatus) {
+      const locallyResolvedPromptState =
+        runId && PROMPT_RUN_STATUSES.has(status)
+          ? locallyResolvedStateForRun(locallyResolvedGatesRef, runId)
+          : null;
+      if (isStaleLocalRunStatus) {
+        continue;
+      }
+      if (isStaleTerminalStatus) {
+        const activeResolvedPromptState = locallyResolvedStateForRun(
+          locallyResolvedGatesRef,
+          activeRunRef?.current?.runId
+        );
+        if (activeResolvedPromptState?.outcome === 'resumed') {
+          settleTerminalRunAfterResolvedPrompt({
+            runId,
+            activePromptRunId: activeRunRef?.current?.runId,
+            success: SUCCESS_RUN_STATUSES.has(status),
+            status,
+            failureCategory,
+            failureSummary,
+            setMessages,
+            setIsProcessing,
+            setPendingGate,
+            setActiveRun,
+            onRunSettled,
+            onRunCompleted,
+            onRunFailed,
+            settledRunsRef,
+            latestRunIdRef,
+            promptRunIdRef,
+            locallyResolvedGatesRef
+          });
+          activeRunId = null;
+        }
+        continue;
+      }
+      if (locallyResolvedPromptState) {
+        clearPendingGateForRun(setPendingGate, runId, promptRunIdRef);
+        if (locallyResolvedPromptState.outcome === 'resumed') {
+          setIsProcessing(true);
+          setActiveRun?.((current) =>
+            current && current.runId === runId
+              ? {
+                  ...current,
+                  status: current.status === 'awaiting_gate' ? 'queued' : current.status || 'queued'
+                }
+              : { runId, threadId, status: 'queued' }
+          );
+          activeRunId = runId;
+          if (latestRunIdRef) latestRunIdRef.current = runId;
+        } else {
+          setIsProcessing(false);
+          if (activeRunRef?.current?.runId === runId) {
+            setActiveRun?.(null);
+          }
+          activeRunId = null;
+          if (latestRunIdRef?.current === runId) latestRunIdRef.current = null;
+        }
         continue;
       }
       if (runId) {
@@ -284,46 +382,30 @@ function applyProjectionItems({
         setIsProcessing(false);
         setPendingGate(null);
         setActiveRun?.(null);
+        clearLocallyResolvedRun(locallyResolvedGatesRef, runId);
         activeRunId = null;
         if (latestRunIdRef) latestRunIdRef.current = null;
         if (runId && promptRunIdRef?.current === runId) {
           promptRunIdRef.current = null;
         }
-        if (
-          SUCCESS_RUN_STATUSES.has(status) &&
-          onRunCompleted &&
-          runId &&
-          !completedRunsRef?.current.has(runId)
-        ) {
-          // Reborn's projection bridge does not currently emit `Text`
-          // items for assistant replies — the reply lives only in the
-          // thread timeline. Trigger a timeline refetch on terminal
-          // success so the assistant message becomes visible. Dedup
-          // by runId because SSE replays the same projection on every
-          // reconnect.
-          completedRunsRef.current.add(runId);
-          onRunCompleted(runId);
-        }
+        settleRun({
+          settledRunsRef,
+          onRunSettled,
+          onRunCompleted,
+          runId,
+          success: SUCCESS_RUN_STATUSES.has(status)
+        });
         if (status === 'failed' || status === 'recovery_required') {
-          const content = failureMessageForRunStatus({
+          appendRunFailureMessage(setMessages, onRunFailed, {
+            runId,
             status,
             failureCategory,
             failureSummary
           });
-          // Dedup by `err-<runId>` so replays of the same projection
-          // (SSE reconnect with `last-event-id`, or repeated updates
-          // carrying the same terminal status) collapse to one
-          // bubble instead of stacking.
-          upsertRunFailureMessage(setMessages, {
-            runId,
-            content,
-            source: 'run_status',
-            timestamp: new Date().toISOString()
-          });
-          onRunFailed?.({ runId, status, failureCategory, failureSummary, content });
         }
       } else if (!PROMPT_RUN_STATUSES.has(status)) {
         clearPendingGateForRun(setPendingGate, runId, promptRunIdRef);
+        clearLocallyResolvedRun(locallyResolvedGatesRef, runId);
         setIsProcessing(true);
       }
     }
@@ -378,8 +460,11 @@ function applyProjectionItems({
     if (item.capability_activity) {
       const activity = item.capability_activity;
       if (activity.invocation_id) {
-        const card = toolCardFromActivity(activity);
-        upsertToolFromActivity(setMessages, activity.invocation_id, card);
+        upsertToolActivityMessage(
+          setMessages,
+          toolCardFromActivity(activity),
+          toolActivityStateRef
+        );
       }
     }
 
@@ -391,7 +476,11 @@ function applyProjectionItems({
       // construction in `api.js`), so skip emitting the gate entirely
       // if no run is active yet — a later projection_update will
       // re-surface it once a run_status arrives.
-      if (activeRunId && promptRunIdRef?.current === activeRunId) {
+      if (
+        activeRunId &&
+        promptRunIdRef?.current === activeRunId &&
+        !isLocallyResolvedGate(locallyResolvedGatesRef, activeRunId, item.gate.gate_ref)
+      ) {
         const pending = gateFromProjection(activeRunId, item.gate);
         if (pending) setPendingGate((current) => current || pending);
         setIsProcessing(false);
@@ -428,43 +517,108 @@ function applyProjectionItems({
   }
 }
 
-function upsertToolFromPreview(setMessages, invocationId, card) {
-  const id = `tool-${invocationId}`;
-  const message = { id, role: 'tool_activity', ...card };
-  setMessages((prev) => {
-    const existing = prev.findIndex((m) => m.id === id);
-    if (existing >= 0) {
-      const copy = [...prev];
-      copy[existing] = message;
-      return copy;
-    }
-    return [...prev, message];
-  });
+function settleTerminalRunAfterResolvedPrompt({
+  runId,
+  activePromptRunId,
+  success,
+  status,
+  failureCategory,
+  failureSummary,
+  setMessages,
+  setIsProcessing,
+  setPendingGate,
+  setActiveRun,
+  onRunSettled,
+  onRunCompleted,
+  onRunFailed,
+  settledRunsRef,
+  latestRunIdRef,
+  promptRunIdRef,
+  locallyResolvedGatesRef
+}) {
+  setIsProcessing(false);
+  setPendingGate(null);
+  setActiveRun?.(null);
+  clearLocallyResolvedRun(locallyResolvedGatesRef, activePromptRunId);
+  if (latestRunIdRef) latestRunIdRef.current = null;
+  if (promptRunIdRef?.current === activePromptRunId) {
+    promptRunIdRef.current = null;
+  }
+  settleRun({ settledRunsRef, onRunSettled, onRunCompleted, runId, success });
+  if (status === 'failed' || status === 'recovery_required') {
+    appendRunFailureMessage(setMessages, onRunFailed, {
+      runId,
+      status,
+      failureCategory,
+      failureSummary
+    });
+  }
 }
 
-function upsertToolFromActivity(setMessages, invocationId, card) {
-  const id = `tool-${invocationId}`;
-  setMessages((prev) => {
-    const existing = prev.findIndex((m) => m.id === id);
-    if (existing >= 0) {
-      const current = prev[existing];
-      // A late lifecycle frame can carry `running` after the preview
-      // already set `success` / `error`. Don't downgrade terminal
-      // state — but do let the next terminal state through.
-      const nextStatus =
-        isTerminalToolStatus(current.toolStatus) && card.toolStatus === 'running'
-          ? current.toolStatus
-          : card.toolStatus;
-      const copy = [...prev];
-      copy[existing] = {
-        ...current,
-        toolStatus: nextStatus,
-        toolError: card.toolError || current.toolError,
-        updatedAt: card.updatedAt || current.updatedAt,
-        turnRunId: card.turnRunId || current.turnRunId || null
-      };
-      return copy;
-    }
-    return [...prev, { id, role: 'tool_activity', ...card }];
+function failureCategoryFromRunState(runState) {
+  const failure = runState?.failure;
+  if (typeof failure === 'string' && failure.trim()) return failure.trim();
+  if (
+    failure &&
+    typeof failure === 'object' &&
+    typeof failure.category === 'string' &&
+    failure.category.trim()
+  ) {
+    return failure.category.trim();
+  }
+  return null;
+}
+
+function appendRunFailureMessage(
+  setMessages,
+  onRunFailed,
+  { runId, status, failureCategory, failureSummary }
+) {
+  const content = failureMessageForRunStatus({
+    status,
+    failureCategory,
+    failureSummary
   });
+  upsertRunFailureMessage(setMessages, {
+    runId,
+    content,
+    source: 'run_status',
+    timestamp: new Date().toISOString()
+  });
+  onRunFailed?.({ runId, status, failureCategory, failureSummary, content });
+}
+
+function locallyResolvedStateForRun(locallyResolvedGatesRef, runId) {
+  if (!runId) return null;
+  const resolved = locallyResolvedGatesRef?.current;
+  if (!resolved) return null;
+  for (const [key, value] of resolved.entries()) {
+    if (!key.startsWith(`${runId}\n`)) continue;
+    return normalizeLocallyResolvedState(value);
+  }
+  return null;
+}
+
+function normalizeLocallyResolvedState(value) {
+  if (value && typeof value === 'object') {
+    return {
+      resolution: value.resolution || null,
+      outcome: value.outcome || null
+    };
+  }
+  return { resolution: value || null, outcome: null };
+}
+
+function clearLocallyResolvedRun(locallyResolvedGatesRef, runId) {
+  if (!runId) return;
+  const resolved = locallyResolvedGatesRef?.current;
+  if (!resolved) return;
+  for (const key of Array.from(resolved.keys())) {
+    if (key.startsWith(`${runId}\n`)) resolved.delete(key);
+  }
+}
+
+function isLocallyResolvedGate(locallyResolvedGatesRef, runId, gateRef) {
+  if (!runId || !gateRef) return false;
+  return Boolean(locallyResolvedGatesRef?.current?.has(`${runId}\n${gateRef}`));
 }

@@ -1,21 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { React } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
-import {
-  listWorkspace,
-  requireWorkspaceWriteSuccess,
-  readWorkspaceFile,
-  searchWorkspace,
-  writeWorkspaceFile
-} from '../lib/workspace-api.js';
+import { listWorkspace, readWorkspaceFile } from '../lib/workspace-api.js';
 
 export function useWorkspaceBrowser(selectedPath) {
   const t = useT();
   const queryClient = useQueryClient();
   const [expandedPaths, setExpandedPaths] = React.useState(new Set());
-  const [search, setSearch] = React.useState('');
-  const [editing, setEditing] = React.useState(false);
-  const [draft, setDraft] = React.useState('');
+  const [filter, setFilter] = React.useState('');
   const [result, setResult] = React.useState(null);
 
   const rootQuery = useQuery({
@@ -29,20 +21,15 @@ export function useWorkspaceBrowser(selectedPath) {
     enabled: Boolean(selectedPath)
   });
 
-  const searchQuery = useQuery({
-    queryKey: ['workspace-search', search.trim()],
-    queryFn: () => searchWorkspace(search.trim(), 20),
-    enabled: search.trim().length > 0
+  const selectionIsDirectory = selectedPath === '' || fileQuery.data?.kind === 'directory';
+
+  const listingQuery = useQuery({
+    queryKey: ['workspace-list', selectedPath],
+    queryFn: () => listWorkspace(selectedPath),
+    enabled: selectionIsDirectory
   });
 
   React.useEffect(() => {
-    if (fileQuery.data?.content != null && !editing) {
-      setDraft(fileQuery.data.content);
-    }
-  }, [editing, fileQuery.data?.content]);
-
-  React.useEffect(() => {
-    setEditing(false);
     setResult(null);
   }, [selectedPath]);
 
@@ -68,49 +55,32 @@ export function useWorkspaceBrowser(selectedPath) {
       try {
         await loadDirectory(path);
       } catch (error) {
-        setResult({ type: 'error', message: error.message || t('workspace.unableOpenDirectory') });
+        setResult({
+          type: 'error',
+          message: error.message || t('workspace.unableOpenDirectory')
+        });
       }
     },
-    [expandedPaths, loadDirectory]
+    [expandedPaths, loadDirectory, t]
   );
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const response = await writeWorkspaceFile({ path: selectedPath, content: draft });
-      return requireWorkspaceWriteSuccess(response, t('workspace.unableSaveFile'));
-    },
-    onSuccess: () => {
-      setEditing(false);
-      setResult({ type: 'success', message: t('workspace.savedPath', { path: selectedPath }) });
-      queryClient.invalidateQueries({ queryKey: ['workspace-file', selectedPath] });
-      queryClient.invalidateQueries({ queryKey: ['workspace-list'] });
-    },
-    onError: (error) => {
-      setResult({ type: 'error', message: error.message || t('workspace.unableSaveFile') });
-    }
-  });
 
   return {
     rootEntries: rootQuery.data?.entries || [],
     file: fileQuery.data || null,
-    searchResults: searchQuery.data?.results || [],
+    selectionIsDirectory,
+    currentEntries: listingQuery.data?.entries || [],
     expandedPaths,
-    search,
-    setSearch,
-    editing,
-    setEditing,
-    draft,
-    setDraft,
+    filter,
+    setFilter,
     result,
     clearResult: () => setResult(null),
     isLoadingTree: rootQuery.isLoading,
     isLoadingFile: fileQuery.isLoading,
-    isSearching: searchQuery.isFetching,
-    isSaving: saveMutation.isPending,
-    error: rootQuery.error || fileQuery.error || searchQuery.error || null,
+    isLoadingListing: listingQuery.isLoading,
+    isFetching: rootQuery.isFetching || fileQuery.isFetching || listingQuery.isFetching,
+    error: rootQuery.error || fileQuery.error || listingQuery.error || null,
     loadDirectory,
     toggleDirectory,
-    save: saveMutation.mutateAsync,
     refresh: () => {
       queryClient.invalidateQueries({ queryKey: ['workspace-list'] });
       queryClient.invalidateQueries({ queryKey: ['workspace-file', selectedPath] });

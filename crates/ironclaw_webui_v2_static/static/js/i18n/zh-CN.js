@@ -238,6 +238,9 @@ registerPack('zh-CN', {
 
   'workspace.title': '工作区',
   'workspace.subtitle': '持久记忆',
+  'workspace.readOnly': '只读',
+  'workspace.filterPlaceholder': '按名称筛选...',
+  'workspace.emptyDir': '此文件夹为空。',
   'workspace.refresh': '刷新',
   'workspace.refreshing': '刷新中',
 
@@ -245,9 +248,13 @@ registerPack('zh-CN', {
   'workspace.searching': '搜索中...',
   'workspace.noResults': '无结果。',
   'workspace.noFiles': '工作区中没有文件。',
+  'workspace.noMatches': '没有符合筛选条件的内容。',
   'workspace.breadcrumbRoot': 'workspace',
   'workspace.pickFileTitle': '选择一个工作区文件',
-  'workspace.pickFileDesc': '从树或搜索结果中选择一份记忆文档以查看和编辑。',
+  'workspace.pickFileDesc': '从目录树中选择文件以预览或下载。此查看器为只读。',
+  'workspace.download': '下载',
+  'workspace.binaryPreviewUnavailable': '此文件类型无法内联预览。请下载后查看内容。',
+  'workspace.fileMeta': '{mime} - {size} 字节',
   'workspace.edit': '编辑',
   'workspace.cancel': '取消',
   'workspace.save': '保存',
@@ -528,6 +535,8 @@ registerPack('zh-CN', {
   'chat.modeAutoReview': '自动审查',
   'chat.runtimeLocal': '本地工作',
   'chat.statusWorking': '正在工作',
+  'chat.deleteFailed': '无法删除此对话。',
+  'chat.deleteBusy': '对话正在运行时无法删除。请先停止它，然后重试。',
 
   // Extensions tabs — new v2 keys
   'extensions.installed': '已安装',

@@ -240,6 +240,9 @@ registerPack('ko', {
 
   'workspace.title': '워크스페이스',
   'workspace.subtitle': '영구 메모리',
+  'workspace.readOnly': '읽기 전용',
+  'workspace.filterPlaceholder': '이름으로 필터링...',
+  'workspace.emptyDir': '이 폴더는 비어 있습니다.',
   'workspace.refresh': '새로고침',
   'workspace.refreshing': '새로고침 중',
 
@@ -247,9 +250,15 @@ registerPack('ko', {
   'workspace.searching': '검색 중...',
   'workspace.noResults': '결과 없음.',
   'workspace.noFiles': '워크스페이스에 파일이 없습니다.',
+  'workspace.noMatches': '필터와 일치하는 항목이 없습니다.',
   'workspace.breadcrumbRoot': 'workspace',
   'workspace.pickFileTitle': '워크스페이스 파일 선택',
-  'workspace.pickFileDesc': '트리 또는 검색 결과에서 메모리 문서를 선택해 확인하고 편집하세요.',
+  'workspace.pickFileDesc':
+    '트리에서 파일을 선택해 미리 보거나 다운로드하세요. 이 뷰어는 읽기 전용입니다.',
+  'workspace.download': '다운로드',
+  'workspace.binaryPreviewUnavailable':
+    '이 파일 형식은 인라인 미리보기를 지원하지 않습니다. 내용을 보려면 다운로드하세요.',
+  'workspace.fileMeta': '{mime} - {size}바이트',
   'workspace.edit': '편집',
   'workspace.cancel': '취소',
   'workspace.save': '저장',
@@ -537,6 +546,8 @@ registerPack('ko', {
   'chat.modeAutoReview': '자동 리뷰',
   'chat.runtimeLocal': '로컬에서 작업',
   'chat.statusWorking': '작업 중',
+  'chat.deleteFailed': '이 대화를 삭제하지 못했습니다.',
+  'chat.deleteBusy': '실행 중인 대화는 삭제할 수 없습니다. 먼저 중지한 후 다시 시도하세요.',
 
   // Extensions tabs — new v2 keys
   'extensions.installed': '설치됨',

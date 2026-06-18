@@ -106,6 +106,63 @@ test('gateFromEvent keeps explicit flat parameters ahead of approval_context fal
   assert.equal(gate.parameters, '{\n  "to": "legal@example.com"\n}');
 });
 
+test('gateFromEvent keeps modern auth prompts without challenge kind off token card', () => {
+  const gate = gateFromEvent('auth_required', {
+    turn_run_id: 'run-auth',
+    auth_request_ref: 'gate:auth',
+    headline: 'Authentication required',
+    body: 'Google authentication required',
+    provider: 'google'
+  });
+
+  assert.deepEqual(gate, {
+    kind: 'auth_required',
+    challengeKind: 'other',
+    runId: 'run-auth',
+    gateRef: 'gate:auth',
+    provider: 'google',
+    accountLabel: '',
+    authorizationUrl: null,
+    expiresAt: null,
+    headline: 'Authentication required',
+    body: 'Google authentication required'
+  });
+});
+
+test('gateFromEvent preserves explicit oauth prompts without authorization URL', () => {
+  const gate = gateFromEvent('auth_required', {
+    turn_run_id: 'run-auth',
+    auth_request_ref: 'gate:auth',
+    headline: 'Authentication required',
+    body: 'Google authentication required',
+    challenge_kind: 'oauth_url',
+    provider: 'google'
+  });
+
+  assert.deepEqual(gate, {
+    kind: 'auth_required',
+    challengeKind: 'oauth_url',
+    runId: 'run-auth',
+    gateRef: 'gate:auth',
+    provider: 'google',
+    accountLabel: '',
+    authorizationUrl: null,
+    expiresAt: null,
+    headline: 'Authentication required',
+    body: 'Google authentication required'
+  });
+});
+
+test('gateFromEvent preserves legacy auth prompts as manual token prompts', () => {
+  assert.equal(
+    gateFromEvent('auth_required', {
+      turn_run_id: 'run-auth',
+      auth_request_ref: 'gate:auth'
+    }).challengeKind,
+    'manual_token'
+  );
+});
+
 test('gateFromProjection keeps projected gate honest without fabricating tool metadata', () => {
   const gate = gateFromProjection('run-2', {
     gate_ref: 'gate-2',

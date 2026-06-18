@@ -101,12 +101,18 @@ function renderChatInput({
       }
     },
     addFiles: () => {},
+    authScope: () => 'test-scope',
+    clearDraft: () => {},
     clearAttachments: () => {},
+    clearStagedAttachments: () => {},
     formatSize: (size) => String(size),
+    getDraft: () => '',
     globalThis: {},
     html: (strings, ...values) => ({ strings: Array.from(strings), values }),
+    NEW_DRAFT_KEY: '__new__',
     removeAttachment: () => {},
     removeImage: () => {},
+    setDraft: () => {},
     useComposerAttachments: () => ({
       images: [],
       attachments: [],
@@ -132,7 +138,14 @@ function renderChatInput({
         .replace('glm-4.5', 'GLM 4.5'),
     setActiveLlm: async () => ({}),
     gatewayStatus: () => ({}),
-    window: { requestAnimationFrame: (fn) => fn() }
+    window: {
+      clearTimeout: () => {},
+      requestAnimationFrame: (fn) => fn(),
+      setTimeout: (fn) => {
+        fn();
+        return 1;
+      }
+    }
   };
 
   vm.runInNewContext(chatInputSourceForTest(), context);

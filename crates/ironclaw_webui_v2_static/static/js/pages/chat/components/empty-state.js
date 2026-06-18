@@ -74,6 +74,7 @@ export function EmptyState({
   disabled,
   initialText,
   resetKey,
+  draftKey: composerDraftKey,
   context,
   statusText,
   canCancel,
@@ -128,10 +129,10 @@ export function EmptyState({
   const providerSetupFailed = Boolean(!providersSnapshot && providersQuery.error);
 
   const [draft, setDraft] = React.useState('');
-  const [draftKey, setDraftKey] = React.useState(0);
+  const [draftResetKey, setDraftResetKey] = React.useState(0);
   const prefill = (text) => {
     setDraft(text);
-    setDraftKey((key) => key + 1);
+    setDraftResetKey((key) => key + 1);
   };
 
   const suggestions = [
@@ -194,7 +195,7 @@ export function EmptyState({
 
   return html`
     <div
-      className="v2-page-entrance flex min-h-0 flex-1 items-center overflow-y-auto px-4 py-6 sm:px-8 lg:px-12"
+      className="v2-page-entrance flex min-h-0 flex-1 items-start overflow-y-auto px-4 py-6 sm:px-8 lg:px-12"
     >
       <div
         className="mx-auto grid w-full max-w-6xl gap-7 lg:grid-cols-[1.08fr_0.92fr] lg:items-start"
@@ -283,7 +284,8 @@ export function EmptyState({
             onSend=${onSend}
             disabled=${disabled}
             initialText=${draft || initialText}
-            resetKey=${`${resetKey}-${draftKey}`}
+            resetKey=${`${resetKey}-${draftResetKey}`}
+            draftKey=${composerDraftKey}
             variant="hero"
             context=${context}
             statusText=${statusText}
@@ -294,7 +296,7 @@ export function EmptyState({
           ${setupBlocked &&
           html`
             <div
-              className="mt-3 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
+              className="mt-3 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
             >
               <div className="text-sm font-semibold text-[var(--v2-text-strong)]">
                 Connect NEAR AI Cloud once, then ask naturally.
@@ -304,7 +306,7 @@ export function EmptyState({
               </div>
               <${Link}
                 to="/settings/inference"
-                className="mt-3 inline-flex h-11 items-center rounded-[8px] bg-[var(--v2-accent-btn)] px-4 text-sm font-semibold text-white"
+                className="mt-3 inline-flex h-10 items-center rounded-[8px] bg-[var(--v2-accent-btn)] px-4 text-sm font-semibold text-white v2-force-white"
               >
                 Open setup
               <//>
@@ -328,14 +330,14 @@ export function EmptyState({
                   disabled=${suggestionsBlocked}
                   onClick=${() => prefill(item.prompt)}
                   className=${[
-                    'v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-3 text-left',
+                    'v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-3 py-3 text-left shadow-[var(--v2-shadow-sm)]',
                     suggestionsBlocked
                       ? 'cursor-not-allowed opacity-60'
                       : 'hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))]'
                   ].join(' ')}
                 >
                   <span
-                    className="grid h-8 w-8 place-items-center rounded-[8px] border border-[var(--v2-panel-border)] text-[var(--v2-text-muted)] group-hover:border-[var(--v2-accent)] group-hover:text-[var(--v2-accent-text)]"
+                    className="grid h-8 w-8 place-items-center rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] group-hover:border-[var(--v2-accent)] group-hover:text-[var(--v2-accent-text)]"
                   >
                     <${Icon} name=${item.icon} className="h-4 w-4" />
                   </span>
@@ -365,7 +367,7 @@ export function EmptyState({
 function FrontDoorPanel({ sinceAway = [], sinceAwayTotal = 0, needsYou, needsYouTotal, handled }) {
   return html`
     <div
-      className="mt-4 grid gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
+      className="mt-4 grid gap-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3 shadow-[var(--v2-card-shadow)]"
       data-testid="frontdoor-panel"
     >
       ${sinceAway.length > 0 &&
@@ -438,9 +440,9 @@ function FrontDoorSection({
                   <${Link}
                     key=${item.id}
                     to=${item.href}
-                    className="grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 hover:border-[color-mix(in_srgb,var(--v2-accent)_42%,var(--v2-panel-border))]"
+                    className="grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 hover:border-[color-mix(in_srgb,var(--v2-accent)_42%,var(--v2-panel-border))]"
                   >
-                    <span className=${`grid h-8 w-8 place-items-center rounded-[8px] ${toneClass}`}>
+                    <span className=${`grid h-8 w-8 place-items-center rounded-[7px] ${toneClass}`}>
                       <${Icon} name=${item.icon} className="h-4 w-4" />
                     </span>
                     <span className="min-w-0">
@@ -481,7 +483,7 @@ function FrontDoorSection({
             `
           : html`
               <div
-                className="rounded-[8px] border border-dashed border-[var(--v2-panel-border)] px-3 py-2"
+                className="rounded-[7px] border border-dashed border-[var(--v2-panel-border)] px-3 py-2"
               >
                 <div className="text-sm font-semibold text-[var(--v2-text-strong)]">
                   ${emptyTitle}

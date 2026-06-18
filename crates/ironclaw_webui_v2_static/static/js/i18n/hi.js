@@ -240,16 +240,24 @@ registerPack('hi', {
 
   'workspace.title': 'Workspace',
   'workspace.subtitle': 'Persistent memory',
+  'workspace.readOnly': 'Read-only',
+  'workspace.filterPlaceholder': 'Filter by name...',
+  'workspace.emptyDir': 'This folder is empty.',
   'workspace.refresh': 'Refresh',
   'workspace.refreshing': 'Refreshing',
   'workspace.loading': 'Loading...',
   'workspace.searching': 'Searching...',
   'workspace.noResults': 'No results.',
   'workspace.noFiles': 'No files in workspace.',
+  'workspace.noMatches': 'Nothing matches that filter.',
   'workspace.breadcrumbRoot': 'workspace',
   'workspace.pickFileTitle': 'Pick a workspace file',
   'workspace.pickFileDesc':
-    'Tree या search results से memory document चुनें ताकि उसे inspect और edit किया जा सके।',
+    'Preview या download के लिए tree से file चुनें। यह viewer read-only है।',
+  'workspace.download': 'Download',
+  'workspace.binaryPreviewUnavailable':
+    'इस file type के लिए inline preview नहीं है। Content देखने के लिए download करें।',
+  'workspace.fileMeta': '{mime} - {size} bytes',
   'workspace.edit': 'Edit',
   'workspace.cancel': 'Cancel',
   'workspace.save': 'Save',
@@ -537,6 +545,8 @@ registerPack('hi', {
   'chat.modeAutoReview': 'ऑटो-रिव्यू',
   'chat.runtimeLocal': 'स्थानीय रूप से काम करें',
   'chat.statusWorking': 'काम हो रहा है',
+  'chat.deleteFailed': 'यह बातचीत हटाई नहीं जा सकी.',
+  'chat.deleteBusy': 'चल रही बातचीत को हटाया नहीं जा सकता. पहले उसे रोकें, फिर दोबारा कोशिश करें.',
 
   // Extensions tabs — new v2 keys
   'extensions.installed': 'इंस्टॉल किए गए',

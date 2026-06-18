@@ -338,6 +338,32 @@ async function parseErrorBody(response) {
   }
 }
 
+function humanizeErrorToken(token) {
+  return String(token)
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/^\w/, (char) => char.toUpperCase());
+}
+
+export function describeApiError({ payload, body, statusText } = {}) {
+  if (payload && typeof payload === 'object') {
+    if (payload.validation_code) {
+      const base = humanizeErrorToken(payload.validation_code);
+      return payload.field ? `${base} (${payload.field})` : base;
+    }
+    const code = payload.kind || payload.error;
+    if (code) {
+      const base = humanizeErrorToken(code);
+      return payload.field ? `${base} (${payload.field})` : base;
+    }
+  }
+  const trimmed = String(body || '').trim();
+  if (trimmed && trimmed.length <= 200 && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return trimmed;
+  }
+  return statusText || 'Request failed';
+}
+
 export async function apiFetch(path, options = {}) {
   const token = readStoredToken();
   const headers = new Headers(options.headers || {});
@@ -357,7 +383,7 @@ export async function apiFetch(path, options = {}) {
 
   if (!response.ok) {
     const { text, payload } = await parseErrorBody(response);
-    throw new ApiError(text || response.statusText, {
+    throw new ApiError(describeApiError({ payload, body: text, statusText: response.statusText }), {
       status: response.status,
       statusText: response.statusText,
       body: text,
@@ -388,6 +414,15 @@ export function listThreads({ limit, cursor } = {}) {
   return apiFetch(url.pathname + url.search);
 }
 
+export function deleteThread({ threadId } = {}) {
+  if (!threadId) {
+    return Promise.reject(new Error('threadId is required'));
+  }
+  return apiFetch(`${V2_BASE}/threads/${encodeURIComponent(threadId)}`, {
+    method: 'DELETE'
+  });
+}
+
 // --- Project filesystem (download / navigation) ---
 
 function projectFilesBase(threadId) {
@@ -413,31 +448,48 @@ export function statProjectFile({ threadId, path } = {}) {
   return apiFetch(url.pathname + url.search);
 }
 
-// Fetch a project file's bytes as a Blob. The content route is bearer-only, so
-// a plain `<a download>` cannot carry the token — callers fetch here and hand
-// the Blob to `lib/save-file.js::saveBlob` to trigger the native save.
-//
-// Routes through the same gateway transport as `apiFetch` (gatewayFetch +
-// gatewayUrl + dynamic credentials) so the request reaches the desktop sidecar
-// origin and the Tauri HTTP shim, not the WebView origin. `apiFetch` itself
-// can't be reused here — it parses JSON/text, and we need the raw Blob.
-export async function fetchProjectFileBlob({ threadId, path } = {}) {
+// Relative content URL for authenticated byte fetches. Callers pass this to
+// fetchAttachmentBlob so the bearer token is attached; a raw <a href> cannot
+// access the sidecar-only project file route.
+export function projectFileContentUrl({ threadId, path } = {}) {
   if (!threadId || !path) {
-    throw new Error('threadId and path are required');
+    throw new Error('projectFileContentUrl requires threadId and path');
   }
+  const url = new URL(`${projectFilesBase(threadId)}/content`, window.location.origin);
+  url.searchParams.set('path', path);
+  return url.pathname + url.search;
+}
+
+function relativeGatewayPath(path) {
+  const url = new URL(path, window.location.origin);
+  if (url.origin !== window.location.origin) {
+    throw new ApiError('Invalid attachment URL.', {
+      status: 400,
+      statusText: 'Bad Request'
+    });
+  }
+  return url.pathname + url.search;
+}
+
+// Fetch bearer-protected bytes as a Blob. This is intentionally broader than
+// message attachments: Reborn main also serves project files and the read-only
+// filesystem viewer through relative `/api/webchat/v2/*/content` paths.
+// Routes through the same gateway transport as `apiFetch` (gatewayFetch +
+// gatewayUrl + dynamic credentials) so desktop requests reach the sidecar
+// origin and the Tauri HTTP shim, not the WebView origin.
+export async function fetchAttachmentBlob(path) {
+  const relativePath = relativeGatewayPath(path);
   const token = readStoredToken();
   const headers = new Headers();
   headers.set('Accept', 'application/octet-stream');
   if (token) headers.set('Authorization', `Bearer ${token}`);
-  const url = new URL(`${projectFilesBase(threadId)}/content`, window.location.origin);
-  url.searchParams.set('path', path);
-  const response = await gatewayFetch(gatewayUrl(url.pathname + url.search), {
+  const response = await gatewayFetch(gatewayUrl(relativePath), {
     credentials: gatewayOrigin() ? 'omit' : 'same-origin',
     headers
   });
   if (!response.ok) {
     const { text, payload } = await parseErrorBody(response);
-    throw new ApiError(text || response.statusText, {
+    throw new ApiError(describeApiError({ payload, body: text, statusText: response.statusText }), {
       status: response.status,
       statusText: response.statusText,
       body: text,
@@ -448,13 +500,84 @@ export async function fetchProjectFileBlob({ threadId, path } = {}) {
   return response.blob();
 }
 
+export function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error('attachment read failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+export async function fetchAttachmentDataUrl(path) {
+  return blobToDataUrl(await fetchAttachmentBlob(path));
+}
+
+// Fetch a project file's bytes as a Blob. The content route is bearer-only, so
+// a plain `<a download>` cannot carry the token — callers fetch here and hand
+// the Blob to `lib/save-file.js::saveBlob` to trigger the native save.
+export async function fetchProjectFileBlob({ threadId, path } = {}) {
+  if (!threadId || !path) {
+    throw new Error('threadId and path are required');
+  }
+  return fetchAttachmentBlob(projectFileContentUrl({ threadId, path }));
+}
+
 // --- Automations ---
 
-export function listAutomations({ limit } = {}) {
+export function listAutomations({ limit, runLimit } = {}) {
   const params = new URLSearchParams();
   if (limit != null) params.set('limit', String(limit));
+  if (runLimit != null) params.set('run_limit', String(runLimit));
   const query = params.toString();
   return apiFetch(`${V2_BASE}/automations${query ? `?${query}` : ''}`);
+}
+
+// --- Outbound delivery preferences ---
+
+export function getOutboundPreferences() {
+  return apiFetch(`${V2_BASE}/outbound/preferences`);
+}
+
+export function listOutboundDeliveryTargets() {
+  return apiFetch(`${V2_BASE}/outbound/targets`);
+}
+
+export function setOutboundPreferences({ finalReplyTargetId } = {}) {
+  return apiFetch(`${V2_BASE}/outbound/preferences`, {
+    method: 'POST',
+    body: JSON.stringify({
+      final_reply_target_id: finalReplyTargetId ?? null
+    })
+  });
+}
+
+// --- Operator logs ---
+
+export function queryOperatorLogs({
+  limit,
+  cursor,
+  level,
+  target,
+  threadId,
+  runId,
+  turnId,
+  toolCallId,
+  toolName,
+  source
+} = {}) {
+  const url = new URL(`${V2_BASE}/operator/logs`, window.location.origin);
+  if (limit != null) url.searchParams.set('limit', String(limit));
+  if (cursor) url.searchParams.set('cursor', cursor);
+  if (level) url.searchParams.set('level', level);
+  if (target) url.searchParams.set('target', target);
+  if (threadId) url.searchParams.set('thread_id', threadId);
+  if (runId) url.searchParams.set('run_id', runId);
+  if (turnId) url.searchParams.set('turn_id', turnId);
+  if (toolCallId) url.searchParams.set('tool_call_id', toolCallId);
+  if (toolName) url.searchParams.set('tool_name', toolName);
+  if (source) url.searchParams.set('source', source);
+  return apiFetch(url.pathname + url.search);
 }
 
 // --- Messages ---

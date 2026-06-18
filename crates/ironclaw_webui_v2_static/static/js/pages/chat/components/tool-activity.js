@@ -87,7 +87,9 @@ export function ToolRun({ tools }) {
         aria-expanded=${expanded ? 'true' : 'false'}
         className=${[
           'v2-button flex w-full items-center gap-2 border-0 bg-transparent px-1 py-1.5 text-left text-sm',
-          hasError ? 'text-[var(--v2-danger-text)]' : 'text-iron-400 hover:text-iron-200'
+          hasError
+            ? 'text-[var(--v2-danger-text)]'
+            : 'text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]'
         ].join(' ')}
       >
         <${Icon} name="layers" className="h-4 w-4 shrink-0" />
@@ -140,26 +142,35 @@ function ToolActivityCard({ activity, nested = false }) {
       onClick=${() => setExpanded((v) => !v)}
       aria-expanded=${expanded ? 'true' : 'false'}
       aria-controls=${controlsId}
-      className="v2-button flex w-full items-center gap-2.5 border-0 border-b border-iron-700/40 bg-transparent px-1 py-2 text-left text-sm"
+      className="v2-button flex w-full items-center gap-2.5 border-0 border-b border-[var(--v2-panel-border)] bg-transparent px-1 py-2 text-left text-sm"
     >
       <span className=${['h-2 w-2 shrink-0 rounded-full', dotClass].join(' ')} />
-      <span className="shrink-0 font-mono text-[11px] uppercase tracking-wide text-iron-300"
+      <span
+        className="shrink-0 font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--v2-text-muted)]"
         >${STATUS_WORD[toolStatus] || 'run'}</span
       >
-      <span className="shrink-0 truncate font-mono text-[13px] font-medium text-iron-100"
+      <span
+        className="shrink-0 truncate font-mono text-[13px] font-medium text-[var(--v2-text-strong)]"
         >${toolName}</span
       >
       ${toolDetail &&
-      html`<span className="min-w-0 truncate font-mono text-xs text-iron-400">${toolDetail}</span>`}
+      html`<span className="min-w-0 truncate font-mono text-xs text-[var(--v2-text-muted)]"
+        >${toolDetail}</span
+      >`}
       <span className="ml-auto flex shrink-0 items-center gap-2">
         ${toolStatus === 'running' &&
         !hasDuration &&
-        html`<span className="font-mono text-[11px] text-iron-300">…</span>`}
+        html`<span className="font-mono text-[11px] text-[var(--v2-text-muted)]">…</span>`}
         ${hasDuration &&
-        html`<span className="font-mono text-[11px] text-iron-300">${toolDurationMs}ms</span>`}
+        html`<span className="font-mono text-[11px] text-[var(--v2-text-muted)]"
+          >${toolDurationMs}ms</span
+        >`}
         <${Icon}
           name="chevron"
-          className=${['h-3.5 w-3.5 text-iron-400', expanded ? 'rotate-180' : ''].join(' ')}
+          className=${[
+            'h-3.5 w-3.5 text-[var(--v2-text-muted)]',
+            expanded ? 'rotate-180' : ''
+          ].join(' ')}
         />
       </span>
     </button>
@@ -170,7 +181,7 @@ function ToolActivityCard({ activity, nested = false }) {
       ${!nested &&
       html`
         <div
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-iron-800 text-iron-100"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-strong)]"
         >
           <${Icon} name="tool" className="h-4 w-4" />
         </div>
@@ -225,7 +236,7 @@ function ToolDetailPanel({
     return html`
       <div
         id=${controlsId}
-        className="rounded-b-lg border-x border-b border-iron-700/40 bg-iron-950 px-3 py-2 font-mono text-xs text-iron-400"
+        className="rounded-b-[8px] border-x border-b border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 py-2 font-mono text-xs text-[var(--v2-text-muted)]"
       >
         ${t('tool.noDetail')}
       </div>
@@ -233,8 +244,11 @@ function ToolDetailPanel({
   }
 
   return html`
-    <div id=${controlsId} className="rounded-b-lg border-x border-b border-iron-700/40 bg-iron-950">
-      <div className="flex items-center gap-1 border-b border-iron-700/40 px-2 pt-1.5">
+    <div
+      id=${controlsId}
+      className="rounded-b-[8px] border-x border-b border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)]"
+    >
+      <div className="flex items-center gap-1 border-b border-[var(--v2-panel-border)] px-2 pt-1.5">
         ${tabs.map(
           (tab) => html`
             <button
@@ -244,15 +258,15 @@ function ToolDetailPanel({
               className=${[
                 'v2-button rounded-t-md px-2.5 py-1 font-mono text-[11px]',
                 active === tab.id
-                  ? 'bg-iron-900 text-iron-100'
-                  : 'text-iron-400 hover:text-iron-200'
+                  ? 'bg-[var(--v2-surface-soft)] text-[var(--v2-text-strong)]'
+                  : 'text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]'
               ].join(' ')}
             >
               ${tab.label}
             </button>
           `
         )}
-        <span className="ml-auto px-1 py-1 font-mono text-[10px] text-iron-400">
+        <span className="ml-auto px-1 py-1 font-mono text-[10px] text-[var(--v2-text-muted)]">
           ${toolStatus === 'error'
             ? t('tool.exitError')
             : toolStatus === 'running'
@@ -262,15 +276,17 @@ function ToolDetailPanel({
       </div>
       <div className="p-3 text-xs">
         ${active === 'details' &&
-        html`<div className="whitespace-pre-wrap text-iron-200">${toolDetail}</div>`}
+        html`<div className="whitespace-pre-wrap text-[var(--v2-text)]">${toolDetail}</div>`}
         ${active === 'params' &&
-        html`<pre className="overflow-x-auto rounded bg-iron-900 p-2 font-mono text-iron-100">
+        html`<pre
+          className="overflow-x-auto rounded-[6px] bg-[var(--v2-surface-soft)] p-2 font-mono text-[var(--v2-text-strong)]"
+        >
 ${toolParameters}</pre
         >`}
         ${active === 'result' && html`<${ToolResult} text=${toolResultPreview} />`}
         ${active === 'error' &&
         html`<pre
-          className="overflow-x-auto whitespace-pre-wrap rounded bg-iron-900 p-2 font-mono text-[var(--v2-danger-text)]"
+          className="overflow-x-auto whitespace-pre-wrap rounded-[6px] bg-[var(--v2-surface-soft)] p-2 font-mono text-[var(--v2-danger-text)]"
         >
 ${toolError}</pre
         >`}
@@ -289,7 +305,7 @@ function ToolResult({ text }) {
     return html`<img
       src=${value}
       alt="Tool result"
-      className="max-h-72 rounded-lg border border-iron-700 object-contain"
+      className="max-h-72 rounded-[8px] border border-[var(--v2-panel-border)] object-contain"
     />`;
   }
 
@@ -310,7 +326,7 @@ function ToolResult({ text }) {
       }, new Set())
     );
     return html`
-      <div className="overflow-x-auto rounded border border-iron-700/60">
+      <div className="overflow-x-auto rounded-[8px] border border-[var(--v2-panel-border)]">
         <table className="w-full border-collapse text-left font-mono text-[11px]">
           <thead>
             <tr>
@@ -318,7 +334,7 @@ function ToolResult({ text }) {
                 (col) =>
                   html`<th
                     key=${col}
-                    className="border-b border-iron-700/60 bg-iron-900 px-2 py-1 font-semibold text-iron-100"
+                    className="border-b border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-2 py-1 font-semibold text-[var(--v2-text-strong)]"
                   >
                     ${col}
                   </th>`
@@ -333,7 +349,7 @@ function ToolResult({ text }) {
                     (col) =>
                       html`<td
                         key=${col}
-                        className="border-b border-iron-700/40 px-2 py-1 text-iron-200"
+                        className="border-b border-[var(--v2-panel-border)] px-2 py-1 text-[var(--v2-text)]"
                       >
                         ${formatCell(row[col])}
                       </td>`
@@ -348,14 +364,14 @@ function ToolResult({ text }) {
 
   if (parsed !== undefined && typeof parsed === 'object') {
     return html`<pre
-      className="overflow-x-auto whitespace-pre-wrap rounded bg-iron-900 p-2 font-mono text-[var(--v2-positive-text)]"
+      className="overflow-x-auto whitespace-pre-wrap rounded-[6px] bg-[var(--v2-surface-soft)] p-2 font-mono text-[var(--v2-positive-text)]"
     >
 ${JSON.stringify(parsed, null, 2)}</pre
     >`;
   }
 
   return html`<pre
-    className="overflow-x-auto whitespace-pre-wrap rounded bg-iron-900 p-2 font-mono text-[var(--v2-positive-text)]"
+    className="overflow-x-auto whitespace-pre-wrap rounded-[6px] bg-[var(--v2-surface-soft)] p-2 font-mono text-[var(--v2-positive-text)]"
   >
 ${text}</pre
   >`;

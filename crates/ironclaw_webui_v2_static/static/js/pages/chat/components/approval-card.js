@@ -234,11 +234,11 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
     <div
       role="group"
       aria-label=${t('approval.title')}
-      className="mx-auto w-full max-w-xl rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_40%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-gold-soft)_72%,var(--v2-card-bg))] p-4"
+      className="mx-auto w-full max-w-xl rounded-[10px] border border-[color-mix(in_srgb,var(--v2-gold)_40%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-gold-soft)_58%,var(--v2-card-bg))] p-4 shadow-[var(--v2-card-shadow)]"
     >
       <div className="mb-3 flex items-start gap-3">
         <span
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
         >
           <${Icon} name="lock" className="h-4 w-4" />
         </span>
@@ -269,10 +269,10 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
       </div>
 
       <div
-        className="mb-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
+        className="mb-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
       >
         <div
-          className="mb-3 flex items-center gap-2 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_28%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-3 py-2 text-sm font-semibold text-[var(--v2-text-strong)]"
+          className="mb-3 flex items-center gap-2 rounded-[7px] border border-[color-mix(in_srgb,var(--v2-gold)_28%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-3 py-2 text-sm font-semibold text-[var(--v2-text-strong)]"
         >
           <${Icon} name="shield" className="h-4 w-4 shrink-0 text-[var(--v2-gold-text)]" />
           ${t('approval.nothingSentYet')}
@@ -284,7 +284,7 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
                 key=${row.label}
                 className=${'grid gap-1' +
                 (row.emphasis && row.value
-                  ? ' rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_22%,var(--v2-panel-border))] bg-[var(--v2-canvas-strong)] px-2.5 py-2'
+                  ? ' rounded-[7px] border border-[color-mix(in_srgb,var(--v2-gold)_22%,var(--v2-panel-border))] bg-[var(--v2-canvas-strong)] px-2.5 py-2'
                   : '')}
               >
                 <dt
@@ -314,7 +314,7 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
           ${t('approval.parametersLabel')}
         </div>
         <pre
-          className="max-h-44 overflow-auto rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas-strong)] p-3 font-mono text-xs leading-5 text-[var(--v2-text)]"
+          className="max-h-44 overflow-auto rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas-strong)] p-3 font-mono text-xs leading-5 text-[var(--v2-text)]"
         >
 ${parameters}</pre
         >
@@ -322,7 +322,7 @@ ${parameters}</pre
       ${allowAlwaysAvailable &&
       html`
         <label
-          className="mb-3 flex items-start gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
+          className="mb-3 flex items-start gap-2 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
         >
           <input
             type="checkbox"
@@ -337,7 +337,7 @@ ${parameters}</pre
       !allowAlwaysAvailable &&
       html`
         <div
-          className="mb-3 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-warning-text)_32%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-warning-text)]"
+          className="mb-3 rounded-[7px] border border-[color-mix(in_srgb,var(--v2-warning-text)_32%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-warning-text)]"
         >
           ${t('approval.alwaysUnavailable')}
         </div>

@@ -32,7 +32,9 @@ export function ActivityRun({ activity }) {
         data-testid="activity-summary-row"
         className=${[
           'v2-button flex w-full items-center gap-2 border-0 bg-transparent px-1 py-1.5 text-left text-sm',
-          summary.hasError ? 'text-[var(--v2-danger-text)]' : 'text-iron-400 hover:text-iron-200'
+          summary.hasError
+            ? 'text-[var(--v2-danger-text)]'
+            : 'text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]'
         ].join(' ')}
       >
         <${Icon} name="layers" className="h-4 w-4 shrink-0" />
@@ -65,12 +67,12 @@ function ActivityReceiptCard({ activity, summary, expanded, setExpanded }) {
   const link = receiptLinkForActivity(activity);
   return html`
     <div
-      className="mr-auto flex w-full max-w-[min(760px,92vw)] flex-col gap-2 rounded-[14px] border border-[color-mix(in_srgb,var(--v2-gold)_28%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-4 py-3 text-sm text-[var(--v2-text-strong)] shadow-[var(--v2-card-shadow)]"
+      className="mr-auto flex w-full max-w-[min(760px,92vw)] flex-col gap-2 rounded-[10px] border border-[color-mix(in_srgb,var(--v2-gold)_28%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-gold-soft)_62%,var(--v2-card-bg))] px-4 py-3 text-sm text-[var(--v2-text-strong)] shadow-[var(--v2-card-shadow)]"
       data-testid="activity-receipt-card"
     >
       <div className="flex min-w-0 items-start gap-3">
         <span
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-gold)_16%,transparent)] text-[var(--v2-gold-text)]"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-gold)_16%,transparent)] text-[var(--v2-gold-text)]"
           aria-hidden="true"
         >
           <${Icon} name="check" className="h-4 w-4" />
@@ -90,7 +92,7 @@ function ActivityReceiptCard({ activity, summary, expanded, setExpanded }) {
           onClick=${() => setExpanded((value) => !value)}
           aria-expanded=${expanded ? 'true' : 'false'}
           aria-label=${`${expanded ? 'Hide' : 'View'} action details`}
-          className="v2-button inline-flex shrink-0 items-center gap-1 rounded-md border border-[color-mix(in_srgb,var(--v2-gold)_26%,var(--v2-panel-border))] bg-transparent px-2 py-1 text-[11px] font-medium text-[var(--v2-gold-text)] hover:bg-[color-mix(in_srgb,var(--v2-gold)_10%,transparent)]"
+          className="v2-button inline-flex shrink-0 items-center gap-1 rounded-[6px] border border-[color-mix(in_srgb,var(--v2-gold)_26%,var(--v2-panel-border))] bg-transparent px-2 py-1 text-[11px] font-medium text-[var(--v2-gold-text)] hover:bg-[color-mix(in_srgb,var(--v2-gold)_10%,transparent)]"
         >
           ${expanded ? 'Hide details' : 'View details'}
           <${Icon}
@@ -119,7 +121,7 @@ function ActivityReceiptCard({ activity, summary, expanded, setExpanded }) {
           href=${link.href}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex w-fit items-center gap-1.5 rounded-md border border-[color-mix(in_srgb,var(--v2-gold)_28%,var(--v2-panel-border))] px-2 py-1 text-xs font-medium text-[var(--v2-gold-text)] hover:bg-[color-mix(in_srgb,var(--v2-gold)_10%,transparent)]"
+          className="inline-flex w-fit items-center gap-1.5 rounded-[6px] border border-[color-mix(in_srgb,var(--v2-gold)_28%,var(--v2-panel-border))] px-2 py-1 text-xs font-medium text-[var(--v2-gold-text)] hover:bg-[color-mix(in_srgb,var(--v2-gold)_10%,transparent)]"
         >
           ${link.label}
           <${Icon} name="external" className="h-3 w-3" />

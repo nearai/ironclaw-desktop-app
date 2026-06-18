@@ -241,16 +241,24 @@ registerPack('uk', {
 
   'workspace.title': 'Робочий простір',
   'workspace.subtitle': 'Постійна памʼять',
+  'workspace.readOnly': 'Лише для читання',
+  'workspace.filterPlaceholder': 'Фільтрувати за назвою...',
+  'workspace.emptyDir': 'Ця папка порожня.',
   'workspace.refresh': 'Оновити',
   'workspace.refreshing': 'Оновлення…',
   'workspace.loading': 'Завантаження…',
   'workspace.searching': 'Пошук…',
   'workspace.noResults': 'Немає результатів.',
   'workspace.noFiles': 'У робочому просторі немає файлів.',
+  'workspace.noMatches': 'Немає збігів за фільтром.',
   'workspace.breadcrumbRoot': 'workspace',
   'workspace.pickFileTitle': 'Оберіть файл робочого простору',
   'workspace.pickFileDesc':
-    'Виберіть документ памʼяті з дерева або результатів пошуку, щоб переглянути та відредагувати його.',
+    'Виберіть файл у дереві, щоб переглянути або завантажити його. Цей переглядач лише для читання.',
+  'workspace.download': 'Завантажити',
+  'workspace.binaryPreviewUnavailable':
+    'Попередній перегляд для цього типу файлу недоступний. Завантажте, щоб переглянути вміст.',
+  'workspace.fileMeta': '{mime} - {size} байт',
   'workspace.edit': 'Редагувати',
   'workspace.cancel': 'Скасувати',
   'workspace.save': 'Зберегти',
@@ -540,6 +548,9 @@ registerPack('uk', {
   'chat.modeAutoReview': 'Авторевʼю',
   'chat.runtimeLocal': 'Працювати локально',
   'chat.statusWorking': 'Працює',
+  'chat.deleteFailed': 'Не вдалося видалити цю розмову.',
+  'chat.deleteBusy':
+    'Неможливо видалити розмову, поки вона виконується. Спочатку зупиніть її, а потім спробуйте ще раз.',
 
   // Extensions tabs — new v2 keys
   'extensions.installed': 'Встановлені',

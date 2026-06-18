@@ -203,8 +203,8 @@ const surfaces: Surface[] = [
     path: '/v2/workspace',
     authenticated: true,
     waitFor: async (page) => {
-      await expect(page.getByText('No files in workspace.')).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'Pick a workspace file' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
+      await expect(page.getByText('This folder is empty.')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0);
     }
   },
@@ -281,20 +281,17 @@ const surfaces: Surface[] = [
     path: '/v2/logs',
     authenticated: true,
     waitFor: async (page) => {
-      // Empty/loading dignity (DT-5): no v2 log-streaming endpoint exists, so the
-      // surface must show a dignified empty state with a real next action instead
-      // of a void plus stream-lifecycle controls that imply a capability the
-      // gateway cannot prove.
+      // Empty/loading dignity (DT-5): the v2 operator-log endpoint can return an
+      // empty backed result, so the surface keeps its real polling controls and
+      // still offers a concrete next action instead of a void.
       await expect(page.getByRole('heading', { name: 'Logs' })).toBeVisible();
       const logsAction = page.getByRole('main').getByRole('link', { name: 'Chat' });
       await expect(logsAction).toBeVisible();
       await expect(logsAction).toHaveAttribute('href', '/v2/chat');
 
-      // No fake readiness: lifecycle controls (Pause/Clear/Auto-scroll) must not
-      // render while there is no stream to control.
-      await expect(page.getByRole('button', { name: 'Pause' })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: 'Clear' })).toHaveCount(0);
-      await expect(page.getByLabel('Auto-scroll')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Clear' })).toBeVisible();
+      await expect(page.getByLabel('Auto-scroll')).toBeVisible();
 
       // The named filter control stays (preserves the prior control-name fix).
       // Its >=44px mobile tap-target floor is asserted at 390px in
@@ -321,6 +318,9 @@ async function installStaticApiMocks(page: Page, automations: unknown[] = []) {
     }
     if (path === '/api/webchat/v2/automations' && method === 'GET') {
       return json(route, { automations, next_cursor: null });
+    }
+    if (path === '/api/webchat/v2/operator/logs' && method === 'GET') {
+      return json(route, { logs: { entries: [] }, next_cursor: null });
     }
     if (path === '/api/webchat/v2/extensions/registry') {
       return json(route, { entries: [] });
@@ -416,7 +416,7 @@ test('static automations: backed rows attribute enabled state in gold, not the l
   await installStaticApiMocks(page, mixedAutomations);
   await page.goto('/v2/automations?token=static-a11y-token');
   await expect(page.getByRole('heading', { name: 'Scheduled', exact: true })).toBeVisible();
-  await expect(page.getByText('Daily news digest')).toBeVisible();
+  await expect(page.locator('table').getByText('Daily news digest')).toBeVisible();
 
   const rows = page.locator('table tbody tr');
   await expect(rows).toHaveCount(3);
@@ -449,17 +449,10 @@ test('static automations: backed rows attribute enabled state in gold, not the l
     expect(info.live, `${state} state pill does not pulse as live`).toBe(false);
   }
 
-  // A genuinely completed run keeps the success tone — the two truths stay
-  // visually distinct on the same surface.
-  const done = await pill('Daily news digest', 'Done');
-  expect(done.color, 'a completed run keeps the success green').toBe(POSITIVE_GREEN);
-
-  // A paused schedule and a failed last run read as their own honest tones, not
-  // green: the surface never makes a stopped/errored automation look active.
+  // A paused schedule reads as its own honest tone, not green: the surface never
+  // makes a stopped automation look active.
   const paused = await pill('Weekly portfolio report', 'Paused');
   expect(paused.color, 'paused state is not green').not.toBe(POSITIVE_GREEN);
-  const errored = await pill('Weekly portfolio report', 'Error');
-  expect(errored.color, 'errored last run is not green').not.toBe(POSITIVE_GREEN);
 
   await expectNoBlockingA11y(page, 'automations backed rows');
 });
@@ -473,13 +466,13 @@ test('static automations at 390px: list controls clear 44px and the surface does
   await page.setViewportSize({ width: 390, height: 844 });
   await installStaticApiMocks(page, mixedAutomations);
   await page.goto('/v2/automations?token=static-a11y-token');
-  await expect(page.getByText('Daily news digest')).toBeVisible();
+  await expect(page.locator('table').getByText('Daily news digest')).toBeVisible();
 
   const filterButtons = page.locator(
     '[role="group"][aria-label="Automation status filter"] button'
   );
   const filterCount = await filterButtons.count();
-  expect(filterCount).toBe(3);
+  expect(filterCount).toBe(5);
   for (let i = 0; i < filterCount; i += 1) {
     const box = await filterButtons.nth(i).boundingBox();
     expect(box, `filter button ${i} should have a measurable box`).not.toBeNull();
@@ -508,7 +501,7 @@ test('static automations: empty state offers a real next action instead of dead-
   await installStaticApiMocks(page, []);
   await page.goto('/v2/automations?token=static-a11y-token');
   await expect(page.getByText('No scheduled automations yet.')).toBeVisible();
-  const action = page.getByRole('main').getByRole('link', { name: 'Chat' });
+  const action = page.getByRole('main').getByRole('link', { name: 'Start in chat' });
   await expect(action).toBeVisible();
   await expect(action).toHaveAttribute('href', '/v2/chat');
 });

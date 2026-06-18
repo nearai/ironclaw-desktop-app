@@ -29,6 +29,7 @@ import { AuthGateShell } from './auth-gate-shell.js';
 export function AuthOauthCard({ gate, onCancel }) {
   const t = useT();
   const [opened, setOpened] = React.useState(false);
+  const [error, setError] = React.useState('');
   const hasHttpsAuthorizationUrl = React.useMemo(() => {
     if (!gate.authorizationUrl) return false;
     try {
@@ -37,6 +38,9 @@ export function AuthOauthCard({ gate, onCancel }) {
       return false;
     }
   }, [gate.authorizationUrl]);
+  React.useEffect(() => {
+    setError('');
+  }, [gate.authorizationUrl, gate.gateRef, gate.runId]);
 
   const providerLabel = gate.provider
     ? gate.provider.charAt(0).toUpperCase() + gate.provider.slice(1)
@@ -46,14 +50,18 @@ export function AuthOauthCard({ gate, onCancel }) {
     // Guard: reject missing or non-HTTPS URLs before window.open so that
     // custom protocol handlers (javascript:, tel:, ms-msdt:, slack:) are
     // never opened even if a future code path writes an unexpected scheme.
-    if (!hasHttpsAuthorizationUrl) return;
+    if (!hasHttpsAuthorizationUrl) {
+      setError(t('authGate.serviceUnavailable'));
+      return;
+    }
     // Desktop: route to the SYSTEM browser — window.open in WKWebView spawns
     // a cookie-less child webview where the user has no Google session and
     // OAuth cannot complete. openExternalUrl falls back to window.open when
     // hosted, keeping the user-gesture popup semantics there.
+    setError('');
     openExternalUrl(gate.authorizationUrl);
     setOpened(true);
-  }, [gate.authorizationUrl, hasHttpsAuthorizationUrl]);
+  }, [gate.authorizationUrl, hasHttpsAuthorizationUrl, t]);
 
   const openLabel = opened
     ? t('authGate.reopenAuthorization', { provider: providerLabel })
@@ -77,7 +85,6 @@ export function AuthOauthCard({ gate, onCancel }) {
           rel="noopener noreferrer"
           className="auth-oauth"
           variant="primary"
-          disabled=${!hasHttpsAuthorizationUrl}
           onClick=${(event) => {
             event.preventDefault();
             openAuth();
@@ -91,8 +98,19 @@ export function AuthOauthCard({ gate, onCancel }) {
         <//>
       </div>
 
+      ${error &&
+      html`
+        <div
+          className="mt-3 rounded-md border border-[color-mix(in_srgb,var(--v2-danger-text)_25%,transparent)] bg-[var(--v2-danger-soft)] px-3 py-2 text-xs text-[var(--v2-danger-text)]"
+          role="alert"
+        >
+          ${error}
+        </div>
+      `}
       ${opened &&
-      html` <p className="mt-2 text-xs text-iron-300">${t('authGate.oauthWaiting')}</p> `}
+      html` <p className="mt-2 text-xs text-[var(--v2-text-muted)]">
+        ${t('authGate.oauthWaiting')}
+      </p>`}
     <//>
   `;
 }

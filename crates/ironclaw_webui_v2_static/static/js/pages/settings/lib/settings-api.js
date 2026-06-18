@@ -126,6 +126,19 @@ export function installSkill(_payload) {
 export function removeSkill(_name) {
   return Promise.resolve({ success: false, message: 'TODO: requires v2 skills endpoint' });
 }
+// Trace Commons credits — read-only, scoped server-side to the authenticated
+// caller. The response is the contributor-local view as of the last credit
+// sync; the authoritative ledger is server-side.
+export function fetchTraceCredits() {
+  return apiFetch('/api/webchat/v2/traces/credit');
+}
+// Authorize a held manual-review trace for submission. No request body — the
+// submission id is in the path. Returns { authorized: bool }.
+export function authorizeTraceHold(submissionId) {
+  return apiFetch(`/api/webchat/v2/traces/holds/${encodeURIComponent(submissionId)}/authorize`, {
+    method: 'POST'
+  });
+}
 export function fetchUsers() {
   return Promise.resolve({ users: [], todo: true });
 }

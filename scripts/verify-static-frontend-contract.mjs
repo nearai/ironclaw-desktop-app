@@ -116,20 +116,28 @@ async function assertBundleFreshness() {
   const result = await esbuild.build({
     entryPoints: [path.join(staticRoot, 'js', 'main.js')],
     bundle: true,
+    splitting: true,
     format: 'esm',
     platform: 'browser',
     target: 'es2020',
     minify: true,
     sourcemap: false,
+    outdir: path.join(staticRoot, 'js'),
+    entryNames: '[name].bundle',
+    chunkNames: 'chunks/[name]-[hash]',
     write: false,
     logLevel: 'silent'
   });
-  const rebuilt = result.outputFiles?.[0]?.text ?? '';
-  const committed = await readFile(path.join(staticRoot, 'js', 'main.bundle.js'), 'utf8');
-  if (rebuilt.trimEnd() !== committed.trimEnd()) {
-    fail(
-      'js/main.bundle.js does not match js/main.js (stale bundle); run npm run prepare:webui-static'
+  for (const outputFile of result.outputFiles || []) {
+    const relativePath = path.relative(path.join(staticRoot, 'js'), outputFile.path);
+    const committed = await readFile(path.join(staticRoot, 'js', relativePath), 'utf8').catch(
+      () => null
     );
+    if (outputFile.text.trimEnd() !== committed?.trimEnd()) {
+      fail(
+        `js/${relativePath} does not match js/main.js (stale bundle); run npm run prepare:webui-static`
+      );
+    }
   }
 }
 

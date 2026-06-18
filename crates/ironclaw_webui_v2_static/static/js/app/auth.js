@@ -6,6 +6,8 @@ import {
   readStoredToken,
   storeToken
 } from '../lib/api.js';
+import { clearAllPins } from '../lib/pin-store.js';
+import { clearAllDrafts } from '../pages/chat/lib/draft-store.js';
 
 // The Reborn host validates bearer tokens via OIDC; the SPA simply
 // carries whatever token the user supplies (via `?token=` URL param,
@@ -169,6 +171,8 @@ export function useAuthSession() {
     setToken('');
     setError('');
     queryClient.clear();
+    clearAllPins();
+    clearAllDrafts();
   }, []);
 
   return {

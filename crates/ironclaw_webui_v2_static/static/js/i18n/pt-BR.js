@@ -240,16 +240,24 @@ registerPack('pt-BR', {
 
   'workspace.title': 'Workspace',
   'workspace.subtitle': 'Memória persistente',
+  'workspace.readOnly': 'Somente leitura',
+  'workspace.filterPlaceholder': 'Filtrar por nome...',
+  'workspace.emptyDir': 'Esta pasta está vazia.',
   'workspace.refresh': 'Atualizar',
   'workspace.refreshing': 'Atualizando',
   'workspace.loading': 'Carregando...',
   'workspace.searching': 'Buscando...',
   'workspace.noResults': 'Sem resultados.',
   'workspace.noFiles': 'Não há arquivos no workspace.',
+  'workspace.noMatches': 'Nada corresponde ao filtro.',
   'workspace.breadcrumbRoot': 'workspace',
   'workspace.pickFileTitle': 'Escolha um arquivo do workspace',
   'workspace.pickFileDesc':
-    'Escolha um documento de memória da árvore ou da busca para inspecionar e editar.',
+    'Escolha um arquivo na árvore para visualizar ou baixar. Este visualizador é somente leitura.',
+  'workspace.download': 'Baixar',
+  'workspace.binaryPreviewUnavailable':
+    'Sem pré-visualização inline para este tipo de arquivo. Baixe-o para ver o conteúdo.',
+  'workspace.fileMeta': '{mime} - {size} bytes',
   'workspace.edit': 'Editar',
   'workspace.cancel': 'Cancelar',
   'workspace.save': 'Salvar',
@@ -540,6 +548,9 @@ registerPack('pt-BR', {
   'chat.modeAutoReview': 'Revisao automatica',
   'chat.runtimeLocal': 'Trabalhar localmente',
   'chat.statusWorking': 'Trabalhando',
+  'chat.deleteFailed': 'Não foi possível excluir esta conversa.',
+  'chat.deleteBusy':
+    'Não é possível excluir uma conversa enquanto ela está em execução. Pare-a primeiro e tente novamente.',
 
   // Abas de extensoes — novas chaves v2
   'extensions.installed': 'Instaladas',

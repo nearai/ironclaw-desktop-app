@@ -7,10 +7,14 @@ export function ChannelConnectCard({ connectAction, onDismiss }) {
   const channel = connectAction.channel;
 
   return html`
-    <div className="rounded-[16px] border border-white/[0.06] bg-white/[0.02] p-3">
+    <div
+      className="rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3 shadow-[var(--v2-card-shadow)]"
+    >
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
+          <div
+            className="font-mono text-[11px] uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
+          >
             Connect ${connectAction.display_name || channel}
           </div>
         </div>
@@ -20,7 +24,7 @@ export function ChannelConnectCard({ connectAction, onDismiss }) {
             type="button"
             aria-label="Dismiss connect action"
             onClick=${onDismiss}
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-iron-400 hover:bg-white/[0.04] hover:text-iron-100"
+            className="grid h-7 w-7 shrink-0 place-items-center rounded-[6px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text-strong)]"
           >
             <${Icon} name="close" className="h-4 w-4" />
           </button>
@@ -32,13 +36,13 @@ export function ChannelConnectCard({ connectAction, onDismiss }) {
         : connectAction.strategy === 'extension_setup_link'
           ? html`
               <div
-                className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs leading-5 text-iron-300"
+                className="rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4 text-xs leading-5 text-[var(--v2-text-muted)]"
                 data-testid="connector-recovery-card"
               >
                 <p>${connectAction.action?.instructions || 'Open Connections to finish setup.'}</p>
                 <a
                   href=${connectAction.action?.href || '/extensions/registry'}
-                  className="v2-button mt-3 inline-flex items-center gap-1.5 rounded-[8px] border border-signal/30 bg-signal/10 px-3 py-2 text-xs font-medium text-signal hover:bg-signal/15"
+                  className="v2-button mt-3 inline-flex items-center gap-1.5 rounded-[7px] border border-[color-mix(in_srgb,var(--v2-accent)_30%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] px-3 py-2 text-xs font-medium text-[var(--v2-accent-text)] hover:bg-[color-mix(in_srgb,var(--v2-accent)_16%,transparent)]"
                 >
                   ${connectAction.action?.label || 'Open setup'}
                   <${Icon} name="chevron" className="h-3 w-3 -rotate-90" />
@@ -47,7 +51,7 @@ export function ChannelConnectCard({ connectAction, onDismiss }) {
             `
           : html`
               <div
-                className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs leading-5 text-iron-300"
+                className="rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4 text-xs leading-5 text-[var(--v2-text-muted)]"
               >
                 ${connectAction.action?.instructions ||
                 'This channel exposes a connect action, but the WebUI has no renderer for its strategy yet.'}

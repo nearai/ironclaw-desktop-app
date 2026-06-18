@@ -1,5 +1,18 @@
 export const DEFAULT_WORKSPACE_PATH = '';
 
+export const AREA_DISPLAY_NAMES = { workspace: 'home' };
+
+export function areaDisplayName(areaId) {
+  return AREA_DISPLAY_NAMES[areaId] || areaId;
+}
+
+export function sortEntries(entries) {
+  return [...(entries || [])].sort((a, b) => {
+    if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+  });
+}
+
 export function pathSegments(path) {
   if (!path) return [];
   return path.split('/').filter(Boolean);

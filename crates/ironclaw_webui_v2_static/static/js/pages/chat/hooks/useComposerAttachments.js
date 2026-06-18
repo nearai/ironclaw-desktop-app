@@ -1,4 +1,5 @@
 import { React } from '../../../lib/html.js';
+import { getStagedAttachments, setStagedAttachments } from '../lib/draft-store.js';
 import {
   extractAttachmentText,
   isExtractableBinary,
@@ -35,10 +36,37 @@ function readDataUrl(file) {
 
 let attachmentSeq = 0;
 
-export function useComposerAttachments() {
-  const [images, setImages] = React.useState([]);
-  const [attachments, setAttachments] = React.useState([]);
+function stagedDraftForKey(draftKey) {
+  const stored = draftKey ? getStagedAttachments(draftKey) : [];
+  if (Array.isArray(stored)) {
+    return { images: [], attachments: stored };
+  }
+  return {
+    images: Array.isArray(stored?.images) ? stored.images : [],
+    attachments: Array.isArray(stored?.attachments) ? stored.attachments : []
+  };
+}
+
+export function useComposerAttachments(draftKey = '') {
+  const [images, setImages] = React.useState(() => stagedDraftForKey(draftKey).images);
+  const [attachments, setAttachments] = React.useState(
+    () => stagedDraftForKey(draftKey).attachments
+  );
   const [rejections, setRejections] = React.useState([]);
+
+  const stagedDraftKeyRef = React.useRef(draftKey);
+  React.useEffect(() => {
+    if (!draftKey) return;
+    if (stagedDraftKeyRef.current !== draftKey) {
+      stagedDraftKeyRef.current = draftKey;
+      const staged = stagedDraftForKey(draftKey);
+      setImages(staged.images);
+      setAttachments(staged.attachments);
+      setRejections([]);
+      return;
+    }
+    setStagedAttachments(draftKey, { images, attachments });
+  }, [draftKey, images, attachments]);
 
   const patchAttachment = React.useCallback((id, patch) => {
     setAttachments((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));

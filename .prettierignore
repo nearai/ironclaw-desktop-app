@@ -8,6 +8,7 @@ test-results/
 __snapshots__/
 package-lock.json
 crates/ironclaw_webui_v2_static/static/js/main.bundle.js
+crates/ironclaw_webui_v2_static/static/js/chunks/
 crates/ironclaw_webui_v2_static/static/vendor/
 crates/ironclaw_webui_v2_static/static/ocr/
 crates/ironclaw_webui_v2_static/static/styles/tailwind.generated.css

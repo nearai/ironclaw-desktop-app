@@ -182,15 +182,19 @@ async function buildTailwindCss() {
 }
 
 async function bundleApp() {
+  await rm(path.join(staticRoot, "js", "chunks"), { recursive: true, force: true });
   await esbuild.build({
     entryPoints: [path.join(staticRoot, "js", "main.js")],
     bundle: true,
+    splitting: true,
     format: "esm",
     platform: "browser",
     target: "es2020",
     minify: true,
     sourcemap: false,
-    outfile: path.join(staticRoot, "js", "main.bundle.js"),
+    outdir: path.join(staticRoot, "js"),
+    entryNames: "[name].bundle",
+    chunkNames: "chunks/[name]-[hash]",
     logLevel: "silent",
   });
 }

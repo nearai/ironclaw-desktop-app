@@ -3,12 +3,15 @@
 //
 // Spawns the GIVEN binary (arg 1, or $CANDIDATE_SIDECAR) on a temp port with
 // the same hermetic env the desktop uses, then checks every WebChat v2
-// contract our static UI depends on — plus the specific risks in the
-// reborn-integration -> main delta:
+// contract our static UI depends on — plus the specific risks in recent
+// nearai/ironclaw mainline changes:
 //   * #4623 CSRF/origin/CORS limits   -> our WebView requests must still pass
 //   * #4624 sanitized error shapes     -> error envelope still { code, message }
 //   * #4552/#4546 SSE projection path  -> run_status events still stream
-//   * additive routes we want to gain  -> automations/runs, channels/slack/*
+//   * #5057 filesystem browser         -> /fs/mounts serves workspace+memory
+//   * delivery defaults + Trace credits -> outbound/* and traces/credit serve
+//   * operator logs query             -> /operator/logs serves scoped logs
+//   * additive routes we want to gain  -> automations/runs, channels/slack/*, projects/*
 //
 // Exit 0 = safe to swap. Non-zero = contract drift; do NOT swap.
 import { spawn } from 'node:child_process';
@@ -40,6 +43,8 @@ function freePort() {
 }
 
 // Mirror src-tauri/src/sidecar.rs: clear ambient provider vars, NEAR.AI block.
+// Unauthenticated NEAR.AI mode deliberately leaves NEARAI_* endpoint vars unset:
+// Reborn aborts if NEARAI_BASE_URL is present without a matching credential.
 function hermeticEnv(extra) {
   const base = Object.fromEntries(
     Object.entries(process.env).filter(
@@ -49,9 +54,10 @@ function hermeticEnv(extra) {
   return {
     ...base,
     LLM_BACKEND: 'nearai',
-    NEARAI_BASE_URL: 'https://private.near.ai',
-    NEARAI_API_URL: 'https://private.near.ai/v1',
     NEARAI_MODEL: 'auto',
+    IRONCLAW_DESKTOP_NEARAI_AUTH_CONFIGURED: 'false',
+    IRONCLAW_DESKTOP_MODEL_READINESS_REASON:
+      'NEAR.AI Cloud is selected; execution readiness will be verified by the first WebChat run.',
     ...extra
   };
 }
@@ -81,7 +87,12 @@ async function main() {
   child.stdout.on('data', (c) => log.push(c.toString()));
   child.stderr.on('data', (c) => log.push(c.toString()));
 
-  const api = async (method, pathname, { body, headers } = {}) => {
+  const api = async (method, pathname, options = {}) => {
+    const hasEnvelope =
+      Object.prototype.hasOwnProperty.call(options, 'body') ||
+      Object.prototype.hasOwnProperty.call(options, 'headers');
+    const body = hasEnvelope ? options.body : method === 'GET' ? undefined : options;
+    const headers = hasEnvelope ? options.headers : undefined;
     const res = await fetch(`${origin}${pathname}`, {
       method,
       headers: {
@@ -141,18 +152,29 @@ async function main() {
       status: localhostOrigin.res.status
     });
 
-    // Auth envelope (#4624): unauthorized must still be a JSON { code, message }.
+    // Auth failure (#4624): unauthorized must stay generic/sanitized. Upstream
+    // currently allows an empty 401 body here; wrong-token route tests pin the
+    // fixed string "Invalid or missing auth token". JSON envelopes are also OK
+    // for older/newer handler layers as long as they do not leak secrets.
     const unauth = await fetch(`${origin}/api/webchat/v2/threads`);
+    const unauthText = await unauth.text();
     let unauthBody = null;
     try {
-      unauthBody = await unauth.json();
+      unauthBody = unauthText ? JSON.parse(unauthText) : null;
     } catch (_) {
       /* */
     }
+    const sanitizedUnauthBody =
+      unauthText === '' ||
+      unauthText === 'Invalid or missing auth token' ||
+      (unauthBody && typeof unauthBody.code === 'string');
     check(
-      'unauthorized returns sanitized JSON error envelope',
-      unauth.status === 401 && unauthBody && typeof unauthBody.code === 'string',
-      { status: unauth.status, body: unauthBody }
+      'unauthorized returns sanitized 401 without leaking auth details',
+      unauth.status === 401 &&
+        sanitizedUnauthBody &&
+        !unauthText.includes(token) &&
+        !unauthText.includes('owner'),
+      { status: unauth.status, body: unauthBody, text: unauthText }
     );
 
     // Thread + message + attachment contract our UI uses.
@@ -178,7 +200,11 @@ async function main() {
         client_action_id: `accept-msg-${timestamp}`,
         content: `${prompt}${sentinelBlock}`,
         attachments: [
-          { name: 'ledger.csv', mime_type: 'text/plain', data_base64: Buffer.from('x').toString('base64') }
+          {
+            name: 'ledger.csv',
+            mime_type: 'text/plain',
+            data_base64: Buffer.from('x').toString('base64')
+          }
         ]
       }
     );
@@ -233,9 +259,81 @@ async function main() {
     check('SSE events stream emits run_status (UI lifecycle source)', sseStatusSeen);
 
     // Routes we already depend on must remain.
-    for (const route of ['llm/providers', 'automations', 'extensions/registry']) {
+    for (const route of [
+      'llm/providers',
+      'automations',
+      'extensions/registry',
+      'outbound/preferences',
+      'outbound/targets',
+      'traces/credit',
+      'operator/logs'
+    ]) {
       const r = await api('GET', `/api/webchat/v2/${route}`);
       check(`existing route /${route} still serves`, r.res.ok, { status: r.res.status });
+    }
+
+    const fsMounts = await api('GET', '/api/webchat/v2/fs/mounts');
+    const mountIds = Array.isArray(fsMounts.body?.mounts)
+      ? fsMounts.body.mounts.map((mount) => mount?.mount).filter(Boolean)
+      : [];
+    check(
+      'workspace filesystem mounts route serves memory + workspace',
+      fsMounts.res.ok && mountIds.includes('memory') && mountIds.includes('workspace'),
+      { status: fsMounts.res.status, mounts: mountIds }
+    );
+
+    const projects = await api('GET', '/api/webchat/v2/projects?limit=5');
+    check(
+      'project list route serves an array',
+      projects.res.ok && Array.isArray(projects.body?.projects),
+      {
+        status: projects.res.status,
+        project_count: Array.isArray(projects.body?.projects) ? projects.body.projects.length : null
+      }
+    );
+
+    const projectName = `Desktop acceptance ${timestamp}`;
+    const createdProject = await api('POST', '/api/webchat/v2/projects', {
+      name: projectName,
+      description: 'Disposable project created by desktop sidecar acceptance.',
+      metadata: { source: 'ironclaw-desktop-app acceptance probe' }
+    });
+    const projectId = createdProject.body?.project?.project_id || '';
+    check(
+      'project create route returns a project id',
+      createdProject.res.ok && Boolean(projectId),
+      {
+        status: createdProject.res.status,
+        project_id: projectId || null
+      }
+    );
+    if (projectId) {
+      const projectDetail = await api(
+        'GET',
+        `/api/webchat/v2/projects/${encodeURIComponent(projectId)}`
+      );
+      check(
+        'project detail route returns created project',
+        projectDetail.res.ok && projectDetail.body?.project?.project_id === projectId,
+        {
+          status: projectDetail.res.status,
+          project_id: projectDetail.body?.project?.project_id || null
+        }
+      );
+      const projectMembers = await api(
+        'GET',
+        `/api/webchat/v2/projects/${encodeURIComponent(projectId)}/members`
+      );
+      check(
+        'project members route serves an array',
+        projectMembers.res.ok && Array.isArray(projectMembers.body?.members),
+        {
+          status: projectMembers.res.status,
+          member_count: Array.isArray(projectMembers.body?.members)
+            ? projectMembers.body.members.length
+            : null
+        }
+      );
     }
 
     // Additive routes we WANT to gain from main (informational — not gating).
@@ -270,7 +368,10 @@ async function main() {
   } finally {
     if (child.exitCode == null) {
       child.kill('SIGTERM');
-      await Promise.race([new Promise((r) => child.once('exit', r)), delay(3000).then(() => child.kill('SIGKILL'))]);
+      await Promise.race([
+        new Promise((r) => child.once('exit', r)),
+        delay(3000).then(() => child.kill('SIGKILL'))
+      ]);
     }
     await rm(home, { recursive: true, force: true });
   }

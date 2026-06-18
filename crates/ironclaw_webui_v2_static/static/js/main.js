@@ -7,17 +7,9 @@ import { I18nProvider } from './lib/i18n.js';
 import { bootstrapDesktopSession, storeToken } from './lib/api.js';
 import { maybeRunPackagedWebviewSmoke } from './lib/packaged-smoke.js';
 import { installZoomControls } from './lib/zoom.js';
+// Only the English fallback is bundled eagerly; every other locale is
+// lazy-loaded on demand by I18nProvider (see lib/i18n.js `loaders`).
 import './i18n/en.js';
-import './i18n/es.js';
-import './i18n/fr.js';
-import './i18n/de.js';
-import './i18n/pt-BR.js';
-import './i18n/ja.js';
-import './i18n/ar.js';
-import './i18n/hi.js';
-import './i18n/uk.js';
-import './i18n/zh-CN.js';
-import './i18n/ko.js';
 
 async function boot() {
   maybeRunPackagedWebviewSmoke();
