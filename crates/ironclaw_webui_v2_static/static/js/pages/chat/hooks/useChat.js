@@ -1,6 +1,7 @@
 import {
   cancelRun as cancelRunRequest,
   createThread as createThreadRequest,
+  fetchTimeline,
   isDesktopRuntime,
   resolveGate as resolveGateRequest,
   sendMessage,
@@ -20,7 +21,8 @@ import {
   toRenderAttachment,
   toWireAttachment
 } from '../lib/attachments.js';
-import { buildDurableAttachmentBlock } from '../lib/history-messages.js';
+import { buildDurableAttachmentBlock, runReplyLandedInTimeline } from '../lib/history-messages.js';
+import { upsertRunFailureMessage } from '../lib/message-upsert.js';
 import { useHistory } from './useHistory.js';
 import { useSSE } from './useSSE.js';
 
@@ -36,6 +38,11 @@ const AUTH_GATE_CREDENTIAL_STORED_ERROR = 'credential_stored_gate_resolution_fai
 const OAUTH_CALLBACK_CHANNEL = 'ironclaw-product-auth';
 const OAUTH_CALLBACK_STORAGE_KEY = 'ironclaw:product-auth:oauth-complete';
 const OAUTH_CALLBACK_MESSAGE_TYPE = 'ironclaw:product-auth:oauth-complete';
+// SSE-drop fallback cadence. When a run is accepted but its SSE stream goes
+// quiet (no terminal event), poll the registered timeline route to detect the
+// landed assistant reply — the gateway registers no bare GET /runs/{id}.
+const RUN_STATE_FALLBACK_POLL_MS = 1500;
+const RUN_STATE_FALLBACK_MAX_ATTEMPTS = 60;
 
 async function withAuthTokenTimeout(task) {
   const controller = new AbortController();
@@ -283,6 +290,92 @@ export function useChat(threadId) {
     onEvent: handleEvent,
     enabled: Boolean(threadId)
   });
+
+  // SSE-drop fallback. A run can be accepted and complete on the server while
+  // its SSE stream stays silent (dropped connection, missed terminal frame).
+  // The gateway registers no bare GET /runs/{id}, so we poll the registered
+  // timeline route and treat a finalized assistant reply for this run as
+  // completion (runReplyLandedInTimeline) — reloading history so the recovered
+  // reply renders. Runs that genuinely produce nothing fall through to an
+  // honest "no result arrived" notice after the bounded retry window rather
+  // than a fabricated status.
+  React.useEffect(() => {
+    if (
+      !threadId ||
+      !isProcessing ||
+      pendingGate ||
+      !activeRun?.runId ||
+      activeRun.threadId !== threadId
+    ) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    let attempts = 0;
+    let timer = null;
+    const controller = new AbortController();
+
+    const appendFailureMessage = (content) => {
+      upsertRunFailureMessage(setMessages, {
+        runId: activeRun.runId,
+        content,
+        source: 'fallback',
+        timestamp: new Date().toISOString()
+      });
+    };
+
+    const pollRunState = async () => {
+      attempts += 1;
+      try {
+        const timeline = await fetchTimeline({
+          threadId,
+          limit: 60,
+          signal: controller.signal
+        });
+        if (cancelled) return;
+        if (runReplyLandedInTimeline(timeline?.messages || [], activeRun.runId)) {
+          // loadHistory reconciles pending rows against the timeline;
+          // no blanket wipe (see onRunSettled).
+          setPendingGate(null);
+          setIsProcessing(false);
+          setActiveRun(null);
+          loadHistory();
+          return;
+        }
+      } catch (err) {
+        if (cancelled || controller.signal.aborted) return;
+        // Keep polling; transient timeline misses are expected while the
+        // backend is still writing the run's records.
+      }
+
+      if (!cancelled && attempts < RUN_STATE_FALLBACK_MAX_ATTEMPTS) {
+        timer = window.setTimeout(pollRunState, RUN_STATE_FALLBACK_POLL_MS);
+      } else if (!cancelled) {
+        appendFailureMessage(
+          'IronClaw accepted this turn, but no assistant result arrived from Reborn yet. Your message and attachments are preserved in this thread.'
+        );
+        setPendingGate(null);
+        setIsProcessing(false);
+        setActiveRun(null);
+      }
+    };
+
+    timer = window.setTimeout(pollRunState, RUN_STATE_FALLBACK_POLL_MS);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [
+    activeRun?.runId,
+    activeRun?.threadId,
+    isProcessing,
+    loadHistory,
+    pendingGate,
+    setActiveRun,
+    setMessages,
+    threadId
+  ]);
 
   // Accepts the composer call shape `{ attachments, threadId }`. The
   // `attachments` are staged objects from `lib/attachments.js`
