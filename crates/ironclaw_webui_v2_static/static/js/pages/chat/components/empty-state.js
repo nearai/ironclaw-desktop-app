@@ -249,6 +249,8 @@ export function EmptyState({
             )}
           </div>
 
+          <${SourceBoundaryStrip} />
+
           ${recentThreads.length > 0 &&
           html`
             <div className="mt-5">
@@ -299,10 +301,11 @@ export function EmptyState({
               className="mt-3 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
             >
               <div className="text-sm font-semibold text-[var(--v2-text-strong)]">
-                Connect NEAR AI Cloud once, then ask naturally.
+                Connect model access first, then start with a task.
               </div>
               <div className="mt-1 text-sm leading-5 text-[var(--v2-text-muted)]">
-                Normal desktop setup uses NEAR AI Cloud; no separate model-provider keys are needed.
+                Workspace sources are configured separately in Connections; unset connectors are not
+                used.
               </div>
               <${Link}
                 to="/settings/inference"
@@ -359,6 +362,36 @@ export function EmptyState({
             )}
           </div>
         </section>
+      </div>
+    </div>
+  `;
+}
+
+function SourceBoundaryStrip() {
+  return html`
+    <div
+      className="mt-5 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-3"
+      data-testid="source-boundary"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div
+            className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+          >
+            Source boundary
+          </div>
+          <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
+            Only attached files and connectors you set up can be used. External sends, posts, and
+            changes pause for approval.
+          </p>
+        </div>
+        <${Link}
+          to="/extensions"
+          className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-sm font-semibold text-[var(--v2-text-strong)] hover:border-[color-mix(in_srgb,var(--v2-accent)_42%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
+        >
+          <${Icon} name="plug" className="h-4 w-4" />
+          Connect sources
+        <//>
       </div>
     </div>
   `;

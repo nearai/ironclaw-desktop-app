@@ -68,20 +68,21 @@ registerPack('en', {
   'chat.heroAfternoon': 'What should IronClaw handle next?',
   'chat.heroEvening': 'What should IronClaw handle next?',
   'chat.heroDesc':
-    'Give it the document, notes, spreadsheet, or messy ask. IronClaw keeps inputs, approvals, and outputs visible.',
-  'chat.briefLabel': 'Today',
+    'Ask across attached files and configured connectors, prepare drafts or artifacts, and review external actions before they run.',
+  'chat.briefLabel': 'Front door',
   'chat.briefNeedsSetupTitle': 'Connect NEAR AI Cloud to start',
-  'chat.briefNeedsSetupDesc': 'One sign-in gives IronClaw model access through our infra.',
+  'chat.briefNeedsSetupDesc': 'Model access is required before chat can prepare work.',
   'chat.briefReadyTitle': 'Ready to work',
   'chat.briefReadyDesc':
-    'Send a message or attach a document. The assistant will keep work product visible in the thread.',
+    'Send a message or attach a document. Drafts, artifacts, and source context stay visible in the thread.',
   'chat.briefResumeTitle': 'Recent threads are ready to reopen',
   'chat.briefResumeDesc': 'Pick up context without starting from a blank prompt.',
-  'chat.briefWorkspaceTitle': 'Workspace context appears as it is connected',
-  'chat.briefWorkspaceDesc': 'Connectors show honest setup states before IronClaw can use them.',
-  'chat.briefSafetyTitle': 'Risky actions pause for approval',
+  'chat.briefWorkspaceTitle': 'Connect sources when you need them',
+  'chat.briefWorkspaceDesc':
+    'Use Connections for Slack, docs, email, and research tools; unavailable connectors stay out of answers.',
+  'chat.briefSafetyTitle': 'External actions need approval',
   'chat.briefSafetyDesc':
-    'Before anything leaves your machine, the gate names the action and data involved.',
+    'Sends, posts, file changes, and other outbound actions pause with the exact action and data named.',
   'chat.resumeHeading': 'Pick up where you left off',
   'chat.resumeMinutes': '{n}m ago',
   'chat.resumeHours': '{n}h ago',
@@ -395,14 +396,15 @@ registerPack('en', {
   'llm.providers': 'NEAR AI Cloud',
   'llm.providersDesc':
     'IronClaw routes model access through NEAR AI Cloud. No third-party API keys are required for normal use.',
-  'onboarding.title': 'IronClaw Desktop',
+  'onboarding.title': 'Set up IronClaw Desktop',
   'onboarding.subtitle':
-    'An agentic chief of staff for documents, connectors, approvals, and the work you need finished.',
+    'A private workbench for connected tools: ask across workspace sources, prepare work, and approve external actions before they run.',
   'onboarding.setUp': 'Set up',
   'onboarding.signIn': 'Sign in',
   'onboarding.nearWallet': 'NEAR Wallet',
   'onboarding.ready': 'Ready',
-  'onboarding.moreInSettings': 'Advanced model setup stays in',
+  'onboarding.moreInSettings':
+    'After sign-in, open Connections for Slack, docs, email, and research tools. Model details stay in Settings.',
   'onboarding.providerNearai': 'NEAR AI',
   'onboarding.providerNearaiDesc': 'Hosted model access through IronClaw.',
   'onboarding.nearaiWaiting': 'Finish signing in to NEAR AI in your browser…',
@@ -414,17 +416,18 @@ registerPack('en', {
   'onboarding.continueWallet': 'Use NEAR Wallet',
   'onboarding.providerNearaiDescDesktop':
     'Sign in once; IronClaw routes models through NEAR AI Cloud.',
-  'onboarding.accessLabel': 'Secure access',
-  'onboarding.accessTitle': 'Connect NEAR AI Cloud',
-  'onboarding.firstRun': 'First run',
-  'onboarding.promiseModelsTitle': 'Models route through NEAR AI Cloud',
-  'onboarding.promiseModelsBody': 'No third-party provider key is part of normal desktop setup.',
-  'onboarding.promiseApprovalsTitle': 'Approvals stay visible',
+  'onboarding.accessLabel': 'First step',
+  'onboarding.accessTitle': 'Connect model access',
+  'onboarding.firstRun': 'Required',
+  'onboarding.promiseModelsTitle': 'Model access comes first',
+  'onboarding.promiseModelsBody':
+    'Sign in to NEAR AI Cloud so chat can run. Workspace sources are added separately.',
+  'onboarding.promiseApprovalsTitle': 'External actions wait for approval',
   'onboarding.promiseApprovalsBody':
-    'When IronClaw needs permission, it pauses inline and names what will happen.',
-  'onboarding.promiseFilesTitle': 'Files stay attached to the work',
+    'Sending, posting, editing, or changing external data pauses until you approve the exact action.',
+  'onboarding.promiseFilesTitle': 'Sources stay attached to the work',
   'onboarding.promiseFilesBody':
-    'Attach documents from chat; previews and generated outputs remain part of the thread.',
+    'Attached files, connector results, generated drafts, and artifacts remain reviewable in the thread.',
   'llm.testConnection': 'Test connection',
   'llm.testing': 'Testing...',
   'llm.use': 'Use',
@@ -872,12 +875,12 @@ registerPack('en', {
   'ext.registry': 'Browse',
 
   // Extensions — registry
-  'ext.registry.searchPlaceholder': 'Search apps...',
+  'ext.registry.searchPlaceholder': 'Search sources...',
   'ext.registry.emptyTitle': 'No apps available yet',
   'ext.registry.emptyDesc':
     'IronClaw cannot reach the app catalog, or every available app is already connected.',
-  'ext.registry.availableTitle': 'Available apps',
-  'ext.registry.noMatch': 'No apps match the filter.',
+  'ext.registry.availableTitle': 'Available sources',
+  'ext.registry.noMatch': 'No sources match the filter.',
 
   // Chat — history
   'chat.history.loading': 'Loading...',

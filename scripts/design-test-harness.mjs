@@ -35,7 +35,8 @@ const checks = [
           'title="Needs you"',
           'title="Handled"',
           'variant="hero"',
-          'Connect NEAR AI Cloud once'
+          "t('chat.briefNeedsSetupTitle')",
+          'Workspace sources are configured separately in Connections'
         ]
       }
     ]

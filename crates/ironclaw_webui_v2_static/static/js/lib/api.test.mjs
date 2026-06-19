@@ -52,6 +52,7 @@ test('sendMessage sends composer attachments as Reborn attachment payloads', asy
   await sendMessage({
     threadId: 'thread-1',
     content: 'draft from the attachment',
+    timezone: 'America/Toronto',
     attachments: [
       {
         name: 'template.pdf',
@@ -68,6 +69,7 @@ test('sendMessage sends composer attachments as Reborn attachment payloads', asy
   const body = JSON.parse(calls[0].options.body);
   assert.equal(body.client_action_id, 'action-1');
   assert.equal(body.content, 'draft from the attachment');
+  assert.equal(body.timezone, 'America/Toronto');
   assert.deepEqual(body.attachments, [
     {
       filename: 'template.pdf',

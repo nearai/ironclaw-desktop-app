@@ -409,7 +409,7 @@ export function useChat(threadId) {
       }
       setChannelConnectAction(null);
 
-      const { threadId: targetThreadId, images = [], attachments = [] } = opts;
+      const { threadId: targetThreadId, images = [], attachments = [], timezone } = opts;
       const serializedAttachments = serializeComposerAttachments([...images, ...attachments]);
       const optimisticAttachments = [
         ...images.map((img) => ({
@@ -478,6 +478,7 @@ export function useChat(threadId) {
         const response = await sendMessage({
           threadId: sendThreadId,
           content: contentForReborn,
+          timezone,
           // Mainline Reborn lands attachment payloads; the durable text block
           // stays as the backward-compatible model/readback path.
           attachments: attachmentsForWire(serializedAttachments)

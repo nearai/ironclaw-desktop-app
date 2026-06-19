@@ -50,6 +50,14 @@ const registryEntries = [
     keywords: ['calendar', 'google', 'schedule']
   },
   {
+    id: 'google-drive',
+    display_name: 'Google Drive',
+    kind: 'wasm_tool',
+    description: 'Ground prep, summaries, and answers in Drive documents and folders.',
+    package_ref: { kind: 'extension', id: 'tools/google_drive' },
+    keywords: ['drive', 'docs', 'files']
+  },
+  {
     id: 'notion',
     display_name: 'Notion',
     kind: 'mcp_server',
@@ -64,6 +72,14 @@ const registryEntries = [
     description: 'Summarize channels, prepare replies, and surface urgent asks.',
     package_ref: { kind: 'extension', id: 'channels/slack' },
     keywords: ['messages', 'team', 'channels']
+  },
+  {
+    id: 'github',
+    display_name: 'GitHub',
+    kind: 'wasm_tool',
+    description: 'Watch releases, summarize changes, and route follow-up tasks.',
+    package_ref: { kind: 'extension', id: 'tools/github' },
+    keywords: ['releases', 'issues', 'code']
   }
 ];
 
@@ -154,17 +170,73 @@ test('static connectors: registry surfaces honest BLOCKED and NEEDS SETUP readin
   await expect(gmailCard).toBeVisible();
   await expect(gmailCard.getByText('BLOCKED', { exact: true })).toBeVisible();
   await expect(gmailCard.getByText('AVAILABLE', { exact: true })).toHaveCount(0);
+  const gmailReadiness = page.getByTestId('source-readiness-gmail');
+  await expect(gmailReadiness).toHaveAttribute('data-readiness-state', 'blocked');
+  await expect(gmailReadiness.getByText('Blocked by setup', { exact: true })).toBeVisible();
+  await expect(gmailReadiness.getByRole('link', { name: 'Open Google setup' })).toHaveAttribute(
+    'href',
+    '/v2/settings/inference#google-oauth'
+  );
 
   const notionCard = page.getByTestId('registry-card-notion');
   await expect(notionCard).toBeVisible();
   await expect(notionCard.getByText('NEEDS SETUP', { exact: true })).toBeVisible();
   await expect(notionCard.getByText('AVAILABLE', { exact: true })).toHaveCount(0);
+  const notionReadiness = page.getByTestId('source-readiness-notion');
+  await expect(notionReadiness).toHaveAttribute('data-readiness-state', 'needs-setup');
+  await expect(notionReadiness.getByText('Blocked by setup', { exact: true })).toBeVisible();
+  await expect(notionReadiness.getByRole('button', { name: 'Open Notion setup' })).toBeVisible();
 
   // At-rest readiness is descriptive only — no install/lifecycle calls fire
   // just from rendering the catalog.
   expect(calls.filter((call) => call.path === '/api/webchat/v2/extensions/install')).toHaveLength(
     0
   );
+});
+
+test('static connectors: source readiness prioritizes actionable source-family states', async ({
+  page
+}) => {
+  const calls: CapturedCall[] = [];
+  await installConnectorMocks(page, calls, [
+    registryEntries.find((entry) => entry.id === 'gmail'),
+    {
+      ...registryEntries.find((entry) => entry.id === 'slack'),
+      connectPhase: { phase: 'error', message: 'Slack workspace token expired.' }
+    },
+    {
+      ...registryEntries.find((entry) => entry.id === 'notion'),
+      connectPhase: { phase: 'needs-token', message: 'Notion workspace authorization required.' }
+    },
+    registryEntries.find((entry) => entry.id === 'google-drive'),
+    registryEntries.find((entry) => entry.id === 'github')
+  ]);
+
+  await page.goto('/v2/extensions/registry?token=connector-static-token');
+  const panel = page.getByTestId('source-readiness-panel');
+  await expect(panel).toBeVisible();
+  await expect(panel.getByRole('heading', { name: 'Fix blocked sources first.' })).toBeVisible();
+  await expect(panel.getByText(/sources connected/i)).toHaveCount(0);
+
+  await expect(panel.getByTestId('source-readiness-slack')).toHaveAttribute(
+    'data-readiness-state',
+    'needs-reconnect'
+  );
+  await expect(panel.getByTestId('source-readiness-slack')).toContainText('Needs reconnect');
+  await expect(
+    panel.getByTestId('source-readiness-slack').getByRole('button', { name: 'Reconnect Slack' })
+  ).toBeVisible();
+
+  await expect(panel.getByTestId('source-readiness-notion')).toHaveAttribute(
+    'data-readiness-state',
+    'needs-setup'
+  );
+  await expect(panel.getByTestId('source-readiness-notion')).toContainText('Blocked by setup');
+
+  await expect(panel.getByTestId('source-readiness-gmail')).toContainText('Available');
+  await expect(panel.getByTestId('source-readiness-drive')).toContainText('Available');
+  await expect(panel.getByTestId('source-readiness-github')).toContainText('Available');
+  await expect(panel.getByTestId('source-readiness-workspace')).toContainText('Readable');
 });
 
 test('static connectors: chat connect prompts open an honest extension setup path', async ({
@@ -291,8 +363,13 @@ test('static connectors: registry surface has no horizontal overflow and 44px ta
 
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
 
-  const filter = page.getByPlaceholder('Search apps...');
+  const filter = page.getByPlaceholder('Search sources...');
   expect(await tapHeight(filter)).toBeGreaterThanOrEqual(44);
+
+  const sourceConnect = page
+    .getByTestId('source-readiness-gmail')
+    .getByRole('button', { name: 'Connect Gmail' });
+  expect(await tapHeight(sourceConnect)).toBeGreaterThanOrEqual(44);
 
   const connect = page.getByTestId('registry-card-gmail').getByRole('button', { name: 'Connect' });
   expect(await tapHeight(connect)).toBeGreaterThanOrEqual(44);

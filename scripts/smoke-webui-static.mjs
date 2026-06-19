@@ -1378,9 +1378,10 @@ try {
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/extensions/registry`, {
     waitUntil: 'domcontentloaded'
   });
-  await page.getByText('Catalog unavailable', { exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByText('Source setup', { exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByTestId('source-readiness-panel').waitFor({ timeout: 20_000 });
   await page
-    .getByText('This gateway did not expose installable app catalog entries yet.', {
+    .getByText('IronClaw shows the next setup step for sources that need attention', {
       exact: false
     })
     .waitFor({ timeout: 20_000 });
@@ -1438,23 +1439,22 @@ try {
       );
     }
   }
-  const unavailableConnectorButtons = page.getByRole('button', { name: 'Not available' });
+  const unavailableConnectorButtons = page.getByRole('button', { name: 'Unavailable' });
   const unavailableConnectorCount = await unavailableConnectorButtons.count();
-  if (unavailableConnectorCount < 8) {
+  if (unavailableConnectorCount < 4) {
     const visibleBody = await page.locator('body').innerText();
     throw new Error(
-      `empty registry did not render disabled curated connector cards:\n${visibleBody}`
+      `empty registry did not render disabled unavailable source actions:\n${visibleBody}`
     );
   }
   for (let index = 0; index < unavailableConnectorCount; index += 1) {
     if (!(await unavailableConnectorButtons.nth(index).isDisabled())) {
-      throw new Error(`empty registry curated connector ${index} was actionable`);
+      throw new Error(`empty registry unavailable source action ${index} was actionable`);
     }
   }
-  if ((await page.getByRole('button', { name: 'Connect' }).count()) > 0) {
-    const visibleBody = await page.locator('body').innerText();
-    throw new Error(`empty registry exposed actionable synthetic Connect buttons:\n${visibleBody}`);
-  }
+  await page.getByText('Open Google setup', { exact: true }).first().waitFor();
+  await page.getByText('Reconnect Slack', { exact: true }).first().waitFor();
+  await page.getByRole('button', { name: 'Built in' }).first().waitFor();
   await assertNoLegacyConnectionsClasses(page.locator('body'), 'empty registry Connections');
   await page.screenshot({
     path: 'output/playwright/static-connections-registry-empty.png',

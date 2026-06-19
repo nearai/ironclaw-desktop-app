@@ -425,11 +425,18 @@ export function deleteThread({ threadId } = {}) {
 
 // --- Messages ---
 
-export function sendMessage({ threadId, content, attachments, clientActionId: clientId }) {
+export function sendMessage({
+  threadId,
+  content,
+  attachments,
+  timezone,
+  clientActionId: clientId
+}) {
   const body = {
     client_action_id: clientId || clientActionId(),
     content: String(content || '')
   };
+  if (timezone) body.timezone = String(timezone);
   const normalizedAttachments = normalizeAttachmentPayloads(attachments);
   if (normalizedAttachments.length > 0) {
     body.attachments = normalizedAttachments;

@@ -668,7 +668,7 @@ test('useChat.send: extension connect requests show setup action without submitt
   assert.equal(sendMessageCalled, false);
   assert.equal(response.channel_connect_action.channel, 'notion');
   assert.equal(response.channel_connect_action.strategy, 'extension_setup_link');
-  assert.equal(response.channel_connect_action.package_ref.id, 'mcp-servers/notion');
+  assert.equal(response.channel_connect_action.package_ref.id, 'notion');
   assert.equal(
     response.channel_connect_action.action.href,
     '/extensions/registry?setup=1&focus=notion'
@@ -754,10 +754,10 @@ test('useChat.send: unmatched channel connect requests submit the prompt', async
   vm.runInNewContext(useChatSourceForTest(), context);
 
   const chat = context.globalThis.__testExports.useChat(null);
-  const response = await chat.send('connect telegram account');
+  const response = await chat.send('connect whatsapp account');
 
   assert.equal(createThreadCalled, true);
-  assert.equal(sentContent, 'connect telegram account');
+  assert.equal(sentContent, 'connect whatsapp account');
   assert.equal(response.channel_connect_action, undefined);
   assert.equal(response.thread_id, 'thread-created');
 });

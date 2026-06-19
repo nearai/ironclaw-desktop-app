@@ -93,7 +93,8 @@ export function Chat({
       const response = await send(content, {
         images,
         attachments,
-        threadId: activeThreadId
+        threadId: activeThreadId,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
       });
       const responseThreadId = response?.thread_id || activeThreadId;
       if (!activeThreadId && responseThreadId && onSelectThread) {

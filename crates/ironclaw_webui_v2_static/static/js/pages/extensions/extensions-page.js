@@ -129,6 +129,7 @@ export function ExtensionsPage() {
       toolRegistry=${toolRegistry}
       channelRegistry=${channelRegistry}
       mcpRegistry=${mcpRegistry}
+      installedExtensions=${extensions}
       loadError=${loadError}
       onInstall=${install}
       onConfigure=${handleConfigure}

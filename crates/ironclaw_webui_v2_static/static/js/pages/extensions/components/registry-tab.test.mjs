@@ -4,10 +4,12 @@ import test from 'node:test';
 import {
   ACCEPTANCE_WORKFLOWS,
   CORE_CONNECTIONS,
+  WORKBENCH_SOURCE_FAMILIES,
   acceptanceWorkflowStatus,
   coreConnectionButtonState,
   coreConnectionKindLabel,
   projectedConnectPhase,
+  sourceReadinessItems,
   workflowCatalogStatus
 } from './registry-tab.js';
 import { connectorIconKind } from './extension-card.js';
@@ -104,6 +106,106 @@ test('core connection fallbacks cover the issue 4775 QA acceptance surface', () 
       assert.ok(surfaced.has(surface), `${useCase.name} missing ${surface}`);
     }
   }
+});
+
+test('workbench source families stay focused on source setup readiness', () => {
+  assert.deepEqual(
+    WORKBENCH_SOURCE_FAMILIES.map((family) => family.id),
+    [
+      'gmail',
+      'calendar',
+      'slack',
+      'telegram',
+      'notion',
+      'drive',
+      'sheets',
+      'github',
+      'web',
+      'routines',
+      'workspace'
+    ]
+  );
+});
+
+test('sourceReadinessItems sorts source exceptions before available and readable sources', () => {
+  const entries = [
+    coreEntry('gmail'),
+    {
+      ...coreEntry('slack'),
+      connectPhase: { phase: 'error', message: 'Slack token expired.' }
+    },
+    coreEntry('telegram'),
+    {
+      ...coreEntry('notion'),
+      connectPhase: { phase: 'needs-token', message: 'Notion workspace authorization required.' }
+    },
+    coreEntry('google-calendar'),
+    coreEntry('google-drive'),
+    coreEntry('google-sheets'),
+    coreEntry('github')
+  ];
+
+  const items = sourceReadinessItems({ availableEntries: entries });
+  const byId = Object.fromEntries(items.map((item) => [item.id, item]));
+
+  assert.deepEqual(
+    items.map((item) => item.id),
+    [
+      'slack',
+      'notion',
+      'gmail',
+      'calendar',
+      'telegram',
+      'drive',
+      'sheets',
+      'github',
+      'web',
+      'routines',
+      'workspace'
+    ]
+  );
+  assert.equal(byId.gmail.statusLabel, 'Available');
+  assert.equal(byId.calendar.statusLabel, 'Available');
+  assert.equal(byId.slack.statusLabel, 'Needs reconnect');
+  assert.equal(byId.telegram.statusLabel, 'Available');
+  assert.equal(byId.notion.statusLabel, 'Blocked by setup');
+  assert.equal(byId.drive.statusLabel, 'Available');
+  assert.equal(byId.sheets.statusLabel, 'Available');
+  assert.equal(byId.github.statusLabel, 'Available');
+  assert.equal(byId.web.statusLabel, 'Available');
+  assert.equal(byId.routines.statusLabel, 'Available');
+  assert.equal(byId.workspace.statusLabel, 'Readable');
+  assert.equal(byId.slack.action.label, 'Reconnect Slack');
+  assert.equal(byId.notion.action.label, 'Open Notion setup');
+});
+
+test('sourceReadinessItems preserves gateway-offline and blocked Google setup truth', () => {
+  const offline = sourceReadinessItems({
+    gatewayOffline: true,
+    availableEntries: [coreEntry('gmail')]
+  });
+  const offlineById = Object.fromEntries(offline.map((item) => [item.id, item]));
+
+  assert.equal(offlineById.gmail.statusLabel, 'Gateway offline');
+  assert.equal(offlineById.gmail.action.disabled, true);
+  assert.equal(offlineById.workspace.statusLabel, 'Readable');
+
+  const blocked = sourceReadinessItems({
+    availableEntries: [
+      {
+        ...coreEntry('gmail'),
+        connect_phase: {
+          phase: 'blocked-google-client-id',
+          message: 'No hosted Google OAuth client is configured.'
+        }
+      }
+    ]
+  });
+  const gmail = blocked.find((item) => item.id === 'gmail');
+
+  assert.equal(gmail.statusLabel, 'Blocked by setup');
+  assert.equal(gmail.action.label, 'Open Google setup');
+  assert.equal(gmail.action.href, '/settings/inference#google-oauth');
 });
 
 test('acceptance workflows map every issue 4775 scenario to connector surfaces', () => {

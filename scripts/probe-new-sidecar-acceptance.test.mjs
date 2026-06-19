@@ -113,6 +113,30 @@ test('new sidecar acceptance requires outbound delivery route shapes', () => {
     targets_status: 200,
     has_final_reply_target: true,
     has_final_reply_target_status: true,
+    final_reply_target_defaulted: false,
+    targets_count: 0
+  });
+});
+
+test('new sidecar acceptance accepts omitted target when status is none configured', () => {
+  const verdict = evaluateOutboundDeliveryRoutes({
+    preferences: {
+      res: { ok: true, status: 200 },
+      body: {
+        final_reply_target_status: 'none_configured'
+      }
+    },
+    targets: { res: { ok: true, status: 200 }, body: { targets: [] } }
+  });
+
+  assert.equal(verdict.name, OUTBOUND_DELIVERY_CHECK_NAME);
+  assert.equal(verdict.pass, true);
+  assert.deepEqual(verdict.detail, {
+    preferences_status: 200,
+    targets_status: 200,
+    has_final_reply_target: false,
+    has_final_reply_target_status: true,
+    final_reply_target_defaulted: true,
     targets_count: 0
   });
 });

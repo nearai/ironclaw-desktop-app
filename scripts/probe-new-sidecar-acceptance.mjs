@@ -76,12 +76,14 @@ export function evaluateOutboundDeliveryRoutes({ preferences, targets } = {}) {
   const hasFinalReplyTargetStatus =
     preferencesServes &&
     Object.prototype.hasOwnProperty.call(preferencesBody, 'final_reply_target_status');
+  const finalReplyTargetStatus = preferencesBody?.final_reply_target_status;
   const finalReplyTargetShape =
-    hasFinalReplyTarget && (finalReplyTarget === null || isRecord(finalReplyTarget));
+    (hasFinalReplyTarget && (finalReplyTarget === null || isRecord(finalReplyTarget))) ||
+    (!hasFinalReplyTarget && finalReplyTargetStatus === 'none_configured');
   const finalReplyTargetStatusShape =
     hasFinalReplyTargetStatus &&
-    typeof preferencesBody.final_reply_target_status === 'string' &&
-    preferencesBody.final_reply_target_status.length > 0;
+    typeof finalReplyTargetStatus === 'string' &&
+    finalReplyTargetStatus.length > 0;
   const targetsServes = targets?.res?.ok && Array.isArray(targets?.body?.targets);
   return {
     name: OUTBOUND_DELIVERY_CHECK_NAME,
@@ -92,6 +94,9 @@ export function evaluateOutboundDeliveryRoutes({ preferences, targets } = {}) {
       targets_status: targets?.res?.status ?? null,
       has_final_reply_target: Boolean(hasFinalReplyTarget),
       has_final_reply_target_status: Boolean(hasFinalReplyTargetStatus),
+      final_reply_target_defaulted: Boolean(
+        preferencesServes && !hasFinalReplyTarget && finalReplyTargetStatus === 'none_configured'
+      ),
       targets_count: Array.isArray(targets?.body?.targets) ? targets.body.targets.length : null
     }
   };

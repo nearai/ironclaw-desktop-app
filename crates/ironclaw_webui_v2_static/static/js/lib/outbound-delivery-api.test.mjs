@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   getOutboundPreferences,
   listOutboundDeliveryTargets,
+  normalizeOutboundPreferences,
   setOutboundPreferences
 } from './outbound-delivery-api.js';
 
@@ -40,4 +41,15 @@ test('outbound delivery APIs use the Reborn routes and clear-to-null payload', a
   assert.equal(calls[2].options.method, 'POST');
   assert.deepEqual(JSON.parse(calls[2].options.body), { final_reply_target_id: 'slack:dm' });
   assert.deepEqual(JSON.parse(calls[3].options.body), { final_reply_target_id: null });
+});
+
+test('normalizeOutboundPreferences preserves honest none-configured delivery state', () => {
+  assert.deepEqual(normalizeOutboundPreferences({ final_reply_target_status: 'none_configured' }), {
+    final_reply_target_status: 'none_configured',
+    final_reply_target: null
+  });
+  assert.deepEqual(normalizeOutboundPreferences({}), {
+    final_reply_target: null,
+    final_reply_target_status: 'none_configured'
+  });
 });
