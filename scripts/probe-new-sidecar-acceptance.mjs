@@ -34,6 +34,16 @@ const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 export const SLACK_ADMIN_MANAGED_CHECK_NAME =
   'Slack admin-managed capability is backed by allowed-channel and subject routes';
+export const OUTBOUND_DELIVERY_CHECK_NAME =
+  'Outbound delivery routes expose preferences and target shapes used by automations';
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function slackConnectStrategy(channel) {
+  return channel?.strategy || channel?.action?.strategy || '';
+}
 
 export function evaluateSlackAdminManagedRoutes({ connectable, allowed, subjects } = {}) {
   const connectableChannels = Array.isArray(connectable?.body?.channels)
@@ -41,7 +51,7 @@ export function evaluateSlackAdminManagedRoutes({ connectable, allowed, subjects
     : [];
   const advertised = connectableChannels.some(
     (channel) =>
-      channel?.channel === 'slack' && channel?.action?.strategy === 'admin_managed_channels'
+      channel?.channel === 'slack' && slackConnectStrategy(channel) === 'admin_managed_channels'
   );
   const allowedServes = allowed?.res?.ok && Array.isArray(allowed?.body?.channels);
   const subjectsServes = subjects?.res?.ok && Array.isArray(subjects?.body?.subjects);
@@ -52,6 +62,37 @@ export function evaluateSlackAdminManagedRoutes({ connectable, allowed, subjects
       advertised,
       allowed_status: allowed?.res?.status ?? null,
       subjects_status: subjects?.res?.status ?? null
+    }
+  };
+}
+
+export function evaluateOutboundDeliveryRoutes({ preferences, targets } = {}) {
+  const preferencesBody = preferences?.body;
+  const finalReplyTarget = preferencesBody?.final_reply_target;
+  const preferencesServes = preferences?.res?.ok && isRecord(preferencesBody);
+  const hasFinalReplyTarget =
+    preferencesServes &&
+    Object.prototype.hasOwnProperty.call(preferencesBody, 'final_reply_target');
+  const hasFinalReplyTargetStatus =
+    preferencesServes &&
+    Object.prototype.hasOwnProperty.call(preferencesBody, 'final_reply_target_status');
+  const finalReplyTargetShape =
+    hasFinalReplyTarget && (finalReplyTarget === null || isRecord(finalReplyTarget));
+  const finalReplyTargetStatusShape =
+    hasFinalReplyTargetStatus &&
+    typeof preferencesBody.final_reply_target_status === 'string' &&
+    preferencesBody.final_reply_target_status.length > 0;
+  const targetsServes = targets?.res?.ok && Array.isArray(targets?.body?.targets);
+  return {
+    name: OUTBOUND_DELIVERY_CHECK_NAME,
+    pass:
+      preferencesServes && finalReplyTargetShape && finalReplyTargetStatusShape && targetsServes,
+    detail: {
+      preferences_status: preferences?.res?.status ?? null,
+      targets_status: targets?.res?.status ?? null,
+      has_final_reply_target: Boolean(hasFinalReplyTarget),
+      has_final_reply_target_status: Boolean(hasFinalReplyTargetStatus),
+      targets_count: Array.isArray(targets?.body?.targets) ? targets.body.targets.length : null
     }
   };
 }
@@ -284,6 +325,7 @@ async function main() {
     check('SSE events stream emits run_status (UI lifecycle source)', sseStatusSeen);
 
     // Routes we already depend on must remain.
+    const servedRoutes = {};
     for (const route of [
       'llm/providers',
       'automations',
@@ -295,8 +337,14 @@ async function main() {
       'operator/logs'
     ]) {
       const r = await api('GET', `/api/webchat/v2/${route}`);
+      servedRoutes[route] = r;
       check(`existing route /${route} still serves`, r.res.ok, { status: r.res.status });
     }
+    const outboundCheck = evaluateOutboundDeliveryRoutes({
+      preferences: servedRoutes['outbound/preferences'],
+      targets: servedRoutes['outbound/targets']
+    });
+    check(outboundCheck.name, outboundCheck.pass, outboundCheck.detail);
 
     const fsMounts = await api('GET', '/api/webchat/v2/fs/mounts');
     const mountIds = Array.isArray(fsMounts.body?.mounts)

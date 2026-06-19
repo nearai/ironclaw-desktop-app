@@ -236,19 +236,12 @@ pub async fn list_catalog(app: AppHandle, force: bool) -> Result<Value, String> 
 /// catalog response).
 pub async fn fetch_skill(slug: String) -> Result<Value, String> {
     let trimmed = slug.trim();
-    if trimmed.is_empty() {
-        return Err("slug is empty".into());
-    }
     // Reject anything that could escape the skills directory. We only
     // permit the same characters GitHub's path resolver allows for a
     // directory child entry — letters, digits, `_`, `-`, `.`. Disallowing
-    // `..` and `/` keeps the path safe whether we feed it into a URL or
-    // into the local install destination.
-    if !trimmed
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
-        || trimmed.contains("..")
-    {
+    // `.`, `..`, and `/` keeps the path safe whether we feed it into a URL
+    // or into the local install destination.
+    if !valid_ironhub_slug(trimmed) {
         return Err(format!("invalid slug: {trimmed}"));
     }
     let url = format!("{GH_RAW_BASE}/{SKILL_PATH}/{trimmed}/SKILL.md");
@@ -298,18 +291,21 @@ fn local_skills_dir() -> Result<PathBuf, String> {
     Ok(PathBuf::from(home).join(".ironclaw").join("skills"))
 }
 
+fn valid_ironhub_slug(slug: &str) -> bool {
+    !slug.is_empty()
+        && slug != "."
+        && !slug.contains("..")
+        && slug
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+}
+
 /// Write `content` to `<root>/<slug>/SKILL.md` with mode 0644. Pulled out
 /// of `install_skill_local` so unit tests can exercise the write logic
 /// without needing a Tauri AppHandle or a running sidecar.
 fn write_skill_to(root: &Path, slug: &str, content: &str) -> Result<(PathBuf, u64), String> {
-    if slug.trim().is_empty() {
-        return Err("slug is empty".into());
-    }
-    if !slug
-        .chars()
-        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
-        || slug.contains("..")
-    {
+    let slug = slug.trim();
+    if !valid_ironhub_slug(slug) {
         return Err(format!("invalid slug: {slug}"));
     }
     let dest_dir = root.join(slug);
@@ -438,7 +434,7 @@ mod tests {
 
     #[tokio::test]
     async fn fetch_skill_rejects_path_traversal() {
-        for bad in ["..", "../etc/passwd", "skill/../../escape", "ok/SKILL"] {
+        for bad in [".", "..", "../etc/passwd", "skill/../../escape", "ok/SKILL"] {
             let res = fetch_skill(bad.into()).await;
             assert!(
                 res.is_err(),
@@ -474,7 +470,7 @@ mod tests {
     #[test]
     fn write_skill_rejects_bad_slug() {
         let dir = tempfile::tempdir().unwrap();
-        for bad in ["", "  ", "..", "a/b", "../escape"] {
+        for bad in ["", "  ", ".", "..", "a/b", "../escape"] {
             let res = write_skill_to(dir.path(), bad, "x");
             assert!(res.is_err(), "expected `{bad}` to be rejected");
         }

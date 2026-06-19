@@ -23,6 +23,7 @@ const LOGIN_WINDOW_LABEL: &str = "nearai-login";
 // Any path under the allowlisted origin works; a distinct marker keeps the
 // callback recognizable and un-spoofable by other in-flow redirects.
 const CALLBACK_MARKER_PATH: &str = "/ironclaw-desktop";
+const CALLBACK_PATH: &str = "/ironclaw-desktop/auth/callback";
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
 
 enum LoginSignal {
@@ -36,10 +37,7 @@ pub fn token_from_callback_url(url: &Url) -> Option<String> {
     if url.scheme() != "https" || url.host_str() != Some("private.near.ai") {
         return None;
     }
-    if !url
-        .path()
-        .starts_with(&format!("{CALLBACK_MARKER_PATH}/auth/callback"))
-    {
+    if url.path() != CALLBACK_PATH {
         return None;
     }
     url.query_pairs()
@@ -175,6 +173,7 @@ mod tests {
             "https://github.com/login/oauth/authorize?token=sess_x",
             "http://private.near.ai/ironclaw-desktop/auth/callback?token=sess_x",
             "https://private.near.ai/auth/callback?token=sess_x",
+            "https://private.near.ai/ironclaw-desktop/auth/callback-extra?token=sess_x",
             "https://private.near.ai/ironclaw-desktop/auth/callback",
             "https://evil.example/ironclaw-desktop/auth/callback?token=sess_x",
         ] {

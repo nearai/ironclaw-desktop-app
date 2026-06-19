@@ -115,6 +115,7 @@ function findSingleCompatibleRealActivity(messages, card) {
       message?.role === 'tool_activity' &&
       !message.gateActivity &&
       !message.gateRef &&
+      !isTerminalToolStatus(message.toolStatus) &&
       message.turnRunId === card.turnRunId &&
       sameToolName(message.toolName, card.toolName)
   );
@@ -126,6 +127,7 @@ function findSingleCompatibleGateActivity(messages, card) {
     (message) =>
       message?.role === 'tool_activity' &&
       message.gateActivity &&
+      !isTerminalToolStatus(message.toolStatus) &&
       message.turnRunId === card.turnRunId &&
       sameToolName(message.toolName, card.toolName)
   );

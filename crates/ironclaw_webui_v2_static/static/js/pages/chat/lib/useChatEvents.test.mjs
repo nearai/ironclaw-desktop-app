@@ -29,9 +29,7 @@ function sourceForVm(url, replacements = []) {
       skippingImport = !line.trimEnd().endsWith(';');
       continue;
     }
-    lines.push(
-      replacements.reduce((next, [from, to]) => next.replace(from, to), line)
-    );
+    lines.push(replacements.reduce((next, [from, to]) => next.replace(from, to), line));
   }
   return lines.join('\n');
 }
@@ -337,6 +335,110 @@ test('useChatEvents: approval gate creates activity before invocation metadata a
         turn_run_id: runId,
         capability_id: 'nearai.web_search',
         status: 'started'
+      }
+    }
+  });
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(harness.messages[0].id, 'tool-invocation-nearai');
+  assert.equal(harness.messages[0].invocationId, 'invocation-nearai');
+  assert.equal(harness.messages[0].toolName, 'web_search');
+  assert.equal(harness.messages[0].toolStatus, 'running');
+  assert.equal(harness.messages[0].gateRef, gateRef);
+  assert.equal(harness.messages[0].gateActivity, false);
+});
+
+test('useChatEvents: projection approval gate annotates an existing tool activity', () => {
+  const runId = 'run-projected-gated-existing';
+  const gateRef = 'gate:web-access';
+  const harness = createUseChatEventsHarness();
+
+  harness.handleEvent({
+    type: 'projection_update',
+    frame: {
+      state: {
+        items: [
+          { run_status: { run_id: runId, status: 'blocked_approval' } },
+          {
+            capability_activity: {
+              invocation_id: 'invocation-web-access',
+              turn_run_id: runId,
+              capability_id: 'web-access.search',
+              status: 'started'
+            }
+          },
+          {
+            gate: {
+              gate_ref: gateRef,
+              tool_name: 'web-access.search'
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(harness.messages[0].id, 'tool-invocation-web-access');
+  assert.equal(harness.messages[0].toolName, 'search');
+  assert.equal(harness.messages[0].toolStatus, 'running');
+  assert.equal(harness.messages[0].gateRef, gateRef);
+  assert.deepEqual(plain(harness.pendingGate), {
+    kind: 'gate',
+    requestId: gateRef,
+    runId,
+    gateRef,
+    headline: '',
+    body: '',
+    toolName: 'web-access.search',
+    description: '',
+    parameters: '',
+    allowAlways: false
+  });
+});
+
+test('useChatEvents: projection approval gate creates activity before invocation metadata arrives', () => {
+  const runId = 'run-projected-gated-synthetic';
+  const gateRef = 'gate:nearai';
+  const harness = createUseChatEventsHarness();
+
+  harness.handleEvent({
+    type: 'projection_update',
+    frame: {
+      state: {
+        items: [
+          { run_status: { run_id: runId, status: 'blocked_approval' } },
+          {
+            gate: {
+              gate_ref: gateRef,
+              tool_name: 'nearai.web_search'
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(harness.messages[0].id, `tool-gate:${runId}:${gateRef}`);
+  assert.equal(harness.messages[0].toolName, 'web_search');
+  assert.equal(harness.messages[0].toolStatus, 'running');
+  assert.equal(harness.messages[0].gateRef, gateRef);
+
+  harness.handleEvent({
+    type: 'projection_update',
+    frame: {
+      state: {
+        items: [
+          {
+            capability_activity: {
+              invocation_id: 'invocation-nearai',
+              turn_run_id: runId,
+              capability_id: 'nearai.web_search',
+              status: 'started'
+            }
+          }
+        ]
       }
     }
   });

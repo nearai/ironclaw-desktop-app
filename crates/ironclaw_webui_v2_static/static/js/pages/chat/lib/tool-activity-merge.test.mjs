@@ -113,6 +113,58 @@ test('gate without invocation merges when exactly one matching real activity exi
   assert.equal(Boolean(harness.messages[0].gateActivity), false);
 });
 
+test('gate without invocation does not annotate terminal real activity by same-tool fallback', () => {
+  const harness = messageHarness();
+  upsertToolActivityMessage(
+    harness.setMessages,
+    runtimeActivity({
+      invocationId: 'completed-search',
+      callId: 'completed-search',
+      toolStatus: 'success'
+    }),
+    harness.stateRef
+  );
+
+  ensureGateToolActivity(
+    harness.setMessages,
+    approvalGate({ invocationId: '', gateRef: 'gate:approval-after-complete' }),
+    harness.stateRef
+  );
+
+  assert.equal(harness.messages.length, 2);
+  assert.equal(harness.messages[0].id, 'tool-completed-search');
+  assert.equal(harness.messages[0].toolStatus, 'success');
+  assert.equal(harness.messages[0].gateRef || '', '');
+  assert.equal(harness.messages[1].id, 'tool-gate:run-1:gate:approval-after-complete');
+  assert.equal(harness.messages[1].toolStatus, 'running');
+  assert.equal(harness.messages[1].gateRef, 'gate:approval-after-complete');
+});
+
+test('runtime activity does not adopt terminal gate activity by same-tool fallback', () => {
+  const harness = messageHarness();
+  const deniedGate = approvalGate({ invocationId: '', gateRef: 'gate:approval-denied' });
+
+  ensureGateToolActivity(harness.setMessages, deniedGate, harness.stateRef);
+  failGateToolActivity(harness.setMessages, deniedGate, harness.stateRef);
+  upsertToolActivityMessage(
+    harness.setMessages,
+    runtimeActivity({
+      invocationId: 'follow-up-search',
+      callId: 'follow-up-search',
+      activityOrder: 43
+    }),
+    harness.stateRef
+  );
+
+  assert.equal(harness.messages.length, 2);
+  assert.equal(harness.messages[0].id, 'tool-gate:run-1:gate:approval-denied');
+  assert.equal(harness.messages[0].toolStatus, 'error');
+  assert.equal(harness.messages[0].gateRef, 'gate:approval-denied');
+  assert.equal(harness.messages[1].id, 'tool-follow-up-search');
+  assert.equal(harness.messages[1].toolStatus, 'running');
+  assert.equal(harness.messages[1].gateRef || '', '');
+});
+
 test('uncorrelated gate does not guess by same tool name inside a run', () => {
   const harness = messageHarness();
   upsertToolActivityMessage(

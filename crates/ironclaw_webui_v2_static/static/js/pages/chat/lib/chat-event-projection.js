@@ -2,7 +2,7 @@ import { gateFromProjection } from './gates.js';
 import { failureMessageForRunStatus } from './failureMessages.js';
 import { toolCardFromActivity } from './history-messages.js';
 import { upsertRunFailureMessage } from './message-upsert.js';
-import { upsertToolActivityMessage } from './tool-activity-state.js';
+import { ensureGateToolActivity, upsertToolActivityMessage } from './tool-activity-state.js';
 
 const TERMINAL_RUN_STATUSES = new Set([
   'completed',
@@ -317,7 +317,14 @@ function applyProjectionCapabilityActivity(activity, { setMessages, toolActivity
 function applyProjectionGate(
   gate,
   activeRunId,
-  { setIsProcessing, setPendingGate, promptRunIdRef, locallyResolvedGatesRef }
+  {
+    setMessages,
+    setIsProcessing,
+    setPendingGate,
+    promptRunIdRef,
+    locallyResolvedGatesRef,
+    toolActivityStateRef
+  }
 ) {
   if (!gate) return;
   if (
@@ -326,7 +333,10 @@ function applyProjectionGate(
     !isLocallyResolvedGate(locallyResolvedGatesRef, activeRunId, gate.gate_ref)
   ) {
     const pending = gateFromProjection(activeRunId, gate);
-    if (pending) setPendingGate((current) => current || pending);
+    if (pending) {
+      ensureGateToolActivity(setMessages, pending, toolActivityStateRef);
+      setPendingGate((current) => current || pending);
+    }
     setIsProcessing(false);
   }
 }

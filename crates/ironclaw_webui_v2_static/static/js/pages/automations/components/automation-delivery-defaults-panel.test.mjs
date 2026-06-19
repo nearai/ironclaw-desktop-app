@@ -25,6 +25,11 @@ function html(strings, ...values) {
   return { strings: Array.from(strings), values };
 }
 
+function depsChanged(previous, next) {
+  if (!previous || !next || previous.length !== next.length) return true;
+  return next.some((value, index) => !Object.is(value, previous[index]));
+}
+
 function textContent(node) {
   if (node == null || node === false) return '';
   if (typeof node === 'string' || typeof node === 'number') return String(node);
@@ -41,8 +46,27 @@ function visibleTextContent(node) {
   return textContent(node).replace(/<!--[\s\S]*?-->/g, ' ');
 }
 
+function valuesAfter(node, fragment) {
+  const values = [];
+  const visit = (value) => {
+    if (value == null || value === false) return;
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (typeof value === 'object' && Array.isArray(value.strings)) {
+      value.strings.forEach((part, index) => {
+        if (part.includes(fragment)) values.push(value.values[index]);
+        visit(value.values[index]);
+      });
+    }
+  };
+  visit(node);
+  return values;
+}
+
 function createContext() {
-  const state = { hookIndex: 0, values: {}, refs: {} };
+  const state = { hookIndex: 0, values: {}, refs: {}, effectDeps: {}, cleanups: {} };
   const copy = {
     'automations.delivery.eyebrow': 'Delivery defaults',
     'automations.delivery.title': 'Where triggered results are sent',
@@ -92,9 +116,13 @@ function createContext() {
           }
         ];
       },
-      useEffect(effect) {
-        state.hookIndex++;
-        effect();
+      useEffect(effect, deps) {
+        const index = state.hookIndex++;
+        if (depsChanged(state.effectDeps[index], deps)) {
+          state.effectDeps[index] = deps;
+          const cleanup = effect();
+          if (typeof cleanup === 'function') state.cleanups[index] = cleanup;
+        }
       },
       useRef(initial) {
         const index = state.hookIndex++;
@@ -155,4 +183,56 @@ test('AutomationDeliveryDefaultsPanel shows an explicit gateway error instead of
   assert.doesNotMatch(visible, /External replies still respect approval gates/);
   assert.doesNotMatch(visible, /\bSave\b/);
   assert.doesNotMatch(visible, /\bClear\b/);
+});
+
+test('AutomationDeliveryDefaultsPanel clears stale saved state before rendering save failures', async () => {
+  const { render } = createContext();
+  const saveCalls = [];
+  let shouldReject = false;
+  const deliveryState = {
+    currentTarget: null,
+    currentStatus: 'none_configured',
+    targets: [
+      {
+        capabilities: { final_replies: true },
+        target: { target_id: 'slack:dm', display_name: 'Slack DM', status: 'available' }
+      }
+    ],
+    finalReplyTargets: [
+      {
+        capabilities: { final_replies: true },
+        target: { target_id: 'slack:dm', display_name: 'Slack DM', status: 'available' }
+      }
+    ],
+    isLoading: false,
+    isRefreshing: false,
+    isSaving: false,
+    error: null,
+    saveError: null,
+    refetch: () => {},
+    saveFinalReplyTarget: (targetId) => {
+      saveCalls.push(targetId);
+      return shouldReject ? Promise.reject(new Error('gateway rejected')) : Promise.resolve();
+    }
+  };
+
+  let tree = render({ deliveryState });
+  valuesAfter(tree, 'onChange=')[0]();
+  tree = render({ deliveryState });
+  valuesAfter(tree, 'onClick=')[0]();
+  await Promise.resolve();
+
+  tree = render({ deliveryState });
+  assert.match(visibleTextContent(tree), /\bSaved\b/);
+
+  shouldReject = true;
+  valuesAfter(tree, 'onClick=')[0]();
+  deliveryState.saveError = new Error('gateway rejected');
+  await Promise.resolve();
+  tree = render({ deliveryState });
+  const visible = visibleTextContent(tree);
+
+  assert.deepEqual(saveCalls, ['slack:dm', 'slack:dm']);
+  assert.match(visible, /Could not save delivery defaults/);
+  assert.doesNotMatch(visible, /\bSaved\b/);
 });
