@@ -5,6 +5,10 @@ registerPack('ko', {
   'language.switch': '언어가 변경되었습니다',
 
   'common.unknown': '알 수 없음',
+  'automations.delivery.loadFailedTitle': 'Delivery defaults unavailable',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw could not confirm delivery targets from the gateway, so it will not assume web-only delivery or save a default.',
+  'automations.delivery.retry': 'Retry',
 
   'nav.chat': '채팅',
   'nav.workspace': '워크스페이스',

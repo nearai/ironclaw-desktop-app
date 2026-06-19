@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { FetchEventStream, gatewayStatus, listAutomations, sendMessage } from './api.js';
+import { listAutomations } from './automations-api.js';
+import { FetchEventStream, gatewayStatus, sendMessage } from './api.js';
 
 function waitFor(assertion, { timeout = 1000, interval = 10 } = {}) {
   const started = Date.now();

@@ -105,11 +105,10 @@ pub async fn nearai_browser_login(
     });
 
     // Block a worker thread, not the async runtime.
-    let signal = tauri::async_runtime::spawn_blocking(move || {
-        signal_rx.recv_timeout(LOGIN_TIMEOUT)
-    })
-    .await
-    .map_err(|e| format!("login wait: {e}"))?;
+    let signal =
+        tauri::async_runtime::spawn_blocking(move || signal_rx.recv_timeout(LOGIN_TIMEOUT))
+            .await
+            .map_err(|e| format!("login wait: {e}"))?;
 
     let token = match signal {
         Ok(LoginSignal::Token(token)) => token,
@@ -179,7 +178,10 @@ mod tests {
             "https://private.near.ai/ironclaw-desktop/auth/callback",
             "https://evil.example/ironclaw-desktop/auth/callback?token=sess_x",
         ] {
-            assert!(token_from_callback_url(&url(candidate)).is_none(), "{candidate}");
+            assert!(
+                token_from_callback_url(&url(candidate)).is_none(),
+                "{candidate}"
+            );
         }
     }
 

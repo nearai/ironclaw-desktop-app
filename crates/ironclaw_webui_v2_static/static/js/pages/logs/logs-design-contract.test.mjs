@@ -40,10 +40,11 @@ test('logs stream controls are backed by live operator logs (no fake readiness)'
   const source = await readFile(logsPagePath, 'utf8');
   const hookSource = await readFile(path.join(testDir, 'hooks', 'useLogs.js'), 'utf8');
 
-  // Pause/Resume, Clear, and Auto-scroll now act on the Reborn operator logs
+  // Pause/Resume, Clear, and Auto-scroll now act on the Reborn logs
   // endpoint. The old desktop contract hid them while logs were a TODO stub;
   // keeping that guard would hide a real Reborn feature.
-  assert.match(hookSource, /queryOperatorLogs\(\{/);
+  assert.match(hookSource, /import \{ queryOperatorLogs \}/);
+  assert.match(hookSource, /queryOperatorLogs\(/);
   assert.match(hookSource, /setInterval\(loadLogs,\s*POLL_INTERVAL_MS\)/);
   assert.doesNotMatch(hookSource, /status:\s*'todo'/);
 

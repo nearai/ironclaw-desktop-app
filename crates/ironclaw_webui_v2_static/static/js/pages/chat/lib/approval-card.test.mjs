@@ -229,6 +229,35 @@ test('ApprovalCard outbound section enumerates fields nested one level deep and 
   cleanups.forEach((cleanup) => cleanup());
 });
 
+test('ApprovalCard treats approval-context detail labels as outbound fields', () => {
+  const { tree, cleanups } = renderApprovalCard({
+    gateOverride: {
+      toolName: 'http_post',
+      description: 'Send the prepared payload.',
+      parameters: JSON.stringify(
+        {
+          destination: 'Webhook endpoint',
+          details: {
+            Payload: 'services agreement summary',
+            'Outbound data': 'customer pricing terms',
+            'Estimated transfer': '4096 bytes'
+          }
+        },
+        null,
+        2
+      )
+    }
+  });
+
+  const visible = textContent(tree);
+  assert.match(visible, /What leaves the machine/);
+  assert.match(visible, /payload: services agreement summary/);
+  assert.match(visible, /outbound_data: customer pricing terms/);
+  const outboundSection = visible.slice(visible.indexOf('What leaves the machine'));
+  assert.doesNotMatch(outboundSection, /Not specified[^]*services agreement summary/);
+  cleanups.forEach((cleanup) => cleanup());
+});
+
 test('ApprovalCard keyboard shortcuts approve and deny while ignoring editable text fields', () => {
   const calls = [];
   const { listeners, cleanups } = renderApprovalCard({

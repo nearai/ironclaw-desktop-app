@@ -5,6 +5,10 @@ registerPack('hi', {
   'language.switch': 'भाषा बदल दी गई',
 
   'common.unknown': 'अज्ञात',
+  'automations.delivery.loadFailedTitle': 'Delivery defaults unavailable',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw could not confirm delivery targets from the gateway, so it will not assume web-only delivery or save a default.',
+  'automations.delivery.retry': 'Retry',
 
   'nav.chat': 'चैट',
   'nav.workspace': 'वर्कस्पेस',

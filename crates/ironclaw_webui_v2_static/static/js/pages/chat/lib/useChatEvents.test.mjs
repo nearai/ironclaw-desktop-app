@@ -16,8 +16,8 @@ import {
   upsertToolActivityMessage
 } from './tool-activity-state.js';
 
-function useChatEventsSourceForTest() {
-  const source = readFileSync(new URL('./useChatEvents.js', import.meta.url), 'utf8');
+function sourceForVm(url, replacements = []) {
+  const source = readFileSync(url, 'utf8');
   const lines = [];
   let skippingImport = false;
   for (const line of source.split('\n')) {
@@ -29,9 +29,23 @@ function useChatEventsSourceForTest() {
       skippingImport = !line.trimEnd().endsWith(';');
       continue;
     }
-    lines.push(line.replace('export function useChatEvents', 'function useChatEvents'));
+    lines.push(
+      replacements.reduce((next, [from, to]) => next.replace(from, to), line)
+    );
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { useChatEvents };`;
+  return lines.join('\n');
+}
+
+function useChatEventsSourceForTest() {
+  const projectionSource = sourceForVm(new URL('./chat-event-projection.js', import.meta.url), [
+    ['export function settleRun', 'function settleRun'],
+    ['export function applyProjectionItems', 'function applyProjectionItems'],
+    ['export function appendRunFailureMessage', 'function appendRunFailureMessage']
+  ]);
+  const eventsSource = sourceForVm(new URL('./useChatEvents.js', import.meta.url), [
+    ['export function useChatEvents', 'function useChatEvents']
+  ]);
+  return `${projectionSource}\n${eventsSource}\nglobalThis.__testExports = { useChatEvents };`;
 }
 
 function createUseChatEventsHarness({

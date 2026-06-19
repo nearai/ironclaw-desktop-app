@@ -9,8 +9,11 @@
  * the scope tracks the resolved session, so a different identity reads under
  * a different key and simply misses the previous user's entries.
  *
- * Set from the auth layer whenever the session is (re)resolved; defaults to
- * "anon" before/without a session.
+ * Set from the auth layer whenever the session is (re)resolved. The gateway
+ * does not expose a profile endpoint yet, so the current production scope uses
+ * a non-raw hash of the complete bearer instead of trusting client-decoded JWT
+ * claims. Once a server-proven tenant/user identity is available, pass that
+ * instead.
  */
 
 /** The scope used before/without a resolved session (logged-out / unresolved).
@@ -23,6 +26,10 @@ let currentScope = ANON_SCOPE;
 
 /** Update the active scope from the resolved session (or null to reset). */
 export function setAuthScope(session) {
+  if (typeof session === 'string' && session.trim()) {
+    currentScope = session.trim();
+    return;
+  }
   currentScope =
     session && session.tenant_id && session.user_id
       ? `${session.tenant_id}:${session.user_id}`
@@ -32,4 +39,8 @@ export function setAuthScope(session) {
 /** The active scope string, e.g. `"<tenant_id>:<user_id>"` or `"anon"`. */
 export function authScope() {
   return currentScope;
+}
+
+export function hasAuthScope() {
+  return currentScope !== ANON_SCOPE;
 }

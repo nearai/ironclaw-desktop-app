@@ -4,21 +4,30 @@ import test from 'node:test';
 import vm from 'node:vm';
 
 function chatInputSourceForTest() {
-  const source = readFileSync(new URL('../components/chat-input.js', import.meta.url), 'utf8');
+  const sources = [
+    readFileSync(new URL('../components/chat-model-utils.js', import.meta.url), 'utf8'),
+    readFileSync(new URL('../components/chat-input.js', import.meta.url), 'utf8')
+  ];
   const lines = [];
   let skippingImport = false;
-  for (const line of source.split('\n')) {
-    if (!skippingImport && line.startsWith('import ')) {
-      skippingImport = !line.trimEnd().endsWith(';');
-      continue;
+  for (const source of sources) {
+    for (const line of source.split('\n')) {
+      if (!skippingImport && line.startsWith('import ')) {
+        skippingImport = !line.trimEnd().endsWith(';');
+        continue;
+      }
+      if (skippingImport) {
+        skippingImport = !line.trimEnd().endsWith(';');
+        continue;
+      }
+      lines.push(
+        line
+          .replace(/^export function /, 'function ')
+          .replace('export function ChatInput', 'function ChatInput')
+      );
     }
-    if (skippingImport) {
-      skippingImport = !line.trimEnd().endsWith(';');
-      continue;
-    }
-    lines.push(line.replace('export function ChatInput', 'function ChatInput'));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { ChatInput, attachmentStatusLabel, formatProviderLabel, normalizeModelEntries, modelForProvider, visibleLlmSnapshot };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { ChatInput, attachmentStatusLabel, formatProviderLabel, normalizeModelEntries, modelForProvider, providerSetupFailedMessage, uniqueModelsByDisplayLabel, visibleLlmSnapshot };`;
 }
 
 function findComponent(node, component) {
@@ -340,6 +349,25 @@ test('modelForProvider prefers active snapshot over provider defaults', () => {
       { provider_id: 'nearai', model: 'glm-4.5' }
     ),
     'gpt-4.1'
+  );
+});
+
+test('provider setup copy and model label dedupe stay stable', () => {
+  const vmContext = {
+    React: {},
+    modelDisplayName: (model) =>
+      model === 'z-ai/glm-4.5' ? 'GLM 4.5' : String(model || '').trim(),
+    globalThis: {}
+  };
+  vm.runInNewContext(chatInputSourceForTest(), vmContext);
+  const { providerSetupFailedMessage, uniqueModelsByDisplayLabel } =
+    vmContext.globalThis.__testExports;
+
+  assert.match(providerSetupFailedMessage(true), /cannot reach NEAR AI Cloud/);
+  assert.match(providerSetupFailedMessage(false), /Connect NEAR AI Cloud/);
+  assert.deepEqual(
+    uniqueModelsByDisplayLabel(['z-ai/glm-4.5', { id: 'z-ai/glm-4.5' }, 'openai/gpt-oss-120b']),
+    ['z-ai/glm-4.5', 'openai/gpt-oss-120b']
   );
 });
 

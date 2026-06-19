@@ -843,6 +843,10 @@ registerPack('en', {
   'automations.delivery.unpairedNotice': 'Slack DM — not available',
   'automations.delivery.unpairedDesc':
     'Pair Slack before scheduled replies can be delivered there.',
+  'automations.delivery.loadFailedTitle': 'Delivery defaults unavailable',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw could not confirm delivery targets from the gateway, so it will not assume web-only delivery or save a default.',
+  'automations.delivery.retry': 'Retry',
   'automations.delivery.save': 'Save',
   'automations.delivery.clear': 'Clear',
   'automations.delivery.saved': 'Saved',

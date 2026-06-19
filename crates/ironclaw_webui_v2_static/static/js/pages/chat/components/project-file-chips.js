@@ -1,5 +1,5 @@
 import { React, html } from '../../../lib/html.js';
-import { projectFileContentUrl, statProjectFile } from '../../../lib/api.js';
+import { projectFileContentUrl, statProjectFile } from '../../../lib/project-files-api.js';
 import { AttachmentChip } from './attachment-chip.js';
 import { AttachmentPreviewModal } from './attachment-preview.js';
 import { basename, extractWorkspaceFilePaths, formatSize } from '../lib/project-file-paths.js';

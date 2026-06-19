@@ -5,6 +5,10 @@ registerPack('de', {
   'language.switch': 'Sprache geändert',
 
   'common.unknown': 'Unbekannt',
+  'automations.delivery.loadFailedTitle': 'Lieferstandards nicht verfügbar',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw konnte die Lieferziele vom Gateway nicht bestätigen und nimmt daher keine reine Web-App-Lieferung an und speichert keinen Standard.',
+  'automations.delivery.retry': 'Erneut versuchen',
 
   'nav.chat': 'Chat',
   'nav.workspace': 'Arbeitsbereich',

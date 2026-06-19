@@ -1,10 +1,7 @@
 // Unit tests for the client-side pinned-thread store.
 //
 // Run with Node's built-in test runner (no extra deps):
-//   node --test crates/ironclaw_webui_v2_static/static/js/lib/pin-store.test.js
-//
-// NOTE: `build.rs` deliberately excludes `*.test.js` from the embedded
-// asset bundle, so this file is never served to the browser.
+//   node --test crates/ironclaw_webui_v2_static/static/js/lib/pin-store.test.mjs
 
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
@@ -34,6 +31,15 @@ beforeEach(() => {
   setAuthScope(null);
   // Reset module state between tests (the in-memory Set persists per process).
   clearAllPins();
+  setAuthScope({ tenant_id: 'test', user_id: 'default' });
+});
+
+test('anonymous scope never persists or mutates private pins', () => {
+  setAuthScope(null);
+  togglePin('thread-anon');
+  assert.equal(isPinned('thread-anon'), false);
+  assert.equal(getPinnedIds().size, 0);
+  assert.equal(globalThis.window.localStorage.length, 0);
 });
 
 test('togglePin round-trips with isPinned', () => {

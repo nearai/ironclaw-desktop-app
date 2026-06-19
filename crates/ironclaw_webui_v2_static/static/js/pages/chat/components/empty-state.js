@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { Icon } from '../../../design-system/icons.js';
-import { listAutomations } from '../../../lib/api.js';
+import { listAutomations } from '../../../lib/automations-api.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { normalizeAutomations } from '../../automations/lib/automations-presenters.js';

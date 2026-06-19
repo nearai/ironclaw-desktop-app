@@ -5,6 +5,10 @@ registerPack('uk', {
   'language.switch': 'Мову змінено',
 
   'common.unknown': 'Невідомо',
+  'automations.delivery.loadFailedTitle': 'Delivery defaults unavailable',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw could not confirm delivery targets from the gateway, so it will not assume web-only delivery or save a default.',
+  'automations.delivery.retry': 'Retry',
 
   'nav.chat': 'Чат',
   'nav.workspace': 'Робочий простір',

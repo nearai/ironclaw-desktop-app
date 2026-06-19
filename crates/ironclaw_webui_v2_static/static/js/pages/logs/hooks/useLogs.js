@@ -1,6 +1,6 @@
 import { useLocation } from 'react-router';
 import { React } from '../../../lib/html.js';
-import { queryOperatorLogs } from '../../../lib/api.js';
+import { queryOperatorLogs } from '../../../lib/logs-api.js';
 import { normalizeOperatorLogsResponse } from '../lib/logs-data.js';
 
 const POLL_INTERVAL_MS = 2000;
@@ -46,23 +46,38 @@ export function useLogs() {
   const [isUnsupported, setIsUnsupported] = React.useState(false);
   const hiddenEntryIdsRef = React.useRef(new Set());
   const requestIdRef = React.useRef(0);
+  const inFlightRef = React.useRef(false);
+  const needsReloadRef = React.useRef(false);
+  const activeRequestKeyRef = React.useRef('');
+  const latestLoadLogsRef = React.useRef(null);
 
   const loadLogs = React.useCallback(async () => {
     if (isUnsupported) return;
+    const request = {
+      limit: LOG_LIMIT,
+      level: levelFilter === 'all' ? null : levelFilter,
+      target: targetFilter.trim() || null,
+      threadId: scope.threadId,
+      runId: scope.runId,
+      turnId: scope.turnId,
+      toolCallId: scope.toolCallId,
+      toolName: scope.toolName,
+      source: scope.source
+    };
+    const requestKey = JSON.stringify(request);
+    if (inFlightRef.current) {
+      if (requestKey !== activeRequestKeyRef.current) {
+        requestIdRef.current += 1;
+      }
+      needsReloadRef.current = true;
+      return;
+    }
+    inFlightRef.current = true;
+    activeRequestKeyRef.current = requestKey;
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
     try {
-      const response = await queryOperatorLogs({
-        limit: LOG_LIMIT,
-        level: levelFilter === 'all' ? null : levelFilter,
-        target: targetFilter.trim() || null,
-        threadId: scope.threadId,
-        runId: scope.runId,
-        turnId: scope.turnId,
-        toolCallId: scope.toolCallId,
-        toolName: scope.toolName,
-        source: scope.source
-      });
+      const response = await queryOperatorLogs(request);
       if (requestId !== requestIdRef.current) return;
       const hidden = hiddenEntryIdsRef.current;
       const logs = normalizeOperatorLogsResponse(response);
@@ -82,8 +97,15 @@ export function useLogs() {
       if (requestId === requestIdRef.current) {
         setIsLoading(false);
       }
+      inFlightRef.current = false;
+      activeRequestKeyRef.current = '';
+      if (needsReloadRef.current) {
+        needsReloadRef.current = false;
+        latestLoadLogsRef.current?.();
+      }
     }
   }, [isUnsupported, levelFilter, scope, targetFilter]);
+  latestLoadLogsRef.current = loadLogs;
 
   React.useEffect(() => {
     loadLogs();

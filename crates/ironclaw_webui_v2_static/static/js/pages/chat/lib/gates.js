@@ -13,11 +13,13 @@ export function gateFromEvent(eventType, prompt) {
       prompt.parameters === undefined || prompt.parameters === null || prompt.parameters === ''
         ? contextParameters
         : prompt.parameters;
+    const invocationId = approvalInvocationId(prompt, context);
     return {
       kind: 'gate',
       requestId: prompt.request_id || prompt.gate_ref || null,
       runId: prompt.turn_run_id,
       gateRef: prompt.gate_ref,
+      ...(invocationId ? { invocationId } : {}),
       headline: prompt.headline,
       body: prompt.body,
       toolName:
@@ -63,11 +65,13 @@ export function gateFromEvent(eventType, prompt) {
 
 export function gateFromProjection(activeRunId, gate) {
   if (!activeRunId || !gate) return null;
+  const invocationId = gate.invocation_id || gate.invocationId || null;
   return {
     kind: 'gate',
     requestId: gate.request_id || gate.gate_ref || null,
     runId: activeRunId,
     gateRef: gate.gate_ref,
+    ...(invocationId ? { invocationId } : {}),
     headline: gate.headline || '',
     body: gate.body || '',
     toolName: gate.tool_name || gate.toolName || '',
@@ -75,6 +79,16 @@ export function gateFromProjection(activeRunId, gate) {
     parameters: formatGateParameters(gate.parameters),
     allowAlways: Boolean(gate.allow_always ?? gate.allowAlways)
   };
+}
+
+function approvalInvocationId(prompt, context) {
+  return (
+    prompt.invocation_id ||
+    prompt.invocationId ||
+    context?.invocation_id ||
+    context?.invocationId ||
+    null
+  );
 }
 
 export function formatGateParameters(parameters) {

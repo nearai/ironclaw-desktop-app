@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { React } from '../../../lib/html.js';
-import { listAutomations } from '../../../lib/api.js';
+import { listAutomations } from '../../../lib/automations-api.js';
 
 import { automationSummary, normalizeAutomations } from '../lib/automations-presenters.js';
 

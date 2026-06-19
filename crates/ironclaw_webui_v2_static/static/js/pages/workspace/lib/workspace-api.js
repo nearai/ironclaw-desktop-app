@@ -7,7 +7,8 @@
 // lists available mounts as top-level directories. There is intentionally no
 // write/save path on this surface.
 
-import { apiFetch, fetchAttachmentBlob, fetchAttachmentDataUrl } from '../../../lib/api.js';
+import { apiFetch } from '../../../lib/api.js';
+import { fetchAttachmentBlob, fetchAttachmentDataUrl } from '../../../lib/project-files-api.js';
 import { areaDisplayName } from './workspace-presenters.js';
 
 const FS_BASE = '/api/webchat/v2/fs';

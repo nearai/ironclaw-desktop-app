@@ -14,14 +14,14 @@ import { React, html } from '../../../lib/html.js';
 import { Modal, ModalBody } from '../../../design-system/modal.js';
 import { Icon } from '../../../design-system/icons.js';
 import { useT } from '../../../lib/i18n.js';
-import { fetchAttachmentBlob, blobToDataUrl } from '../../../lib/api.js';
+import { fetchAttachmentBlob } from '../../../lib/project-files-api.js';
 import { loadPdfjs, isPdfAttachment } from '../lib/extract-attachment-text.js';
 import { saveBlob } from '../../../lib/save-file.js';
 import { toast } from '../../../lib/toast.js';
 
 const PDF_PREVIEW_MAX_PAGES = 8;
 const PDF_PREVIEW_WIDTH = 720;
-const MAX_TEXT_PREVIEW_CHARS = 100_000;
+const MAX_TEXT_PREVIEW_BYTES = 128_000;
 
 // Tab-separated extractions (spreadsheets, CSV-ish) read better in a mono
 // grid; prose documents read better in the product face.
@@ -160,6 +160,7 @@ export function AttachmentPreviewModal({ open, onClose, attachment }) {
       return undefined;
     }
 
+    const controller = new AbortController();
     let cancelled = false;
     let objectUrl = '';
     setRemoteState({
@@ -171,7 +172,7 @@ export function AttachmentPreviewModal({ open, onClose, attachment }) {
       truncated: false
     });
 
-    fetchAttachmentBlob(attachment.fetch_url)
+    fetchAttachmentBlob(attachment.fetch_url, { signal: controller.signal })
       .then(async (blob) => {
         objectUrl = URL.createObjectURL(blob);
         const next = {
@@ -183,11 +184,11 @@ export function AttachmentPreviewModal({ open, onClose, attachment }) {
           truncated: false
         };
         if (mode === 'image' || mode === 'audio' || mode === 'video') {
-          next.dataUrl = await blobToDataUrl(blob);
+          next.dataUrl = objectUrl;
         } else if (mode === 'text') {
-          const text = await blob.text();
-          next.truncated = text.length > MAX_TEXT_PREVIEW_CHARS;
-          next.text = next.truncated ? text.slice(0, MAX_TEXT_PREVIEW_CHARS) : text;
+          const sliced = blob.slice(0, MAX_TEXT_PREVIEW_BYTES);
+          next.truncated = blob.size > MAX_TEXT_PREVIEW_BYTES;
+          next.text = await sliced.text();
         }
         if (cancelled) {
           URL.revokeObjectURL(objectUrl);
@@ -210,6 +211,7 @@ export function AttachmentPreviewModal({ open, onClose, attachment }) {
 
     return () => {
       cancelled = true;
+      controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [isOpen, attachment?.fetch_url, mode]);

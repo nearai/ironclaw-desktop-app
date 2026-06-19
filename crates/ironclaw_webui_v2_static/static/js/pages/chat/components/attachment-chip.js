@@ -1,43 +1,16 @@
 import { React, html } from '../../../lib/html.js';
 import { Icon } from '../../../design-system/icons.js';
-import { fetchAttachmentBlob, fetchAttachmentDataUrl } from '../../../lib/api.js';
+import { fetchAttachmentBlob } from '../../../lib/project-files-api.js';
 import { saveBlob } from '../../../lib/save-file.js';
 import { toast } from '../../../lib/toast.js';
 import { useT } from '../../../lib/i18n.js';
 
-/* Thumbnail for one attachment. Persisted images are bearer-protected, so the
-   bytes are fetched and turned into a data URL instead of using <img src> on
-   the protected route directly. */
+/* Thumbnail for one attachment. Persisted protected bytes are never fetched
+   during message-list rendering; only explicit preview/download actions may
+   read remote attachment content. */
 export function AttachmentThumbnail({ att }) {
   const isImage = att.kind === 'image' || (att.mime_type || '').toLowerCase().startsWith('image/');
-  const [resolvedUrl, setResolvedUrl] = React.useState(() =>
-    isImage ? att.preview_url || null : null
-  );
-
-  React.useEffect(() => {
-    if (!isImage) {
-      setResolvedUrl(null);
-      return undefined;
-    }
-    if (att.preview_url) {
-      setResolvedUrl(att.preview_url);
-      return undefined;
-    }
-    if (!att.fetch_url) {
-      setResolvedUrl(null);
-      return undefined;
-    }
-    setResolvedUrl(null);
-    let cancelled = false;
-    fetchAttachmentDataUrl(att.fetch_url)
-      .then((url) => {
-        if (!cancelled) setResolvedUrl(url);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [isImage, att.preview_url, att.fetch_url]);
+  const resolvedUrl = isImage ? att.preview_url || null : null;
 
   if (isImage && resolvedUrl) {
     return html`<img

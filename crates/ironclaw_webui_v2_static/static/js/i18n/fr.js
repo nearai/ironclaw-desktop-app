@@ -5,6 +5,10 @@ registerPack('fr', {
   'language.switch': 'Langue modifiée',
 
   'common.unknown': 'Inconnu',
+  'automations.delivery.loadFailedTitle': 'Parametres de livraison indisponibles',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw n’a pas pu confirmer les destinations de livraison depuis la passerelle. Il ne supposera donc pas une livraison web uniquement et n’enregistrera pas de valeur par defaut.',
+  'automations.delivery.retry': 'Reessayer',
 
   'nav.chat': 'Chat',
   'nav.workspace': 'Espace de travail',

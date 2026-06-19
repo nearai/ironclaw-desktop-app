@@ -98,36 +98,47 @@ function findToolActivityIndex(messages, card, targetId, options) {
     if (byGate >= 0) return byGate;
   }
 
-  if (!options.matchGate && !card.gateActivity) {
-    const synthetic = messages.findIndex((message) =>
-      canRealActivityAdoptSyntheticGate(message, card)
-    );
-    if (synthetic >= 0) return synthetic;
+  if (options.matchGate && card.gateActivity) {
+    return findSingleCompatibleRealActivity(messages, card);
   }
-
-  if (options.matchGate || card.gateActivity) {
-    const byTool = messages.findIndex(
-      (message) =>
-        message?.role === 'tool_activity' &&
-        !message.gateRef &&
-        message.gateActivity !== true &&
-        !isTerminalToolStatus(message.toolStatus) &&
-        message.turnRunId === card.turnRunId &&
-        sameToolName(message.toolName, card.toolName)
-    );
-    if (byTool >= 0) return byTool;
+  if (!card.gateActivity) {
+    return findSingleCompatibleGateActivity(messages, card);
   }
 
   return -1;
 }
 
-function canRealActivityAdoptSyntheticGate(message, card) {
-  return (
-    message?.role === 'tool_activity' &&
-    message.gateActivity === true &&
-    message.turnRunId === card.turnRunId &&
-    sameToolName(message.toolName, card.toolName)
+function findSingleCompatibleRealActivity(messages, card) {
+  return findSingleMatchingIndex(
+    messages,
+    (message) =>
+      message?.role === 'tool_activity' &&
+      !message.gateActivity &&
+      !message.gateRef &&
+      message.turnRunId === card.turnRunId &&
+      sameToolName(message.toolName, card.toolName)
   );
+}
+
+function findSingleCompatibleGateActivity(messages, card) {
+  return findSingleMatchingIndex(
+    messages,
+    (message) =>
+      message?.role === 'tool_activity' &&
+      message.gateActivity &&
+      message.turnRunId === card.turnRunId &&
+      sameToolName(message.toolName, card.toolName)
+  );
+}
+
+function findSingleMatchingIndex(messages, predicate) {
+  let matchIndex = -1;
+  for (let index = 0; index < messages.length; index += 1) {
+    if (!predicate(messages[index])) continue;
+    if (matchIndex >= 0) return -1;
+    matchIndex = index;
+  }
+  return matchIndex;
 }
 
 function mergeToolActivity(current, incoming) {
@@ -169,6 +180,10 @@ function mergeToolActivity(current, incoming) {
   return merged;
 }
 
+function sameToolName(left, right) {
+  return String(left || '').toLowerCase() === String(right || '').toLowerCase();
+}
+
 function mergedActivityOrder(current, incoming) {
   return Number.isFinite(incoming.activityOrder) ? incoming.activityOrder : current.activityOrder;
 }
@@ -192,11 +207,6 @@ function applyRememberedTerminal(card, stateRef) {
 function rememberTerminal(card, stateRef) {
   if (!card?.invocationId || !isTerminalToolStatus(card.toolStatus)) return;
   stateRef?.current?.terminalByInvocation?.set(card.invocationId, card);
-}
-
-function sameToolName(left, right) {
-  if (!left || !right) return false;
-  return toolDisplayName(left) === toolDisplayName(right);
 }
 
 function normalizeToolCard(card) {

@@ -1,10 +1,7 @@
 // Unit tests for workspace file-path extraction (gates the download chips).
 //
 // Run with Node's built-in test runner (no extra deps):
-//   node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/project-file-paths.test.js
-//
-// `build.rs` excludes `*.test.js` from the embedded bundle, so this is never
-// served to the browser.
+//   node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/project-file-paths.test.mjs
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

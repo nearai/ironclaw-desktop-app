@@ -1,10 +1,7 @@
 // Unit tests for the WebChat v2 API error-message derivation.
 //
 // Run with Node's built-in test runner:
-//   node --test crates/ironclaw_webui_v2_static/static/js/lib/api.test.js
-//
-// NOTE: `build.rs` deliberately excludes `*.test.js` from the embedded asset
-// bundle, so this file is never served to the browser.
+//   node --test crates/ironclaw_webui_v2_static/static/js/lib/api-errors.test.mjs
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

@@ -18,6 +18,7 @@ export function SlackChannelPicker({ action }) {
   const [draftChannelId, setDraftChannelId] = React.useState('');
   const [draftSubjectUserId, setDraftSubjectUserId] = React.useState('');
   const [channels, setChannels] = React.useState([]);
+  const serverChannelsRef = React.useRef([]);
   const copy = slackChannelPickerCopy(action, t);
 
   const channelsQuery = useQuery({
@@ -35,13 +36,20 @@ export function SlackChannelPicker({ action }) {
 
   React.useEffect(() => {
     if (!channelsQuery.data) return;
-    setChannels(normalizeSlackChannels(channelsQuery.data.channels || []));
-  }, [channelsQuery.data]);
+    const nextServerChannels = normalizeSlackChannels(channelsQuery.data.channels || []);
+    const draftIsDirty = !sameSlackChannels(channels, serverChannelsRef.current);
+    serverChannelsRef.current = nextServerChannels;
+    if (!draftIsDirty && !sameSlackChannels(channels, nextServerChannels)) {
+      setChannels(nextServerChannels);
+    }
+  }, [channels, channelsQuery.data]);
 
   const saveMutation = useMutation({
     mutationFn: ({ channels }) => saveSlackAllowedChannels(channels),
     onSuccess: (data) => {
-      setChannels(normalizeSlackChannels(data.channels || []));
+      const nextServerChannels = normalizeSlackChannels(data.channels || []);
+      serverChannelsRef.current = nextServerChannels;
+      setChannels(nextServerChannels);
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ['slack-routable-subjects'] });
       queryClient.invalidateQueries({ queryKey: ['extensions'] });
@@ -255,6 +263,18 @@ function normalizeSlackChannels(channels = []) {
   return normalizeSlackChannelIds(Array.from(byChannelId.keys())).map((channelId) =>
     byChannelId.get(channelId)
   );
+}
+
+function sameSlackChannels(left = [], right = []) {
+  if (left.length !== right.length) return false;
+  return left.every((channel, index) => {
+    const other = right[index] || {};
+    return (
+      channel.channel_id === other.channel_id &&
+      channel.subject_user_id === other.subject_user_id &&
+      (channel.subject_display_name || '') === (other.subject_display_name || '')
+    );
+  });
 }
 
 function persistedSlackChannels(channels = []) {

@@ -152,8 +152,6 @@ test('useChat.send: accepted ref reconciles pending message on timeline reload',
   await chat.send('check my calendar');
 
   assert.equal(renderedMessages.length, 1);
-  // Ids are collision-proof (random suffix) so restored localStorage rows
-  // from a prior session can never share an id with a new send.
   assert.match(renderedMessages[0].id, /^pending-/);
   assert.equal(renderedMessages[0].role, 'user');
   assert.equal(renderedMessages[0].content, 'check my calendar');

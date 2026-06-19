@@ -1,7 +1,7 @@
 // Unit tests for the per-conversation composer draft store.
 //
 // Run with Node's built-in test runner:
-//   node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/draft-store.test.js
+//   node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/draft-store.test.mjs
 
 import assert from 'node:assert/strict';
 import { beforeEach, test } from 'node:test';
@@ -36,6 +36,18 @@ function installStorage() {
 beforeEach(() => {
   installStorage();
   setAuthScope(null);
+  clearAllDrafts();
+  setAuthScope({ tenant_id: 'test', user_id: 'default' });
+});
+
+test('anonymous scope never persists private drafts or staged attachments', () => {
+  setAuthScope(null);
+  setDraft(NEW_DRAFT_KEY, 'anonymous draft');
+  setStagedAttachments('thread-anon', [{ id: 'file' }]);
+
+  assert.equal(getDraft(NEW_DRAFT_KEY), '');
+  assert.deepEqual(getStagedAttachments('thread-anon'), []);
+  assert.equal(globalThis.window.localStorage.length, 0);
 });
 
 test('drafts are isolated per authenticated user across a session switch', () => {

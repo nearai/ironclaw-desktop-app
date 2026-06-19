@@ -25,6 +25,11 @@ function slackChannelPickerSourceForTest() {
   return `${lines.join('\n')}\nglobalThis.__testExports = { SlackChannelPicker, subjectOptionsForChannel };`;
 }
 
+function depsChanged(previous, next) {
+  if (!previous || !next || previous.length !== next.length) return true;
+  return next.some((value, index) => !Object.is(value, previous[index]));
+}
+
 function createReactStub(state) {
   return {
     useState: (initial) => {
@@ -41,12 +46,19 @@ function createReactStub(state) {
     },
     useEffect: (effect, deps) => {
       const index = state.hookIndex++;
-      const dep = deps?.[0];
       state.effectDeps = state.effectDeps || {};
-      if (state.effectDeps[index] !== dep) {
-        state.effectDeps[index] = dep;
+      if (depsChanged(state.effectDeps[index], deps)) {
+        state.effectDeps[index] = deps;
         effect();
       }
+    },
+    useRef: (initial) => {
+      const index = state.hookIndex++;
+      state.refs = state.refs || {};
+      if (!(index in state.refs)) {
+        state.refs[index] = { current: initial };
+      }
+      return state.refs[index];
     }
   };
 }
@@ -223,6 +235,187 @@ test('SlackChannelPicker edits saved channels and blocks save after load failure
   query.isError = true;
   rendered = renderPicker(context, state);
   assert.equal(valuesAfter(rendered, 'disabled=').at(-1), true);
+});
+
+test('SlackChannelPicker keeps unsaved edits when allowed-channel data refetches', () => {
+  const state = { hookIndex: 0, values: {} };
+  const query = {
+    data: {
+      team_id: 'T0HOST',
+      channels: [{ channel_id: 'C0OPS', subject_user_id: 'user:ops-team-agent' }]
+    },
+    isLoading: false,
+    isSuccess: true,
+    isError: false
+  };
+  const subjectsQuery = {
+    data: {
+      subjects: [{ subject_user_id: 'user:ops-team-agent', display_name: 'Ops' }]
+    },
+    isLoading: false,
+    isSuccess: true,
+    isError: false
+  };
+  const context = {
+    Button: 'button',
+    React: createReactStub(state),
+    globalThis: {},
+    html,
+    listSlackAllowedChannels: () => query.data,
+    normalizeSlackChannelIds: (channelIds = []) =>
+      Array.from(
+        new Set(channelIds.map((channelId) => String(channelId || '').trim()).filter(Boolean))
+      ).sort(),
+    listSlackRoutableSubjects: () => subjectsQuery.data,
+    saveSlackAllowedChannels: (channels) => ({ channels }),
+    slackChannelPickerError: () => 'error',
+    useT:
+      () =>
+      (key, params = {}) =>
+        ({
+          'channels.slackAccessTitle': 'Slack team agents',
+          'channels.slackAccessInstructions':
+            'Map Slack channels to the team agents that should answer there.',
+          'channels.slackAccessAdd': 'Add',
+          'channels.slackAccessLoading': 'Loading Slack channels...',
+          'channels.slackAccessEmpty': 'No Slack channels allowed yet.',
+          'channels.slackAccessAllow': `Remove ${params.channelId}`,
+          'channels.slackAccessAutoSubject': 'Auto-generated team subject',
+          'channels.slackAccessNoSubjects': 'No team agents available',
+          'channels.slackAccessSave': 'Save channels',
+          'channels.slackAccessSaving': 'Saving...',
+          'channels.slackAccessSuccess': 'Slack channels saved.',
+          'channels.slackAccessError': 'Slack channel update failed.'
+        })[key] || key,
+    useQuery: ({ queryKey }) => (queryKey[0] === 'slack-routable-subjects' ? subjectsQuery : query),
+    useQueryClient: () => ({ invalidateQueries: () => {} }),
+    useMutation: (config) => ({
+      isPending: false,
+      isSuccess: false,
+      isError: false,
+      mutate: (variables) => {
+        const data = config.mutationFn(variables);
+        config.onSuccess(data, variables);
+      }
+    })
+  };
+  vm.runInNewContext(slackChannelPickerSourceForTest(), context);
+
+  renderPicker(context, state);
+  let rendered = renderPicker(context, state);
+  valuesAfter(rendered, 'onChange=')[0]({ target: { value: ' C0NEW ' } });
+  rendered = renderPicker(context, state);
+  valuesAfter(rendered, 'onClick=')[0]();
+  assert.deepEqual(JSON.parse(JSON.stringify(state.values[2])), [
+    { channel_id: 'C0NEW', subject_user_id: '' },
+    { channel_id: 'C0OPS', subject_user_id: 'user:ops-team-agent' }
+  ]);
+
+  query.data = {
+    team_id: 'T0HOST',
+    channels: [{ channel_id: 'C0STALE', subject_user_id: 'user:ops-team-agent' }]
+  };
+  renderPicker(context, state);
+  assert.deepEqual(JSON.parse(JSON.stringify(state.values[2])), [
+    { channel_id: 'C0NEW', subject_user_id: '' },
+    { channel_id: 'C0OPS', subject_user_id: 'user:ops-team-agent' }
+  ]);
+});
+
+test('SlackChannelPicker syncs fresh server data after draft returns to saved value', () => {
+  const state = { hookIndex: 0, values: {} };
+  const query = {
+    data: {
+      team_id: 'T0HOST',
+      channels: [{ channel_id: 'C0OPS', subject_user_id: 'user:ops-team-agent' }]
+    },
+    isLoading: false,
+    isSuccess: true,
+    isError: false
+  };
+  const subjectsQuery = {
+    data: {
+      subjects: [{ subject_user_id: 'user:ops-team-agent', display_name: 'Ops' }]
+    },
+    isLoading: false,
+    isSuccess: true,
+    isError: false
+  };
+  const context = {
+    Button: 'button',
+    React: createReactStub(state),
+    globalThis: {},
+    html,
+    listSlackAllowedChannels: () => query.data,
+    normalizeSlackChannelIds: (channelIds = []) =>
+      Array.from(
+        new Set(channelIds.map((channelId) => String(channelId || '').trim()).filter(Boolean))
+      ).sort(),
+    listSlackRoutableSubjects: () => subjectsQuery.data,
+    saveSlackAllowedChannels: (channels) => ({ channels }),
+    slackChannelPickerError: () => 'error',
+    useT:
+      () =>
+      (key, params = {}) =>
+        ({
+          'channels.slackAccessTitle': 'Slack team agents',
+          'channels.slackAccessInstructions':
+            'Map Slack channels to the team agents that should answer there.',
+          'channels.slackAccessAdd': 'Add',
+          'channels.slackAccessLoading': 'Loading Slack channels...',
+          'channels.slackAccessEmpty': 'No Slack channels allowed yet.',
+          'channels.slackAccessAllow': `Remove ${params.channelId}`,
+          'channels.slackAccessAutoSubject': 'Auto-generated team subject',
+          'channels.slackAccessNoSubjects': 'No team agents available',
+          'channels.slackAccessSave': 'Save channels',
+          'channels.slackAccessSaving': 'Saving...',
+          'channels.slackAccessSuccess': 'Slack channels saved.',
+          'channels.slackAccessError': 'Slack channel update failed.'
+        })[key] || key,
+    useQuery: ({ queryKey }) => (queryKey[0] === 'slack-routable-subjects' ? subjectsQuery : query),
+    useQueryClient: () => ({ invalidateQueries: () => {} }),
+    useMutation: (config) => ({
+      isPending: false,
+      isSuccess: false,
+      isError: false,
+      mutate: (variables) => {
+        const data = config.mutationFn(variables);
+        config.onSuccess(data, variables);
+      }
+    })
+  };
+  vm.runInNewContext(slackChannelPickerSourceForTest(), context);
+
+  renderPicker(context, state);
+  let rendered = renderPicker(context, state);
+  assert.deepEqual(JSON.parse(JSON.stringify(state.values[2])), [
+    { channel_id: 'C0OPS', subject_user_id: 'user:ops-team-agent' }
+  ]);
+
+  valuesAfter(rendered, 'onChange=')[0]({ target: { value: ' C0NEW ' } });
+  rendered = renderPicker(context, state);
+  valuesAfter(rendered, 'onClick=')[0]();
+  assert.deepEqual(JSON.parse(JSON.stringify(state.values[2])), [
+    { channel_id: 'C0NEW', subject_user_id: '' },
+    { channel_id: 'C0OPS', subject_user_id: 'user:ops-team-agent' }
+  ]);
+
+  rendered = renderPicker(context, state);
+  const newRow = channelRows(rendered)[0];
+  const rowFunctions = newRow.values.filter((value) => typeof value === 'function');
+  rowFunctions[rowFunctions.length - 1]();
+  assert.deepEqual(JSON.parse(JSON.stringify(state.values[2])), [
+    { channel_id: 'C0OPS', subject_user_id: 'user:ops-team-agent' }
+  ]);
+
+  query.data = {
+    team_id: 'T0HOST',
+    channels: [{ channel_id: 'C0FRESH', subject_user_id: 'user:ops-team-agent' }]
+  };
+  renderPicker(context, state);
+  assert.deepEqual(JSON.parse(JSON.stringify(state.values[2])), [
+    { channel_id: 'C0FRESH', subject_user_id: 'user:ops-team-agent' }
+  ]);
 });
 
 test('subjectOptionsForChannel keeps current route subjects row-scoped with friendly labels', () => {

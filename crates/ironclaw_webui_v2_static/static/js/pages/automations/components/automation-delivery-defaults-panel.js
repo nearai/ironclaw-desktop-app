@@ -51,10 +51,11 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
 
   const isDirty = draftTargetId !== currentTargetId;
   const isBusy = deliveryState.isLoading || deliveryState.isSaving;
-  const canSave = isDirty && !isBusy;
+  const hasLoadError = Boolean(deliveryState.error);
+  const canSave = isDirty && !isBusy && !hasLoadError;
   // Clear is only meaningful when there is a saved target to remove, and
   // nothing is in-flight.
-  const canClear = Boolean(currentTargetId) && !isBusy;
+  const canClear = Boolean(currentTargetId) && !isBusy && !hasLoadError;
 
   const hasTargets = deliveryState.finalReplyTargets.length > 0;
   // Whether we have at least one Slack-style (external) pairable target that is
@@ -155,8 +156,45 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
 
         <hr className="border-t border-[var(--v2-panel-border)]" />
 
+        ${hasLoadError &&
+        html`
+          <div
+            role="alert"
+            className="rounded-xl border border-[color-mix(in_srgb,var(--v2-danger-text)_28%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-danger-text)_8%,var(--v2-surface-soft))] px-4 py-3.5"
+          >
+            <div className="flex items-start gap-3">
+              <${Icon}
+                name="close"
+                className="mt-0.5 h-4 w-4 shrink-0 text-[var(--v2-danger-text)]"
+              />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-[var(--v2-text-strong)]">
+                  ${t('automations.delivery.loadFailedTitle')}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-[var(--v2-text-muted)]">
+                  ${t('automations.delivery.loadFailedDesc')}
+                </div>
+                <${Button}
+                  variant="secondary"
+                  size="sm"
+                  className="mt-3"
+                  disabled=${deliveryState.isRefreshing}
+                  onClick=${deliveryState.refetch}
+                >
+                  <${Icon}
+                    name="retry"
+                    className=${cn('h-3.5 w-3.5', deliveryState.isRefreshing && 'v2-spin')}
+                  />
+                  ${t('automations.delivery.retry')}
+                <//>
+              </div>
+            </div>
+          </div>
+        `}
+
         <!-- ── Current default row (only when a target is configured) ── -->
-        ${hasCurrentTarget &&
+        ${!hasLoadError &&
+        hasCurrentTarget &&
         html`
           <div>
             <span
@@ -178,7 +216,8 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
         `}
 
         <!-- ── Radio option rows ────────────────────────────────────── -->
-        <div>
+        ${!hasLoadError &&
+        html`<div>
           <span
             className="mb-1.5 block font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-[var(--v2-text-faint)]"
           >
@@ -300,10 +339,11 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
               />
             </label>
           </div>
-        </div>
+        </div>`}
 
         <!-- ── Save row ─────────────────────────────────────────────── -->
-        <div className="flex flex-wrap items-center gap-3">
+        ${!hasLoadError &&
+        html`<div className="flex flex-wrap items-center gap-3">
           <${Button} variant="primary" size="sm" disabled=${!canSave} onClick=${handleSave}>
             <${Icon} name="check" className="h-3.5 w-3.5" />
             ${t('automations.delivery.save')}
@@ -332,10 +372,11 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
               ${t('automations.delivery.saveFailed')}
             </span>
           `}
-        </div>
+        </div>`}
 
         <!-- ── Footnote (only when an external Slack-style target exists) ── -->
-        ${hasExternalTargets &&
+        ${!hasLoadError &&
+        hasExternalTargets &&
         html`
           <div
             className="rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3 text-xs leading-relaxed text-[var(--v2-text-faint)]"

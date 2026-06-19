@@ -5,6 +5,10 @@ registerPack('pt-BR', {
   'language.switch': 'Idioma alterado',
 
   'common.unknown': 'Desconhecido',
+  'automations.delivery.loadFailedTitle': 'Padroes de entrega indisponiveis',
+  'automations.delivery.loadFailedDesc':
+    'O IronClaw nao conseguiu confirmar os destinos de entrega pelo gateway, entao nao presumira entrega apenas no app web nem salvara um padrao.',
+  'automations.delivery.retry': 'Tentar novamente',
 
   'nav.chat': 'Chat',
   'nav.workspace': 'Workspace',

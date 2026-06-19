@@ -1,10 +1,7 @@
 // Unit tests for transient tool activity merge behavior.
 //
 // Run with Node's built-in test runner:
-//   node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/tool-activity-state.test.js
-//
-// NOTE: `build.rs` deliberately excludes `*.test.js` from the embedded asset
-// bundle, so this file is never served to the browser.
+//   node --test crates/ironclaw_webui_v2_static/static/js/pages/chat/lib/tool-activity-merge.test.mjs
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -94,4 +91,55 @@ test('runtime activity adopts an earlier gate card by invocation id', () => {
   assert.equal(harness.messages[0].toolStatus, 'error');
   assert.equal(harness.messages[0].activityOrder, 42);
   assert.equal(harness.messages[0].activityOrderSource, 'projection');
+});
+
+test('gate without invocation merges when exactly one matching real activity exists', () => {
+  const harness = messageHarness();
+  upsertToolActivityMessage(
+    harness.setMessages,
+    runtimeActivity({ invocationId: 'runtime-only', callId: 'runtime-only' }),
+    harness.stateRef
+  );
+
+  ensureGateToolActivity(
+    harness.setMessages,
+    approvalGate({ invocationId: '', gateRef: 'gate:approval-single' }),
+    harness.stateRef
+  );
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(harness.messages[0].id, 'tool-runtime-only');
+  assert.equal(harness.messages[0].gateRef, 'gate:approval-single');
+  assert.equal(Boolean(harness.messages[0].gateActivity), false);
+});
+
+test('uncorrelated gate does not guess by same tool name inside a run', () => {
+  const harness = messageHarness();
+  upsertToolActivityMessage(
+    harness.setMessages,
+    runtimeActivity({ invocationId: 'search-1', callId: 'search-1' }),
+    harness.stateRef
+  );
+  upsertToolActivityMessage(
+    harness.setMessages,
+    runtimeActivity({
+      invocationId: 'search-2',
+      callId: 'search-2',
+      updatedAt: '2026-06-17T01:00:01.000Z',
+      activityOrder: 43
+    }),
+    harness.stateRef
+  );
+
+  ensureGateToolActivity(
+    harness.setMessages,
+    approvalGate({ invocationId: '', gateRef: 'gate:approval-uncorrelated' }),
+    harness.stateRef
+  );
+
+  assert.equal(harness.messages.length, 3);
+  assert.equal(harness.messages[0].gateRef || '', '');
+  assert.equal(harness.messages[1].gateRef || '', '');
+  assert.equal(harness.messages[2].id, 'tool-gate:run-1:gate:approval-uncorrelated');
+  assert.equal(harness.messages[2].gateActivity, true);
 });

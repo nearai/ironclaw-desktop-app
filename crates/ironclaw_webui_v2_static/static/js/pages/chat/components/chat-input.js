@@ -20,9 +20,14 @@ import {
   setActiveLlm
 } from '../../settings/lib/settings-api.js';
 import {
-  filterDesktopVisibleLlmProviders,
-  modelDisplayName
-} from '../../settings/lib/llm-providers.js';
+  formatProviderLabel,
+  modelForProvider,
+  normalizeModelEntries,
+  providerSetupFailedMessage,
+  uniqueModelsByDisplayLabel,
+  visibleLlmSnapshot
+} from './chat-model-utils.js';
+import { modelDisplayName } from '../../settings/lib/llm-providers.js';
 
 // One short status per chip: what actually happens to this file when sent.
 function attachmentStatusLabel(att, t) {
@@ -51,18 +56,6 @@ function modelSettingsPath() {
     return '/v2/settings/inference';
   }
   return '/settings/inference';
-}
-
-function visibleLlmSnapshot(snapshot = {}) {
-  const providers = filterDesktopVisibleLlmProviders(
-    Array.isArray(snapshot.providers) ? snapshot.providers : []
-  );
-  const rawActive = snapshot.active || null;
-  const active =
-    rawActive && providers.some((provider) => provider.id === rawActive.provider_id)
-      ? rawActive
-      : null;
-  return { providers, active };
 }
 
 // Compact model switcher anchored to the composer chip. Models come from the
@@ -957,57 +950,4 @@ export function ChatInput({
       />
     </div>
   `;
-}
-
-function providerSetupFailedMessage(failed) {
-  if (failed) {
-    return 'IronClaw cannot reach NEAR AI Cloud yet. Open setup or retry when the gateway is ready.';
-  }
-  return 'Connect NEAR AI Cloud before sending your first message.';
-}
-
-function formatProviderLabel(providerId, providerName, fallbackId = 'nearai') {
-  const raw = String(providerId || fallbackId || 'nearai').trim();
-  const normalized = raw.toLowerCase().replace(/[\s]+/g, '').replace(/[_-]+/g, '_');
-
-  if (normalized === 'nearai') return 'NEAR AI Cloud';
-  if (providerName && providerName.trim()) return providerName.trim();
-  if (!providerName) return 'External provider';
-
-  const humanized = raw
-    .trim()
-    .toLowerCase()
-    .replace(/[-_]+/g, ' ')
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-
-  return humanized || 'NEAR.AI';
-}
-
-function normalizeModelEntries(models) {
-  if (!Array.isArray(models)) return [];
-  return models
-    .map((model) =>
-      typeof model === 'string' ? model : model?.id || model?.model || model?.name || ''
-    )
-    .map((model) => String(model).trim())
-    .filter(Boolean);
-}
-
-function uniqueModelsByDisplayLabel(models) {
-  const seen = new Set();
-  return normalizeModelEntries(models).filter((model) => {
-    const label = modelDisplayName(model).toLowerCase();
-    if (seen.has(label)) return false;
-    seen.add(label);
-    return true;
-  });
-}
-
-function modelForProvider(provider, active) {
-  if (!provider) return '';
-  if (provider.id === active?.provider_id) return String(active?.model || 'auto');
-  return String(provider.active_model || provider.default_model || provider.model || '').trim();
 }

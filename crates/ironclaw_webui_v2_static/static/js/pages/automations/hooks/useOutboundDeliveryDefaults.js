@@ -4,7 +4,7 @@ import {
   getOutboundPreferences,
   listOutboundDeliveryTargets,
   setOutboundPreferences
-} from '../../../lib/api.js';
+} from '../../../lib/outbound-delivery-api.js';
 
 const PREFERENCES_QUERY_KEY = ['outbound-delivery', 'preferences'];
 const TARGETS_QUERY_KEY = ['outbound-delivery', 'targets'];

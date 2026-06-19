@@ -5,6 +5,10 @@ registerPack('zh-CN', {
   'language.switch': '语言已更改',
 
   'common.unknown': '未知',
+  'automations.delivery.loadFailedTitle': 'Delivery defaults unavailable',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw could not confirm delivery targets from the gateway, so it will not assume web-only delivery or save a default.',
+  'automations.delivery.retry': 'Retry',
 
   'nav.chat': '对话',
   'nav.workspace': '工作区',

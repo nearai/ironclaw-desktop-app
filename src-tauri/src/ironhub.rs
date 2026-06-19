@@ -453,7 +453,7 @@ mod tests {
         let root = dir.path();
         let content = "---\nname: demo\nversion: 0.1.0\n---\n# demo skill\n";
         let (dest, bytes) = write_skill_to(root, "demo", content).unwrap();
-        assert_eq!(bytes, content.as_bytes().len() as u64);
+        assert_eq!(bytes, content.len() as u64);
         // The destination must land inside the slug-named subdir.
         assert!(dest.starts_with(root.join("demo")));
         assert_eq!(dest.file_name().and_then(|s| s.to_str()), Some("SKILL.md"));

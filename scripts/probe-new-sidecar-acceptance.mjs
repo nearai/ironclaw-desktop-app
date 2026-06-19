@@ -11,7 +11,8 @@
 //   * #5057 filesystem browser         -> /fs/mounts serves workspace+memory
 //   * delivery defaults + Trace credits -> outbound/* and traces/credit serve
 //   * operator logs query             -> /operator/logs serves scoped logs
-//   * additive routes we want to gain  -> automations/runs, channels/slack/*, projects/*
+//   * additive routes we want to gain  -> automations/runs, projects/*
+//   * Slack admin-managed invariant    -> channels/slack/* serve if advertised
 //
 // Exit 0 = safe to swap. Non-zero = contract drift; do NOT swap.
 import { spawn } from 'node:child_process';
@@ -20,6 +21,7 @@ import { createServer } from 'node:net';
 import { mkdtemp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 const candidate =
@@ -30,6 +32,29 @@ const artifactDir = path.join(repoRoot, 'output/new-sidecar-acceptance');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+export const SLACK_ADMIN_MANAGED_CHECK_NAME =
+  'Slack admin-managed capability is backed by allowed-channel and subject routes';
+
+export function evaluateSlackAdminManagedRoutes({ connectable, allowed, subjects } = {}) {
+  const connectableChannels = Array.isArray(connectable?.body?.channels)
+    ? connectable.body.channels
+    : [];
+  const advertised = connectableChannels.some(
+    (channel) =>
+      channel?.channel === 'slack' && channel?.action?.strategy === 'admin_managed_channels'
+  );
+  const allowedServes = allowed?.res?.ok && Array.isArray(allowed?.body?.channels);
+  const subjectsServes = subjects?.res?.ok && Array.isArray(subjects?.body?.subjects);
+  return {
+    name: SLACK_ADMIN_MANAGED_CHECK_NAME,
+    pass: !advertised || (allowedServes && subjectsServes),
+    detail: {
+      advertised,
+      allowed_status: allowed?.res?.status ?? null,
+      subjects_status: subjects?.res?.status ?? null
+    }
+  };
+}
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -263,6 +288,7 @@ async function main() {
       'llm/providers',
       'automations',
       'extensions/registry',
+      'channels/connectable',
       'outbound/preferences',
       'outbound/targets',
       'traces/credit',
@@ -336,12 +362,24 @@ async function main() {
       );
     }
 
+    const connectable = await api('GET', '/api/webchat/v2/channels/connectable');
+    const slackAllowed = await api('GET', '/api/webchat/v2/channels/slack/allowed');
+    const slackSubjects = await api('GET', '/api/webchat/v2/channels/slack/subjects');
+    const slackCheck = evaluateSlackAdminManagedRoutes({
+      connectable,
+      allowed: slackAllowed,
+      subjects: slackSubjects
+    });
+    check(slackCheck.name, slackCheck.pass, slackCheck.detail);
+
     // Additive routes we WANT to gain from main (informational — not gating).
     const gained = {};
-    for (const route of ['automations/runs', 'channels/slack/allowed', 'channels/slack/subjects']) {
+    for (const route of ['automations/runs']) {
       const r = await api('GET', `/api/webchat/v2/${route}`);
       gained[route] = r.res.status;
     }
+    gained['channels/slack/allowed'] = slackAllowed.res.status;
+    gained['channels/slack/subjects'] = slackSubjects.res.status;
 
     const required = checks.filter((c) => !c.pass);
     const verdict = required.length === 0 ? 'PASS' : 'FAIL';
@@ -377,4 +415,6 @@ async function main() {
   }
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

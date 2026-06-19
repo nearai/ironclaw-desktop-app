@@ -5,19 +5,22 @@
  * which avoids pushing decoded file payloads into localStorage quotas.
  */
 
-import { authScope } from '../../../lib/auth-scope.js';
+import { authScope, hasAuthScope } from '../../../lib/auth-scope.js';
 
 export const NEW_DRAFT_KEY = '__new__';
 
 const STORAGE_PREFIX = 'ironclaw:v2-draft:';
 
 function storageKey(key) {
+  if (!hasAuthScope()) return null;
   return `${STORAGE_PREFIX}${authScope()}:${key || NEW_DRAFT_KEY}`;
 }
 
 export function getDraft(key) {
   try {
-    return window.localStorage.getItem(storageKey(key)) || '';
+    const id = storageKey(key);
+    if (!id) return '';
+    return window.localStorage.getItem(id) || '';
   } catch (_) {
     return '';
   }
@@ -25,10 +28,12 @@ export function getDraft(key) {
 
 export function setDraft(key, text) {
   try {
+    const id = storageKey(key);
+    if (!id) return;
     if (text) {
-      window.localStorage.setItem(storageKey(key), text);
+      window.localStorage.setItem(id, text);
     } else {
-      window.localStorage.removeItem(storageKey(key));
+      window.localStorage.removeItem(id);
     }
   } catch (_) {
     // Best-effort: never block the composer on storage failures.
@@ -42,7 +47,8 @@ export function clearDraft(key) {
 const stagedAttachments = new Map();
 
 export function getStagedAttachments(key) {
-  return stagedAttachments.get(storageKey(key)) || [];
+  const id = storageKey(key);
+  return id ? stagedAttachments.get(id) || [] : [];
 }
 
 function hasStagedPayload(value) {
@@ -53,6 +59,7 @@ function hasStagedPayload(value) {
 
 export function setStagedAttachments(key, attachments) {
   const id = storageKey(key);
+  if (!id) return;
   if (hasStagedPayload(attachments)) {
     stagedAttachments.set(id, attachments);
   } else {
@@ -61,7 +68,8 @@ export function setStagedAttachments(key, attachments) {
 }
 
 export function clearStagedAttachments(key) {
-  stagedAttachments.delete(storageKey(key));
+  const id = storageKey(key);
+  if (id) stagedAttachments.delete(id);
 }
 
 export function clearAllDrafts() {

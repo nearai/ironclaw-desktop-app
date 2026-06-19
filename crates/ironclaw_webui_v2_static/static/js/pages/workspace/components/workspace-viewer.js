@@ -2,7 +2,7 @@ import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { Button } from '../../../design-system/button.js';
 import { EmptyPanel, Panel, StatusPill } from '../../../design-system/primitives.js';
-import { fetchAttachmentBlob } from '../../../lib/api.js';
+import { fetchAttachmentBlob } from '../../../lib/project-files-api.js';
 import { saveBlob } from '../../../lib/save-file.js';
 import { MarkdownRenderer } from '../../chat/components/markdown-renderer.js';
 import { isMarkdownPath, parentPath, pathSegments } from '../lib/workspace-presenters.js';

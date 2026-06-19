@@ -5,6 +5,10 @@ registerPack('es', {
   'language.switch': 'Idioma cambiado',
 
   'common.unknown': 'Desconocido',
+  'automations.delivery.loadFailedTitle': 'Valores de entrega no disponibles',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw no pudo confirmar los destinos de entrega desde la puerta de enlace, por lo que no asumira entrega solo en la web ni guardara un valor predeterminado.',
+  'automations.delivery.retry': 'Reintentar',
 
   'nav.chat': 'Chat',
   'nav.workspace': 'Workspace',

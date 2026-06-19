@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 import { html } from '../lib/html.js';
 import { isDesktopRuntime } from '../lib/api.js';
 import { appScopedPath } from '../lib/app-path.js';
+import { useT } from '../lib/i18n.js';
 import { SidebarFooter } from './sidebar-footer.js';
 import { SidebarNav } from './sidebar-nav.js';
 import { SidebarThreads } from './sidebar-threads.js';
@@ -12,17 +13,18 @@ function threadTitle(thread) {
 }
 
 function RecentThreadStrip({ threads, activeThreadId, onSelect }) {
+  const t = useT();
   const recent = threads.slice(0, 5);
   if (recent.length === 0) return null;
   return html`
     <div
       className="hidden h-full min-w-0 max-w-[360px] shrink border-l border-[var(--v2-panel-border)] px-2 py-2 xl:flex xl:flex-col"
-      aria-label="Recent conversations"
+      aria-label=${t('chat.conversations')}
     >
       <div
         className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--v2-text-faint)]"
       >
-        Recent
+        ${t('chat.conversations')}
       </div>
       <div className="flex min-h-0 gap-1 overflow-x-auto [scrollbar-width:thin]">
         ${recent.map(

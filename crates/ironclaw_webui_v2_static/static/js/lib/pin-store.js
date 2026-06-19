@@ -11,7 +11,7 @@
  * the same browser, matching the draft and history caches.
  */
 
-import { authScope } from './auth-scope.js';
+import { authScope, hasAuthScope } from './auth-scope.js';
 
 const STORAGE_PREFIX = 'ironclaw:v2-thread-pins:';
 
@@ -24,12 +24,15 @@ const pinned = new Set();
 let loadedScope = null;
 
 function storageKey() {
+  if (!hasAuthScope()) return null;
   return `${STORAGE_PREFIX}${authScope()}`;
 }
 
 function readPersisted() {
   try {
-    const raw = window.localStorage.getItem(storageKey());
+    const key = storageKey();
+    if (!key) return [];
+    const raw = window.localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
@@ -41,10 +44,12 @@ function readPersisted() {
 
 function writePersisted() {
   try {
+    const key = storageKey();
+    if (!key) return;
     if (pinned.size === 0) {
-      window.localStorage.removeItem(storageKey());
+      window.localStorage.removeItem(key);
     } else {
-      window.localStorage.setItem(storageKey(), JSON.stringify([...pinned]));
+      window.localStorage.setItem(key, JSON.stringify([...pinned]));
     }
   } catch (_) {
     // Best-effort — never block the UI on storage failure.
@@ -84,7 +89,7 @@ export function isPinned(threadId) {
 
 /** Toggle a thread's pinned status, persisting and notifying subscribers. */
 export function togglePin(threadId) {
-  if (!threadId) return;
+  if (!threadId || !hasAuthScope()) return;
   ensureScope();
   if (pinned.has(threadId)) {
     pinned.delete(threadId);

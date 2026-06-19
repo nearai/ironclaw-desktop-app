@@ -113,6 +113,14 @@ function summarizeValue(value) {
   return text.length > 120 ? `${text.slice(0, 117)}...` : text;
 }
 
+function normalizedKey(key) {
+  return String(key || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 function findSummary(parameters, keys) {
   if (!parameters || typeof parameters !== 'object') return '';
   for (const key of keys) {
@@ -147,9 +155,10 @@ function findOutboundSummary(parameters, keys, labels) {
 
   const collect = (source) => {
     if (!source || typeof source !== 'object' || Array.isArray(source)) return;
-    for (const key of keys) {
-      if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
-      const summary = summarizeValue(source[key]);
+    for (const [rawKey, value] of Object.entries(source)) {
+      const key = keys.includes(rawKey) ? rawKey : normalizedKey(rawKey);
+      if (!keys.includes(key)) continue;
+      const summary = summarizeValue(value);
       if (!summary) continue;
       const label = labels[key] || key;
       const dedupeKey = `${label}:${summary}`;

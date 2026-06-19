@@ -22,7 +22,7 @@ function depsChanged(previous, next) {
   return next.some((value, index) => !Object.is(value, previous[index]));
 }
 
-function createHookHarness({ search = '' } = {}) {
+function createHookHarness({ search = '', queryOperatorLogs } = {}) {
   const calls = [];
   const intervals = [];
   let location = { search };
@@ -85,6 +85,9 @@ function createHookHarness({ search = '' } = {}) {
     }),
     queryOperatorLogs: async (request) => {
       calls.push(request);
+      if (queryOperatorLogs) {
+        return queryOperatorLogs(request, calls.length);
+      }
       return { entries: [{ id: String(calls.length) }] };
     },
     setInterval: (fn, ms) => {
@@ -120,6 +123,12 @@ function createHookHarness({ search = '' } = {}) {
   };
 }
 
+async function flushPromises() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 test('useLogs reloads scoped logs once when scope changes while paused', async () => {
   const harness = createHookHarness({ search: '?thread_id=thread-a' });
 
@@ -142,4 +151,67 @@ test('useLogs reloads scoped logs once when scope changes while paused', async (
   assert.equal(harness.calls.length, 2);
   assert.equal(harness.calls[1].threadId, 'thread-b');
   assert.equal(harness.intervals.length, 1);
+});
+
+test('useLogs queues one latest reload when scopes change during an in-flight request', async () => {
+  const responses = [];
+  const harness = createHookHarness({
+    search: '?thread_id=thread-a',
+    queryOperatorLogs: (request) =>
+      new Promise((resolve) => {
+        responses.push({ request, resolve });
+      })
+  });
+
+  harness.render();
+  await harness.runEffects();
+  assert.equal(harness.calls.length, 1);
+  assert.equal(harness.calls[0].threadId, 'thread-a');
+
+  harness.setSearch('?thread_id=thread-b');
+  harness.render();
+  await harness.runEffects();
+  harness.setSearch('?thread_id=thread-c');
+  harness.render();
+  await harness.runEffects();
+  assert.equal(harness.calls.length, 1);
+
+  responses[0].resolve({ entries: [{ id: 'stale' }] });
+  await flushPromises();
+  assert.equal(harness.calls.length, 2);
+  assert.equal(harness.calls[1].threadId, 'thread-c');
+
+  responses[1].resolve({ entries: [{ id: 'current' }] });
+  await flushPromises();
+  const result = harness.render();
+  assert.deepEqual(result.entries, [{ id: 'current' }]);
+});
+
+test('useLogs accepts a slow poll response and coalesces same-scope overlap', async () => {
+  const responses = [];
+  const harness = createHookHarness({
+    search: '?thread_id=thread-a',
+    queryOperatorLogs: (request) =>
+      new Promise((resolve) => {
+        responses.push({ request, resolve });
+      })
+  });
+
+  harness.render();
+  await harness.runEffects();
+  assert.equal(harness.calls.length, 1);
+  assert.equal(harness.intervals.length, 1);
+
+  harness.intervals[0].fn();
+  await flushPromises();
+  assert.equal(harness.calls.length, 1);
+
+  responses[0].resolve({ entries: [{ id: 'first' }] });
+  await flushPromises();
+  assert.equal(harness.calls.length, 2);
+  assert.deepEqual(harness.render().entries, [{ id: 'first' }]);
+
+  responses[1].resolve({ entries: [{ id: 'second' }] });
+  await flushPromises();
+  assert.deepEqual(harness.render().entries, [{ id: 'second' }]);
 });
