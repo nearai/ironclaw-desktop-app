@@ -4964,8 +4964,8 @@ ${de}`;if(L.current.gateKey!==Re&&(L.current={gateKey:Re,credentialRef:null,inFl
     </div>
   `}var JA=`
 .wb13 {
-  --wb-font-body: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --wb-font-display: Newsreader, ui-serif, Charter, "Iowan Old Style", "Palatino Linotype", serif;
+  --wb-font-body: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --wb-font-display: Newsreader, "Newsreader Variable", ui-serif, Charter, "Iowan Old Style", "Palatino Linotype", serif;
   --wb-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --wb-surface: #f7f8f6;
   --wb-canvas: #ffffff;

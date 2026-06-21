@@ -16,6 +16,18 @@
   font-display: swap;
 }
 
+/* Newsreader (variable, opsz 6–72 / wght 400–700, OFL) — the editorial serif
+   the Workbench display scale was designed for. It was never self-hosted, so
+   serif headings silently fell back to system Charter/Palatino and read tired.
+   Self-host it so the v13 display face renders crisply. */
+@font-face {
+  font-family: "Newsreader";
+  src: url('../fonts/newsreader-variable.woff2') format('woff2-variations');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ── Light theme ─────────────────────────────────────────────────── */
 :root {
   color-scheme: light;
