@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## ⭐ Milestone (2026-06-21 late PM, tick 4): Phase 5 native trigger firing VERIFIED end-to-end
+
+The Phase 5 gate ("verify a trigger actually fires before shipping the UI") is satisfied — IronClaw-native poller, NO Hermes.
+
+- **Binary e2e (`scripts/trigger-fire-e2e.mjs`):** boot staged binary with `IRONCLAW_TRIGGER_POLLER_ENABLED=1` → `trigger_poller: true` on boot → the agent creates a recurring trigger via `builtin.trigger_create` (PermissionMode::Ask gate, approved over SSE) → **the native poller FIRES it** (`last_run_at` populated ~28s after `next_run_at`, within the 30s poll). Evidence: `evidence/phase5-trigger-fire.md`.
+- **Rust e2e (authoritative):** 4/4 `trigger_poller_e2e` tests pass — fires recurring, drives trusted ingress for due triggers, respects future `next_run_at`, auth scoping.
+- Confirmed `builtin.trigger_create` is model-visible + works (the agent created `phase5-tick` with correct cron/name/prompt/timezone args).
+- **Next (task #9):** build POST `/automations` create/pause routes + a Workbench create UI ("runs while IronClaw is open") so the UI doesn't depend on an agent turn. Firing is no longer a blocker.
+
 ## ⭐ Milestone (2026-06-21 late PM, tick 3): model picker/readiness FIXED + Phase 3 evidence
 
 - **FIXED #8 — nearai model-list returned 0 (gateway `f9d89e404`).** The model picker was empty / readiness degraded because `probe_provider` built the listing provider with `api_key_env:None`, so the persisted nearai endpoint resolved keyless and the base defaulted to the keyless `private.near.ai` (no model list) instead of `cloud-api.near.ai`. Inference was unaffected (the active provider reads `NEARAI_API_KEY` → cloud-api). Fix: for the persisted endpoint (`stored_key_allowed`) set `api_key_env` so resolution reads the env key → cloud-api. Gated so it never applies to a caller-overridden base (no key-exfiltration). **Verified live: `/llm/list-models` 0 → 47 models.** Crate suite green (1172 pass; 2 unrelated `runtime::` tests flake under parallel load, pass in isolation). Evidence: `evidence/model-list-fix.md`.
