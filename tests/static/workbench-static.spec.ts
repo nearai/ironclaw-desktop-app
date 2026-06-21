@@ -147,6 +147,22 @@ test('static workbench: direct route renders v13 replacement shell with real wir
   expect(consoleIssues).toEqual([]);
 });
 
+test('static workbench: Memory nav opens the v13 preference-capture scene', async ({ page }) => {
+  await installWorkbenchMocks(page);
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page
+    .getByRole('navigation', { name: 'Workbench primary' })
+    .getByRole('button', { name: 'Memory' })
+    .click();
+  const memory = page.getByTestId('workbench-memory');
+  await expect(memory).toBeVisible();
+  await expect(memory.getByRole('heading', { name: 'Save a preference?' })).toBeVisible();
+  await expect(memory.getByRole('radiogroup', { name: 'Memory scope' })).toBeVisible();
+  await expect(memory.getByRole('radio', { name: 'Personal' })).toBeVisible();
+  // Honest by construction: saving is disabled until a writable memory backend exists.
+  await expect(memory.getByRole('button', { name: 'Save preference' })).toBeDisabled();
+});
+
 test('static workbench: first-screen suggestions are action language, not a function picker', async ({
   page
 }) => {

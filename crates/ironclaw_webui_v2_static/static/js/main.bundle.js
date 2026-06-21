@@ -7536,29 +7536,29 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
                 savedWorkSnapshot=${M}
                 onView=${v}
               />`:l`<${i7}
-              commandProps=${oO}
-              startedWork=${H}
-              briefing=${be}
-              onDismissBriefing=${tO}
-              slackBlockersActive=${J}
-              slackBlockers=${ye}
-              onDismissSlackBlockers=${()=>Z(!1)}
-              onOpenMessage=${ha}
-              groups=${zd}
-              savedItems=${Ud}
-              packageTab=${P}
-              onPackageTab=${I}
-              connectorFamilies=${L.families}
-              gmailReady=${L.gmailReady}
-              inboxMessages=${X.messages}
-              inboxLoading=${X.isLoading}
-              inboxError=${X.isError}
-              calendarReady=${L.calendarReady}
-              calendarEvents=${we.events}
-              calendarError=${we.isError}
-              onAttachWorkspaceFile=${Oe=>m.addFiles([Oe])}
-              onDraftMessage=${O}
-            />`}
+                commandProps=${oO}
+                startedWork=${H}
+                briefing=${be}
+                onDismissBriefing=${tO}
+                slackBlockersActive=${J}
+                slackBlockers=${ye}
+                onDismissSlackBlockers=${()=>Z(!1)}
+                onOpenMessage=${ha}
+                groups=${zd}
+                savedItems=${Ud}
+                packageTab=${P}
+                onPackageTab=${I}
+                connectorFamilies=${L.families}
+                gmailReady=${L.gmailReady}
+                inboxMessages=${X.messages}
+                inboxLoading=${X.isLoading}
+                inboxError=${X.isError}
+                calendarReady=${L.calendarReady}
+                calendarEvents=${we.events}
+                calendarError=${we.isError}
+                onAttachWorkspaceFile=${Oe=>m.addFiles([Oe])}
+                onDraftMessage=${O}
+              />`}
         ${ie?l`<${OA}
               sourceReadiness=${W}
               isBusy=${u.isBusy}
