@@ -5,6 +5,16 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## ⭐ Milestone (2026-06-21 late PM, tick 2): real-app door-blocker FIXED + full real-app E2E
+
+The biggest "does it actually work in the app" blocker is fixed.
+
+- **Real-app E2E against the REAL `~/.ironclaw` profile** (probe-workbench-live-wiring, staged dual-fix binary): `healthy:true`, model `zai-org/GLM-5.1-FP8`, **all 6 connector families read live with real data** (gmail 3, calendar 1, drive 3, notion 3, github 3, slack 200). Evidence: `docs/design/evidence/real-app-e2e.md`.
+- **FIXED the start-preflight door-blocker (`d2cf9cd`).** The probe exposed that the Workbench set `start_preflight.blocked=true` ("NEAR AI Cloud model access is not available") because list-models returns 0 for the nearai provider — even though a model is active and inference works. So a user opening the real app was **blocked at the door despite everything working.** `modelCatalogBlockReason` now skips the block when a concrete model is active. **Verified live: `start_preflight.blocked` flips true→false** (evidence: `preflight-fix-before-after.md`). +2 unit tests.
+- **Flaky Cmd+K palette test stabilized (`95570aa`)** — awaits focused input before typing/Escape; no more parallel-load flake blocking pushes.
+- **Phase 1 connector suite 14/14** re-confirmed on the dual-fix binary (evidence: `phase1-connector-suite.md`).
+- **#7 multi-read convergence characterized** as model-bound (GLM over-tool-calls; reads succeed after self-correcting args; single-read works). New follow-ups: #7 (convergence), #8 (nearai list-models returns 0 → empty model picker).
+
 ## ⭐ Milestone (2026-06-21 PM): agent-driven connector use FIXED + live-proven
 
 The headline "does the agent actually use my connectors?" question is answered and fixed.
