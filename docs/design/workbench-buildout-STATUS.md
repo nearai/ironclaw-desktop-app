@@ -5,6 +5,18 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## ⭐ Milestone (2026-06-21 PM): agent-driven connector use FIXED + live-proven
+
+The headline "does the agent actually use my connectors?" question is answered and fixed.
+
+- **Found the real gap:** asked to "use your Gmail tool", the agent looped on `builtin.extension_search`/`extension_install` and never replied — Composio setup wired the *deterministic* read/write route, not the agent loop's capability set (the read-only `connected-sources` extension was never enabled for the agent, and there was no boot path to enable it).
+- **Fixed (gateway `693a41e1`, branch `connector-route-on-main` / PR #5109):** `bootstrap_local_dev_agent_connectors` enables `connected-sources` at boot when `IRONCLAW_AGENT_CONNECTORS_ENABLED=1`. Read-only, no boot credential (Composio key resolves host-side at invoke), `default_permission=allow`, non-fatal, default-off. Writes/sends stay on the gated route.
+- **Wired into the app (desktop `0c33055`):** the bundled sidecar spawn now sets that env, so the fix is live in `npm run tauri dev` (not dormant).
+- **Live-proven** (`scripts/agent-sse-e2e.mjs`, flag on, rebuilt+staged sidecar, NEAR AI `z-ai/glm-5.2` and `zai-org/GLM-5.1-FP8`): the agent calls `connected-sources.read` **directly** (no install loop, no gate) and returns a finalized reply citing the **real** email — *Sender: The Information <hello@theinformation.com>, Subject: "Inside Microsoft's …"*.
+- **Gateway suite:** `cargo test -p ironclaw_reborn_composition` = 1171 pass; the 3 "failures" were CPU-contention timeouts (concurrent sidecar tests) — all 3 pass in isolation (3.23s).
+- **Also resolved today:** the "agent doesn't reply" scare was a test artifact — `NEARAI_MODEL=auto` is invalid (HTTP 400) and the old "pong" check was a false positive. Real models (GLM-5.1-FP8 / glm-5.2) complete turns. The live turn runs over **SSE**; the gate→approve→resume loop works (resolve → 200, run continues).
+- **Open:** Phase 5 trigger CREATE route/UI (firing itself is proven by Rust e2e + the `IRONCLAW_TRIGGER_POLLER_ENABLED` boot-enable). Real sends remain OFF (need your test address). Codex divergence process still needs stopping by you.
+
 ## Current live truth (2026-06-21 13:44 EDT)
 
 - This supersedes earlier "PASS" notes that proved Workbench Ask reached Chat and persisted the user request, but did **not**
