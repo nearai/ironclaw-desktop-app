@@ -20,6 +20,10 @@ export const WORKBENCH_TOKENS_STYLE = `
   --wb-hold-text: #974320;
   --wb-hold-tint: #fbeae0;
   --wb-hold-line: #eccab6;
+  --wb-gold: #b07d12;
+  --wb-gold-text: #8a6410;
+  --wb-gold-tint: #fbf1d3;
+  --wb-gold-line: #ecd9a6;
   --wb-good: #2c8c5e;
   --wb-good-text: #1d6042;
   --wb-good-tint: #e4f1ea;
@@ -68,6 +72,10 @@ export const WORKBENCH_TOKENS_STYLE = `
   --wb-hold-text: #f0ad83;
   --wb-hold-tint: #2c1b14;
   --wb-hold-line: #6f3d27;
+  --wb-gold: #fbbf24;
+  --wb-gold-text: #f3cd6b;
+  --wb-gold-tint: #2a2210;
+  --wb-gold-line: #5a4a20;
   --wb-good: #54b889;
   --wb-good-text: #8ee3ba;
   --wb-good-tint: #10291f;

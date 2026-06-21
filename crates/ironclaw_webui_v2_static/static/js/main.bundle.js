@@ -4697,7 +4697,7 @@ ${de}`;if(L.current.gateKey!==Re&&(L.current={gateKey:Re,credentialRef:null,inFl
               <span className="wb13-row-copy">${a}</span>
             </span>
             <span
-              className=${F("wb13-scene-state",r==="Blocked"&&"is-blocked",r==="Approval"&&"is-approval")}
+              className=${F("wb13-scene-state",r==="Blocked"&&"is-blocked",r==="Draft"&&"is-draft",r==="Approval"&&"is-approval")}
             >
               ${r}
             </span>
@@ -5078,6 +5078,10 @@ ${de}`;if(L.current.gateKey!==Re&&(L.current={gateKey:Re,credentialRef:null,inFl
   --wb-hold-text: #974320;
   --wb-hold-tint: #fbeae0;
   --wb-hold-line: #eccab6;
+  --wb-gold: #b07d12;
+  --wb-gold-text: #8a6410;
+  --wb-gold-tint: #fbf1d3;
+  --wb-gold-line: #ecd9a6;
   --wb-good: #2c8c5e;
   --wb-good-text: #1d6042;
   --wb-good-tint: #e4f1ea;
@@ -5126,6 +5130,10 @@ ${de}`;if(L.current.gateKey!==Re&&(L.current={gateKey:Re,credentialRef:null,inFl
   --wb-hold-text: #f0ad83;
   --wb-hold-tint: #2c1b14;
   --wb-hold-line: #6f3d27;
+  --wb-gold: #fbbf24;
+  --wb-gold-text: #f3cd6b;
+  --wb-gold-tint: #2a2210;
+  --wb-gold-line: #5a4a20;
   --wb-good: #54b889;
   --wb-good-text: #8ee3ba;
   --wb-good-tint: #10291f;
@@ -5971,16 +5979,20 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
 }
 .wb13-scene-state {
   border-radius: 999px;
-  background: var(--wb-accent-soft);
-  color: var(--wb-accent);
+  background: var(--wb-line-2);
+  color: var(--wb-muted);
   padding: 3px 8px;
   font-size: 11px;
   font-weight: 800;
 }
-.wb13-scene-state.is-blocked,
+.wb13-scene-state.is-draft,
 .wb13-scene-state.is-approval {
+  background: var(--wb-gold-tint);
+  color: var(--wb-gold-text);
+}
+.wb13-scene-state.is-blocked {
   background: var(--wb-hold-tint);
-  color: var(--wb-hold-text);
+  color: var(--wb-danger);
 }
 .wb13-scene-grid {
   display: grid;
@@ -6072,7 +6084,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--wb-accent);
+  color: var(--wb-gold-text);
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
@@ -6097,7 +6109,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
 }
 .wb13-run-live {
   margin-left: auto;
-  color: var(--wb-accent);
+  color: var(--wb-gold-text);
   font-size: 11px;
   font-weight: 700;
   text-transform: none;
@@ -6139,9 +6151,13 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   width: 13px;
   height: 13px;
 }
-.wb13-run-row.is-assistant .wb13-run-marker {
+.wb13-run-row.is-user .wb13-run-marker {
   background: var(--wb-accent-tint);
   color: var(--wb-accent);
+}
+.wb13-run-row.is-assistant .wb13-run-marker {
+  background: var(--wb-gold-tint);
+  color: var(--wb-gold);
 }
 .wb13-run-row.is-failed .wb13-run-marker {
   background: var(--wb-hold-tint);
@@ -6213,9 +6229,9 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
 }
 .wb13-run-gates {
   margin-top: 13px;
-  border: 1px solid var(--wb-hold-line);
+  border: 1px solid var(--wb-gold-line);
   border-radius: 10px;
-  background: var(--wb-hold-tint);
+  background: var(--wb-gold-tint);
   padding: 12px 13px;
   display: grid;
   gap: 10px;
@@ -6224,7 +6240,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--wb-hold-text);
+  color: var(--wb-gold-text);
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
@@ -6235,7 +6251,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
 }
 .wb13-run-gates-count {
   margin-left: auto;
-  color: var(--wb-hold-text);
+  color: var(--wb-gold-text);
   font-weight: 700;
 }
 .wb13-run-gate {
@@ -6252,7 +6268,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   height: 24px;
   border-radius: 999px;
   background: var(--wb-canvas);
-  color: var(--wb-hold-text);
+  color: var(--wb-gold-text);
 }
 .wb13-run-gate-icon svg {
   width: 14px;

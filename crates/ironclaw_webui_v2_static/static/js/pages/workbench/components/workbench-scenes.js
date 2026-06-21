@@ -52,6 +52,7 @@ function SceneActionRows({ sceneId }) {
               className=${cn(
                 'wb13-scene-state',
                 state === 'Blocked' && 'is-blocked',
+                state === 'Draft' && 'is-draft',
                 state === 'Approval' && 'is-approval'
               )}
             >
