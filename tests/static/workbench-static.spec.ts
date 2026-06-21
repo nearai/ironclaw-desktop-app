@@ -772,6 +772,47 @@ test('static workbench: document workspace renders real local Work artifacts', a
   assertBannedWorkbenchCopyAbsent(await page.getByTestId('workbench-page').innerText());
 });
 
+test('static workbench: server-backed Work can populate the document workspace when advertised', async ({
+  page
+}) => {
+  const savedWorkRequests: string[] = [];
+  await installWorkbenchMocks(page, {
+    savedWorkReadEnabled: true,
+    savedWorkRequests,
+    savedWorkItems: [
+      {
+        id: 'server-work-board',
+        title: 'Server board packet',
+        status: 'active',
+        updated_at: '2026-06-21T05:20:00.000Z',
+        links: [{ kind: 'thread', ref: 'thread-board', label: 'Board Chat' }],
+        artifacts: [
+          {
+            id: 'server-artifact-board',
+            type: 'brief',
+            title: 'Board update draft',
+            status: 'ready',
+            content: '# Board update draft\n\nRunway, hiring plan, and launch risks are ready.',
+            content_format: 'markdown'
+          }
+        ]
+      }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  const workspace = page.getByTestId('workbench-document-workspace');
+  await expect(workspace).toContainText('Server board packet');
+  await page.getByRole('tab', { name: 'Brief' }).click();
+  await expect(workspace).toContainText('Board update draft');
+  await expect(workspace).toContainText('Runway, hiring plan, and launch risks are ready');
+
+  await page.getByRole('button', { name: 'Library' }).click();
+  await expect(page.getByTestId('workbench-library-source')).toContainText('Server-backed');
+  await expect(page.getByTestId('workbench-library')).toContainText('Server board packet');
+  expect(savedWorkRequests).toEqual(['GET /api/webchat/v2/work']);
+});
+
 test('static workbench: accepts broad chief-of-staff prompts into Chat runtime starts', async ({
   page
 }) => {

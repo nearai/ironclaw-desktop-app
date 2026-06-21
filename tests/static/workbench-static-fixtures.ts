@@ -50,6 +50,10 @@ type WorkbenchMockOptions = {
   connectorWrites?: Record<string, unknown>;
   connectorWriteRequests?: Array<Record<string, unknown>>;
   connectorWriteError?: number;
+  savedWorkReadEnabled?: boolean;
+  savedWorkItems?: Array<Record<string, unknown>>;
+  savedWorkError?: number;
+  savedWorkRequests?: string[];
 };
 
 export const workbenchPersonaFixtures = JSON.parse(
@@ -299,7 +303,10 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
     options.requestLog?.push(`${method} ${path}`);
 
     if (path === '/api/gateway/status') {
-      return json(route, gatewayStatus);
+      return json(route, {
+        ...gatewayStatus,
+        capabilities: options.savedWorkReadEnabled ? { saved_work_read: true } : {}
+      });
     }
     if (path === '/api/webchat/v2/llm/providers') {
       return json(route, { ...llmProviders, active: activeLlm });
@@ -339,6 +346,13 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
         return text(route, 500, options.automationsError);
       }
       return json(route, { automations: options.automations || [], next_cursor: null });
+    }
+    if (path === '/api/webchat/v2/work' && method === 'GET') {
+      options.savedWorkRequests?.push(`${method} ${path}`);
+      if (options.savedWorkError) {
+        return text(route, options.savedWorkError, 'saved work unavailable');
+      }
+      return json(route, { items: options.savedWorkItems || [] });
     }
     if (path === '/api/webchat/v2/threads' && method === 'POST') {
       return json(route, {

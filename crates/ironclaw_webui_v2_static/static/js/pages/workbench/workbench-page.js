@@ -11,7 +11,12 @@ import { normalizeAutomations } from '../automations/lib/automations-presenters.
 import { useChat } from '../chat/hooks/useChat.js';
 import { useComposerAttachments } from '../chat/hooks/useComposerAttachments.js';
 import { NEW_DRAFT_KEY, setDraft, setStagedAttachments } from '../chat/lib/draft-store.js';
-import { readSavedWorkSnapshot } from '../chat/lib/work-product-save.js';
+import {
+  fetchSavedWorkSnapshot,
+  mergeSavedWorkSnapshots,
+  readSavedWorkSnapshot,
+  savedWorkServerReadSupported
+} from '../chat/lib/work-product-save.js';
 import { useConnectExtension, useExtensions } from '../extensions/hooks/useExtensions.js';
 import { WORKBENCH_AUTO_SOURCE_SCOPE } from './lib/workbench-plan.js';
 import { buildBriefing, isBriefingIntent } from './lib/workbench-briefing.js';
@@ -351,6 +356,15 @@ export function WorkbenchPage() {
   const [draftContext, setDraftContext] = React.useState(null);
   const [draftBusy, setDraftBusy] = React.useState(false);
   const [draftResult, setDraftResult] = React.useState(null);
+  const savedWorkReadEnabled = savedWorkServerReadSupported(gatewayStatus);
+  const serverSavedWorkQuery = useQuery({
+    queryKey: ['workbench-saved-work-server'],
+    queryFn: ({ signal }) => fetchSavedWorkSnapshot({ signal }),
+    enabled: savedWorkReadEnabled,
+    staleTime: 30_000,
+    retry: 1,
+    throwOnError: false
+  });
 
   const openDraftReply = React.useCallback((message) => {
     setDraftResult(null);
@@ -442,6 +456,13 @@ export function WorkbenchPage() {
   React.useEffect(() => {
     setSavedWorkSnapshot(readSavedWorkSnapshot());
   }, []);
+
+  React.useEffect(() => {
+    if (!savedWorkReadEnabled || !serverSavedWorkQuery.data) return;
+    setSavedWorkSnapshot((localSnapshot) =>
+      mergeSavedWorkSnapshots(serverSavedWorkQuery.data, localSnapshot)
+    );
+  }, [savedWorkReadEnabled, serverSavedWorkQuery.data]);
 
   const savedItems = savedWorkSnapshot.items;
 

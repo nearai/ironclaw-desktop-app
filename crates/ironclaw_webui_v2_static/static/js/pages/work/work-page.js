@@ -1,4 +1,5 @@
-import { Link, useSearchParams } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useOutletContext, useSearchParams } from 'react-router';
 import { Button } from '../../design-system/button.js';
 import { Icon } from '../../design-system/icons.js';
 import { React, html } from '../../lib/html.js';
@@ -12,7 +13,13 @@ import {
   downloadMarkdown,
   downloadPdf
 } from '../chat/lib/work-product-export.js';
-import { readSavedWorkSnapshot, workArtifactHref } from '../chat/lib/work-product-save.js';
+import {
+  fetchSavedWorkSnapshot,
+  mergeSavedWorkSnapshots,
+  readSavedWorkSnapshot,
+  savedWorkServerReadSupported,
+  workArtifactHref
+} from '../chat/lib/work-product-save.js';
 import {
   buildGeneratedFileBlob,
   generatedFileKindLabel,
@@ -300,7 +307,18 @@ function WorkActivityLedger({ items }) {
 
 export function WorkPage() {
   const [params] = useSearchParams();
+  const outletContext = useOutletContext() || {};
+  const { gatewayStatus } = outletContext;
   const [savedWorkSnapshot, setSavedWorkSnapshot] = React.useState(() => readSavedWorkSnapshot());
+  const savedWorkReadEnabled = savedWorkServerReadSupported(gatewayStatus);
+  const serverSavedWorkQuery = useQuery({
+    queryKey: ['work-saved-work-server'],
+    queryFn: ({ signal }) => fetchSavedWorkSnapshot({ signal }),
+    enabled: savedWorkReadEnabled,
+    staleTime: 30_000,
+    retry: 1,
+    throwOnError: false
+  });
   const items = savedWorkSnapshot.items || [];
   // The saved-work store holds up to 500 items; without a filter + expander the
   // sidebar list hard-capped at 30 and everything older was unreachable.
@@ -312,6 +330,13 @@ export function WorkPage() {
   React.useEffect(() => {
     setSavedWorkSnapshot(readSavedWorkSnapshot());
   }, []);
+
+  React.useEffect(() => {
+    if (!savedWorkReadEnabled || !serverSavedWorkQuery.data) return;
+    setSavedWorkSnapshot((localSnapshot) =>
+      mergeSavedWorkSnapshots(serverSavedWorkQuery.data, localSnapshot)
+    );
+  }, [savedWorkReadEnabled, serverSavedWorkQuery.data]);
 
   const requestedItemId = params.get('item') || '';
   const requestedArtifactId = params.get('artifact') || '';

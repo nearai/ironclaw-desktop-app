@@ -2260,3 +2260,58 @@ surface does not present duplicate task cards. This is still read-only and
 deterministic; the bigger server-side gaps remain G1 saved-work backend reads,
 G2 authoritative approvals, G4 automation writes, G5 receipts, and G6 global
 changed/pending feeds.
+
+## Loop 35 — 2026-06-21 ~02:00 local — Saved Work backend-read seam
+
+Heartbeat resumed the Workbench overhaul. Re-inspected the tree first on
+`workbench-overnight-20260620`. The branch was one commit ahead of origin and
+the tree was clean before edits; a transient `.tmp-webui-static-tailwind/`
+directory disappeared before inspection, so nothing was cleaned or reverted.
+
+### What changed
+
+- Advanced G1 without pretending the backend exists: added a capability-gated
+  saved-work server reader in `work-product-save.js`.
+- New frontend contract:
+  - gateway must advertise `capabilities.saved_work_read` or
+    `capabilities.work_read` (also accepts equivalent `features.*` / `work.read`
+    shapes);
+  - frontend then reads `GET /api/webchat/v2/work`;
+  - supported response shapes are `{ items: [...] }`, `{ work_items: [...] }`,
+    `{ work: [...] }`, bare arrays, or `{ data: { items: [...] } }`;
+  - server rows normalize into the existing Work item/artifact shape;
+  - local-only browser artifacts are merged behind server rows without
+    duplicates.
+- Wired the capability gate into both Workbench and the dedicated Work reader:
+  - Workbench can populate the packet/document workspace and Library from
+    server Work when the capability is advertised.
+  - `/work` can load a server-backed saved item by item/artifact id with
+    `Server-backed` source copy.
+- Preserved today's honest local mode: if the gateway does not advertise the
+  capability, neither surface probes `/work`, so no noisy 404/501 resource
+  errors and no false backend claim.
+- Tried an in-app Browser proof with a temporary mocked server. The Browser
+  bridge timed out on click/screenshot and the direct Work route did not reach
+  the authenticated surface, so the reliable rendered proof for this loop is the
+  Playwright static route suite.
+
+### Validation
+
+| Check                                                    | Result       |
+| -------------------------------------------------------- | ------------ |
+| `node --check` saved-work, Workbench, and Work modules   | pass         |
+| saved-work unit tests                                    | 16/16 pass   |
+| focused Workbench + Work server-backed route regressions | 4/4 pass     |
+| full Workbench + Work rendered route files               | 62/62 pass   |
+| `npm run prepare:webui-static`                           | pass         |
+| full static JS unit suite (`npm run test:static`)        | 764/764 pass |
+| static/a11y/browser suite (`npm run test:a11y-static`)   | 125/125 pass |
+| `npm run verify:static-frontend`                         | OK           |
+
+### Current truth
+
+The frontend is now ready for a durable Saved Work backend read path, but the
+packaged gateway still needs the route. Until that capability appears, Workbench
+and Work stay local-profile honest. Once the backend advertises it, the UI will
+read server Work without a redesign pass and without losing local-only saved
+artifacts.
