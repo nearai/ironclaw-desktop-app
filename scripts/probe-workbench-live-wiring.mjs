@@ -509,7 +509,7 @@ function ssePayloadsFromBlock(block) {
   }
 }
 
-function startRunStatusStream({ origin, token, threadId, onStatus }) {
+function startRunStatusStream({ origin, token, threadId, onStatus, onPayload }) {
   const controller = new AbortController();
   const state = {
     status: null,
@@ -538,6 +538,7 @@ function startRunStatusStream({ origin, token, threadId, onStatus }) {
         buffer = blocks.pop() || '';
         for (const block of blocks) {
           for (const payload of ssePayloadsFromBlock(block)) {
+            onPayload?.(payload);
             for (const summary of collectRunStatusSummaries(payload)) {
               onStatus(summary);
             }
@@ -642,7 +643,8 @@ function toolSignalSummary(value) {
     kind,
     status,
     capability_id: String(capabilityId || ''),
-    tool_name: String(toolName || '')
+    tool_name: String(toolName || ''),
+    invocation_id: String(invocationId || '')
   };
 }
 
@@ -662,7 +664,49 @@ function collectToolActivitySignals(value, signals = []) {
 
 function isConnectorToolSignal(signal) {
   const text = `${signal?.kind || ''} ${signal?.capability_id || ''} ${signal?.tool_name || ''}`;
-  return /connector|composio|gmail|googlecalendar|googledrive|notion|slack|github/i.test(text);
+  return /connected[-_\s]?sources|connector|composio|gmail|googlecalendar|googledrive|notion|slack|github/i.test(
+    text
+  );
+}
+
+function signalKey(signal) {
+  return [
+    signal?.source || '',
+    signal?.kind || '',
+    signal?.status || '',
+    signal?.capability_id || '',
+    signal?.tool_name || '',
+    signal?.invocation_id || ''
+  ].join('|');
+}
+
+function refreshToolSignalCounters(target) {
+  const signals = Array.isArray(target.tool_signals) ? target.tool_signals : [];
+  target.tool_signal_count = signals.length;
+  target.tool_activity_seen = signals.length > 0;
+  target.timeline_tool_signal_count = signals.filter(
+    (signal) => signal.source === 'timeline'
+  ).length;
+  target.timeline_tool_activity_seen = target.timeline_tool_signal_count > 0;
+  target.sse_tool_signal_count = signals.filter((signal) => signal.source === 'sse').length;
+  target.sse_tool_activity_seen = target.sse_tool_signal_count > 0;
+}
+
+function recordConnectorToolSignals(target, source, value) {
+  if (!target) return;
+  const existing = new Set((target.tool_signals || []).map(signalKey));
+  const signals = collectToolActivitySignals(value)
+    .filter(isConnectorToolSignal)
+    .map((signal) => ({ ...signal, source }))
+    .slice(0, 20);
+  for (const signal of signals) {
+    const key = signalKey(signal);
+    if (existing.has(key)) continue;
+    existing.add(key);
+    target.tool_signals.push(signal);
+    if (target.tool_signals.length >= 20) break;
+  }
+  refreshToolSignalCounters(target);
 }
 
 function connectorReadProbes() {
@@ -966,15 +1010,15 @@ function evaluateProbe(result) {
         claimed_tool_not_used: Boolean(directConnector.assistant_claimed_tool_not_used)
       }
     );
-    const directConnectorToolObserved =
-      directConnector.tool_activity_seen === true ||
-      directConnector.assistant_claimed_tool_used === true;
+    const directConnectorToolObserved = directConnector.tool_activity_seen === true;
     const directConnectorDetail = {
       required: Boolean(directConnector.required),
       tool_activity_seen: Boolean(directConnector.tool_activity_seen),
       assistant_claimed_tool_used: Boolean(directConnector.assistant_claimed_tool_used),
       assistant_claimed_tool_not_used: Boolean(directConnector.assistant_claimed_tool_not_used),
-      tool_signal_count: directConnector.tool_signal_count ?? null
+      tool_signal_count: directConnector.tool_signal_count ?? null,
+      timeline_tool_signal_count: directConnector.timeline_tool_signal_count ?? null,
+      sse_tool_signal_count: directConnector.sse_tool_signal_count ?? null
     };
     if (directConnector.required) {
       check(
@@ -1124,7 +1168,9 @@ function buildProbeSummary(result) {
       claimed_tool_used: Boolean(directConnector.assistant_claimed_tool_used),
       claimed_tool_not_used: Boolean(directConnector.assistant_claimed_tool_not_used),
       tool_activity_seen: Boolean(directConnector.tool_activity_seen),
-      tool_signal_count: directConnector.tool_signal_count ?? null
+      tool_signal_count: directConnector.tool_signal_count ?? null,
+      timeline_tool_signal_count: directConnector.timeline_tool_signal_count ?? null,
+      sse_tool_signal_count: directConnector.sse_tool_signal_count ?? null
     },
     diagnostic_hints: diagnosticHints(result)
   };
@@ -1693,6 +1739,10 @@ async function main() {
         assistant_claimed_tool_not_used: false,
         tool_activity_seen: false,
         tool_signal_count: 0,
+        timeline_tool_activity_seen: false,
+        timeline_tool_signal_count: 0,
+        sse_tool_activity_seen: false,
+        sse_tool_signal_count: 0,
         tool_signals: []
       };
       let runStatusStream = null;
@@ -1702,7 +1752,8 @@ async function main() {
           origin,
           token,
           threadId,
-          onStatus: (summary) => applyRunStatusToDirectConnectorProbe(directConnector, summary)
+          onStatus: (summary) => applyRunStatusToDirectConnectorProbe(directConnector, summary),
+          onPayload: (payload) => recordConnectorToolSignals(directConnector, 'sse', payload)
         });
         const send = await request(
           'POST',
@@ -1753,12 +1804,7 @@ async function main() {
             directConnector.assistant_claimed_tool_not_used =
               directConnector.assistant_claimed_tool_not_used ||
               /tool_used\s*=\s*no/i.test(assistantText);
-            const signals = collectToolActivitySignals(timeline.body)
-              .filter(isConnectorToolSignal)
-              .slice(0, 20);
-            directConnector.tool_signal_count = signals.length;
-            directConnector.tool_signals = signals;
-            directConnector.tool_activity_seen = signals.length > 0;
+            recordConnectorToolSignals(directConnector, 'timeline', timeline.body);
             const terminalFromTimeline = timelineRunStatuses(timeline.body, messages).find((item) =>
               TERMINAL_RUN_STATUSES.has(item.status)
             );
