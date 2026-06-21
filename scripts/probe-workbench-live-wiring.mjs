@@ -648,6 +648,19 @@ function toolSignalSummary(value) {
   };
 }
 
+function parsedTimelineToolEnvelope(value) {
+  const kind = messageKind(value);
+  if (kind !== 'capability_display_preview' && kind !== 'tool_result_reference') return null;
+  const content = messageContent(value).trim();
+  if (!content || content.length > 50_000 || !content.startsWith('{')) return null;
+  try {
+    const parsed = JSON.parse(content);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function collectToolActivitySignals(value, signals = []) {
   if (Array.isArray(value)) {
     for (const item of value) collectToolActivitySignals(item, signals);
@@ -656,6 +669,8 @@ function collectToolActivitySignals(value, signals = []) {
   if (!value || typeof value !== 'object') return signals;
   const summary = toolSignalSummary(value);
   if (summary) signals.push(summary);
+  const parsedEnvelope = parsedTimelineToolEnvelope(value);
+  if (parsedEnvelope) collectToolActivitySignals(parsedEnvelope, signals);
   for (const child of Object.values(value)) {
     collectToolActivitySignals(child, signals);
   }
