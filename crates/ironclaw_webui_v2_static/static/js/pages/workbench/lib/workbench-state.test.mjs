@@ -184,6 +184,43 @@ test('workbench rail surfaces authoritative receipts feed rows', () => {
   });
 });
 
+test('workbench rail surfaces authoritative global feed rows', () => {
+  const rail = buildWorkbenchStateRail({
+    feedItems: [
+      {
+        id: 'feed-vendor-onboarding',
+        groupId: 'needs-review',
+        title: 'Vendor onboarding packet changed',
+        badge: 'Ready to review',
+        detail: 'Two new security exhibits were added overnight.',
+        icon: 'file',
+        href: '/chat/thread-vendor',
+        timestamp: '2026-06-21T08:15:00.000Z'
+      },
+      {
+        id: 'feed-unknown',
+        groupId: 'unknown',
+        title: 'Unknown group',
+        detail: 'This should not render.'
+      }
+    ]
+  });
+
+  const needsReview = rail.find((group) => group.id === 'needs-review');
+  assert.equal(needsReview.total, 1);
+  assert.deepEqual(needsReview.rows[0], {
+    id: 'workbench-feed-feed-vendor-onboarding',
+    groupId: 'needs-review',
+    kind: 'workbench-feed',
+    icon: 'file',
+    title: 'Vendor onboarding packet changed',
+    badge: 'Ready to review',
+    detail: 'Two new security exhibits were added overnight.',
+    href: '/chat/thread-vendor',
+    timestamp: '2026-06-21T08:15:00.000Z'
+  });
+});
+
 test('workbench rail promotes backend pending gates when thread state is missing or stale', () => {
   const rail = buildWorkbenchStateRail({
     threads: [

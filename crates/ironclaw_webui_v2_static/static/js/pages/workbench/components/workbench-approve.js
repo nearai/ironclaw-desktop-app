@@ -98,6 +98,7 @@ export function WorkbenchApprove({
                   <div className="wb13-bodyprev">
                     <div className="bh">Message</div>
                     <textarea
+                      aria-label="Draft message"
                       className="wb13-approve-textarea"
                       rows="7"
                       value=${body}

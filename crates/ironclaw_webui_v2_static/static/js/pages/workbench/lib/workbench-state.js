@@ -6,6 +6,16 @@ import {
 import { firstArtifact, savedWorkHref } from './workbench-work-items.js';
 
 const SOURCE_RAIL_STATES = new Set(['in-progress', 'needs-reconnect']);
+const WORKBENCH_FEED_GROUPS = new Set([
+  'needs-reply',
+  'needs-approval',
+  'blocked',
+  'working',
+  'needs-review',
+  'upcoming',
+  'scheduled',
+  'receipts'
+]);
 
 // Real connector-derived rail rows. The Workbench home is a forward-looking
 // "what needs me" surface, not an ops console: unread mail becomes a "Needs a
@@ -84,6 +94,27 @@ function receiptFeedRows(receipts = []) {
         detail: receipt.detail || 'Recorded from completed work.',
         href: receipt.href || '/work',
         timestamp: receipt.timestamp || ''
+      };
+    })
+    .filter(Boolean);
+}
+
+function workbenchFeedRows(feedItems = []) {
+  return (Array.isArray(feedItems) ? feedItems : [])
+    .map((item) => {
+      const id = String(item?.id || '').trim();
+      const groupId = String(item?.groupId || '').trim();
+      if (!id || !WORKBENCH_FEED_GROUPS.has(groupId)) return null;
+      return {
+        id: `workbench-feed-${id}`,
+        groupId,
+        kind: 'workbench-feed',
+        icon: item.icon || 'file',
+        title: item.title || 'Workbench item',
+        badge: item.badge || 'Updated',
+        detail: item.detail || 'A connected source changed.',
+        href: item.href || '/workbench',
+        timestamp: item.timestamp || ''
       };
     })
     .filter(Boolean);
@@ -494,6 +525,7 @@ export function buildWorkbenchStateRail({
   threadAttentionDetails = new Map(),
   savedItems = [],
   automations = [],
+  feedItems = [],
   approvals = [],
   receipts = [],
   sourceReadiness = [],
@@ -507,6 +539,7 @@ export function buildWorkbenchStateRail({
   const rows = [
     ...connectorReplyRows(inbox || {}),
     ...sourceRows(sourceReadiness),
+    ...workbenchFeedRows(feedItems),
     ...approvalFeedRows(approvals),
     ...threadAttentionRows(normalizedThreads, threadStates, threadAttentionDetails),
     ...runningThreadRows(normalizedThreads, threadStates),

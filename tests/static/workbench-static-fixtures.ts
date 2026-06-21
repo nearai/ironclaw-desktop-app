@@ -62,6 +62,10 @@ type WorkbenchMockOptions = {
   receipts?: Array<Record<string, unknown>>;
   receiptsError?: number;
   receiptsRequests?: string[];
+  workbenchFeedReadEnabled?: boolean;
+  workbenchFeedItems?: Array<Record<string, unknown>>;
+  workbenchFeedError?: number;
+  workbenchFeedRequests?: string[];
 };
 
 export const workbenchPersonaFixtures = JSON.parse(
@@ -316,7 +320,8 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
         capabilities: {
           ...(options.savedWorkReadEnabled ? { saved_work_read: true } : {}),
           ...(options.approvalsReadEnabled ? { approvals_read: true } : {}),
-          ...(options.receiptsReadEnabled ? { receipts_read: true } : {})
+          ...(options.receiptsReadEnabled ? { receipts_read: true } : {}),
+          ...(options.workbenchFeedReadEnabled ? { workbench_feed_read: true } : {})
         }
       });
     }
@@ -379,6 +384,13 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
         return text(route, options.receiptsError, 'receipts unavailable');
       }
       return json(route, { receipts: options.receipts || [] });
+    }
+    if (path === '/api/webchat/v2/workbench/feed' && method === 'GET') {
+      options.workbenchFeedRequests?.push(`${method} ${path}`);
+      if (options.workbenchFeedError) {
+        return text(route, options.workbenchFeedError, 'workbench feed unavailable');
+      }
+      return json(route, { feed: options.workbenchFeedItems || [] });
     }
     if (path === '/api/webchat/v2/threads' && method === 'POST') {
       return json(route, {

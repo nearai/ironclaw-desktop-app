@@ -2421,3 +2421,64 @@ gateway advertises and serves it, without another UI redesign pass and without
 noisy 404 probing today. Until that backend appears, G5 remains backend-blocked:
 `Recent receipts` is still fed by local saved-work receipts, automation-run
 readbacks, and any future capability-advertised receipts route.
+
+## Loop 38 — 2026-06-21 ~05:00 local — Global Workbench feed backend-read seam
+
+Heartbeat resumed the Workbench overhaul. Re-inspected the tree first on
+`workbench-overnight-20260620`; the branch already included the prior approvals
+and receipts seams. Per the active instruction to avoid committing in this Codex
+loop, no staging, commit, push, or branch switch was done.
+
+### What changed
+
+- Advanced G6 without pretending the backend exists: added a capability-gated
+  global Workbench feed reader in `workbench/lib/workbench-feed-api.js`.
+- New frontend contract:
+  - gateway must advertise `capabilities.workbench_feed_read`,
+    `capabilities.pending_feed_read`, `capabilities.changed_feed_read`, an
+    equivalent `features.*` flag, `workbench.feed_read`, or `feed.read`;
+  - frontend then reads `GET /api/webchat/v2/workbench/feed`;
+  - supported response shapes are `{ feed: [...] }`, `{ pending: [...] }`,
+    `{ changes: [...] }`, `{ items: [...] }`, `{ data: { items: [...] } }`, or a
+    bare array;
+  - feed rows normalize into existing rail groups instead of rendering a
+    persona/function directory: `needs-reply`, `needs-approval`, `blocked`,
+    `working`, `needs-review`, `upcoming`, `scheduled`, and `receipts`;
+  - malformed rows without a real id, or without enough thread/timestamp/title
+    data to derive one, are dropped instead of becoming fake work.
+- Wired the feed into `WorkbenchPage` and
+  `buildWorkbenchStateRail({ feedItems })`. When the capability is absent,
+  Workbench does not probe the missing route.
+- Extended static fixtures and rendered route coverage so an advertised
+  `workbench_feed_read` capability produces exactly one
+  `GET /api/webchat/v2/workbench/feed` call and renders a general, non-legal
+  `Vendor onboarding packet changed` row in Ready to review.
+- Hardened the Gmail draft approval modal after a full-suite flake exposed a
+  brittle locator/focus path: the message textarea now has an accessible
+  `Draft message` name, and the retryable write-failure test waits for
+  recipient/subject seeding before filling and creating the draft.
+- Updated the backend wiring map so G6 is now documented as
+  frontend-ready/backend-blocked rather than "adapter to add" / "none."
+
+### Validation
+
+| Check                                                  | Result       |
+| ------------------------------------------------------ | ------------ |
+| `node --check` feed/state/Workbench/approve files      | pass         |
+| feed adapter + Workbench rail unit tests               | 22/22 pass   |
+| focused Gmail write-failure rendered regression        | 1/1 pass     |
+| focused approvals/receipts/global-feed rendered slice  | 8/8 pass     |
+| `npm run prepare:webui-static`                         | pass         |
+| full Workbench Playwright (`workbench-static.spec.ts`) | 61/61 pass   |
+| full static JS unit suite (`npm run test:static`)      | 779/779 pass |
+| static/a11y/browser suite (`npm run test:a11y-static`) | 131/131 pass |
+| `npm run verify:static-frontend`                       | OK           |
+
+### Current truth
+
+The Workbench can now consume an authoritative global changed/pending feed as
+soon as the gateway advertises and serves it, without another UI redesign pass
+and without noisy 404 probing today. Until that backend appears, G6 remains
+backend-blocked: `What needs me today?` and the Active Work rail still synthesize
+from threads, local saved work, read-only connector cards, approvals, receipts,
+and any future capability-advertised global feed route.

@@ -567,6 +567,51 @@ test('static workbench: receipts feed populates recent receipts when advertised'
   expect(receiptsRequests).toEqual(['GET /api/webchat/v2/receipts']);
 });
 
+test('static workbench: global feed stays quiet until the gateway advertises it', async ({
+  page
+}) => {
+  const workbenchFeedRequests: string[] = [];
+  await installWorkbenchMocks(page, { workbenchFeedRequests });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await expect(page.getByRole('complementary', { name: 'Active work' })).toBeVisible();
+  await page.waitForTimeout(100);
+  expect(workbenchFeedRequests).toEqual([]);
+});
+
+test('static workbench: global feed populates general ready-to-review work when advertised', async ({
+  page
+}) => {
+  const workbenchFeedRequests: string[] = [];
+  await installWorkbenchMocks(page, {
+    workbenchFeedReadEnabled: true,
+    workbenchFeedRequests,
+    workbenchFeedItems: [
+      {
+        feed_id: 'feed-vendor-onboarding',
+        group_id: 'needs_review',
+        headline: 'Vendor onboarding packet changed',
+        summary: 'Two new security exhibits were added overnight.',
+        source: 'notion',
+        thread_id: 'thread-vendor',
+        updated_at: '2026-06-21T08:15:00.000Z'
+      }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  const activeWork = page.getByRole('complementary', { name: 'Active work' });
+  await expect(activeWork).toContainText('Ready to review');
+  await expect(activeWork).toContainText('Vendor onboarding packet changed');
+  await expect(activeWork).toContainText('Two new security exhibits were added overnight.');
+
+  const triage = page.getByTestId('workbench-triage');
+  await expect(triage).toContainText('Ready to review');
+  await expect(triage).toContainText('Vendor onboarding packet changed');
+  await expect(triage).toContainText('Two new security exhibits were added overnight.');
+  expect(workbenchFeedRequests).toEqual(['GET /api/webchat/v2/workbench/feed']);
+});
+
 test('static workbench: source choices show honest readiness from current connectors', async ({
   page
 }) => {
@@ -2658,9 +2703,18 @@ test('static workbench: Gmail draft write failure stays in the review modal with
     .click();
 
   const approve = page.getByTestId('workbench-approve');
-  await approve
-    .getByTestId('workbench-approve-body')
-    .fill('Thanks Dana. Net 45 and an 8% cap are acceptable for the renewal draft.');
+  await expect(approve.getByTestId('workbench-approve-recipient')).toHaveValue(
+    'dana@customer.example'
+  );
+  await expect(approve.getByTestId('workbench-approve-subject')).toHaveValue(
+    'Re: Renewal terms for Q3'
+  );
+  const draftBody = approve.getByRole('textbox', { name: 'Draft message' });
+  await draftBody.fill('Thanks Dana. Net 45 and an 8% cap are acceptable for the renewal draft.');
+  await expect(draftBody).toHaveValue(
+    'Thanks Dana. Net 45 and an 8% cap are acceptable for the renewal draft.'
+  );
+  await expect(approve.getByTestId('workbench-approve-create')).toBeEnabled();
   await approve.getByTestId('workbench-approve-create').click();
 
   await expect

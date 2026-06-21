@@ -27,6 +27,7 @@ import { useDialogFocus } from './hooks/useDialogFocus.js';
 import { useWorkbenchSourceReadiness } from './hooks/useWorkbenchSourceReadiness.js';
 import { approvalsFeedReadSupported, fetchApprovalsFeed } from './lib/approvals-feed-api.js';
 import { fetchReceiptsFeed, receiptsFeedReadSupported } from './lib/receipts-feed-api.js';
+import { fetchWorkbenchFeed, workbenchFeedReadSupported } from './lib/workbench-feed-api.js';
 import { buildWorkbenchStateRail } from './lib/workbench-state.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
@@ -361,6 +362,7 @@ export function WorkbenchPage() {
   const savedWorkReadEnabled = savedWorkServerReadSupported(gatewayStatus);
   const approvalsReadEnabled = approvalsFeedReadSupported(gatewayStatus);
   const receiptsReadEnabled = receiptsFeedReadSupported(gatewayStatus);
+  const workbenchFeedReadEnabled = workbenchFeedReadSupported(gatewayStatus);
   const serverSavedWorkQuery = useQuery({
     queryKey: ['workbench-saved-work-server'],
     queryFn: ({ signal }) => fetchSavedWorkSnapshot({ signal }),
@@ -381,6 +383,14 @@ export function WorkbenchPage() {
     queryKey: ['workbench-receipts-feed'],
     queryFn: ({ signal }) => fetchReceiptsFeed({ signal }),
     enabled: receiptsReadEnabled,
+    staleTime: 30_000,
+    retry: 1,
+    throwOnError: false
+  });
+  const workbenchFeedQuery = useQuery({
+    queryKey: ['workbench-feed'],
+    queryFn: ({ signal }) => fetchWorkbenchFeed({ signal }),
+    enabled: workbenchFeedReadEnabled,
     staleTime: 30_000,
     retry: 1,
     throwOnError: false
@@ -520,6 +530,7 @@ export function WorkbenchPage() {
         threadAttentionDetails,
         savedItems,
         automations,
+        feedItems: workbenchFeedQuery.data || [],
         approvals: approvalsFeedQuery.data || [],
         receipts: receiptsFeedQuery.data || [],
         sourceReadiness,
@@ -531,6 +542,7 @@ export function WorkbenchPage() {
       automations,
       approvalsFeedQuery.data,
       receiptsFeedQuery.data,
+      workbenchFeedQuery.data,
       connectorCalendar.events,
       connectorInbox.messages,
       outletThreadsState?.threads,
