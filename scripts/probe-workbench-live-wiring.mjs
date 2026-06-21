@@ -31,6 +31,14 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const outDir = `/tmp/ironclaw-workbench-live-wiring-${stamp}`;
 
 const SLACK_BLOCKER_QUERY = '(blocked OR blocker OR stuck OR urgent OR asap OR waiting)';
+const EXPECTED_CONNECTOR_TOOLKITS = Object.freeze([
+  'github',
+  'gmail',
+  'googlecalendar',
+  'googledrive',
+  'notion',
+  'slack'
+]);
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -189,6 +197,84 @@ function connectorReadProbes() {
   ];
 }
 
+function evaluateProbe(result) {
+  const checks = [];
+  const warnings = [];
+  const check = (name, pass, detail = {}) => {
+    checks.push({ name, pass: Boolean(pass), detail });
+  };
+  const warn = (name, detail = {}) => {
+    warnings.push({ name, detail });
+  };
+
+  check('sidecar became healthy', result.healthy);
+  check('LLM providers route serves', result.route_status.providers === 200, {
+    status: result.route_status.providers ?? null
+  });
+  check('LLM model catalog is live', result.llm?.models?.ok === true && result.llm.models.count > 0, {
+    status: result.route_status.models ?? null,
+    count: result.llm?.models?.count ?? null
+  });
+  for (const route of ['extensions', 'registry', 'channels', 'automations']) {
+    check(`${route} route serves`, result.route_status[route] === 200, {
+      status: result.route_status[route] ?? null
+    });
+  }
+
+  if (result.connectors?.skipped) {
+    warn('connector reads skipped by flag');
+  } else {
+    const hasComposioEnv = Boolean(process.env.COMPOSIO_API_KEY);
+    if (hasComposioEnv) {
+      check(
+        'Composio setup accepts provided credential',
+        result.connectors?.composio_configure?.status === 200 &&
+          result.connectors?.composio_configure?.phase === 'active',
+        result.connectors?.composio_configure || {}
+      );
+    } else {
+      warn('COMPOSIO_API_KEY not present; connector-read checks are best-effort');
+    }
+
+    const connected = result.connectors?.connected;
+    const connectedOk = connected?.status === 200 && connected.count > 0;
+    if (hasComposioEnv || connectedOk) {
+      check('connector accounts route returns live accounts', connectedOk, connected || {});
+    }
+
+    if (connectedOk) {
+      const toolkits = new Set(connected.toolkits || []);
+      const missingToolkits = EXPECTED_CONNECTOR_TOOLKITS.filter((toolkit) => !toolkits.has(toolkit));
+      check('expected Workbench connector toolkits are available', missingToolkits.length === 0, {
+        toolkits: connected.toolkits || [],
+        missing: missingToolkits
+      });
+
+      for (const probe of connectorReadProbes()) {
+        const summary = result.connectors?.reads?.[probe.id];
+        check(
+          `${probe.id} connector read succeeds`,
+          summary?.status === 200 &&
+            summary?.successful === true &&
+            summary?.has_data === true &&
+            summary?.error_present === false,
+          summary || {}
+        );
+      }
+
+      check(
+        'connector read route rejects mutating send tools',
+        result.connectors?.read_route_write_gate?.rejected === true,
+        result.connectors?.read_route_write_gate || {}
+      );
+    }
+  }
+
+  const failed = checks.filter((entry) => !entry.pass);
+  const verdict = failed.length > 0 ? 'FAIL' : warnings.length > 0 ? 'WARN' : 'PASS';
+  return { verdict, checks, warnings };
+}
+
 async function main() {
   await mkdir(outDir, { recursive: true });
   const port = await freePort();
@@ -252,6 +338,9 @@ async function main() {
       reads: {},
       read_route_write_gate: null
     },
+    verdict: 'PENDING',
+    checks: [],
+    warnings: [],
     setup: {},
     route_status: {},
     log_tail: []
@@ -422,11 +511,18 @@ async function main() {
       .filter(Boolean)
       .slice(-40)
       .map((line) => redactText(line, token));
+    const evaluation = evaluateProbe(result);
+    result.verdict = evaluation.verdict;
+    result.checks = evaluation.checks;
+    result.warnings = evaluation.warnings;
     await writeFile(path.join(outDir, 'probe.json'), JSON.stringify(result, null, 2));
     child.kill('SIGTERM');
   }
 
   const output = JSON.stringify(result, null, 2);
+  if (result.verdict === 'FAIL') {
+    process.exitCode = 1;
+  }
   if (jsonOnly) {
     console.log(output);
     return;
@@ -434,6 +530,7 @@ async function main() {
 
   console.log(output);
   console.log(`\nWrote live Workbench wiring probe to ${path.join(outDir, 'probe.json')}`);
+  console.log(`Workbench live wiring verdict: ${result.verdict}`);
 }
 
 main().catch((error) => {
