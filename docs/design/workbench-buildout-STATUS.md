@@ -29,9 +29,18 @@ from re-polishing done frontend → proving the REAL stack + agent work end-to-e
 | Q12 | `/workbench/execute` endpoint + LIVE multi-step agent verify | ⛔ MORNING (rebase-blocked) | | needs /llm on same binary |
 | QF1a | Memory scene (L26) — wire `view==='memory'` → `MemoryView` | ✅ done | (this tick) | static 760 + a11y 121 |
 | QF1b | Theme default per DESIGN.md | ✅ decided (no change) | — | DESIGN.md silent → keep dark (user global pref); v13 light = toggle |
-| QF1c | L19/L20 richer decision/blocked context lines (data-dependent) | ⏳ | | |
+| QF1c | L19/L20 richer decision/blocked context lines | ⏭️ skip (data-honest) | — | cards already render real data; no fake context added |
+| Q11p | Capture connector-route patch + rebase runbook (de-risk Q11b) | ✅ done | (this tick) | docs/design/gateway-connector-route.patch |
+| Q3UI | Phase-3 Workbench execution UI (hook + run-timeline) against contract, mock-tested | ⏳ NEXT | | unit tests |
 | Q2 | Screenshot/visual-regression baselines of the real frontend | ⏳ | | screenshots |
 | Qf | Final gate, push branch, PR, morning brief | ⏳ | | |
+
+### Q11b rebase runbook (morning)
+1. In `~/Documents/Playground/ironclaw`, fetch + branch off current main: `git fetch origin && git checkout -b connector-route origin/main`.
+2. Apply the captured changes: `git apply --3way docs/.../gateway-connector-route.patch` (reference copy in the desktop repo at `docs/design/gateway-connector-route.patch`) OR re-create from the reproduction recipe in memory `ironclaw_workbench_mcp_delivery`. Resolve any conflicts (route is additive; main has `/llm`+agent which the route does not touch).
+3. Build: `cargo build -p ironclaw_reborn_cli --features webui-v2-beta`. Fix the 6 `RebornServicesApi` test stubs if main added trait methods. Run `cargo test -p ironclaw_product_workflow --lib reborn_services::connectors` (expect 5/5).
+4. Verify live with `/tmp/wb-q11.mjs` pattern (now the SAME binary will have BOTH `/llm` 200 AND `/connectors/*`).
+5. Open a PR to `nearai/ironclaw` (HTTP/1.1 push). Then Q12: add `/api/webchat/v2/workbench/execute` + verify a live multi-step run.
 
 ### Backend status & the key morning task (Q11b/Q12)
 - The connector route + gated-write classifier are **verified working live** on the source-built gateway (Q11 PASS).
