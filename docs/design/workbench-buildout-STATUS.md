@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## ⭐ Milestone (2026-06-21 late PM, tick 5): REAL APP E2E (npm run tauri dev) + poller live in-app
+
+The user's #1 ask — "does it actually work?" — answered with a real GUI boot of the actual Tauri app.
+
+- **REAL APP E2E (`npm run tauri dev`):** the actual desktop app built incrementally (`Finished dev in 11.77s`) and spawned its sidecar (the staged tri-fix binary, resolved via Tauri `.sidecar()`). Boot logs show **`agent connectors: connected-sources activated; connected-sources.read is now callable by the agent loop`** — the connector fix is **live in the real app**, not just throwaway tests. Readiness: `turn_runner: true, trigger_poller: true`. `GET http://127.0.0.1:3000/api/health` → **HTTP 200**. GUI killed immediately after capture. Evidence: `evidence/real-app-tauri-boot.md`.
+- **Phase 5 poller live in-app (`97430fd`):** sidecar.rs now sets `IRONCLAW_TRIGGER_POLLER_ENABLED=1` so the native scheduler runs while the app is open (serve poller is off by default) — automations fire on cadence. The staged binary carries all gateway fixes (connector enable 693a41e1, reasoning cap 15b1d854, list-models f9d89e404).
+- The real app now has the full chain proven: builds → boots → sidecar serves → connector fix live → model catalog 47 → preflight unblocked → multi-step agent turns → gated writes → native poller running.
+
 ## ⭐ Milestone (2026-06-21 late PM, tick 4): Phase 5 native trigger firing VERIFIED end-to-end
 
 The Phase 5 gate ("verify a trigger actually fires before shipping the UI") is satisfied — IronClaw-native poller, NO Hermes.
