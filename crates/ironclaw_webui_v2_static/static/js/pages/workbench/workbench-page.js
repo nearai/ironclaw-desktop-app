@@ -26,6 +26,7 @@ import { WORKBENCH_DRAFT_KEY, useWorkbenchStart } from './hooks/useWorkbenchStar
 import { useDialogFocus } from './hooks/useDialogFocus.js';
 import { useWorkbenchSourceReadiness } from './hooks/useWorkbenchSourceReadiness.js';
 import { approvalsFeedReadSupported, fetchApprovalsFeed } from './lib/approvals-feed-api.js';
+import { fetchReceiptsFeed, receiptsFeedReadSupported } from './lib/receipts-feed-api.js';
 import { buildWorkbenchStateRail } from './lib/workbench-state.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
@@ -359,6 +360,7 @@ export function WorkbenchPage() {
   const [draftResult, setDraftResult] = React.useState(null);
   const savedWorkReadEnabled = savedWorkServerReadSupported(gatewayStatus);
   const approvalsReadEnabled = approvalsFeedReadSupported(gatewayStatus);
+  const receiptsReadEnabled = receiptsFeedReadSupported(gatewayStatus);
   const serverSavedWorkQuery = useQuery({
     queryKey: ['workbench-saved-work-server'],
     queryFn: ({ signal }) => fetchSavedWorkSnapshot({ signal }),
@@ -371,6 +373,14 @@ export function WorkbenchPage() {
     queryKey: ['workbench-approvals-feed'],
     queryFn: ({ signal }) => fetchApprovalsFeed({ signal }),
     enabled: approvalsReadEnabled,
+    staleTime: 30_000,
+    retry: 1,
+    throwOnError: false
+  });
+  const receiptsFeedQuery = useQuery({
+    queryKey: ['workbench-receipts-feed'],
+    queryFn: ({ signal }) => fetchReceiptsFeed({ signal }),
+    enabled: receiptsReadEnabled,
     staleTime: 30_000,
     retry: 1,
     throwOnError: false
@@ -511,6 +521,7 @@ export function WorkbenchPage() {
         savedItems,
         automations,
         approvals: approvalsFeedQuery.data || [],
+        receipts: receiptsFeedQuery.data || [],
         sourceReadiness,
         inbox: { messages: connectorInbox.messages },
         calendar: { events: connectorCalendar.events },
@@ -519,6 +530,7 @@ export function WorkbenchPage() {
     [
       automations,
       approvalsFeedQuery.data,
+      receiptsFeedQuery.data,
       connectorCalendar.events,
       connectorInbox.messages,
       outletThreadsState?.threads,

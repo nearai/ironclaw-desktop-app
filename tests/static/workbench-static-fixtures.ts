@@ -58,6 +58,10 @@ type WorkbenchMockOptions = {
   approvals?: Array<Record<string, unknown>>;
   approvalsError?: number;
   approvalsRequests?: string[];
+  receiptsReadEnabled?: boolean;
+  receipts?: Array<Record<string, unknown>>;
+  receiptsError?: number;
+  receiptsRequests?: string[];
 };
 
 export const workbenchPersonaFixtures = JSON.parse(
@@ -311,7 +315,8 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
         ...gatewayStatus,
         capabilities: {
           ...(options.savedWorkReadEnabled ? { saved_work_read: true } : {}),
-          ...(options.approvalsReadEnabled ? { approvals_read: true } : {})
+          ...(options.approvalsReadEnabled ? { approvals_read: true } : {}),
+          ...(options.receiptsReadEnabled ? { receipts_read: true } : {})
         }
       });
     }
@@ -367,6 +372,13 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
         return text(route, options.approvalsError, 'approvals unavailable');
       }
       return json(route, { approvals: options.approvals || [] });
+    }
+    if (path === '/api/webchat/v2/receipts' && method === 'GET') {
+      options.receiptsRequests?.push(`${method} ${path}`);
+      if (options.receiptsError) {
+        return text(route, options.receiptsError, 'receipts unavailable');
+      }
+      return json(route, { receipts: options.receipts || [] });
     }
     if (path === '/api/webchat/v2/threads' && method === 'POST') {
       return json(route, {

@@ -69,6 +69,26 @@ function approvalFeedRows(approvals = []) {
     .filter(Boolean);
 }
 
+function receiptFeedRows(receipts = []) {
+  return (Array.isArray(receipts) ? receipts : [])
+    .map((receipt) => {
+      const id = String(receipt?.id || '').trim();
+      if (!id) return null;
+      return {
+        id: `receipt-feed-${id}`,
+        groupId: 'receipts',
+        kind: 'receipt-feed',
+        icon: receipt.icon || 'check',
+        title: receipt.title || 'Action completed',
+        badge: receipt.badge || 'Receipt',
+        detail: receipt.detail || 'Recorded from completed work.',
+        href: receipt.href || '/work',
+        timestamp: receipt.timestamp || ''
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeThread(thread) {
   const id = String(thread?.id || thread?.thread_id || '').trim();
   if (!id) return null;
@@ -475,6 +495,7 @@ export function buildWorkbenchStateRail({
   savedItems = [],
   automations = [],
   approvals = [],
+  receipts = [],
   sourceReadiness = [],
   inbox = null,
   calendar = null,
@@ -492,6 +513,7 @@ export function buildWorkbenchStateRail({
     ...recentThreadRows(normalizedThreads, threadStates),
     ...savedWorkRows(savedItems),
     ...automationRows(automations),
+    ...receiptFeedRows(receipts),
     ...connectorUpcomingRows(calendar || {})
   ];
 

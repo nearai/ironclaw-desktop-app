@@ -2369,3 +2369,55 @@ noisy 404 probing today. Until that backend appears, G2 remains backend-blocked:
 the shipped app still relies on live in-thread gates, backend `/threads` rows
 with pending-gate detail, and local saved-work schema for any approval-like rail
 state.
+
+## Loop 37 — 2026-06-21 ~04:00 local — Receipts/audit feed backend-read seam
+
+Heartbeat resumed the Workbench overhaul. Re-inspected the tree first on
+`workbench-overnight-20260620`. The tree was clean and already included the
+prior approvals seam as commit `a676cc7`; no branch switching, staging,
+committing, or cleanup was done.
+
+### What changed
+
+- Advanced G5 without pretending the backend exists: added a capability-gated
+  receipts/audit feed reader in `workbench/lib/receipts-feed-api.js`.
+- New frontend contract:
+  - gateway must advertise `capabilities.receipts_read`,
+    `capabilities.receipt_feed_read`, `capabilities.audit_read`, an equivalent
+    `features.*` flag, `receipts.read`, or `audit.read`;
+  - frontend then reads `GET /api/webchat/v2/receipts`;
+  - supported response shapes are `{ receipts: [...] }`, `{ audit: [...] }`,
+    `{ items: [...] }`, `{ data: { receipts: [...] } }`, or a bare array;
+  - receipt rows normalize into the existing `Recent receipts` rail using
+    id/title/detail/status/provider/thread/destination fields;
+  - malformed rows without a real id, or without enough thread/title/timestamp
+    data to derive one, are dropped instead of becoming fake receipts.
+- Wired the feed into `WorkbenchPage` and `buildWorkbenchStateRail({ receipts })`.
+  When the capability is absent, Workbench does not probe the missing route.
+- Extended static fixtures and rendered route coverage so an advertised
+  `receipts_read` capability produces exactly one
+  `GET /api/webchat/v2/receipts` call and renders `Draft saved for Northwind` in
+  both the dock and triage.
+- Updated the backend wiring map so G5 is now documented as
+  frontend-ready/backend-blocked rather than "none."
+
+### Validation
+
+| Check                                                  | Result       |
+| ------------------------------------------------------ | ------------ |
+| `node --check` receipts/state/Workbench page files     | pass         |
+| receipts adapter + Workbench rail unit tests           | 21/21 pass   |
+| focused rendered approvals/receipts/gate regressions   | 6/6 pass     |
+| `npm run prepare:webui-static`                         | pass         |
+| full Workbench Playwright (`workbench-static.spec.ts`) | 59/59 pass   |
+| full static JS unit suite (`npm run test:static`)      | 774/774 pass |
+| static/a11y/browser suite (`npm run test:a11y-static`) | 129/129 pass |
+| `npm run verify:static-frontend`                       | OK           |
+
+### Current truth
+
+The Workbench can now consume a durable receipts/audit feed as soon as the
+gateway advertises and serves it, without another UI redesign pass and without
+noisy 404 probing today. Until that backend appears, G5 remains backend-blocked:
+`Recent receipts` is still fed by local saved-work receipts, automation-run
+readbacks, and any future capability-advertised receipts route.

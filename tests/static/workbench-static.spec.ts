@@ -522,6 +522,51 @@ test('static workbench: approvals feed populates needs-decision rows when advert
   expect(approvalsRequests).toEqual(['GET /api/webchat/v2/approvals']);
 });
 
+test('static workbench: receipts feed stays quiet until the gateway advertises it', async ({
+  page
+}) => {
+  const receiptsRequests: string[] = [];
+  await installWorkbenchMocks(page, { receiptsRequests });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await expect(page.getByRole('complementary', { name: 'Active work' })).toBeVisible();
+  await page.waitForTimeout(100);
+  expect(receiptsRequests).toEqual([]);
+});
+
+test('static workbench: receipts feed populates recent receipts when advertised', async ({
+  page
+}) => {
+  const receiptsRequests: string[] = [];
+  await installWorkbenchMocks(page, {
+    receiptsReadEnabled: true,
+    receiptsRequests,
+    receipts: [
+      {
+        receipt_id: 'receipt-northwind-draft',
+        headline: 'Draft saved for Northwind',
+        summary: 'Gmail draft created; nothing was sent.',
+        status_label: 'Completed',
+        tool_name: 'GMAIL_CREATE_EMAIL_DRAFT',
+        thread_id: 'thread-northwind',
+        completed_at: '2026-06-21T07:45:00.000Z'
+      }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  const activeWork = page.getByRole('complementary', { name: 'Active work' });
+  await expect(activeWork).toContainText('Recent receipts');
+  await expect(activeWork).toContainText('Draft saved for Northwind');
+  await expect(activeWork).toContainText('Gmail draft created; nothing was sent.');
+
+  const triage = page.getByTestId('workbench-triage');
+  await expect(triage).toContainText('Recent receipts');
+  await expect(triage).toContainText('Draft saved for Northwind');
+  await expect(triage).toContainText('Gmail draft created; nothing was sent.');
+  expect(receiptsRequests).toEqual(['GET /api/webchat/v2/receipts']);
+});
+
 test('static workbench: source choices show honest readiness from current connectors', async ({
   page
 }) => {

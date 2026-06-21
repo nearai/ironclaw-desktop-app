@@ -154,6 +154,36 @@ test('workbench rail surfaces authoritative approvals feed rows', () => {
   });
 });
 
+test('workbench rail surfaces authoritative receipts feed rows', () => {
+  const rail = buildWorkbenchStateRail({
+    receipts: [
+      {
+        id: 'receipt-northwind-draft',
+        title: 'Draft saved for Northwind',
+        badge: 'Completed',
+        detail: 'Gmail draft created; nothing was sent.',
+        icon: 'mail',
+        href: '/chat/thread-northwind',
+        timestamp: '2026-06-21T07:45:00.000Z'
+      }
+    ]
+  });
+
+  const receipts = rail.find((group) => group.id === 'receipts');
+  assert.equal(receipts.total, 1);
+  assert.deepEqual(receipts.rows[0], {
+    id: 'receipt-feed-receipt-northwind-draft',
+    groupId: 'receipts',
+    kind: 'receipt-feed',
+    icon: 'mail',
+    title: 'Draft saved for Northwind',
+    badge: 'Completed',
+    detail: 'Gmail draft created; nothing was sent.',
+    href: '/chat/thread-northwind',
+    timestamp: '2026-06-21T07:45:00.000Z'
+  });
+});
+
 test('workbench rail promotes backend pending gates when thread state is missing or stale', () => {
   const rail = buildWorkbenchStateRail({
     threads: [
