@@ -60,10 +60,11 @@ the latest source, run the full gate, and commit-if-green — codex doesn't alwa
 so this keeps the branch always-green + consistent. The green gate is the coordination point; no clobbering observed.
 
 ## Continuation mechanism (how this runs unattended ~8h)
-- Recurring cron job `2d280254` fires at :07/:31/:55 (~every 24 min) while the app/REPL is idle, re-invoking the
-  continuation prompt. Each tick: read this STATUS + the plan, check `date +%s` vs deadline 1782040324, do the next
-  ⏳ queue item with the green-commit gate, update this file, then end the turn. At/after the deadline it does the
-  final wrap (push + PR + morning brief) and `CronDelete`s itself.
+- Recurring cron drives the loop while the app/REPL is idle. Started at :07/:31/:55 (~24 min) for the build phase;
+  **after the build queue was exhausted (~02:56) it was widened to hourly (`61df07dc`, fires :17)** for the idle
+  CI-gate phase — fewer no-op wakes, still integrates codex within an hour. Each tick: read STATUS + plan, check
+  `date +%s` vs deadline 1782040324, integrate any codex changes green / else no-op, and at/after the deadline do the
+  final wrap (push + refresh PR #4 + finalize morning brief) and `CronDelete` itself.
 - Session-only: the loop needs this Claude session/app to stay OPEN overnight. If it stalls, resume manually by
   re-issuing the continuation prompt (same as the cron prompt) or asking me to "continue the overnight workbench build".
 - Safety: branch only (`workbench-overnight-20260620`), never merge to main; drafts-only (no real sends); secrets stay
