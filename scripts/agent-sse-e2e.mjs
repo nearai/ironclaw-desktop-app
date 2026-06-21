@@ -171,8 +171,26 @@ async function consumeSSE(threadId) {
           );
       } else if (type === 'final_reply') {
         finalReply = String(frame.reply?.text || '').trim();
-        console.log(`  ↳ FINAL REPLY: ${finalReply.slice(0, 160)}`);
+        console.log(`  ↳ FINAL REPLY (event): ${finalReply.slice(0, 200)}`);
         return;
+      } else if (type === 'projection_snapshot' || type === 'projection_update') {
+        // The assistant reply may land inside the projection state, not as a
+        // separate final_reply event. Extract the latest finalized assistant msg.
+        const items = frame.state?.items || [];
+        for (const it of Array.isArray(items) ? items : []) {
+          const k = String(it.kind || '').toLowerCase();
+          if (
+            (k === 'assistant' || k === 'assistant_message') &&
+            String(it.content || '').trim() &&
+            (it.status === 'finalized' || it.status === 'completed' || !it.status)
+          ) {
+            finalReply = String(it.content).trim();
+          }
+        }
+        if (finalReply) {
+          console.log(`  ↳ FINAL REPLY (projection): ${finalReply.slice(0, 200)}`);
+          return;
+        }
       } else if (type === 'failed') {
         console.log(`  ↳ run failed: ${JSON.stringify(frame.run_state || {}).slice(0, 200)}`);
         return;
@@ -212,6 +230,21 @@ async function consumeSSE(threadId) {
   console.log('\nframe sequence:', events.join(' -> ') || '(none)');
   console.log('gate raised:', events.includes('gate'), '| gate resolved:', gateResolved);
   console.log('final reply present:', !!finalReply);
+  // Ground-truth dump: the persisted timeline (kinds + content snippets).
+  const tl = await req('GET', `${B}/threads/${threadId}/timeline?limit=60`);
+  const items = tl.j?.messages || tl.j?.items || [];
+  console.log(`\n--- persisted timeline (${Array.isArray(items) ? items.length : 0} rows) ---`);
+  let calledConnector = false;
+  for (const it of Array.isArray(items) ? items : []) {
+    const c = String(it.content || '').replace(/\s+/g, ' ').slice(0, 120);
+    console.log(`  [${it.kind || '?'}|${it.status || ''}] ${c}`);
+    const k = String(it.kind || '').toLowerCase();
+    if (c.includes('connected-sources.read')) calledConnector = true;
+    if ((k === 'assistant' || k === 'assistant_message') && String(it.content || '').trim())
+      finalReply = String(it.content).trim(); // ground truth: persisted finalized reply
+  }
+  console.log('\nagent called connected-sources.read directly:', calledConnector);
+  console.log('assistant reply present (timeline):', !!finalReply);
   if (winner === 'timeout' && !finalReply)
     console.log('NOTE: timed out before final_reply. tail logs:\n' + logs.slice(-900));
   try {

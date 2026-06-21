@@ -43,25 +43,31 @@ and the real `npm run tauri dev` run (real-app-e2e-evidence.md).
   Gate + approve + resume is real and works end-to-end. (The in-place approval
   UI consumes the same `gate` frame + resolve route.)
 
-## ⚠️ REAL GAP: agent-driven connector use is not wired (do NOT overclaim)
-- **The agent cannot directly call the configured Composio connectors.** When
-  asked to "use your Gmail tool", the agent's actual tool calls are
-  `builtin.extension_search` and `builtin.extension_install` — it tries to *find
-  and install* the Gmail extension at runtime instead of calling a registered
-  `GMAIL_FETCH_EMAILS` tool. It loops (search → install → gate → approve →
-  search → install …) and never reaches a Gmail call or a `final_reply`, even at
-  300s. So the connector config done via `/extensions/composio/setup` registers
-  the connector for the **deterministic** read/write route (which works, 6/6
-  reads) but **not** into the agent loop's capability registry.
-- **Impact:** the deterministic Workbench (Arrived/Upcoming/Decisions reads,
-  drafts, briefing) works without this. But agent-driven cross-tool execution
-  ("do this on the Workbench" / Phase 3–4) depends on the agent having the
-  connectors as callable tools — which it does not yet. This is the next real
-  build item (gateway-side capability registration), exactly as plan Phase 1
-  noted ("the agent-tool registration is separate from the read route").
-- **NOT a model problem:** reasoning turns finish fast ("68"); the loop is the
-  agent reaching for extension_install meta-tools because Gmail isn't in its
-  toolset.
+## ✅ GAP FOUND **AND FIXED**: agent-driven connector use now works
+- **The gap (found):** asked to "use your Gmail tool", the agent's tool calls
+  were `builtin.extension_search` / `builtin.extension_install` — it tried to
+  *find + install* the connector at runtime instead of calling it, and looped
+  (search → install → gate → approve → search …), never reaching a reply (even
+  300s). `/extensions/composio/setup` registered the connector for the
+  **deterministic** read/write route (works, 6/6) but **not** the agent loop's
+  capability registry. Root cause: the read-only `connected-sources` extension
+  (capability `connected-sources.read`) was never enabled for the agent; there
+  was no boot path to enable it.
+- **The fix (gateway, `693a41e1`):** `bootstrap_local_dev_agent_connectors` in
+  `ironclaw_reborn_composition` (mirrors the NEAR AI MCP boot pattern). With env
+  `IRONCLAW_AGENT_CONNECTORS_ENABLED=1`, it installs+activates `connected-sources`
+  at boot so `connected-sources.read` is model-visible. Safe: `connected-sources`
+  is read-only (manifest forbids sends/mutations), declares no activation
+  credentials (Composio key resolves host-side at invoke, same as the
+  deterministic route → no key needed at boot), `default_permission=allow` (no
+  gate needed for reads). Non-fatal + default-off → zero change unless enabled.
+- **Proven live** (`scripts/agent-sse-e2e.mjs`, flag on, rebuilt+staged sidecar):
+  the agent calls `connected-sources.read` **directly** (no extension loop, no
+  gate) and returns a finalized assistant reply citing the **real** email —
+  "Sender: The Information <hello@theinformation.com>, Subject: Inside
+  Microsoft's …". Writes stay on the gated deterministic route (agent gets
+  read-only connector access only). Phase 3/4 agent cross-tool execution is now
+  unblocked for reads.
 - **Test harness fixed:** `scripts/connector-live-test.mjs` now uses a real
   model (`z-ai/glm-5.2`, override via `TEST_MODEL`) and asserts a real reply
   ("17×4=68" in an assistant message), not a prompt-echo false positive.
