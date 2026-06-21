@@ -68,7 +68,7 @@ export const WORKBENCH_SHELL_STYLE = `.wb13-shell {
 .wb13-dock {
   grid-area: dock;
   overflow-y: auto;
-  border-right: 1px solid #0b0e12;
+  border-right: 1px solid var(--wb-rail-line);
   background: var(--wb-rail);
   color: var(--wb-rail-ink);
   padding: 14px 12px;

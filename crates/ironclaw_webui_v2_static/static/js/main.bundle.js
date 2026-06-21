@@ -5165,13 +5165,13 @@ ${be}`;if(P.current.gateKey!==Se&&(P.current={gateKey:Se,credentialRef:null,inFl
   --wb-danger: #c0413c;
   --wb-placeholder: #9aa3af;
   --wb-drop-bg: rgba(247, 248, 246, 0.88);
-  --wb-rail: #13181f;
-  --wb-rail-2: #1c232d;
-  --wb-rail-ink: #e9eef5;
-  --wb-rail-muted: #909cae;
-  --wb-rail-line: #242d39;
-  --wb-rail-active: #212b38;
-  --wb-rail-accent: #2dd4bf;
+  --wb-rail: #f0f1ee;
+  --wb-rail-2: #e8eae5;
+  --wb-rail-ink: #161a22;
+  --wb-rail-muted: #586173;
+  --wb-rail-line: #e3e6e0;
+  --wb-rail-active: #e3e6e0;
+  --wb-rail-accent: #0d7d6f;
   --wb-r: 8px;
   --wb-r-lg: 13px;
   --wb-shadow: 0 1px 2px rgba(20, 24, 33, 0.05);
@@ -5303,7 +5303,7 @@ ${be}`;if(P.current.gateKey!==Se&&(P.current={gateKey:Se,credentialRef:null,inFl
 .wb13-dock {
   grid-area: dock;
   overflow-y: auto;
-  border-right: 1px solid #0b0e12;
+  border-right: 1px solid var(--wb-rail-line);
   background: var(--wb-rail);
   color: var(--wb-rail-ink);
   padding: 14px 12px;
