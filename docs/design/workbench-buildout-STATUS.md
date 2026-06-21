@@ -36,7 +36,8 @@ from re-polishing done frontend → proving the REAL stack + agent work end-to-e
 | Q2 | Screenshot evidence (home light/dark + Memory) | ✅ done | 8fecd5f | docs/design/screenshots/*.png |
 | CI | Incorporate concurrent codex changes, rebuild, gate, commit-green (loop role) | ♻️ ongoing | d595c6f | static 760 / a11y 123 / smoke |
 | Q2 | Screenshot/visual-regression baselines of the real frontend | ⏳ | | screenshots |
-| Qf | Final gate, push branch, PR, morning brief | ⏳ | | |
+| Qf | Push branch + draft PR + morning brief | ✅ done | pushed | PR nearai/ironclaw-desktop-app#4 |
+| CI-loop | Keep integrating codex changes green until ~deadline, then CronDelete | ♻️ ongoing | | |
 
 ### Q11b rebase runbook (morning)
 1. In `~/Documents/Playground/ironclaw`, fetch + branch off current main: `git fetch origin && git checkout -b connector-route origin/main`.
@@ -78,8 +79,36 @@ so this keeps the branch always-green + consistent. The green gate is the coordi
 - 23:56 — **Q11 PASS (verify).** Booted the SOURCE gateway binary (has the connector route) on a fresh HOME + Composio key: configure 200, /connectors/connected 200 (all accounts), GMAIL_FETCH_EMAILS read 200 successful w/ 3 real messages, and the write-gate rejected GMAIL_SEND_EMAIL (send off) + GMAIL_DELETE_MESSAGE (forbidden) + draft-tool-on-read-route. Connector unit tests 5/5. Found: source fork lacks /llm (404) → connector route must be rebased onto current main (which has /llm+agent) → that + Q12 are the careful MORNING task (Q11b). Gateway changes preserved in working tree, not committed unattended (57-file multi-source branch). Reprioritized remaining overnight work to safe frontend QF1/Q2. Evidence `/tmp/wb-q11.mjs`.
 - 23:35 — **QA PASS (major).** Booted the REAL prebuilt sidecar `ironclaw-reborn-aarch64-apple-darwin` with the Keychain NEAR AI token on a throwaway HOME. `/api/webchat/v2/llm/providers` = **200** (providers incl. nearai; active provider=nearai model=auto). createThread 200; sendMessage 200 (outcome:submitted, turn_id returned); timeline produced the assistant reply ("pong"). **Conclusion: the real gateway + agent runtime + existing token WORK end-to-end.** The prior "agent never completes" was the divergent dev fork/proxy, not the product. Verify-only (no repo changes); evidence script `/tmp/wb-qa.mjs`. Next: Q11 — build the source gateway with the connector route + verify connector reads/writes live.
 
-## Morning brief (filled at Qf)
-_pending_
+## Morning brief
+**TL;DR:** The product foundation is solid and PROVEN. Every "it doesn't work / doesn't load" was the dev proxy/fork
+harness I'd been demoing against — never the real app. On the real stack tonight: the agent runs, connectors read/write
+(gated), and the Workbench renders faithfully (light + dark). It's all on a green branch + draft PR for your review.
+
+**Review package:** draft PR **nearai/ironclaw-desktop-app#4** (branch `workbench-overnight-20260620`, base main; the
+`workbench-overnight-*` commits are the overnight delta). Screenshots: `docs/design/screenshots/`. Connector-route
+patch + rebase runbook: `docs/design/gateway-connector-route.patch` + the Q11b runbook above.
+
+**Proven this run (evidence):**
+- Real agent turn end-to-end — real prebuilt sidecar + your Keychain NEAR AI token → `/llm/providers` 200 (nearai
+  active) → assistant reply. (`/tmp/wb-qa.mjs`.) This is the "can it actually do anything" answer: yes.
+- Connector route live on a real gateway build — real Gmail read + write-gate rejects send/forbidden/read-route-write.
+  (`/tmp/wb-q11.mjs`.)
+- v13 fidelity largely already implemented (serif, theme toggle, Memory nav, dense rail, identity, all-clear) + the
+  Memory scene now wired + tested. Gate: 760 static, 123 a11y/Playwright, smoke — all green at every commit.
+
+**To see it yourself:** `cd ironclaw-desktop-app-main && npm run tauri dev` (the REAL app — proxy is gone). Or open the
+3 screenshots.
+
+**Your move (in priority order):**
+1. **Unify agent + connectors in one binary (Q11b):** rebase the connector route onto gateway `main` (which has
+   `/llm`+agent); the route is captured in the patch + runbook. Today the prebuilt has the agent, my fork has the
+   connectors — neither has both. This is the single unlock for the full live experience in the desktop app.
+2. **Q12:** add `POST /workbench/execute` for Workbench-native multi-step runs (the execution surface you chose).
+3. **Enable real sends** (drafts-only by design tonight) + approve the first send.
+4. Review + merge PR #4.
+
+**Note:** a concurrent **codex** process also improved this branch tonight; this loop integrated its work green (see
+the Concurrent codex note above). Both agents contributed.
 
 ## Needs you (morning)
 - Enable real outbound sends (+ approve the first real send) — currently drafts-only by design.
