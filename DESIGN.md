@@ -22,8 +22,9 @@ first decision that belongs to the user is already at the top.
 
 ## Color Meaning
 
-- `#0091fd` / `--v2-accent`: the user's hand. Primary actions, links, focus,
-  selected states. Keep one dominant blue action per screen.
+- `#0d7d6f` (light) / `#2dd4bf` (dark) / `--v2-accent`: the user's hand. Primary
+  actions, links, focus, selected states. A deep teal — distinct from generic
+  SaaS blue, paired with gold below. Keep one dominant teal action per screen.
 - `#fbbf24` / `accent-gold`: the agent's hand. Generated work, proposed
   actions, approval context. Never use gold as decoration.
 - `#20d29a`, `#f5c15b`, `#ff6480`: success, warning, danger. Status must route
