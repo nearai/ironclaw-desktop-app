@@ -23,7 +23,7 @@ from re-polishing done frontend → proving the REAL stack + agent work end-to-e
 |----|------|-------|--------|-------------|
 | Q0 | Branch + green baseline | ✅ done | f986602 | 759 static + 120 a11y + smoke |
 | Q1 | Remove misleading frontend proxy (use `tauri dev`) | ✅ done | 2a32217 | tests green after removal |
-| QA | **Prove the REAL bundled sidecar + a live agent turn** (keychain token) — the thing the user couldn't reach | ⏳ next | | live turn transcript |
+| QA | **Prove the REAL bundled sidecar + a live agent turn** (keychain token) | ✅ PASS | (verify-only, /tmp/wb-qa.mjs) | live turn: providers 200 + assistant "pong" |
 | Q11 | Build source gateway with connector route + verify live reads/writes | ⏳ | | route curl + cargo |
 | Q12 | `/workbench/execute` endpoint + LIVE multi-step agent verify | ⏳ | | live run transcript |
 | QF1 | Remaining real fidelity gaps only: Memory scene (L26), theme default per DESIGN.md, L19/L20 context lines | ⏳ | | a11y + visual |
@@ -45,6 +45,7 @@ from re-polishing done frontend → proving the REAL stack + agent work end-to-e
 - 23:18 — Q1: removed `scripts/workbench-live-proxy.mjs` (kept `probe-workbench-live-wiring.mjs`); killed leftover proxy/sidecar procs; removed proxy launch.json entries; tests green; committed 2a32217.
 - 23:21 — Read v13 fidelity spec + checked current state: L1/L4/L6/L7/L18/L23/L28 already implemented. Reprioritized queue toward real-stack + agent verification. Committed d0c669e.
 - 23:23 — Armed recurring cron `2d280254` to drive the overnight loop (next QA tick: boot real prebuilt sidecar + live agent turn). Handed off.
+- 23:35 — **QA PASS (major).** Booted the REAL prebuilt sidecar `ironclaw-reborn-aarch64-apple-darwin` with the Keychain NEAR AI token on a throwaway HOME. `/api/webchat/v2/llm/providers` = **200** (providers incl. nearai; active provider=nearai model=auto). createThread 200; sendMessage 200 (outcome:submitted, turn_id returned); timeline produced the assistant reply ("pong"). **Conclusion: the real gateway + agent runtime + existing token WORK end-to-end.** The prior "agent never completes" was the divergent dev fork/proxy, not the product. Verify-only (no repo changes); evidence script `/tmp/wb-qa.mjs`. Next: Q11 — build the source gateway with the connector route + verify connector reads/writes live.
 
 ## Morning brief (filled at Qf)
 _pending_
