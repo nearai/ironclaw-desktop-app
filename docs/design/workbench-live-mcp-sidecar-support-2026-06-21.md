@@ -67,10 +67,11 @@ worktree has no recent file writes and no `AGENT_REPORT.md`.
 
 Use the main desktop repo branch above as the source of truth.
 
-Current local branch head when this file was written:
+Recent branch heads before this diagnostic support note:
 
-- `995d652 feat(overhaul M3): Cmd+K command palette on the Workbench`
-- `cd65baf test(workbench): diagnose chat source tool activation`
+- `95384af test(overhaul M4): integrate concurrent wide-layout assertions`
+- `5019318 design(overhaul M4): widen the work-item view, keep the home focused`
+- `d6258e9 docs(workbench): add live MCP sidecar support runbook`
 
 Current proven behavior:
 
@@ -98,10 +99,47 @@ Current proven behavior:
 Current explicit gap:
 
 - Direct freeform Chat does not yet invoke connected-data tools by itself.
-- The diagnostic currently sees `tool_used=no` and no connector tool activity.
+- The diagnostic currently creates/sends a direct Chat thread, but after the
+  full poll window it sees no assistant/tool result and no connector tool
+  activity.
 - First-party Gmail/Calendar/Drive/Notion/GitHub extensions require their own
   OAuth or manual-token setup and are not satisfied by the Composio account.
 - Slack is not present as a first-party lifecycle extension in this build.
+- Gateway code inspection narrows the cause: deterministic Workbench reads use
+  the Composio connector proxy in `crates/ironclaw_reborn_composition/src/connectors.rs`,
+  while Chat only sees enabled lifecycle extensions that publish
+  `visibility = "model"` capabilities through
+  `active_model_visible_capabilities()` and the local-dev extension surface.
+  The bundled first-party catalog currently includes GitHub, Notion, Web
+  Access, NEAR AI, Google Workspace, Gmail, and optional Slack, but not the
+  Composio connector proxy as a model-visible lifecycle package. Do not fix
+  this in frontend copy.
+
+Fresh artifacts from the 2026-06-21 11:26 EDT support pass:
+
+- Baseline disposable OpenRouter path:
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T15-21-19-252Z/probe.json`
+  - verdict `WARN` only for OpenRouter model-list support and missing shell
+    `COMPOSIO_API_KEY`
+  - `8` live accounts; ready families
+    `gmail/calendar/drive/notion/slack/github`
+  - live row counts `3/3/3/3/3/0`
+  - Workbench Ask completed with assistant reply, live source status, and live
+    row packet preserved
+- Direct Chat required gate:
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T15-26-20-272Z/probe.json`
+  - deterministic Workbench path still completed
+  - direct Chat thread/send accepted, but no assistant/tool result after `32`
+    polls and `tool_signal_count = 0`
+  - `summary.diagnostic_hints` includes
+    `connector_proxy_not_model_visible_lifecycle_tool`
+  - first-party source activation remained blocked by setup in the disposable
+    profile
+- User-default provider truth:
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T15-20-57-800Z/probe.json`
+  - connected data still live
+  - active `nearai` / `zai-org/GLM-5.1-FP8` failed the assistant turn with
+    `model_credentials_unavailable`
 
 ## Required Probe Commands
 

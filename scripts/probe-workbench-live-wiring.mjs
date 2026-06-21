@@ -1001,6 +1001,52 @@ function failedCheckLabels(checks = []) {
     .filter(Boolean);
 }
 
+function diagnosticHints(result) {
+  const hints = [];
+  const directConnector = result.workbench?.direct_connector_chat || {};
+  const activeConnectorBridge = (result.extensions || []).some(
+    (extension) =>
+      (extension?.id === 'composio' || extension?.id === 'custom-mcp') &&
+      extension.active === true &&
+      extension.needs_setup !== true &&
+      extension.authenticated !== false
+  );
+  const liveConnectorRows =
+    result.connectors?.connected?.status === 200 && (result.connectors?.connected?.count || 0) > 0;
+  const activationRequested = Boolean(result.extension_activation?.requested);
+  const noLifecycleSourceTools =
+    activationRequested && (result.extension_activation?.activated_ids || []).length === 0;
+
+  if (
+    directConnector &&
+    directConnector.skipped !== true &&
+    directConnector.tool_activity_seen !== true &&
+    (directConnector.tool_signal_count ?? 0) === 0 &&
+    activeConnectorBridge &&
+    liveConnectorRows &&
+    noLifecycleSourceTools
+  ) {
+    hints.push({
+      code: 'connector_proxy_not_model_visible_lifecycle_tool',
+      detail:
+        'Composio/custom-mcp is active and deterministic connector reads are live, but no model-visible lifecycle source capability activated for Chat. Direct freeform Chat needs a gateway lifecycle/tool-surface bridge before it can call connected-data tools.'
+    });
+  }
+
+  if (
+    result.llm?.active_provider?.id === 'nearai' &&
+    result.workbench?.chat_handoff?.timeline_failure_category === 'model_credentials_unavailable'
+  ) {
+    hints.push({
+      code: 'user_default_nearai_credentials_unavailable',
+      detail:
+        'The user-default NEAR AI profile can serve providers/connectors but cannot complete the model turn until its runtime credential is refreshed or the active provider is switched.'
+    });
+  }
+
+  return hints;
+}
+
 function buildProbeSummary(result) {
   const handoff = result.workbench?.chat_handoff || {};
   const directConnector = result.workbench?.direct_connector_chat || {};
@@ -1060,7 +1106,8 @@ function buildProbeSummary(result) {
       claimed_tool_not_used: Boolean(directConnector.assistant_claimed_tool_not_used),
       tool_activity_seen: Boolean(directConnector.tool_activity_seen),
       tool_signal_count: directConnector.tool_signal_count ?? null
-    }
+    },
+    diagnostic_hints: diagnosticHints(result)
   };
 }
 
