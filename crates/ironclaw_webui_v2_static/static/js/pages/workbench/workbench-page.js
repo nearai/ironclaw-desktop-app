@@ -904,6 +904,7 @@ export function WorkbenchPage() {
         ${showSources
           ? html`<${WorkbenchSourcesInspector}
               sourceReadiness=${sourceReadiness}
+              connectorFamilies=${connectedAccounts.families}
               isBusy=${extensionsState.isBusy}
               onConnectSource=${sourceConnection.connect}
               onManualSetupSource=${openSourceSetup}

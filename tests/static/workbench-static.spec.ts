@@ -744,6 +744,53 @@ test('static workbench: source setup actions route to real setup surfaces', asyn
   await expect(page).toHaveURL(/\/v2\/extensions\/registry\?setup=1&focus=notion$/);
 });
 
+test('static workbench: source inspector honors live Composio connector accounts', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    extensions: [
+      {
+        kind: 'first_party',
+        display_name: 'Gmail',
+        package_ref: { id: 'gmail' },
+        onboarding_state: 'auth_required',
+        needs_setup: true,
+        has_auth: true,
+        authenticated: false
+      },
+      {
+        kind: 'first_party',
+        display_name: 'Drive',
+        package_ref: { id: 'google-drive' },
+        onboarding_state: 'auth_required',
+        needs_setup: true,
+        has_auth: true,
+        authenticated: false
+      }
+    ],
+    connectorAccounts: [
+      { toolkit: 'gmail', status: 'ACTIVE' },
+      { toolkit: 'googledrive', status: 'ACTIVE' },
+      { toolkit: 'notion', status: 'INITIATED' }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page.getByRole('button', { name: "What's allowed" }).click();
+  const inspector = page.getByRole('complementary', { name: 'Allowed sources and boundaries' });
+  const gmail = inspector.locator('.wb13-source-pill', { hasText: 'Gmail' });
+  const drive = inspector.locator('.wb13-source-pill', { hasText: 'Drive' });
+  const notion = inspector.locator('.wb13-source-pill', { hasText: 'Notion' });
+
+  await expect(gmail).toHaveCount(1);
+  await expect(gmail).toContainText('Ready');
+  await expect(gmail).toContainText('via Composio');
+  await expect(gmail.getByRole('link', { name: 'Open Google setup' })).toHaveCount(0);
+  await expect(drive).toContainText('Ready');
+  await expect(drive).toContainText('via Composio');
+  await expect(notion).not.toContainText('Ready');
+});
+
 test('static workbench: cadence control opens timing inspector, not source boundaries', async ({
   page
 }) => {

@@ -7,6 +7,36 @@ Needs setup." Today it never does, and the operator's #1 frustration ("Composio
 has Gmail, Calendar, Drive, Notion ... I don't understand why it is not
 working") is fully explained by the evidence below.
 
+## 2026-06-21 current implementation status
+
+This document is now historical rationale plus a fallback plan. The current
+branch does **not** rely on the C1 "active Composio means default family
+coverage" frontend fallback below. The implemented path is stricter and more
+honest:
+
+- The staged sidecar exposes `/api/webchat/v2/connectors/connected` and
+  `/api/webchat/v2/connectors/read`.
+- `scripts/probe-workbench-live-wiring.mjs --json` is now a hard gate. With
+  local NEAR AI and Composio credentials sourced, it returns `verdict:"PASS"`:
+  NEAR AI model catalog count `47`, Composio configure phase `active`, connected
+  account count `8`, live toolkits `github`, `gmail`, `googlecalendar`,
+  `googledocs`, `googledrive`, `notion`, and `slack`.
+- The probe performs read-only checks for Gmail, Calendar, Drive, Notion,
+  GitHub, and Slack, then verifies that a mutating Gmail send tool is rejected
+  on the read route.
+- Frontend readiness comes from
+  `crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-connectors.js`.
+  It maps only ACTIVE `/connectors/connected` toolkits to Workbench families.
+  No ACTIVE account means no ready family.
+- `WorkbenchSourcesInspector` now receives those live connector families and
+  replaces stale first-party "needs setup" pills for the same family with
+  "Ready via Composio." Static regression:
+  `static workbench: source inspector honors live Composio connector accounts`.
+
+Do not implement the default-set fallback from section 4 unless the live
+connector route regresses or disappears. The correct current rule is:
+**connected account route wins; exact ACTIVE toolkits only; no overclaim.**
+
 ---
 
 ## 1. Live backend evidence (real probe, real field names)

@@ -19,14 +19,57 @@ function sourceActionDisabled(action, isBusy, onConnectSource, onManualSetupSour
   );
 }
 
+function liveConnectorReadinessItem(family) {
+  if (family?.state !== 'ready') return null;
+  const via = family.via || 'connected account';
+  return {
+    id: family.id,
+    displayName: family.label || family.id,
+    category: `Connector via ${via}`,
+    iconSource: { id: family.id },
+    state: 'ready',
+    statusLabel: family.statusLabel || 'Ready',
+    tone: 'positive',
+    body: `${family.label || family.id} is connected via ${via} and can be read for Workbench requests.`,
+    action: {
+      kind: 'none',
+      label: `Ready via ${via}`,
+      disabled: true,
+      variant: 'secondary'
+    },
+    priority: 5
+  };
+}
+
+function mergedSourceReadiness(sourceReadiness = [], connectorFamilies = []) {
+  const liveItems = (connectorFamilies || []).map(liveConnectorReadinessItem).filter(Boolean);
+  if (liveItems.length === 0) return sourceReadiness || [];
+
+  const liveIds = new Set(liveItems.map((item) => item.id));
+  const existingById = new Map((sourceReadiness || []).map((item) => [item.id, item]));
+  return [
+    ...(sourceReadiness || []).filter((item) => !liveIds.has(item.id)),
+    ...liveItems.map((item) => {
+      const existing = existingById.get(item.id) || {};
+      return {
+        ...item,
+        order: existing.order ?? item.order,
+        priority: existing.priority ?? item.priority
+      };
+    })
+  ].sort((a, b) => (a.priority ?? 99) - (b.priority ?? 99) || (a.order ?? 99) - (b.order ?? 99));
+}
+
 export function WorkbenchSourcesInspector({
   sourceReadiness,
+  connectorFamilies,
   isBusy,
   onConnectSource,
   onManualSetupSource,
   onClose
 }) {
   const { panelRef } = useDialogFocus(true);
+  const readableSources = mergedSourceReadiness(sourceReadiness, connectorFamilies);
   const runSourceAction = (item) => {
     const action = item?.action || {};
     if (sourceActionDisabled(action, isBusy, onConnectSource, onManualSetupSource)) return;
@@ -61,7 +104,7 @@ export function WorkbenchSourcesInspector({
         </p>
         <div className="wb13-inspector-block">
           <h5>Readable now or after setup</h5>
-          ${sourceReadiness.map((item) => {
+          ${readableSources.map((item) => {
             const action = item.action || {};
             const disabled = sourceActionDisabled(
               action,

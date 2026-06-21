@@ -10,6 +10,34 @@ Scope: component-by-component delta between the v13 mockup and the current React
 - Current build: `crates/ironclaw_webui_v2_static/static/js/pages/workbench/` (`workbench-page.js`, `components/*`, `styles/*`, `lib/workbench-state.js`, `lib/workbench-plan.js`).
 
 ## Root cause framing (why current looks barren)
+### 2026-06-21 live-wiring update
+The probe snapshot below is historical. The current branch now has a hard-gated
+live wiring probe and the real connector route is available on the staged
+sidecar binary:
+
+- `node scripts/probe-workbench-live-wiring.mjs --json` returns
+  `verdict:"PASS"` with no failed checks or warnings when local NEAR AI and
+  Composio credentials are sourced.
+- NEAR AI Cloud is live: active provider `nearai`, active model
+  `zai-org/GLM-5.1-FP8`, model catalog count `47`.
+- Composio is live: configure status `200`, phase `active`,
+  `/connectors/connected` status `200`, `8` accounts, toolkits
+  `github`, `gmail`, `googlecalendar`, `googledocs`, `googledrive`, `notion`,
+  and `slack`.
+- Read-only connector probes succeed for Gmail, Calendar, Drive, Notion, GitHub,
+  and Slack. The same read route rejects a mutating Gmail send tool with `400`.
+- The frontend no longer needs the old "Composio is active, therefore assume
+  families" fallback. `workbench-connectors.js` maps only ACTIVE
+  `/connectors/connected` toolkits into Workbench connector families; manual
+  source selection, ambient reads, the source strip, and the sources inspector
+  consume those same live families.
+
+The visual problem that remains is therefore not "no live data path exists."
+The path exists and is tested. Remaining design work should focus on making the
+live populated state feel excellent and making truly empty/disconnected states
+clear without looking broken.
+
+### Original 2026-06-20 snapshot
 The current build is **data-honest**: every rail/triage region renders from real backend feeds and shows the empty state when those feeds are empty. The probe (`node scripts/probe-workbench-live-wiring.mjs --probe-oauth-start --json`) confirms on this machine:
 - `channels.count = 0`, `automations.count = 0`, no saved work items, no attention threads.
 - Composio key not provided (`composio.phase = "discovered"`, `composio_api_key.provided=false`); Gmail/Calendar/Drive/Docs/Notion all `phase:"installed"` with `provided:false` (OAuth not done).
