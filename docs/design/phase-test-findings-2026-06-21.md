@@ -72,7 +72,27 @@ and the real `npm run tauri dev` run (real-app-e2e-evidence.md).
   model (`z-ai/glm-5.2`, override via `TEST_MODEL`) and asserts a real reply
   ("17×4=68" in an assistant message), not a prompt-echo false positive.
 
+## Honest nuance / follow-up on the connector fix
+- **Single-read connector turn = full success** (Gmail: agent → `connected-sources.read`
+  → finalized reply citing the real email).
+- **Fix generalizes**: a Calendar turn also routes through `connected-sources.read`
+  directly (+ `builtin.time` for the date range) — not Gmail-specific.
+- **Open robustness issue (separate from the fix):** a *longer* multi-read turn
+  (Calendar, 5+ `connected-sources.read` calls) terminated with
+  `HostUnavailable { stage: Capability }` / "agent loop driver is unavailable:
+  Capability: unavailable" before a final reply. The reads themselves finalized;
+  the agent-loop/host-runtime became unavailable mid-turn. Seen in the LocalDev
+  DevOnly test profile (readiness already flags `DevOnlyProfile: Blocking`).
+  Needs investigation — may be a DevOnly capability-host limit or cumulative
+  resource exhaustion on long turns. Does NOT undermine the connector
+  registration fix (reads route correctly); it's a turn-completion robustness
+  concern for heavy multi-tool turns.
+
 ## In progress
-- Phase 5: poller worker runs; NEXT = create/pause webui routes → create a due
-  trigger → verify it FIRES end-to-end → then an honest "runs while IronClaw is
-  open" create UI.
+- Phase 5: poller worker runs; firing proven by Rust e2e (`trigger_poller_e2e.rs`)
+  + boot-enable (`IRONCLAW_TRIGGER_POLLER_ENABLED`). NEXT = create/pause routes +
+  an honest "runs while IronClaw is open" create UI (no HTTP create route exists
+  yet; creation is via agent `builtin.trigger_create` or the in-process repo).
+- Agent draft capability (Phase 4): the agent has read-only `connected-sources.read`;
+  it has no draft/write path. A gated `connected-sources.write` (drafts allowed,
+  sends behind the flag) would unblock the morning triage+draft loop.
