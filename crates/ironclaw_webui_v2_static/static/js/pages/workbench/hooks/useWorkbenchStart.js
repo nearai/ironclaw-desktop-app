@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { React } from '../../../lib/html.js';
 import {
+  formatProviderLabel,
   normalizeModelEntries,
   uniqueModelsByDisplayLabel,
   visibleLlmSnapshot
@@ -101,6 +102,18 @@ export function defaultWorkbenchModelId(activeModelId, modelOptions) {
   return modelOptions.includes(normalizedActiveModelId)
     ? normalizedActiveModelId
     : modelOptions[0] || normalizedActiveModelId;
+}
+
+export function modelCatalogBlockReason({
+  activeProvider,
+  modelsResult,
+  modelsError,
+  modelsLoading
+} = {}) {
+  if (!activeProvider || modelsLoading || activeProvider.can_list_models === false) return '';
+  if (!modelsError && modelsResult?.ok !== false) return '';
+  const providerLabel = formatProviderLabel(activeProvider.id, activeProvider.name);
+  return `${providerLabel} model access is not available right now. Open Settings / Inference to refresh provider access before starting work.`;
 }
 
 function readinessMatchesCapability(item, capabilityId) {
@@ -241,11 +254,18 @@ export function useWorkbenchStart({
     sourceReadiness,
     connectorFamilies
   });
+  const catalogBlockReason = modelCatalogBlockReason({
+    activeProvider,
+    modelsResult: modelsQuery.data,
+    modelsError: modelsQuery.error,
+    modelsLoading: modelsQuery.isLoading
+  });
   const startBlockReason =
     (attachmentExtractionPending && 'Finish reading attached files before starting work.') ||
     sourceBlockReason ||
     (providerSetupChecking && 'IronClaw is checking NEAR AI Cloud before it starts work.') ||
     (providerSetupRequired && 'Connect NEAR AI Cloud before starting work.') ||
+    catalogBlockReason ||
     runtimeBlockReason ||
     (cooldownSeconds > 0 ? `Retry in ${cooldownSeconds}s.` : '');
   // A transient providers-query failure must NOT hard-disable Ask: the route is
@@ -261,6 +281,7 @@ export function useWorkbenchStart({
     sourceBlockReason ||
     providerSetupChecking ||
     providerSetupRequired ||
+    catalogBlockReason ||
     runtimeContext.sendBlocked ||
     cooldownSeconds > 0
   );

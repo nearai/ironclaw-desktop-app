@@ -26,6 +26,8 @@ type WorkbenchMockOptions = {
   sentMessages?: Array<{ path: string; body: Record<string, unknown> }>;
   activeModelSelections?: Array<Record<string, unknown>>;
   activeModelError?: string;
+  listModelsResponse?: Record<string, unknown>;
+  listModelsError?: string;
   requestLog?: string[];
   threads?: Array<Record<string, unknown>>;
   threadsError?: string;
@@ -329,9 +331,13 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
       return json(route, { ...llmProviders, active: activeLlm });
     }
     if (path === '/api/webchat/v2/llm/list-models' && method === 'POST') {
+      if (options.listModelsError) {
+        return text(route, 500, options.listModelsError);
+      }
       return json(route, {
         ok: true,
-        models: ['auto', 'z-ai/glm-4.5', 'gpt-oss-120b', 'google/gemini-2.5-pro']
+        models: ['auto', 'z-ai/glm-4.5', 'gpt-oss-120b', 'google/gemini-2.5-pro'],
+        ...(options.listModelsResponse || {})
       });
     }
     if (path === '/api/webchat/v2/llm/active' && method === 'POST') {

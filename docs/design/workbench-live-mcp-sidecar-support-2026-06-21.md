@@ -98,6 +98,10 @@ Current proven behavior:
   - bounded live connector rows already loaded in the Workbench
 - With a working provider profile, the Workbench Ask handoff reaches the real
   Chat runtime and receives an assistant reply.
+- Workbench now preflights the active provider model catalog when the provider
+  advertises model-list support. A NEAR AI Cloud catalog failure disables Ask
+  before a doomed Chat send; providers that do not advertise model-list support
+  are not blocked by this guard.
 - Connector writes remain gated; Gmail send attempts must reject unless the
   backend explicitly enables send authority.
 - Direct freeform Chat can now call `connected-sources.read` as a model-visible

@@ -7,6 +7,7 @@ import {
   defaultWorkbenchModelId,
   deriveWorkbenchModelOptions,
   manualSourceBlockReason,
+  modelCatalogBlockReason,
   modelOptionLabel,
   startedWorkPreferences,
   workbenchModelSwitchErrorMessage
@@ -37,6 +38,32 @@ test('workbench model default selection prefers catalog-backed values', () => {
     'z-ai/glm-4.5'
   );
   assert.equal(defaultWorkbenchModelId('missing-active-model', []), 'missing-active-model');
+});
+
+test('workbench blocks starts when an active listable provider cannot verify its model catalog', () => {
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: { id: 'nearai', name: 'NEAR AI Cloud', can_list_models: true },
+      modelsResult: { ok: false, models: [] }
+    }),
+    'NEAR AI Cloud model access is not available right now. Open Settings / Inference to refresh provider access before starting work.'
+  );
+
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: { id: 'openrouter', name: 'OpenRouter', can_list_models: false },
+      modelsResult: { ok: false, models: [] }
+    }),
+    ''
+  );
+
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: { id: 'nearai', name: 'NEAR AI Cloud', can_list_models: true },
+      modelsLoading: true
+    }),
+    ''
+  );
 });
 
 test('workbench model labels and preferences preserve selected catalog model ids', () => {

@@ -1174,6 +1174,37 @@ test('static workbench: command starts a Chat runtime thread with model, effort,
   expect(content).not.toContain('Auto sources:');
 });
 
+test('static workbench: active provider catalog failure blocks a doomed Chat start', async ({
+  page
+}) => {
+  const sentMessages: Array<{ path: string; body: Record<string, unknown> }> = [];
+  const requestLog: string[] = [];
+  await installWorkbenchMocks(page, {
+    sentMessages,
+    requestLog,
+    listModelsResponse: {
+      ok: false,
+      models: [],
+      message: 'could not list models for this provider'
+    }
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page.getByTestId('workbench-brief-input').fill('Check email and draft a response.');
+  await expect(
+    page.getByText(
+      'NEAR AI Cloud model access is not available right now. Open Settings / Inference to refresh provider access before starting work.',
+      { exact: true }
+    )
+  ).toBeVisible();
+  await expect(page.getByTestId('workbench-send-button')).toBeDisabled();
+  expect(requestLog).toContain('POST /api/webchat/v2/llm/list-models');
+  expect(requestLog).not.toContain(
+    'POST /api/webchat/v2/threads/thread-workbench-runtime/messages'
+  );
+  expect(sentMessages).toEqual([]);
+});
+
 test('static workbench: the run timeline renders prompt, tool steps, and output inline', async ({
   page
 }) => {
