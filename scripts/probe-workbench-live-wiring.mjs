@@ -23,11 +23,14 @@ const RELEVANT_EXTENSION_IDS = Object.freeze([
 const args = new Set(process.argv.slice(2));
 const probeOauthStart = args.has('--probe-oauth-start');
 const jsonOnly = args.has('--json');
+const skipConnectorReads = args.has('--skip-connector-reads');
 
 const repoRoot = process.cwd();
 const binary = path.join(repoRoot, 'src-tauri/binaries/ironclaw-reborn-aarch64-apple-darwin');
 const stamp = new Date().toISOString().replace(/[:.]/g, '-');
 const outDir = `/tmp/ironclaw-workbench-live-wiring-${stamp}`;
+
+const SLACK_BLOCKER_QUERY = '(blocked OR blocker OR stuck OR urgent OR asap OR waiting)';
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -104,11 +107,86 @@ function automationSummary(automation) {
   };
 }
 
+function firstArrayLength(value, depth = 0) {
+  if (Array.isArray(value)) return value.length;
+  if (!value || typeof value !== 'object' || depth > 4) return null;
+  for (const candidate of Object.values(value)) {
+    const count = firstArrayLength(candidate, depth + 1);
+    if (count !== null) return count;
+  }
+  return null;
+}
+
+function connectorReadSummary(response) {
+  return {
+    status: response.status,
+    successful: response.body?.successful ?? null,
+    has_data: response.body?.data !== undefined && response.body?.data !== null,
+    count: firstArrayLength(response.body?.data),
+    error_present: Boolean(response.body?.error)
+  };
+}
+
 function redactText(value, token) {
   return String(value || '')
     .replaceAll(token, '[redacted-token]')
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, 'Bearer [redacted]')
     .replace(/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g, '[jwt-redacted]');
+}
+
+function connectorReadProbes() {
+  const now = new Date();
+  const timeMin = now.toISOString();
+  const timeMax = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  return [
+    {
+      id: 'gmail',
+      toolkit: 'gmail',
+      tool: 'GMAIL_FETCH_EMAILS',
+      arguments: { max_results: 3, query: 'in:inbox' }
+    },
+    {
+      id: 'calendar',
+      toolkit: 'googlecalendar',
+      tool: 'GOOGLECALENDAR_EVENTS_LIST',
+      arguments: {
+        calendarId: 'primary',
+        maxResults: 3,
+        timeMin,
+        timeMax,
+        singleEvents: true,
+        orderBy: 'startTime'
+      }
+    },
+    {
+      id: 'drive',
+      toolkit: 'googledrive',
+      tool: 'GOOGLEDRIVE_LIST_FILES',
+      arguments: {
+        page_size: 3,
+        order_by: 'modifiedTime desc',
+        fields: 'files(id,name,mimeType,modifiedTime,webViewLink,iconLink)'
+      }
+    },
+    {
+      id: 'notion',
+      toolkit: 'notion',
+      tool: 'NOTION_SEARCH_NOTION_PAGE',
+      arguments: { query: '', page_size: 3 }
+    },
+    {
+      id: 'github',
+      toolkit: 'github',
+      tool: 'GITHUB_LIST_NOTIFICATIONS_FOR_THE_AUTHENTICATED_USER',
+      arguments: { per_page: 3, all: false }
+    },
+    {
+      id: 'slack',
+      toolkit: 'slack',
+      tool: 'SLACK_SEARCH_MESSAGES',
+      arguments: { query: SLACK_BLOCKER_QUERY, count: 3, sort: 'timestamp' }
+    }
+  ];
 }
 
 async function main() {
@@ -167,6 +245,13 @@ async function main() {
     registry: [],
     channels: null,
     automations: null,
+    connectors: {
+      skipped: skipConnectorReads,
+      composio_configure: null,
+      connected: null,
+      reads: {},
+      read_route_write_gate: null
+    },
     setup: {},
     route_status: {},
     log_tail: []
@@ -270,6 +355,65 @@ async function main() {
           ? new URL(started.body.authorization_url).host
           : null
       };
+    }
+
+    if (!skipConnectorReads) {
+      if (process.env.COMPOSIO_API_KEY) {
+        const configured = await request('POST', '/api/webchat/v2/extensions/composio/setup', {
+          action: 'configure',
+          payload: {
+            secrets: {
+              composio_api_key: process.env.COMPOSIO_API_KEY
+            }
+          }
+        });
+        result.connectors.composio_configure = {
+          status: configured.status,
+          phase: configured.body?.phase || null,
+          configured_from_env: true
+        };
+      }
+
+      const connected = await request('GET', '/api/webchat/v2/connectors/connected');
+      result.route_status.connectors_connected = connected.status;
+      const accounts = Array.isArray(connected.body?.accounts) ? connected.body.accounts : [];
+      const toolkits = [
+        ...new Set(
+          accounts
+            .map((account) => account?.toolkit || account?.provider || account?.type)
+            .filter(Boolean)
+        )
+      ].sort();
+      result.connectors.connected = {
+        status: connected.status,
+        count: accounts.length,
+        toolkits
+      };
+
+      if (connected.ok && accounts.length > 0) {
+        for (const probe of connectorReadProbes()) {
+          const response = await request('POST', '/api/webchat/v2/connectors/read', {
+            toolkit: probe.toolkit,
+            tool: probe.tool,
+            arguments: probe.arguments
+          });
+          result.connectors.reads[probe.id] = connectorReadSummary(response);
+        }
+
+        const writeGate = await request('POST', '/api/webchat/v2/connectors/read', {
+          toolkit: 'gmail',
+          tool: 'GMAIL_SEND_EMAIL',
+          arguments: {
+            to: 'nobody@example.invalid',
+            subject: 'blocked smoke',
+            body: 'blocked'
+          }
+        });
+        result.connectors.read_route_write_gate = {
+          status: writeGate.status,
+          rejected: writeGate.status >= 400 && writeGate.status < 500
+        };
+      }
     }
   } finally {
     result.log_tail = log
