@@ -110,6 +110,14 @@ patch + rebase runbook: `docs/design/gateway-connector-route.patch` + the Q11b r
 **Note:** a concurrent **codex** process also improved this branch tonight; this loop integrated its work green (see
 the Concurrent codex note above). Both agents contributed.
 
+**Pre-PR self-review (adversarial, 02:1x):** No blocking bugs — verdict "ready for PR." Write-path security solid
+(client allowlist mirrors the gateway; approval modal is the only write trigger; server-side gate rejects SEND when
+disabled — independently verified in Q11). Honesty contract excellent (all normalizers return [] on failure, never
+fabricate; briefing shows a "could not read" section and never a false all-clear when a source errors). XSS/link
+safety excellent (every external href validated against `^https?://`, ids encoded). Correctness/crash-safety good
+(guarded access, strict email validation, intent precedence slack-before-briefing). One reminder carried into Q11b:
+keep the server-side `/connectors/write` SEND-gate when rebasing onto main.
+
 ## Needs you (morning)
 - Enable real outbound sends (+ approve the first real send) — currently drafts-only by design.
 - Review the branch + merge to main.
