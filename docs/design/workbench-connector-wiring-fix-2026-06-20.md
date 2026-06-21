@@ -23,7 +23,9 @@ honest:
   `googledocs`, `googledrive`, `notion`, and `slack`.
 - The probe performs read-only checks for Gmail, Calendar, Drive, Notion,
   GitHub, and Slack, then verifies that a mutating Gmail send tool is rejected
-  on the read route.
+  on the read route. The probe also verifies that the dedicated write route
+  rejects `GMAIL_SEND_EMAIL` when the send capability is not enabled, proving the
+  draft/write surface exists while real sends remain gated server-side.
 - Frontend readiness comes from
   `crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-connectors.js`.
   It maps only ACTIVE `/connectors/connected` toolkits to Workbench families.

@@ -25,7 +25,9 @@ sidecar binary:
   `github`, `gmail`, `googlecalendar`, `googledocs`, `googledrive`, `notion`,
   and `slack`.
 - Read-only connector probes succeed for Gmail, Calendar, Drive, Notion, GitHub,
-  and Slack. The same read route rejects a mutating Gmail send tool with `400`.
+  and Slack. The same read route rejects a mutating Gmail send tool with `400`,
+  and the dedicated write route also rejects `GMAIL_SEND_EMAIL` with `400` when
+  send capability is off.
 - The frontend no longer needs the old "Composio is active, therefore assume
   families" fallback. `workbench-connectors.js` maps only ACTIVE
   `/connectors/connected` toolkits into Workbench connector families; manual

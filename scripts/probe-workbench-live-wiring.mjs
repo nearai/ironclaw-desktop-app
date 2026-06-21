@@ -267,6 +267,12 @@ function evaluateProbe(result) {
         result.connectors?.read_route_write_gate?.rejected === true,
         result.connectors?.read_route_write_gate || {}
       );
+
+      check(
+        'connector write route rejects send tools without send capability',
+        result.connectors?.write_route_send_gate?.rejected === true,
+        result.connectors?.write_route_send_gate || {}
+      );
     }
   }
 
@@ -336,7 +342,8 @@ async function main() {
       composio_configure: null,
       connected: null,
       reads: {},
-      read_route_write_gate: null
+      read_route_write_gate: null,
+      write_route_send_gate: null
     },
     verdict: 'PENDING',
     checks: [],
@@ -501,6 +508,20 @@ async function main() {
         result.connectors.read_route_write_gate = {
           status: writeGate.status,
           rejected: writeGate.status >= 400 && writeGate.status < 500
+        };
+
+        const sendGate = await request('POST', '/api/webchat/v2/connectors/write', {
+          toolkit: 'gmail',
+          tool: 'GMAIL_SEND_EMAIL',
+          arguments: {
+            to: 'nobody@example.invalid',
+            subject: 'blocked smoke',
+            body: 'blocked'
+          }
+        });
+        result.connectors.write_route_send_gate = {
+          status: sendGate.status,
+          rejected: sendGate.status >= 400 && sendGate.status < 500
         };
       }
     }
