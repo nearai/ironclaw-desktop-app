@@ -40,6 +40,9 @@ const probeOauthStart = args.has('--probe-oauth-start');
 const jsonOnly = args.has('--json');
 const skipConnectorReads = args.has('--skip-connector-reads');
 const skipChatHandoff = args.has('--skip-chat-handoff');
+const probeDirectConnectorChat =
+  args.has('--probe-direct-connector-chat') || args.has('--require-direct-connector-chat');
+const requireDirectConnectorChat = args.has('--require-direct-connector-chat');
 const keepProbeHome = args.has('--keep-probe-home');
 const llmBackend = flagValue('--llm-backend') || process.env.IRONCLAW_PROBE_LLM_BACKEND || 'nearai';
 const chatMaxAttempts = positiveInt(
@@ -483,11 +486,95 @@ function applyRunStatusToHandoff(handoff, summary) {
   handoff.timeline_failure_summary = summary.failure_summary || null;
 }
 
+function applyRunStatusToDirectConnectorProbe(probe, summary) {
+  if (!summary?.status) return;
+  if (summary.run_id && probe.run_id && summary.run_id !== probe.run_id) return;
+  if (!probe.sse_run_status_sequence.includes(summary.status)) {
+    probe.sse_run_status_sequence.push(summary.status);
+  }
+  if (!TERMINAL_RUN_STATUSES.has(summary.status)) return;
+  probe.timeline_terminal_status = summary.status;
+  probe.timeline_terminal_failed = FAILURE_RUN_STATUSES.has(summary.status);
+  probe.timeline_failure_category = summary.failure_category || null;
+  probe.timeline_failure_summary = summary.failure_summary || null;
+}
+
 function redactText(value, token) {
   return String(value || '')
     .replaceAll(token, '[redacted-token]')
     .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, 'Bearer [redacted]')
     .replace(/[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}/g, '[jwt-redacted]');
+}
+
+function directConnectorDiagnosticPrompt() {
+  return [
+    'Read-only diagnostic.',
+    'If the Chat runtime exposes connector tools, use a read-only Gmail inbox connector tool to fetch at most one inbox item.',
+    'Do not send, draft, delete, post, schedule, or mutate anything.',
+    'Do not quote any email subject, sender, body, identifier, or private content.',
+    'Reply only with: DIRECT_CONNECTOR_PROBE_DONE tool_used=yes|no reason=<short generic reason>.'
+  ].join(' ');
+}
+
+function toolSignalSummary(value) {
+  if (!value || typeof value !== 'object') return null;
+  const kind = String(value.kind || value.role || value.type || '').toLowerCase();
+  const payload = value.payload && typeof value.payload === 'object' ? value.payload : {};
+  const message = value.message && typeof value.message === 'object' ? value.message : {};
+  const capabilityId =
+    value.capability_id ||
+    value.capabilityId ||
+    payload.capability_id ||
+    payload.capabilityId ||
+    message.capability_id ||
+    message.capabilityId ||
+    '';
+  const toolName =
+    value.tool_name ||
+    value.toolName ||
+    value.tool ||
+    payload.tool_name ||
+    payload.toolName ||
+    payload.tool ||
+    message.tool_name ||
+    message.toolName ||
+    message.tool ||
+    '';
+  const invocationId =
+    value.invocation_id ||
+    value.invocationId ||
+    payload.invocation_id ||
+    payload.invocationId ||
+    message.invocation_id ||
+    message.invocationId ||
+    '';
+  const status = messageStatus(value) || messageStatus(payload) || messageStatus(message);
+  if (!kind.includes('tool') && !capabilityId && !toolName && !invocationId) return null;
+  return {
+    kind,
+    status,
+    capability_id: String(capabilityId || ''),
+    tool_name: String(toolName || '')
+  };
+}
+
+function collectToolActivitySignals(value, signals = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectToolActivitySignals(item, signals);
+    return signals;
+  }
+  if (!value || typeof value !== 'object') return signals;
+  const summary = toolSignalSummary(value);
+  if (summary) signals.push(summary);
+  for (const child of Object.values(value)) {
+    collectToolActivitySignals(child, signals);
+  }
+  return signals;
+}
+
+function isConnectorToolSignal(signal) {
+  const text = `${signal?.kind || ''} ${signal?.capability_id || ''} ${signal?.tool_name || ''}`;
+  return /connector|composio|gmail|googlecalendar|googledrive|notion|slack|github/i.test(text);
 }
 
 function connectorReadProbes() {
@@ -722,6 +809,65 @@ function evaluateProbe(result) {
     );
   }
 
+  const directConnector = result.workbench?.direct_connector_chat;
+  if (directConnector && !directConnector.skipped) {
+    check(
+      'Direct Chat connector probe creates a real Chat thread',
+      directConnector.thread_status === 200,
+      {
+        status: directConnector.thread_status ?? null,
+        thread_id_returned: Boolean(directConnector.thread_id_returned)
+      }
+    );
+    check(
+      'Direct Chat connector probe message is accepted',
+      directConnector.send_status === 200 && directConnector.send_accepted === true,
+      {
+        status: directConnector.send_status ?? null,
+        outcome: directConnector.send_outcome || null,
+        has_run_id: Boolean(directConnector.has_run_id)
+      }
+    );
+    check(
+      'Direct Chat connector probe receives an assistant result',
+      directConnector.timeline_has_assistant_reply === true &&
+        directConnector.timeline_terminal_failed !== true,
+      {
+        attempts: directConnector.timeline_attempts ?? null,
+        terminal_status: directConnector.timeline_terminal_status || null,
+        assistant_reply_seen: Boolean(directConnector.timeline_has_assistant_reply)
+      }
+    );
+    check(
+      'Direct Chat connector probe response follows the privacy marker',
+      directConnector.assistant_marker_seen === true,
+      {
+        marker_seen: Boolean(directConnector.assistant_marker_seen),
+        claimed_tool_used: Boolean(directConnector.assistant_claimed_tool_used),
+        claimed_tool_not_used: Boolean(directConnector.assistant_claimed_tool_not_used)
+      }
+    );
+    const directConnectorToolObserved =
+      directConnector.tool_activity_seen === true ||
+      directConnector.assistant_claimed_tool_used === true;
+    const directConnectorDetail = {
+      required: Boolean(directConnector.required),
+      tool_activity_seen: Boolean(directConnector.tool_activity_seen),
+      assistant_claimed_tool_used: Boolean(directConnector.assistant_claimed_tool_used),
+      assistant_claimed_tool_not_used: Boolean(directConnector.assistant_claimed_tool_not_used),
+      tool_signal_count: directConnector.tool_signal_count ?? null
+    };
+    if (directConnector.required) {
+      check(
+        'Direct Chat can invoke a read-only connector tool',
+        directConnectorToolObserved,
+        directConnectorDetail
+      );
+    } else if (!directConnectorToolObserved) {
+      warn('Direct Chat connector tool invocation not observed', directConnectorDetail);
+    }
+  }
+
   const failed = checks.filter((entry) => !entry.pass);
   const verdict = failed.length > 0 ? 'FAIL' : warnings.length > 0 ? 'WARN' : 'PASS';
   return { verdict, checks, warnings };
@@ -803,6 +949,10 @@ async function main() {
       live_source_data_counts: {},
       chat_handoff: {
         skipped: skipChatHandoff
+      },
+      direct_connector_chat: {
+        skipped: !probeDirectConnectorChat,
+        required: requireDirectConnectorChat
       }
     },
     verdict: 'PENDING',
@@ -1184,6 +1334,138 @@ async function main() {
         handoff.event_stream_error = runStatusStream.error;
       }
       result.workbench.chat_handoff = handoff;
+    }
+
+    if (probeDirectConnectorChat) {
+      const requestedThreadId = `workbench-direct-connector-${randomUUID()}`;
+      const thread = await request('POST', '/api/webchat/v2/threads', {
+        client_action_id: `workbench-direct-connector-thread-${stamp}`,
+        requested_thread_id: requestedThreadId
+      });
+      const threadId =
+        thread.body?.thread_id || thread.body?.thread?.thread_id || requestedThreadId;
+      const directConnector = {
+        skipped: false,
+        required: requireDirectConnectorChat,
+        thread_status: thread.status,
+        thread_id_returned: Boolean(thread.body?.thread_id || thread.body?.thread?.thread_id),
+        send_status: null,
+        send_accepted: false,
+        send_outcome: null,
+        run_id: null,
+        event_stream_status: null,
+        event_stream_error: null,
+        sse_run_status_sequence: [],
+        has_run_id: false,
+        timeline_status: null,
+        timeline_attempts: 0,
+        timeline_max_attempts: chatMaxAttempts,
+        timeline_poll_ms: chatPollMs,
+        timeline_message_count: 0,
+        timeline_has_assistant_reply: false,
+        timeline_terminal_status: null,
+        timeline_terminal_failed: false,
+        timeline_failure_category: null,
+        timeline_failure_summary: null,
+        assistant_marker_seen: false,
+        assistant_claimed_tool_used: false,
+        assistant_claimed_tool_not_used: false,
+        tool_activity_seen: false,
+        tool_signal_count: 0,
+        tool_signals: []
+      };
+      let runStatusStream = null;
+
+      if (thread.ok) {
+        runStatusStream = startRunStatusStream({
+          origin,
+          token,
+          threadId,
+          onStatus: (summary) => applyRunStatusToDirectConnectorProbe(directConnector, summary)
+        });
+        const send = await request(
+          'POST',
+          `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/messages`,
+          {
+            client_action_id: `workbench-direct-connector-message-${stamp}`,
+            content: directConnectorDiagnosticPrompt()
+          }
+        );
+        directConnector.send_status = send.status;
+        directConnector.send_outcome = send.body?.outcome || null;
+        directConnector.run_id = send.body?.run_id || send.body?.run?.run_id || null;
+        directConnector.has_run_id = Boolean(directConnector.run_id);
+        directConnector.send_accepted =
+          send.ok &&
+          (Boolean(send.body?.accepted_message_ref) ||
+            Boolean(send.body?.message_id) ||
+            Boolean(send.body?.turn_id) ||
+            Boolean(send.body?.run_id) ||
+            send.body?.outcome === 'submitted' ||
+            send.body?.outcome === 'accepted');
+
+        if (send.ok) {
+          for (let attempt = 1; attempt <= chatMaxAttempts; attempt += 1) {
+            await delay(chatPollMs);
+            const timeline = await request(
+              'GET',
+              `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/timeline?limit=80`
+            );
+            directConnector.timeline_status = timeline.status;
+            directConnector.timeline_attempts = attempt;
+            const messages = timelineMessages(timeline.body);
+            directConnector.timeline_message_count = messages.length;
+            const assistantText = messages
+              .filter((message) => {
+                const kind = messageKind(message);
+                return kind === 'assistant' || kind === 'assistant_message';
+              })
+              .map(messageContent)
+              .join('\n');
+            directConnector.timeline_has_assistant_reply = assistantText.trim().length > 0;
+            directConnector.assistant_marker_seen =
+              directConnector.assistant_marker_seen ||
+              assistantText.includes('DIRECT_CONNECTOR_PROBE_DONE');
+            directConnector.assistant_claimed_tool_used =
+              directConnector.assistant_claimed_tool_used ||
+              /tool_used\s*=\s*yes/i.test(assistantText);
+            directConnector.assistant_claimed_tool_not_used =
+              directConnector.assistant_claimed_tool_not_used ||
+              /tool_used\s*=\s*no/i.test(assistantText);
+            const signals = collectToolActivitySignals(timeline.body)
+              .filter(isConnectorToolSignal)
+              .slice(0, 20);
+            directConnector.tool_signal_count = signals.length;
+            directConnector.tool_signals = signals;
+            directConnector.tool_activity_seen = signals.length > 0;
+            const terminalFromTimeline = timelineRunStatuses(timeline.body, messages).find((item) =>
+              TERMINAL_RUN_STATUSES.has(item.status)
+            );
+            if (terminalFromTimeline && !directConnector.timeline_terminal_status) {
+              directConnector.timeline_terminal_status = terminalFromTimeline.status;
+              directConnector.timeline_terminal_failed = FAILURE_RUN_STATUSES.has(
+                terminalFromTimeline.status
+              );
+              directConnector.timeline_failure_category =
+                terminalFromTimeline.failure_category || null;
+              directConnector.timeline_failure_summary =
+                terminalFromTimeline.failure_summary || null;
+            }
+            if (
+              directConnector.timeline_has_assistant_reply ||
+              directConnector.timeline_terminal_status
+            ) {
+              break;
+            }
+          }
+        }
+      }
+      await stopRunStatusStream(runStatusStream);
+      if (runStatusStream) {
+        directConnector.event_stream_status = runStatusStream.status;
+        directConnector.event_stream_error = runStatusStream.error;
+      }
+      result.workbench.direct_connector_chat = directConnector;
     }
   } finally {
     try {
