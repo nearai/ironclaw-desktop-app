@@ -27,11 +27,12 @@ export function useSkills() {
   });
 
   const skills = query.data?.skills || [];
-  // No v2 skills endpoint exists yet: `fetchSkills` returns `{ todo: true }` and
-  // `installSkill`/`removeSkill` are `{ success: false }` stubs. `status:'todo'`
-  // lets the tab gate the import form behind a real backend so users never
-  // submit an install that silently no-ops ("No fake readiness").
-  const status = query.data?.todo ? 'todo' : 'ready';
+  // Wired to the v2 skills endpoints (`fetchSkills` -> `{ skills, count }`).
+  // "No fake readiness": the import form goes live ONLY on a successful, non-todo
+  // fetch. A loading/errored fetch (backend unreachable) or a defensive
+  // `{ todo: true }` fallback stays 'todo' (gated), so the form never renders
+  // over an unproven backend where a submit would silently fail.
+  const status = query.isSuccess && !query.data?.todo ? 'ready' : 'todo';
 
   return {
     skills,

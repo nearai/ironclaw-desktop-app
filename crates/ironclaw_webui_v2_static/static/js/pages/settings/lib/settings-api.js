@@ -1,8 +1,9 @@
 import { apiFetch, tauriInvoke } from '../../../lib/api.js';
 
-// Settings endpoints depend on v1 `/api/settings/*`, `/api/llm/*`,
-// `/api/tools/*`, `/api/skills/*`, etc. Extension reads use the v2
-// registry/list endpoints; the remaining settings APIs are TODO stubs.
+// LLM providers, extensions, and skills are v2-native (real endpoints below).
+// Still TODO stubs pending their v2 endpoints: generic settings get/set +
+// import/export, tool-permission writes, and user management — each returns an
+// honest { success: false } / { todo: true } so the UI never fakes readiness.
 
 export function fetchSettingsExport() {
   return Promise.resolve({ settings: {}, todo: true });
@@ -117,14 +118,30 @@ export function fetchExtensions() {
 export function fetchExtensionRegistry() {
   return apiFetch('/api/webchat/v2/extensions/registry');
 }
+// Skills — v2 native endpoints. The list response is the source of truth
+// ({ skills, count }); install/remove return { success, message } so the UI
+// reports the real backend outcome (never a fake success).
 export function fetchSkills() {
-  return Promise.resolve({ skills: [], todo: true });
+  return apiFetch('/api/webchat/v2/skills');
 }
-export function installSkill(_payload) {
-  return Promise.resolve({ success: false, message: 'TODO: requires v2 skills endpoint' });
+export function searchSkills(query) {
+  return apiFetch('/api/webchat/v2/skills/search', {
+    method: 'POST',
+    body: JSON.stringify({ query: String(query || '') })
+  });
 }
-export function removeSkill(_name) {
-  return Promise.resolve({ success: false, message: 'TODO: requires v2 skills endpoint' });
+// `payload` is { name, content? } (pasted skill body) or { name, url } — passed
+// through to the backend, which validates and returns { success, message }.
+export function installSkill(payload) {
+  return apiFetch('/api/webchat/v2/skills/install', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+export function removeSkill(name) {
+  return apiFetch(`/api/webchat/v2/skills/${encodeURIComponent(name)}`, {
+    method: 'DELETE'
+  });
 }
 // Trace Commons credits — read-only, scoped server-side to the authenticated
 // caller. The response is the contributor-local view as of the last credit

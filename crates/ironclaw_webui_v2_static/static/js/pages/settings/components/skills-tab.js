@@ -16,10 +16,11 @@ export function SkillsTab({ searchQuery = '' }) {
   const [actionResult, setActionResult] = React.useState('');
   const [confirmRemove, setConfirmRemove] = React.useState(null);
 
-  // No v2 skills endpoint exists yet (useSkills status:'todo'): an import here
-  // resolves against a stub that never persists. Rendering the install form would
-  // imply a capability the gateway cannot prove, so gate it behind a real backend
-  // and keep the dignified installed/empty states ("No fake readiness").
+  // Skills are wired to the v2 endpoint, but the import form only renders when
+  // the backend is PROVEN reachable (useSkills sets status:'ready' solely on a
+  // successful fetch; a loading/errored fetch stays 'todo'). Rendering it over an
+  // unproven backend would imply a capability the gateway cannot prove, so keep
+  // it gated and preserve the dignified installed/empty states ("No fake readiness").
   const installPanel =
     status !== 'todo'
       ? html`<${SkillInstallPanel} onInstall=${installSkill} isInstalling=${isInstalling} />`

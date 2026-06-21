@@ -212,11 +212,11 @@ const surfaces: Surface[] = [
     waitFor: async (page) => {
       await expect(page.getByRole('heading', { name: 'No skills installed' })).toBeVisible();
 
-      // No fake readiness: no v2 skills endpoint exists (useSkills status:'todo'),
-      // so the Import-skill form must not render over a stub. Submitting it would
-      // silently no-op. The dignified empty state stands alone.
-      await expect(page.getByRole('heading', { name: 'Import skill' })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0);
+      // Skills are now wired to the v2 endpoint: a SUCCESSFUL fetch ({skills:[]})
+      // proves the backend, so the Import-skill form is live alongside the empty
+      // state. (No fake readiness is still enforced: useSkills only reports
+      // 'ready' on a successful fetch — a failed fetch keeps the form gated.)
+      await expect(page.getByRole('heading', { name: 'Import skill' })).toBeVisible();
     }
   },
   {
@@ -422,6 +422,9 @@ async function installStaticApiMocks(page: Page, automations: unknown[] = []) {
     }
     if (path === '/api/webchat/v2/extensions') {
       return json(route, { extensions: [] });
+    }
+    if (path === '/api/webchat/v2/skills' && method === 'GET') {
+      return json(route, { skills: [], count: 0 });
     }
     if (path === '/api/webchat/v2/channels/connectable') {
       return json(route, { channels: [] });
