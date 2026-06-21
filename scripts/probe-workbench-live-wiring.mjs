@@ -4,6 +4,8 @@ import { createServer } from 'node:net';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { connectorFamilyReadiness } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-connectors.js';
+import { buildWorkbenchLiveSourceStatus } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-plan.js';
 
 const RELEVANT_EXTENSION_IDS = Object.freeze([
   'custom-mcp',
@@ -38,6 +40,14 @@ const EXPECTED_CONNECTOR_TOOLKITS = Object.freeze([
   'googledrive',
   'notion',
   'slack'
+]);
+const EXPECTED_WORKBENCH_SOURCE_FAMILIES = Object.freeze([
+  'gmail',
+  'calendar',
+  'drive',
+  'notion',
+  'slack',
+  'github'
 ]);
 
 function delay(ms) {
@@ -211,10 +221,14 @@ function evaluateProbe(result) {
   check('LLM providers route serves', result.route_status.providers === 200, {
     status: result.route_status.providers ?? null
   });
-  check('LLM model catalog is live', result.llm?.models?.ok === true && result.llm.models.count > 0, {
-    status: result.route_status.models ?? null,
-    count: result.llm?.models?.count ?? null
-  });
+  check(
+    'LLM model catalog is live',
+    result.llm?.models?.ok === true && result.llm.models.count > 0,
+    {
+      status: result.route_status.models ?? null,
+      count: result.llm?.models?.count ?? null
+    }
+  );
   for (const route of ['extensions', 'registry', 'channels', 'automations']) {
     check(`${route} route serves`, result.route_status[route] === 200, {
       status: result.route_status[route] ?? null
@@ -244,11 +258,30 @@ function evaluateProbe(result) {
 
     if (connectedOk) {
       const toolkits = new Set(connected.toolkits || []);
-      const missingToolkits = EXPECTED_CONNECTOR_TOOLKITS.filter((toolkit) => !toolkits.has(toolkit));
+      const missingToolkits = EXPECTED_CONNECTOR_TOOLKITS.filter(
+        (toolkit) => !toolkits.has(toolkit)
+      );
       check('expected Workbench connector toolkits are available', missingToolkits.length === 0, {
         toolkits: connected.toolkits || [],
         missing: missingToolkits
       });
+
+      const readyFamilies = new Set(
+        (result.workbench?.connector_families || []).map((family) => family.id).filter(Boolean)
+      );
+      const missingFamilies = EXPECTED_WORKBENCH_SOURCE_FAMILIES.filter(
+        (family) => !readyFamilies.has(family)
+      );
+      check(
+        'Workbench source status reflects live connector families',
+        missingFamilies.length === 0 &&
+          /ready via Composio/.test(result.workbench?.live_source_status || ''),
+        {
+          families: [...readyFamilies],
+          missing: missingFamilies,
+          live_source_status: result.workbench?.live_source_status || ''
+        }
+      );
 
       for (const probe of connectorReadProbes()) {
         const summary = result.connectors?.reads?.[probe.id];
@@ -345,6 +378,10 @@ async function main() {
       read_route_write_gate: null,
       write_route_send_gate: null
     },
+    workbench: {
+      connector_families: [],
+      live_source_status: ''
+    },
     verdict: 'PENDING',
     checks: [],
     warnings: [],
@@ -419,7 +456,10 @@ async function main() {
     };
 
     for (const id of RELEVANT_EXTENSION_IDS) {
-      const setup = await request('GET', `/api/webchat/v2/extensions/${encodeURIComponent(id)}/setup`);
+      const setup = await request(
+        'GET',
+        `/api/webchat/v2/extensions/${encodeURIComponent(id)}/setup`
+      );
       const pendingOauth = (setup.body?.secrets || []).find(
         (secret) => secret?.setup?.kind === 'oauth' && !secret?.provided
       );
@@ -485,6 +525,18 @@ async function main() {
         count: accounts.length,
         toolkits
       };
+      result.workbench.connector_families = connectorFamilyReadiness(connected.body).map(
+        (family) => ({
+          id: family.id,
+          label: family.label,
+          state: family.state,
+          statusLabel: family.statusLabel,
+          via: family.via
+        })
+      );
+      result.workbench.live_source_status = buildWorkbenchLiveSourceStatus({
+        connectorFamilies: result.workbench.connector_families
+      });
 
       if (connected.ok && accounts.length > 0) {
         for (const probe of connectorReadProbes()) {
