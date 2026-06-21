@@ -60,7 +60,9 @@ const env = {
   GATEWAY_ENABLED: 'true',
   DATABASE_BACKEND: 'libsql',
   LLM_BACKEND: 'nearai',
-  NEARAI_MODEL: 'auto',
+  // 'auto' is NOT a valid NEAR AI model (HTTP 400 'model not found') — every
+  // agent turn fails with it. Use a real model id (override via TEST_MODEL).
+  NEARAI_MODEL: process.env.TEST_MODEL || 'z-ai/glm-5.2',
   RUST_LOG: 'warn'
 };
 const child = spawn(BIN, ['serve', '--host', '127.0.0.1', '--port', String(PORT)], {
@@ -208,27 +210,32 @@ const READS = [
 
   const ct = await req('POST', `${B}/threads`, { client_action_id: 'live-1' });
   const threadId = ct.j?.thread?.thread_id || ct.j?.thread_id;
-  let reply = false;
+  let reply = '';
   if (threadId) {
+    // Answer (68) is NOT in the prompt, so matching it in an ASSISTANT message
+    // proves a real reply — not a false positive from echoing the prompt.
     await req('POST', `${B}/threads/${threadId}/messages`, {
       client_action_id: 'live-2',
-      content: 'Reply with exactly one word: pong',
+      content: 'What is 17 multiplied by 4? Reply with only the number.',
       timezone: 'America/New_York'
     });
     for (let i = 0; i < 80; i++) {
       await sleep(1500);
-      if (
-        /pong/i.test(
-          JSON.stringify((await req('GET', `${B}/threads/${threadId}/timeline?limit=40`)).j || '')
-        ) &&
-        i > 1
-      ) {
-        reply = true;
-        break;
+      const items =
+        (await req('GET', `${B}/threads/${threadId}/timeline?limit=40`)).j?.messages || [];
+      for (const it of Array.isArray(items) ? items : []) {
+        const k = (it.kind || '').toLowerCase();
+        if (
+          (k === 'assistant' || k === 'assistant_message' || k === 'tool_result') &&
+          String(it.content || '').trim()
+        ) {
+          reply = String(it.content).trim();
+        }
       }
+      if (reply) break;
     }
   }
-  mark('live agent turn', reply, reply ? 'assistant replied' : 'no reply (~2min)');
+  mark('live agent turn (real model)', /68/.test(reply), reply ? `replied: ${reply.slice(0, 40)}` : 'no reply (~2min)');
 
   const ok = results.filter((r) => r.ok).length;
   console.log(`\n=== ${ok}/${results.length} checks passed ===`);
