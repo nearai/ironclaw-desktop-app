@@ -66,6 +66,44 @@ test('workbench blocks starts when an active listable provider cannot verify its
   );
 });
 
+test('workbench does NOT block when a concrete model is active even if the catalog listing fails', () => {
+  // Real-app case: NEAR AI list-models returns 0 / ok:false, but a concrete
+  // model (zai-org/GLM-5.1-FP8) is active and inference works. The user must not
+  // be hard-blocked from starting work over a catalog-listing miss.
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: {
+        id: 'nearai',
+        name: 'NEAR AI Cloud',
+        can_list_models: true,
+        active_model: 'zai-org/GLM-5.1-FP8'
+      },
+      modelsResult: { ok: false, models: [] }
+    }),
+    ''
+  );
+
+  // Same when the active model arrives via activeModelId (the selected model).
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: { id: 'nearai', name: 'NEAR AI Cloud', can_list_models: true },
+      modelsResult: { ok: false, models: [] },
+      activeModelId: 'zai-org/GLM-5.1-FP8'
+    }),
+    ''
+  );
+
+  // But 'auto' (no concrete model) with a failed catalog still blocks.
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: { id: 'nearai', name: 'NEAR AI Cloud', can_list_models: true },
+      modelsResult: { ok: false, models: [] },
+      activeModelId: 'auto'
+    }),
+    'NEAR AI Cloud model access is not available right now. Open Settings / Inference to refresh provider access before starting work.'
+  );
+});
+
 test('workbench model labels and preferences preserve selected catalog model ids', () => {
   assert.equal(modelOptionLabel('z-ai/glm-4.5'), 'GLM 4.5 (z-ai/glm-4.5)');
 

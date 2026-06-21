@@ -108,10 +108,20 @@ export function modelCatalogBlockReason({
   activeProvider,
   modelsResult,
   modelsError,
-  modelsLoading
+  modelsLoading,
+  activeModelId
 } = {}) {
   if (!activeProvider || modelsLoading || activeProvider.can_list_models === false) return '';
   if (!modelsError && modelsResult?.ok !== false) return '';
+  // The catalog listing failed — but if a concrete model is already active for
+  // this provider, the model is usable even when list-models returns empty
+  // (verified live: NEAR AI `zai-org/GLM-5.1-FP8` completes turns while
+  // list-models returns 0). Don't hard-block the user from starting work over a
+  // listing miss; a genuinely broken model surfaces as an error at send time.
+  const activeModel = normalizeWorkbenchModelId(
+    activeModelId || activeProvider.active_model || activeProvider.model || ''
+  );
+  if (activeModel !== 'auto') return '';
   const providerLabel = formatProviderLabel(activeProvider.id, activeProvider.name);
   return `${providerLabel} model access is not available right now. Open Settings / Inference to refresh provider access before starting work.`;
 }
@@ -258,7 +268,8 @@ export function useWorkbenchStart({
     activeProvider,
     modelsResult: modelsQuery.data,
     modelsError: modelsQuery.error,
-    modelsLoading: modelsQuery.isLoading
+    modelsLoading: modelsQuery.isLoading,
+    activeModelId
   });
   const startBlockReason =
     (attachmentExtractionPending && 'Finish reading attached files before starting work.') ||
