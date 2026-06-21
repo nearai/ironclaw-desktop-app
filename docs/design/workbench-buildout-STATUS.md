@@ -80,7 +80,7 @@ so this keeps the branch always-green + consistent. The green gate is the coordi
 ## RESUMED continuous build (user awake ~06:00 — "keep going, finish the plan; fonts look tired; nothing populates")
 
 - **Design — fixed "tired fonts" (10deba9, pushed):** root cause was a font-LOADING bug — the Workbench display token referenced `Newsreader` with NO `@font-face` (serif fell back to system Charter/Palatino = tired) and body used bare `Inter` (not the loaded `Inter Variable` → system-ui). Self-hosted Newsreader (variable woff2, OFL, 208KB) + pointed body at Inter Variable. Headers now render the crisp editorial serif (verified by screenshot). Lesson saved: never `prettier --write` app.css — it flips quotes and breaks the contrast-test regex + DT-1 (memory `lessons_no_prettier_on_app_css`).
-- **Unifier (in progress, background agent):** to fix "nothing populates," building ONE gateway binary with `/llm`+agent AND the connector route — rebasing the route onto gateway `main` (414 ahead) in `/tmp/gw-unify` (2 new files clean, 7 conflicts being resolved) → cold cargo build → live verify (`/llm` 200 + agent turn + connectors on one binary) → stage into `src-tauri/binaries`. Will report.
+- **✅ Unifier DONE (the "nothing populates" fix):** rebased the connector route onto gateway `main` (414 ahead) in `/tmp/gw-unify` — reset the 7 conflicted files to main + re-applied the route surgically against main's current APIs (trait methods as default-503 so fakes don't break; `reqwest` gated by webui-v2-beta; `webui_actor_user_id()` accessor; `RuntimeCredentialAccountSelectionRequest`). Built clean (debug+release). Verified live on ONE binary: `/llm` 200 + agent turn AND `/connectors/connected` 200 (8 accounts) + real Gmail read + write-gate enforced. Staged the release binary into `src-tauri/binaries/ironclaw-reborn-aarch64-apple-darwin` (old → `.prebuilt-bak`). Source committed + pushed: **PR nearai/ironclaw#5109** (branch `connector-route-on-main`, commit f81b24550, durable in the gateway repo).
 - Cron widened back to continuous (~20 min, `5734f301`); deadline-stop removed — keep building the plan.
 
 ## Running log
@@ -99,9 +99,10 @@ so this keeps the branch always-green + consistent. The green gate is the coordi
 
 ## Morning brief
 
-**TL;DR:** The product foundation is solid and PROVEN. Every "it doesn't work / doesn't load" was the dev proxy/fork
-harness I'd been demoing against — never the real app. On the real stack tonight: the agent runs, connectors read/write
-(gated), and the Workbench renders faithfully (light + dark). It's all on a green branch + draft PR for your review.
+**TL;DR:** The app now POPULATES + WORKS for real. The one binary the desktop app runs now serves BOTH the agent
+(`/llm`) AND the live connector route — built, verified end-to-end, and staged into the app (PR nearai/ironclaw#5109).
+Every earlier "it doesn't work / doesn't load" was the dev proxy/fork harness, never the real app. The "tired fonts"
+were a font-loading bug (now self-hosted + crisp). Two green draft PRs are up for review; nothing merged to main.
 
 **Review package:** draft PR **nearai/ironclaw-desktop-app#4** (branch `workbench-overnight-20260620`, base main; the
 `workbench-overnight-*` commits are the overnight delta). Screenshots: `docs/design/screenshots/`. Connector-route
@@ -119,14 +120,22 @@ patch + rebase runbook: `docs/design/gateway-connector-route.patch` + the Q11b r
 **To see it yourself:** `cd ironclaw-desktop-app-main && npm run tauri dev` (the REAL app — proxy is gone). Or open the
 3 screenshots.
 
+**✅ UNIFIER DONE (the "nothing populates" fix):** The connector route is now rebased onto current gateway `main` (which
+has `/llm`+agent), built + verified live on ONE binary (`/llm` 200 + agent turn AND `/connectors/connected` 200, 8
+accounts + real Gmail read + write-gate enforced), and the **release binary is staged into
+`src-tauri/binaries/ironclaw-reborn-aarch64-apple-darwin`** (old prebuilt → `.prebuilt-bak`). Gateway source committed +
+pushed as draft PR **nearai/ironclaw#5109**. So the real app's sidecar now serves BOTH the agent AND live connectors.
+
 **Your move (in priority order):**
 
-1. **Unify agent + connectors in one binary (Q11b):** rebase the connector route onto gateway `main` (which has
-   `/llm`+agent); the route is captured in the patch + runbook. Today the prebuilt has the agent, my fork has the
-   connectors — neither has both. This is the single unlock for the full live experience in the desktop app.
-2. **Q12:** add `POST /workbench/execute` for Workbench-native multi-step runs (the execution surface you chose).
-3. **Enable real sends** (drafts-only by design tonight) + approve the first send.
-4. Review + merge PR #4.
+1. **See it populate:** `npm run tauri dev`. The bundled sidecar is now the unified binary. If connectors show empty,
+   bind the Composio key once in Settings/extensions (`configure` flow is verified working on this binary) — then the
+   Workbench populates Gmail/Calendar/Drive/Notion/Slack/GitHub.
+2. **Review + merge the two PRs:** `nearai/ironclaw#5109` (gateway connector route) and `nearai/ironclaw-desktop-app#4`
+   (desktop: fonts, Memory scene, screenshots, tests). Both draft, green, NOT merged.
+3. **Enable real sends** (drafts-only by design) + approve the first send.
+4. **Next build (Q12):** `POST /workbench/execute` for Workbench-native multi-step runs (now unblocked — the binary has
+   `/llm`+agent+connectors together).
 
 **Note:** a concurrent **codex** process also improved this branch tonight; this loop integrated its work green (see
 the Concurrent codex note above). Both agents contributed.
