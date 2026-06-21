@@ -11,12 +11,10 @@ import {
 } from './workbench-static-fixtures';
 
 test('static workbench stylesheet: visual polish guards wrap detail text and dim disabled actions', () => {
-  // Body uses the self-hosted "Inter Variable" face first (bare "Inter" never
-  // shipped, so it silently fell back to system-ui and read tired).
-  expect(workbenchStylesSource).toContain('--wb-font-body: "Inter Variable", Inter');
-  // v13 fidelity: the display face is the editorial serif (Newsreader), now
-  // self-hosted via @font-face so it no longer falls back to system Charter/Palatino.
-  expect(workbenchStylesSource).toContain('--wb-font-display: Newsreader, "Newsreader Variable"');
+  // Single typeface: self-hosted Geist (variable) for both body and display —
+  // the overhaul dropped the serif; display hierarchy comes from size/weight.
+  expect(workbenchStylesSource).toContain('--wb-font-body: "Geist", "Geist Variable"');
+  expect(workbenchStylesSource).toContain('--wb-font-display: "Geist", "Geist Variable"');
   expect(workbenchStylesSource).toContain('[data-theme="dark"] .wb13');
   expect(workbenchStylesSource).toContain('resize: none;');
   expect(workbenchStylesSource).toContain(

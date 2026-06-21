@@ -150,15 +150,17 @@ async function buildTailwindCss() {
       },
       fontFamily: {
         sans: [
-          "Inter Variable",
-          "Inter",
+          "Geist",
+          "Geist Variable",
           "SF Pro Display",
           "Helvetica Neue",
           "ui-sans-serif",
           "system-ui",
           "sans-serif"
         ],
-        serif: ["Newsreader", "Lyon Text", "Instrument Serif", "Georgia", "serif"],
+        // No serif in the overhaul — alias serif to the sans stack so any stray
+        // serif utility falls back to Geist, not a system serif.
+        serif: ["Geist", "Geist Variable", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["Geist Mono", "SF Mono", "JetBrains Mono", "ui-monospace", "monospace"]
       }
     }

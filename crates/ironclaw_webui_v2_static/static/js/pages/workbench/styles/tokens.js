@@ -1,8 +1,8 @@
 export const WORKBENCH_TOKENS_STYLE = `
 .wb13 {
-  --wb-font-body: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --wb-font-display: Newsreader, "Newsreader Variable", ui-serif, Charter, "Iowan Old Style", "Palatino Linotype", serif;
-  --wb-font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --wb-font-body: "Geist", "Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --wb-font-display: "Geist", "Geist Variable", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --wb-font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --wb-surface: #f7f8f6;
   --wb-canvas: #ffffff;
   --wb-ink: #161a22;

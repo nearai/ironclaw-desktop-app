@@ -4,26 +4,24 @@
    ════════════════════════════════════════════════════════════════════ */
 
 /* ── Type foundation ─────────────────────────────────────────────────
-   The whole scale was designed for Inter Variable, but no font ever
-   shipped — every install silently fell back to system fonts. Self-host
-   it (46 KB, variable 100–900). Relative URL so it resolves under both
-   the packaged root and the hosted /v2 prefix. */
+   Geist (Vercel, OFL) — self-hosted variable sans (latin, 100–900) is the
+   single UI typeface. Geometric-humanist and distinct from the Inter default;
+   no serif (display hierarchy comes from size/weight, not a second family).
+   Relative URL resolves under both the packaged root and the hosted /v2 prefix. */
 @font-face {
-  font-family: "Inter Variable";
-  src: url('../fonts/inter-variable.woff2') format('woff2-variations');
+  font-family: "Geist";
+  src: url('../fonts/geist-variable.woff2') format('woff2-variations');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
-/* Newsreader (variable, opsz 6–72 / wght 400–700, OFL) — the editorial serif
-   the Workbench display scale was designed for. It was never self-hosted, so
-   serif headings silently fell back to system Charter/Palatino and read tired.
-   Self-host it so the v13 display face renders crisply. */
+/* Geist Mono (variable, latin, 100–900) — IDs, tool names, payloads. Pairs
+   with the Geist sans sibling. */
 @font-face {
-  font-family: "Newsreader";
-  src: url('../fonts/newsreader-variable.woff2') format('woff2-variations');
-  font-weight: 400 700;
+  font-family: "Geist Mono";
+  src: url('../fonts/geist-mono-variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
@@ -180,7 +178,7 @@ body {
   background: var(--v2-canvas);
   color: var(--v2-text);
   font-family:
-    "Inter Variable",
+    "Geist",
     -apple-system,
     BlinkMacSystemFont,
     'SF Pro Text',

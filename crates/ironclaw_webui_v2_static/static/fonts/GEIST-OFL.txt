@@ -1,0 +1,14 @@
+Geist & Geist Mono
+==================
+
+Copyright (c) 2023 Vercel, Inc. (https://vercel.com)
+
+These fonts are licensed under the SIL Open Font License, Version 1.1.
+Full license text: https://github.com/vercel/geist-font/blob/main/LICENSE
+Project: https://github.com/vercel/geist-font  ·  https://vercel.com/font
+
+Self-hosted here as latin-subset variable woff2 (weight 100-900):
+  geist-variable.woff2       - Geist (sans), the single UI typeface
+  geist-mono-variable.woff2  - Geist Mono, for IDs / tool names / payloads
+
+Sourced from Google Fonts (fonts.gstatic.com, latin subset) on 2026-06-21.

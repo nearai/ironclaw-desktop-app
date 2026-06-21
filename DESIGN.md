@@ -31,7 +31,9 @@ first decision that belongs to the user is already at the top.
 
 ## Type And Geometry
 
-- Font: self-hosted Inter Variable first, with system fallbacks.
+- Font: self-hosted **Geist** (variable, 100–900) first, with system fallbacks. One
+  typeface — no serif; display hierarchy comes from size and weight, not a second
+  family. Mono: self-hosted **Geist Mono** for IDs, tool names, and payloads.
 - Display: 28/600. Title: 20/600. Section: 16/600. Body: 14/450. Label:
   12/500. Micro caps: 11/600.
 - Numbers use tabular figures by default.
