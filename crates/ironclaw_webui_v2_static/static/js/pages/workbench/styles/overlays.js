@@ -344,4 +344,114 @@ export const WORKBENCH_OVERLAYS_STYLE = `.wb13-inspector {
   width: 9px;
   height: 9px;
 }
+.wb13-cmdk {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+}
+.wb13-cmdk-scrim {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  background: var(--wb-drop-bg);
+  cursor: default;
+}
+.wb13-cmdk-panel {
+  position: relative;
+  width: 560px;
+  max-width: 92vw;
+  background: var(--wb-canvas);
+  border: 1px solid var(--wb-line);
+  border-radius: var(--wb-r-lg);
+  box-shadow: var(--wb-shadow-pop);
+  overflow: hidden;
+}
+.wb13-cmdk-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--wb-line-2);
+}
+.wb13-cmdk-input svg {
+  width: 17px;
+  height: 17px;
+  color: var(--wb-muted);
+}
+.wb13-cmdk-input input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--wb-ink);
+  font-family: var(--wb-font-body);
+  font-size: 15px;
+  outline: none;
+}
+.wb13-cmdk-input input::placeholder {
+  color: var(--wb-placeholder);
+}
+.wb13-cmdk-esc {
+  font-family: var(--wb-font-mono);
+  font-size: 10.5px;
+  color: var(--wb-faint);
+  border: 1px solid var(--wb-line);
+  border-radius: 5px;
+  padding: 1px 6px;
+}
+.wb13-cmdk-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  max-height: 360px;
+  overflow: auto;
+}
+.wb13-cmdk-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: var(--wb-ink-2);
+  padding: 9px 11px;
+  border-radius: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.wb13-cmdk-item svg {
+  width: 16px;
+  height: 16px;
+  color: var(--wb-muted);
+  flex: none;
+}
+.wb13-cmdk-item.is-active {
+  background: var(--wb-accent-tint);
+  color: var(--wb-ink);
+}
+.wb13-cmdk-item.is-active svg {
+  color: var(--wb-accent);
+}
+.wb13-cmdk-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb13-cmdk-hint {
+  font-family: var(--wb-font-mono);
+  font-size: 10.5px;
+  color: var(--wb-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.wb13-cmdk-empty {
+  padding: 18px 16px;
+  color: var(--wb-muted);
+  font-size: 13.5px;
+}
 `;

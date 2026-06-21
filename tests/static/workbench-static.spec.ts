@@ -3126,3 +3126,35 @@ test('static auth: protected Workbench route redirects to welcome without token'
   await expect(page).toHaveURL(/\/v2\/welcome$/);
   await expect(page.getByRole('heading', { name: 'IronClaw Desktop' })).toBeVisible();
 });
+
+test('static workbench: Cmd+K command palette navigates and composes', async ({ page }) => {
+  await installWorkbenchMocks(page, {});
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByTestId('workbench-page').waitFor({ state: 'visible' });
+
+  // Opens from the keyboard, input autofocused (one Bridge surface, DESIGN.md Law 3).
+  await page.keyboard.press('Control+k');
+  const palette = page.getByTestId('workbench-command-palette');
+  await expect(palette).toBeVisible();
+  await expect(page.getByTestId('workbench-command-input')).toBeFocused();
+
+  // Navigate: filter to a nav command and run it.
+  await page.getByTestId('workbench-command-input').fill('memory');
+  await page.getByTestId('workbench-command-item').filter({ hasText: 'Go to Memory' }).click();
+  await expect(palette).toHaveCount(0);
+  await expect(page.getByTestId('workbench-memory')).toBeVisible();
+
+  // Compose: free text becomes "Ask IronClaw" and prefills the command box (never auto-sent).
+  await page.keyboard.press('Control+k');
+  await page.getByTestId('workbench-command-input').fill('draft a counter to northwind');
+  await page.getByTestId('workbench-command-item').filter({ hasText: 'Ask IronClaw' }).click();
+  await expect(page.getByTestId('workbench-brief-input')).toHaveValue(
+    'draft a counter to northwind'
+  );
+
+  // Esc dismisses.
+  await page.keyboard.press('Control+k');
+  await expect(palette).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(palette).toHaveCount(0);
+});

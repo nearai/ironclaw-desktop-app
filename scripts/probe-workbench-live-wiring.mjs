@@ -594,9 +594,10 @@ function redactText(value, token) {
 function directConnectorDiagnosticPrompt() {
   return [
     'Read-only diagnostic.',
-    'If the Chat runtime exposes connector tools, use a read-only Gmail inbox connector tool to fetch at most one inbox item.',
+    'If the Chat runtime exposes the Composio connector tool, call it with action="connected_accounts" and app="gmail" only.',
+    'If Composio is not exposed but first-party source tools are exposed, use a read-only Gmail inbox/list tool for at most one item.',
     'Do not send, draft, delete, post, schedule, or mutate anything.',
-    'Do not quote any email subject, sender, body, identifier, or private content.',
+    'Do not execute a Composio app action, and do not quote any account id, email subject, sender, body, identifier, or private content.',
     'Reply only with: DIRECT_CONNECTOR_PROBE_DONE tool_used=yes|no reason=<short generic reason>.'
   ].join(' ');
 }

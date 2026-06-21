@@ -57,6 +57,7 @@ import { MemoryView } from './components/workbench-memory.js';
 import { WorkPacketPreview } from './components/workbench-packet.js';
 import { WorkbenchSceneWorkspace } from './components/workbench-scenes.js';
 import { WorkbenchDock, WorkbenchNav, WorkbenchTop } from './components/workbench-shell.js';
+import { WorkbenchCommandPalette } from './components/workbench-command-palette.js';
 import { WorkbenchSourcesInspector } from './components/workbench-sources-inspector.js';
 import { WorkModeInspector } from './components/workbench-work-mode.js';
 import { WORKBENCH_STYLE } from './workbench-styles.js';
@@ -348,6 +349,86 @@ export function WorkbenchPage() {
   const [showSources, setShowSources] = React.useState(false);
   const [showCadence, setShowCadence] = React.useState(false);
   const [showWorkMode, setShowWorkMode] = React.useState(false);
+  const [paletteOpen, setPaletteOpen] = React.useState(false);
+
+  // Cmd/Ctrl+K toggles the command palette from anywhere on the Workbench
+  // (DESIGN.md Law 3: one Bridge surface for command + search).
+  React.useEffect(() => {
+    const onKey = (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen((value) => !value);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
+  const paletteCommands = React.useMemo(
+    () => [
+      {
+        id: 'nav-work',
+        label: 'Go to Work',
+        icon: 'layers',
+        keywords: 'home triage queue',
+        run: () => setView('home')
+      },
+      {
+        id: 'nav-memory',
+        label: 'Go to Memory',
+        icon: 'book',
+        keywords: 'context preferences',
+        run: () => setView('memory')
+      },
+      {
+        id: 'nav-library',
+        label: 'Go to Library',
+        icon: 'file',
+        keywords: 'saved work packets',
+        run: () => setView('library')
+      },
+      {
+        id: 'nav-chat',
+        label: 'Open Chat',
+        icon: 'chat',
+        keywords: 'thread conversation',
+        run: () => navigate('/chat')
+      },
+      {
+        id: 'nav-automations',
+        label: 'Automations',
+        icon: 'clock',
+        keywords: 'recurring schedule',
+        run: () => navigate('/automations')
+      },
+      {
+        id: 'nav-tools',
+        label: 'Tools & connectors',
+        icon: 'plug',
+        keywords: 'extensions composio mcp sources',
+        run: () => navigate('/extensions/registry')
+      },
+      {
+        id: 'nav-settings',
+        label: 'Settings',
+        icon: 'settings',
+        keywords: 'model inference account',
+        run: () => navigate('/settings/inference')
+      }
+    ],
+    [navigate]
+  );
+
+  // Compose from the palette: prefill the command box and surface Home — never
+  // auto-send (the user reviews + hits Ask), so it sidesteps the start hook's
+  // closure timing and keeps the gated posture.
+  const composeFromPalette = React.useCallback(
+    (text) => {
+      setBrief(text);
+      setView('home');
+    },
+    [setBrief]
+  );
   // The inbox row/decision card currently open in the reading panel. Carries
   // the row's { messageId, threadId, sender, subject } so the panel can fetch
   // the full message (READ tool) and render the header while it loads.
@@ -961,6 +1042,12 @@ export function WorkbenchPage() {
           result=${draftResult}
           onCancel=${closeDraft}
           onSubmit=${submitDraft}
+        />
+        <${WorkbenchCommandPalette}
+          open=${paletteOpen}
+          onClose=${() => setPaletteOpen(false)}
+          commands=${paletteCommands}
+          onCompose=${composeFromPalette}
         />
       </div>
     </div>
