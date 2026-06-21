@@ -53,11 +53,11 @@ Loop:
 
 Hard rule:
 Do not claim "live MCP/direct tool use works" unless
-`--require-direct-connector-chat` passes. As of the 2026-06-21 13:22 EDT
+`--require-direct-connector-chat` passes. As of the 2026-06-21 13:38 EDT
 probe, this gate passes against the rebuilt sidecar with `connected-sources.read`
-activated, OpenRouter `openai/gpt-4o-mini`, one durable `/timeline` tool signal,
-live SSE tool activity, and fresh post-run SSE replay of the same connector
-invocation.
+activated, a working disposable OpenRouter profile, one durable `/timeline` tool
+signal, live SSE tool activity, and fresh post-run SSE replay of the same
+connector invocation.
 ```
 
 ## Current Truth
@@ -65,15 +65,17 @@ invocation.
 The old sidecar task files in
 `/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-agent-worktrees/`
 are stale v8 visual implementation prompts. As of this update, Claude Code
-processes are still running/resumed, but the active `claude` processes report
-`cwd = ~/openclaw-knowledge`; the agent worktree reports under
-`ironclaw-agent-worktrees/claude` and `ironclaw-agent-worktrees/cursor` are stale
-11:24 EDT handoff notes. The worktrees have no tracked desktop edits.
+processes are still running/resumed. One active `claude` process reports
+`cwd = ironclaw-agent-worktrees/claude`; other Claude processes report
+`cwd = ~/openclaw-knowledge`. The agent worktree reports under
+`ironclaw-agent-worktrees/claude` and `ironclaw-agent-worktrees/cursor` are
+stale 11:24 EDT handoff notes. The worktrees have no tracked desktop edits.
 
 Use the main desktop repo branch above as the source of truth.
 
 Recent branch heads before this diagnostic support note:
 
+- `6445d6e fix(workbench): block starts when model catalog fails`
 - `6590d94 test(workbench): count timeline tool preview envelopes`
 - `361e4e3 feat(workbench): replay live tool activity in run preview`
 - `4bf3907 docs(workbench): refresh live wiring replay evidence`
@@ -153,15 +155,16 @@ Current non-blocking caveats:
   route, so the probe verdict is `WARN` even with zero failed checks.
 - The persisted user-default provider currently points at `nearai` /
   `zai-org/GLM-5.1-FP8` with `api_key_env = "NEARAI_API_KEY"`. This shell has
-  `OPENROUTER_API_KEY` but no `NEARAI_API_KEY`, so the user-default provider
-  probe is expected to fail the model turn with `model_credentials_unavailable`
-  even though connected data remains live.
+  `OPENROUTER_API_KEY` but no `NEARAI_API_KEY`. The user-default provider probe
+  now mirrors Workbench's model-catalog preflight: connected data remains live,
+  but Chat handoff is skipped when the active NEAR AI Cloud model catalog cannot
+  be verified. Use `--force-chat-handoff` only for deliberate backend diagnosis.
 
-Fresh artifacts from the 2026-06-21 13:24 EDT support pass:
+Fresh artifacts from the 2026-06-21 13:38 EDT support pass:
 
 - Latest full Workbench + direct Chat required gate after Workbench SSE-preview
   wiring and timeline-envelope probe parsing:
-  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-22-12-969Z/probe.json`
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-38-32-312Z/probe.json`
   - verdict `WARN`, with zero failed checks
   - ready families `gmail/calendar/drive/notion/slack/github`
   - live row counts:
@@ -182,7 +185,8 @@ Fresh artifacts from the 2026-06-21 13:24 EDT support pass:
   - live row counts `3/3/3/3/3/0`
   - Workbench Ask completed with assistant reply, live source status, and live
     row packet preserved
-- Direct Chat required gate:
+- Earlier failing direct Chat required gate, now superseded by the
+  `connected-sources.read` bridge and the 13:38 required gate above:
   `/tmp/ironclaw-workbench-live-wiring-2026-06-21T15-26-20-272Z/probe.json`
   - deterministic Workbench path still completed
   - direct Chat thread/send accepted, but no assistant/tool result after `32`
@@ -192,14 +196,14 @@ Fresh artifacts from the 2026-06-21 13:24 EDT support pass:
   - first-party source activation remained blocked by setup in the disposable
     profile
 - User-default provider truth:
-  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-24-24-154Z/probe.json`
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-38-06-485Z/probe.json`
   - connected data still live
   - `8` accounts; ready families `gmail/calendar/drive/notion/slack/github`
   - live row counts `3/3/3/3/3/0`
-  - active `nearai` / `zai-org/GLM-5.1-FP8` failed the assistant turn with
-    `model_credentials_unavailable`
-  - Workbench request, live source status, and live source packet still landed
-    in the timeline
+  - active `nearai` / `zai-org/GLM-5.1-FP8` failed the model catalog check
+  - `summary.workbench_start_preflight.blocked=true`
+  - Workbench Ask was skipped with `skip_reason=workbench_start_preflight`
+  - no Chat handoff was sent, matching the current UI behavior
 - Connected Sources bridge probe after rebuilding the staged sidecar:
   `/tmp/ironclaw-workbench-live-wiring-2026-06-21T16-06-00-180Z/probe.json`
   - deterministic connector reads still worked with `8` live accounts and
@@ -292,6 +296,11 @@ User-default provider truth:
 ```bash
 node scripts/probe-workbench-live-wiring.mjs --json
 ```
+
+This command should mirror the Workbench UI. If the active provider fails the
+model-catalog preflight, the probe should keep connected-data checks but skip
+Chat handoff. Add `--force-chat-handoff` only when intentionally diagnosing the
+backend path behind the UI blocker.
 
 Do not run destructive auth cleanup. Do not mutate the user's persisted Reborn
 profile unless explicitly instructed. The OpenRouter probe path copies the
@@ -409,6 +418,8 @@ Actions:
 
 - Run the default provider probe without `--llm-backend=openrouter`.
 - If it fails with model credentials or model catalog issues, do not hide it.
+  The expected current behavior is `workbench_start_preflight.blocked=true` and
+  no Chat handoff unless `--force-chat-handoff` is explicitly passed.
 - Confirm whether Settings can switch to a working provider/model.
 - If frontend can expose the provider blocker more clearly in Workbench, make a
   narrow, tested copy or state fix.

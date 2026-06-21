@@ -19,6 +19,7 @@ import {
   buildWorkbenchLiveSourceStatus
 } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-plan.js';
 import { normalizeSlackBlockers } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-slack.js';
+import { modelCatalogBlockReason } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/hooks/useWorkbenchStart.js';
 
 const RELEVANT_EXTENSION_IDS = Object.freeze([
   'custom-mcp',
@@ -41,6 +42,7 @@ const probeOauthStart = args.has('--probe-oauth-start');
 const jsonOnly = args.has('--json');
 const skipConnectorReads = args.has('--skip-connector-reads');
 const skipChatHandoff = args.has('--skip-chat-handoff');
+const forceChatHandoff = args.has('--force-chat-handoff');
 const probeDirectConnectorChat =
   args.has('--probe-direct-connector-chat') || args.has('--require-direct-connector-chat');
 const requireDirectConnectorChat = args.has('--require-direct-connector-chat');
@@ -991,7 +993,18 @@ function evaluateProbe(result) {
 
   const handoff = result.workbench?.chat_handoff;
   if (handoff?.skipped) {
-    warn('Workbench Ask chat handoff skipped by flag');
+    if (handoff.skip_reason === 'workbench_start_preflight') {
+      check(
+        'Workbench start preflight blocks failed model access',
+        Boolean(handoff.preflight_reason),
+        {
+          reason: handoff.preflight_reason || '',
+          forced: Boolean(handoff.force_chat_handoff)
+        }
+      );
+    } else {
+      warn('Workbench Ask chat handoff skipped by flag');
+    }
   } else {
     check('Workbench Ask creates a real Chat thread', handoff?.thread_status === 200, {
       status: handoff?.thread_status ?? null,
@@ -1195,6 +1208,17 @@ function diagnosticHints(result) {
     });
   }
 
+  if (
+    result.llm?.active_provider?.id === 'nearai' &&
+    result.workbench?.start_preflight?.blocked === true
+  ) {
+    hints.push({
+      code: 'workbench_preflight_blocked_nearai_model_catalog',
+      detail:
+        'Workbench did not send a Chat handoff because the active NEAR AI profile could not verify its model catalog. Connected data can still be live while provider access needs refresh or a working active provider.'
+    });
+  }
+
   return hints;
 }
 
@@ -1220,6 +1244,12 @@ function buildProbeSummary(result) {
         .map((family) => family.id),
       live_row_counts: result.workbench?.live_source_data_counts || {}
     },
+    workbench_start_preflight: {
+      blocked: Boolean(result.workbench?.start_preflight?.blocked),
+      reason: result.workbench?.start_preflight?.reason || '',
+      source: result.workbench?.start_preflight?.source || null,
+      force_chat_handoff: Boolean(result.workbench?.start_preflight?.force_chat_handoff)
+    },
     chat_source_tools: {
       activation_requested: Boolean(result.extension_activation?.requested),
       activation_mode: result.extension_activation?.mode || null,
@@ -1236,6 +1266,7 @@ function buildProbeSummary(result) {
     },
     workbench_ask: {
       skipped: Boolean(handoff.skipped),
+      skip_reason: handoff.skip_reason || null,
       thread_status: handoff.thread_status ?? null,
       send_status: handoff.send_status ?? null,
       send_outcome: handoff.send_outcome || null,
@@ -1349,6 +1380,12 @@ async function main() {
       connector_families: [],
       live_source_status: '',
       live_source_data_counts: {},
+      start_preflight: {
+        blocked: false,
+        reason: '',
+        source: null,
+        force_chat_handoff: forceChatHandoff
+      },
       chat_handoff: {
         skipped: skipChatHandoff
       },
@@ -1415,6 +1452,17 @@ async function main() {
         message: 'active provider does not advertise model-list support'
       };
     }
+    const preflightReason = modelCatalogBlockReason({
+      activeProvider: result.llm.active_provider,
+      modelsResult: result.llm.models,
+      modelsLoading: false
+    });
+    result.workbench.start_preflight = {
+      blocked: Boolean(preflightReason),
+      reason: preflightReason,
+      source: preflightReason ? 'model_catalog' : null,
+      force_chat_handoff: forceChatHandoff
+    };
 
     const extensions = await request('GET', '/api/webchat/v2/extensions');
     result.route_status.extensions = extensions.status;
@@ -1620,180 +1668,190 @@ async function main() {
       }
     }
 
+    const liveSourceData = liveSourceDataFromRows(connectorReadRowsById);
+    const liveSourcePacket = buildWorkbenchLiveSourcePacket(liveSourceData);
+    result.workbench.live_source_data_counts = liveSourceDataCounts(liveSourceData);
+
     if (!skipChatHandoff) {
-      const readyFamilies = (result.workbench.connector_families || []).filter(
-        (family) => family?.state === 'ready'
-      );
-      const liveSourceData = liveSourceDataFromRows(connectorReadRowsById);
-      const liveSourcePacket = buildWorkbenchLiveSourcePacket(liveSourceData);
-      result.workbench.live_source_data_counts = liveSourceDataCounts(liveSourceData);
-      const activeModel =
-        result.llm?.active?.model ||
-        result.llm?.active?.model_id ||
-        result.llm?.active?.default_model ||
-        'auto';
-      const liveSourceStatus =
-        result.workbench.live_source_status ||
-        buildWorkbenchLiveSourceStatus({
-          connectorFamilies: result.workbench.connector_families
-        });
-      const handoffBrief =
-        'Non-mutating Workbench live wiring probe. Confirm that this request reached the live Chat runtime. Do not read connectors, send, post, file, schedule, or change external systems.';
-      const draft = buildWorkbenchChatDraft({
-        brief: handoffBrief,
-        modelId: activeModel,
-        modelLabel: activeModel,
-        effort: 'standard',
-        sourceMode: 'manual',
-        sourceIds: [],
-        cadence: '',
-        connectorFamilies: result.workbench.connector_families,
-        liveSourceData
-      });
-      const requestedThreadId = `workbench-live-handoff-${randomUUID()}`;
-      const thread = await request('POST', '/api/webchat/v2/threads', {
-        client_action_id: `workbench-live-handoff-thread-${stamp}`,
-        requested_thread_id: requestedThreadId
-      });
-      const threadId =
-        thread.body?.thread_id || thread.body?.thread?.thread_id || requestedThreadId;
-      const handoff = {
-        skipped: false,
-        thread_status: thread.status,
-        thread_id_returned: Boolean(thread.body?.thread_id || thread.body?.thread?.thread_id),
-        send_status: null,
-        send_accepted: false,
-        send_outcome: null,
-        run_id: null,
-        event_stream_status: null,
-        event_stream_error: null,
-        replay_event_stream_status: null,
-        replay_event_stream_error: null,
-        sse_run_status_sequence: [],
-        has_run_id: false,
-        timeline_status: null,
-        timeline_attempts: 0,
-        timeline_max_attempts: chatMaxAttempts,
-        timeline_poll_ms: chatPollMs,
-        timeline_message_count: 0,
-        timeline_has_workbench_request: false,
-        timeline_has_live_source_status: false,
-        timeline_has_assistant_reply: false,
-        timeline_terminal_status: null,
-        timeline_terminal_failed: false,
-        timeline_failure_category: null,
-        timeline_failure_summary: null,
-        expected_ready_family_count: readyFamilies.length,
-        observed_ready_family_count: 0,
-        observed_ready_families: [],
-        expected_live_source_packet: Boolean(liveSourcePacket),
-        timeline_has_live_source_packet: false,
-        live_source_data_counts: result.workbench.live_source_data_counts,
-        draft_preview: {
-          has_workbench_request_header: draft.includes('Workbench request'),
-          live_source_status: liveSourceStatus,
-          has_live_source_packet: Boolean(liveSourcePacket)
-        }
-      };
-      let runStatusStream = null;
-
-      if (thread.ok) {
-        runStatusStream = startRunStatusStream({
-          origin,
-          token,
-          threadId,
-          onStatus: (summary) => applyRunStatusToHandoff(handoff, summary)
-        });
-        const send = await request(
-          'POST',
-          `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/messages`,
-          {
-            client_action_id: `workbench-live-handoff-message-${stamp}`,
-            content: draft
-          }
+      if (result.workbench.start_preflight.blocked && !forceChatHandoff) {
+        result.workbench.chat_handoff = {
+          skipped: true,
+          skip_reason: 'workbench_start_preflight',
+          preflight_reason: result.workbench.start_preflight.reason,
+          force_chat_handoff: false
+        };
+      } else {
+        const readyFamilies = (result.workbench.connector_families || []).filter(
+          (family) => family?.state === 'ready'
         );
-        handoff.send_status = send.status;
-        handoff.send_outcome = send.body?.outcome || null;
-        handoff.run_id = send.body?.run_id || send.body?.run?.run_id || null;
-        handoff.has_run_id = Boolean(handoff.run_id);
-        handoff.send_accepted =
-          send.ok &&
-          (Boolean(send.body?.accepted_message_ref) ||
-            Boolean(send.body?.message_id) ||
-            Boolean(send.body?.turn_id) ||
-            Boolean(send.body?.run_id) ||
-            send.body?.outcome === 'submitted' ||
-            send.body?.outcome === 'accepted');
+        const activeModel =
+          result.llm?.active?.model ||
+          result.llm?.active?.model_id ||
+          result.llm?.active?.default_model ||
+          'auto';
+        const liveSourceStatus =
+          result.workbench.live_source_status ||
+          buildWorkbenchLiveSourceStatus({
+            connectorFamilies: result.workbench.connector_families
+          });
+        const handoffBrief =
+          'Non-mutating Workbench live wiring probe. Confirm that this request reached the live Chat runtime. Do not read connectors, send, post, file, schedule, or change external systems.';
+        const draft = buildWorkbenchChatDraft({
+          brief: handoffBrief,
+          modelId: activeModel,
+          modelLabel: activeModel,
+          effort: 'standard',
+          sourceMode: 'manual',
+          sourceIds: [],
+          cadence: '',
+          connectorFamilies: result.workbench.connector_families,
+          liveSourceData
+        });
+        const requestedThreadId = `workbench-live-handoff-${randomUUID()}`;
+        const thread = await request('POST', '/api/webchat/v2/threads', {
+          client_action_id: `workbench-live-handoff-thread-${stamp}`,
+          requested_thread_id: requestedThreadId
+        });
+        const threadId =
+          thread.body?.thread_id || thread.body?.thread?.thread_id || requestedThreadId;
+        const handoff = {
+          skipped: false,
+          thread_status: thread.status,
+          thread_id_returned: Boolean(thread.body?.thread_id || thread.body?.thread?.thread_id),
+          send_status: null,
+          send_accepted: false,
+          send_outcome: null,
+          run_id: null,
+          event_stream_status: null,
+          event_stream_error: null,
+          replay_event_stream_status: null,
+          replay_event_stream_error: null,
+          sse_run_status_sequence: [],
+          has_run_id: false,
+          timeline_status: null,
+          timeline_attempts: 0,
+          timeline_max_attempts: chatMaxAttempts,
+          timeline_poll_ms: chatPollMs,
+          timeline_message_count: 0,
+          timeline_has_workbench_request: false,
+          timeline_has_live_source_status: false,
+          timeline_has_assistant_reply: false,
+          timeline_terminal_status: null,
+          timeline_terminal_failed: false,
+          timeline_failure_category: null,
+          timeline_failure_summary: null,
+          expected_ready_family_count: readyFamilies.length,
+          observed_ready_family_count: 0,
+          observed_ready_families: [],
+          expected_live_source_packet: Boolean(liveSourcePacket),
+          timeline_has_live_source_packet: false,
+          live_source_data_counts: result.workbench.live_source_data_counts,
+          draft_preview: {
+            has_workbench_request_header: draft.includes('Workbench request'),
+            live_source_status: liveSourceStatus,
+            has_live_source_packet: Boolean(liveSourcePacket)
+          }
+        };
+        let runStatusStream = null;
 
-        if (send.ok) {
-          for (let attempt = 1; attempt <= chatMaxAttempts; attempt += 1) {
-            await delay(chatPollMs);
-            const timeline = await request(
-              'GET',
-              `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/timeline?limit=20`
-            );
-            handoff.timeline_status = timeline.status;
-            handoff.timeline_attempts = attempt;
-            const messages = timelineMessages(timeline.body);
-            handoff.timeline_message_count = messages.length;
-            const userText = messages
-              .filter((message) => {
-                const kind = messageKind(message);
-                return kind === 'user' || kind === 'user_message';
-              })
-              .map(messageContent)
-              .join('\n');
-            const assistantText = messages
-              .filter((message) => {
-                const kind = messageKind(message);
-                return kind === 'assistant' || kind === 'assistant_message';
-              })
-              .map(messageContent)
-              .join('\n');
-            handoff.timeline_has_assistant_reply = assistantText.trim().length > 0;
-            handoff.timeline_has_workbench_request =
-              userText.includes('Workbench request') && userText.includes(handoffBrief);
-            handoff.timeline_has_live_source_status =
-              userText.includes('- Live source status:') && userText.includes(liveSourceStatus);
-            handoff.timeline_has_live_source_packet =
-              !liveSourcePacket ||
-              (userText.includes('Live connector rows already loaded in Workbench:') &&
-                userText.includes('Use this packet as current context.'));
-            const terminalFromTimeline = timelineRunStatuses(timeline.body, messages).find((item) =>
-              TERMINAL_RUN_STATUSES.has(item.status)
-            );
-            if (terminalFromTimeline && !handoff.timeline_terminal_status) {
-              handoff.timeline_terminal_status = terminalFromTimeline.status;
-              handoff.timeline_terminal_failed = FAILURE_RUN_STATUSES.has(
-                terminalFromTimeline.status
-              );
-              handoff.timeline_failure_category = terminalFromTimeline.failure_category || null;
-              handoff.timeline_failure_summary = terminalFromTimeline.failure_summary || null;
+        if (thread.ok) {
+          runStatusStream = startRunStatusStream({
+            origin,
+            token,
+            threadId,
+            onStatus: (summary) => applyRunStatusToHandoff(handoff, summary)
+          });
+          const send = await request(
+            'POST',
+            `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/messages`,
+            {
+              client_action_id: `workbench-live-handoff-message-${stamp}`,
+              content: draft
             }
-            handoff.observed_ready_families = readyFamilies
-              .map((family) => family.id)
-              .filter((id) => {
-                const label = readyFamilies.find((family) => family.id === id)?.label || id || '';
-                return userText.includes(label);
-              });
-            handoff.observed_ready_family_count = handoff.observed_ready_families.length;
-            if (
-              handoff.timeline_has_workbench_request &&
-              handoff.timeline_has_live_source_status &&
-              handoff.timeline_has_live_source_packet &&
-              (handoff.timeline_has_assistant_reply || handoff.timeline_terminal_status)
-            ) {
-              break;
+          );
+          handoff.send_status = send.status;
+          handoff.send_outcome = send.body?.outcome || null;
+          handoff.run_id = send.body?.run_id || send.body?.run?.run_id || null;
+          handoff.has_run_id = Boolean(handoff.run_id);
+          handoff.send_accepted =
+            send.ok &&
+            (Boolean(send.body?.accepted_message_ref) ||
+              Boolean(send.body?.message_id) ||
+              Boolean(send.body?.turn_id) ||
+              Boolean(send.body?.run_id) ||
+              send.body?.outcome === 'submitted' ||
+              send.body?.outcome === 'accepted');
+
+          if (send.ok) {
+            for (let attempt = 1; attempt <= chatMaxAttempts; attempt += 1) {
+              await delay(chatPollMs);
+              const timeline = await request(
+                'GET',
+                `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/timeline?limit=20`
+              );
+              handoff.timeline_status = timeline.status;
+              handoff.timeline_attempts = attempt;
+              const messages = timelineMessages(timeline.body);
+              handoff.timeline_message_count = messages.length;
+              const userText = messages
+                .filter((message) => {
+                  const kind = messageKind(message);
+                  return kind === 'user' || kind === 'user_message';
+                })
+                .map(messageContent)
+                .join('\n');
+              const assistantText = messages
+                .filter((message) => {
+                  const kind = messageKind(message);
+                  return kind === 'assistant' || kind === 'assistant_message';
+                })
+                .map(messageContent)
+                .join('\n');
+              handoff.timeline_has_assistant_reply = assistantText.trim().length > 0;
+              handoff.timeline_has_workbench_request =
+                userText.includes('Workbench request') && userText.includes(handoffBrief);
+              handoff.timeline_has_live_source_status =
+                userText.includes('- Live source status:') && userText.includes(liveSourceStatus);
+              handoff.timeline_has_live_source_packet =
+                !liveSourcePacket ||
+                (userText.includes('Live connector rows already loaded in Workbench:') &&
+                  userText.includes('Use this packet as current context.'));
+              const terminalFromTimeline = timelineRunStatuses(timeline.body, messages).find(
+                (item) => TERMINAL_RUN_STATUSES.has(item.status)
+              );
+              if (terminalFromTimeline && !handoff.timeline_terminal_status) {
+                handoff.timeline_terminal_status = terminalFromTimeline.status;
+                handoff.timeline_terminal_failed = FAILURE_RUN_STATUSES.has(
+                  terminalFromTimeline.status
+                );
+                handoff.timeline_failure_category = terminalFromTimeline.failure_category || null;
+                handoff.timeline_failure_summary = terminalFromTimeline.failure_summary || null;
+              }
+              handoff.observed_ready_families = readyFamilies
+                .map((family) => family.id)
+                .filter((id) => {
+                  const label = readyFamilies.find((family) => family.id === id)?.label || id || '';
+                  return userText.includes(label);
+                });
+              handoff.observed_ready_family_count = handoff.observed_ready_families.length;
+              if (
+                handoff.timeline_has_workbench_request &&
+                handoff.timeline_has_live_source_status &&
+                handoff.timeline_has_live_source_packet &&
+                (handoff.timeline_has_assistant_reply || handoff.timeline_terminal_status)
+              ) {
+                break;
+              }
             }
           }
         }
+        await stopRunStatusStream(runStatusStream);
+        if (runStatusStream) {
+          handoff.event_stream_status = runStatusStream.status;
+          handoff.event_stream_error = runStatusStream.error;
+        }
+        result.workbench.chat_handoff = handoff;
       }
-      await stopRunStatusStream(runStatusStream);
-      if (runStatusStream) {
-        handoff.event_stream_status = runStatusStream.status;
-        handoff.event_stream_error = runStatusStream.error;
-      }
-      result.workbench.chat_handoff = handoff;
     }
 
     if (probeDirectConnectorChat) {

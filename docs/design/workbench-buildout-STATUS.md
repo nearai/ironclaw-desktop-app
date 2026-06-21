@@ -5,15 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
-## Current live truth (2026-06-21 13:24 EDT)
+## Current live truth (2026-06-21 13:38 EDT)
 
 - This supersedes earlier "PASS" notes that proved Workbench Ask reached Chat and persisted the user request, but did **not**
   require a real assistant result. The live probe now fails unless the model produces an assistant reply or reports a clean
   terminal success.
 - Latest full Workbench + direct Chat required-gate artifact:
-  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-22-12-969Z/probe.json`.
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-38-32-312Z/probe.json`.
 - Latest user-default provider artifact:
-  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-24-24-154Z/probe.json`.
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-38-06-485Z/probe.json`.
 - **PASS with a disposable provider profile:** `node scripts/probe-workbench-live-wiring.mjs --llm-backend=openrouter --json`
   copies `~/.ironclaw/reborn` to a temporary Reborn home, activates OpenRouter only in that copy, and deletes the copy after
   the run. It does **not** mutate the user's persisted provider config.
@@ -35,21 +35,25 @@
   `capability_display_preview` envelopes stored in timeline message content. The latest probe records
   `timeline_tool_signal_count=1`.
 - **Still true for the persisted local profile:** active provider `nearai` / `zai-org/GLM-5.1-FP8` cannot currently complete a
-  Chat run on this machine. The current hardened run reports `model_credentials_unavailable` and no assistant reply while
-  connected data remains live. Local config points at `api_key_env = "NEARAI_API_KEY"`, but this shell exposes
-  `OPENROUTER_API_KEY` and no `NEARAI_API_KEY`. Refresh NEAR AI credentials or explicitly switch the persisted active
-  provider before claiming the user-default app profile is end-to-end green.
+  Workbench run on this machine. The current hardened run proves connected data remains live, then blocks before Chat handoff
+  because the active NEAR AI Cloud provider advertises model listing but the model catalog check fails. Local config points
+  at `api_key_env = "NEARAI_API_KEY"`, but this shell exposes `OPENROUTER_API_KEY` and no `NEARAI_API_KEY`. Refresh NEAR AI
+  credentials or explicitly switch the persisted active provider before claiming the user-default app profile is end-to-end
+  green.
 - **PASS:** Workbench now preflights the active provider's model catalog when the provider advertises model-list support.
   If the active NEAR AI Cloud catalog check returns `ok:false` or errors, Ask is disabled with provider-access copy instead
   of starting a known-doomed Chat run. Providers that do not advertise model-list support, such as the proven OpenRouter
   disposable profile, are not blocked by this guard.
+- **PASS:** the live probe now uses that same Workbench preflight contract. The user-default probe reports
+  `workbench_start_preflight.blocked=true` and skips Chat handoff unless `--force-chat-handoff` is passed for backend
+  diagnosis. This prevents future evidence from overclaiming by sending work that the UI would now correctly refuse.
 - Current product truth: the Workbench can read live connected data, hand bounded source context to Chat, and complete an
   assistant answer when a working provider is active. The user-default profile is blocked on provider/auth truth, not on
   Workbench connector wiring.
-- Sidecar coordination: Claude Code processes are still running/resumed, but their `cwd` is `~/openclaw-knowledge`, while
-  the `ironclaw-agent-worktrees/claude` and `ironclaw-agent-worktrees/cursor` reports are stale 11:24 EDT handoff notes
-  with no tracked desktop edits. Safe support path right now is contained QA/probe/docs plus provider/auth fixes, not visual
-  rewrites that would step on sidecars.
+- Sidecar coordination: a Claude Code process is running in `ironclaw-agent-worktrees/claude`, and other Claude processes
+  are still running/resumed from `~/openclaw-knowledge`. The `ironclaw-agent-worktrees/claude` and
+  `ironclaw-agent-worktrees/cursor` reports are stale 11:24 EDT handoff notes with no tracked desktop edits. Safe support
+  path right now is contained QA/probe/docs plus provider/auth fixes, not visual rewrites that would step on sidecars.
 
 ## Gate baseline (green restore point)
 
@@ -168,6 +172,7 @@ so this keeps the branch always-green + consistent. The green gate is the coordi
 - 2026-06-21 13:22 EDT — **Probe now proves completed connector activity also lands in `/timeline`.** Fixed the live probe to parse `capability_display_preview` JSON envelopes stored inside timeline message content. Fresh artifact `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-22-12-969Z/probe.json`: zero failed checks; Workbench Ask completed; direct Chat required gate passed with `tool_activity_seen=true`, `tool_signal_count=5`, `timeline_tool_signal_count=1`, `sse_tool_signal_count=2`, and `replay_sse_tool_signal_count=2`. The connected-data path now has durable timeline, live SSE, and replay-SSE evidence.
 - 2026-06-21 13:24 EDT — **User-default provider truth rerun; blocker is local NEAR auth, not connected data.** Fresh artifact `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-24-24-154Z/probe.json`: verdict `FAIL` because the user-default provider is `nearai` / `zai-org/GLM-5.1-FP8` and the assistant run fails with `model_credentials_unavailable`. The same run still proves live connected data: `8` accounts, ready families `gmail/calendar/drive/notion/slack/github`, live row counts `3/3/3/3/3/0`, Workbench request persisted, live source status preserved, and the live source packet preserved. Local config says `api_key_env = "NEARAI_API_KEY"`; this shell has `OPENROUTER_API_KEY` but no `NEARAI_API_KEY`.
 - 2026-06-21 13:32 EDT — **Workbench now blocks the current user-default provider failure before a doomed Chat send.** Added a model-catalog preflight to the Workbench start hook: if the active provider advertises model listing and `/llm/list-models` fails or returns `ok:false`, the command surface disables Ask with "model access is not available" copy and never posts to Chat. This covers the current NEAR failure mode from the 13:24 artifact while preserving the OpenRouter proof path, because OpenRouter does not advertise model-list support. Validation green: focused hook test, focused Workbench Playwright regression, `npm run test:static` 787/787, full `tests/static/workbench-static.spec.ts` 68/68, `npm run smoke:webui-static`, bundle budget, static token lint, static copy lint, and `git diff --check`.
+- 2026-06-21 13:38 EDT — **Live probe now respects the same Workbench provider preflight.** Updated `scripts/probe-workbench-live-wiring.mjs` so the user-default path computes `modelCatalogBlockReason`, records `summary.workbench_start_preflight`, and skips Chat handoff when the UI would block Ask. Fresh user-default artifact `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-38-06-485Z/probe.json`: verdict `FAIL` only because `LLM model catalog is live` fails; connected data remains live with `8` accounts, ready families `gmail/calendar/drive/notion/slack/github`, and live row counts `3/3/3/3/3/0`; Workbench handoff is skipped with `skip_reason=workbench_start_preflight`. Fresh OpenRouter required-gate artifact `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-38-32-312Z/probe.json`: zero failed checks, Workbench Ask completed, direct Chat `connected-sources.read` required gate passed, durable timeline tool signal seen, live SSE tool activity seen, and post-run SSE replay seen. Validation green: `node --check scripts/probe-workbench-live-wiring.mjs`, `npm run test:scripts`, default provider probe, OpenRouter direct required gate, and `git diff --check`.
 - 08:55 — **Approvals route VERIFIED + PUSHED (#5109) + Phase 3 in-place approval gates LANDED (#4).** The background agent's gateway route (commit 249ccf667) was adversarially verified by a 3-lens workflow (build/route-table · auth/security · frontend-integration) → synthesis verdict **safe-to-push**: read-only, auth-safe (scope derived only from the authenticated caller, triple owner-scope, uniform 404 ownership guard, empty-feed short-circuit). **Real finding:** PR #5109's base f81b24550 (my connector commit) was GENUINELY RED on `route_table_has_exactly_the_expected_routes` (69≠66 — it added 3 routes without updating the contract test, and the GitHub status rollup never runs that cargo test); 249ccf667 backfills the expected table 66→70 (3 connector ids + LIST_APPROVALS) → green. Pushed 249ccf667 → **#5109 refreshed, contract test now green on branch**. ⚠️ #5109 is CONFLICTING against main — needs a rebase before merge (merge-time task; not blind-rebased now to protect the staged-binary provenance). **Frontend (verified integration, NOT the dead global path):** the global approvals rail can never populate (no backend emits `approvals_read` → capability gate permanently false; and `fetchApprovalsFeed` sent no thread_id). Correct fix shipped: `fetchApprovalsFeed` now takes a `thread_id`; the run card runs a per-thread approvals query scoped to `work.threadId`, gated on `Boolean(threadId)` NOT the capability flag, and renders pending gates **read-only** (resolve = real Phase-4 action, deliberately not wired). Static test asserts a pending gate renders read-only on the run card. Gate green: a11y/static 134/134, unit 779/0, smoke, DT-1..6, token/copy lint. Committed 5495a98 (#4). **Phase 3 now complete end-to-end** (inline timeline + run-states + in-place approval gates). Release rebuild of the unified+approvals binary compiling (detached) to re-stage `src-tauri/binaries/` so the REAL app serves `/approvals`; stage next tick.
 - 08:05 — **Backend: approvals-list route DISPATCHED (Phase 4 foundation); retry deferred.** Corrected an initial mis-read: `ironclaw_approvals` is a resolver, BUT the pending-gate read model DOES exist — `ApprovalInteractionService::list_pending(ListPendingApprovalsRequest) -> ListPendingApprovalsResponse{ approvals: Vec<PendingApprovalInteractionView> }` in `crates/ironclaw_product_workflow/src/approval_interaction/` (already called at workflow.rs:1220), and `PendingApprovalInteractionView` carries `scope.thread_id` / `run_id` / `gate_ref` / `summary` / `action` — exactly the frontend's `normalizeApprovalsFeed` contract. `resolve_gate` (handler → reborn_services trait → composition → service) is the exact sibling template. Dispatched a background agent (ad14c6d1) to add read-only `GET /api/webchat/v2/approvals` on `connector-route-on-main` (so the unified binary gains it alongside connectors), advertise `approvals_read`, `cargo build -p ironclaw_reborn_cli --features webui-v2-beta` + boot-and-curl verify (200 + `{approvals:[]}` when none pending, without regressing `/llm` + `/connectors`), commit-if-green, NO push/PR, BLOCKED+restore if not green. Run-card **retry** deferred: `startWorkbenchRequest` reads the brief from closure, so a clean retry needs refactoring the tested start hook (model-switch + attachments + draft persistence) to take an explicit brief — too much risk to the working Ask flow for a marginal button. **Honest queue state:** Phase 3 frontend complete on real data; Phase 4 read side (approvals) in flight; Phase 4 sends + accent fork + z.ai need you; Phase 5 memory/automations need writable + triggers backends.
 - 07:45 — **Design ground-truth check + Phase 3 run-states.** VIEWED the real rendered Workbench (docs/design/screenshots/workbench-home-{light,dark}.png): serif (Newsreader) renders crisp in both themes, dark mode is deep-navy with the teal/blue accent — the "tired fonts" was the pre-fix unloaded-font state, now resolved; design is in solid shape, so no speculative restyle. Completed Phase 3 run-states on real timeline data: a landed assistant reply = done; a failed tool with no recovery reply = an honest "Needs attention" (danger) marker; otherwise "Working…". No fabricated states. New static test asserts the failed-no-reply case. Gate green: a11y/static 133/133, unit 779/0, smoke, DT-1..6, token/copy lint. Committed 389ac50, pushed (PR #4). Remaining Phase 3 (cancel/retry, in-place approval gates) needs the runId plumbing + the absent `/approvals` + cancel backend routes; Phase 4 sends need your sign-off. Fresh cold-open/run-timeline screenshots need the live-gateway capture harness (real-app item).
@@ -175,10 +180,11 @@ so this keeps the branch always-green + consistent. The green gate is the coordi
 
 ## Morning brief
 
-**Updated note (2026-06-21 13:24 EDT):** the hardened live probe now proves the Workbench connected-data path can complete
+**Updated note (2026-06-21 13:38 EDT):** the hardened live probe now proves the Workbench connected-data path can complete
 with a real assistant reply when run against a disposable OpenRouter profile. The user-default NEAR AI profile is still not
-green because `NEARAI_API_KEY` is absent for the configured `nearai` / `zai-org/GLM-5.1-FP8` provider; treat "works for real"
-as true for a working provider profile, not for the current persisted NEAR config.
+green because the configured `nearai` / `zai-org/GLM-5.1-FP8` provider cannot verify its model catalog in this environment;
+Workbench now blocks Ask before sending to Chat in that state. Treat "works for real" as true for a working provider profile,
+not for the current persisted NEAR config.
 
 **TL;DR:** The app now POPULATES + WORKS for real. The one binary the desktop app runs now serves BOTH the agent
 (`/llm`) AND the live connector route — built, verified end-to-end, and staged into the app (PR nearai/ironclaw#5109).
@@ -235,6 +241,8 @@ keep the server-side `/connectors/write` SEND-gate when rebasing onto main.
 - Refresh NEAR AI auth or explicitly switch the real app profile to a working configured provider. Current proof command for
   the non-mutating path:
   `node scripts/probe-workbench-live-wiring.mjs --llm-backend=openrouter --json`.
+  The user-default command `node scripts/probe-workbench-live-wiring.mjs --json` now mirrors Workbench and stops before Chat
+  when provider preflight fails; use `--force-chat-handoff` only for deliberate backend diagnosis.
 - Review the branch + merge to main.
 - Direct freeform Chat connector/MCP tool invocation now passes with the staged
   `connected-sources.read` bridge when tested through the working provider
