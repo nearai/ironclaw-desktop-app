@@ -62,7 +62,7 @@ const env = {
   GATEWAY_PORT: String(PORT),
   GATEWAY_ENABLED: 'true',
   DATABASE_BACKEND: 'libsql',
-  RUST_LOG: 'warn'
+  RUST_LOG: process.env.RUST_LOG || 'warn'
 };
 const child = spawn(BIN, ['serve', '--host', '127.0.0.1', '--port', String(PORT)], {
   cwd: REPO,
