@@ -458,6 +458,24 @@ export function WorkbenchPage() {
   const connectorDrive = useConnectorDrive({ enabled: connectedAccounts.driveReady });
   const connectorNotion = useConnectorNotion({ enabled: connectedAccounts.notionReady });
   const connectorGithub = useConnectorGithub({ enabled: connectedAccounts.githubReady });
+  const liveSourceData = React.useMemo(
+    () => ({
+      inboxMessages: connectorInbox.messages,
+      calendarEvents: connectorCalendar.events,
+      slackBlockers: slackBlockers.rows,
+      githubNotifications: connectorGithub.notifications,
+      driveFiles: connectorDrive.files,
+      notionPages: connectorNotion.pages
+    }),
+    [
+      connectorInbox.messages,
+      connectorCalendar.events,
+      slackBlockers.rows,
+      connectorGithub.notifications,
+      connectorDrive.files,
+      connectorNotion.pages
+    ]
+  );
 
   const {
     draft,
@@ -485,6 +503,7 @@ export function WorkbenchPage() {
     sourceIds,
     sourceReadiness,
     connectorFamilies: connectedAccounts.families,
+    liveSourceData,
     cadence,
     onStartedWork: setStartedWork
   });

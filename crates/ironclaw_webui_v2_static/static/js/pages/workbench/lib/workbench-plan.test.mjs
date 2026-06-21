@@ -10,6 +10,7 @@ import {
   WORKBENCH_VISIBLE_SUGGESTIONS,
   WORKBENCH_WIRING_ASSUMPTIONS,
   buildWorkbenchChatDraft,
+  buildWorkbenchLiveSourcePacket,
   buildWorkbenchLiveSourceStatus,
   selectedWorkbenchSources,
   workbenchSuggestionFill,
@@ -65,6 +66,73 @@ test('buildWorkbenchLiveSourceStatus is honest when no live connector account is
     }),
     'No live connector accounts were verified on the Workbench surface yet.'
   );
+});
+
+test('buildWorkbenchLiveSourcePacket summarizes already-loaded connector rows', () => {
+  const packet = buildWorkbenchLiveSourcePacket({
+    inboxMessages: [
+      {
+        sender: 'Avery',
+        subject: 'Budget approval',
+        unread: true,
+        preview: 'Need your signoff before noon.'
+      },
+      {
+        sender: 'Blair',
+        subject: 'api_key=sk-test should not leak',
+        preview: 'access token: abc123 should also be redacted'
+      }
+    ],
+    calendarEvents: [{ title: 'Partner call', when: 'Mon Jun 22 - 9:00 AM' }],
+    githubNotifications: [{ repo: 'near/agent', title: 'Review requested', reason: 'review' }],
+    driveFiles: [{ kind: 'Doc', name: 'Q3 plan', when: 'Jun 20' }],
+    notionPages: [{ title: 'Launch notes', when: 'Jun 19' }],
+    limit: 1
+  });
+
+  assert.match(packet, /Gmail rows already loaded:/);
+  assert.match(packet, /Gmail: unread - from Avery - Budget approval/);
+  assert.match(packet, /Calendar: Partner call - Mon Jun 22 - 9:00 AM/);
+  assert.match(packet, /GitHub: near\/agent - Review requested - review/);
+  assert.match(packet, /Drive: Doc - Q3 plan - Jun 20/);
+  assert.match(packet, /Notion: Launch notes - Jun 19/);
+  assert.doesNotMatch(packet, /Blair/);
+  assert.doesNotMatch(packet, /sk-test|abc123/);
+
+  const redacted = buildWorkbenchLiveSourcePacket({
+    inboxMessages: [
+      {
+        sender: 'Blair',
+        subject: 'api_key=sk-test should not leak',
+        preview: 'access token: abc123 should also be redacted'
+      }
+    ]
+  });
+  assert.match(redacted, /api_key=\[redacted\]/);
+  assert.match(redacted, /access token=\[redacted\]/);
+  assert.doesNotMatch(redacted, /sk-test|abc123/);
+});
+
+test('buildWorkbenchChatDraft carries bounded live source data into Chat handoff', () => {
+  const draft = buildWorkbenchChatDraft({
+    brief: 'Use current context to tell me what needs action.',
+    sourceMode: WORKBENCH_AUTO_SOURCE_SCOPE.id,
+    connectorFamilies: [{ id: 'gmail', label: 'Gmail', state: 'ready', via: 'Composio' }],
+    liveSourceData: {
+      inboxMessages: [
+        {
+          sender: 'Avery',
+          subject: 'Budget approval',
+          unread: true,
+          preview: 'Need your signoff before noon.'
+        }
+      ]
+    }
+  });
+
+  assert.match(draft, /Live connector rows already loaded in Workbench:/);
+  assert.match(draft, /Gmail: unread - from Avery - Budget approval/);
+  assert.match(draft, /It may be partial; do not invent missing rows/);
 });
 
 test('buildWorkbenchChatDraft packages auto source and cadence preferences without fake scheduling', () => {

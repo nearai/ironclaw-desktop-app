@@ -68,6 +68,11 @@ const WORKBENCH_CONNECTED_SOURCE_HINTS = Object.freeze({
   github: 'GitHub notifications and repo context'
 });
 
+const LIVE_SOURCE_PACKET_LIMIT = 4;
+const LIVE_SOURCE_LINE_LIMIT = 240;
+const SENSITIVE_VALUE_PATTERN =
+  /\b(api[_ -]?key|access[_ -]?token|bearer|secret)\s*[:=]\s*[^\s,;]+/gi;
+
 export const WORKBENCH_VISIBLE_SUGGESTIONS = Object.freeze([
   {
     id: 'needs-me',
@@ -256,6 +261,69 @@ function cleanLines(value) {
     .trim();
 }
 
+function cleanSourceText(value, maxLength = LIVE_SOURCE_LINE_LIMIT) {
+  const text = cleanLines(value)
+    .replace(/\s+/g, ' ')
+    .replace(SENSITIVE_VALUE_PATTERN, '$1=[redacted]')
+    .trim();
+  if (!text) return '';
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}...` : text;
+}
+
+function cleanSourceParts(parts) {
+  return parts.map((part) => cleanSourceText(part)).filter(Boolean);
+}
+
+function limitedRows(rows, limit) {
+  return (Array.isArray(rows) ? rows : []).filter(Boolean).slice(0, limit);
+}
+
+function sourceLine(label, parts) {
+  const cleanParts = cleanSourceParts(parts);
+  if (!cleanParts.length) return '';
+  return `${label}: ${cleanParts.join(' - ')}`;
+}
+
+function sectionLines(title, rows) {
+  if (!rows.length) return [];
+  return [title, ...rows.map((row) => `- ${row}`)];
+}
+
+function gmailSourceLine(message) {
+  if (!message || typeof message !== 'object') return '';
+  const state = message.unread ? 'unread' : 'recent';
+  const from = message.sender || message.fromEmail || 'Unknown sender';
+  const subject = message.subject || '(no subject)';
+  return sourceLine('Gmail', [state, `from ${from}`, subject, message.preview]);
+}
+
+function calendarSourceLine(event) {
+  if (!event || typeof event !== 'object') return '';
+  return sourceLine('Calendar', [event.title || '(untitled event)', event.when, event.location]);
+}
+
+function slackSourceLine(row) {
+  if (!row || typeof row !== 'object') return '';
+  const actor = row.who ? `${row.who}` : 'message';
+  const channel = row.channel ? `#${row.channel}` : '';
+  return sourceLine('Slack', [actor, channel, row.text]);
+}
+
+function githubSourceLine(row) {
+  if (!row || typeof row !== 'object') return '';
+  return sourceLine('GitHub', [row.repo, row.title, row.reason, row.kind]);
+}
+
+function driveSourceLine(file) {
+  if (!file || typeof file !== 'object') return '';
+  return sourceLine('Drive', [file.kind, file.name, file.when]);
+}
+
+function notionSourceLine(page) {
+  if (!page || typeof page !== 'object') return '';
+  return sourceLine('Notion', [page.title, page.when]);
+}
+
 export function selectedWorkbenchSources(sourceIds = []) {
   const ids = new Set(sourceIds);
   return WORKBENCH_SOURCE_OPTIONS.filter((source) => ids.has(source.id));
@@ -286,6 +354,50 @@ export function buildWorkbenchLiveSourceStatus({ connectorFamilies = [] } = {}) 
     .join('; ');
 }
 
+export function buildWorkbenchLiveSourcePacket({
+  inboxMessages = [],
+  calendarEvents = [],
+  slackBlockers = [],
+  githubNotifications = [],
+  driveFiles = [],
+  notionPages = [],
+  limit = LIVE_SOURCE_PACKET_LIMIT
+} = {}) {
+  const maxRows = Math.max(
+    1,
+    Number.isFinite(limit) ? Math.floor(limit) : LIVE_SOURCE_PACKET_LIMIT
+  );
+  const sections = [
+    sectionLines(
+      'Gmail rows already loaded:',
+      limitedRows(inboxMessages, maxRows).map(gmailSourceLine).filter(Boolean)
+    ),
+    sectionLines(
+      'Calendar rows already loaded:',
+      limitedRows(calendarEvents, maxRows).map(calendarSourceLine).filter(Boolean)
+    ),
+    sectionLines(
+      'Slack rows already loaded:',
+      limitedRows(slackBlockers, maxRows).map(slackSourceLine).filter(Boolean)
+    ),
+    sectionLines(
+      'GitHub rows already loaded:',
+      limitedRows(githubNotifications, maxRows).map(githubSourceLine).filter(Boolean)
+    ),
+    sectionLines(
+      'Drive rows already loaded:',
+      limitedRows(driveFiles, maxRows).map(driveSourceLine).filter(Boolean)
+    ),
+    sectionLines(
+      'Notion rows already loaded:',
+      limitedRows(notionPages, maxRows).map(notionSourceLine).filter(Boolean)
+    )
+  ].filter((section) => section.length > 0);
+
+  if (!sections.length) return '';
+  return sections.map((section) => section.join('\n')).join('\n');
+}
+
 export function buildWorkbenchChatDraft({
   brief,
   modelId = 'auto',
@@ -294,7 +406,8 @@ export function buildWorkbenchChatDraft({
   sourceMode = 'manual',
   sourceIds = [],
   cadence = '',
-  connectorFamilies = []
+  connectorFamilies = [],
+  liveSourceData = {}
 } = {}) {
   const task = cleanLines(brief);
   if (!task) return '';
@@ -311,6 +424,16 @@ export function buildWorkbenchChatDraft({
         : 'Only the context already in this chat.';
   const timingLine = timing || 'Not specified; ask only if timing changes the action.';
   const liveSourceStatus = buildWorkbenchLiveSourceStatus({ connectorFamilies });
+  const liveSourcePacket = buildWorkbenchLiveSourcePacket(liveSourceData);
+  const liveSourcePacketLines = liveSourcePacket
+    ? [
+        '',
+        'Live connector rows already loaded in Workbench:',
+        liveSourcePacket,
+        '',
+        'Use this packet as current context. It may be partial; do not invent missing rows.'
+      ]
+    : [];
 
   return [
     'Workbench request',
@@ -324,6 +447,7 @@ export function buildWorkbenchChatDraft({
     `- Sources to consider: ${sourceLine}`,
     `- Live source status: ${liveSourceStatus}`,
     `- Timing: ${timingLine}`,
+    ...liveSourcePacketLines,
     '',
     'Boundaries:',
     '- Use only attached files and available sources/tools already present in IronClaw.',
