@@ -27,16 +27,41 @@ and the real `npm run tauri dev` run (real-app-e2e-evidence.md).
   (it matched "pong" in the *user's own prompt*). Re-tested with a real model
   (`z-ai/glm-5.2`) and an answer NOT in the prompt: "17×4" → **"68"** — a genuine
   agent reply. So reasoning turns work.
-- **Real app is unaffected by the `auto` artifact:** its `config.toml` pins
-  `[llm.default] model = "zai-org/GLM-5.1-FP8"` (a valid model); `auto` only hit
-  the profile-less test HOME. (Verify GLM-5.1-FP8 has working credentials; if
-  not, switch the default to `z-ai/glm-5.2`, which is confirmed working.)
-- **Agent tool use is GATED, not broken.** The Gmail-tool turn stalls in a
-  headless test because the Composio capability is `default_permission = "ask"`
-  → the agent's tool call raises an approval gate with no approver to resolve it.
-  That is the designed, safe behavior; in the real app the in-place approval
-  gates surface it for the user to approve. (Precise gate-appears verification is
-  the next test to add.)
+- **Real app is unaffected by the `auto` artifact, VERIFIED:** its `config.toml`
+  pins `[llm.default] model = "zai-org/GLM-5.1-FP8"`, and re-running the suite
+  with `TEST_MODEL=zai-org/GLM-5.1-FP8` also passes the agent turn ("68", 13/13).
+  So the model the real app actually uses completes turns — the earlier
+  "model_credentials_unavailable" concern was the `auto` artifact, now resolved.
+  No config change needed (`z-ai/glm-5.2` is a confirmed-working fallback).
+- **SSE turn infra + the gate/approve/resume loop WORK (proven).** Earlier
+  REST-polling tests were structurally blind to the live turn: the agent loop
+  streams over SSE (`GET /threads/{id}/events`); the approval `gate` and
+  `final_reply` are SSE frames, never REST-timeline rows. `scripts/agent-sse-e2e.mjs`
+  consumes the stream like the app does and confirms: turn accepted → tools run
+  (`capability_activity completed`) → `gate` raised → test POSTs
+  `.../gates/{ref}/resolve {resolution:"approved"}` → **200** → run CONTINUES.
+  Gate + approve + resume is real and works end-to-end. (The in-place approval
+  UI consumes the same `gate` frame + resolve route.)
+
+## ⚠️ REAL GAP: agent-driven connector use is not wired (do NOT overclaim)
+- **The agent cannot directly call the configured Composio connectors.** When
+  asked to "use your Gmail tool", the agent's actual tool calls are
+  `builtin.extension_search` and `builtin.extension_install` — it tries to *find
+  and install* the Gmail extension at runtime instead of calling a registered
+  `GMAIL_FETCH_EMAILS` tool. It loops (search → install → gate → approve →
+  search → install …) and never reaches a Gmail call or a `final_reply`, even at
+  300s. So the connector config done via `/extensions/composio/setup` registers
+  the connector for the **deterministic** read/write route (which works, 6/6
+  reads) but **not** into the agent loop's capability registry.
+- **Impact:** the deterministic Workbench (Arrived/Upcoming/Decisions reads,
+  drafts, briefing) works without this. But agent-driven cross-tool execution
+  ("do this on the Workbench" / Phase 3–4) depends on the agent having the
+  connectors as callable tools — which it does not yet. This is the next real
+  build item (gateway-side capability registration), exactly as plan Phase 1
+  noted ("the agent-tool registration is separate from the read route").
+- **NOT a model problem:** reasoning turns finish fast ("68"); the loop is the
+  agent reaching for extension_install meta-tools because Gmail isn't in its
+  toolset.
 - **Test harness fixed:** `scripts/connector-live-test.mjs` now uses a real
   model (`z-ai/glm-5.2`, override via `TEST_MODEL`) and asserts a real reply
   ("17×4=68" in an assistant message), not a prompt-echo false positive.
