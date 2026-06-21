@@ -43,6 +43,9 @@ const skipChatHandoff = args.has('--skip-chat-handoff');
 const probeDirectConnectorChat =
   args.has('--probe-direct-connector-chat') || args.has('--require-direct-connector-chat');
 const requireDirectConnectorChat = args.has('--require-direct-connector-chat');
+const activateChatSourceTools =
+  args.has('--activate-chat-source-tools') || args.has('--prepare-direct-connector-chat');
+const allowUserProfileExtensionActivation = args.has('--allow-user-profile-extension-activation');
 const keepProbeHome = args.has('--keep-probe-home');
 const llmBackend = flagValue('--llm-backend') || process.env.IRONCLAW_PROBE_LLM_BACKEND || 'nearai';
 const chatMaxAttempts = positiveInt(
@@ -75,6 +78,14 @@ const EXPECTED_WORKBENCH_SOURCE_FAMILIES = Object.freeze([
   'notion',
   'slack',
   'github'
+]);
+const CHAT_SOURCE_EXTENSION_IDS = Object.freeze([
+  'gmail',
+  'google-calendar',
+  'google-drive',
+  'notion',
+  'github',
+  'slack'
 ]);
 
 function flagValue(name) {
@@ -215,6 +226,80 @@ function registrySummary(entry) {
     display_name: entry?.display_name || entry?.name || '',
     kind: entry?.kind || '',
     installed: Boolean(entry?.installed)
+  };
+}
+
+function extensionPackageRef(id) {
+  return { kind: 'extension', id };
+}
+
+function setupProvided(setup) {
+  const secrets = Array.isArray(setup?.body?.secrets) ? setup.body.secrets : [];
+  return secrets.length > 0 && secrets.every((secret) => secret?.provided === true);
+}
+
+function activationBodySummary(response) {
+  const body = response?.body && typeof response.body === 'object' ? response.body : {};
+  return {
+    status: response?.status ?? null,
+    ok: response?.ok === true,
+    success: body.success === true || body.ok === true,
+    activated: body.activated === true || body.active === true,
+    phase: body.phase || null,
+    visible_capability_count: Array.isArray(body.visible_capability_ids)
+      ? body.visible_capability_ids.length
+      : null,
+    visible_capability_sample: Array.isArray(body.visible_capability_ids)
+      ? body.visible_capability_ids.slice(0, 12)
+      : [],
+    message: typeof body.message === 'string' ? body.message.slice(0, 240) : '',
+    error: typeof body.error === 'string' ? body.error.slice(0, 240) : ''
+  };
+}
+
+function lifecycleActivationSummary(
+  id,
+  setupBefore,
+  install,
+  setupAfterInstall,
+  activate,
+  setupAfter
+) {
+  const setupBeforeSecrets = Array.isArray(setupBefore?.body?.secrets)
+    ? setupBefore.body.secrets
+    : [];
+  const setupAfterInstallSecrets = Array.isArray(setupAfterInstall?.body?.secrets)
+    ? setupAfterInstall.body.secrets
+    : [];
+  const setupAfterSecrets = Array.isArray(setupAfter?.body?.secrets) ? setupAfter.body.secrets : [];
+  const activation = activationBodySummary(activate);
+  return {
+    id,
+    setup_before: {
+      status: setupBefore?.status ?? null,
+      phase: setupBefore?.body?.phase || null,
+      provided: setupProvided(setupBefore),
+      secrets: setupBeforeSecrets.map(setupSecretSummary)
+    },
+    install: activationBodySummary(install),
+    setup_after_install: {
+      status: setupAfterInstall?.status ?? null,
+      phase: setupAfterInstall?.body?.phase || null,
+      provided: setupProvided(setupAfterInstall),
+      secrets: setupAfterInstallSecrets.map(setupSecretSummary)
+    },
+    activate: activation,
+    setup_after_activate: {
+      status: setupAfter?.status ?? null,
+      phase: setupAfter?.body?.phase || null,
+      provided: setupProvided(setupAfter),
+      secrets: setupAfterSecrets.map(setupSecretSummary)
+    },
+    activated: activation.activated || activation.phase === 'active',
+    blocked_by_setup:
+      activation.activated !== true &&
+      setupAfterInstallSecrets.some((secret) => secret?.provided !== true),
+    visible_capability_count: activation.visible_capability_count
   };
 }
 
@@ -674,6 +759,37 @@ function evaluateProbe(result) {
       status: result.route_status[route] ?? null
     });
   }
+  if (result.extension_activation?.requested) {
+    const activation = result.extension_activation;
+    check(
+      'Chat source extension activation probe used a disposable Reborn home or explicit override',
+      activation.mode === 'ephemeral-reborn-copy' || activation.allowed_user_profile_mutation,
+      {
+        mode: activation.mode || null,
+        allowed_user_profile_mutation: Boolean(activation.allowed_user_profile_mutation)
+      }
+    );
+    const activatedIds = activation.activated_ids || [];
+    if (activatedIds.length === 0) {
+      warn('no Chat source extensions activated before direct connector probe', {
+        targets: activation.targets || [],
+        blocked: Object.values(activation.results || {})
+          .filter((entry) => entry?.blocked_by_setup)
+          .map((entry) => entry.id)
+      });
+    }
+    for (const [id, entry] of Object.entries(activation.results || {})) {
+      if (entry?.activated) continue;
+      warn(`Chat source extension ${id} did not activate`, {
+        activate_status: entry?.activate?.status ?? null,
+        phase: entry?.activate?.phase || null,
+        blocked_by_setup: Boolean(entry?.blocked_by_setup),
+        setup_phase: entry?.setup_after_install?.phase || null,
+        setup_provided: Boolean(entry?.setup_after_install?.provided),
+        message: entry?.activate?.message || entry?.activate?.error || ''
+      });
+    }
+  }
 
   if (result.connectors?.skipped) {
     warn('connector reads skipped by flag');
@@ -906,6 +1022,20 @@ function buildProbeSummary(result) {
         .map((family) => family.id),
       live_row_counts: result.workbench?.live_source_data_counts || {}
     },
+    chat_source_tools: {
+      activation_requested: Boolean(result.extension_activation?.requested),
+      activation_mode: result.extension_activation?.mode || null,
+      activated_ids: result.extension_activation?.activated_ids || [],
+      blocked_by_setup: Object.values(result.extension_activation?.results || {})
+        .filter((entry) => entry?.blocked_by_setup)
+        .map((entry) => entry.id),
+      visible_capability_counts: Object.fromEntries(
+        Object.entries(result.extension_activation?.results || {}).map(([id, entry]) => [
+          id,
+          entry?.visible_capability_count ?? null
+        ])
+      )
+    },
     workbench_ask: {
       skipped: Boolean(handoff.skipped),
       thread_status: handoff.thread_status ?? null,
@@ -991,6 +1121,14 @@ async function main() {
     healthy: false,
     llm: null,
     extensions: [],
+    extension_activation: {
+      requested: activateChatSourceTools,
+      allowed_user_profile_mutation: allowUserProfileExtensionActivation,
+      mode: null,
+      targets: CHAT_SOURCE_EXTENSION_IDS,
+      results: {},
+      activated_ids: []
+    },
     registry: [],
     channels: null,
     automations: null,
@@ -1134,6 +1272,61 @@ async function main() {
           ? new URL(started.body.authorization_url).host
           : null
       };
+    }
+
+    result.extension_activation.mode = probeRebornHome.report.mode;
+    if (activateChatSourceTools) {
+      if (
+        probeRebornHome.report.mode !== 'ephemeral-reborn-copy' &&
+        !allowUserProfileExtensionActivation
+      ) {
+        throw new Error(
+          '--activate-chat-source-tools would mutate the user Reborn profile; rerun with --llm-backend=openrouter for an ephemeral copy or pass --allow-user-profile-extension-activation explicitly'
+        );
+      }
+
+      for (const id of CHAT_SOURCE_EXTENSION_IDS) {
+        const packageRef = extensionPackageRef(id);
+        const setupBefore = await request(
+          'GET',
+          `/api/webchat/v2/extensions/${encodeURIComponent(id)}/setup`
+        );
+        const install = await request('POST', '/api/webchat/v2/extensions/install', {
+          package_ref: packageRef
+        });
+        const setupAfterInstall = await request(
+          'GET',
+          `/api/webchat/v2/extensions/${encodeURIComponent(id)}/setup`
+        );
+        const activate = await request(
+          'POST',
+          `/api/webchat/v2/extensions/${encodeURIComponent(id)}/activate`
+        );
+        const setupAfter = await request(
+          'GET',
+          `/api/webchat/v2/extensions/${encodeURIComponent(id)}/setup`
+        );
+        const summary = lifecycleActivationSummary(
+          id,
+          setupBefore,
+          install,
+          setupAfterInstall,
+          activate,
+          setupAfter
+        );
+        result.extension_activation.results[id] = summary;
+        if (summary.activated) {
+          result.extension_activation.activated_ids.push(id);
+        }
+      }
+
+      const refreshedExtensions = await request('GET', '/api/webchat/v2/extensions');
+      result.route_status.extensions_after_activation = refreshedExtensions.status;
+      result.extension_activation.extensions_after_activation = (
+        refreshedExtensions.body?.extensions || []
+      )
+        .map(extensionSummary)
+        .filter((extension) => CHAT_SOURCE_EXTENSION_IDS.includes(extension.id));
     }
 
     if (!skipConnectorReads) {
