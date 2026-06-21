@@ -5,6 +5,12 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## ⭐ Milestone (2026-06-21 late PM, tick 3): model picker/readiness FIXED + Phase 3 evidence
+
+- **FIXED #8 — nearai model-list returned 0 (gateway `f9d89e404`).** The model picker was empty / readiness degraded because `probe_provider` built the listing provider with `api_key_env:None`, so the persisted nearai endpoint resolved keyless and the base defaulted to the keyless `private.near.ai` (no model list) instead of `cloud-api.near.ai`. Inference was unaffected (the active provider reads `NEARAI_API_KEY` → cloud-api). Fix: for the persisted endpoint (`stored_key_allowed`) set `api_key_env` so resolution reads the env key → cloud-api. Gated so it never applies to a caller-overridden base (no key-exfiltration). **Verified live: `/llm/list-models` 0 → 47 models.** Crate suite green (1172 pass; 2 unrelated `runtime::` tests flake under parallel load, pass in isolation). Evidence: `evidence/model-list-fix.md`.
+- **Phase 3 — real multi-step agent turn** on the latest tri-fix binary: agent calls `GMAIL_FETCH_EMAILS` (real data) → finalized assistant reply citing the real sender+subject. Evidence: `evidence/phase3-agent-multistep.md`.
+- Combined with tick 2's preflight fix, the model-readiness story is now complete: catalog lists 47 models AND the preflight doesn't false-block. Real-app Workbench: boots → connectors populate (6/6) → model picker populated → start unblocked → multi-step agent turns use connectors and reply with real data → writes gated.
+
 ## ⭐ Milestone (2026-06-21 late PM, tick 2): real-app door-blocker FIXED + full real-app E2E
 
 The biggest "does it actually work in the app" blocker is fixed.
