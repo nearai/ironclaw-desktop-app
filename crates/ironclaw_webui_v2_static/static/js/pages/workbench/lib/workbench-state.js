@@ -49,6 +49,26 @@ function connectorUpcomingRows(calendar = {}) {
   }));
 }
 
+function approvalFeedRows(approvals = []) {
+  return (Array.isArray(approvals) ? approvals : [])
+    .map((approval) => {
+      const id = String(approval?.id || '').trim();
+      if (!id) return null;
+      return {
+        id: `approval-feed-${id}`,
+        groupId: 'needs-approval',
+        kind: 'approval-feed',
+        icon: approval.icon || 'shield',
+        title: approval.title || 'Approval waiting',
+        badge: approval.badge || 'Needs approval',
+        detail: approval.detail || 'A prepared external action is held until you review it.',
+        href: approval.href || '/workbench',
+        timestamp: approval.timestamp || ''
+      };
+    })
+    .filter(Boolean);
+}
+
 function normalizeThread(thread) {
   const id = String(thread?.id || thread?.thread_id || '').trim();
   if (!id) return null;
@@ -454,6 +474,7 @@ export function buildWorkbenchStateRail({
   threadAttentionDetails = new Map(),
   savedItems = [],
   automations = [],
+  approvals = [],
   sourceReadiness = [],
   inbox = null,
   calendar = null,
@@ -465,6 +486,7 @@ export function buildWorkbenchStateRail({
   const rows = [
     ...connectorReplyRows(inbox || {}),
     ...sourceRows(sourceReadiness),
+    ...approvalFeedRows(approvals),
     ...threadAttentionRows(normalizedThreads, threadStates, threadAttentionDetails),
     ...runningThreadRows(normalizedThreads, threadStates),
     ...recentThreadRows(normalizedThreads, threadStates),

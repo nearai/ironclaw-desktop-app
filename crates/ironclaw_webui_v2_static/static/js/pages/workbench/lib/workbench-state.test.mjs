@@ -124,6 +124,36 @@ test('workbench rail uses backend thread pending gate detail when present', () =
   assert.equal(needsApproval.rows[0].timestamp, '2026-06-20T12:00:00.000Z');
 });
 
+test('workbench rail surfaces authoritative approvals feed rows', () => {
+  const rail = buildWorkbenchStateRail({
+    approvals: [
+      {
+        id: 'approval-northwind',
+        title: 'Approve counter to Northwind',
+        badge: 'Needs approval',
+        detail: 'External email with net 45 terms is waiting.',
+        icon: 'mail',
+        href: '/chat/thread-northwind',
+        timestamp: '2026-06-21T06:45:00.000Z'
+      }
+    ]
+  });
+
+  const needsApproval = rail.find((group) => group.id === 'needs-approval');
+  assert.equal(needsApproval.total, 1);
+  assert.deepEqual(needsApproval.rows[0], {
+    id: 'approval-feed-approval-northwind',
+    groupId: 'needs-approval',
+    kind: 'approval-feed',
+    icon: 'mail',
+    title: 'Approve counter to Northwind',
+    badge: 'Needs approval',
+    detail: 'External email with net 45 terms is waiting.',
+    href: '/chat/thread-northwind',
+    timestamp: '2026-06-21T06:45:00.000Z'
+  });
+});
+
 test('workbench rail promotes backend pending gates when thread state is missing or stale', () => {
   const rail = buildWorkbenchStateRail({
     threads: [

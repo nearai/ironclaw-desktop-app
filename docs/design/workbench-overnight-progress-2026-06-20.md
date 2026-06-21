@@ -2315,3 +2315,57 @@ packaged gateway still needs the route. Until that capability appears, Workbench
 and Work stay local-profile honest. Once the backend advertises it, the UI will
 read server Work without a redesign pass and without losing local-only saved
 artifacts.
+
+## Loop 36 — 2026-06-21 ~03:00 local — Approvals feed backend-read seam
+
+Heartbeat resumed the Workbench overhaul. Re-inspected the tree first on
+`workbench-overnight-20260620`. The branch was clean and aligned with origin
+before this loop's edits; no branch switching, staging, committing, or cleanup was
+done.
+
+### What changed
+
+- Advanced G2 without pretending the backend exists: added a capability-gated
+  cross-thread approvals feed reader in `workbench/lib/approvals-feed-api.js`.
+- New frontend contract:
+  - gateway must advertise `capabilities.approvals_read`,
+    `capabilities.approval_feed_read`, `capabilities.pending_gates_read`, an
+    equivalent `features.*` flag, or `approvals.read`;
+  - frontend then reads `GET /api/webchat/v2/approvals`;
+  - supported response shapes are `{ approvals: [...] }`,
+    `{ pending_gates: [...] }`, `{ items: [...] }`,
+    `{ data: { approvals: [...] } }`, or a bare array;
+  - approval rows normalize into the existing `Needs a decision` rail using
+    id/title/detail/provider/thread/destination fields;
+  - malformed rows without a real id, or without enough thread/title data to
+    derive one, are dropped instead of becoming fake approvals.
+- Wired the feed into `WorkbenchPage` and `buildWorkbenchStateRail({ approvals })`.
+  When the capability is absent, Workbench does not probe the missing route.
+- Extended static fixtures and rendered route coverage so an advertised
+  `approvals_read` capability produces exactly one
+  `GET /api/webchat/v2/approvals` call and renders `Approve counter to
+Northwind` in both the dock and triage.
+- Updated the backend wiring map so G2 is now documented as
+  frontend-ready/backend-blocked rather than "adapter to add."
+
+### Validation
+
+| Check                                                  | Result       |
+| ------------------------------------------------------ | ------------ |
+| `node --check` approvals/state/Workbench page files    | pass         |
+| approvals adapter + Workbench rail unit tests          | 20/20 pass   |
+| focused rendered approvals/pending-gate regressions    | 4/4 pass     |
+| `npm run prepare:webui-static`                         | pass         |
+| full Workbench Playwright (`workbench-static.spec.ts`) | 57/57 pass   |
+| full static JS unit suite (`npm run test:static`)      | 769/769 pass |
+| static/a11y/browser suite (`npm run test:a11y-static`) | 127/127 pass |
+| `npm run verify:static-frontend`                       | OK           |
+
+### Current truth
+
+The Workbench can now consume an authoritative approvals feed as soon as the
+gateway advertises and serves it, without another UI redesign pass and without
+noisy 404 probing today. Until that backend appears, G2 remains backend-blocked:
+the shipped app still relies on live in-thread gates, backend `/threads` rows
+with pending-gate detail, and local saved-work schema for any approval-like rail
+state.

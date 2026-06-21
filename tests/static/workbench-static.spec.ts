@@ -479,6 +479,49 @@ test('static workbench: backend thread pending gate detail feeds active work wit
   await expect(triage).toContainText('Approve Slack reply to finance');
 });
 
+test('static workbench: approvals feed stays quiet until the gateway advertises it', async ({
+  page
+}) => {
+  const approvalsRequests: string[] = [];
+  await installWorkbenchMocks(page, { approvalsRequests });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await expect(page.getByRole('complementary', { name: 'Active work' })).toBeVisible();
+  await page.waitForTimeout(100);
+  expect(approvalsRequests).toEqual([]);
+});
+
+test('static workbench: approvals feed populates needs-decision rows when advertised', async ({
+  page
+}) => {
+  const approvalsRequests: string[] = [];
+  await installWorkbenchMocks(page, {
+    approvalsReadEnabled: true,
+    approvalsRequests,
+    approvals: [
+      {
+        approval_id: 'approval-northwind',
+        headline: 'Approve counter to Northwind',
+        summary: 'External email with net 45 terms is waiting.',
+        tool_name: 'GMAIL_CREATE_EMAIL_DRAFT',
+        thread_id: 'thread-northwind',
+        updated_at: '2026-06-21T06:45:00.000Z'
+      }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  const activeWork = page.getByRole('complementary', { name: 'Active work' });
+  await expect(activeWork).toContainText('Approve counter to Northwind');
+  await expect(activeWork).toContainText('External email with net 45 terms is waiting.');
+
+  const triage = page.getByTestId('workbench-triage');
+  await expect(triage).toContainText('Needs a decision');
+  await expect(triage).toContainText('Approve counter to Northwind');
+  await expect(triage).toContainText('External email with net 45 terms is waiting.');
+  expect(approvalsRequests).toEqual(['GET /api/webchat/v2/approvals']);
+});
+
 test('static workbench: source choices show honest readiness from current connectors', async ({
   page
 }) => {

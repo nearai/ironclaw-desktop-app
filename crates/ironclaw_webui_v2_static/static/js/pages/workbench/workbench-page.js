@@ -25,6 +25,7 @@ import { buildReplyDraft, createdDraftId, draftWriteArguments } from './lib/work
 import { WORKBENCH_DRAFT_KEY, useWorkbenchStart } from './hooks/useWorkbenchStart.js';
 import { useDialogFocus } from './hooks/useDialogFocus.js';
 import { useWorkbenchSourceReadiness } from './hooks/useWorkbenchSourceReadiness.js';
+import { approvalsFeedReadSupported, fetchApprovalsFeed } from './lib/approvals-feed-api.js';
 import { buildWorkbenchStateRail } from './lib/workbench-state.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
@@ -357,10 +358,19 @@ export function WorkbenchPage() {
   const [draftBusy, setDraftBusy] = React.useState(false);
   const [draftResult, setDraftResult] = React.useState(null);
   const savedWorkReadEnabled = savedWorkServerReadSupported(gatewayStatus);
+  const approvalsReadEnabled = approvalsFeedReadSupported(gatewayStatus);
   const serverSavedWorkQuery = useQuery({
     queryKey: ['workbench-saved-work-server'],
     queryFn: ({ signal }) => fetchSavedWorkSnapshot({ signal }),
     enabled: savedWorkReadEnabled,
+    staleTime: 30_000,
+    retry: 1,
+    throwOnError: false
+  });
+  const approvalsFeedQuery = useQuery({
+    queryKey: ['workbench-approvals-feed'],
+    queryFn: ({ signal }) => fetchApprovalsFeed({ signal }),
+    enabled: approvalsReadEnabled,
     staleTime: 30_000,
     retry: 1,
     throwOnError: false
@@ -500,6 +510,7 @@ export function WorkbenchPage() {
         threadAttentionDetails,
         savedItems,
         automations,
+        approvals: approvalsFeedQuery.data || [],
         sourceReadiness,
         inbox: { messages: connectorInbox.messages },
         calendar: { events: connectorCalendar.events },
@@ -507,6 +518,7 @@ export function WorkbenchPage() {
       }),
     [
       automations,
+      approvalsFeedQuery.data,
       connectorCalendar.events,
       connectorInbox.messages,
       outletThreadsState?.threads,

@@ -54,6 +54,10 @@ type WorkbenchMockOptions = {
   savedWorkItems?: Array<Record<string, unknown>>;
   savedWorkError?: number;
   savedWorkRequests?: string[];
+  approvalsReadEnabled?: boolean;
+  approvals?: Array<Record<string, unknown>>;
+  approvalsError?: number;
+  approvalsRequests?: string[];
 };
 
 export const workbenchPersonaFixtures = JSON.parse(
@@ -305,7 +309,10 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
     if (path === '/api/gateway/status') {
       return json(route, {
         ...gatewayStatus,
-        capabilities: options.savedWorkReadEnabled ? { saved_work_read: true } : {}
+        capabilities: {
+          ...(options.savedWorkReadEnabled ? { saved_work_read: true } : {}),
+          ...(options.approvalsReadEnabled ? { approvals_read: true } : {})
+        }
       });
     }
     if (path === '/api/webchat/v2/llm/providers') {
@@ -353,6 +360,13 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
         return text(route, options.savedWorkError, 'saved work unavailable');
       }
       return json(route, { items: options.savedWorkItems || [] });
+    }
+    if (path === '/api/webchat/v2/approvals' && method === 'GET') {
+      options.approvalsRequests?.push(`${method} ${path}`);
+      if (options.approvalsError) {
+        return text(route, options.approvalsError, 'approvals unavailable');
+      }
+      return json(route, { approvals: options.approvals || [] });
     }
     if (path === '/api/webchat/v2/threads' && method === 'POST') {
       return json(route, {
