@@ -37,7 +37,26 @@ function userTimezone() {
 export function workbenchStartErrorMessage(err) {
   const message = String(err?.message || '').trim();
   if (!message) return 'Could not start this through Chat. Your draft is saved here.';
+  // A configured-but-unavailable model (renamed/decommissioned, or a stale
+  // selection) surfaces as a model-not-found error only at runtime — the
+  // preflight cannot catch it. Map it to an actionable next step instead of a
+  // raw provider error the user can't act on.
+  if (isModelNotFoundError(message)) {
+    return 'The selected model is not available from NEAR AI Cloud right now. Open Settings / Inference, pick an available model, then try again. Your draft is saved here.';
+  }
   return `Could not start this through Chat. ${message}`;
+}
+
+// Matches the provider's runtime "model not found" / unknown-model errors
+// (e.g. `HTTP 400: Model 'x' not found`) across common phrasings.
+export function isModelNotFoundError(message) {
+  const text = String(message || '').toLowerCase();
+  return (
+    /\bmodel\b[^.]*\bnot\s*found\b/.test(text) ||
+    /\bnot\s*found\b[^.]*\bmodel\b/.test(text) ||
+    /\b(unknown|invalid|unsupported|no such)\s+model\b/.test(text) ||
+    text.includes('model_not_found')
+  );
 }
 
 export function workbenchModelSwitchErrorMessage(err, modelLabel) {

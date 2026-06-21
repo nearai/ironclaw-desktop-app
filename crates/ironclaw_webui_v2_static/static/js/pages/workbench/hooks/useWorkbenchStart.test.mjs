@@ -6,12 +6,31 @@ import {
   connectorFamiliesToSourceReadiness,
   defaultWorkbenchModelId,
   deriveWorkbenchModelOptions,
+  isModelNotFoundError,
   manualSourceBlockReason,
   modelCatalogBlockReason,
   modelOptionLabel,
   startedWorkPreferences,
-  workbenchModelSwitchErrorMessage
+  workbenchModelSwitchErrorMessage,
+  workbenchStartErrorMessage
 } from './useWorkbenchStart.js';
+
+test('start error maps a runtime model-not-found to an actionable Settings/Inference message', () => {
+  for (const raw of [
+    "HTTP 400: Model 'auto' not found",
+    'model not found',
+    'Unknown model: zai-org/GLM-9',
+    'provider returned model_not_found'
+  ]) {
+    assert.ok(isModelNotFoundError(raw), `should detect: ${raw}`);
+    const msg = workbenchStartErrorMessage(new Error(raw));
+    assert.match(msg, /Settings \/ Inference/);
+    assert.doesNotMatch(msg, /not found/i, 'raw provider error must not leak into the message');
+  }
+  // Unrelated errors keep the generic passthrough (no false positives).
+  assert.ok(!isModelNotFoundError('rate limited'));
+  assert.match(workbenchStartErrorMessage(new Error('rate limited')), /Could not start this through Chat\. rate limited/);
+});
 
 test('workbench model options come only from the real model catalog', () => {
   assert.deepEqual(
