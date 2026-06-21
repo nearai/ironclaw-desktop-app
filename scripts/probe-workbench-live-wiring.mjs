@@ -5,7 +5,10 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { connectorFamilyReadiness } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-connectors.js';
-import { buildWorkbenchLiveSourceStatus } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-plan.js';
+import {
+  buildWorkbenchChatDraft,
+  buildWorkbenchLiveSourceStatus
+} from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-plan.js';
 
 const RELEVANT_EXTENSION_IDS = Object.freeze([
   'custom-mcp',
@@ -26,6 +29,7 @@ const args = new Set(process.argv.slice(2));
 const probeOauthStart = args.has('--probe-oauth-start');
 const jsonOnly = args.has('--json');
 const skipConnectorReads = args.has('--skip-connector-reads');
+const skipChatHandoff = args.has('--skip-chat-handoff');
 
 const repoRoot = process.cwd();
 const binary = path.join(repoRoot, 'src-tauri/binaries/ironclaw-reborn-aarch64-apple-darwin');
@@ -143,6 +147,32 @@ function connectorReadSummary(response) {
     count: firstArrayLength(response.body?.data),
     error_present: Boolean(response.body?.error)
   };
+}
+
+function timelineMessages(body) {
+  if (Array.isArray(body?.messages)) return body.messages;
+  if (Array.isArray(body?.timeline)) return body.timeline;
+  if (Array.isArray(body?.events)) return body.events;
+  return [];
+}
+
+function messageKind(message) {
+  return String(message?.kind || message?.role || message?.message?.role || '').toLowerCase();
+}
+
+function messageContent(message) {
+  const candidates = [
+    message?.content,
+    message?.text,
+    message?.message?.content,
+    message?.message?.text,
+    message?.payload?.content,
+    message?.payload?.text
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') return candidate;
+  }
+  return '';
 }
 
 function redactText(value, token) {
@@ -309,6 +339,44 @@ function evaluateProbe(result) {
     }
   }
 
+  const handoff = result.workbench?.chat_handoff;
+  if (handoff?.skipped) {
+    warn('Workbench Ask chat handoff skipped by flag');
+  } else {
+    check('Workbench Ask creates a real Chat thread', handoff?.thread_status === 200, {
+      status: handoff?.thread_status ?? null,
+      thread_id_returned: Boolean(handoff?.thread_id_returned)
+    });
+    check(
+      'Workbench Ask message is accepted by the Chat runtime',
+      handoff?.send_status === 200 && handoff?.send_accepted === true,
+      {
+        status: handoff?.send_status ?? null,
+        outcome: handoff?.send_outcome || null,
+        has_run_id: Boolean(handoff?.has_run_id)
+      }
+    );
+    check(
+      'Workbench Ask lands in the registered Chat timeline',
+      handoff?.timeline_status === 200 && handoff?.timeline_has_workbench_request === true,
+      {
+        status: handoff?.timeline_status ?? null,
+        attempts: handoff?.timeline_attempts ?? null,
+        message_count: handoff?.timeline_message_count ?? null
+      }
+    );
+    check(
+      'Workbench Ask timeline preserves live source status',
+      handoff?.timeline_has_live_source_status === true &&
+        handoff?.observed_ready_family_count === handoff?.expected_ready_family_count,
+      {
+        expected_ready_family_count: handoff?.expected_ready_family_count ?? null,
+        observed_ready_family_count: handoff?.observed_ready_family_count ?? null,
+        live_source_status: result.workbench?.live_source_status || ''
+      }
+    );
+  }
+
   const failed = checks.filter((entry) => !entry.pass);
   const verdict = failed.length > 0 ? 'FAIL' : warnings.length > 0 ? 'WARN' : 'PASS';
   return { verdict, checks, warnings };
@@ -380,7 +448,10 @@ async function main() {
     },
     workbench: {
       connector_families: [],
-      live_source_status: ''
+      live_source_status: '',
+      chat_handoff: {
+        skipped: skipChatHandoff
+      }
     },
     verdict: 'PENDING',
     checks: [],
@@ -576,6 +647,120 @@ async function main() {
           rejected: sendGate.status >= 400 && sendGate.status < 500
         };
       }
+    }
+
+    if (!skipChatHandoff) {
+      const readyFamilies = (result.workbench.connector_families || []).filter(
+        (family) => family?.state === 'ready'
+      );
+      const activeModel =
+        result.llm?.active?.model ||
+        result.llm?.active?.model_id ||
+        result.llm?.active?.default_model ||
+        'auto';
+      const liveSourceStatus =
+        result.workbench.live_source_status ||
+        buildWorkbenchLiveSourceStatus({
+          connectorFamilies: result.workbench.connector_families
+        });
+      const handoffBrief =
+        'Non-mutating Workbench live wiring probe. Confirm that this request reached the live Chat runtime. Do not read connectors, send, post, file, schedule, or change external systems.';
+      const draft = buildWorkbenchChatDraft({
+        brief: handoffBrief,
+        modelId: activeModel,
+        modelLabel: activeModel,
+        effort: 'standard',
+        sourceMode: 'manual',
+        sourceIds: [],
+        cadence: '',
+        connectorFamilies: result.workbench.connector_families
+      });
+      const requestedThreadId = `workbench-live-handoff-${randomUUID()}`;
+      const thread = await request('POST', '/api/webchat/v2/threads', {
+        client_action_id: `workbench-live-handoff-thread-${stamp}`,
+        requested_thread_id: requestedThreadId
+      });
+      const threadId =
+        thread.body?.thread_id || thread.body?.thread?.thread_id || requestedThreadId;
+      const handoff = {
+        skipped: false,
+        thread_status: thread.status,
+        thread_id_returned: Boolean(thread.body?.thread_id || thread.body?.thread?.thread_id),
+        send_status: null,
+        send_accepted: false,
+        send_outcome: null,
+        has_run_id: false,
+        timeline_status: null,
+        timeline_attempts: 0,
+        timeline_message_count: 0,
+        timeline_has_workbench_request: false,
+        timeline_has_live_source_status: false,
+        expected_ready_family_count: readyFamilies.length,
+        observed_ready_family_count: 0,
+        observed_ready_families: [],
+        draft_preview: {
+          has_workbench_request_header: draft.includes('Workbench request'),
+          live_source_status: liveSourceStatus
+        }
+      };
+
+      if (thread.ok) {
+        const send = await request(
+          'POST',
+          `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/messages`,
+          {
+            client_action_id: `workbench-live-handoff-message-${stamp}`,
+            content: draft
+          }
+        );
+        handoff.send_status = send.status;
+        handoff.send_outcome = send.body?.outcome || null;
+        handoff.has_run_id = Boolean(send.body?.run_id || send.body?.run?.run_id);
+        handoff.send_accepted =
+          send.ok &&
+          (Boolean(send.body?.accepted_message_ref) ||
+            Boolean(send.body?.message_id) ||
+            Boolean(send.body?.turn_id) ||
+            Boolean(send.body?.run_id) ||
+            send.body?.outcome === 'submitted' ||
+            send.body?.outcome === 'accepted');
+
+        if (send.ok) {
+          for (let attempt = 1; attempt <= 16; attempt += 1) {
+            await delay(750);
+            const timeline = await request(
+              'GET',
+              `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/timeline?limit=20`
+            );
+            handoff.timeline_status = timeline.status;
+            handoff.timeline_attempts = attempt;
+            const messages = timelineMessages(timeline.body);
+            handoff.timeline_message_count = messages.length;
+            const userText = messages
+              .filter((message) => {
+                const kind = messageKind(message);
+                return kind === 'user' || kind === 'user_message';
+              })
+              .map(messageContent)
+              .join('\n');
+            handoff.timeline_has_workbench_request =
+              userText.includes('Workbench request') && userText.includes(handoffBrief);
+            handoff.timeline_has_live_source_status =
+              userText.includes('- Live source status:') && userText.includes(liveSourceStatus);
+            handoff.observed_ready_families = readyFamilies
+              .map((family) => family.id)
+              .filter((id) => {
+                const label = readyFamilies.find((family) => family.id === id)?.label || id || '';
+                return userText.includes(label);
+              });
+            handoff.observed_ready_family_count = handoff.observed_ready_families.length;
+            if (handoff.timeline_has_workbench_request && handoff.timeline_has_live_source_status) {
+              break;
+            }
+          }
+        }
+      }
+      result.workbench.chat_handoff = handoff;
     }
   } finally {
     result.log_tail = log
