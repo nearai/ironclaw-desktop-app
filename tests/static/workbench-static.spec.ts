@@ -1191,6 +1191,54 @@ test('static workbench: the run timeline renders prompt, tool steps, and output 
   await expect(runTimeline).toContainText('Compared three TEE vendors');
 });
 
+test('static workbench: a failed tool with no reply surfaces a needs-attention run state', async ({
+  page
+}) => {
+  const sentMessages: Array<{ path: string; body: Record<string, unknown> }> = [];
+  await installWorkbenchMocks(page, {
+    sentMessages,
+    timelineMessages: [
+      {
+        message_id: 'fail-user',
+        kind: 'user',
+        status: 'finalized',
+        content: 'Workbench request: find Slack blockers',
+        created_at: '2026-06-19T16:00:00.000Z',
+        sequence: 1
+      },
+      {
+        message_id: 'fail-tool',
+        kind: 'capability_display_preview',
+        status: 'finalized',
+        content: JSON.stringify({
+          invocation_id: 'inv-2',
+          status: 'failed',
+          title: 'slack.SLACK_SEARCH_MESSAGES',
+          capability_id: 'slack.SLACK_SEARCH_MESSAGES',
+          subtitle: 'Searching Slack',
+          output_summary: 'Slack token expired'
+        }),
+        created_at: '2026-06-19T16:00:30.000Z',
+        sequence: 2,
+        turn_run_id: 'run-y'
+      }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page.getByTestId('workbench-brief-input').fill('Find Slack blockers from this week.');
+  await page.getByTestId('workbench-send-button').click();
+  await expect.poll(() => sentMessages.length).toBe(1);
+
+  // A failed tool with no assistant reply is the honest blocked/needs-attention
+  // state — not "Working…" forever and not a fabricated completion.
+  await expect(page.getByTestId('workbench-run-attention')).toBeVisible();
+  await expect(page.getByTestId('workbench-run-live')).toHaveCount(0);
+  const runTimeline = page.getByTestId('workbench-run-timeline');
+  await expect(runTimeline).toContainText('SLACK_SEARCH_MESSAGES');
+  await expect(runTimeline).toContainText('Failed');
+});
+
 test('static workbench: manual source choice blocks when the connector is not ready', async ({
   page
 }) => {

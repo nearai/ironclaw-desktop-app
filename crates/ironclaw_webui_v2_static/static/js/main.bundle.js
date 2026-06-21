@@ -4704,12 +4704,17 @@ ${de}`;if(L.current.gateKey!==Re&&(L.current={gateKey:Re,credentialRef:null,inFl
           </div>
         `)}
     </div>
-  `}function X7(e){let t=e?.preferences||{};return[["Model",t.model||"Active NEAR AI Cloud model"],["Effort",t.effort||"Standard"],["Sources",t.sources||"Auto sources"],["Timing",t.timing||"Not specified"]]}function WA(e,t){return[...Array.isArray(e)?e:[]].reverse().find(a=>a?.role===t&&VA(a.content))}function J7(e){return(Array.isArray(e)?e:[]).some(t=>t?t.role==="tool_activity"?!0:t.role==="user"||t.role==="assistant"?!!String(t.content||"").trim():!1:!1)}function Z7({work:e,timelineQuery:t}){let a=h.default.useMemo(()=>Kl(t.data?.messages||[],[]),[t.data]),r=WA(a,"user");if(J7(a)){let n=!WA(a,"assistant");return l`
+  `}function X7(e){let t=e?.preferences||{};return[["Model",t.model||"Active NEAR AI Cloud model"],["Effort",t.effort||"Standard"],["Sources",t.sources||"Auto sources"],["Timing",t.timing||"Not specified"]]}function WA(e,t){return[...Array.isArray(e)?e:[]].reverse().find(a=>a?.role===t&&VA(a.content))}function J7(e){return(Array.isArray(e)?e:[]).some(t=>t?t.role==="tool_activity"?!0:t.role==="user"||t.role==="assistant"?!!String(t.content||"").trim():!1:!1)}function Z7({work:e,timelineQuery:t}){let a=h.default.useMemo(()=>Kl(t.data?.messages||[],[]),[t.data]),r=WA(a,"user");if(J7(a)){let n=WA(a,"assistant"),o=a.some(s=>s&&s.role==="tool_activity"&&(s.toolError||s.toolStatus==="error")),i=n?"done":o?"attention":"running";return l`
       <div className="wb13-runtime-preview" data-testid="workbench-live-thread-preview">
         <div className="wb13-runtime-preview-head">
           <${N} name="pulse" />
           <span>Live run</span>
-          ${n?l`<span className="wb13-run-live" data-testid="workbench-run-live">Working…</span>`:null}
+          ${i==="running"?l`<span className="wb13-run-live" data-testid="workbench-run-live">Working…</span>`:null}
+          ${i==="attention"?l`<span
+                className="wb13-run-live is-attention"
+                data-testid="workbench-run-attention"
+                >Needs attention</span
+              >`:null}
         </div>
         <${GA} messages=${a} />
         <${be} to=${`/chat/${encodeURIComponent(e.threadId)}`} className="wb13-button is-sm">
@@ -6070,6 +6075,9 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   font-weight: 700;
   text-transform: none;
   letter-spacing: 0;
+}
+.wb13-run-live.is-attention {
+  color: var(--wb-danger);
 }
 .wb13-run {
   list-style: none;

@@ -215,6 +215,9 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   text-transform: none;
   letter-spacing: 0;
 }
+.wb13-run-live.is-attention {
+  color: var(--wb-danger);
+}
 .wb13-run {
   list-style: none;
   margin: 0;

@@ -98,14 +98,32 @@ function TimelinePreview({ work, timelineQuery }) {
   const user = latestMessage(messages, 'user');
 
   if (hasRenderableRun(messages)) {
-    const running = !latestMessage(messages, 'assistant');
+    // Run state from the live timeline alone — no fabrication. A landed
+    // assistant reply means done (a tool error_kind can precede a successful
+    // recovery, so a reply always wins). A failed tool with no reply yet is the
+    // honest "needs attention" state. Otherwise the run is still working.
+    const assistant = latestMessage(messages, 'assistant');
+    const failedTool = messages.some(
+      (message) =>
+        message &&
+        message.role === 'tool_activity' &&
+        (message.toolError || message.toolStatus === 'error')
+    );
+    const runState = assistant ? 'done' : failedTool ? 'attention' : 'running';
     return html`
       <div className="wb13-runtime-preview" data-testid="workbench-live-thread-preview">
         <div className="wb13-runtime-preview-head">
           <${Icon} name="pulse" />
           <span>Live run</span>
-          ${running
+          ${runState === 'running'
             ? html`<span className="wb13-run-live" data-testid="workbench-run-live">Working…</span>`
+            : null}
+          ${runState === 'attention'
+            ? html`<span
+                className="wb13-run-live is-attention"
+                data-testid="workbench-run-attention"
+                >Needs attention</span
+              >`
             : null}
         </div>
         <${WorkbenchRunTimeline} messages=${messages} />
