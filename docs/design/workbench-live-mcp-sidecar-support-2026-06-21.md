@@ -53,7 +53,7 @@ Loop:
 
 Hard rule:
 Do not claim "live MCP/direct tool use works" unless
-`--require-direct-connector-chat` passes. As of the 2026-06-21 13:01 EDT
+`--require-direct-connector-chat` passes. As of the 2026-06-21 13:05 EDT
 probe, this gate passes against the rebuilt sidecar with `connected-sources.read`
 activated, OpenRouter `openai/gpt-4o-mini`, live SSE tool activity, and fresh
 post-run SSE replay of the same connector invocation.
@@ -144,7 +144,7 @@ Current non-blocking caveats:
 - OpenRouter does not advertise model-list support through the current provider
   route, so the probe verdict is `WARN` even with zero failed checks.
 
-Fresh artifacts from the 2026-06-21 11:26 EDT support pass:
+Fresh artifacts from the 2026-06-21 13:05 EDT support pass:
 
 - Baseline disposable OpenRouter path:
   `/tmp/ironclaw-workbench-live-wiring-2026-06-21T15-21-19-252Z/probe.json`
@@ -213,7 +213,7 @@ Fresh artifacts from the 2026-06-21 11:26 EDT support pass:
   - direct Chat accepted the message and assistant returned
     `DIRECT_CONNECTOR_PROBE_DONE tool_used=yes reason=success`
 - SSE-aware direct connector activity and replay probe:
-  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-01-06-795Z/probe.json`
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-05-00-689Z/probe.json`
   - verdict `WARN`, with zero failed checks
   - direct Chat accepted the message, completed, and assistant returned
     `DIRECT_CONNECTOR_PROBE_DONE tool_used=yes`
