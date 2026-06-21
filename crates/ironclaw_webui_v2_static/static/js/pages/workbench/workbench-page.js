@@ -186,7 +186,7 @@ function HomeView(props) {
   return html`
     <main className="wb13-main">
       <div className="wb13-page">
-        <div className="wb13-wrap">
+        <div className=${cn('wb13-wrap', props.startedWork && 'is-wide')}>
           <${WorkbenchCommandSurface} ...${props.commandProps} />
           <${WorkbenchColdStart}
             families=${props.connectorFamilies}

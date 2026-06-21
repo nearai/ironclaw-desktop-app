@@ -230,5 +230,8 @@ export const WORKBENCH_SHELL_STYLE = `.wb13-shell {
 }
 .wb13-page { padding: 0 34px 64px; }
 .wb13-wrap { max-width: 720px; margin: 0 auto; }
+/* When a work item is open the 2-column scene grid needs room to breathe;
+   the plain home stays a focused 720 column (DESIGN.md Law 3). */
+.wb13-wrap.is-wide { max-width: 1040px; }
 .wb13-wide { max-width: 960px; margin: 0 auto; }
 `;

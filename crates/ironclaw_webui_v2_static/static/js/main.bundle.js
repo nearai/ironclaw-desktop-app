@@ -5435,6 +5435,9 @@ ${ge}`;if(P.current.gateKey!==Se&&(P.current={gateKey:Se,credentialRef:null,inFl
 }
 .wb13-page { padding: 0 34px 64px; }
 .wb13-wrap { max-width: 720px; margin: 0 auto; }
+/* When a work item is open the 2-column scene grid needs room to breathe;
+   the plain home stays a focused 720 column (DESIGN.md Law 3). */
+.wb13-wrap.is-wide { max-width: 1040px; }
 .wb13-wide { max-width: 960px; margin: 0 auto; }
 `;var dT=`.wb13-command { padding-top: 42px; }
 .wb13-greet {
@@ -7881,7 +7884,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   `}function j9(e){let t=e.savedItems.some(r=>un(r)),a=e.commandProps.sourceMode!==na.id&&e.commandProps.sourceIds.includes("local-files");return l`
     <main className="wb13-main">
       <div className="wb13-page">
-        <div className="wb13-wrap">
+        <div className=${F("wb13-wrap",e.startedWork&&"is-wide")}>
           <${FA} ...${e.commandProps} />
           <${EA}
             families=${e.connectorFamilies}
