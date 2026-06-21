@@ -1218,6 +1218,9 @@ test('static workbench: the run timeline renders prompt, tool steps, and output 
     ]
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
+  const workbenchWrap = page.locator('.wb13-wrap').first();
+  await expect(workbenchWrap).not.toHaveClass(/is-wide/);
+  await expect(workbenchWrap).toHaveCSS('max-width', '720px');
 
   await page
     .getByTestId('workbench-brief-input')
@@ -1227,6 +1230,10 @@ test('static workbench: the run timeline renders prompt, tool steps, and output 
 
   const runTimeline = page.getByTestId('workbench-run-timeline');
   await expect(runTimeline).toBeVisible();
+  // Once work starts, the run card needs enough horizontal room for the
+  // timeline and approval rail. Cold-open stays a focused command column.
+  await expect(workbenchWrap).toHaveClass(/is-wide/);
+  await expect(workbenchWrap).toHaveCSS('max-width', '1040px');
   await expect(runTimeline).toContainText('You asked');
   // The tool step renders with its real name, status, and result — the run
   // unfolds on the Workbench instead of being a "open in Chat" link.
