@@ -282,9 +282,10 @@ export function useWorkbenchStart({
         effort,
         sourceMode,
         sourceIds,
-        cadence
+        cadence,
+        connectorFamilies
       }),
-    [brief, modelId, effort, sourceMode, sourceIds, cadence]
+    [brief, modelId, effort, sourceMode, sourceIds, cadence, connectorFamilies]
   );
 
   const startWorkbenchRequest = React.useCallback(async () => {

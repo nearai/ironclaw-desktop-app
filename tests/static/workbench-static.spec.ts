@@ -1384,6 +1384,12 @@ test('static workbench: active connector readiness unblocks manual source choice
     'Summarize the Slack launch thread and draft replies.'
   );
   expect(String(sentMessages[0].body.content)).toContain('Slack, if connected');
+  expect(String(sentMessages[0].body.content)).toContain(
+    'Live source status: Gmail ready via Composio'
+  );
+  expect(String(sentMessages[0].body.content)).toContain('Drive ready via Composio');
+  expect(String(sentMessages[0].body.content)).toContain('Slack ready via Composio');
+  expect(String(sentMessages[0].body.content)).not.toContain('Notion ready');
 });
 
 test('static workbench: command posts a general research request to the existing runtime API', async ({

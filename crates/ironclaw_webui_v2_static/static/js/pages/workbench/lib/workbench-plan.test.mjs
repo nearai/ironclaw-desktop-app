@@ -10,6 +10,7 @@ import {
   WORKBENCH_VISIBLE_SUGGESTIONS,
   WORKBENCH_WIRING_ASSUMPTIONS,
   buildWorkbenchChatDraft,
+  buildWorkbenchLiveSourceStatus,
   selectedWorkbenchSources,
   workbenchSuggestionFill,
   workbenchHasBackendEndpoint
@@ -37,6 +38,33 @@ test('buildWorkbenchChatDraft packages model, effort, sources, and approval boun
   assert.match(draft, /Public web and HTTP checks/);
   assert.match(draft, /wait for approval/);
   assert.doesNotMatch(draft, /Slack, if connected/);
+});
+
+test('buildWorkbenchChatDraft carries live connected source status without private data', () => {
+  const draft = buildWorkbenchChatDraft({
+    brief: 'Tell me what needs my attention.',
+    sourceMode: WORKBENCH_AUTO_SOURCE_SCOPE.id,
+    connectorFamilies: [
+      { id: 'gmail', label: 'Gmail', state: 'ready', via: 'Composio' },
+      { id: 'slack', label: 'Slack', state: 'ready', via: 'Composio' },
+      { id: 'notion', label: 'Notion', state: 'initiated', via: 'Composio' }
+    ]
+  });
+
+  assert.match(draft, /Live source status:/);
+  assert.match(draft, /Gmail ready via Composio \(email reads\)/);
+  assert.match(draft, /Slack ready via Composio \(Slack message search\)/);
+  assert.doesNotMatch(draft, /Notion ready/);
+  assert.doesNotMatch(draft, /api[_ -]?key|secret|bearer|access[_ -]?token/i);
+});
+
+test('buildWorkbenchLiveSourceStatus is honest when no live connector account is verified', () => {
+  assert.equal(
+    buildWorkbenchLiveSourceStatus({
+      connectorFamilies: [{ id: 'notion', label: 'Notion', state: 'initiated', via: 'Composio' }]
+    }),
+    'No live connector accounts were verified on the Workbench surface yet.'
+  );
 });
 
 test('buildWorkbenchChatDraft packages auto source and cadence preferences without fake scheduling', () => {
@@ -182,7 +210,9 @@ test('visible workbench suggestions are action language and not legal-only examp
 });
 
 test('visible workbench suggestions fill complete natural instructions', () => {
-  const byId = new Map(WORKBENCH_VISIBLE_SUGGESTIONS.map((suggestion) => [suggestion.id, suggestion]));
+  const byId = new Map(
+    WORKBENCH_VISIBLE_SUGGESTIONS.map((suggestion) => [suggestion.id, suggestion])
+  );
   const tee = byId.get('tee-vendors');
   const slack = byId.get('slack-blockers');
   const watch = byId.get('competitor-watch');

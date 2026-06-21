@@ -59,6 +59,15 @@ export const WORKBENCH_SOURCE_CAPABILITY_MAP = Object.freeze({
   'local-files': ['workspace']
 });
 
+const WORKBENCH_CONNECTED_SOURCE_HINTS = Object.freeze({
+  gmail: 'email reads',
+  calendar: 'calendar reads',
+  drive: 'Drive and Docs reads',
+  notion: 'Notion page search',
+  slack: 'Slack message search',
+  github: 'GitHub notifications and repo context'
+});
+
 export const WORKBENCH_VISIBLE_SUGGESTIONS = Object.freeze([
   {
     id: 'needs-me',
@@ -256,6 +265,27 @@ export function workbenchSuggestionFill(suggestion) {
   return cleanLines(suggestion?.fill || suggestion?.label || '');
 }
 
+function readyConnectorFamilies(connectorFamilies = []) {
+  return (connectorFamilies || []).filter((family) => family?.state === 'ready');
+}
+
+export function buildWorkbenchLiveSourceStatus({ connectorFamilies = [] } = {}) {
+  const readyFamilies = readyConnectorFamilies(connectorFamilies);
+  if (!readyFamilies.length) {
+    return 'No live connector accounts were verified on the Workbench surface yet.';
+  }
+
+  return readyFamilies
+    .map((family) => {
+      const id = String(family?.id || '').trim();
+      const label = cleanLines(family?.label || id || 'Connector');
+      const via = cleanLines(family?.via || 'connected account');
+      const hint = WORKBENCH_CONNECTED_SOURCE_HINTS[id];
+      return `${label} ready via ${via}${hint ? ` (${hint})` : ''}`;
+    })
+    .join('; ');
+}
+
 export function buildWorkbenchChatDraft({
   brief,
   modelId = 'auto',
@@ -263,7 +293,8 @@ export function buildWorkbenchChatDraft({
   effort = 'standard',
   sourceMode = 'manual',
   sourceIds = [],
-  cadence = ''
+  cadence = '',
+  connectorFamilies = []
 } = {}) {
   const task = cleanLines(brief);
   if (!task) return '';
@@ -279,6 +310,7 @@ export function buildWorkbenchChatDraft({
         ? sources.map((source) => source.draftLabel).join('; ')
         : 'Only the context already in this chat.';
   const timingLine = timing || 'Not specified; ask only if timing changes the action.';
+  const liveSourceStatus = buildWorkbenchLiveSourceStatus({ connectorFamilies });
 
   return [
     'Workbench request',
@@ -290,6 +322,7 @@ export function buildWorkbenchChatDraft({
     `- Model: ${model}`,
     `- Effort: ${effortLevel.draftLabel}`,
     `- Sources to consider: ${sourceLine}`,
+    `- Live source status: ${liveSourceStatus}`,
     `- Timing: ${timingLine}`,
     '',
     'Boundaries:',
