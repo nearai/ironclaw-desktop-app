@@ -53,7 +53,7 @@ Loop:
 
 Hard rule:
 Do not claim "live MCP/direct tool use works" unless
-`--require-direct-connector-chat` passes. As of the 2026-06-21 13:38 EDT
+`--require-direct-connector-chat` passes. As of the 2026-06-21 13:44 EDT
 probe, this gate passes against the rebuilt sidecar with `connected-sources.read`
 activated, a working disposable OpenRouter profile, one durable `/timeline` tool
 signal, live SSE tool activity, and fresh post-run SSE replay of the same
@@ -75,6 +75,7 @@ Use the main desktop repo branch above as the source of truth.
 
 Recent branch heads before this diagnostic support note:
 
+- `03f240f test(workbench): respect provider preflight in live probe`
 - `6445d6e fix(workbench): block starts when model catalog fails`
 - `6590d94 test(workbench): count timeline tool preview envelopes`
 - `361e4e3 feat(workbench): replay live tool activity in run preview`
@@ -160,11 +161,11 @@ Current non-blocking caveats:
   but Chat handoff is skipped when the active NEAR AI Cloud model catalog cannot
   be verified. Use `--force-chat-handoff` only for deliberate backend diagnosis.
 
-Fresh artifacts from the 2026-06-21 13:38 EDT support pass:
+Fresh artifacts from the 2026-06-21 13:44 EDT support pass:
 
 - Latest full Workbench + direct Chat required gate after Workbench SSE-preview
   wiring and timeline-envelope probe parsing:
-  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-38-32-312Z/probe.json`
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-44-27-288Z/probe.json`
   - verdict `WARN`, with zero failed checks
   - ready families `gmail/calendar/drive/notion/slack/github`
   - live row counts:
@@ -196,7 +197,7 @@ Fresh artifacts from the 2026-06-21 13:38 EDT support pass:
   - first-party source activation remained blocked by setup in the disposable
     profile
 - User-default provider truth:
-  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-38-06-485Z/probe.json`
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-44-11-105Z/probe.json`
   - connected data still live
   - `8` accounts; ready families `gmail/calendar/drive/notion/slack/github`
   - live row counts `3/3/3/3/3/0`
