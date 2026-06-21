@@ -7,6 +7,28 @@ import {
 export const WORK_ITEMS_KEY = 'ironclaw-work-items';
 const MAX_WORK_ITEMS = 500;
 const MAX_RECEIPTS = 20;
+const SAVED_WORK_LOCAL_SOURCE = Object.freeze({
+  source: 'local-browser',
+  status: 'local-only',
+  label: 'This desktop',
+  statusLabel: 'Local profile',
+  detail:
+    'Showing artifacts saved from this desktop profile. Server-backed Work history is not wired yet.'
+});
+const SAVED_WORK_UNAVAILABLE_SOURCE = Object.freeze({
+  source: 'local-browser',
+  status: 'unavailable',
+  label: 'Storage unavailable',
+  statusLabel: 'Unavailable',
+  detail: 'Saved Work storage is not available in this browser.'
+});
+const SAVED_WORK_CORRUPT_SOURCE = Object.freeze({
+  source: 'local-browser',
+  status: 'corrupt',
+  label: 'Storage unreadable',
+  statusLabel: 'Needs recovery',
+  detail: 'Saved Work storage could not be read in this browser.'
+});
 
 // Derive a saved item's dossier provenance from the thread's rendered messages:
 // the original ask (first user turn) and the receipts of what the agent actually
@@ -206,13 +228,29 @@ export function workArtifactHref(workId, artifactId) {
 }
 
 export function readSavedWorkItems(storage = defaultStorage()) {
-  if (!storage) return [];
+  return readSavedWorkSnapshot(storage).items;
+}
+
+export function readSavedWorkSnapshot(storage = defaultStorage()) {
+  if (!storage) {
+    return savedWorkSnapshot([], SAVED_WORK_UNAVAILABLE_SOURCE);
+  }
   try {
     const parsed = JSON.parse(storage.getItem(WORK_ITEMS_KEY) || '[]');
-    return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === 'object') : [];
+    const items = Array.isArray(parsed)
+      ? parsed.filter((item) => item && typeof item === 'object')
+      : [];
+    return savedWorkSnapshot(items, SAVED_WORK_LOCAL_SOURCE);
   } catch {
-    return [];
+    return savedWorkSnapshot([], SAVED_WORK_CORRUPT_SOURCE);
   }
+}
+
+function savedWorkSnapshot(items, sourceInfo) {
+  return {
+    ...sourceInfo,
+    items
+  };
 }
 
 function safeText(value, fallback) {

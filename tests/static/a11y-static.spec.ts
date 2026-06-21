@@ -7,6 +7,7 @@ interface Surface {
   label: string;
   path: string;
   authenticated?: boolean;
+  setup?: (page: Page) => Promise<void>;
   waitFor: (page: Page) => Promise<void>;
 }
 
@@ -58,6 +59,35 @@ const surfaces: Surface[] = [
       await expect(
         page.getByRole('heading', { name: 'What should IronClaw handle next?' })
       ).toBeVisible();
+    }
+  },
+  {
+    label: 'workbench replacement surface',
+    path: '/v2/workbench',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByRole('heading', { name: 'What do you want handled?' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Choose model and effort' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Ask' })).toBeVisible();
+    }
+  },
+  {
+    label: 'saved work reader',
+    path: '/v2/work?item=work-reader-a11y&artifact=artifact-reader-a11y',
+    authenticated: true,
+    setup: async (page) => {
+      await seedSavedWorkReader(page);
+    },
+    waitFor: async (page) => {
+      await expect(page.locator('article h1').first()).toHaveText('Reader source trail receipt');
+      await expect(page.getByTestId('saved-work-artifact')).toContainText(
+        'The saved reader still opens from an explicit Work deep link.'
+      );
+      await expect(page.getByTestId('dossier-receipts')).toContainText('Reviewed source trail');
+      await expect(page.getByRole('link', { name: 'Open thread' })).toHaveAttribute(
+        'href',
+        '/v2/chat/thread-reader'
+      );
     }
   },
   {
@@ -301,6 +331,71 @@ const surfaces: Surface[] = [
   }
 ];
 
+const disallowedVisibleCopy = [
+  { label: 'custody record', pattern: /\bcustody\s+record\b/i },
+  { label: 'trust ledger', pattern: /\btrust\s+ledger\b/i },
+  { label: 'sources connected', pattern: /\bsources\s+connected\b/i }
+];
+
+function withStaticToken(path: string): string {
+  const [pathAndQuery, hash = ''] = path.split('#');
+  const [pathname, query = ''] = pathAndQuery.split('?');
+  const params = new URLSearchParams(query);
+  params.set('token', 'static-a11y-token');
+  return `${pathname}?${params.toString()}${hash ? `#${hash}` : ''}`;
+}
+
+async function seedSavedWorkReader(page: Page) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'ironclaw-work-items',
+      JSON.stringify([
+        {
+          id: 'work-reader-a11y',
+          title: 'Reader source trail receipt',
+          objective: 'Saved work product with receipts and approval-friendly language.',
+          domain: 'general',
+          runbookIds: ['general'],
+          status: 'active',
+          created_at: '2026-06-19T14:00:00.000Z',
+          updated_at: '2026-06-19T14:00:00.000Z',
+          links: [{ kind: 'thread', ref: 'thread-reader', label: 'Reader thread' }],
+          dossier: [
+            {
+              kind: 'ask',
+              text: 'Review the source trail and prepare a short receipt.'
+            }
+          ],
+          approvalBoundaries: ['External sharing requires approval.'],
+          artifacts: [
+            {
+              id: 'artifact-reader-a11y',
+              type: 'document',
+              title: 'Reader source trail receipt',
+              status: 'ready',
+              provenance: ['thread:thread-reader'],
+              content:
+                '# Reader source trail receipt\n\nThe saved reader still opens from an explicit Work deep link.\n\n- Source trail reviewed\n- Receipt retained locally\n- Approval required before sending',
+              content_format: 'markdown'
+            }
+          ],
+          watches: [],
+          receipts: [
+            {
+              label: 'Reviewed source trail',
+              status: 'complete',
+              detail: 'Matched the saved artifact to its originating thread.'
+            }
+          ],
+          openApprovals: [],
+          followUps: [],
+          nextAction: 'Review saved work product.'
+        }
+      ])
+    );
+  });
+}
+
 async function installStaticApiMocks(page: Page, automations: unknown[] = []) {
   await page.route(/\/(api|auth)\//, async (route: Route) => {
     const url = new URL(route.request().url());
@@ -366,6 +461,13 @@ async function expectNoBlockingA11y(page: Page, label: string) {
     blocking,
     `${label} has ${blocking.length} blocking a11y violation(s): ${JSON.stringify(blocking, null, 2)}`
   ).toEqual([]);
+}
+
+async function expectNoDisallowedCopy(page: Page, label: string) {
+  const bodyText = await page.locator('body').innerText();
+  for (const copy of disallowedVisibleCopy) {
+    expect(bodyText, `${label} must not show "${copy.label}" copy`).not.toMatch(copy.pattern);
+  }
 }
 
 const mixedAutomations = [
@@ -519,14 +621,23 @@ for (const surface of surfaces) {
     });
 
     await installStaticApiMocks(page);
-    const token = surface.authenticated ? '?token=static-a11y-token' : '';
-    await page.goto(`${surface.path}${token}`);
+    await surface.setup?.(page);
+    await page.goto(surface.authenticated ? withStaticToken(surface.path) : surface.path);
     await surface.waitFor(page);
 
     await expectNoBlockingA11y(page, surface.label);
+    await expectNoDisallowedCopy(page, surface.label);
     expect(consoleIssues, `${surface.label} console should stay quiet`).toEqual([]);
   });
 }
+
+test('static auth: protected Work route redirects to welcome without token', async ({ page }) => {
+  await installStaticApiMocks(page);
+  await page.goto('/v2/work');
+
+  await expect(page).toHaveURL(/\/v2\/welcome$/);
+  await expect(page.getByRole('heading', { name: 'IronClaw Desktop' })).toBeVisible();
+});
 
 // First-run is the only surface every user sees, and its three NEAR AI Cloud
 // auth controls are the whole job of the screen. They must all be real tap

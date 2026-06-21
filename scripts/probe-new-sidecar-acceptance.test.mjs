@@ -2,8 +2,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
+  LLM_LIST_MODELS_SHAPE_CHECK_NAME,
+  LLM_MODEL_CATALOG_DEGRADED_WARNING_NAME,
   OUTBOUND_DELIVERY_CHECK_NAME,
   SLACK_ADMIN_MANAGED_CHECK_NAME,
+  evaluateLlmListModelsRoute,
   evaluateOutboundDeliveryRoutes,
   evaluateSlackAdminManagedRoutes
 } from './probe-new-sidecar-acceptance.mjs';
@@ -22,6 +25,78 @@ test('new sidecar acceptance gates Slack admin-managed routes when advertised', 
     source,
     /Slack admin-managed capability is backed by allowed-channel and subject routes/
   );
+});
+
+test('new sidecar acceptance keeps list-models shape non-breaking but warns on failed empty catalog', () => {
+  const verdict = evaluateLlmListModelsRoute({
+    listModels: { res: { ok: true, status: 200 }, body: { ok: false, models: [] } },
+    providerId: 'nearai'
+  });
+
+  assert.equal(verdict.check.name, LLM_LIST_MODELS_SHAPE_CHECK_NAME);
+  assert.equal(verdict.check.pass, true);
+  assert.equal(verdict.warning.name, LLM_MODEL_CATALOG_DEGRADED_WARNING_NAME);
+  assert.deepEqual(verdict.warning.detail, {
+    status: 200,
+    provider_id: 'nearai',
+    ok: false,
+    model_count: 0,
+    degraded_reasons: ['catalog_not_ok', 'empty_catalog']
+  });
+});
+
+test('new sidecar acceptance warns on empty list-models catalog even when ok is true', () => {
+  const verdict = evaluateLlmListModelsRoute({
+    listModels: { res: { ok: true, status: 200 }, body: { ok: true, models: [] } },
+    providerId: 'nearai'
+  });
+
+  assert.equal(verdict.check.pass, true);
+  assert.deepEqual(verdict.warning, {
+    name: LLM_MODEL_CATALOG_DEGRADED_WARNING_NAME,
+    detail: {
+      status: 200,
+      provider_id: 'nearai',
+      ok: true,
+      model_count: 0,
+      degraded_reasons: ['empty_catalog']
+    }
+  });
+});
+
+test('new sidecar acceptance passes populated list-models catalog without warning', () => {
+  const verdict = evaluateLlmListModelsRoute({
+    listModels: {
+      res: { ok: true, status: 200 },
+      body: { ok: true, models: [{ id: 'nearai/auto' }] }
+    },
+    providerId: 'nearai'
+  });
+
+  assert.equal(verdict.check.pass, true);
+  assert.deepEqual(verdict.check.detail, {
+    status: 200,
+    provider_id: 'nearai',
+    ok: true,
+    model_count: 1
+  });
+  assert.equal(verdict.warning, null);
+});
+
+test('new sidecar acceptance still fails malformed list-models route shape', () => {
+  const verdict = evaluateLlmListModelsRoute({
+    listModels: { res: { ok: true, status: 200 }, body: { ok: true } },
+    providerId: 'nearai'
+  });
+
+  assert.equal(verdict.check.pass, false);
+  assert.deepEqual(verdict.check.detail, {
+    status: 200,
+    provider_id: 'nearai',
+    ok: true,
+    model_count: null
+  });
+  assert.equal(verdict.warning, null);
 });
 
 test('new sidecar acceptance recognizes the top-level Slack admin-managed strategy used by the UI', () => {

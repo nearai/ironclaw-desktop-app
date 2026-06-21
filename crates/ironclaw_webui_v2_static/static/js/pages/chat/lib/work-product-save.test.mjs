@@ -5,6 +5,7 @@ import {
   currentThreadId,
   dossierFromMessages,
   openSavedWorkProduct,
+  readSavedWorkSnapshot,
   saveAssistantResponseToWork,
   saveGeneratedFileArtifactToWork,
   workArtifactHref
@@ -75,6 +76,31 @@ function sequenceIds() {
   let index = 0;
   return (prefix) => `${prefix}-${(index += 1)}`;
 }
+
+test('readSavedWorkSnapshot returns local source metadata with filtered saved items', () => {
+  const storage = memoryStorage({
+    'ironclaw-work-items': JSON.stringify([{ id: 'work-1' }, null, 'bad', { id: 'work-2' }])
+  });
+
+  const snapshot = readSavedWorkSnapshot(storage);
+
+  assert.equal(snapshot.source, 'local-browser');
+  assert.equal(snapshot.status, 'local-only');
+  assert.equal(snapshot.statusLabel, 'Local profile');
+  assert.deepEqual(
+    snapshot.items.map((item) => item.id),
+    ['work-1', 'work-2']
+  );
+});
+
+test('readSavedWorkSnapshot distinguishes unavailable and corrupt local storage', () => {
+  assert.deepEqual(readSavedWorkSnapshot(null).items, []);
+  assert.equal(readSavedWorkSnapshot(null).status, 'unavailable');
+
+  const corrupt = readSavedWorkSnapshot(memoryStorage({ 'ironclaw-work-items': '{not json' }));
+  assert.equal(corrupt.status, 'corrupt');
+  assert.equal(corrupt.items.length, 0);
+});
 
 test('saveAssistantResponseToWork persists a reloadable Work item with a ready artifact', () => {
   const storage = memoryStorage();

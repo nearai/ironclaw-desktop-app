@@ -11,7 +11,7 @@ import {
   projectedConnectPhase,
   sourceReadinessItems,
   workflowCatalogStatus
-} from './registry-tab.js';
+} from '../lib/registry-readiness.js';
 import { connectorIconKind } from './extension-card.js';
 
 const ISSUE_4775_USE_CASES = [
@@ -206,6 +206,40 @@ test('sourceReadinessItems preserves gateway-offline and blocked Google setup tr
   assert.equal(gmail.statusLabel, 'Blocked by setup');
   assert.equal(gmail.action.label, 'Open Google setup');
   assert.equal(gmail.action.href, '/settings/inference#google-oauth');
+});
+
+test('sourceReadinessItems never marks a catalog-only connector ready', () => {
+  const items = sourceReadinessItems({
+    availableEntries: [coreEntry('gmail')]
+  });
+  const gmail = items.find((item) => item.id === 'gmail');
+
+  assert.equal(gmail.state, 'available');
+  assert.equal(gmail.statusLabel, 'Available');
+  assert.equal(gmail.action.kind, 'connect');
+  assert.notEqual(gmail.statusLabel, 'Ready');
+});
+
+test('sourceReadinessItems routes Google needs-token blockers to Google setup', () => {
+  const items = sourceReadinessItems({
+    availableEntries: [
+      {
+        ...coreEntry('google-calendar'),
+        connectPhase: {
+          phase: 'needs-token',
+          message: 'Google Desktop app client ID required.'
+        }
+      }
+    ]
+  });
+  const calendar = items.find((item) => item.id === 'calendar');
+
+  assert.equal(calendar.state, 'blocked');
+  assert.equal(calendar.statusLabel, 'Blocked by setup');
+  assert.equal(calendar.body, 'Google Desktop app client ID required.');
+  assert.equal(calendar.action.kind, 'link');
+  assert.equal(calendar.action.label, 'Open Google setup');
+  assert.equal(calendar.action.href, '/settings/inference#google-oauth');
 });
 
 test('acceptance workflows map every issue 4775 scenario to connector surfaces', () => {

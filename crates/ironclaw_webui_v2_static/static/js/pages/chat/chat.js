@@ -5,6 +5,11 @@ import {
   setThreadState,
   useThreadStates
 } from '../../lib/thread-state.js';
+import {
+  clearThreadAttentionDetail,
+  setThreadAttentionDetail,
+  threadAttentionDetailFromGate
+} from '../../lib/thread-attention-details.js';
 import { ApprovalCard } from './components/approval-card.js';
 import { AuthGenericCard } from './components/auth-generic-card.js';
 import { AuthOauthCard } from './components/auth-oauth-card.js';
@@ -188,13 +193,18 @@ export function Chat({
     if (!activeThreadId) return undefined;
     if (pendingGate) {
       setThreadState(activeThreadId, THREAD_STATE.NEEDS_ATTENTION);
+      setThreadAttentionDetail(activeThreadId, threadAttentionDetailFromGate(pendingGate));
       return undefined;
     }
     if (isProcessing) {
       setThreadState(activeThreadId, THREAD_STATE.RUNNING);
+      clearThreadAttentionDetail(activeThreadId);
       return undefined;
     }
-    const timer = setTimeout(() => clearThreadState(activeThreadId), THREAD_STATE_CLEAR_GRACE_MS);
+    const timer = setTimeout(() => {
+      clearThreadState(activeThreadId);
+      clearThreadAttentionDetail(activeThreadId);
+    }, THREAD_STATE_CLEAR_GRACE_MS);
     return () => clearTimeout(timer);
   }, [activeThreadId, pendingGate, isProcessing]);
 

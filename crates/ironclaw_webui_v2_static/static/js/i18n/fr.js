@@ -11,6 +11,7 @@ registerPack('fr', {
   'automations.delivery.retry': 'Reessayer',
 
   'nav.chat': 'Chat',
+  'nav.workbench': 'Workbench',
   'nav.workspace': 'Espace de travail',
   'nav.projects': 'Projets',
   'nav.jobs': 'Jobs',

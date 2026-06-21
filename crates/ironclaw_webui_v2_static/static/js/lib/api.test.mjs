@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { FetchEventStream, gatewayStatus, sendMessage } from './api.js';
+import {
+  FetchEventStream,
+  connectorRead,
+  connectorWrite,
+  connectorsConnected,
+  gatewayStatus,
+  sendMessage
+} from './api.js';
 
 function waitFor(assertion, { timeout = 1000, interval = 10 } = {}) {
   const started = Date.now();
@@ -77,6 +84,196 @@ test('sendMessage sends composer attachments as Reborn attachment payloads', asy
       base64: 'dGVtcGxhdGU='
     }
   ]);
+});
+
+test('connector read adapters target read-only connector routes with bearer auth', async () => {
+  const originalFetch = globalThis.fetch;
+  const originalSessionStorage = globalThis.sessionStorage;
+  const calls = [];
+  const signal = new AbortController().signal;
+
+  globalThis.sessionStorage = {
+    getItem: () => 'token-1',
+    setItem: () => {},
+    removeItem: () => {}
+  };
+  globalThis.fetch = async (path, options = {}) => {
+    calls.push({ path, options });
+    return new Response(
+      JSON.stringify(path.endsWith('/connected') ? { connected: ['gmail'] } : { rows: [] }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      }
+    );
+  };
+
+  try {
+    assert.deepEqual(await connectorsConnected({ signal }), { connected: ['gmail'] });
+    assert.deepEqual(
+      await connectorRead({
+        toolkit: ' gmail ',
+        tool: ' GMAIL_FETCH_EMAILS ',
+        arguments: { max_results: 3, query: 'in:inbox' },
+        signal
+      }),
+      { rows: [] }
+    );
+
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].path, '/api/webchat/v2/connectors/connected');
+    assert.equal(calls[0].options.signal, signal);
+    assert.equal(calls[0].options.headers.get('Authorization'), 'Bearer token-1');
+    assert.equal(calls[1].path, '/api/webchat/v2/connectors/read');
+    assert.equal(calls[1].options.method, 'POST');
+    assert.equal(calls[1].options.signal, signal);
+    assert.equal(calls[1].options.headers.get('Content-Type'), 'application/json');
+    assert.equal(calls[1].options.headers.get('Authorization'), 'Bearer token-1');
+    assert.deepEqual(JSON.parse(calls[1].options.body), {
+      toolkit: 'gmail',
+      tool: 'GMAIL_FETCH_EMAILS',
+      arguments: { max_results: 3, query: 'in:inbox' }
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.sessionStorage = originalSessionStorage;
+  }
+});
+
+test('connectorRead accepts Composio read verbs in any segment position', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (path, options = {}) => {
+    calls.push({ path, options });
+    return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+
+  try {
+    await connectorRead({ toolkit: 'gmail', tool: 'GMAIL_FETCH_EMAILS' });
+    await connectorRead({ toolkit: 'googlecalendar', tool: 'GOOGLECALENDAR_EVENTS_LIST' });
+    await connectorRead({ toolkit: 'googlecalendar', tool: 'GOOGLECALENDAR_EVENTS_FIND' });
+    await connectorRead({ toolkit: 'googledocs', tool: 'GOOGLEDOCS_DOCUMENT_READ' });
+
+    assert.deepEqual(
+      calls.map((call) => JSON.parse(call.options.body).tool),
+      [
+        'GMAIL_FETCH_EMAILS',
+        'GOOGLECALENDAR_EVENTS_LIST',
+        'GOOGLECALENDAR_EVENTS_FIND',
+        'GOOGLEDOCS_DOCUMENT_READ'
+      ]
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('connectorRead refuses mutating tools before making a network request', async () => {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = async () => {
+    called = true;
+    return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+
+  try {
+    await assert.rejects(
+      connectorRead({ toolkit: 'gmail', tool: 'GMAIL_SEND_EMAIL', arguments: { to: 'x' } }),
+      /read-only FETCH, LIST, GET, SEARCH, FIND, or READ/
+    );
+    await assert.rejects(
+      connectorRead({ toolkit: 'gmail', tool: 'GMAIL_LIST_AND_DELETE_EMAILS' }),
+      /read-only FETCH, LIST, GET, SEARCH, FIND, or READ/
+    );
+    await assert.rejects(
+      connectorRead({ toolkit: 'googlecalendar', tool: 'GOOGLECALENDAR_EVENTS_INSERT' }),
+      /read-only FETCH, LIST, GET, SEARCH, FIND, or READ/
+    );
+    await assert.rejects(
+      connectorRead({ toolkit: 'gmail', tool: 'GMAIL__FETCH_EMAILS' }),
+      /read-only FETCH, LIST, GET, SEARCH, FIND, or READ/
+    );
+    await assert.rejects(
+      connectorRead({ toolkit: '', tool: 'GMAIL_FETCH_EMAILS' }),
+      /requires a toolkit/
+    );
+    assert.equal(called, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('connectorWrite targets the gated connector write route for Gmail draft creation', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const signal = new AbortController().signal;
+  globalThis.fetch = async (path, options = {}) => {
+    calls.push({ path, options });
+    return new Response(
+      JSON.stringify({ successful: true, data: { response_data: { id: 'd1' } } }),
+      {
+        status: 200,
+        headers: { 'content-type': 'application/json' }
+      }
+    );
+  };
+
+  try {
+    assert.deepEqual(
+      await connectorWrite({
+        toolkit: ' gmail ',
+        tool: 'GMAIL_CREATE_EMAIL_DRAFT',
+        arguments: {
+          recipient_email: 'customer@example.com',
+          subject: 'Re: Terms',
+          body: 'Thanks - draft only.',
+          thread_id: 'thread-1'
+        },
+        signal
+      }),
+      { successful: true, data: { response_data: { id: 'd1' } } }
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].path, '/api/webchat/v2/connectors/write');
+    assert.equal(calls[0].options.method, 'POST');
+    assert.equal(calls[0].options.signal, signal);
+    assert.deepEqual(JSON.parse(calls[0].options.body), {
+      toolkit: 'gmail',
+      tool: 'GMAIL_CREATE_EMAIL_DRAFT',
+      arguments: {
+        recipient_email: 'customer@example.com',
+        subject: 'Re: Terms',
+        body: 'Thanks - draft only.',
+        thread_id: 'thread-1'
+      }
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('connectorWrite refuses off-allowlist writes before making a network request', async () => {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = async () => {
+    called = true;
+    return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+
+  try {
+    await assert.rejects(
+      connectorWrite({ toolkit: 'gmail', tool: 'GMAIL_DELETE_EMAIL', arguments: { id: 'm1' } }),
+      /gated draft\/send allowlist/
+    );
+    await assert.rejects(
+      connectorWrite({ toolkit: '', tool: 'GMAIL_CREATE_EMAIL_DRAFT' }),
+      /requires a toolkit/
+    );
+    assert.equal(called, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test('gatewayStatus fallback keeps default NEAR.AI sendable while execution is unverified', async () => {

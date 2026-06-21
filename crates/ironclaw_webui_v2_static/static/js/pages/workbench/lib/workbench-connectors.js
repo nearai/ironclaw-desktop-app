@@ -1,0 +1,473 @@
+// Pure helpers for the connector-backed Workbench surfaces.
+//
+// These translate the read-only connector route payloads
+// (`connectorsConnected()` / `connectorRead()` in `lib/api.js`) into the
+// view-model the home surface renders. They are intentionally side-effect free
+// and resilient: malformed or empty payloads degrade to honest empty results,
+// never to fabricated rows. The sidecar holds the Composio credential; the key
+// never reaches the browser.
+
+// Toolkit slug (as reported by Composio `/connectors/connected`) -> the source
+// family the Workbench surfaces. Only families with a real ACTIVE account are
+// ever marked ready.
+const TOOLKIT_FAMILY = Object.freeze({
+  gmail: 'gmail',
+  googlemail: 'gmail',
+  googlecalendar: 'calendar',
+  'google-calendar': 'calendar',
+  googledrive: 'drive',
+  'google-drive': 'drive',
+  googledocs: 'drive',
+  'google-docs': 'drive',
+  googlesheets: 'drive',
+  notion: 'notion',
+  slack: 'slack',
+  github: 'github'
+});
+
+// The families the Workbench shows a readiness chip for, in display order.
+export const WORKBENCH_CONNECTOR_FAMILIES = Object.freeze([
+  { id: 'gmail', label: 'Gmail', icon: 'mail' },
+  { id: 'calendar', label: 'Calendar', icon: 'calendar' },
+  { id: 'drive', label: 'Drive', icon: 'folder' },
+  { id: 'notion', label: 'Notion', icon: 'file' },
+  { id: 'slack', label: 'Slack', icon: 'chat' },
+  { id: 'github', label: 'GitHub', icon: 'spark' }
+]);
+
+function asString(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function isActiveStatus(status) {
+  return asString(status).toUpperCase() === 'ACTIVE';
+}
+
+// Normalize the `/connectors/connected` payload into a de-duplicated set of
+// active toolkit slugs. Accepts `{ accounts: [...] }` or a bare array; ignores
+// anything not explicitly ACTIVE.
+export function normalizeConnectedAccounts(payload) {
+  const accounts = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.accounts)
+      ? payload.accounts
+      : [];
+  const activeToolkits = new Set();
+  for (const account of accounts) {
+    if (!account || typeof account !== 'object') continue;
+    if (!isActiveStatus(account.status)) continue;
+    const toolkit = asString(account.toolkit).toLowerCase();
+    if (toolkit) activeToolkits.add(toolkit);
+  }
+  return activeToolkits;
+}
+
+// Build the per-family readiness chips. A family is "ready · via Composio" only
+// when at least one ACTIVE account maps to it; otherwise it is omitted entirely
+// (honest: we never show a family we cannot actually reach).
+export function connectorFamilyReadiness(payload) {
+  const activeToolkits = normalizeConnectedAccounts(payload);
+  const readyFamilies = new Set();
+  for (const toolkit of activeToolkits) {
+    const family = TOOLKIT_FAMILY[toolkit];
+    if (family) readyFamilies.add(family);
+  }
+  return WORKBENCH_CONNECTOR_FAMILIES.filter((family) => readyFamilies.has(family.id)).map(
+    (family) => ({
+      id: family.id,
+      label: family.label,
+      icon: family.icon,
+      state: 'ready',
+      statusLabel: 'Ready',
+      via: 'Composio'
+    })
+  );
+}
+
+export function hasActiveToolkit(payload, family) {
+  return connectorFamilyReadiness(payload).some((item) => item.id === family);
+}
+
+function decodeLabelIds(message) {
+  const ids = Array.isArray(message?.labelIds) ? message.labelIds : [];
+  return ids.map((id) => asString(id).toUpperCase());
+}
+
+// Best-effort extraction of a human sender name/address from the varied shapes
+// Composio can return for GMAIL_FETCH_EMAILS.
+function readSender(message) {
+  const raw =
+    asString(message?.sender) ||
+    asString(message?.from) ||
+    asString(message?.fromEmail) ||
+    asString(message?.payload?.from);
+  if (!raw) return '';
+  // "Display Name <addr@host>" -> "Display Name"; bare address -> address.
+  const match = raw.match(/^\s*"?([^"<]*?)"?\s*<[^>]+>\s*$/);
+  if (match && match[1].trim()) return match[1].trim();
+  return raw;
+}
+
+// Extract a bare email address from a raw "from"/"sender" header that may be
+// "Display Name <addr@host>" or just "addr@host". Returns '' when no address is
+// present, so a reply draft never invents a recipient.
+export function extractEmailAddress(raw) {
+  const value = asString(raw);
+  if (!value) return '';
+  const bracketed = value.match(/<\s*([^<>@\s]+@[^<>@\s]+)\s*>/);
+  if (bracketed) return bracketed[1].trim();
+  const bare = value.match(/[^<>@\s]+@[^<>@\s]+\.[^<>@\s]+/);
+  return bare ? bare[0].trim() : '';
+}
+
+// Decode a numeric HTML entity code point to its character, guarding against
+// invalid/out-of-range values (which would throw); returns '' for those so the
+// later invisible-character pass can drop padding code points cleanly.
+function safeFromCodePoint(code) {
+  if (!Number.isFinite(code) || code < 0 || code > 0x10ffff) return '';
+  try {
+    return String.fromCodePoint(code);
+  } catch (_) {
+    return '';
+  }
+}
+
+function isC0OrC1Control(char) {
+  const code = char.charCodeAt(0);
+  return (
+    code <= 0x08 ||
+    code === 0x0b ||
+    code === 0x0c ||
+    (code >= 0x0e && code <= 0x1f) ||
+    (code >= 0x7f && code <= 0x9f)
+  );
+}
+
+// Strip markup, decode the few common HTML entities, and collapse whitespace so
+// a preview is a clean human line — never raw HTML or templating cruft. Returns
+// '' when the text is still markup-shaped (so the card omits a junk preview
+// rather than rendering `<html lang="en" …>` or `%title%`).
+function cleanPreviewText(raw) {
+  if (!raw) return '';
+  const stripped = raw
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    // Decode numeric HTML entities (decimal + hex) — newsletters pad the preview
+    // with `&#847;`/`&#8199;` zero-width joiners that would otherwise show raw.
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => safeFromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => safeFromCodePoint(parseInt(dec, 10)))
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    // Strip zero-width / invisible / control characters so a preview never
+    // renders as a run of empty boxes: soft hyphen (00AD), zero-width
+    // space..RLM (200B-200F), LRE..RLO/LRM markers (202A-202E), word joiner
+    // (2060), BOM (FEFF), combining grapheme joiner (034F), and C0/C1 control
+    // ranges. NBSP and other Unicode spaces collapse to a normal space.
+    .replace(/[\u00AD\u200B-\u200F\u202A-\u202E\u2060\uFEFF\u034F]/g, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, ' ')
+    .replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // Drop residual markup/templating leftovers (e.g. leading `<`, `{...}`,
+  // `%token%`, or CSS-ish `prop:value;` runs) — these are not human previews.
+  if (!stripped) return '';
+  if (/^[<{[]/.test(stripped)) return '';
+  if (/%[a-z_]+%/i.test(stripped)) return '';
+  if (/\b[a-z-]+\s*:\s*[^;]+;/i.test(stripped) && stripped.length < 60) return '';
+  return stripped;
+}
+
+function readPreview(message) {
+  // Prefer the provider-cleaned snippet/preview; only fall back to the raw body
+  // text after sanitizing it.
+  const clean =
+    cleanPreviewText(asString(message?.preview)) || cleanPreviewText(asString(message?.snippet));
+  const text = clean || cleanPreviewText(asString(message?.messageText) || asString(message?.body));
+  if (!text) return '';
+  return text.length > 140 ? `${text.slice(0, 139)}…` : text;
+}
+
+// Normalize a GMAIL_FETCH_EMAILS read into inbox rows. Returns [] for any
+// unsuccessful/empty/malformed payload so the UI can render an honest empty
+// state quietly (no error log noise). Never fabricates a message.
+export function normalizeInboxMessages(result, { limit = 6 } = {}) {
+  if (!result || result.successful === false) return [];
+  const data = result.data || result;
+  const messages = Array.isArray(data?.messages)
+    ? data.messages
+    : Array.isArray(data?.emails)
+      ? data.emails
+      : Array.isArray(data)
+        ? data
+        : [];
+  const rows = [];
+  for (const message of messages) {
+    if (!message || typeof message !== 'object') continue;
+    const subject = asString(message.subject) || '(no subject)';
+    const rawSender =
+      asString(message?.sender) ||
+      asString(message?.from) ||
+      asString(message?.fromEmail) ||
+      asString(message?.payload?.from);
+    const sender = readSender(message) || 'Unknown sender';
+    const labels = decodeLabelIds(message);
+    const unread = labels.includes('UNREAD');
+    const messageId = asString(message.messageId) || asString(message.id);
+    const threadId = asString(message.threadId);
+    const id = messageId || threadId || `${sender}:${subject}`;
+    rows.push({
+      id,
+      // The real Gmail message + thread ids, surfaced so the UI can fetch the
+      // full message (GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID) and link out to Gmail.
+      // They are '' when Composio omits them; callers must guard before use.
+      messageId,
+      threadId,
+      sender,
+      fromEmail: extractEmailAddress(rawSender),
+      subject,
+      unread,
+      preview: readPreview(message),
+      timestamp: asString(message.messageTimestamp) || asString(message.internalDate) || ''
+    });
+    if (rows.length >= limit) break;
+  }
+  return rows;
+}
+
+function readEventTitle(event) {
+  return (
+    asString(event?.summary) ||
+    asString(event?.title) ||
+    asString(event?.subject) ||
+    '(untitled event)'
+  );
+}
+
+function readEventStart(event) {
+  const start = event?.start;
+  if (typeof start === 'string') return start.trim();
+  return asString(start?.dateTime) || asString(start?.date) || asString(event?.startTime) || '';
+}
+
+// True when the start is a bare `YYYY-MM-DD` (Google's all-day shape) rather
+// than a full timestamp. All-day events have no clock time to show.
+function isAllDayStart(event) {
+  const start = event?.start;
+  if (start && typeof start === 'object') {
+    return Boolean(asString(start.date)) && !asString(start.dateTime);
+  }
+  return /^\d{4}-\d{2}-\d{2}$/.test(readEventStart(event));
+}
+
+// Render a calendar start into a short, human-readable "when". Falls back to the
+// raw string if it cannot be parsed, and to '' if there is nothing to show — the
+// card never fabricates a time it does not have.
+function readEventWhen(event) {
+  const raw = readEventStart(event);
+  if (!raw) return '';
+  const allDay = isAllDayStart(event);
+  // A bare `YYYY-MM-DD` parses as UTC midnight; localizing it can roll back to
+  // the previous calendar day. Parse it as a local date so an all-day event
+  // shows on its own day in every timezone.
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  const parsed = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  try {
+    const dateLabel = parsed.toLocaleDateString(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
+    if (allDay) return `${dateLabel} · all day`;
+    const timeLabel = parsed.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+    return `${dateLabel} · ${timeLabel}`;
+  } catch (_) {
+    return raw;
+  }
+}
+
+function readEventLink(event) {
+  const link = asString(event?.htmlLink) || asString(event?.hangoutLink) || asString(event?.link);
+  return /^https?:\/\//i.test(link) ? link : '';
+}
+
+// Normalize a GOOGLECALENDAR_*_LIST/FIND read into upcoming-event rows:
+// `{ id, title, when, link?, start, location }`. Same honesty contract as the
+// inbox: [] on any failure or empty payload; never fabricates an event.
+export function normalizeCalendarEvents(result, { limit = 6 } = {}) {
+  if (!result || result.successful === false) return [];
+  const data = result.data || result;
+  const events = Array.isArray(data?.events)
+    ? data.events
+    : Array.isArray(data?.items)
+      ? data.items
+      : Array.isArray(data)
+        ? data
+        : [];
+  const rows = [];
+  for (const event of events) {
+    if (!event || typeof event !== 'object') continue;
+    const id = asString(event.id) || asString(event.eventId) || readEventTitle(event);
+    const link = readEventLink(event);
+    const row = {
+      id,
+      title: readEventTitle(event),
+      when: readEventWhen(event),
+      start: readEventStart(event),
+      location: asString(event.location)
+    };
+    if (link) row.link = link;
+    rows.push(row);
+    if (rows.length >= limit) break;
+  }
+  return rows;
+}
+
+export function unreadInboxCount(rows) {
+  return (Array.isArray(rows) ? rows : []).filter((row) => row?.unread).length;
+}
+
+// Decode the common HTML entities and strip invisible/control padding from a
+// run of text, WITHOUT collapsing line structure. Used by the reading panel so
+// a multi-paragraph email stays readable rather than flattening to one line.
+function decodeEntitiesAndInvisibles(raw) {
+  return raw
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => safeFromCodePoint(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => safeFromCodePoint(parseInt(dec, 10)))
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/[­​-‏‪-‮⁠﻿͏]/g, '')
+    .replace(/[\s\S]/g, (char) => (isC0OrC1Control(char) ? '' : char))
+    .replace(/[  -   　]/g, ' ');
+}
+
+// Turn an email body (HTML or plain text) into readable, line-broken plain
+// text for the reading panel. Strips style/script/markup, decodes entities,
+// drops invisible padding, and collapses runs of blank lines — but preserves
+// paragraph breaks so the body does not flatten into a single line. Returns ''
+// for empty input so the caller can show an honest "no body" note.
+export function cleanEmailBody(raw) {
+  const text = asString(raw);
+  if (!text) return '';
+  const looksHtml = /<\/?[a-z][\s\S]*>/i.test(text);
+  let working = text;
+  if (looksHtml) {
+    working = working
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<head[\s\S]*?<\/head>/gi, ' ')
+      // Turn block-level boundaries into newlines before stripping tags so the
+      // text keeps its paragraph structure.
+      .replace(/<\/(p|div|tr|li|h[1-6]|blockquote)>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ');
+  }
+  const decoded = decodeEntitiesAndInvisibles(working);
+  return decoded
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t\f\v]+/g, ' ')
+    .replace(/ *\n */g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// Normalize a GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID read into a full-message view
+// model for the reading panel: `{ messageId, threadId, sender, to, subject,
+// timestamp, body, ok, error }`. Honest contract: on an unsuccessful or
+// malformed payload it returns `{ ok: false, error }` and never fabricates a
+// body. The route surfaces `messageText` as already-decoded plain text; we fall
+// back to the HTML payload body when the plain text is missing.
+export function normalizeFullMessage(result) {
+  if (!result || result.successful === false) {
+    return {
+      ok: false,
+      error: asString(result?.error) || 'Could not load this message.',
+      messageId: '',
+      threadId: '',
+      sender: '',
+      to: '',
+      subject: '',
+      timestamp: '',
+      body: ''
+    };
+  }
+  const data = result.data || result;
+  const body =
+    cleanEmailBody(data?.messageText) ||
+    cleanEmailBody(data?.body) ||
+    cleanEmailBody(data?.payload?.body?.data) ||
+    cleanEmailBody(data?.preview?.body);
+  return {
+    ok: true,
+    error: '',
+    messageId: asString(data?.messageId) || asString(data?.id),
+    threadId: asString(data?.threadId),
+    sender: readSender(data) || asString(data?.sender) || 'Unknown sender',
+    // The original sender's bare email address, for pre-filling a reply draft's
+    // recipient. '' when not extractable — the draft modal leaves it editable.
+    fromEmail: extractEmailAddress(
+      asString(data?.sender) ||
+        asString(data?.from) ||
+        asString(data?.fromEmail) ||
+        asString(data?.payload?.from)
+    ),
+    to: asString(data?.to),
+    subject: asString(data?.subject) || '(no subject)',
+    timestamp: asString(data?.messageTimestamp) || asString(data?.internalDate) || '',
+    body
+  };
+}
+
+// Build a real Gmail deep link for a message or thread. Gmail's `#all/<id>`
+// fragment opens the conversation in the user's primary mailbox; we prefer the
+// thread id (opens the whole conversation) and fall back to the message id.
+// Returns '' when there is no id to link to (so the UI omits a dead link).
+export function gmailMessageHref({ threadId, messageId } = {}) {
+  const id = asString(threadId) || asString(messageId);
+  if (!id) return '';
+  return `https://mail.google.com/mail/u/0/#all/${encodeURIComponent(id)}`;
+}
+
+// Render an inbox timestamp into a short, human "when" for the decision-card
+// meta line. Gmail returns either epoch milliseconds (`internalDate`) or an RFC
+// 3339 string (`messageTimestamp`). Returns '' when there is nothing parseable —
+// the card simply omits the meta line rather than showing a fabricated time.
+export function formatInboxWhen(timestamp) {
+  const raw = asString(timestamp);
+  if (!raw) return '';
+  let parsed;
+  if (/^\d{10,}$/.test(raw)) {
+    // Epoch: 13 digits = ms, 10 digits = seconds.
+    parsed = new Date(raw.length >= 13 ? Number(raw) : Number(raw) * 1000);
+  } else {
+    parsed = new Date(raw);
+  }
+  if (Number.isNaN(parsed.getTime())) return '';
+  try {
+    const now = new Date();
+    const sameDay =
+      parsed.getFullYear() === now.getFullYear() &&
+      parsed.getMonth() === now.getMonth() &&
+      parsed.getDate() === now.getDate();
+    if (sameDay) {
+      return parsed.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    }
+    return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch (_) {
+    return '';
+  }
+}

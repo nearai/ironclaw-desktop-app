@@ -8,10 +8,17 @@ function visibleRouteIds() {
 }
 
 test('desktop primary information architecture stays simple for normal users', () => {
-  assert.equal(defaultRoute, '/chat');
+  assert.equal(defaultRoute, '/workbench');
   // 'automations' (labelled "Scheduled") is a real, gateway-backed read-only
   // viewer of recurring work the agent created — promoted into primary nav.
-  assert.deepEqual(visibleRouteIds(), ['chat', 'work', 'automations', 'extensions', 'settings']);
+  assert.deepEqual(visibleRouteIds(), [
+    'workbench',
+    'chat',
+    'work',
+    'automations',
+    'extensions',
+    'settings'
+  ]);
 });
 
 test('saved work surface is a registered, visible route', () => {
@@ -19,6 +26,13 @@ test('saved work surface is a registered, visible route', () => {
   assert.ok(work, 'work route should be registered');
   assert.equal(work.hidden, false);
   assert.equal(work.path, '/work');
+});
+
+test('workbench replacement route is registered as the default surface', () => {
+  const workbench = primaryRoutes.find((route) => route.id === 'workbench');
+  assert.ok(workbench, 'workbench route should be registered');
+  assert.equal(workbench.hidden, false);
+  assert.equal(workbench.path, '/workbench');
 });
 
 test('backend-blocked and specialist routes stay deep-link only', () => {
@@ -32,6 +46,6 @@ test('backend-blocked and specialist routes stay deep-link only', () => {
   }
 });
 
-test('unknown route ids fall back to chat', () => {
-  assert.equal(routeForId('missing').id, 'chat');
+test('unknown route ids fall back to the workbench replacement surface', () => {
+  assert.equal(routeForId('missing').id, 'workbench');
 });

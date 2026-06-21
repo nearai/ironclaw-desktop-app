@@ -8,7 +8,8 @@
 //   * #4623 CSRF/origin/CORS limits   -> our WebView requests must still pass
 //   * #4624 sanitized error shapes     -> error envelope still { code, message }
 //   * #4552/#4546 SSE projection path  -> run_status events still stream
-//   * #5057 filesystem browser         -> /fs/mounts serves workspace+memory
+//   * #5057 filesystem browser         -> /fs/mounts/list/stat/content serve
+//   * Workbench model controls          -> /llm/providers/list-models/active serve
 //   * delivery defaults + Trace credits -> outbound/* and traces/credit serve
 //   * operator logs query             -> /operator/logs serves scoped logs
 //   * additive routes we want to gain  -> automations/runs, projects/*
@@ -36,6 +37,10 @@ export const SLACK_ADMIN_MANAGED_CHECK_NAME =
   'Slack admin-managed capability is backed by allowed-channel and subject routes';
 export const OUTBOUND_DELIVERY_CHECK_NAME =
   'Outbound delivery routes expose preferences and target shapes used by automations';
+export const LLM_LIST_MODELS_SHAPE_CHECK_NAME =
+  'LLM list-models route serves the model-picker shape';
+export const LLM_MODEL_CATALOG_DEGRADED_WARNING_NAME =
+  'LLM list-models catalog is degraded or empty';
 
 function isRecord(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -102,6 +107,35 @@ export function evaluateOutboundDeliveryRoutes({ preferences, targets } = {}) {
   };
 }
 
+export function evaluateLlmListModelsRoute({ listModels, providerId } = {}) {
+  const models = Array.isArray(listModels?.body?.models) ? listModels.body.models : null;
+  const ok = listModels?.body?.ok ?? null;
+  const detail = {
+    status: listModels?.res?.status ?? null,
+    provider_id: providerId ?? null,
+    ok,
+    model_count: models ? models.length : null
+  };
+  const routeShape = {
+    name: LLM_LIST_MODELS_SHAPE_CHECK_NAME,
+    pass: Boolean(listModels?.res?.ok && models),
+    detail
+  };
+  const degradedReasons = [];
+  if (ok === false) degradedReasons.push('catalog_not_ok');
+  if (models?.length === 0) degradedReasons.push('empty_catalog');
+  return {
+    check: routeShape,
+    warning:
+      routeShape.pass && degradedReasons.length > 0
+        ? {
+            name: LLM_MODEL_CATALOG_DEGRADED_WARNING_NAME,
+            detail: { ...detail, degraded_reasons: degradedReasons }
+          }
+        : null
+  };
+}
+
 function freePort() {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -140,9 +174,13 @@ async function main() {
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
   const checks = [];
+  const warnings = [];
   const log = [];
   const check = (name, pass, detail = {}) => {
     checks.push({ name, pass: Boolean(pass), detail });
+  };
+  const warn = (warning) => {
+    if (warning) warnings.push(warning);
   };
 
   const child = spawn(candidate, ['serve', '--host', '127.0.0.1', '--port', String(port)], {
@@ -159,6 +197,7 @@ async function main() {
   child.stderr.on('data', (c) => log.push(c.toString()));
 
   const api = async (method, pathname, options = {}) => {
+    const parse = options?.parse || 'json';
     const hasEnvelope =
       Object.prototype.hasOwnProperty.call(options, 'body') ||
       Object.prototype.hasOwnProperty.call(options, 'headers');
@@ -175,7 +214,7 @@ async function main() {
     });
     let parsed = null;
     try {
-      parsed = await res.json();
+      parsed = parse === 'text' ? await res.text() : await res.json();
     } catch (_) {
       /* non-JSON */
     }
@@ -345,6 +384,51 @@ async function main() {
       servedRoutes[route] = r;
       check(`existing route /${route} still serves`, r.res.ok, { status: r.res.status });
     }
+    const providerSnapshot = servedRoutes['llm/providers']?.body || {};
+    const llmProviders = Array.isArray(providerSnapshot.providers)
+      ? providerSnapshot.providers
+      : [];
+    const activeSelection =
+      providerSnapshot.active ||
+      llmProviders.find((provider) => provider?.active) ||
+      llmProviders[0] ||
+      null;
+    const activeProviderId = activeSelection?.provider_id || activeSelection?.id || 'nearai';
+    const activeProvider =
+      llmProviders.find((provider) => provider?.id === activeProviderId) || activeSelection;
+    const activeModel =
+      activeSelection?.model ||
+      activeSelection?.active_model ||
+      activeProvider?.active_model ||
+      activeProvider?.default_model ||
+      'auto';
+    const listModels = await api('POST', '/api/webchat/v2/llm/list-models', {
+      provider_id: activeProviderId,
+      adapter: activeProvider?.adapter || activeProviderId
+    });
+    const listModelsEvaluation = evaluateLlmListModelsRoute({
+      listModels,
+      providerId: activeProviderId
+    });
+    check(
+      listModelsEvaluation.check.name,
+      listModelsEvaluation.check.pass,
+      listModelsEvaluation.check.detail
+    );
+    warn(listModelsEvaluation.warning);
+    const activeLlm = await api('POST', '/api/webchat/v2/llm/active', {
+      provider_id: activeProviderId,
+      model: activeModel
+    });
+    check(
+      'LLM active route accepts the current active model selection',
+      activeLlm.res.ok && Array.isArray(activeLlm.body?.providers),
+      {
+        status: activeLlm.res.status,
+        provider_id: activeProviderId,
+        model: activeModel
+      }
+    );
     const outboundCheck = evaluateOutboundDeliveryRoutes({
       preferences: servedRoutes['outbound/preferences'],
       targets: servedRoutes['outbound/targets']
@@ -359,6 +443,53 @@ async function main() {
       'workspace filesystem mounts route serves memory + workspace',
       fsMounts.res.ok && mountIds.includes('memory') && mountIds.includes('workspace'),
       { status: fsMounts.res.status, mounts: mountIds }
+    );
+    const fsList = await api('GET', '/api/webchat/v2/fs/list?mount=workspace');
+    const fsEntries = Array.isArray(fsList.body?.entries) ? fsList.body.entries : [];
+    check('workspace filesystem list route serves entries', fsList.res.ok && fsEntries.length > 0, {
+      status: fsList.res.status,
+      entry_count: fsEntries.length
+    });
+    const preferredProbePaths = ['README.md', 'package.json', 'CLAUDE.md'];
+    const fsProbeEntry =
+      preferredProbePaths
+        .map((probePath) =>
+          fsEntries.find((entry) => entry?.kind === 'file' && entry.path === probePath)
+        )
+        .find(Boolean) || fsEntries.find((entry) => entry?.kind === 'file' && entry?.path);
+    const fsProbePath = fsProbeEntry?.path || '';
+    const fsStat = fsProbePath
+      ? await api(
+          'GET',
+          `/api/webchat/v2/fs/stat?mount=workspace&path=${encodeURIComponent(fsProbePath)}`
+        )
+      : null;
+    check(
+      'workspace filesystem stat route serves selected file metadata',
+      Boolean(fsStat?.res?.ok && fsStat.body?.stat?.kind === 'file'),
+      {
+        status: fsStat?.res?.status ?? null,
+        path: fsProbePath || null,
+        size_bytes: fsStat?.body?.stat?.size_bytes ?? null
+      }
+    );
+    const fsContent = fsProbePath
+      ? await api(
+          'GET',
+          `/api/webchat/v2/fs/content?mount=workspace&path=${encodeURIComponent(fsProbePath)}`,
+          { parse: 'text' }
+        )
+      : null;
+    check(
+      'workspace filesystem content route serves selected file bytes',
+      Boolean(
+        fsContent?.res?.ok && typeof fsContent.body === 'string' && fsContent.body.length > 0
+      ),
+      {
+        status: fsContent?.res?.status ?? null,
+        path: fsProbePath || null,
+        bytes: typeof fsContent?.body === 'string' ? Buffer.byteLength(fsContent.body) : null
+      }
     );
 
     const projects = await api('GET', '/api/webchat/v2/projects?limit=5');
@@ -441,6 +572,7 @@ async function main() {
       candidate,
       verdict,
       checks,
+      warnings,
       gained_routes: gained,
       sidecar_log_tail: log.join('').split('\n').slice(-15)
     };
@@ -450,6 +582,7 @@ async function main() {
     );
     console.log(`verdict: ${verdict}`);
     for (const c of checks) console.log(`  ${c.pass ? 'PASS' : 'FAIL'} - ${c.name}`);
+    for (const w of warnings) console.log(`  WARN - ${w.name}`);
     console.log('gained routes (want 200):', JSON.stringify(gained));
     if (verdict !== 'PASS') process.exitCode = 1;
   } catch (err) {

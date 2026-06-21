@@ -594,6 +594,123 @@ export function setupExtension(extensionName, { action, payload } = {}) {
   });
 }
 
+// --- Connectors (read-only MCP data via the in-gateway connector route) ---
+//
+// The sidecar holds the Composio credential and proxies READ-ONLY tool calls
+// (FETCH/LIST/GET/SEARCH) to Composio; the key never reaches the browser. These
+// power deterministic, always-on Workbench surfaces (connected sources, inbox,
+// calendar) without an LLM agent run. Writes are NOT available here — they stay
+// on the approval-gated agent path.
+
+export function connectorsConnected({ signal } = {}) {
+  return apiFetch(`${V2_BASE}/connectors/connected`, { signal });
+}
+
+const CONNECTOR_READ_VERBS = new Set(['FETCH', 'LIST', 'GET', 'SEARCH', 'FIND', 'READ']);
+const CONNECTOR_WRITE_VERBS = new Set([
+  'ADD',
+  'ARCHIVE',
+  'CANCEL',
+  'CREATE',
+  'DELETE',
+  'DRAFT',
+  'FORWARD',
+  'INSERT',
+  'LABEL',
+  'MODIFY',
+  'MOVE',
+  'PATCH',
+  'POST',
+  'PUT',
+  'REMOVE',
+  'REPLY',
+  'SEND',
+  'SET',
+  'TRASH',
+  'UPDATE',
+  'WATCH',
+  'WRITE'
+]);
+
+function connectorToolSegments(tool) {
+  const normalized = String(tool || '')
+    .trim()
+    .toUpperCase();
+  if (!/^[A-Z0-9_]+$/.test(normalized)) return [];
+  const segments = normalized.split('_');
+  if (segments.length < 2 || segments.some((segment) => !segment)) return [];
+  return segments;
+}
+
+function isReadOnlyConnectorTool(tool) {
+  const segments = connectorToolSegments(tool);
+  if (!segments.length) return false;
+  if (segments.some((segment) => CONNECTOR_WRITE_VERBS.has(segment))) return false;
+  return segments.some((segment) => CONNECTOR_READ_VERBS.has(segment));
+}
+
+export async function connectorRead({ toolkit, tool, arguments: args, signal } = {}) {
+  const normalizedToolkit = String(toolkit || '').trim();
+  const normalizedTool = String(tool || '').trim();
+  if (!normalizedToolkit) {
+    throw new Error('Connector read requires a toolkit.');
+  }
+  if (!isReadOnlyConnectorTool(normalizedTool)) {
+    throw new Error(
+      'Connector read only supports read-only FETCH, LIST, GET, SEARCH, FIND, or READ tools.'
+    );
+  }
+  return apiFetch(`${V2_BASE}/connectors/read`, {
+    method: 'POST',
+    signal,
+    body: JSON.stringify({
+      toolkit: normalizedToolkit,
+      tool: normalizedTool,
+      arguments: args || {}
+    })
+  });
+}
+
+// The client-side WRITE allowlist. This mirrors the gateway's explicit write
+// allowlist so the browser never even attempts an unsupported write; the gateway
+// is the authority (it additionally gates the SEND tools behind a server-side
+// capability). Draft-creation is always offered; send tools are listed so the
+// UI can surface them only when the gateway reports the send capability on.
+export const CONNECTOR_DRAFT_TOOLS = Object.freeze(['GMAIL_CREATE_EMAIL_DRAFT']);
+export const CONNECTOR_SEND_TOOLS = Object.freeze([
+  'GMAIL_SEND_EMAIL',
+  'GMAIL_SEND_DRAFT',
+  'GMAIL_REPLY_TO_THREAD'
+]);
+
+function isWriteAllowedTool(tool) {
+  return CONNECTOR_DRAFT_TOOLS.includes(tool) || CONNECTOR_SEND_TOOLS.includes(tool);
+}
+
+// Execute a single GATED write connector tool (e.g. create a Gmail draft). The
+// gateway enforces the authoritative allowlist + send capability and resolves
+// the provider key server-side; this client guard is a fast-fail mirror so the
+// UI cannot issue an off-allowlist write.
+export async function connectorWrite({ toolkit, tool, arguments: args, signal } = {}) {
+  const normalizedToolkit = String(toolkit || '').trim();
+  const normalizedTool = String(tool || '').trim();
+  if (!normalizedToolkit) {
+    throw new Error('Connector write requires a toolkit.');
+  }
+  if (!isWriteAllowedTool(normalizedTool)) {
+    throw new Error('Connector write only supports the gated draft/send allowlist.');
+  }
+  return apiFetch(`${V2_BASE}/connectors/write`, {
+    method: 'POST',
+    signal,
+    body: JSON.stringify({
+      toolkit: normalizedToolkit,
+      tool: normalizedTool,
+      arguments: args || {}
+    })
+  });
+}
+
 // --- Gateway status ---
 //
 // Queries the real `/api/gateway/status` route via `apiFetch`. When that

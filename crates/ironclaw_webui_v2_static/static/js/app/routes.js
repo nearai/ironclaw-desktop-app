@@ -1,9 +1,10 @@
-export const defaultRoute = '/chat';
+export const defaultRoute = '/workbench';
 
 // `hidden: true` keeps deep links registered while removing unfinished
 // or specialist surfaces from the normal desktop information architecture.
 // Unhide a route only when its visible workflow is honest and supported.
 export const primaryRoutes = [
+  { id: 'workbench', path: '/workbench', labelKey: 'nav.workbench', hidden: false },
   { id: 'chat', path: '/chat', labelKey: 'nav.chat' },
   { id: 'work', path: '/work', labelKey: 'nav.work', hidden: false },
   { id: 'workspace', path: '/workspace', labelKey: 'nav.workspace', hidden: true },
@@ -22,7 +23,17 @@ export const primaryRoutes = [
 export const routeSectionDefs = [
   {
     labelKey: 'nav.sectionWork',
-    ids: ['chat', 'work', 'automations', 'workspace', 'projects', 'jobs', 'routines', 'missions']
+    ids: [
+      'workbench',
+      'chat',
+      'work',
+      'automations',
+      'workspace',
+      'projects',
+      'jobs',
+      'routines',
+      'missions'
+    ]
   },
   {
     labelKey: 'nav.sectionSystem',

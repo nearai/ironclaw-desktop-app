@@ -11,6 +11,7 @@ registerPack('ar', {
   'automations.delivery.retry': 'Retry',
 
   'nav.chat': 'الدردشة',
+  'nav.workbench': 'Workbench',
   'nav.workspace': 'مساحة العمل',
   'nav.projects': 'المشاريع',
   'nav.jobs': 'المهام',

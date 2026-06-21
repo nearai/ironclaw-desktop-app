@@ -8,6 +8,7 @@ import { readSavedWorkItems } from '../pages/chat/lib/work-product-save.js';
 
 const ROUTE_ICONS = {
   chat: 'chat',
+  workbench: 'spark',
   work: 'file',
   workspace: 'layers',
   projects: 'folder',

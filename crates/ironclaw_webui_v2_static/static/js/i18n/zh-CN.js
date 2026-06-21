@@ -11,6 +11,7 @@ registerPack('zh-CN', {
   'automations.delivery.retry': 'Retry',
 
   'nav.chat': '对话',
+  'nav.workbench': 'Workbench',
   'nav.workspace': '工作区',
   'nav.projects': '项目',
   'nav.jobs': '任务',

@@ -11,6 +11,7 @@ registerPack('uk', {
   'automations.delivery.retry': 'Retry',
 
   'nav.chat': 'Чат',
+  'nav.workbench': 'Workbench',
   'nav.workspace': 'Робочий простір',
   'nav.projects': 'Проєкти',
   'nav.jobs': 'Завдання',

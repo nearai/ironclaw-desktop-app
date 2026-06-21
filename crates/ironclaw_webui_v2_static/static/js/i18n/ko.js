@@ -11,6 +11,7 @@ registerPack('ko', {
   'automations.delivery.retry': 'Retry',
 
   'nav.chat': '채팅',
+  'nav.workbench': 'Workbench',
   'nav.workspace': '워크스페이스',
   'nav.projects': '프로젝트',
   'nav.jobs': '작업',
