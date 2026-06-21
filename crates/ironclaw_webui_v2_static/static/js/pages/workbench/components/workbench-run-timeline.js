@@ -4,10 +4,11 @@ import { cn } from '../../../utils/cn.js';
 
 // Workbench-native run timeline: renders the REAL ordered run on the Workbench
 // itself — the prompt, each tool step, and the assistant output — instead of
-// only the latest reply with a "open in chat" punt. Every row is backed by the
-// live thread timeline (`messagesFromTimeline`): user/assistant messages and
-// `tool_activity` capability cards. Nothing here is fabricated; an empty or
-// error timeline is handled by the caller, not invented into rows.
+// only the latest reply with a "open in chat" punt. Rows are backed by the
+// durable thread timeline for user/assistant text and by the same replayable
+// SSE projection Chat uses for capability activity while /timeline catches up.
+// Nothing here is fabricated; an empty or error timeline is handled by the
+// caller, not invented into rows.
 
 function cleanText(value) {
   return String(value || '').trim();

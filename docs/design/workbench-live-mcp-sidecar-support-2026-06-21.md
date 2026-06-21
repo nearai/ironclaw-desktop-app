@@ -133,10 +133,12 @@ Current non-blocking caveats:
 
 - The live SSE event stream surfaces `connected-sources.read` as structured
   tool activity, and a fresh post-run SSE subscription replays the same
-  connector activity for newly opened sessions. The poll-only `/timeline`
-  response still does not include those connector activity rows. Treat that as
-  durable timeline DTO parity cleanup, not as evidence that direct connector
-  invocation or app reload failed.
+  connector activity for newly opened sessions. The Workbench run preview now
+  subscribes to that same replayable event stream and merges it with durable
+  `/timeline` user/assistant rows. The poll-only `/timeline` response still
+  does not include those connector activity rows; treat that as durable
+  timeline DTO parity cleanup, not as evidence that direct connector invocation
+  or app reload failed.
 - First-party Gmail/Calendar/Drive/Notion/GitHub lifecycle packages remain
   blocked by setup in the disposable probe profile. The direct Chat proof uses
   `connected-sources.read`, which is the intended bridge to the user's existing
@@ -146,6 +148,21 @@ Current non-blocking caveats:
 
 Fresh artifacts from the 2026-06-21 13:05 EDT support pass:
 
+- Latest full Workbench + direct Chat required gate after Workbench SSE-preview
+  wiring:
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-15-59-895Z/probe.json`
+  - verdict `WARN`, with zero failed checks
+  - ready families `gmail/calendar/drive/notion/slack/github`
+  - live row counts:
+    `inboxMessages=3`, `calendarEvents=3`, `driveFiles=3`,
+    `notionPages=3`, `githubNotifications=3`, `slackBlockers=0`
+  - Workbench Ask completed, preserved live source status, and preserved the
+    live source packet
+  - direct Chat required gate passed with assistant marker `tool_used=yes`
+  - `tool_activity_seen=true`, `tool_signal_count=4`
+  - `sse_tool_signal_count=2` and `replay_sse_tool_signal_count=2`
+  - `timeline_tool_signal_count=0`, confirming the remaining backend DTO
+    parity cleanup
 - Baseline disposable OpenRouter path:
   `/tmp/ironclaw-workbench-live-wiring-2026-06-21T15-21-19-252Z/probe.json`
   - verdict `WARN` only for OpenRouter model-list support and missing shell

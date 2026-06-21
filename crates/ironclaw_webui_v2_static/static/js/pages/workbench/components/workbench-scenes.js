@@ -5,7 +5,13 @@ import { Icon } from '../../../design-system/icons.js';
 import { fetchTimeline } from '../../../lib/api.js';
 import { React, html } from '../../../lib/html.js';
 import { cn } from '../../../utils/cn.js';
-import { messagesFromTimeline } from '../../chat/lib/history-messages.js';
+import { useSSE } from '../../chat/hooks/useSSE.js';
+import { isTerminalToolStatus, messagesFromTimeline } from '../../chat/lib/history-messages.js';
+import { useChatEvents } from '../../chat/lib/useChatEvents.js';
+import {
+  createToolActivityState,
+  resetToolActivityState
+} from '../../chat/lib/tool-activity-state.js';
 import { fetchApprovalsFeed } from '../lib/approvals-feed-api.js';
 import { actionRows, outputHint } from '../lib/workbench-scenes-registry.js';
 import { WorkbenchRunTimeline } from './workbench-run-timeline.js';
@@ -92,11 +98,83 @@ function hasRenderableRun(messages) {
   });
 }
 
-function TimelinePreview({ work, timelineQuery }) {
-  const messages = React.useMemo(
-    () => messagesFromTimeline(timelineQuery.data?.messages || [], []),
-    [timelineQuery.data]
+function workbenchRuntimeMessageKey(message) {
+  if (!message) return '';
+  if (message.role === 'tool_activity') {
+    return `tool:${message.invocationId || message.callId || message.id || ''}`;
+  }
+  return (
+    message.id || `${message.role || 'message'}:${message.sequence || ''}:${message.content || ''}`
   );
+}
+
+function workbenchRuntimeMessageRank(message) {
+  if (!message) return 99;
+  if (message.role === 'user') return 10;
+  if (message.role === 'thinking') return 20;
+  if (message.role === 'tool_activity') return 30;
+  if (message.role === 'assistant') return 40;
+  if (message.role === 'error') return 50;
+  return 90;
+}
+
+function workbenchRuntimeUpdatedAt(message) {
+  const timestamp = Date.parse(message?.updatedAt || message?.timestamp || '');
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function preferWorkbenchToolMessage(current, incoming) {
+  const currentTerminal = isTerminalToolStatus(current?.toolStatus);
+  const incomingTerminal = isTerminalToolStatus(incoming?.toolStatus);
+  if (currentTerminal && !incomingTerminal) return current;
+  if (incomingTerminal && !currentTerminal)
+    return { ...current, ...incoming, id: current.id || incoming.id };
+
+  const currentUpdatedAt = workbenchRuntimeUpdatedAt(current);
+  const incomingUpdatedAt = workbenchRuntimeUpdatedAt(incoming);
+  if (
+    currentUpdatedAt !== null &&
+    incomingUpdatedAt !== null &&
+    currentUpdatedAt > incomingUpdatedAt
+  ) {
+    return current;
+  }
+  return { ...current, ...incoming, id: current.id || incoming.id };
+}
+
+export function mergeWorkbenchRuntimeMessages(timelineMessages = [], liveMessages = []) {
+  const merged = [];
+  const indexByKey = new Map();
+
+  for (const message of [...timelineMessages, ...liveMessages]) {
+    const key = workbenchRuntimeMessageKey(message);
+    if (key && indexByKey.has(key)) {
+      const index = indexByKey.get(key);
+      merged[index] =
+        message?.role === 'tool_activity'
+          ? preferWorkbenchToolMessage(merged[index], message)
+          : merged[index];
+      continue;
+    }
+    if (key) indexByKey.set(key, merged.length);
+    merged.push(message);
+  }
+
+  return merged
+    .map((message, index) => ({ message, index }))
+    .sort((left, right) => {
+      const rank =
+        workbenchRuntimeMessageRank(left.message) - workbenchRuntimeMessageRank(right.message);
+      return rank || left.index - right.index;
+    })
+    .map(({ message }) => message);
+}
+
+function TimelinePreview({ work, timelineQuery, liveMessages }) {
+  const messages = React.useMemo(() => {
+    const timelineMessages = messagesFromTimeline(timelineQuery.data?.messages || [], []);
+    return mergeWorkbenchRuntimeMessages(timelineMessages, liveMessages);
+  }, [timelineQuery.data, liveMessages]);
   const user = latestMessage(messages, 'user');
 
   if (hasRenderableRun(messages)) {
@@ -194,13 +272,17 @@ function WorkbenchRunApprovals({ approvals, threadId }) {
   `;
 }
 
-function RuntimeWorkspace({ work, timelineQuery, approvals }) {
+function RuntimeWorkspace({ work, timelineQuery, approvals, liveMessages }) {
   return html`
     <div className="wb13-scene-grid">
       <div className="wb13-scene-panel">
         <div className="wb13-scene-title">Current request</div>
         <p className="wb13-scene-copy">${cleanText(work.title, 'Workbench request')}</p>
-        <${TimelinePreview} work=${work} timelineQuery=${timelineQuery} />
+        <${TimelinePreview}
+          work=${work}
+          timelineQuery=${timelineQuery}
+          liveMessages=${liveMessages}
+        />
         <${WorkbenchRunApprovals} approvals=${approvals} threadId=${work.threadId} />
         <div className="wb13-source-card is-hold">
           <${Icon} name="shield" />
@@ -209,7 +291,7 @@ function RuntimeWorkspace({ work, timelineQuery, approvals }) {
             Sending, posting, filing, or changing another system remains owned by the live approval
             gate.
           </p>
-          <span>Workbench mirrors live outputs only after the Chat timeline records them.</span>
+          <span>Live run activity stays visible here; external changes remain gated.</span>
         </div>
       </div>
       <div className="wb13-scene-panel">
@@ -232,16 +314,29 @@ function RuntimeWorkspace({ work, timelineQuery, approvals }) {
   `;
 }
 
-function SceneBody({ work, timelineQuery, approvals }) {
+function SceneBody({ work, timelineQuery, approvals, liveMessages }) {
   return html`<${RuntimeWorkspace}
     work=${work}
     timelineQuery=${timelineQuery}
     approvals=${approvals}
+    liveMessages=${liveMessages}
   />`;
 }
 
 export function WorkbenchSceneWorkspace({ work }) {
   const threadId = work?.threadId || '';
+  const [liveMessages, setLiveMessages] = React.useState([]);
+  const activeRunRef = React.useRef(null);
+  const pendingGateRef = React.useRef(null);
+  const locallyResolvedGatesRef = React.useRef(new Map());
+  const toolActivityStateRef = React.useRef(createToolActivityState());
+  const setNoopProcessing = React.useCallback(() => {}, []);
+  const setActiveRun = React.useCallback((next) => {
+    activeRunRef.current = typeof next === 'function' ? next(activeRunRef.current) : next;
+  }, []);
+  const setPendingGate = React.useCallback((next) => {
+    pendingGateRef.current = typeof next === 'function' ? next(pendingGateRef.current) : next;
+  }, []);
   const timelineQuery = useQuery({
     queryKey: ['workbench-live-thread-preview', threadId],
     queryFn: () => fetchTimeline({ threadId, limit: 20 }),
@@ -249,6 +344,31 @@ export function WorkbenchSceneWorkspace({ work }) {
     staleTime: 2_000,
     refetchInterval: 5_000,
     retry: 1
+  });
+  const handleWorkbenchEvent = useChatEvents({
+    threadId,
+    setMessages: setLiveMessages,
+    setIsProcessing: setNoopProcessing,
+    setPendingGate,
+    setActiveRun,
+    activeRunRef,
+    locallyResolvedGatesRef,
+    toolActivityStateRef,
+    onRunSettled: () => timelineQuery.refetch(),
+    onRunCompleted: () => {},
+    onRunFailed: () => {}
+  });
+  React.useEffect(() => {
+    setLiveMessages([]);
+    activeRunRef.current = null;
+    pendingGateRef.current = null;
+    locallyResolvedGatesRef.current = new Map();
+    resetToolActivityState(toolActivityStateRef);
+  }, [threadId]);
+  useSSE({
+    threadId,
+    onEvent: handleWorkbenchEvent,
+    enabled: Boolean(threadId)
   });
   // Per-thread pending approval gates for this run. Gated on the threadId, NOT
   // on a gateway capability flag (no backend emits approvals_read, so that gate
@@ -273,6 +393,7 @@ export function WorkbenchSceneWorkspace({ work }) {
         work=${work}
         timelineQuery=${timelineQuery}
         approvals=${approvalsQuery.data || []}
+        liveMessages=${liveMessages}
       />
     </section>
   `;
