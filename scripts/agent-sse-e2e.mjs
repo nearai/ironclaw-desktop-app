@@ -236,10 +236,26 @@ async function consumeSSE(threadId) {
   console.log(`\n--- persisted timeline (${Array.isArray(items) ? items.length : 0} rows) ---`);
   let calledConnector = false;
   for (const it of Array.isArray(items) ? items : []) {
+    const k = String(it.kind || '').toLowerCase();
+    // For tool previews, parse the envelope to show input args + outcome — this
+    // is how we tell a successful read from a wrong-args read the model retries.
+    if (k === 'capability_display_preview') {
+      let env;
+      try {
+        env = JSON.parse(it.content);
+      } catch {}
+      if (env && env.capability_id) {
+        if (String(env.capability_id).includes('connected-sources')) calledConnector = true;
+        const inp = JSON.stringify(env.input_summary || env.input || '').slice(0, 160);
+        const out = String(env.output_preview || env.output_summary || env.error_kind || '')
+          .replace(/\s+/g, ' ')
+          .slice(0, 160);
+        console.log(`  [tool ${env.capability_id}|${env.status}] in=${inp} out=${out}`);
+        continue;
+      }
+    }
     const c = String(it.content || '').replace(/\s+/g, ' ').slice(0, 120);
     console.log(`  [${it.kind || '?'}|${it.status || ''}] ${c}`);
-    const k = String(it.kind || '').toLowerCase();
-    if (c.includes('connected-sources.read')) calledConnector = true;
     if ((k === 'assistant' || k === 'assistant_message') && String(it.content || '').trim())
       finalReply = String(it.content).trim(); // ground truth: persisted finalized reply
   }

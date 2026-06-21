@@ -86,17 +86,27 @@ and the real `npm run tauri dev` run (real-app-e2e-evidence.md).
   → terminal HostUnavailable → turn dies. Raised the cap to
   `PROVIDER_METADATA_TEXT_MAX_BYTES` (16 KiB). Verified live: the same Calendar
   turn no longer hits the terminal failure (host-error lines empty).
-- **Robustness issue #2 — STILL OPEN (separate, deeper):** *heavy multi-read*
-  turns don't converge to a final reply within ~3 min. GLM-5.2 made **25**
-  `connected-sources.read` calls without answering; `claude-opus-4-7` made 6 and
-  also didn't finish in 170s, and a spawned **subagent** hit
-  `HostUnavailable { stage: Prompt }` ("Prompt: unavailable"). So beyond the
-  transcript cap there is (a) a model/agent-loop *convergence* problem on heavy
-  tool tasks (no max-iteration backstop / the model keeps re-reading), and (b) a
-  Prompt-stage host failure on subagents (raw_detail not emitted at warn).
-  **Scope:** this is agent-loop/runtime behavior, not the connector or transcript
-  fix. **Single-read turns (the common Workbench case — latest email, draft a
-  reply) work end-to-end.** Heavy multi-tool turns need a separate fix.
+- **Robustness issue #2 — CHARACTERIZED (model-bound, not a gateway bug):**
+  *heavy multi-read* turns don't converge to a final reply, reproducibly, even
+  at 290s. Diagnosis (this tick, with input/output dump):
+  - **The reads SUCCEED.** The agent's first calendar read 400'd (model omitted
+    the required `calendarId`); it **self-corrected** on the next call
+    (`calendarId:"primary"`) and got real events. So connector reads work; the
+    model just guesses args, sees the 400, and fixes them.
+  - **No crash** (reasoning-cap fix holds — zero HostUnavailable on these runs).
+  - **The model keeps issuing tool calls and never finalizes a reply** within the
+    window (3, 7, 25 reads across runs — high variance), under the 32-iteration
+    cap. The reply-admission strategy is sound (rejects only empty/transcript-
+    artifact replies + nudges with a loop-control message); so this is GLM
+    over-tool-calling / not deciding to answer, i.e. **model capability**, not a
+    loop bug. `claude-opus-4-7` made fewer reads (6) — consistent with model
+    dependence.
+  - **Scope/verdict:** **single-read turns (the common Workbench case — latest
+    email, draft a reply, "what's my next event") work end-to-end.** Heavy
+    multi-step tasks are model-limited with GLM-5.1-FP8/glm-5.2. Follow-ups (task
+    #7): (a) evaluate a stronger NEAR-AI agentic default for the Workbench; (b) a
+    tool-call-count nudge ("you have the data, answer now") after N calls; (c)
+    tighter connector arg guidance so the model doesn't waste the first read.
 
 ## In progress
 - Phase 5: poller worker runs; firing proven by Rust e2e (`trigger_poller_e2e.rs`)
