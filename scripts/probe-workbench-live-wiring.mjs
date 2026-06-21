@@ -1,14 +1,24 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import { createServer } from 'node:net';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { connectorFamilyReadiness } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-connectors.js';
+import {
+  connectorFamilyReadiness,
+  normalizeCalendarEvents,
+  normalizeInboxMessages
+} from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-connectors.js';
+import { normalizeDriveFiles } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-drive.js';
+import { normalizeGithubNotifications } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-github.js';
+import { normalizeNotionPages } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-notion.js';
 import {
   buildWorkbenchChatDraft,
+  buildWorkbenchLiveSourcePacket,
   buildWorkbenchLiveSourceStatus
 } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-plan.js';
+import { normalizeSlackBlockers } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-slack.js';
 
 const RELEVANT_EXTENSION_IDS = Object.freeze([
   'custom-mcp',
@@ -30,6 +40,16 @@ const probeOauthStart = args.has('--probe-oauth-start');
 const jsonOnly = args.has('--json');
 const skipConnectorReads = args.has('--skip-connector-reads');
 const skipChatHandoff = args.has('--skip-chat-handoff');
+const keepProbeHome = args.has('--keep-probe-home');
+const llmBackend = flagValue('--llm-backend') || process.env.IRONCLAW_PROBE_LLM_BACKEND || 'nearai';
+const chatMaxAttempts = positiveInt(
+  flagValue('--chat-max-attempts') || process.env.IRONCLAW_PROBE_CHAT_MAX_ATTEMPTS,
+  String(llmBackend).toLowerCase() === 'openrouter' ? 40 : 18
+);
+const chatPollMs = positiveInt(
+  flagValue('--chat-poll-ms') || process.env.IRONCLAW_PROBE_CHAT_POLL_MS,
+  2500
+);
 
 const repoRoot = process.cwd();
 const binary = path.join(repoRoot, 'src-tauri/binaries/ironclaw-reborn-aarch64-apple-darwin');
@@ -53,6 +73,96 @@ const EXPECTED_WORKBENCH_SOURCE_FAMILIES = Object.freeze([
   'slack',
   'github'
 ]);
+
+function flagValue(name) {
+  const prefix = `${name}=`;
+  const value = process.argv.slice(2).find((arg) => arg.startsWith(prefix));
+  return value ? value.slice(prefix.length).trim() : '';
+}
+
+function positiveInt(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function openRouterModel() {
+  return (
+    process.env.IRONCLAW_PROBE_OPENROUTER_MODEL ||
+    process.env.OPENROUTER_MODEL ||
+    'deepseek/deepseek-chat-v3-0324'
+  );
+}
+
+function tomlString(value) {
+  return String(value || '')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"');
+}
+
+function llmBackendEnv(backend) {
+  const normalized = String(backend || 'nearai').toLowerCase();
+  if (normalized === 'openrouter') {
+    const key = process.env.OPENROUTER_API_KEY;
+    if (!key) {
+      throw new Error('--llm-backend=openrouter requires OPENROUTER_API_KEY in the environment');
+    }
+    return {
+      LLM_BACKEND: 'openrouter',
+      OPENROUTER_API_KEY: key,
+      OPENROUTER_MODEL: openRouterModel()
+    };
+  }
+  if (normalized === 'nearai') {
+    return {
+      LLM_BACKEND: 'nearai',
+      NEARAI_MODEL: process.env.NEARAI_MODEL || 'auto'
+    };
+  }
+  throw new Error(`unsupported --llm-backend=${backend}; expected nearai or openrouter`);
+}
+
+async function prepareProbeRebornHome(backend) {
+  const normalized = String(backend || 'nearai').toLowerCase();
+  if (normalized !== 'openrouter') {
+    return {
+      env: {},
+      report: { mode: 'user-default', kept: false },
+      cleanup: async () => {}
+    };
+  }
+
+  const home = process.env.HOME || os.homedir();
+  const sourceRebornHome = path.join(home, '.ironclaw', 'reborn');
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), 'ironclaw-workbench-reborn-'));
+  const tempRebornHome = path.join(tempRoot, 'reborn');
+  const model = openRouterModel();
+  await cp(sourceRebornHome, tempRebornHome, { recursive: true, force: true });
+  await rm(path.join(tempRebornHome, 'config.toml.lock'), { force: true });
+  await rm(path.join(tempRebornHome, 'providers.json.lock'), { force: true });
+  await writeFile(
+    path.join(tempRebornHome, 'config.toml'),
+    `[llm]\n\n[llm.default]\nprovider_id = "openrouter"\nmodel = "${tomlString(
+      model
+    )}"\napi_key_env = "OPENROUTER_API_KEY"\n`
+  );
+
+  return {
+    env: { IRONCLAW_REBORN_HOME: tempRebornHome },
+    report: {
+      mode: 'ephemeral-reborn-copy',
+      source: '~/.ironclaw/reborn',
+      requested_provider_id: 'openrouter',
+      requested_model: model,
+      kept: keepProbeHome,
+      reborn_home: keepProbeHome ? tempRebornHome : '[temporary]'
+    },
+    cleanup: async () => {
+      if (!keepProbeHome) {
+        await rm(tempRoot, { recursive: true, force: true });
+      }
+    }
+  };
+}
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -152,6 +262,45 @@ function connectorReadSummary(response) {
     count: firstArrayLength(response.body?.data),
     error_present: Boolean(response.body?.error)
   };
+}
+
+function connectorReadRows(id, response) {
+  switch (id) {
+    case 'gmail':
+      return normalizeInboxMessages(response.body, { limit: 4 });
+    case 'calendar':
+      return normalizeCalendarEvents(response.body, { limit: 4 });
+    case 'drive':
+      return normalizeDriveFiles(response.body, { limit: 4 });
+    case 'notion':
+      return normalizeNotionPages(response.body, { limit: 4 });
+    case 'github':
+      return normalizeGithubNotifications(response.body, { limit: 4 });
+    case 'slack':
+      return normalizeSlackBlockers(response.body, { limit: 4 });
+    default:
+      return [];
+  }
+}
+
+function liveSourceDataFromRows(readRows = {}) {
+  return {
+    inboxMessages: readRows.gmail || [],
+    calendarEvents: readRows.calendar || [],
+    driveFiles: readRows.drive || [],
+    notionPages: readRows.notion || [],
+    githubNotifications: readRows.github || [],
+    slackBlockers: readRows.slack || []
+  };
+}
+
+function liveSourceDataCounts(liveSourceData = {}) {
+  return Object.fromEntries(
+    Object.entries(liveSourceData).map(([key, rows]) => [
+      key,
+      Array.isArray(rows) ? rows.length : 0
+    ])
+  );
 }
 
 function timelineMessages(body) {
@@ -550,6 +699,17 @@ function evaluateProbe(result) {
       }
     );
     check(
+      'Workbench Ask timeline preserves live connector rows packet',
+      handoff?.expected_live_source_packet !== true ||
+        handoff?.timeline_has_live_source_packet === true,
+      {
+        expected_packet: Boolean(handoff?.expected_live_source_packet),
+        packet_seen: Boolean(handoff?.timeline_has_live_source_packet),
+        row_counts:
+          handoff?.live_source_data_counts || result.workbench?.live_source_data_counts || {}
+      }
+    );
+    check(
       'Workbench Ask receives a terminal assistant result',
       handoff?.timeline_has_assistant_reply === true && handoff?.timeline_terminal_failed !== true,
       {
@@ -573,10 +733,15 @@ async function main() {
   const token = `workbench-live-${randomUUID()}`;
   const origin = `http://127.0.0.1:${port}`;
   const log = [];
+  const backendEnv = llmBackendEnv(llmBackend);
+  const probeRebornHome = await prepareProbeRebornHome(llmBackend);
+  const connectorReadRowsById = {};
   const child = spawn(binary, ['serve', '--host', '127.0.0.1', '--port', String(port)], {
     cwd: repoRoot,
     env: {
       ...process.env,
+      ...backendEnv,
+      ...probeRebornHome.env,
       IRONCLAW_REBORN_WEBUI_TOKEN: token,
       IRONCLAW_REBORN_WEBUI_USER_ID: 'owner',
       GATEWAY_AUTH_TOKEN: token,
@@ -584,8 +749,6 @@ async function main() {
       GATEWAY_PORT: String(port),
       DATABASE_BACKEND: 'libsql',
       GATEWAY_ENABLED: 'true',
-      LLM_BACKEND: 'nearai',
-      NEARAI_MODEL: 'auto',
       RUST_LOG: process.env.RUST_LOG || 'warn'
     },
     stdio: ['ignore', 'pipe', 'pipe']
@@ -617,6 +780,8 @@ async function main() {
     outDir,
     origin,
     probe_oauth_start: probeOauthStart,
+    requested_llm_backend: llmBackend,
+    probe_reborn_home: probeRebornHome.report,
     healthy: false,
     llm: null,
     extensions: [],
@@ -628,12 +793,14 @@ async function main() {
       composio_configure: null,
       connected: null,
       reads: {},
+      read_row_counts: {},
       read_route_write_gate: null,
       write_route_send_gate: null
     },
     workbench: {
       connector_families: [],
       live_source_status: '',
+      live_source_data_counts: {},
       chat_handoff: {
         skipped: skipChatHandoff
       }
@@ -811,6 +978,8 @@ async function main() {
             arguments: probe.arguments
           });
           result.connectors.reads[probe.id] = connectorReadSummary(response);
+          connectorReadRowsById[probe.id] = connectorReadRows(probe.id, response);
+          result.connectors.read_row_counts[probe.id] = connectorReadRowsById[probe.id].length;
         }
 
         const writeGate = await request('POST', '/api/webchat/v2/connectors/read', {
@@ -847,6 +1016,9 @@ async function main() {
       const readyFamilies = (result.workbench.connector_families || []).filter(
         (family) => family?.state === 'ready'
       );
+      const liveSourceData = liveSourceDataFromRows(connectorReadRowsById);
+      const liveSourcePacket = buildWorkbenchLiveSourcePacket(liveSourceData);
+      result.workbench.live_source_data_counts = liveSourceDataCounts(liveSourceData);
       const activeModel =
         result.llm?.active?.model ||
         result.llm?.active?.model_id ||
@@ -867,7 +1039,8 @@ async function main() {
         sourceMode: 'manual',
         sourceIds: [],
         cadence: '',
-        connectorFamilies: result.workbench.connector_families
+        connectorFamilies: result.workbench.connector_families,
+        liveSourceData
       });
       const requestedThreadId = `workbench-live-handoff-${randomUUID()}`;
       const thread = await request('POST', '/api/webchat/v2/threads', {
@@ -890,6 +1063,8 @@ async function main() {
         has_run_id: false,
         timeline_status: null,
         timeline_attempts: 0,
+        timeline_max_attempts: chatMaxAttempts,
+        timeline_poll_ms: chatPollMs,
         timeline_message_count: 0,
         timeline_has_workbench_request: false,
         timeline_has_live_source_status: false,
@@ -901,9 +1076,13 @@ async function main() {
         expected_ready_family_count: readyFamilies.length,
         observed_ready_family_count: 0,
         observed_ready_families: [],
+        expected_live_source_packet: Boolean(liveSourcePacket),
+        timeline_has_live_source_packet: false,
+        live_source_data_counts: result.workbench.live_source_data_counts,
         draft_preview: {
           has_workbench_request_header: draft.includes('Workbench request'),
-          live_source_status: liveSourceStatus
+          live_source_status: liveSourceStatus,
+          has_live_source_packet: Boolean(liveSourcePacket)
         }
       };
       let runStatusStream = null;
@@ -937,8 +1116,8 @@ async function main() {
             send.body?.outcome === 'accepted');
 
         if (send.ok) {
-          for (let attempt = 1; attempt <= 16; attempt += 1) {
-            await delay(750);
+          for (let attempt = 1; attempt <= chatMaxAttempts; attempt += 1) {
+            await delay(chatPollMs);
             const timeline = await request(
               'GET',
               `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/timeline?limit=20`
@@ -966,6 +1145,10 @@ async function main() {
               userText.includes('Workbench request') && userText.includes(handoffBrief);
             handoff.timeline_has_live_source_status =
               userText.includes('- Live source status:') && userText.includes(liveSourceStatus);
+            handoff.timeline_has_live_source_packet =
+              !liveSourcePacket ||
+              (userText.includes('Live connector rows already loaded in Workbench:') &&
+                userText.includes('Use this packet as current context.'));
             const terminalFromTimeline = timelineRunStatuses(timeline.body, messages).find((item) =>
               TERMINAL_RUN_STATUSES.has(item.status)
             );
@@ -987,6 +1170,7 @@ async function main() {
             if (
               handoff.timeline_has_workbench_request &&
               handoff.timeline_has_live_source_status &&
+              handoff.timeline_has_live_source_packet &&
               (handoff.timeline_has_assistant_reply || handoff.timeline_terminal_status)
             ) {
               break;
@@ -1002,18 +1186,23 @@ async function main() {
       result.workbench.chat_handoff = handoff;
     }
   } finally {
-    result.log_tail = log
-      .join('')
-      .split('\n')
-      .filter(Boolean)
-      .slice(-40)
-      .map((line) => redactText(line, token));
-    const evaluation = evaluateProbe(result);
-    result.verdict = evaluation.verdict;
-    result.checks = evaluation.checks;
-    result.warnings = evaluation.warnings;
-    await writeFile(path.join(outDir, 'probe.json'), JSON.stringify(result, null, 2));
-    child.kill('SIGTERM');
+    try {
+      result.log_tail = log
+        .join('')
+        .split('\n')
+        .filter(Boolean)
+        .slice(-40)
+        .map((line) => redactText(line, token));
+      const evaluation = evaluateProbe(result);
+      result.verdict = evaluation.verdict;
+      result.checks = evaluation.checks;
+      result.warnings = evaluation.warnings;
+      await writeFile(path.join(outDir, 'probe.json'), JSON.stringify(result, null, 2));
+    } finally {
+      child.kill('SIGTERM');
+      await Promise.race([new Promise((resolve) => child.once('exit', resolve)), delay(1000)]);
+      await probeRebornHome.cleanup();
+    }
   }
 
   const output = JSON.stringify(result, null, 2);
