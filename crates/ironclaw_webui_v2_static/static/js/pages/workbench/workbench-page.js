@@ -58,6 +58,7 @@ import { WorkPacketPreview } from './components/workbench-packet.js';
 import { WorkbenchSceneWorkspace } from './components/workbench-scenes.js';
 import { WorkbenchDock, WorkbenchNav, WorkbenchTop } from './components/workbench-shell.js';
 import { WorkbenchCommandPalette } from './components/workbench-command-palette.js';
+import { WorkbenchShortcuts } from './components/workbench-shortcuts.js';
 import { WorkbenchSourcesInspector } from './components/workbench-sources-inspector.js';
 import { WorkModeInspector } from './components/workbench-work-mode.js';
 import { WORKBENCH_STYLE } from './workbench-styles.js';
@@ -350,19 +351,67 @@ export function WorkbenchPage() {
   const [showCadence, setShowCadence] = React.useState(false);
   const [showWorkMode, setShowWorkMode] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = React.useState(false);
 
-  // Cmd/Ctrl+K toggles the command palette from anywhere on the Workbench
-  // (DESIGN.md Law 3: one Bridge surface for command + search).
+  // Keyboard layer (DESIGN.md Law 5, native-to-the-Mac; the critique's §7).
+  // Cmd/Ctrl+K opens the palette from anywhere (even inside a field). Bare-key
+  // shortcuts (/, ?, the "g" nav chord) only fire when focus is NOT in a text
+  // field, so typing in the command box is never hijacked.
   React.useEffect(() => {
+    let gPending = false;
+    let gTimer = 0;
+    const inField = (el) =>
+      Boolean(el) && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
     const onKey = (event) => {
+      // Esc closes the shortcuts overlay from anywhere (the palette handles its
+      // own Esc on its input); a no-op when nothing is open.
+      if (event.key === 'Escape') {
+        setShortcutsOpen(false);
+        return;
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault();
         setPaletteOpen((value) => !value);
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (inField(document.activeElement)) return;
+      if (event.key === '?') {
+        event.preventDefault();
+        setShortcutsOpen((value) => !value);
+        return;
+      }
+      if (event.key === '/') {
+        event.preventDefault();
+        document.querySelector('[data-testid="workbench-brief-input"]')?.focus();
+        return;
+      }
+      if (event.key === 'g') {
+        gPending = true;
+        window.clearTimeout(gTimer);
+        gTimer = window.setTimeout(() => {
+          gPending = false;
+        }, 800);
+        return;
+      }
+      if (gPending) {
+        gPending = false;
+        const target = { w: 'home', m: 'memory', l: 'library' }[event.key];
+        if (target) {
+          event.preventDefault();
+          setView(target);
+        } else if (event.key === 't') {
+          event.preventDefault();
+          navigate('/extensions/registry');
+        }
       }
     };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, []);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.clearTimeout(gTimer);
+    };
+  }, [navigate]);
 
   const paletteCommands = React.useMemo(
     () => [
@@ -1049,6 +1098,7 @@ export function WorkbenchPage() {
           commands=${paletteCommands}
           onCompose=${composeFromPalette}
         />
+        <${WorkbenchShortcuts} open=${shortcutsOpen} onClose=${() => setShortcutsOpen(false)} />
       </div>
     </div>
   `;

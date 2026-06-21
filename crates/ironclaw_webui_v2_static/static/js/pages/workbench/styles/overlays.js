@@ -454,4 +454,60 @@ export const WORKBENCH_OVERLAYS_STYLE = `.wb13-inspector {
   color: var(--wb-muted);
   font-size: 13.5px;
 }
+.wb13-shortcuts-panel {
+  position: relative;
+  width: 460px;
+  max-width: 92vw;
+  background: var(--wb-canvas);
+  border: 1px solid var(--wb-line);
+  border-radius: var(--wb-r-lg);
+  box-shadow: var(--wb-shadow-pop);
+  overflow: hidden;
+}
+.wb13-shortcuts-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--wb-line-2);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--wb-faint);
+}
+.wb13-shortcuts-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+}
+.wb13-shortcuts-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 7px 8px;
+}
+.wb13-shortcuts-keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 118px;
+}
+.wb13-shortcuts-keys kbd {
+  font-family: var(--wb-font-mono);
+  font-size: 11px;
+  color: var(--wb-ink-2);
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-line);
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+.wb13-shortcuts-then {
+  font-size: 11px;
+  color: var(--wb-faint);
+}
+.wb13-shortcuts-label {
+  color: var(--wb-ink-2);
+  font-size: 13.5px;
+}
 `;

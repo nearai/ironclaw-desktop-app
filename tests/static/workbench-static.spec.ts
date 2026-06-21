@@ -3165,3 +3165,24 @@ test('static workbench: Cmd+K command palette navigates and composes', async ({ 
   await page.keyboard.press('Escape');
   await expect(palette).toHaveCount(0);
 });
+
+test('static workbench: keyboard layer opens shortcuts and runs the g-nav chord', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {});
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByTestId('workbench-page').waitFor({ state: 'visible' });
+  // Blur any field so bare-key shortcuts fire (typing in a field is never hijacked).
+  await page.mouse.click(20, 400);
+
+  // ? opens the shortcuts help overlay; Esc dismisses.
+  await page.keyboard.press('Shift+Slash');
+  await expect(page.getByTestId('workbench-shortcuts')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('workbench-shortcuts')).toHaveCount(0);
+
+  // "g then m" navigates to Memory.
+  await page.keyboard.press('g');
+  await page.keyboard.press('m');
+  await expect(page.getByTestId('workbench-memory')).toBeVisible();
+});
