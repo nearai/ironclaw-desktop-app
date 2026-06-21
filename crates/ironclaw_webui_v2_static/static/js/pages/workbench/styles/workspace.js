@@ -207,6 +207,119 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
 .wb13-runtime-preview .wb13-button {
   justify-self: flex-start;
 }
+.wb13-run-live {
+  margin-left: auto;
+  color: var(--wb-accent);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.wb13-run {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  max-height: 340px;
+  overflow: auto;
+}
+.wb13-run-row {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--wb-line-2);
+}
+.wb13-run-row:first-child {
+  border-top: 0;
+}
+.wb13-run-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--wb-line-2);
+  color: var(--wb-muted);
+}
+.wb13-run-marker svg {
+  width: 13px;
+  height: 13px;
+}
+.wb13-run-row.is-assistant .wb13-run-marker {
+  background: var(--wb-accent-tint);
+  color: var(--wb-accent);
+}
+.wb13-run-row.is-failed .wb13-run-marker {
+  background: var(--wb-hold-tint);
+  color: var(--wb-danger);
+}
+.wb13-run-body {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.wb13-run-role {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--wb-faint);
+}
+.wb13-runtime-preview .wb13-run-text {
+  max-height: none;
+  overflow: visible;
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--wb-ink-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wb13-runtime-preview .wb13-run-text.is-meta {
+  color: var(--wb-muted);
+  font-size: 12.5px;
+}
+.wb13-runtime-preview .wb13-run-text.is-result {
+  color: var(--wb-muted);
+  font-size: 12.5px;
+  border-left: 2px solid var(--wb-line);
+  padding-left: 8px;
+}
+.wb13-run-tool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wb13-run-tool-name {
+  font-family: var(--wb-font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--wb-ink-2);
+  overflow-wrap: anywhere;
+}
+.wb13-run-status {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+.wb13-run-status.is-run {
+  color: var(--wb-accent);
+  background: var(--wb-accent-tint);
+}
+.wb13-run-status.is-good {
+  color: var(--wb-good-text);
+  background: var(--wb-good-tint);
+}
+.wb13-run-status.is-danger {
+  color: var(--wb-danger);
+  background: var(--wb-hold-tint);
+}
 .wb13-pref-list {
   display: grid;
   margin: 12px 0;

@@ -7,6 +7,7 @@ import { React, html } from '../../../lib/html.js';
 import { cn } from '../../../utils/cn.js';
 import { messagesFromTimeline } from '../../chat/lib/history-messages.js';
 import { actionRows, outputHint } from '../lib/workbench-scenes-registry.js';
+import { WorkbenchRunTimeline } from './workbench-run-timeline.js';
 
 function cleanText(value, fallback = '') {
   const text = String(value || '').trim();
@@ -78,22 +79,36 @@ function latestMessage(messages, role) {
     .find((message) => message?.role === role && cleanText(message.content));
 }
 
+function hasRenderableRun(messages) {
+  return (Array.isArray(messages) ? messages : []).some((message) => {
+    if (!message) return false;
+    if (message.role === 'tool_activity') return true;
+    if (message.role === 'user' || message.role === 'assistant') {
+      return Boolean(String(message.content || '').trim());
+    }
+    return false;
+  });
+}
+
 function TimelinePreview({ work, timelineQuery }) {
   const messages = React.useMemo(
     () => messagesFromTimeline(timelineQuery.data?.messages || [], []),
     [timelineQuery.data]
   );
-  const assistant = latestMessage(messages, 'assistant');
   const user = latestMessage(messages, 'user');
 
-  if (assistant) {
+  if (hasRenderableRun(messages)) {
+    const running = !latestMessage(messages, 'assistant');
     return html`
       <div className="wb13-runtime-preview" data-testid="workbench-live-thread-preview">
         <div className="wb13-runtime-preview-head">
-          <${Icon} name="chat" />
-          <span>Latest live reply</span>
+          <${Icon} name="pulse" />
+          <span>Live run</span>
+          ${running
+            ? html`<span className="wb13-run-live" data-testid="workbench-run-live">Working…</span>`
+            : null}
         </div>
-        <p>${assistant.content}</p>
+        <${WorkbenchRunTimeline} messages=${messages} />
         <${Link} to=${`/chat/${encodeURIComponent(work.threadId)}`} className="wb13-button is-sm">
           Review full thread
         <//>

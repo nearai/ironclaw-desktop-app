@@ -1101,7 +1101,11 @@ test('static workbench: command starts a Chat runtime thread with model, effort,
   await expect(page.getByTestId('workbench-scene-workspace')).toContainText(
     'GLM 4.5 (z-ai/glm-4.5)'
   );
-  await expect(page.getByTestId('workbench-scene-workspace')).toContainText('Latest live reply');
+  // The run renders inline on the Workbench (prompt → output), not just a
+  // "latest reply" punt to Chat.
+  await expect(page.getByTestId('workbench-run-timeline')).toBeVisible();
+  await expect(page.getByTestId('workbench-scene-workspace')).toContainText('Live run');
+  await expect(page.getByTestId('workbench-scene-workspace')).toContainText('You asked');
   await expect(page.getByTestId('workbench-scene-workspace')).toContainText('Draft brief ready');
   await expect(page.getByTestId('workbench-scene-workspace')).not.toContainText(
     'No runtime artifact yet'
@@ -1123,6 +1127,68 @@ test('static workbench: command starts a Chat runtime thread with model, effort,
   expect(content).toContain('Timing: Friday morning');
   expect(content).toContain('wait for approval');
   expect(content).not.toContain('Auto sources:');
+});
+
+test('static workbench: the run timeline renders prompt, tool steps, and output inline', async ({
+  page
+}) => {
+  const sentMessages: Array<{ path: string; body: Record<string, unknown> }> = [];
+  await installWorkbenchMocks(page, {
+    sentMessages,
+    timelineMessages: [
+      {
+        message_id: 'run-user',
+        kind: 'user',
+        status: 'finalized',
+        content: 'Workbench request: research TEE vendors',
+        created_at: '2026-06-19T16:00:00.000Z',
+        sequence: 1
+      },
+      {
+        message_id: 'run-tool',
+        kind: 'capability_display_preview',
+        status: 'finalized',
+        content: JSON.stringify({
+          invocation_id: 'inv-1',
+          status: 'completed',
+          title: 'gmail.GMAIL_FETCH_EMAILS',
+          capability_id: 'gmail.GMAIL_FETCH_EMAILS',
+          subtitle: 'Reading the inbox',
+          input_summary: 'query: in:inbox',
+          output_summary: 'Found 3 messages'
+        }),
+        created_at: '2026-06-19T16:00:30.000Z',
+        sequence: 2,
+        turn_run_id: 'run-x'
+      },
+      {
+        message_id: 'run-assistant',
+        kind: 'assistant',
+        status: 'finalized',
+        content: 'Compared three TEE vendors; the draft is ready for review.',
+        created_at: '2026-06-19T16:01:00.000Z',
+        sequence: 3,
+        turn_run_id: 'run-x'
+      }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page
+    .getByTestId('workbench-brief-input')
+    .fill('Research TEE vendors and compare deployment risk.');
+  await page.getByTestId('workbench-send-button').click();
+  await expect.poll(() => sentMessages.length).toBe(1);
+
+  const runTimeline = page.getByTestId('workbench-run-timeline');
+  await expect(runTimeline).toBeVisible();
+  await expect(runTimeline).toContainText('You asked');
+  // The tool step renders with its real name, status, and result — the run
+  // unfolds on the Workbench instead of being a "open in Chat" link.
+  await expect(runTimeline).toContainText('GMAIL_FETCH_EMAILS');
+  await expect(runTimeline).toContainText('Done');
+  await expect(runTimeline).toContainText('Reading the inbox');
+  await expect(runTimeline).toContainText('Compared three TEE vendors');
 });
 
 test('static workbench: manual source choice blocks when the connector is not ready', async ({
