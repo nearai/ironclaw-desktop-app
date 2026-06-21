@@ -2393,6 +2393,8 @@ test('static workbench: no calendar account hides Upcoming with no console error
 
   await expect(page.getByTestId('workbench-arrived')).toBeVisible();
   await expect(page.getByTestId('workbench-upcoming')).toHaveCount(0);
+  // A live connector means the cold-open must yield to the real surface.
+  await expect(page.getByTestId('workbench-coldstart')).toHaveCount(0);
   expect(consoleIssues).toEqual([]);
 });
 
@@ -2415,6 +2417,10 @@ test('static workbench: no Gmail account hides Arrived with no console errors', 
   await expect(page.getByTestId('workbench-page')).toBeVisible();
   await expect(page.getByTestId('workbench-arrived')).toHaveCount(0);
   await expect(page.getByTestId('workbench-sources-ready')).toHaveCount(0);
+  // With no connector live the Workbench would be an empty column; the cold-open
+  // takes its place with an anticipatory connect prompt (DESIGN.md Law 1).
+  await expect(page.getByTestId('workbench-coldstart')).toBeVisible();
+  await expect(page.getByTestId('workbench-coldstart-connect')).toBeVisible();
   expect(consoleIssues).toEqual([]);
 });
 

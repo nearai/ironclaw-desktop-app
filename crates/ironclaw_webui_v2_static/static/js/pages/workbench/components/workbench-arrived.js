@@ -2,10 +2,58 @@ import { Icon } from '../../../design-system/icons.js';
 import { html } from '../../../lib/html.js';
 import { cn } from '../../../utils/cn.js';
 import {
+  WORKBENCH_CONNECTOR_FAMILIES,
   formatInboxWhen,
   gmailMessageHref,
   unreadInboxCount
 } from '../lib/workbench-connectors.js';
+
+// Cold-open: when NO connector is live yet, the Workbench would otherwise be a
+// command box stacked over a column of empty sections — exactly the "nothing
+// populates" experience. Instead we anticipate (DESIGN.md Law 1): name what the
+// Workbench will fill with and offer one calm action to connect. Renders ONLY
+// once the connector check has resolved AND nothing is connected — during the
+// first load it stays hidden (no flash), and the instant one source goes live
+// the readiness strip takes over and this disappears.
+export function WorkbenchColdStart({ families, isLoading, onConnect }) {
+  if (isLoading) return null;
+  if (Array.isArray(families) && families.length) return null;
+
+  return html`
+    <section
+      className="wb13-coldstart"
+      data-testid="workbench-coldstart"
+      aria-label="Connect your tools"
+    >
+      <div className="wb13-coldstart-sources" aria-hidden="true">
+        ${WORKBENCH_CONNECTOR_FAMILIES.map(
+          (family) => html`
+            <span key=${family.id} className="wb13-coldstart-source">
+              <${Icon} name=${family.icon} />
+            </span>
+          `
+        )}
+      </div>
+      <h2 className="wb13-coldstart-title">Your Workbench fills from your tools</h2>
+      <p className="wb13-coldstart-copy">
+        Connect Gmail, Calendar, Drive, Notion, Slack, and GitHub. The moment they're live, this
+        surface gathers what arrived, what's coming up, and what needs a decision — read-only until
+        you approve an action.
+      </p>
+      ${typeof onConnect === 'function'
+        ? html`<button
+            type="button"
+            className="wb13-button is-primary"
+            data-testid="workbench-coldstart-connect"
+            onClick=${onConnect}
+          >
+            <${Icon} name="plug" />
+            Connect your tools
+          </button>`
+        : null}
+    </section>
+  `;
+}
 
 // Source-readiness strip: which apps are live "via Composio". Renders nothing
 // until at least one real ACTIVE account is reported (honest: no empty chrome).

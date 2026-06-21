@@ -414,6 +414,47 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
 .wb13-source-ready svg { width: 14px; height: 14px; }
 .wb13-source-ready-name { color: var(--wb-ink-2); font-weight: 700; }
 .wb13-source-ready-via { color: var(--wb-good-text); font-weight: 600; }
+.wb13-coldstart {
+  margin-top: 28px;
+  padding: 26px 26px 24px;
+  border: 1px solid var(--wb-line);
+  border-radius: var(--wb-r-lg);
+  background: var(--wb-canvas);
+  box-shadow: var(--wb-shadow);
+}
+.wb13-coldstart-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.wb13-coldstart-source {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--wb-line);
+  background: var(--wb-surface);
+  color: var(--wb-muted);
+}
+.wb13-coldstart-source svg { width: 15px; height: 15px; }
+.wb13-coldstart-title {
+  font-family: var(--wb-font-display);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--wb-ink);
+  margin: 0 0 8px;
+}
+.wb13-coldstart-copy {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--wb-muted);
+  max-width: 56ch;
+  margin: 0 0 18px;
+}
 .wb13-arrived {
   margin-top: 30px;
   border: 1px solid var(--wb-line);

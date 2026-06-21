@@ -42,6 +42,7 @@ import {
 import {
   SourceReadinessStrip,
   WorkbenchArrived,
+  WorkbenchColdStart,
   WorkbenchDecisions,
   WorkbenchUpcoming
 } from './components/workbench-arrived.js';
@@ -186,6 +187,11 @@ function HomeView(props) {
       <div className="wb13-page">
         <div className="wb13-wrap">
           <${WorkbenchCommandSurface} ...${props.commandProps} />
+          <${WorkbenchColdStart}
+            families=${props.connectorFamilies}
+            isLoading=${props.connectorsLoading}
+            onConnect=${props.onConnectSources}
+          />
           <${WorkbenchBriefing}
             briefing=${props.briefing}
             onOpenMessage=${props.onOpenMessage}
@@ -883,6 +889,8 @@ export function WorkbenchPage() {
                 packageTab=${packageTab}
                 onPackageTab=${setPackageTab}
                 connectorFamilies=${connectedAccounts.families}
+                connectorsLoading=${connectedAccounts.isLoading}
+                onConnectSources=${() => setShowSources(true)}
                 gmailReady=${connectedAccounts.gmailReady}
                 inboxMessages=${connectorInbox.messages}
                 inboxLoading=${connectorInbox.isLoading}
