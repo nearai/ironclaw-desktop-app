@@ -77,6 +77,12 @@ so this keeps the branch always-green + consistent. The green gate is the coordi
 - Safety: branch only (`workbench-overnight-20260620`), never merge to main; drafts-only (no real sends); secrets stay
   Keychain/gateway-side; every commit green (prettier hook + tests).
 
+## RESUMED continuous build (user awake ~06:00 — "keep going, finish the plan; fonts look tired; nothing populates")
+
+- **Design — fixed "tired fonts" (10deba9, pushed):** root cause was a font-LOADING bug — the Workbench display token referenced `Newsreader` with NO `@font-face` (serif fell back to system Charter/Palatino = tired) and body used bare `Inter` (not the loaded `Inter Variable` → system-ui). Self-hosted Newsreader (variable woff2, OFL, 208KB) + pointed body at Inter Variable. Headers now render the crisp editorial serif (verified by screenshot). Lesson saved: never `prettier --write` app.css — it flips quotes and breaks the contrast-test regex + DT-1 (memory `lessons_no_prettier_on_app_css`).
+- **Unifier (in progress, background agent):** to fix "nothing populates," building ONE gateway binary with `/llm`+agent AND the connector route — rebasing the route onto gateway `main` (414 ahead) in `/tmp/gw-unify` (2 new files clean, 7 conflicts being resolved) → cold cargo build → live verify (`/llm` 200 + agent turn + connectors on one binary) → stage into `src-tauri/binaries`. Will report.
+- Cron widened back to continuous (~20 min, `5734f301`); deadline-stop removed — keep building the plan.
+
 ## Running log
 
 - 23:12 — Q0: created branch off `codex/workbench-overhaul-backend-loop`; regenerated bundle; full gate green; committed baseline f986602. Began STATUS.
