@@ -3170,29 +3170,39 @@ test('static workbench: Cmd+K command palette navigates and composes', async ({ 
   await page.goto('/v2/workbench?token=workbench-static-token');
   await page.getByTestId('workbench-page').waitFor({ state: 'visible' });
 
-  // Opens from the keyboard, input autofocused (one Bridge surface, DESIGN.md Law 3).
-  await page.keyboard.press('Control+k');
   const palette = page.getByTestId('workbench-command-palette');
-  await expect(palette).toBeVisible();
-  await expect(page.getByTestId('workbench-command-input')).toBeFocused();
+  const input = page.getByTestId('workbench-command-input');
+  // The palette focuses its input one frame after opening (requestAnimationFrame
+  // in the open effect), and that same effect resets the query. Always wait for
+  // the focused input before typing or pressing keys: it's the signal that the
+  // open effect has run, so a `fill` can't be wiped by the late query reset and
+  // an `Escape` lands on the input's own handler (not the page's, which only
+  // closes the shortcuts overlay). Without this wait the suite flakes under load.
+  const openPalette = async () => {
+    await page.keyboard.press('Control+k');
+    await expect(palette).toBeVisible();
+    await expect(input).toBeFocused();
+  };
+
+  // Opens from the keyboard, input autofocused (one Bridge surface, DESIGN.md Law 3).
+  await openPalette();
 
   // Navigate: filter to a nav command and run it.
-  await page.getByTestId('workbench-command-input').fill('memory');
+  await input.fill('memory');
   await page.getByTestId('workbench-command-item').filter({ hasText: 'Go to Memory' }).click();
   await expect(palette).toHaveCount(0);
   await expect(page.getByTestId('workbench-memory')).toBeVisible();
 
   // Compose: free text becomes "Ask IronClaw" and prefills the command box (never auto-sent).
-  await page.keyboard.press('Control+k');
-  await page.getByTestId('workbench-command-input').fill('draft a counter to northwind');
+  await openPalette();
+  await input.fill('draft a counter to northwind');
   await page.getByTestId('workbench-command-item').filter({ hasText: 'Ask IronClaw' }).click();
   await expect(page.getByTestId('workbench-brief-input')).toHaveValue(
     'draft a counter to northwind'
   );
 
   // Esc dismisses.
-  await page.keyboard.press('Control+k');
-  await expect(palette).toBeVisible();
+  await openPalette();
   await page.keyboard.press('Escape');
   await expect(palette).toHaveCount(0);
 });
