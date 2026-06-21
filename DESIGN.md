@@ -52,6 +52,20 @@ first decision that belongs to the user is already at the top.
   Desk state rather than staying buried in transcript text.
 - **Canvas:** thinking annex, not the lobby.
 
+## Command And Keyboard
+
+Keyboard-first, one Bridge surface (Laws 3 + 5). The Workbench is driven by:
+
+- **Cmd/Ctrl+K — command palette.** The single floating entry point: navigate
+  (Work / Memory / Library / Chat / Automations / Tools / Settings), or compose
+  ("Ask IronClaw: …", prefilled into the command box, never auto-sent). Works
+  from anywhere, including inside a field.
+- **Bare-key shortcuts** (only when focus is not in a text field, so typing is
+  never hijacked): `/` jumps to the command box; `g` then `w/m/l/t` navigates;
+  `?` opens the shortcuts help; `Esc` dismisses a panel; `Cmd/Ctrl+⏎` asks/sends.
+- Floating overlays (palette, shortcuts, approval modal) are the only place a
+  drop shadow is used; docked surfaces separate with 1px borders, not shadow.
+
 ## North-Star Test
 
 A new user opens IronClaw cold and can answer within sixty seconds:
