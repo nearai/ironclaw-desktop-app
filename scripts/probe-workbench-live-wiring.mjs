@@ -111,8 +111,13 @@ function providerSummary(provider) {
     name: provider?.name || '',
     adapter: provider?.adapter || '',
     default_model: provider?.default_model || '',
+    active: Boolean(provider?.active),
+    active_model: provider?.active_model || '',
     builtin: Boolean(provider?.builtin),
-    api_key_set: Boolean(provider?.api_key_set)
+    api_key_required: Boolean(provider?.api_key_required),
+    accepts_api_key: Boolean(provider?.accepts_api_key),
+    api_key_set: Boolean(provider?.api_key_set),
+    can_list_models: Boolean(provider?.can_list_models)
   };
 }
 
@@ -173,6 +178,160 @@ function messageContent(message) {
     if (typeof candidate === 'string') return candidate;
   }
   return '';
+}
+
+function messageStatus(message) {
+  return String(
+    message?.status ||
+      message?.run_status?.status ||
+      message?.payload?.status ||
+      message?.message?.status ||
+      ''
+  ).toLowerCase();
+}
+
+function messageFailureSummary(message) {
+  return (
+    message?.failure_summary ||
+    message?.run_status?.failure_summary ||
+    message?.payload?.failure_summary ||
+    message?.message?.failure_summary ||
+    ''
+  );
+}
+
+const TERMINAL_RUN_STATUSES = new Set([
+  'completed',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'recovery_required'
+]);
+const FAILURE_RUN_STATUSES = new Set(['failed', 'cancelled', 'recovery_required']);
+
+function timelineRunStatuses(body, messages) {
+  const candidates = [];
+  for (const key of ['items', 'events', 'timeline', 'messages']) {
+    if (Array.isArray(body?.[key])) candidates.push(...body[key]);
+  }
+  candidates.push(...messages);
+  return candidates
+    .map((item) => item?.run_status || item)
+    .filter((item) => item && typeof item === 'object')
+    .map((item) => ({
+      run_id: item.run_id || item.turn_run_id || item.runId || null,
+      status: messageStatus(item),
+      failure_summary: messageFailureSummary(item),
+      failure_category: item.failure_category || item.run_status?.failure_category || ''
+    }))
+    .filter((item) => item.status);
+}
+
+function runStateSummary(body) {
+  if (!body || typeof body !== 'object') return null;
+  const failure = body.failure && typeof body.failure === 'object' ? body.failure : {};
+  return {
+    run_id: body.run_id || body.turn_run_id || body.runId || null,
+    status: String(body.status || '').toLowerCase(),
+    failure_category: body.failure_category || failure.category || failure.kind || '',
+    failure_summary:
+      body.failure_summary || failure.safe_summary || failure.summary || failure.message || ''
+  };
+}
+
+function collectRunStatusSummaries(value, summaries = []) {
+  if (Array.isArray(value)) {
+    for (const item of value) collectRunStatusSummaries(item, summaries);
+    return summaries;
+  }
+  if (!value || typeof value !== 'object') return summaries;
+  if (value.run_status && typeof value.run_status === 'object') {
+    const summary = runStateSummary(value.run_status);
+    if (summary?.status) summaries.push(summary);
+  }
+  for (const child of Object.values(value)) {
+    collectRunStatusSummaries(child, summaries);
+  }
+  return summaries;
+}
+
+function ssePayloadsFromBlock(block) {
+  const data = block
+    .split(/\r?\n/u)
+    .filter((line) => line.startsWith('data:'))
+    .map((line) => line.replace(/^data:\s?/u, ''))
+    .join('\n')
+    .trim();
+  if (!data || data === '[DONE]') return [];
+  try {
+    return [JSON.parse(data)];
+  } catch {
+    return [];
+  }
+}
+
+function startRunStatusStream({ origin, token, threadId, onStatus }) {
+  const controller = new AbortController();
+  const state = {
+    status: null,
+    error: null,
+    controller,
+    promise: null
+  };
+  state.promise = (async () => {
+    try {
+      const response = await fetch(
+        `${origin}/api/webchat/v2/threads/${encodeURIComponent(threadId)}/events?token=${encodeURIComponent(
+          token
+        )}`,
+        { headers: { Accept: 'text/event-stream' }, signal: controller.signal }
+      );
+      state.status = response.status;
+      if (!response.ok || !response.body) return;
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split(/\r?\n\r?\n/u);
+        buffer = blocks.pop() || '';
+        for (const block of blocks) {
+          for (const payload of ssePayloadsFromBlock(block)) {
+            for (const summary of collectRunStatusSummaries(payload)) {
+              onStatus(summary);
+            }
+          }
+        }
+        buffer = buffer.slice(-8000);
+      }
+    } catch (err) {
+      if (!controller.signal.aborted) {
+        state.error = err?.message || String(err);
+      }
+    }
+  })();
+  return state;
+}
+
+async function stopRunStatusStream(stream) {
+  if (!stream) return;
+  stream.controller.abort();
+  await stream.promise;
+}
+
+function applyRunStatusToHandoff(handoff, summary) {
+  if (!summary?.status) return;
+  if (summary.run_id && handoff.run_id && summary.run_id !== handoff.run_id) return;
+  if (!handoff.sse_run_status_sequence.includes(summary.status)) {
+    handoff.sse_run_status_sequence.push(summary.status);
+  }
+  if (!TERMINAL_RUN_STATUSES.has(summary.status)) return;
+  handoff.timeline_terminal_status = summary.status;
+  handoff.timeline_terminal_failed = FAILURE_RUN_STATUSES.has(summary.status);
+  handoff.timeline_failure_category = summary.failure_category || null;
+  handoff.timeline_failure_summary = summary.failure_summary || null;
 }
 
 function redactText(value, token) {
@@ -252,13 +411,28 @@ function evaluateProbe(result) {
     status: result.route_status.providers ?? null
   });
   check(
-    'LLM model catalog is live',
-    result.llm?.models?.ok === true && result.llm.models.count > 0,
+    'active LLM provider is configured',
+    Boolean(result.llm?.active?.provider_id && result.llm?.active_provider),
     {
-      status: result.route_status.models ?? null,
-      count: result.llm?.models?.count ?? null
+      active: result.llm?.active || null,
+      active_provider: result.llm?.active_provider || null
     }
   );
+  if (result.llm?.active_provider?.can_list_models) {
+    check(
+      'LLM model catalog is live',
+      result.llm?.models?.ok === true && result.llm.models.count > 0,
+      {
+        status: result.route_status.models ?? null,
+        count: result.llm?.models?.count ?? null,
+        message: result.llm?.models?.message || ''
+      }
+    );
+  } else {
+    warn('active LLM provider does not advertise model-list support', {
+      active_provider: result.llm?.active_provider?.id || null
+    });
+  }
   for (const route of ['extensions', 'registry', 'channels', 'automations']) {
     check(`${route} route serves`, result.route_status[route] === 200, {
       status: result.route_status[route] ?? null
@@ -375,6 +549,17 @@ function evaluateProbe(result) {
         live_source_status: result.workbench?.live_source_status || ''
       }
     );
+    check(
+      'Workbench Ask receives a terminal assistant result',
+      handoff?.timeline_has_assistant_reply === true && handoff?.timeline_terminal_failed !== true,
+      {
+        attempts: handoff?.timeline_attempts ?? null,
+        terminal_status: handoff?.timeline_terminal_status || null,
+        failure_category: handoff?.timeline_failure_category || null,
+        failure_summary: handoff?.timeline_failure_summary || null,
+        assistant_reply_seen: Boolean(handoff?.timeline_has_assistant_reply)
+      }
+    );
   }
 
   const failed = checks.filter((entry) => !entry.pass);
@@ -487,9 +672,10 @@ async function main() {
       null;
     result.llm = {
       active: providers.body?.active || null,
+      active_provider: providerSummary(activeProvider),
       providers: providerList.map(providerSummary)
     };
-    if (activeProvider) {
+    if (activeProvider?.can_list_models) {
       const models = await request('POST', '/api/webchat/v2/llm/list-models', {
         provider_id: activeProvider.id,
         adapter: activeProvider.adapter || activeProvider.id
@@ -498,7 +684,15 @@ async function main() {
       result.llm.models = {
         ok: models.body?.ok === true,
         count: Array.isArray(models.body?.models) ? models.body.models.length : 0,
-        sample: Array.isArray(models.body?.models) ? models.body.models.slice(0, 20) : []
+        sample: Array.isArray(models.body?.models) ? models.body.models.slice(0, 20) : [],
+        message: models.body?.message || models.body?.error || ''
+      };
+    } else if (activeProvider) {
+      result.llm.models = {
+        ok: null,
+        count: null,
+        sample: [],
+        message: 'active provider does not advertise model-list support'
       };
     }
 
@@ -689,12 +883,21 @@ async function main() {
         send_status: null,
         send_accepted: false,
         send_outcome: null,
+        run_id: null,
+        event_stream_status: null,
+        event_stream_error: null,
+        sse_run_status_sequence: [],
         has_run_id: false,
         timeline_status: null,
         timeline_attempts: 0,
         timeline_message_count: 0,
         timeline_has_workbench_request: false,
         timeline_has_live_source_status: false,
+        timeline_has_assistant_reply: false,
+        timeline_terminal_status: null,
+        timeline_terminal_failed: false,
+        timeline_failure_category: null,
+        timeline_failure_summary: null,
         expected_ready_family_count: readyFamilies.length,
         observed_ready_family_count: 0,
         observed_ready_families: [],
@@ -703,8 +906,15 @@ async function main() {
           live_source_status: liveSourceStatus
         }
       };
+      let runStatusStream = null;
 
       if (thread.ok) {
+        runStatusStream = startRunStatusStream({
+          origin,
+          token,
+          threadId,
+          onStatus: (summary) => applyRunStatusToHandoff(handoff, summary)
+        });
         const send = await request(
           'POST',
           `/api/webchat/v2/threads/${encodeURIComponent(threadId)}/messages`,
@@ -715,7 +925,8 @@ async function main() {
         );
         handoff.send_status = send.status;
         handoff.send_outcome = send.body?.outcome || null;
-        handoff.has_run_id = Boolean(send.body?.run_id || send.body?.run?.run_id);
+        handoff.run_id = send.body?.run_id || send.body?.run?.run_id || null;
+        handoff.has_run_id = Boolean(handoff.run_id);
         handoff.send_accepted =
           send.ok &&
           (Boolean(send.body?.accepted_message_ref) ||
@@ -743,10 +954,29 @@ async function main() {
               })
               .map(messageContent)
               .join('\n');
+            const assistantText = messages
+              .filter((message) => {
+                const kind = messageKind(message);
+                return kind === 'assistant' || kind === 'assistant_message';
+              })
+              .map(messageContent)
+              .join('\n');
+            handoff.timeline_has_assistant_reply = assistantText.trim().length > 0;
             handoff.timeline_has_workbench_request =
               userText.includes('Workbench request') && userText.includes(handoffBrief);
             handoff.timeline_has_live_source_status =
               userText.includes('- Live source status:') && userText.includes(liveSourceStatus);
+            const terminalFromTimeline = timelineRunStatuses(timeline.body, messages).find((item) =>
+              TERMINAL_RUN_STATUSES.has(item.status)
+            );
+            if (terminalFromTimeline && !handoff.timeline_terminal_status) {
+              handoff.timeline_terminal_status = terminalFromTimeline.status;
+              handoff.timeline_terminal_failed = FAILURE_RUN_STATUSES.has(
+                terminalFromTimeline.status
+              );
+              handoff.timeline_failure_category = terminalFromTimeline.failure_category || null;
+              handoff.timeline_failure_summary = terminalFromTimeline.failure_summary || null;
+            }
             handoff.observed_ready_families = readyFamilies
               .map((family) => family.id)
               .filter((id) => {
@@ -754,11 +984,20 @@ async function main() {
                 return userText.includes(label);
               });
             handoff.observed_ready_family_count = handoff.observed_ready_families.length;
-            if (handoff.timeline_has_workbench_request && handoff.timeline_has_live_source_status) {
+            if (
+              handoff.timeline_has_workbench_request &&
+              handoff.timeline_has_live_source_status &&
+              (handoff.timeline_has_assistant_reply || handoff.timeline_terminal_status)
+            ) {
               break;
             }
           }
         }
+      }
+      await stopRunStatusStream(runStatusStream);
+      if (runStatusStream) {
+        handoff.event_stream_status = runStatusStream.status;
+        handoff.event_stream_error = runStatusStream.error;
       }
       result.workbench.chat_handoff = handoff;
     }
