@@ -12,7 +12,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 IRONCLAW_REPO_DIR="${IRONCLAW_REPO_DIR:-${REPO_ROOT}/.deps/ironclaw}"
 OUTPUT_DIR="${IRONCLAW_REBORN_OUTPUT_DIR:-${REPO_ROOT}/src-tauri/binaries}"
-FEATURES="${IRONCLAW_REBORN_FEATURES:-webui-v2-beta,slack-v2-host-beta}"
+FEATURES="${IRONCLAW_REBORN_FEATURES:-webui-v2-beta,slack-v2-host-beta,root-llm-provider}"
 PACKAGE="${IRONCLAW_REBORN_PACKAGE:-ironclaw_reborn_cli}"
 BIN="${IRONCLAW_REBORN_BIN:-ironclaw-reborn}"
 TARGETS="${IRONCLAW_REBORN_TARGETS:-aarch64-apple-darwin x86_64-apple-darwin}"
@@ -27,7 +27,7 @@ Options:
   --repo <dir>       IronClaw source checkout (default: $IRONCLAW_REPO_DIR or .deps/ironclaw)
   --output <dir>     Destination for Tauri externalBin files (default: src-tauri/binaries)
   --targets <list>   Space-separated Rust targets (default: both macOS release targets)
-  --features <list>  Cargo features for ironclaw_reborn_cli (default: webui-v2-beta,slack-v2-host-beta)
+  --features <list>  Cargo features for ironclaw_reborn_cli (default: webui-v2-beta,slack-v2-host-beta,root-llm-provider)
   --help             Show this help
 EOF
 }

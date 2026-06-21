@@ -23,6 +23,7 @@ import { normalizeSlackBlockers } from '../crates/ironclaw_webui_v2_static/stati
 const RELEVANT_EXTENSION_IDS = Object.freeze([
   'custom-mcp',
   'composio',
+  'connected-sources',
   'gmail',
   'google-calendar',
   'google-drive',
@@ -80,6 +81,7 @@ const EXPECTED_WORKBENCH_SOURCE_FAMILIES = Object.freeze([
   'github'
 ]);
 const CHAT_SOURCE_EXTENSION_IDS = Object.freeze([
+  'connected-sources',
   'gmail',
   'google-calendar',
   'google-drive',
@@ -594,7 +596,7 @@ function redactText(value, token) {
 function directConnectorDiagnosticPrompt() {
   return [
     'Read-only diagnostic.',
-    'If the Chat runtime exposes the Composio connector tool, call it with action="connected_accounts" and app="gmail" only.',
+    'If the Chat runtime exposes connected-sources.read, call it once with toolkit="gmail", tool="GMAIL_FETCH_EMAILS", and arguments={"max_results":1}.',
     'If Composio is not exposed but first-party source tools are exposed, use a read-only Gmail inbox/list tool for at most one item.',
     'Do not send, draft, delete, post, schedule, or mutate anything.',
     'Do not execute a Composio app action, and do not quote any account id, email subject, sender, body, identifier, or private content.',
@@ -1014,13 +1016,15 @@ function diagnosticHints(result) {
   const liveConnectorRows =
     result.connectors?.connected?.status === 200 && (result.connectors?.connected?.count || 0) > 0;
   const activationRequested = Boolean(result.extension_activation?.requested);
-  const noLifecycleSourceTools =
-    activationRequested && (result.extension_activation?.activated_ids || []).length === 0;
+  const activatedIds = result.extension_activation?.activated_ids || [];
+  const noLifecycleSourceTools = activationRequested && activatedIds.length === 0;
+  const connectedSourcesActivated = activatedIds.includes('connected-sources');
 
   if (
     directConnector &&
     directConnector.skipped !== true &&
     directConnector.tool_activity_seen !== true &&
+    directConnector.assistant_claimed_tool_used !== true &&
     (directConnector.tool_signal_count ?? 0) === 0 &&
     activeConnectorBridge &&
     liveConnectorRows &&
@@ -1030,6 +1034,21 @@ function diagnosticHints(result) {
       code: 'connector_proxy_not_model_visible_lifecycle_tool',
       detail:
         'Composio/custom-mcp is active and deterministic connector reads are live, but no model-visible lifecycle source capability activated for Chat. Direct freeform Chat needs a gateway lifecycle/tool-surface bridge before it can call connected-data tools.'
+    });
+  }
+
+  if (
+    directConnector &&
+    directConnector.skipped !== true &&
+    directConnector.tool_activity_seen !== true &&
+    directConnector.assistant_claimed_tool_used !== true &&
+    (directConnector.tool_signal_count ?? 0) === 0 &&
+    connectedSourcesActivated
+  ) {
+    hints.push({
+      code: 'connected_sources_visible_but_not_invoked',
+      detail:
+        'connected-sources activated as a model-visible lifecycle package, but the direct Chat run produced no connected-data tool activity. Investigate model tool selection, tool-call planning, or run timeline tool-signal recording.'
     });
   }
 
@@ -1771,12 +1790,15 @@ async function main() {
     }
   } finally {
     try {
-      result.log_tail = log
+      const redactedLogLines = log
         .join('')
         .split('\n')
         .filter(Boolean)
-        .slice(-40)
         .map((line) => redactText(line, token));
+      const sidecarLogPath = path.join(outDir, 'sidecar.log');
+      await writeFile(sidecarLogPath, `${redactedLogLines.join('\n')}\n`);
+      result.sidecar_log = sidecarLogPath;
+      result.log_tail = redactedLogLines.slice(-40);
       const evaluation = evaluateProbe(result);
       result.verdict = evaluation.verdict;
       result.checks = evaluation.checks;

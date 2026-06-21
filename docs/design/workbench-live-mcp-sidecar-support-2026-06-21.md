@@ -53,17 +53,19 @@ Loop:
 
 Hard rule:
 Do not claim "live MCP/direct tool use works" unless
-`--require-direct-connector-chat` passes. Today the proven path is deterministic
-Workbench connector reads plus a bounded live-row packet into Chat.
+`--require-direct-connector-chat` passes. As of the 2026-06-21 12:43 EDT
+probe, this gate passes against the rebuilt sidecar with `connected-sources.read`
+activated and OpenRouter `openai/gpt-4o-mini`.
 ```
 
 ## Current Truth
 
 The old sidecar task files in
 `/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-agent-worktrees/`
-are stale v8 visual implementation prompts. As of this file, the Claude sidecar
-process is still running from `ironclaw-agent-worktrees/claude`, but that
-worktree has no recent file writes and no `AGENT_REPORT.md`.
+are stale v8 visual implementation prompts. As of this update, the Claude
+sidecar worktree is still on `agents/workbench-v8-claude`; its current
+`AGENT_REPORT.md` marks that worktree stale and points back to this main repo
+and this support note.
 
 Use the main desktop repo branch above as the source of truth.
 
@@ -95,25 +97,48 @@ Current proven behavior:
   Chat runtime and receives an assistant reply.
 - Connector writes remain gated; Gmail send attempts must reject unless the
   backend explicitly enables send authority.
+- Direct freeform Chat can now call `connected-sources.read` as a model-visible
+  read-only first-party capability, route through the existing Composio
+  connector proxy, and receive a successful tool result.
 
-Current explicit gap:
+Resolved direct Chat bridge work:
 
-- Direct freeform Chat does not yet invoke connected-data tools by itself.
-- The diagnostic currently creates/sends a direct Chat thread, but after the
-  full poll window it sees no assistant/tool result and no connector tool
-  activity.
-- First-party Gmail/Calendar/Drive/Notion/GitHub extensions require their own
-  OAuth or manual-token setup and are not satisfied by the Composio account.
-- Slack is not present as a first-party lifecycle extension in this build.
-- Gateway code inspection narrows the cause: deterministic Workbench reads use
-  the Composio connector proxy in `crates/ironclaw_reborn_composition/src/connectors.rs`,
-  while Chat only sees enabled lifecycle extensions that publish
-  `visibility = "model"` capabilities through
-  `active_model_visible_capabilities()` and the local-dev extension surface.
-  The bundled first-party catalog currently includes GitHub, Notion, Web
-  Access, NEAR AI, Google Workspace, Gmail, and optional Slack, but not the
-  Composio connector proxy as a model-visible lifecycle package. Do not fix
-  this in frontend copy.
+- The earlier missing lifecycle bridge diagnosis has been addressed in
+  `/tmp/gw-unify`: `connected-sources.read` is now a host-bundled,
+  model-visible, read-only first-party capability that delegates to the
+  existing Composio connector proxy and does not expose write methods.
+- The local-dev approval gate now exempts only `connected-sources.read`, because
+  the handler remains read-only and mutating provider tools are rejected by the
+  connector allowlist before upstream calls.
+- The local-dev lifecycle network policy now gives `connected-sources.read` a
+  narrow `https://backend.composio.dev` target even though it has no runtime
+  credential declarations. This is required because its credentials are resolved
+  host-side through the connector proxy.
+- Gateway unit/integration tests now prove:
+  - the handler delegates only to `ConnectorReadPort::read`
+  - activation publishes `connected-sources.read` through
+    `active_model_visible_capabilities()`
+  - host-runtime invocation reaches the connected-sources capability instead
+    of failing as missing runtime
+  - a controlled model turn can see `connected-sources.read`, register a
+    provider tool call, receive a model-visible tool-result replay, and finish
+- Live OpenRouter probes now prove:
+  - the real model calls `connected-sources__read`
+  - host runtime authorizes the dispatch without an approval block
+  - the capability dispatch succeeds
+  - the model returns `DIRECT_CONNECTOR_PROBE_DONE tool_used=yes reason=success`
+
+Current non-blocking caveats:
+
+- The timeline/event projection still does not surface connector tool activity
+  as structured `tool_signals`; the probe therefore treats the assistant marker
+  plus sidecar log as the direct invocation proof.
+- First-party Gmail/Calendar/Drive/Notion/GitHub lifecycle packages remain
+  blocked by setup in the disposable probe profile. The direct Chat proof uses
+  `connected-sources.read`, which is the intended bridge to the user's existing
+  Composio-backed connected data.
+- OpenRouter does not advertise model-list support through the current provider
+  route, so the probe verdict is `WARN` even with zero failed checks.
 
 Fresh artifacts from the 2026-06-21 11:26 EDT support pass:
 
@@ -140,6 +165,59 @@ Fresh artifacts from the 2026-06-21 11:26 EDT support pass:
   - connected data still live
   - active `nearai` / `zai-org/GLM-5.1-FP8` failed the assistant turn with
     `model_credentials_unavailable`
+- Connected Sources bridge probe after rebuilding the staged sidecar:
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T16-06-00-180Z/probe.json`
+  - deterministic connector reads still worked with `8` live accounts and
+    ready families `gmail/calendar/drive/notion/slack/github`
+  - Workbench Ask still completed with assistant reply and preserved the live
+    source packet
+  - `connected-sources` installed and activated for Chat source tools
+  - direct Chat accepted the run but produced no assistant reply or tool
+    activity after `32` attempts
+  - `summary.diagnostic_hints` now includes
+    `connected_sources_visible_but_not_invoked`
+- Model retry probe with `OPENROUTER_MODEL=openai/gpt-4o-mini`:
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T16-08-20-170Z/probe.json`
+  - `connected-sources` again activated
+  - direct Chat still produced no assistant/tool activity after `40` attempts
+  - model choice alone did not close the direct Chat gap
+- Debug probe after approval-gate exemption but before network-policy fix:
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T16-38-03-797Z/probe.json`
+  - direct Chat called `connected-sources__read`
+  - host runtime authorized dispatch
+  - capability failed during network obligation preparation because
+    `connected-sources.read` had no explicit Composio network target
+  - assistant returned
+    `DIRECT_CONNECTOR_PROBE_DONE tool_used=no reason="network failure"`
+- Direct Chat gate after network-policy fix and rebuilt sidecar:
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T16-43-16-056Z/probe.json`
+  - no failed checks
+  - `connected-sources.read` dispatch succeeded with a live Composio-backed
+    output
+  - assistant returned
+    `DIRECT_CONNECTOR_PROBE_DONE tool_used=yes reason=success`
+- Full Workbench + direct Chat gate after network-policy fix:
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T16-43-48-699Z/probe.json`
+  - verdict `WARN`, with zero failed checks
+  - `8` live connected accounts
+  - ready families `gmail/calendar/drive/notion/slack/github`
+  - live row counts:
+    `inboxMessages=3`, `calendarEvents=3`, `driveFiles=3`,
+    `notionPages=3`, `githubNotifications=3`, `slackBlockers=0`
+  - Workbench Ask completed, preserved live source status, and preserved the
+    live source packet
+  - direct Chat accepted the message and assistant returned
+    `DIRECT_CONNECTOR_PROBE_DONE tool_used=yes reason=success`
+
+Gateway validation now green in `/tmp/gw-unify`:
+
+```bash
+cargo fmt --all --check
+cargo test -p ironclaw_reborn_composition --features webui-v2-beta,slack-v2-host-beta,root-llm-provider connected_sources -- --nocapture
+cargo test -p ironclaw_reborn_composition --features webui-v2-beta,slack-v2-host-beta,root-llm-provider connected_sources_read_gets_composio_backend_network_target_without_credentials -- --nocapture
+cargo test -p ironclaw_reborn_composition --features webui-v2-beta,slack-v2-host-beta,root-llm-provider bundled -- --nocapture
+cargo check -p ironclaw_reborn_cli --features webui-v2-beta,slack-v2-host-beta,root-llm-provider --bin ironclaw-reborn
+```
 
 ## Required Probe Commands
 
@@ -160,7 +238,7 @@ node scripts/probe-workbench-live-wiring.mjs --llm-backend=openrouter --activate
 Future red/green gate for direct freeform Chat tool exposure:
 
 ```bash
-node scripts/probe-workbench-live-wiring.mjs --llm-backend=openrouter --activate-chat-source-tools --require-direct-connector-chat --chat-max-attempts=32 --json
+node scripts/probe-workbench-live-wiring.mjs --llm-backend=openrouter --activate-chat-source-tools --require-direct-connector-chat --chat-max-attempts=40 --json
 ```
 
 User-default provider truth:
@@ -243,15 +321,15 @@ npx playwright test --config playwright.static.config.ts tests/static/workbench-
 
 ### Lane C: Direct Chat Tool Exposure Investigation
 
-Goal: find the backend/tool-surface reason direct freeform Chat cannot call the
-Composio connector tool.
+Goal: prove direct freeform Chat can call the read-only connected-sources bridge.
 
 Actions:
 
 - Treat deterministic Workbench reads as working.
-- Inspect how active extensions become visible to Chat tools.
-- Inspect why the active/configured Composio extension is not exposed as a
-  callable tool inside a plain Chat turn.
+- Inspect how `connected-sources.read` activates and becomes visible to Chat
+  tools.
+- Confirm it delegates to the existing Composio connector proxy and never calls
+  the connector write path.
 - Do not "fix" this in frontend copy.
 - Produce either:
   - a small backend patch with tests, or
@@ -268,7 +346,7 @@ that and stop before applying a patch.
 Validation for any backend change must include:
 
 ```bash
-cargo build -p ironclaw_reborn_cli --features webui-v2-beta
+cargo build -p ironclaw_reborn_cli --features webui-v2-beta,slack-v2-host-beta,root-llm-provider --bin ironclaw-reborn
 ```
 
 And then, back in the desktop repo after staging any binary intentionally:
