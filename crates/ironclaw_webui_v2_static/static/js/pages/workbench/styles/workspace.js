@@ -323,6 +323,66 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   color: var(--wb-danger);
   background: var(--wb-hold-tint);
 }
+.wb13-run-gates {
+  margin-top: 13px;
+  border: 1px solid var(--wb-hold-line);
+  border-radius: 10px;
+  background: var(--wb-hold-tint);
+  padding: 12px 13px;
+  display: grid;
+  gap: 10px;
+}
+.wb13-run-gates-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--wb-hold-text);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.wb13-run-gates-head svg {
+  width: 15px;
+  height: 15px;
+}
+.wb13-run-gates-count {
+  margin-left: auto;
+  color: var(--wb-hold-text);
+  font-weight: 700;
+}
+.wb13-run-gate {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+.wb13-run-gate-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--wb-canvas);
+  color: var(--wb-hold-text);
+}
+.wb13-run-gate-icon svg {
+  width: 14px;
+  height: 14px;
+}
+.wb13-run-gate-body {
+  min-width: 0;
+}
+.wb13-run-gate-title {
+  font-weight: 700;
+  color: var(--wb-ink);
+  font-size: 13.5px;
+}
+.wb13-run-gate-detail {
+  color: var(--wb-ink-2);
+  font-size: 12.5px;
+  margin-top: 2px;
+}
 .wb13-pref-list {
   display: grid;
   margin: 12px 0;

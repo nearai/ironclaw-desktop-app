@@ -1239,6 +1239,44 @@ test('static workbench: a failed tool with no reply surfaces a needs-attention r
   await expect(runTimeline).toContainText('Failed');
 });
 
+test('static workbench: pending approval gates surface read-only on the run card', async ({
+  page
+}) => {
+  const sentMessages: Array<{ path: string; body: Record<string, unknown> }> = [];
+  const approvalsRequests: string[] = [];
+  await installWorkbenchMocks(page, {
+    sentMessages,
+    approvalsRequests,
+    approvals: [
+      {
+        id: 'gate-1',
+        thread_id: 'thread-workbench-runtime',
+        title: 'Send the vendor email',
+        detail: 'Prepared email to ops@acme.com is held for your review.',
+        destination: 'ops@acme.com'
+      }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page
+    .getByTestId('workbench-brief-input')
+    .fill('Draft and send the vendor onboarding email.');
+  await page.getByTestId('workbench-send-button').click();
+  await expect.poll(() => sentMessages.length).toBe(1);
+
+  // The run card scopes the per-thread approvals read to its own thread and
+  // surfaces the pending gate read-only — no approve/deny here (resolving is a
+  // real Phase-4 action), just what is waiting + a link into the live thread.
+  const gates = page.getByTestId('workbench-run-approvals');
+  await expect(gates).toBeVisible();
+  await expect(gates).toContainText('Waiting on your approval');
+  await expect(gates).toContainText('Send the vendor email');
+  await expect(gates.getByRole('link', { name: 'Review' })).toBeVisible();
+  // The read was scoped to the run's thread, not a global probe.
+  await expect.poll(() => approvalsRequests.length).toBeGreaterThan(0);
+});
+
 test('static workbench: manual source choice blocks when the connector is not ready', async ({
   page
 }) => {

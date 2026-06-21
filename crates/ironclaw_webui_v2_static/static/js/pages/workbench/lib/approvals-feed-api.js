@@ -1,7 +1,16 @@
 import { V2_BASE, apiFetch } from '../../../lib/api.js';
 
-export async function fetchApprovalsFeed({ fetcher = apiFetch, signal } = {}) {
-  return normalizeApprovalsFeed(await fetcher(`${V2_BASE}/approvals`, { signal }));
+// The approvals route is PER-THREAD: it returns this caller's pending approval
+// gates for one owned thread, and an empty feed when no `thread_id` is supplied
+// (it never enumerates across threads). Callers that have a thread in hand (the
+// started-work run card) pass it; the legacy global call sends none and gets an
+// honest empty feed.
+export async function fetchApprovalsFeed({ fetcher = apiFetch, signal, threadId } = {}) {
+  const id = typeof threadId === 'string' ? threadId.trim() : '';
+  const path = id
+    ? `${V2_BASE}/approvals?thread_id=${encodeURIComponent(id)}`
+    : `${V2_BASE}/approvals`;
+  return normalizeApprovalsFeed(await fetcher(path, { signal }));
 }
 
 export function approvalsFeedReadSupported(gatewayStatus) {

@@ -6,6 +6,7 @@ import { fetchTimeline } from '../../../lib/api.js';
 import { React, html } from '../../../lib/html.js';
 import { cn } from '../../../utils/cn.js';
 import { messagesFromTimeline } from '../../chat/lib/history-messages.js';
+import { fetchApprovalsFeed } from '../lib/approvals-feed-api.js';
 import { actionRows, outputHint } from '../lib/workbench-scenes-registry.js';
 import { WorkbenchRunTimeline } from './workbench-run-timeline.js';
 
@@ -160,13 +161,46 @@ function TimelinePreview({ work, timelineQuery }) {
   `;
 }
 
-function RuntimeWorkspace({ work, timelineQuery }) {
+// In-place approval gates: the pending gates for THIS run's thread, surfaced
+// read-only on the run card. The route is per-thread, so we scope to
+// work.threadId. Resolving a gate is a real outbound action (Phase 4, behind
+// the send sign-off), so this view only shows what is waiting and links into
+// the live thread to act — it never approves or denies here.
+function WorkbenchRunApprovals({ approvals, threadId }) {
+  const rows = Array.isArray(approvals) ? approvals : [];
+  if (!rows.length) return null;
+  const fallbackHref = threadId ? `/chat/${encodeURIComponent(threadId)}` : '/workbench';
+  return html`
+    <div className="wb13-run-gates" data-testid="workbench-run-approvals">
+      <div className="wb13-run-gates-head">
+        <${Icon} name="shield" />
+        <span>Waiting on your approval</span>
+        <span className="wb13-run-gates-count">${rows.length}</span>
+      </div>
+      ${rows.map(
+        (row) => html`
+          <div key=${row.id} className="wb13-run-gate">
+            <span className="wb13-run-gate-icon"><${Icon} name=${row.icon || 'shield'} /></span>
+            <div className="wb13-run-gate-body">
+              <div className="wb13-run-gate-title">${row.title}</div>
+              ${row.detail ? html`<div className="wb13-run-gate-detail">${row.detail}</div>` : null}
+            </div>
+            <${Link} to=${row.href || fallbackHref} className="wb13-button is-sm"> Review <//>
+          </div>
+        `
+      )}
+    </div>
+  `;
+}
+
+function RuntimeWorkspace({ work, timelineQuery, approvals }) {
   return html`
     <div className="wb13-scene-grid">
       <div className="wb13-scene-panel">
         <div className="wb13-scene-title">Current request</div>
         <p className="wb13-scene-copy">${cleanText(work.title, 'Workbench request')}</p>
         <${TimelinePreview} work=${work} timelineQuery=${timelineQuery} />
+        <${WorkbenchRunApprovals} approvals=${approvals} threadId=${work.threadId} />
         <div className="wb13-source-card is-hold">
           <${Icon} name="shield" />
           <strong>External actions still need approval.</strong>
@@ -197,8 +231,12 @@ function RuntimeWorkspace({ work, timelineQuery }) {
   `;
 }
 
-function SceneBody({ work, timelineQuery }) {
-  return html`<${RuntimeWorkspace} work=${work} timelineQuery=${timelineQuery} />`;
+function SceneBody({ work, timelineQuery, approvals }) {
+  return html`<${RuntimeWorkspace}
+    work=${work}
+    timelineQuery=${timelineQuery}
+    approvals=${approvals}
+  />`;
 }
 
 export function WorkbenchSceneWorkspace({ work }) {
@@ -211,6 +249,18 @@ export function WorkbenchSceneWorkspace({ work }) {
     refetchInterval: 5_000,
     retry: 1
   });
+  // Per-thread pending approval gates for this run. Gated on the threadId, NOT
+  // on a gateway capability flag (no backend emits approvals_read, so that gate
+  // is permanently false); resilient like the other connector reads.
+  const approvalsQuery = useQuery({
+    queryKey: ['workbench-run-approvals', threadId],
+    queryFn: ({ signal }) => fetchApprovalsFeed({ threadId, signal }),
+    enabled: Boolean(threadId),
+    staleTime: 2_000,
+    refetchInterval: 5_000,
+    retry: 1,
+    throwOnError: false
+  });
 
   if (!work) return null;
 
@@ -218,7 +268,11 @@ export function WorkbenchSceneWorkspace({ work }) {
     <section className="wb13-section wb13-scene" data-testid="workbench-scene-workspace">
       <${SceneSummary} work=${work} />
       <${SceneActionRows} sceneId=${work.scene.id} />
-      <${SceneBody} work=${work} timelineQuery=${timelineQuery} />
+      <${SceneBody}
+        work=${work}
+        timelineQuery=${timelineQuery}
+        approvals=${approvalsQuery.data || []}
+      />
     </section>
   `;
 }
