@@ -245,8 +245,17 @@ async function consumeSSE(threadId) {
   }
   console.log('\nagent called connected-sources.read directly:', calledConnector);
   console.log('assistant reply present (timeline):', !!finalReply);
-  if (winner === 'timeout' && !finalReply)
-    console.log('NOTE: timed out before final_reply. tail logs:\n' + logs.slice(-900));
+  try {
+    fs.writeFileSync('/tmp/sse-sidecar-full.log', logs);
+  } catch {}
+  if (!finalReply) {
+    const hostErr = logs
+      .split('\n')
+      .filter((l) => /capability host error|HostUnavailable|safe_summary|BudgetExceeded|sandbox|wasm|ContextOverflow/i.test(l))
+      .slice(-8)
+      .join('\n');
+    console.log('NOTE: no final reply. host-error lines:\n' + (hostErr || '(none)') + '\n(full log: /tmp/sse-sidecar-full.log)');
+  }
   try {
     child.kill('SIGKILL');
   } catch {}

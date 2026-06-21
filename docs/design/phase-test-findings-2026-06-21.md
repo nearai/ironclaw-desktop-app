@@ -77,16 +77,26 @@ and the real `npm run tauri dev` run (real-app-e2e-evidence.md).
   → finalized reply citing the real email).
 - **Fix generalizes**: a Calendar turn also routes through `connected-sources.read`
   directly (+ `builtin.time` for the date range) — not Gmail-specific.
-- **Open robustness issue (separate from the fix):** a *longer* multi-read turn
-  (Calendar, 5+ `connected-sources.read` calls) terminated with
-  `HostUnavailable { stage: Capability }` / "agent loop driver is unavailable:
-  Capability: unavailable" before a final reply. The reads themselves finalized;
-  the agent-loop/host-runtime became unavailable mid-turn. Seen in the LocalDev
-  DevOnly test profile (readiness already flags `DevOnlyProfile: Blocking`).
-  Needs investigation — may be a DevOnly capability-host limit or cumulative
-  resource exhaustion on long turns. Does NOT undermine the connector
-  registration fix (reads route correctly); it's a turn-completion robustness
-  concern for heavy multi-tool turns.
+- **Robustness issue #1 — FIXED (gateway `15b1d854`):** a longer Calendar turn
+  terminated with `HostUnavailable { stage: Capability }`. Root cause: the
+  assistant-transcript serializer (`ironclaw_threads/tool_result_reference.rs`)
+  capped provider `response_reasoning`/`reasoning`/`signature` at a literal
+  **4096 bytes**, below the safety layer's own 16 KiB bound. A reasoning model
+  (GLM) emits >4 KiB of reasoning on multi-step turns → `TranscriptWriteFailed`
+  → terminal HostUnavailable → turn dies. Raised the cap to
+  `PROVIDER_METADATA_TEXT_MAX_BYTES` (16 KiB). Verified live: the same Calendar
+  turn no longer hits the terminal failure (host-error lines empty).
+- **Robustness issue #2 — STILL OPEN (separate, deeper):** *heavy multi-read*
+  turns don't converge to a final reply within ~3 min. GLM-5.2 made **25**
+  `connected-sources.read` calls without answering; `claude-opus-4-7` made 6 and
+  also didn't finish in 170s, and a spawned **subagent** hit
+  `HostUnavailable { stage: Prompt }` ("Prompt: unavailable"). So beyond the
+  transcript cap there is (a) a model/agent-loop *convergence* problem on heavy
+  tool tasks (no max-iteration backstop / the model keeps re-reading), and (b) a
+  Prompt-stage host failure on subagents (raw_detail not emitted at warn).
+  **Scope:** this is agent-loop/runtime behavior, not the connector or transcript
+  fix. **Single-read turns (the common Workbench case — latest email, draft a
+  reply) work end-to-end.** Heavy multi-tool turns need a separate fix.
 
 ## In progress
 - Phase 5: poller worker runs; firing proven by Rust e2e (`trigger_poller_e2e.rs`)
