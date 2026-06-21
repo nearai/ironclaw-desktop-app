@@ -1868,7 +1868,7 @@ test('static workbench: Slack blocker chip runs a read-only Slack search without
 
   const blockers = page.getByTestId('workbench-slack-blockers');
   await expect(blockers).toBeVisible();
-  await expect(blockers).toContainText('2 messages mention a blocker');
+  await expect(blockers).toContainText('2 possible blockers in Slack');
   await expect(blockers).toContainText('Launch copy is blocked on pricing approval');
   await expect(blockers).toContainText('waiting on the vendor signature');
   await expect(blockers).toContainText('Read-only · nothing posted');
@@ -1878,6 +1878,80 @@ test('static workbench: Slack blocker chip runs a read-only Slack search without
     'href',
     'https://near-foundation.slack.com/archives/C1/p1781276971079319'
   );
+
+  expect(sentMessages).toEqual([]);
+  expect(connectorReadRequests).toEqual([
+    {
+      toolkit: 'slack',
+      tool: 'SLACK_SEARCH_MESSAGES',
+      arguments: {
+        query: 'blocked OR blocker OR stuck OR waiting OR unblock',
+        count: 8,
+        sort: 'timestamp'
+      }
+    }
+  ]);
+  expect(consoleIssues).toEqual([]);
+});
+
+test('static workbench: catch-up replaces the standalone Slack blocker panel with the briefing', async ({
+  page
+}) => {
+  const sentMessages: Array<{ path: string; body: Record<string, unknown> }> = [];
+  const connectorReadRequests: Array<Record<string, unknown>> = [];
+  const consoleIssues: string[] = [];
+  page.on('console', (message) => {
+    if (['error', 'warning'].includes(message.type())) {
+      consoleIssues.push(`${message.type()}: ${message.text()}`);
+    }
+  });
+  page.on('pageerror', (error) => {
+    consoleIssues.push(`pageerror: ${error.message}`);
+  });
+
+  await installWorkbenchMocks(page, {
+    sentMessages,
+    connectorReadRequests,
+    connectorAccounts: [{ toolkit: 'slack', status: 'ACTIVE', user_id: 'pg-test' }],
+    connectorReads: {
+      SLACK_SEARCH_MESSAGES: {
+        successful: true,
+        data: {
+          messages: {
+            matches: [
+              {
+                iid: 'slack-transition-1',
+                username: 'cameron',
+                channel: { id: 'C1', name: 'gtm' },
+                ts: '1781276971.079319',
+                text: 'Launch copy is blocked on pricing approval',
+                permalink: 'https://near-foundation.slack.com/archives/C1/p1781276971079319'
+              }
+            ]
+          }
+        }
+      }
+    }
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page.getByRole('button', { name: 'Find Slack blockers' }).click();
+  await page.getByTestId('workbench-send-button').click();
+
+  const blockers = page.getByTestId('workbench-slack-blockers');
+  await expect(blockers).toBeVisible();
+  await expect(blockers).toContainText('1 possible blocker in Slack');
+  await expect(blockers).toContainText('Launch copy is blocked on pricing approval');
+
+  await page.getByTestId('workbench-brief-input').fill('What needs me today?');
+  await page.getByTestId('workbench-send-button').click();
+
+  const briefing = page.getByTestId('workbench-briefing');
+  await expect(briefing).toBeVisible();
+  await expect(briefing).toContainText('1 Slack item');
+  await expect(briefing).toContainText('Slack to check');
+  await expect(briefing).toContainText('Launch copy is blocked on pricing approval');
+  await expect(page.getByTestId('workbench-slack-blockers')).toHaveCount(0);
 
   expect(sentMessages).toEqual([]);
   expect(connectorReadRequests).toEqual([

@@ -2213,3 +2213,50 @@ context alongside Gmail, Calendar, GitHub, Drive, Notion, and active work. This
 is still conservative: it is keyword search, read-only, user-triggered, and
 framed as "to check" rather than pretending the system has fully understood every
 Slack conversation.
+
+## Loop 34 — 2026-06-21 ~01:00 local — Slack blocker results collapse into catch-up
+
+Heartbeat resumed the Workbench overhaul. Re-inspected the tree first on
+`workbench-overnight-20260620`; it was clean before this loop's edits, so no
+cleanup, staging, or branch switching was done.
+
+### What changed
+
+- Found a surface-coherence bug in the Slack/catch-up handoff: after a user ran
+  `Find Slack blockers`, a later `What needs me today?` briefing could reuse the
+  same Slack evidence but leave the standalone blocker panel competing with the
+  briefing.
+- Updated `workbench-page.js` so a catch-up ask dismisses the standalone Slack
+  blocker panel before the briefing takes over. The cached Slack rows are still
+  passed into the briefing, so no second Chat run or external write is needed.
+- Tightened the Slack blocker header copy from the awkward keyword grammar to
+  `possible blocker(s) in Slack`, which better reflects that the UI is surfacing
+  evidence for review, not issuing a verdict.
+- Added a rendered route regression proving the exact transition:
+  run `Find Slack blockers`, see real Slack rows, ask `What needs me today?`,
+  confirm the briefing contains the Slack row, confirm the standalone panel is
+  gone, and confirm no Chat message is sent.
+- Regenerated `main.bundle.js` and updated the backend wiring map with the
+  duplicate-panel guard.
+
+### Validation
+
+| Check                                                   | Result       |
+| ------------------------------------------------------- | ------------ |
+| `node --check` Workbench page + Slack blocker component | pass         |
+| focused rendered Slack/catch-up regressions             | 4/4 pass     |
+| `npm run prepare:webui-static`                          | pass         |
+| full Workbench Playwright (`workbench-static.spec.ts`)  | 54/54 pass   |
+| full static JS unit suite (`npm run test:static`)       | 760/760 pass |
+| static/a11y/browser suite (`npm run test:a11y-static`)  | 123/123 pass |
+| `npm run verify:static-frontend`                        | OK           |
+
+### Current truth
+
+The Slack lane is now more coherent as a general chief-of-staff surface: a
+source-specific search can be used on its own, but if the user asks for the
+broader briefing afterward, Slack evidence folds into that briefing and the
+surface does not present duplicate task cards. This is still read-only and
+deterministic; the bigger server-side gaps remain G1 saved-work backend reads,
+G2 authoritative approvals, G4 automation writes, G5 receipts, and G6 global
+changed/pending feeds.

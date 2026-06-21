@@ -72,7 +72,7 @@ export function WorkbenchSlackBlockers({ active, rows, isLoading, isError, onDis
             ${isLoading
               ? 'Checking Slack for blockers'
               : rows.length
-                ? `${rows.length} message${rows.length === 1 ? '' : 's'} mention a blocker`
+                ? `${rows.length} possible blocker${rows.length === 1 ? '' : 's'} in Slack`
                 : 'Slack blockers'}
           </h2>
         </div>

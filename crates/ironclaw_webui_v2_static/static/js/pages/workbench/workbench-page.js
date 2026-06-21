@@ -692,6 +692,7 @@ export function WorkbenchPage() {
       return;
     }
     if (canBrief && isBriefingIntent(brief)) {
+      if (slackBlockersActive) setSlackBlockersActive(false);
       const shouldStartSlackBriefing = connectedAccounts.slackReady && !slackBlockers.enabled;
       if (shouldStartSlackBriefing || briefingReadsPending) {
         setError('');
@@ -717,6 +718,7 @@ export function WorkbenchPage() {
     canBrief,
     connectedAccounts.slackReady,
     runBriefing,
+    slackBlockersActive,
     slackBlockers.enabled,
     setBrief,
     setError,
