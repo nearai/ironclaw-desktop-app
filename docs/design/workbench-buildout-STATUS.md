@@ -24,11 +24,18 @@ from re-polishing done frontend → proving the REAL stack + agent work end-to-e
 | Q0 | Branch + green baseline | ✅ done | f986602 | 759 static + 120 a11y + smoke |
 | Q1 | Remove misleading frontend proxy (use `tauri dev`) | ✅ done | 2a32217 | tests green after removal |
 | QA | **Prove the REAL bundled sidecar + a live agent turn** (keychain token) | ✅ PASS | (verify-only, /tmp/wb-qa.mjs) | live turn: providers 200 + assistant "pong" |
-| Q11 | Build source gateway with connector route + verify live reads/writes | ⏳ | | route curl + cargo |
-| Q12 | `/workbench/execute` endpoint + LIVE multi-step agent verify | ⏳ | | live run transcript |
-| QF1 | Remaining real fidelity gaps only: Memory scene (L26), theme default per DESIGN.md, L19/L20 context lines | ⏳ | | a11y + visual |
+| Q11 | Source gateway connector route — verify live reads + write-gate | ✅ PASS (verify) | (gateway working tree, not committed) | /tmp/wb-q11.mjs |
+| Q11b | Rebase connector route onto gateway main (+/llm+agent) → PR | ⛔ MORNING | | needs careful rebase |
+| Q12 | `/workbench/execute` endpoint + LIVE multi-step agent verify | ⛔ MORNING (rebase-blocked) | | needs /llm on same binary |
+| QF1 | Remaining fidelity: Memory scene (L26), theme default per DESIGN.md, L19/L20 context lines | ⏳ NEXT | | a11y + visual |
 | Q2 | Screenshot/visual-regression baselines of the real frontend | ⏳ | | screenshots |
 | Qf | Final gate, push branch, PR, morning brief | ⏳ | | |
+
+### Backend status & the key morning task (Q11b/Q12)
+- The connector route + gated-write classifier are **verified working live** on the source-built gateway (Q11 PASS).
+- BUT my gateway source (`~/Documents/Playground/ironclaw`, branch `reborn-integration`, 57 uncommitted files incl. codex's Notion-OAuth work) is **behind current main: `/llm/providers` 404s on it**, while the PREBUILT shipped sidecar HAS `/llm`+agent (QA proved that). So no single binary today has BOTH the agent AND the connector route.
+- **THE unifying task (morning, human-careful):** rebase the connector-route files onto current `nearai/ironclaw` main (which has `/llm`+agent), rebuild, and open a PR. Files: `crates/ironclaw_product_workflow/src/{reborn_services/connectors.rs,reborn_services.rs,lib.rs,reborn_services/lifecycle_setup.rs}`, `crates/ironclaw_reborn_composition/src/{connectors.rs,lib.rs}`, `crates/ironclaw_webui_v2/src/{router,handlers,descriptors}.rs`, + the 6 RebornServicesApi test stubs. Connector unit tests pass (5/5). Not committed/pushed overnight — too risky on a 57-file multi-source integration branch unattended; preserved in the working tree + reproducible (see memory `ironclaw_workbench_mcp_delivery`).
+- Q12 (`/workbench/execute`) is deferred with Q11b because live-verifying it needs `/llm`+agent on the SAME binary as the route.
 
 ## Continuation mechanism (how this runs unattended ~8h)
 - Recurring cron job `2d280254` fires at :07/:31/:55 (~every 24 min) while the app/REPL is idle, re-invoking the
@@ -45,6 +52,7 @@ from re-polishing done frontend → proving the REAL stack + agent work end-to-e
 - 23:18 — Q1: removed `scripts/workbench-live-proxy.mjs` (kept `probe-workbench-live-wiring.mjs`); killed leftover proxy/sidecar procs; removed proxy launch.json entries; tests green; committed 2a32217.
 - 23:21 — Read v13 fidelity spec + checked current state: L1/L4/L6/L7/L18/L23/L28 already implemented. Reprioritized queue toward real-stack + agent verification. Committed d0c669e.
 - 23:23 — Armed recurring cron `2d280254` to drive the overnight loop (next QA tick: boot real prebuilt sidecar + live agent turn). Handed off.
+- 23:56 — **Q11 PASS (verify).** Booted the SOURCE gateway binary (has the connector route) on a fresh HOME + Composio key: configure 200, /connectors/connected 200 (all accounts), GMAIL_FETCH_EMAILS read 200 successful w/ 3 real messages, and the write-gate rejected GMAIL_SEND_EMAIL (send off) + GMAIL_DELETE_MESSAGE (forbidden) + draft-tool-on-read-route. Connector unit tests 5/5. Found: source fork lacks /llm (404) → connector route must be rebased onto current main (which has /llm+agent) → that + Q12 are the careful MORNING task (Q11b). Gateway changes preserved in working tree, not committed unattended (57-file multi-source branch). Reprioritized remaining overnight work to safe frontend QF1/Q2. Evidence `/tmp/wb-q11.mjs`.
 - 23:35 — **QA PASS (major).** Booted the REAL prebuilt sidecar `ironclaw-reborn-aarch64-apple-darwin` with the Keychain NEAR AI token on a throwaway HOME. `/api/webchat/v2/llm/providers` = **200** (providers incl. nearai; active provider=nearai model=auto). createThread 200; sendMessage 200 (outcome:submitted, turn_id returned); timeline produced the assistant reply ("pong"). **Conclusion: the real gateway + agent runtime + existing token WORK end-to-end.** The prior "agent never completes" was the divergent dev fork/proxy, not the product. Verify-only (no repo changes); evidence script `/tmp/wb-qa.mjs`. Next: Q11 — build the source gateway with the connector route + verify connector reads/writes live.
 
 ## Morning brief (filled at Qf)
