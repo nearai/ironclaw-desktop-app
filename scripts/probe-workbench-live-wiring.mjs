@@ -690,15 +690,15 @@ function refreshToolSignalCounters(target) {
   target.timeline_tool_activity_seen = target.timeline_tool_signal_count > 0;
   target.sse_tool_signal_count = signals.filter((signal) => signal.source === 'sse').length;
   target.sse_tool_activity_seen = target.sse_tool_signal_count > 0;
+  target.replay_sse_tool_signal_count = signals.filter(
+    (signal) => signal.source === 'sse_replay'
+  ).length;
+  target.replay_sse_tool_activity_seen = target.replay_sse_tool_signal_count > 0;
 }
 
-function recordConnectorToolSignals(target, source, value) {
+function appendConnectorToolSignals(target, signals) {
   if (!target) return;
   const existing = new Set((target.tool_signals || []).map(signalKey));
-  const signals = collectToolActivitySignals(value)
-    .filter(isConnectorToolSignal)
-    .map((signal) => ({ ...signal, source }))
-    .slice(0, 20);
   for (const signal of signals) {
     const key = signalKey(signal);
     if (existing.has(key)) continue;
@@ -707,6 +707,68 @@ function recordConnectorToolSignals(target, source, value) {
     if (target.tool_signals.length >= 20) break;
   }
   refreshToolSignalCounters(target);
+}
+
+function recordConnectorToolSignals(target, source, value) {
+  if (!target) return;
+  const signals = collectToolActivitySignals(value)
+    .filter(isConnectorToolSignal)
+    .map((signal) => ({ ...signal, source }))
+    .slice(0, 20);
+  appendConnectorToolSignals(target, signals);
+}
+
+async function collectConnectorToolSignalsFromEventStream({
+  origin,
+  token,
+  threadId,
+  source,
+  durationMs = 5000
+}) {
+  const controller = new AbortController();
+  const collector = {
+    status: null,
+    error: null,
+    tool_activity_seen: false,
+    tool_signal_count: 0,
+    tool_signals: []
+  };
+  const timeout = setTimeout(() => controller.abort(), durationMs);
+  try {
+    const response = await fetch(
+      `${origin}/api/webchat/v2/threads/${encodeURIComponent(threadId)}/events?token=${encodeURIComponent(
+        token
+      )}`,
+      { headers: { Accept: 'text/event-stream' }, signal: controller.signal }
+    );
+    collector.status = response.status;
+    if (!response.ok || !response.body) return collector;
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const blocks = buffer.split(/\r?\n\r?\n/u);
+      buffer = blocks.pop() || '';
+      for (const block of blocks) {
+        for (const payload of ssePayloadsFromBlock(block)) {
+          recordConnectorToolSignals(collector, source, payload);
+        }
+      }
+      if ((collector.tool_signal_count || 0) >= 2) break;
+      buffer = buffer.slice(-8000);
+    }
+  } catch (err) {
+    if (!controller.signal.aborted) {
+      collector.error = err?.message || String(err);
+    }
+  } finally {
+    clearTimeout(timeout);
+    controller.abort();
+  }
+  return collector;
 }
 
 function connectorReadProbes() {
@@ -1018,13 +1080,24 @@ function evaluateProbe(result) {
       assistant_claimed_tool_not_used: Boolean(directConnector.assistant_claimed_tool_not_used),
       tool_signal_count: directConnector.tool_signal_count ?? null,
       timeline_tool_signal_count: directConnector.timeline_tool_signal_count ?? null,
-      sse_tool_signal_count: directConnector.sse_tool_signal_count ?? null
+      sse_tool_signal_count: directConnector.sse_tool_signal_count ?? null,
+      replay_sse_tool_signal_count: directConnector.replay_sse_tool_signal_count ?? null
     };
     if (directConnector.required) {
       check(
         'Direct Chat can invoke a read-only connector tool',
         directConnectorToolObserved,
         directConnectorDetail
+      );
+      check(
+        'Direct Chat connector tool activity replays on fresh SSE subscription',
+        directConnector.replay_sse_tool_activity_seen === true,
+        {
+          replay_event_stream_status: directConnector.replay_event_stream_status ?? null,
+          replay_event_stream_error: directConnector.replay_event_stream_error || null,
+          replay_sse_tool_signal_count: directConnector.replay_sse_tool_signal_count ?? null,
+          timeline_tool_signal_count: directConnector.timeline_tool_signal_count ?? null
+        }
       );
     } else if (!directConnectorToolObserved) {
       warn('Direct Chat connector tool invocation not observed', directConnectorDetail);
@@ -1170,7 +1243,10 @@ function buildProbeSummary(result) {
       tool_activity_seen: Boolean(directConnector.tool_activity_seen),
       tool_signal_count: directConnector.tool_signal_count ?? null,
       timeline_tool_signal_count: directConnector.timeline_tool_signal_count ?? null,
-      sse_tool_signal_count: directConnector.sse_tool_signal_count ?? null
+      sse_tool_signal_count: directConnector.sse_tool_signal_count ?? null,
+      replay_event_stream_status: directConnector.replay_event_stream_status ?? null,
+      replay_sse_tool_activity_seen: Boolean(directConnector.replay_sse_tool_activity_seen),
+      replay_sse_tool_signal_count: directConnector.replay_sse_tool_signal_count ?? null
     },
     diagnostic_hints: diagnosticHints(result)
   };
@@ -1576,6 +1652,8 @@ async function main() {
         run_id: null,
         event_stream_status: null,
         event_stream_error: null,
+        replay_event_stream_status: null,
+        replay_event_stream_error: null,
         sse_run_status_sequence: [],
         has_run_id: false,
         timeline_status: null,
@@ -1743,6 +1821,8 @@ async function main() {
         timeline_tool_signal_count: 0,
         sse_tool_activity_seen: false,
         sse_tool_signal_count: 0,
+        replay_sse_tool_activity_seen: false,
+        replay_sse_tool_signal_count: 0,
         tool_signals: []
       };
       let runStatusStream = null;
@@ -1831,6 +1911,18 @@ async function main() {
       if (runStatusStream) {
         directConnector.event_stream_status = runStatusStream.status;
         directConnector.event_stream_error = runStatusStream.error;
+      }
+      if (thread.ok) {
+        const replaySignals = await collectConnectorToolSignalsFromEventStream({
+          origin,
+          token,
+          threadId,
+          source: 'sse_replay',
+          durationMs: 5000
+        });
+        directConnector.replay_event_stream_status = replaySignals.status;
+        directConnector.replay_event_stream_error = replaySignals.error;
+        appendConnectorToolSignals(directConnector, replaySignals.tool_signals || []);
       }
       result.workbench.direct_connector_chat = directConnector;
     }

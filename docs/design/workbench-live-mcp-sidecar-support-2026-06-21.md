@@ -53,10 +53,10 @@ Loop:
 
 Hard rule:
 Do not claim "live MCP/direct tool use works" unless
-`--require-direct-connector-chat` passes. As of the 2026-06-21 12:57 EDT
+`--require-direct-connector-chat` passes. As of the 2026-06-21 13:01 EDT
 probe, this gate passes against the rebuilt sidecar with `connected-sources.read`
-activated, OpenRouter `openai/gpt-4o-mini`, and SSE tool activity showing the
-same invocation started and completed.
+activated, OpenRouter `openai/gpt-4o-mini`, live SSE tool activity, and fresh
+post-run SSE replay of the same connector invocation.
 ```
 
 ## Current Truth
@@ -132,10 +132,11 @@ Resolved direct Chat bridge work:
 Current non-blocking caveats:
 
 - The live SSE event stream surfaces `connected-sources.read` as structured
-  tool activity, but the poll/reload timeline response still does not include
-  those connector activity rows. Treat durable timeline parity as the remaining
-  product cleanup; do not treat it as evidence that direct connector invocation
-  failed.
+  tool activity, and a fresh post-run SSE subscription replays the same
+  connector activity for newly opened sessions. The poll-only `/timeline`
+  response still does not include those connector activity rows. Treat that as
+  durable timeline DTO parity cleanup, not as evidence that direct connector
+  invocation or app reload failed.
 - First-party Gmail/Calendar/Drive/Notion/GitHub lifecycle packages remain
   blocked by setup in the disposable probe profile. The direct Chat proof uses
   `connected-sources.read`, which is the intended bridge to the user's existing
@@ -211,16 +212,17 @@ Fresh artifacts from the 2026-06-21 11:26 EDT support pass:
     live source packet
   - direct Chat accepted the message and assistant returned
     `DIRECT_CONNECTOR_PROBE_DONE tool_used=yes reason=success`
-- SSE-aware direct connector activity probe:
-  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T16-57-43-924Z/probe.json`
+- SSE-aware direct connector activity and replay probe:
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-01-06-795Z/probe.json`
   - verdict `WARN`, with zero failed checks
   - direct Chat accepted the message, completed, and assistant returned
     `DIRECT_CONNECTOR_PROBE_DONE tool_used=yes`
-  - `tool_activity_seen=true`, `tool_signal_count=2`
+  - `tool_activity_seen=true`, `tool_signal_count=4`
   - `sse_tool_signal_count=2` for `connected-sources.read`
     `started` and `completed`
-  - `timeline_tool_signal_count=0`, confirming the remaining reload/history
-    parity gap
+  - fresh post-run SSE replay returned `replay_sse_tool_signal_count=2`
+  - `timeline_tool_signal_count=0`, confirming the remaining poll-only
+    timeline DTO parity gap
 
 Gateway validation now green in `/tmp/gw-unify`:
 
