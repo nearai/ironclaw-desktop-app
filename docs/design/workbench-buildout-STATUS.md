@@ -33,7 +33,8 @@ from re-polishing done frontend → proving the REAL stack + agent work end-to-e
 | Q11p | Capture connector-route patch + rebase runbook (de-risk Q11b) | ✅ done | (this tick) | docs/design/gateway-connector-route.patch |
 | QF1a-test | Memory-scene render test | ✅ done | b3b46b0 | a11y 122 |
 | Q3UI | Phase-3 Workbench-native execution surface | ⛔ MORNING (needs rebased backend + your UX eye) | | scene-workspace mirror exists; native run UI needs /workbench/execute |
-| Q2 | Screenshot evidence (home light/dark + Memory) | ⏳ NEXT | | PNGs in docs |
+| Q2 | Screenshot evidence (home light/dark + Memory) | ✅ done | 8fecd5f | docs/design/screenshots/*.png |
+| CI | Incorporate concurrent codex changes, rebuild, gate, commit-green (loop role) | ♻️ ongoing | d595c6f | static 760 / a11y 123 / smoke |
 | Q2 | Screenshot/visual-regression baselines of the real frontend | ⏳ | | screenshots |
 | Qf | Final gate, push branch, PR, morning brief | ⏳ | | |
 
@@ -49,6 +50,13 @@ from re-polishing done frontend → proving the REAL stack + agent work end-to-e
 - BUT my gateway source (`~/Documents/Playground/ironclaw`, branch `reborn-integration`, 57 uncommitted files incl. codex's Notion-OAuth work) is **behind current main: `/llm/providers` 404s on it**, while the PREBUILT shipped sidecar HAS `/llm`+agent (QA proved that). So no single binary today has BOTH the agent AND the connector route.
 - **THE unifying task (morning, human-careful):** rebase the connector-route files onto current `nearai/ironclaw` main (which has `/llm`+agent), rebuild, and open a PR. Files: `crates/ironclaw_product_workflow/src/{reborn_services/connectors.rs,reborn_services.rs,lib.rs,reborn_services/lifecycle_setup.rs}`, `crates/ironclaw_reborn_composition/src/{connectors.rs,lib.rs}`, `crates/ironclaw_webui_v2/src/{router,handlers,descriptors}.rs`, + the 6 RebornServicesApi test stubs. Connector unit tests pass (5/5). Not committed/pushed overnight — too risky on a 57-file multi-source integration branch unattended; preserved in the working tree + reproducible (see memory `ironclaw_workbench_mcp_delivery`).
 - Q12 (`/workbench/execute`) is deferred with Q11b because live-verifying it needs `/llm`+agent on the SAME binary as the route.
+
+## ⚠️ Concurrent codex process on this branch
+A separate codex run is ALSO editing this repo/branch intermittently (e.g. it added the "catch-up briefing replaces
+the standalone Slack panel" change + tests + docs at ~01:03, incorporated green in d595c6f). So BOTH agents contributed
+overnight. This loop's most valuable remaining role is **continuous integration**: each tick, rebuild the bundle from
+the latest source, run the full gate, and commit-if-green — codex doesn't always rebuild the bundle / run a11y / commit,
+so this keeps the branch always-green + consistent. The green gate is the coordination point; no clobbering observed.
 
 ## Continuation mechanism (how this runs unattended ~8h)
 - Recurring cron job `2d280254` fires at :07/:31/:55 (~every 24 min) while the app/REPL is idle, re-invoking the
