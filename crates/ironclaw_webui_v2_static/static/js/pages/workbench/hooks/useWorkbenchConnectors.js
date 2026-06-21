@@ -265,10 +265,11 @@ export function useConnectorGithub({
 }
 
 // On-demand Slack blocker search. Unlike the ambient inbox/calendar polls, this
-// runs ONLY when the user asks ("Find Slack blockers") — `enabled` is the
-// request latch from the page. It is a read-only SEARCH (SLACK_SEARCH_MESSAGES),
-// sorted by recency, and degrades to [] on any failure. Slack search treats
-// spaces as AND, so the blocker synonyms are OR'd in SLACK_BLOCKER_QUERY.
+// runs ONLY when the user asks ("Find Slack blockers" or a catch-up briefing) —
+// `enabled` is the request latch from the page. It is a read-only SEARCH
+// (SLACK_SEARCH_MESSAGES), sorted by recency, and degrades to [] on any failure.
+// Slack search treats spaces as AND, so the blocker synonyms are OR'd in
+// SLACK_BLOCKER_QUERY.
 export function useConnectorSlackBlockers({ enabled = false, maxResults = 8 } = {}) {
   const query = useQuery({
     queryKey: ['workbench-connector-slack-blockers', maxResults],
@@ -293,6 +294,7 @@ export function useConnectorSlackBlockers({ enabled = false, maxResults = 8 } = 
   return {
     rows,
     isLoading: (query.isLoading || query.isFetching) && Boolean(enabled),
+    isFetching: query.isFetching && Boolean(enabled),
     isError: query.isError,
     enabled: Boolean(enabled)
   };

@@ -27,7 +27,9 @@ from re-polishing done frontend → proving the REAL stack + agent work end-to-e
 | Q11 | Source gateway connector route — verify live reads + write-gate | ✅ PASS (verify) | (gateway working tree, not committed) | /tmp/wb-q11.mjs |
 | Q11b | Rebase connector route onto gateway main (+/llm+agent) → PR | ⛔ MORNING | | needs careful rebase |
 | Q12 | `/workbench/execute` endpoint + LIVE multi-step agent verify | ⛔ MORNING (rebase-blocked) | | needs /llm on same binary |
-| QF1 | Remaining fidelity: Memory scene (L26), theme default per DESIGN.md, L19/L20 context lines | ⏳ NEXT | | a11y + visual |
+| QF1a | Memory scene (L26) — wire `view==='memory'` → `MemoryView` | ✅ done | (this tick) | static 760 + a11y 121 |
+| QF1b | Theme default per DESIGN.md | ✅ decided (no change) | — | DESIGN.md silent → keep dark (user global pref); v13 light = toggle |
+| QF1c | L19/L20 richer decision/blocked context lines (data-dependent) | ⏳ | | |
 | Q2 | Screenshot/visual-regression baselines of the real frontend | ⏳ | | screenshots |
 | Qf | Final gate, push branch, PR, morning brief | ⏳ | | |
 
@@ -52,6 +54,7 @@ from re-polishing done frontend → proving the REAL stack + agent work end-to-e
 - 23:18 — Q1: removed `scripts/workbench-live-proxy.mjs` (kept `probe-workbench-live-wiring.mjs`); killed leftover proxy/sidecar procs; removed proxy launch.json entries; tests green; committed 2a32217.
 - 23:21 — Read v13 fidelity spec + checked current state: L1/L4/L6/L7/L18/L23/L28 already implemented. Reprioritized queue toward real-stack + agent verification. Committed d0c669e.
 - 23:23 — Armed recurring cron `2d280254` to drive the overnight loop (next QA tick: boot real prebuilt sidecar + live agent turn). Handed off.
+- 00:11 — **QF1a done.** Wired the v13 Memory scene: `view==='memory'` now renders `MemoryView` (the "Save a preference?" scope-capture scene) instead of falling back to Library. MemoryView component already existed + is faithful (scope chips, honest "save disabled until writable backend"); it was just never routed. Gate green: bundle + static 760 + a11y 121 + smoke. **QF1b theme:** DESIGN.md doesn't mandate a default; kept dark (matches the user's global preference) with v13 light as the working toggle — no risky whole-app flip. QF1c (richer card context) is data-dependent, deferred.
 - 23:56 — **Q11 PASS (verify).** Booted the SOURCE gateway binary (has the connector route) on a fresh HOME + Composio key: configure 200, /connectors/connected 200 (all accounts), GMAIL_FETCH_EMAILS read 200 successful w/ 3 real messages, and the write-gate rejected GMAIL_SEND_EMAIL (send off) + GMAIL_DELETE_MESSAGE (forbidden) + draft-tool-on-read-route. Connector unit tests 5/5. Found: source fork lacks /llm (404) → connector route must be rebased onto current main (which has /llm+agent) → that + Q12 are the careful MORNING task (Q11b). Gateway changes preserved in working tree, not committed unattended (57-file multi-source branch). Reprioritized remaining overnight work to safe frontend QF1/Q2. Evidence `/tmp/wb-q11.mjs`.
 - 23:35 — **QA PASS (major).** Booted the REAL prebuilt sidecar `ironclaw-reborn-aarch64-apple-darwin` with the Keychain NEAR AI token on a throwaway HOME. `/api/webchat/v2/llm/providers` = **200** (providers incl. nearai; active provider=nearai model=auto). createThread 200; sendMessage 200 (outcome:submitted, turn_id returned); timeline produced the assistant reply ("pong"). **Conclusion: the real gateway + agent runtime + existing token WORK end-to-end.** The prior "agent never completes" was the divergent dev fork/proxy, not the product. Verify-only (no repo changes); evidence script `/tmp/wb-qa.mjs`. Next: Q11 — build the source gateway with the connector route + verify connector reads/writes live.
 

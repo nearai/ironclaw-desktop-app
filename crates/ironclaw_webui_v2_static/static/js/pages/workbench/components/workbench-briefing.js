@@ -117,6 +117,7 @@ function sourceIcon(id) {
   if (id === 'drive') return 'folder';
   if (id === 'notion') return 'file';
   if (id === 'github') return 'spark';
+  if (id === 'slack') return 'chat';
   return 'mail';
 }
 
@@ -183,6 +184,7 @@ export function WorkbenchBriefing({ briefing, onOpenMessage, onDismiss }) {
     replies,
     events,
     attention,
+    slack,
     github,
     drive,
     notion,
@@ -192,6 +194,7 @@ export function WorkbenchBriefing({ briefing, onOpenMessage, onDismiss }) {
     !replies.length &&
     !events.length &&
     !attention.length &&
+    !(slack && slack.length) &&
     !(github && github.length) &&
     !(drive && drive.length) &&
     !(notion && notion.length) &&
@@ -248,6 +251,22 @@ export function WorkbenchBriefing({ briefing, onOpenMessage, onDismiss }) {
             ${attention.length
               ? html`<${BriefSection} icon="shield" title="To decide" count=${counts.attention}>
                   ${attention.map((row) => html`<${BriefAttentionRow} key=${row.id} row=${row} />`)}
+                <//>`
+              : null}
+            ${slack && slack.length
+              ? html`<${BriefSection} icon="chat" title="Slack to check" count=${counts.slack}>
+                  ${slack.map(
+                    (row) =>
+                      html`<${BriefLinkRow}
+                        key=${row.id}
+                        title=${row.text}
+                        meta=${[row.who, row.channel ? `#${row.channel}` : '', row.when]
+                          .filter(Boolean)
+                          .join(' · ')}
+                        link=${row.permalink}
+                        testid="workbench-briefing-slack"
+                      />`
+                  )}
                 <//>`
               : null}
             ${github && github.length

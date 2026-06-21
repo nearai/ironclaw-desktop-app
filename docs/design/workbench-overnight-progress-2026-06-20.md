@@ -2162,3 +2162,54 @@ latency. It waits on real connected-tool reads before summarizing, shows a calm
 checking state while waiting, and still sends nothing to Chat or external tools.
 This remains a deterministic browser-side briefing; the larger **G6** gap is
 still an authoritative server-side pending/changed feed.
+
+## Loop 33 — 2026-06-21 ~00:00 local — Catch-up includes Slack blocker context on demand
+
+Heartbeat resumed the Workbench overhaul. Re-inspected the tree first. The
+active branch is now `workbench-overnight-20260620`, and the tree was clean
+before this loop's edits, so no branch switching or cleanup was done.
+
+### What changed
+
+- Found that Slack was only represented through the explicit `Find Slack
+blockers` chip or through pending Chat gates. A normal chief-of-staff ask like
+  "What needs me today?" did not run Slack, even when Slack was connected.
+- Kept Slack read-only and user-triggered: catch-up now enables the same
+  `SLACK_SEARCH_MESSAGES` blocker search only after the user asks for a
+  briefing. It does not poll Slack on page load.
+- Extended the pure briefing model to carry `slack` rows, `counts.slack`, Slack
+  provenance, and headline copy such as `1 Slack item`.
+- Added a `Slack to check` section in the rendered briefing. Rows deep-link to
+  the real Slack permalink and show readable metadata such as `cameron · #gtm`.
+- Preserved the standalone `Find Slack blockers` flow. It still renders the
+  dedicated blocker panel and does not collide with the general catch-up card.
+- Added rendered coverage proving a catch-up ask:
+  - starts `SLACK_SEARCH_MESSAGES` only after the user asks;
+  - shows the checking state while the read is in flight;
+  - renders Slack in the final briefing;
+  - does not render the separate Slack blocker panel;
+  - sends no Chat message and posts nothing to Slack.
+- Updated the backend wiring map to include Slack in deterministic non-mail
+  catch-up coverage.
+
+### Validation
+
+| Check                                                  | Result       |
+| ------------------------------------------------------ | ------------ |
+| `node --check` Workbench briefing/hooks/page files     | pass         |
+| focused briefing + Slack unit tests                    | 15/15 pass   |
+| focused rendered catch-up + Slack blocker regressions  | 6/6 pass     |
+| `npm run prepare:webui-static`                         | pass         |
+| full Workbench Playwright (`workbench-static.spec.ts`) | 52/52 pass   |
+| full static JS unit suite (`npm run test:static`)      | 760/760 pass |
+| static/a11y/browser suite (`npm run test:a11y-static`) | 121/121 pass |
+| `npm run verify:static-frontend`                       | OK           |
+
+### Current truth
+
+The Workbench now better matches the personal chief-of-staff promise: when the
+user asks what needs them, connected Slack can contribute real blocker-shaped
+context alongside Gmail, Calendar, GitHub, Drive, Notion, and active work. This
+is still conservative: it is keyword search, read-only, user-triggered, and
+framed as "to check" rather than pretending the system has fully understood every
+Slack conversation.

@@ -1577,6 +1577,86 @@ test('static workbench: catch-up briefing spans GitHub Drive and Notion from rea
   expect(consoleIssues).toEqual([]);
 });
 
+test('static workbench: catch-up briefing includes Slack blocker context from a read-only search', async ({
+  page
+}) => {
+  const sentMessages: Array<{ path: string; body: Record<string, unknown> }> = [];
+  const connectorReadRequests: Array<Record<string, unknown>> = [];
+  const consoleIssues: string[] = [];
+  page.on('console', (message) => {
+    if (['error', 'warning'].includes(message.type())) {
+      consoleIssues.push(`${message.type()}: ${message.text()}`);
+    }
+  });
+  page.on('pageerror', (error) => {
+    consoleIssues.push(`pageerror: ${error.message}`);
+  });
+
+  await installWorkbenchMocks(page, {
+    sentMessages,
+    connectorReadRequests,
+    connectorAccounts: [{ toolkit: 'slack', status: 'ACTIVE', user_id: 'pg-test' }],
+    connectorReadDelayMs: { SLACK_SEARCH_MESSAGES: 500 },
+    connectorReads: {
+      SLACK_SEARCH_MESSAGES: {
+        successful: true,
+        data: {
+          messages: {
+            matches: [
+              {
+                iid: 'slack-catchup-1',
+                username: 'cameron',
+                channel: { id: 'C1', name: 'gtm' },
+                ts: '1781276971.079319',
+                text: 'Launch copy is blocked on pricing approval',
+                permalink: 'https://near-foundation.slack.com/archives/C1/p1781276971079319'
+              }
+            ]
+          }
+        }
+      }
+    }
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await expect(page.getByTestId('workbench-sources-ready')).toContainText('Slack');
+  await expect(connectorReadRequests).toEqual([]);
+
+  await page.getByTestId('workbench-brief-input').fill('What needs me today?');
+  await page.getByTestId('workbench-send-button').click();
+
+  const briefing = page.getByTestId('workbench-briefing');
+  await expect(briefing).toBeVisible();
+  await expect(briefing).toContainText('Checking your connected tools before summarizing');
+  await expect(briefing).toContainText('Reading Slack. Nothing is being sent.');
+  await expect(briefing).not.toContainText("You're all clear");
+
+  await expect(briefing).toContainText('1 Slack item', { timeout: 3000 });
+  await expect(briefing).toContainText('Slack to check');
+  await expect(briefing).toContainText('Launch copy is blocked on pricing approval');
+  await expect(briefing).toContainText('cameron · #gtm');
+  await expect(briefing).toContainText('Read-only · nothing sent');
+  await expect(briefing.getByTestId('workbench-briefing-slack')).toHaveAttribute(
+    'href',
+    'https://near-foundation.slack.com/archives/C1/p1781276971079319'
+  );
+  await expect(page.getByTestId('workbench-slack-blockers')).toHaveCount(0);
+
+  expect(sentMessages).toEqual([]);
+  expect(connectorReadRequests).toEqual([
+    {
+      toolkit: 'slack',
+      tool: 'SLACK_SEARCH_MESSAGES',
+      arguments: {
+        query: 'blocked OR blocker OR stuck OR waiting OR unblock',
+        count: 8,
+        sort: 'timestamp'
+      }
+    }
+  ]);
+  expect(consoleIssues).toEqual([]);
+});
+
 test('static workbench: catch-up briefing waits for in-flight connector reads before summarizing', async ({
   page
 }) => {

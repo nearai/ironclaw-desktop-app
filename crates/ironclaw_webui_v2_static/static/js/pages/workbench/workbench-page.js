@@ -44,6 +44,7 @@ import { WorkbenchCommandSurface } from './components/workbench-command.js';
 import { WorkbenchReadingPanel } from './components/workbench-reading-panel.js';
 import { WorkbenchWorkspaceFiles } from './components/workbench-files.js';
 import { LibraryView } from './components/workbench-library.js';
+import { MemoryView } from './components/workbench-memory.js';
 import { WorkPacketPreview } from './components/workbench-packet.js';
 import { WorkbenchSceneWorkspace } from './components/workbench-scenes.js';
 import { WorkbenchDock, WorkbenchNav, WorkbenchTop } from './components/workbench-shell.js';
@@ -328,6 +329,7 @@ export function WorkbenchPage() {
   // Latch for the on-demand "Find Slack blockers" search (a real read, not a
   // cached poll), so it only runs when the user explicitly asks.
   const [slackBlockersActive, setSlackBlockersActive] = React.useState(false);
+  const [briefingSlackActive, setBriefingSlackActive] = React.useState(false);
   const [dockOpen, setDockOpen] = React.useState(false);
   const [showSources, setShowSources] = React.useState(false);
   const [showCadence, setShowCadence] = React.useState(false);
@@ -400,7 +402,7 @@ export function WorkbenchPage() {
     maxResults: 6
   });
   const slackBlockers = useConnectorSlackBlockers({
-    enabled: slackBlockersActive && connectedAccounts.slackReady,
+    enabled: (slackBlockersActive || briefingSlackActive) && connectedAccounts.slackReady,
     maxResults: 8
   });
   const connectorDrive = useConnectorDrive({ enabled: connectedAccounts.driveReady });
@@ -495,14 +497,36 @@ export function WorkbenchPage() {
   );
 
   // Answer a catch-up intent instantly from connector data already loaded —
-  // unread inbox, upcoming calendar, and the active-work rail — with no model or
-  // agent round-trip. Everything else still routes through the Chat runtime.
+  // unread inbox, upcoming calendar, Slack blocker search rows, and the
+  // active-work rail — with no model or agent round-trip. Everything else still
+  // routes through the Chat runtime.
   const canBrief =
     connectedAccounts.gmailReady ||
     connectedAccounts.calendarReady ||
+    connectedAccounts.slackReady ||
     connectedAccounts.githubReady ||
     connectedAccounts.driveReady ||
     connectedAccounts.notionReady;
+  const briefingReadySources = React.useMemo(() => {
+    const sources = [];
+    const add = (ready, id, label) => {
+      if (ready) sources.push({ id, label });
+    };
+    add(connectedAccounts.gmailReady, 'gmail', 'Gmail');
+    add(connectedAccounts.calendarReady, 'calendar', 'Calendar');
+    add(connectedAccounts.slackReady, 'slack', 'Slack');
+    add(connectedAccounts.githubReady, 'github', 'GitHub');
+    add(connectedAccounts.driveReady, 'drive', 'Drive');
+    add(connectedAccounts.notionReady, 'notion', 'Notion');
+    return sources;
+  }, [
+    connectedAccounts.gmailReady,
+    connectedAccounts.calendarReady,
+    connectedAccounts.slackReady,
+    connectedAccounts.githubReady,
+    connectedAccounts.driveReady,
+    connectedAccounts.notionReady
+  ]);
   const briefingLoadingSources = React.useMemo(() => {
     const sources = [];
     const add = (ready, pending, id, label) => {
@@ -520,6 +544,12 @@ export function WorkbenchPage() {
       connectorCalendar.isLoading || connectorCalendar.isFetching,
       'calendar',
       'Calendar'
+    );
+    add(
+      connectedAccounts.slackReady && slackBlockers.enabled,
+      slackBlockers.isLoading || slackBlockers.isFetching,
+      'slack',
+      'Slack'
     );
     add(
       connectedAccounts.githubReady,
@@ -543,6 +573,7 @@ export function WorkbenchPage() {
   }, [
     connectedAccounts.gmailReady,
     connectedAccounts.calendarReady,
+    connectedAccounts.slackReady,
     connectedAccounts.githubReady,
     connectedAccounts.driveReady,
     connectedAccounts.notionReady,
@@ -550,6 +581,9 @@ export function WorkbenchPage() {
     connectorInbox.isFetching,
     connectorCalendar.isLoading,
     connectorCalendar.isFetching,
+    slackBlockers.enabled,
+    slackBlockers.isLoading,
+    slackBlockers.isFetching,
     connectorGithub.isLoading,
     connectorGithub.isFetching,
     connectorDrive.isLoading,
@@ -570,6 +604,12 @@ export function WorkbenchPage() {
     };
     add(connectedAccounts.gmailReady, connectorInbox.isError, 'gmail', 'Gmail');
     add(connectedAccounts.calendarReady, connectorCalendar.isError, 'calendar', 'Calendar');
+    add(
+      connectedAccounts.slackReady && slackBlockers.enabled,
+      slackBlockers.isError,
+      'slack',
+      'Slack'
+    );
     add(connectedAccounts.githubReady, connectorGithub.isError, 'github', 'GitHub');
     add(connectedAccounts.driveReady, connectorDrive.isError, 'drive', 'Drive');
     add(connectedAccounts.notionReady, connectorNotion.isError, 'notion', 'Notion');
@@ -577,11 +617,14 @@ export function WorkbenchPage() {
   }, [
     connectedAccounts.gmailReady,
     connectedAccounts.calendarReady,
+    connectedAccounts.slackReady,
+    slackBlockers.enabled,
     connectedAccounts.githubReady,
     connectedAccounts.driveReady,
     connectedAccounts.notionReady,
     connectorInbox.isError,
     connectorCalendar.isError,
+    slackBlockers.isError,
     connectorGithub.isError,
     connectorDrive.isError,
     connectorNotion.isError
@@ -594,12 +637,14 @@ export function WorkbenchPage() {
         inboxMessages: connectorInbox.messages,
         calendarEvents: connectorCalendar.events,
         railGroups,
+        slackBlockers: slackBlockers.rows,
         githubNotifications: connectorGithub.notifications,
         driveFiles: connectorDrive.files,
         notionPages: connectorNotion.pages,
         sourceProblems: briefingSourceProblems,
         gmailReady: connectedAccounts.gmailReady,
         calendarReady: connectedAccounts.calendarReady,
+        slackReady: connectedAccounts.slackReady && (briefingSlackActive || slackBlockers.enabled),
         githubReady: connectedAccounts.githubReady,
         driveReady: connectedAccounts.driveReady,
         notionReady: connectedAccounts.notionReady,
@@ -611,12 +656,16 @@ export function WorkbenchPage() {
     connectorInbox.messages,
     connectorCalendar.events,
     railGroups,
+    slackBlockers.rows,
+    slackBlockers.enabled,
     connectorGithub.notifications,
     connectorDrive.files,
     connectorNotion.pages,
     briefingSourceProblems,
     connectedAccounts.gmailReady,
     connectedAccounts.calendarReady,
+    connectedAccounts.slackReady,
+    briefingSlackActive,
     connectedAccounts.githubReady,
     connectedAccounts.driveReady,
     connectedAccounts.notionReady,
@@ -629,6 +678,7 @@ export function WorkbenchPage() {
 
   const dismissBriefing = React.useCallback(() => {
     setBriefingPending(false);
+    setBriefingSlackActive(false);
     setBriefing(null);
   }, []);
 
@@ -642,11 +692,16 @@ export function WorkbenchPage() {
       return;
     }
     if (canBrief && isBriefingIntent(brief)) {
-      if (briefingReadsPending) {
+      const shouldStartSlackBriefing = connectedAccounts.slackReady && !slackBlockers.enabled;
+      if (shouldStartSlackBriefing || briefingReadsPending) {
         setError('');
         setSlackBlockersActive(false);
+        if (shouldStartSlackBriefing) setBriefingSlackActive(true);
         setBriefingPending(true);
-        setBriefing({ isLoading: true, sources: briefingLoadingSources });
+        setBriefing({
+          isLoading: true,
+          sources: shouldStartSlackBriefing ? briefingReadySources : briefingLoadingSources
+        });
         setBrief('');
         return;
       }
@@ -657,10 +712,12 @@ export function WorkbenchPage() {
   }, [
     brief,
     briefingLoadingSources,
+    briefingReadySources,
     briefingReadsPending,
     canBrief,
     connectedAccounts.slackReady,
     runBriefing,
+    slackBlockers.enabled,
     setBrief,
     setError,
     startWorkbenchRequest
@@ -745,36 +802,38 @@ export function WorkbenchPage() {
           onHome=${() => setView('home')}
           onToggleDock=${() => setDockOpen((value) => !value)}
         />
-        ${view === 'library' || view === 'memory'
-          ? html`<${LibraryView}
-              savedItems=${savedItems}
-              savedWorkSnapshot=${savedWorkSnapshot}
-              onView=${setView}
-            />`
-          : html`<${HomeView}
-              commandProps=${commandProps}
-              startedWork=${startedWork}
-              briefing=${briefing}
-              onDismissBriefing=${dismissBriefing}
-              slackBlockersActive=${slackBlockersActive}
-              slackBlockers=${slackBlockers}
-              onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
-              onOpenMessage=${openMessage}
-              groups=${railGroups}
-              savedItems=${savedItems}
-              packageTab=${packageTab}
-              onPackageTab=${setPackageTab}
-              connectorFamilies=${connectedAccounts.families}
-              gmailReady=${connectedAccounts.gmailReady}
-              inboxMessages=${connectorInbox.messages}
-              inboxLoading=${connectorInbox.isLoading}
-              inboxError=${connectorInbox.isError}
-              calendarReady=${connectedAccounts.calendarReady}
-              calendarEvents=${connectorCalendar.events}
-              calendarError=${connectorCalendar.isError}
-              onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
-              onDraftMessage=${openDraftReply}
-            />`}
+        ${view === 'memory'
+          ? html`<${MemoryView} />`
+          : view === 'library'
+            ? html`<${LibraryView}
+                savedItems=${savedItems}
+                savedWorkSnapshot=${savedWorkSnapshot}
+                onView=${setView}
+              />`
+            : html`<${HomeView}
+                commandProps=${commandProps}
+                startedWork=${startedWork}
+                briefing=${briefing}
+                onDismissBriefing=${dismissBriefing}
+                slackBlockersActive=${slackBlockersActive}
+                slackBlockers=${slackBlockers}
+                onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
+                onOpenMessage=${openMessage}
+                groups=${railGroups}
+                savedItems=${savedItems}
+                packageTab=${packageTab}
+                onPackageTab=${setPackageTab}
+                connectorFamilies=${connectedAccounts.families}
+                gmailReady=${connectedAccounts.gmailReady}
+                inboxMessages=${connectorInbox.messages}
+                inboxLoading=${connectorInbox.isLoading}
+                inboxError=${connectorInbox.isError}
+                calendarReady=${connectedAccounts.calendarReady}
+                calendarEvents=${connectorCalendar.events}
+                calendarError=${connectorCalendar.isError}
+                onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
+                onDraftMessage=${openDraftReply}
+              />`}
         ${showSources
           ? html`<${WorkbenchSourcesInspector}
               sourceReadiness=${sourceReadiness}

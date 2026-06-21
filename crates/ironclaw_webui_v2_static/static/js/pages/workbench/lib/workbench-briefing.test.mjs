@@ -143,6 +143,33 @@ test('buildBriefing spans GitHub, Drive, and Notion when those connectors are li
   assert.ok(/1 GitHub item/.test(briefing.headline), 'GitHub folded into the headline');
 });
 
+test('buildBriefing folds Slack blocker rows into the catch-up briefing', () => {
+  const briefing = buildBriefing({
+    slackReady: true,
+    slackBlockers: [
+      {
+        id: 's1',
+        who: 'cameron',
+        channel: 'gtm',
+        when: '10:00',
+        text: 'Launch copy is blocked on pricing approval',
+        permalink: 'https://near-foundation.slack.com/archives/C1/p1781276971079319'
+      }
+    ],
+    now: new Date('2026-06-20T09:00:00')
+  });
+
+  assert.equal(briefing.counts.slack, 1);
+  assert.equal(briefing.slack.length, 1);
+  assert.equal(briefing.slack[0].text, 'Launch copy is blocked on pricing approval');
+  assert.deepEqual(
+    briefing.sources.map((source) => source.id),
+    ['slack']
+  );
+  assert.ok(/1 Slack item/.test(briefing.headline), 'Slack folded into the headline');
+  assert.ok(!/all clear/i.test(briefing.headline), 'Slack rows prevent false all-clear');
+});
+
 test('buildBriefing degrades to an honest all-clear with no data', () => {
   const briefing = buildBriefing({ gmailReady: true, now: new Date('2026-06-20T20:00:00') });
   assert.equal(briefing.counts.replies, 0);

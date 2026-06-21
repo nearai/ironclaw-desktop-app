@@ -2,11 +2,12 @@
 //
 // Some chief-of-staff intents ("what needs me today?", "catch me up") can be
 // answered instantly and faithfully from data the Workbench has ALREADY read
-// through the connector route — the unread inbox, the upcoming calendar, and the
-// active-work rail. For those we synthesize a real briefing in the browser with
-// NO model/agent round-trip, so the answer is immediate, deterministic, and does
-// not depend on the LLM runtime being reachable. Anything open-ended still goes
-// to the Chat runtime as before. These helpers are pure and side-effect free.
+// through the connector route — the unread inbox, the upcoming calendar, Slack
+// blocker search rows, and the active-work rail. For those we synthesize a real
+// briefing in the browser with NO model/agent round-trip, so the answer is
+// immediate, deterministic, and does not depend on the LLM runtime being
+// reachable. Anything open-ended still goes to the Chat runtime as before. These
+// helpers are pure and side-effect free.
 
 import { unreadInboxCount } from './workbench-connectors.js';
 
@@ -62,7 +63,7 @@ function pluralize(count, singular, plural) {
 
 function briefingHeadline(counts, now) {
   const greeting = timeGreeting(now);
-  const needsYou = counts.replies + counts.attention + counts.github;
+  const needsYou = counts.replies + counts.attention + counts.github + counts.slack;
   const hasContext = counts.events + counts.drive + counts.notion;
   const sourceProblems = counts.sourceProblems || 0;
   if (needsYou === 0 && hasContext === 0 && sourceProblems === 0) {
@@ -70,6 +71,7 @@ function briefingHeadline(counts, now) {
   }
   const parts = [];
   if (counts.replies) parts.push(`${pluralize(counts.replies, 'reply', 'replies')} waiting`);
+  if (counts.slack) parts.push(`${pluralize(counts.slack, 'Slack item')}`);
   if (counts.github) parts.push(`${pluralize(counts.github, 'GitHub item')}`);
   if (counts.attention) parts.push(`${pluralize(counts.attention, 'item')} to decide`);
   if (counts.events) parts.push(`${pluralize(counts.events, 'event')} on your calendar`);
@@ -107,17 +109,19 @@ function normalizeSourceProblems(sourceProblems) {
 // honest "all clear" headline. The returned shape is render-ready:
 //   { headline, generatedAt, counts, sources:[...],
 //     replies:[inboxRow], events:[calendarRow], attention:[railRow],
-//     github:[ghRow], drive:[driveRow], notion:[notionRow] }
+//     slack:[slackRow], github:[ghRow], drive:[driveRow], notion:[notionRow] }
 export function buildBriefing({
   inboxMessages = [],
   calendarEvents = [],
   railGroups = [],
+  slackBlockers = [],
   githubNotifications = [],
   driveFiles = [],
   notionPages = [],
   sourceProblems = [],
   gmailReady = false,
   calendarReady = false,
+  slackReady = false,
   githubReady = false,
   driveReady = false,
   notionReady = false,
@@ -144,6 +148,7 @@ export function buildBriefing({
   }
 
   const github = (Array.isArray(githubNotifications) ? githubNotifications : []).slice(0, 5);
+  const slack = (Array.isArray(slackBlockers) ? slackBlockers : []).slice(0, 5);
   const drive = (Array.isArray(driveFiles) ? driveFiles : []).slice(0, 5);
   const notion = (Array.isArray(notionPages) ? notionPages : []).slice(0, 5);
   const sourceProblemRows = normalizeSourceProblems(sourceProblems);
@@ -156,6 +161,7 @@ export function buildBriefing({
     replies: unread.length,
     events: events.length,
     attention: attention.length,
+    slack: slack.length,
     github: github.length,
     drive: drive.length,
     notion: notion.length,
@@ -166,6 +172,7 @@ export function buildBriefing({
   const sources = [];
   if (gmailReady) sources.push({ id: 'gmail', label: 'Gmail', count: counts.replies });
   if (calendarReady) sources.push({ id: 'calendar', label: 'Calendar', count: counts.events });
+  if (slackReady) sources.push({ id: 'slack', label: 'Slack', count: counts.slack });
   if (githubReady) sources.push({ id: 'github', label: 'GitHub', count: counts.github });
   if (driveReady) sources.push({ id: 'drive', label: 'Drive', count: counts.drive });
   if (notionReady) sources.push({ id: 'notion', label: 'Notion', count: counts.notion });
@@ -181,6 +188,7 @@ export function buildBriefing({
     replies,
     events,
     attention,
+    slack,
     github,
     drive,
     notion,
