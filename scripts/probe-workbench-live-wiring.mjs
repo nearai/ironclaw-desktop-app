@@ -873,6 +873,66 @@ function evaluateProbe(result) {
   return { verdict, checks, warnings };
 }
 
+function warningNames(warnings = []) {
+  return warnings.map((warning) => warning?.name || String(warning || '')).filter(Boolean);
+}
+
+function failedCheckLabels(checks = []) {
+  return checks
+    .filter((check) => !check?.pass)
+    .map((check) => check.name)
+    .filter(Boolean);
+}
+
+function buildProbeSummary(result) {
+  const handoff = result.workbench?.chat_handoff || {};
+  const directConnector = result.workbench?.direct_connector_chat || {};
+  return {
+    artifact: path.join(result.outDir, 'probe.json'),
+    verdict: result.verdict,
+    check_failures: failedCheckLabels(result.checks),
+    warnings: warningNames(result.warnings),
+    llm: {
+      active_provider: result.llm?.active_provider?.id || null,
+      active_model: result.llm?.active?.model || null,
+      model_catalog_count: result.llm?.models?.count ?? null,
+      model_catalog_supported: result.llm?.models?.ok ?? null
+    },
+    connected_data: {
+      connected_status: result.connectors?.connected?.status ?? null,
+      account_count: result.connectors?.connected?.count ?? null,
+      ready_families: (result.workbench?.connector_families || [])
+        .filter((family) => family?.state === 'ready')
+        .map((family) => family.id),
+      live_row_counts: result.workbench?.live_source_data_counts || {}
+    },
+    workbench_ask: {
+      skipped: Boolean(handoff.skipped),
+      thread_status: handoff.thread_status ?? null,
+      send_status: handoff.send_status ?? null,
+      send_outcome: handoff.send_outcome || null,
+      terminal_status: handoff.timeline_terminal_status || null,
+      assistant_reply_seen: Boolean(handoff.timeline_has_assistant_reply),
+      live_source_status_seen: Boolean(handoff.timeline_has_live_source_status),
+      live_source_packet_seen: Boolean(handoff.timeline_has_live_source_packet),
+      timeline_attempts: handoff.timeline_attempts ?? null
+    },
+    direct_connector_chat: {
+      skipped: Boolean(directConnector.skipped),
+      required: Boolean(directConnector.required),
+      thread_status: directConnector.thread_status ?? null,
+      send_status: directConnector.send_status ?? null,
+      terminal_status: directConnector.timeline_terminal_status || null,
+      assistant_reply_seen: Boolean(directConnector.timeline_has_assistant_reply),
+      marker_seen: Boolean(directConnector.assistant_marker_seen),
+      claimed_tool_used: Boolean(directConnector.assistant_claimed_tool_used),
+      claimed_tool_not_used: Boolean(directConnector.assistant_claimed_tool_not_used),
+      tool_activity_seen: Boolean(directConnector.tool_activity_seen),
+      tool_signal_count: directConnector.tool_signal_count ?? null
+    }
+  };
+}
+
 async function main() {
   await mkdir(outDir, { recursive: true });
   const port = await freePort();
@@ -958,6 +1018,7 @@ async function main() {
     verdict: 'PENDING',
     checks: [],
     warnings: [],
+    summary: null,
     setup: {},
     route_status: {},
     log_tail: []
@@ -1479,6 +1540,7 @@ async function main() {
       result.verdict = evaluation.verdict;
       result.checks = evaluation.checks;
       result.warnings = evaluation.warnings;
+      result.summary = buildProbeSummary(result);
       await writeFile(path.join(outDir, 'probe.json'), JSON.stringify(result, null, 2));
     } finally {
       child.kill('SIGTERM');
