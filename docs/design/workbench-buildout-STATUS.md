@@ -30,8 +30,21 @@ from re-polishing done frontend → proving the REAL stack + agent work end-to-e
 | Q2 | Screenshot/visual-regression baselines of the real frontend | ⏳ | | screenshots |
 | Qf | Final gate, push branch, PR, morning brief | ⏳ | | |
 
+## Continuation mechanism (how this runs unattended ~8h)
+- Recurring cron job `2d280254` fires at :07/:31/:55 (~every 24 min) while the app/REPL is idle, re-invoking the
+  continuation prompt. Each tick: read this STATUS + the plan, check `date +%s` vs deadline 1782040324, do the next
+  ⏳ queue item with the green-commit gate, update this file, then end the turn. At/after the deadline it does the
+  final wrap (push + PR + morning brief) and `CronDelete`s itself.
+- Session-only: the loop needs this Claude session/app to stay OPEN overnight. If it stalls, resume manually by
+  re-issuing the continuation prompt (same as the cron prompt) or asking me to "continue the overnight workbench build".
+- Safety: branch only (`workbench-overnight-20260620`), never merge to main; drafts-only (no real sends); secrets stay
+  Keychain/gateway-side; every commit green (prettier hook + tests).
+
 ## Running log
 - 23:12 — Q0: created branch off `codex/workbench-overhaul-backend-loop`; regenerated bundle; full gate green; committed baseline f986602. Began STATUS.
+- 23:18 — Q1: removed `scripts/workbench-live-proxy.mjs` (kept `probe-workbench-live-wiring.mjs`); killed leftover proxy/sidecar procs; removed proxy launch.json entries; tests green; committed 2a32217.
+- 23:21 — Read v13 fidelity spec + checked current state: L1/L4/L6/L7/L18/L23/L28 already implemented. Reprioritized queue toward real-stack + agent verification. Committed d0c669e.
+- 23:23 — Armed recurring cron `2d280254` to drive the overnight loop (next QA tick: boot real prebuilt sidecar + live agent turn). Handed off.
 
 ## Morning brief (filled at Qf)
 _pending_
