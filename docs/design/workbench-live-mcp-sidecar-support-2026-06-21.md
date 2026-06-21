@@ -53,28 +53,30 @@ Loop:
 
 Hard rule:
 Do not claim "live MCP/direct tool use works" unless
-`--require-direct-connector-chat` passes. As of the 2026-06-21 13:05 EDT
+`--require-direct-connector-chat` passes. As of the 2026-06-21 13:22 EDT
 probe, this gate passes against the rebuilt sidecar with `connected-sources.read`
-activated, OpenRouter `openai/gpt-4o-mini`, live SSE tool activity, and fresh
-post-run SSE replay of the same connector invocation.
+activated, OpenRouter `openai/gpt-4o-mini`, one durable `/timeline` tool signal,
+live SSE tool activity, and fresh post-run SSE replay of the same connector
+invocation.
 ```
 
 ## Current Truth
 
 The old sidecar task files in
 `/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-agent-worktrees/`
-are stale v8 visual implementation prompts. As of this update, the Claude
-sidecar worktree is still on `agents/workbench-v8-claude`; its current
-`AGENT_REPORT.md` marks that worktree stale and points back to this main repo
-and this support note.
+are stale v8 visual implementation prompts. As of this update, Claude Code
+processes are still running/resumed, but the active `claude` processes report
+`cwd = ~/openclaw-knowledge`; the agent worktree reports under
+`ironclaw-agent-worktrees/claude` and `ironclaw-agent-worktrees/cursor` are stale
+11:24 EDT handoff notes. The worktrees have no tracked desktop edits.
 
 Use the main desktop repo branch above as the source of truth.
 
 Recent branch heads before this diagnostic support note:
 
-- `95384af test(overhaul M4): integrate concurrent wide-layout assertions`
-- `5019318 design(overhaul M4): widen the work-item view, keep the home focused`
-- `d6258e9 docs(workbench): add live MCP sidecar support runbook`
+- `6590d94 test(workbench): count timeline tool preview envelopes`
+- `361e4e3 feat(workbench): replay live tool activity in run preview`
+- `4bf3907 docs(workbench): refresh live wiring replay evidence`
 
 Current proven behavior:
 
@@ -145,8 +147,13 @@ Current non-blocking caveats:
   Composio-backed connected data.
 - OpenRouter does not advertise model-list support through the current provider
   route, so the probe verdict is `WARN` even with zero failed checks.
+- The persisted user-default provider currently points at `nearai` /
+  `zai-org/GLM-5.1-FP8` with `api_key_env = "NEARAI_API_KEY"`. This shell has
+  `OPENROUTER_API_KEY` but no `NEARAI_API_KEY`, so the user-default provider
+  probe is expected to fail the model turn with `model_credentials_unavailable`
+  even though connected data remains live.
 
-Fresh artifacts from the 2026-06-21 13:22 EDT support pass:
+Fresh artifacts from the 2026-06-21 13:24 EDT support pass:
 
 - Latest full Workbench + direct Chat required gate after Workbench SSE-preview
   wiring and timeline-envelope probe parsing:
@@ -181,10 +188,14 @@ Fresh artifacts from the 2026-06-21 13:22 EDT support pass:
   - first-party source activation remained blocked by setup in the disposable
     profile
 - User-default provider truth:
-  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T15-20-57-800Z/probe.json`
+  `/tmp/ironclaw-workbench-live-wiring-2026-06-21T17-24-24-154Z/probe.json`
   - connected data still live
+  - `8` accounts; ready families `gmail/calendar/drive/notion/slack/github`
+  - live row counts `3/3/3/3/3/0`
   - active `nearai` / `zai-org/GLM-5.1-FP8` failed the assistant turn with
     `model_credentials_unavailable`
+  - Workbench request, live source status, and live source packet still landed
+    in the timeline
 - Connected Sources bridge probe after rebuilding the staged sidecar:
   `/tmp/ironclaw-workbench-live-wiring-2026-06-21T16-06-00-180Z/probe.json`
   - deterministic connector reads still worked with `8` live accounts and
