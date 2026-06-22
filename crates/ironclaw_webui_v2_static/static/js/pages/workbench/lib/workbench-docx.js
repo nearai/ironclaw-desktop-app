@@ -195,3 +195,42 @@ export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordproc
 export function buildDocxBlob(doc = {}) {
   return new Blob([buildDocxBytes(doc)], { type: DOCX_MIME });
 }
+
+// Map a deterministic Workbench briefing (buildBriefing output) into the doc
+// model — so "what needs me today?" can be saved as a real editable work product.
+// Pure + defensive: any missing section degrades to nothing, never throws.
+export function briefingToWorkProduct(briefing = {}) {
+  const b = briefing || {};
+  const titles = (rows, format) =>
+    (Array.isArray(rows) ? rows : []).map(format).filter((line) => line && line.trim());
+  const sections = [];
+  const reply = titles(b.replies, (m) =>
+    m && m.subject ? `${m.subject}${m.sender ? ` — ${m.sender}` : ''}` : ''
+  );
+  if (reply.length) sections.push({ heading: 'Replies waiting', paragraphs: reply });
+  const events = titles(b.events, (e) =>
+    e && e.title ? `${e.title}${e.when ? ` — ${e.when}` : ''}` : ''
+  );
+  if (events.length) sections.push({ heading: 'On your calendar', paragraphs: events });
+  const decide = titles(b.attention, (r) => (r ? r.title : ''));
+  if (decide.length) sections.push({ heading: 'Needs a decision', paragraphs: decide });
+  const slack = titles(b.slack, (r) => (r ? r.title : ''));
+  if (slack.length) sections.push({ heading: 'Slack', paragraphs: slack });
+  const github = titles(b.github, (r) => (r ? r.title : ''));
+  if (github.length) sections.push({ heading: 'GitHub', paragraphs: github });
+
+  const sources = (Array.isArray(b.sources) ? b.sources : []).map(
+    (s) => `${s.label}${typeof s.count === 'number' ? ` (${s.count})` : ''}`
+  );
+  const filed = b.counts && b.counts.filed;
+  if (filed) sources.push(`${filed} newsletter${filed === 1 ? '' : 's'} filed — not surfaced`);
+
+  return {
+    title: 'IronClaw Daily Brief',
+    subtitle: b.headline || '',
+    sections: sections.length
+      ? sections
+      : [{ heading: 'Summary', paragraphs: [b.headline || 'Nothing needs you right now.'] }],
+    sources
+  };
+}

@@ -2,7 +2,19 @@ import { Link } from 'react-router';
 
 import { Icon } from '../../../design-system/icons.js';
 import { html } from '../../../lib/html.js';
+import { saveBlob } from '../../../lib/save-file.js';
 import { formatInboxWhen, gmailMessageHref } from '../lib/workbench-connectors.js';
+import { buildDocxBlob, briefingToWorkProduct } from '../lib/workbench-docx.js';
+
+// Save the current briefing as a real, editable .docx work product (Arial, bold
+// headings, a Sources section). Read-only: it writes a local file, sends nothing.
+async function downloadBriefDocx(briefing) {
+  try {
+    await saveBlob(buildDocxBlob(briefingToWorkProduct(briefing)), 'ironclaw-daily-brief.docx');
+  } catch (_) {
+    // A failed save is non-fatal — the briefing stays on screen.
+  }
+}
 
 // A reply waiting on the user. The body opens the in-app reading panel (full
 // message via a READ tool); the external glyph opens the thread in Gmail. Mirrors
@@ -208,6 +220,15 @@ export function WorkbenchBriefing({ briefing, onOpenMessage, onDismiss }) {
           <div className="wb13-brief-eyebrow">Briefing · updated just now</div>
           <h2>${headline}</h2>
         </div>
+        <button
+          type="button"
+          className="wb13-brief-dismiss"
+          aria-label="Download brief as a Word document"
+          title="Download as .docx"
+          onClick=${() => downloadBriefDocx(briefing)}
+        >
+          <${Icon} name="file" />
+        </button>
         <button
           type="button"
           className="wb13-brief-dismiss"

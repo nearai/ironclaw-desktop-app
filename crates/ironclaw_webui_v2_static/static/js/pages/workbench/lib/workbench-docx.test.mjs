@@ -58,3 +58,41 @@ test('DOCX_MIME is the Word document content type', () => {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   );
 });
+
+import { briefingToWorkProduct, buildDocumentXml as _bx } from './workbench-docx.js';
+
+test('briefingToWorkProduct maps a real briefing into an editable work-product doc', () => {
+  const doc = briefingToWorkProduct({
+    headline: 'Good morning. 1 reply waiting, 2 events on your calendar. 6 newsletters filed — not surfaced.',
+    counts: { replies: 1, events: 2, filed: 6 },
+    sources: [{ id: 'gmail', label: 'Gmail', count: 1 }, { id: 'calendar', label: 'Calendar', count: 2 }],
+    replies: [{ id: 'r1', subject: 'Re: NEAR in Wyoming', sender: 'john@salt.org' }],
+    events: [{ id: 'e1', title: 'Chris / George', when: 'Mon 9:00' }],
+    attention: [],
+    slack: [],
+    github: []
+  });
+  assert.equal(doc.title, 'IronClaw Daily Brief');
+  assert.match(doc.subtitle, /Good morning/);
+  const headings = doc.sections.map((s) => s.heading);
+  assert.ok(headings.includes('Replies waiting'), 'replies section present');
+  assert.ok(headings.includes('On your calendar'), 'events section present');
+  assert.ok(
+    doc.sections[0].paragraphs[0].includes('Re: NEAR in Wyoming') &&
+      doc.sections[0].paragraphs[0].includes('john@salt.org'),
+    'reply row carries subject + sender'
+  );
+  assert.ok(
+    doc.sources.some((s) => /6 newsletters filed/.test(s)),
+    'filed-newsletter transparency carried into the doc sources'
+  );
+  // And it renders into a valid document.xml.
+  assert.match(_bx(doc), /IronClaw Daily Brief/);
+});
+
+test('briefingToWorkProduct degrades safely on an empty briefing', () => {
+  const doc = briefingToWorkProduct({});
+  assert.equal(doc.title, 'IronClaw Daily Brief');
+  assert.equal(doc.sections.length, 1);
+  assert.equal(doc.sections[0].heading, 'Summary');
+});
