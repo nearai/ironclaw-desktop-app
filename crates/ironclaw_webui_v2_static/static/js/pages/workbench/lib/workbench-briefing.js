@@ -66,8 +66,13 @@ function briefingHeadline(counts, now) {
   const needsYou = counts.replies + counts.attention + counts.github + counts.slack;
   const hasContext = counts.events + counts.drive + counts.notion;
   const sourceProblems = counts.sourceProblems || 0;
+  // Honest "handled, not surfaced" reassurance: newsletters/bulk we filed out of
+  // your attention so they never masquerade as work. Appended to every branch.
+  const filedNote = counts.filed
+    ? ` ${pluralize(counts.filed, 'newsletter')} filed — not surfaced.`
+    : '';
   if (needsYou === 0 && hasContext === 0 && sourceProblems === 0) {
-    return `${greeting}. You're all clear — nothing needs you right now.`;
+    return `${greeting}. You're all clear — nothing needs you right now.${filedNote}`;
   }
   const parts = [];
   if (counts.replies) parts.push(`${pluralize(counts.replies, 'reply', 'replies')} waiting`);
@@ -76,8 +81,9 @@ function briefingHeadline(counts, now) {
   if (counts.attention) parts.push(`${pluralize(counts.attention, 'item')} to decide`);
   if (counts.events) parts.push(`${pluralize(counts.events, 'event')} on your calendar`);
   if (sourceProblems) parts.push(`${pluralize(sourceProblems, 'source')} could not be read`);
-  if (!parts.length) return `${greeting}. Nothing needs you — here's your recent context.`;
-  return `${greeting}. ${joinClauses(parts)}.`;
+  if (!parts.length)
+    return `${greeting}. Nothing needs you — here's your recent context.${filedNote}`;
+  return `${greeting}. ${joinClauses(parts)}.${filedNote}`;
 }
 
 function normalizeSourceProblems(sourceProblems) {
@@ -130,9 +136,9 @@ export function buildBriefing({
   // Newsletters / list broadcasts / promotions never "need a reply" — suppress
   // bulk mail from the replies-waiting bucket entirely (matches the validated
   // profile engine). A bulk sender must never be surfaced as waiting on you.
-  const inbox = (Array.isArray(inboxMessages) ? inboxMessages : []).filter(
-    (message) => !message?.isBulk
-  );
+  const rawInbox = Array.isArray(inboxMessages) ? inboxMessages : [];
+  const filed = rawInbox.filter((message) => message?.isBulk).length;
+  const inbox = rawInbox.filter((message) => !message?.isBulk);
   const unread = inbox.filter((message) => message?.unread);
   // Prefer unread; if everything is read, still show the most recent threads so
   // the briefing is never blank when the mailbox simply has no unread mail.
@@ -170,7 +176,8 @@ export function buildBriefing({
     github: github.length,
     drive: drive.length,
     notion: notion.length,
-    sourceProblems: sourceProblemRows.length
+    sourceProblems: sourceProblemRows.length,
+    filed
   };
 
   // Which connectors this briefing actually drew on — shown as honest provenance.

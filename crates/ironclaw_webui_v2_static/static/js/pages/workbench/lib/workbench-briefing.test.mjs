@@ -231,4 +231,12 @@ test('buildBriefing suppresses bulk/newsletter mail from replies-waiting', () =>
     !briefing.replies.some((r) => r.isBulk),
     'no bulk message ever appears in replies-waiting'
   );
+  // Transparency: filtered newsletters are counted + named in the headline
+  // ("handled, not surfaced"), so suppression is visible, never silent.
+  assert.equal(briefing.counts.filed, 2, 'both newsletters are counted as filed');
+  assert.match(
+    briefing.headline,
+    /2 newsletters filed — not surfaced\./,
+    'headline owns the filing'
+  );
 });
