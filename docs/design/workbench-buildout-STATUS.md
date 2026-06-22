@@ -298,3 +298,10 @@ keep the server-side `/connectors/write` SEND-gate when rebasing onto main.
   `node scripts/probe-workbench-live-wiring.mjs --llm-backend=openrouter --activate-chat-source-tools --require-direct-connector-chat --json`.
   Completed connector activity now has durable `/timeline`, live SSE, and
   replay-SSE evidence in the latest required-gate probe.
+
+## Tick (2026-06-21, post-remediation): legal-use-case reality verified
+- Phase 1 re-verified 14/14 on the credential-pin binary (#10 didn't break the real flow). Evidence: evidence/phase1-post-credential-pin.md.
+- Legal-framing layer verified: inferWorkbenchScene matches msa|contract|redline -> legal scene + approval boundaries; 45/45 framing tests green (scenes-registry+plan+work-items+state).
+- KEY: the corpus's richer Work contract (governing-law blocker, dossier, watches) is ASPIRATIONAL — its claimed fixtures src/lib/util/workflow-scenarios.ts do NOT exist. Implemented framing is the simpler scene+approval-boundary model; execution punts to a Chat agent turn (heavy multi-step review hits the #7 convergence limit).
+- Wrote docs/reviews/legal-use-case-reality.md — honest what-works/what-gapped for the legal use case.
+- Remaining: #12 tool-perm governance (from-scratch security feature, flagged for review), #13a connector consent, #14 live sign-off (user runs Part B).
