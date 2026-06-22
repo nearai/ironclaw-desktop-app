@@ -11,17 +11,16 @@ import {
 } from './workbench-static-fixtures';
 
 test('static workbench stylesheet: visual polish guards wrap detail text and dim disabled actions', () => {
-  // Single typeface: self-hosted Geist (variable) for both body and display —
-  // the overhaul dropped the serif; display hierarchy comes from size/weight.
+  // Body = self-hosted Geist (variable, sans). Display = Newsreader serif (v13/v12
+  // fidelity) with a system-serif fallback stack until the Newsreader woff2 lands.
   expect(workbenchStylesSource).toContain('--wb-font-body: "Geist", "Geist Variable"');
-  expect(workbenchStylesSource).toContain('--wb-font-display: "Geist", "Geist Variable"');
+  expect(workbenchStylesSource).toContain('--wb-font-display: "Newsreader"');
+  expect(workbenchStylesSource).toMatch(/--wb-font-display:[^;]*serif;/);
   expect(workbenchStylesSource).toContain('[data-theme="dark"] .wb13');
   expect(workbenchStylesSource).toContain('resize: none;');
   expect(workbenchStylesSource).toContain(
     '.wb13-well textarea { min-height: 320px; padding-bottom: 178px; }'
   );
-  expect(workbenchStylesSource).not.toContain('Georgia');
-  expect(workbenchStylesSource).not.toContain('Times New Roman');
 
   const dockDetailRule = cssRuleBody(workbenchStylesSource, '.wb13-dock-detail');
   expect(dockDetailRule).toContain('overflow-wrap: anywhere;');
