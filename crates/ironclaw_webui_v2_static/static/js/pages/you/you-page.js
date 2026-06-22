@@ -5,6 +5,13 @@ import { connectorRead } from '../../lib/api.js';
 import { Icon } from '../../design-system/icons.js';
 import { normalizeInboxMessages } from '../workbench/lib/workbench-connectors.js';
 import { computeBehaviourProfile } from '../workbench/lib/workbench-profile.js';
+import {
+  applyTierOverrides,
+  readTierOverrides,
+  recountTiers,
+  setTierOverride,
+  TIER_OPTIONS
+} from '../workbench/lib/workbench-profile-overrides.js';
 
 // The "You" surface — what IronClaw has learned about how you actually work,
 // from your own mail (who you reply to, how fast, who it auto-files). Everything
@@ -40,6 +47,7 @@ const YOU_STYLE = `
 .wb13-you-rowmain { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .wb13-you-email { color: var(--v2-text-strong); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 .wb13-you-meta { color: var(--v2-text-muted); font-size: 12.5px; }
+.wb13-you-select { flex: none; margin-left: auto; font: 12px var(--v2-font, inherit); color: var(--v2-text-strong); background: var(--v2-input-bg, transparent); border: 1px solid var(--v2-panel-border); border-radius: 7px; padding: 5px 7px; cursor: pointer; }
 .wb13-you-empty { color: var(--v2-text-muted); font-size: 14px; padding: 12px 0; }
 .wb13-you-foot { display: flex; align-items: center; gap: 8px; margin-top: 24px; color: var(--v2-text-faint); font-size: 12.5px; }
 .wb13-you-foot svg { width: 15px; height: 15px; }
@@ -96,12 +104,15 @@ function TierBadge({ tier }) {
   >`;
 }
 
-function PersonRow({ person }) {
+const TIER_LABELS = { vip: 'VIP', respond: 'Respond', fyi: 'FYI', ignore: 'Filed' };
+
+function PersonRow({ person, onTierChange }) {
   const latency = person.medianLatencyHrs != null ? `~${person.medianLatencyHrs}h` : null;
   const meta = [
     person.received ? `${person.received} in` : null,
     person.replied ? `${person.replied} replied` : null,
-    latency ? `reply ${latency}` : null
+    latency ? `reply ${latency}` : null,
+    person.overridden ? 'you set this' : null
   ]
     .filter(Boolean)
     .join(' · ');
@@ -111,6 +122,16 @@ function PersonRow({ person }) {
       <span className="wb13-you-email">${person.email}</span>
       ${meta ? html`<span className="wb13-you-meta">${meta}</span>` : null}
     </div>
+    <select
+      className="wb13-you-select"
+      aria-label=${`Set tier for ${person.email}`}
+      value=${person.tier}
+      onChange=${(e) => onTierChange(person.email, e.target.value)}
+    >
+      ${TIER_OPTIONS.map(
+        (tier) => html`<option key=${tier} value=${tier}>${TIER_LABELS[tier]}</option>`
+      )}
+    </select>
   </div>`;
 }
 
@@ -134,8 +155,16 @@ export function YouPage() {
   const query = deep.data ? deep : quick;
   const profile = query.data;
   const refining = Boolean(quick.data) && deep.isLoading && !deep.data;
-  const people = profile && Array.isArray(profile.people) ? profile.people : [];
-  const counts = (profile && profile.counts) || {};
+  // User corrections (per-sender tier), persisted locally; applied over the
+  // engine's inference so a correction moves the person immediately.
+  const [overrides, setOverrides] = React.useState(() => readTierOverrides());
+  const onTierChange = React.useCallback(
+    (email, tier) => setOverrides(setTierOverride(email, tier)),
+    []
+  );
+  const rawPeople = profile && Array.isArray(profile.people) ? profile.people : [];
+  const people = applyTierOverrides(rawPeople, overrides);
+  const counts = profile ? recountTiers(people) : {};
   const patterns = (profile && profile.patterns) || [];
   const surfaced = people.filter((person) => person.tier !== 'ignore');
 
@@ -184,7 +213,12 @@ export function YouPage() {
                 <h2>Who matters to you</h2>
                 ${surfaced.length
                   ? surfaced.map(
-                      (person) => html`<${PersonRow} key=${person.email} person=${person} />`
+                      (person) =>
+                        html`<${PersonRow}
+                          key=${person.email}
+                          person=${person}
+                          onTierChange=${onTierChange}
+                        />`
                     )
                   : html`<p className="wb13-you-empty">
                       No correspondents yet — they appear as you exchange mail.
