@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #16): conversations a11y fixed → /you PROMOTED to the visible nav (`28faf6a`)
+
+Unblocked loop #15.
+- **a11y fix** (sidebar-threads.js): conversations scrollable region gets `role="region" aria-label tabindex=0` → clears the `scrollable-region-focusable` violation the 7th nav item exposed.
+- **/you promoted** to the visible primary nav (hidden:false + Work section + `nav.you` en/baseline + IA-guard update + `book` icon).
+- **Gate green:** static 808, **a11y 138 (held with the 7-item nav)**, design DT-1..6, smoke, bundle under budget. Live: /you renders (0 VIP/1 respond/14 FYI/2 auto-filed, 15 rows), no console errors.
+- All 4 pillars now have working, discoverable surfaces. Next: deepen You tiering (fuller sent read), long-horizon research verb proof, P4 hardening/own-repo extraction.
+
 ## Tick (loop #15): /you nav promotion BLOCKED (a11y) + mandated validation PASS
 
 - **Attempted** promoting /you to the visible primary nav (unhide + Work section + nav.you i18n + IA-guard update). test:static green (808) but **a11y RED, deterministic (2 runs)**: 4 `connections` sub-pages hit `scrollable-region-focusable` (serious) on an empty conversations sub-panel that lacks keyboard access — only with the 7th visible nav item. **Reverted** per guardrail; tree green (static 808, a11y 138). /you stays hidden + reachable. **Unblock prereq:** add keyboard access (tabindex=0/role) to that empty scrollable region in shared chrome, then re-attempt — next tick.
