@@ -14,6 +14,15 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Review fixes — attachment data_base64 contract + mobile dock a11y (`92ab2af`)
+
+Acted on an independent review of the active checkout.
+- **[P1] attachment contract:** the gateway requires `data_base64` but the frontend serialized `base64` → 422 in the packaged WebView. Fixed `normalizeAttachmentPayloads` to emit `data_base64` (accepts either input key); aligned api.test + attachments-static.spec + smoke-webui-static assertions that had codified the wrong field. **Live-proven:** old `base64` → 422 "missing field data_base64", new `data_base64` → 200 Queued.
+- **[P2] mobile dock a11y:** the closed slide-over dock stayed focusable/in the AT tree; responsive.js now `visibility:hidden` when closed, `visible` when open. Live-verified at 390px.
+- **[P1] stale bundle:** already resolved on the active tree (verify:static-frontend OK; prepare yields zero diff).
+- **[P3] settings TODOs:** acknowledged (honest TODOs, backend work, out of scope).
+- Gate: static 859, a11y 140, smoke PASS, design, bundle, verify:static-frontend all green.
+
 ## Calendar time-ruler week grid + lazy-load (`1dc89a1`)
 
 Iterated the calendar into a true gcal-style time-ruler week (hour axis, proportional event blocks, overlap lanes, all-day band, now-line) after the user pushed on presentation again.

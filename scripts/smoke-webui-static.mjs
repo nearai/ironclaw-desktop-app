@@ -1867,19 +1867,19 @@ try {
   }
   for (const scenario of smokeAttachmentScenarios) {
     const wire = wireAttachments.find((item) => item.filename === scenario.name);
-    if (!wire || !wire.base64) {
+    if (!wire || !wire.data_base64) {
       throw new Error(
         `static chat wire payload missing ${scenario.name}: ${JSON.stringify(chatPost)}`
       );
     }
     if (scenario.expectExtractedText) {
-      const decoded = Buffer.from(wire.base64, 'base64').toString('utf8');
+      const decoded = Buffer.from(wire.data_base64, 'base64').toString('utf8');
       if (wire.mime_type !== 'text/plain' || !decoded.includes(scenario.expectExtractedText)) {
         throw new Error(
           `static chat did not send extracted text for ${scenario.name}: ${JSON.stringify(wire)}`
         );
       }
-    } else if (wire.mime_type !== scenario.mimeType || wire.base64 !== scenario.base64) {
+    } else if (wire.mime_type !== scenario.mimeType || wire.data_base64 !== scenario.base64) {
       throw new Error(
         `static chat altered raw attachment payload for ${scenario.name}: ${JSON.stringify(wire)}`
       );

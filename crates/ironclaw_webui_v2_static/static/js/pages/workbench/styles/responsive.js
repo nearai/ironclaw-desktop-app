@@ -9,9 +9,19 @@ export const WORKBENCH_RESPONSIVE_STYLE = `@media (max-width: 1120px) {
     z-index: 52;
     width: 252px;
     transform: translateX(calc(-100% - 60px));
+    /* Closed slide-over: drop it from tab order + the a11y tree so keyboard/SR
+       users don't reach the offscreen "Close active work" control. Visibility is
+       deferred until the slide-out finishes so the animation isn't cut. */
+    visibility: hidden;
+    transition:
+      transform 0.18s,
+      visibility 0s linear 0.18s;
+  }
+  .wb13-dock.is-open {
+    transform: translateX(0);
+    visibility: visible;
     transition: transform 0.18s;
   }
-  .wb13-dock.is-open { transform: translateX(0); }
   .wb13-dock-close { display: grid; }
 }
 @media (min-width: 1121px) {

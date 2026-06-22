@@ -81,7 +81,9 @@ test('sendMessage sends composer attachments as Reborn attachment payloads', asy
     {
       filename: 'template.pdf',
       mime_type: 'application/pdf',
-      base64: 'dGVtcGxhdGU='
+      // The gateway (WebUiInboundAttachment) requires `data_base64`; emitting
+      // `base64` 422s. Regression-lock the wire field name.
+      data_base64: 'dGVtcGxhdGU='
     }
   ]);
 });

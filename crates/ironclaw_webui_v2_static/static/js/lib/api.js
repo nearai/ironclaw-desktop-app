@@ -448,6 +448,10 @@ export function sendMessage({
 }
 
 export function normalizeAttachmentPayloads(attachments) {
+  // The gateway's send-message body wants `data_base64` (WebUiInboundAttachment);
+  // emitting `base64` is rejected with HTTP 422 "missing field data_base64".
+  // Accept either input key (the composer carries `base64`, smokes carry
+  // `data_base64`) but always serialize the gateway's field name.
   return (attachments || [])
     .map((attachment) => ({
       filename: String(attachment?.filename || attachment?.name || 'attachment').replace(
@@ -455,9 +459,9 @@ export function normalizeAttachmentPayloads(attachments) {
         ' '
       ),
       mime_type: String(attachment?.mime_type || 'application/octet-stream').replace(/\r?\n/g, ' '),
-      base64: String(attachment?.base64 || attachment?.data_base64 || '').replace(/\s+/g, '')
+      data_base64: String(attachment?.data_base64 || attachment?.base64 || '').replace(/\s+/g, '')
     }))
-    .filter((attachment) => attachment.base64 && attachment.filename);
+    .filter((attachment) => attachment.data_base64 && attachment.filename);
 }
 
 // --- Timeline ---

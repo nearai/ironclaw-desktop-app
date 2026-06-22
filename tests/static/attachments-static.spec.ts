@@ -123,7 +123,7 @@ for (const scenario of [
         filename: scenario.filename,
         mime_type: 'text/plain'
       });
-      expect(Buffer.from(request.attachments[0].base64, 'base64').toString('utf8')).toBe(
+      expect(Buffer.from(request.attachments[0].data_base64, 'base64').toString('utf8')).toBe(
         scenario.text
       );
     } finally {
@@ -172,7 +172,7 @@ test('static attachments: image upload renders thumbnail above sent user bubble'
       filename: 'signature-proof.png',
       mime_type: 'image/png'
     });
-    expect(request.attachments[0].base64).toBe(onePixelPngBase64);
+    expect(request.attachments[0].data_base64).toBe(onePixelPngBase64);
   } finally {
     await gateway.close();
   }
