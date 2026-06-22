@@ -5,6 +5,16 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #8 — P2 START): the "Schedule" chat-bar verb (`bd723c9`)
+
+First P2 chat-bar verb. The bar now recognizes scheduling asks + the backend chain is proven live.
+- New `schedule` scene (after `monitor` so "watch competitor … every Friday" stays Monitor; pure scheduling — "every weekday at 9am…", "schedule this daily", "remind me…", "automate a daily digest" — lands here). Honest framing: "recurring job that runs while the app is open, asks before anything leaves"; stages a native trigger, every run gated. `commandActionLabel` → "Schedule".
+- **Live-verified** (:17641): "Every weekday at 9am summarize my inbox…" → action button reads **Schedule**.
+- **Backend proven E2E** (trigger-fire-e2e, native poller, NO Hermes): agent creates a recurring trigger via builtin.trigger_create (gate→200) and the **poller FIRES it** (last_run_at ~5s after next_run_at).
+- **Gate green:** static 792 (new schedule-scene test), design DT-1..6, a11y 138, smoke. Monitor precedence regression-tested.
+- Still gated: bar frames + agent creates the trigger; a Workbench-native one-click create (no agent turn) is the later #9 route. Sends OFF.
+- Next: the other P2 verbs (research, DOCX work product), then the "You" surface.
+
 ## Tick (loop #7 — pillar #3): needs-a-reply ranked by behaviour (`39f6530`)
 
 needs-a-reply surfaced human mail but in raw recency order; now ranks by Gmail IMPORTANT (a behaviour signal — how you engage a sender, clean since bulk is excluded).
