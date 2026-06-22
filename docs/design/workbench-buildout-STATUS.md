@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #10 — P2): DOCX work product, one click from the bar (`676bd79`)
+
+Wired the .docx generator to the deterministic briefing — "what needs me today?" → a real editable Word work product, no agent turn.
+- `briefingToWorkProduct(briefing)` (pure, tested): briefing → { title 'IronClaw Daily Brief', subtitle=headline, sections (Replies waiting / On your calendar / Needs a decision / Slack / GitHub), sources = connectors used + the "N newsletters filed — not surfaced" line }. Degrades safely on empty.
+- `WorkbenchBriefing`: a "Download .docx" header button → `saveBlob(buildDocxBlob(briefingToWorkProduct(briefing)))` (desktop-safe, read-only — writes a local file, sends nothing).
+- **Live-verified** (:17641): "what needs me today?" → briefing → **Download .docx button present**, clicks clean, no console errors. File is python-docx-validated (last tick).
+- **Gate green:** static 799 (2 new mapper tests), design DT-1..6, a11y 138, smoke, bundle-size under budget (module now bundled, no library).
+- Next: a 'document' scene so any drafted memo/brief exports to .docx; long-horizon research verb; the "You" surface.
+
 ## Tick (loop #9 — P2): real zero-dependency .docx work-product generator (`4828d0e`)
 
 The DOCX pillar's hard part — a REAL editable Word doc — built with no library (no bundle-budget hit).
