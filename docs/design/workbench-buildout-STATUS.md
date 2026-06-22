@@ -14,6 +14,12 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Supervisor self-heal fix + document-verb live BLOCKED on #7 (`a4582be`)
+
+- **Fix (landed):** loop #21 supervisor respawned the gateway WITHOUT re-configuring Composio (the configure was one-time in the IIFE), so a self-healed gateway had zero connectors. Extracted `waitForGatewayReady`/`configureComposio`, run after every (re)spawn. Live-proven (alt ports): kill sidecar → respawn → **Composio reconfigured + 8 connectors back** (~4s). Gate: static 849, smoke; launcher not bundled.
+- **BLOCKED (logged, not a frontend fix):** document/research chat-bar verbs can't be proven live. Chat fires for short turns (pong 6s) but a ~100-word memo turn wedges at status:'submitted' on a FRESH gateway (with OR without tools) — the #7 agent-loop convergence/HostUnavailable issue in the staged sidecar. Needs a gateway-side fix / newer sidecar. The docx-OUTPUT half (markdown→openable .docx w/ Sources) is separately tested.
+- Next: #7 needs the gateway repo (out of the frontend's reach); meanwhile continue UX/triage polish + validation.
+
 ## Standalone chat-readiness shim — live chat-bar verbs unblocked (`4485ee7`)
 
 Loop #30's blocker fixed: the staged sidecar 404s `/api/gateway/status`, so the frontend's non-Tauri fallback left readiness UNVERIFIED and the composer couldn't send.

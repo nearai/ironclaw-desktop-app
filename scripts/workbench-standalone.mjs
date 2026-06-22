@@ -105,7 +105,15 @@ function startGateway() {
     console.error(
       `[wb] gateway exited (code=${code} signal=${signal}); respawn #${gwRestarts} in ${backoff}ms`
     );
-    setTimeout(startGateway, backoff);
+    setTimeout(() => {
+      startGateway();
+      // Self-heal completely: a respawned gateway needs Composio re-configured
+      // (the one-time first-boot configure below does not run again), so wait for
+      // it to come up and reconfigure — otherwise connectors stay dark after a crash.
+      (async () => {
+        if (await waitForGatewayReady()) await configureComposio();
+      })();
+    }, backoff);
   });
 }
 
@@ -131,6 +139,32 @@ const req = async (m, p, b) => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Wait for the gateway core to answer (its /llm/providers). Used on first boot
+// AND after a supervisor respawn.
+async function waitForGatewayReady(tries = 60) {
+  for (let i = 0; i < tries; i++) {
+    if ((await req('GET', `${B}/llm/providers`)).s === 200) return true;
+    await sleep(500);
+  }
+  return false;
+}
+
+// Configure Composio + log the connected toolkits. The gateway does not persist
+// this across process restarts, so it must run after EVERY (re)spawn — otherwise
+// a self-healed gateway comes back with zero connectors and the rail goes dark.
+async function configureComposio() {
+  const cfg = await req('POST', `${B}/extensions/composio/setup`, {
+    action: 'configure',
+    payload: { secrets: { composio_api_key: COMPOSIO }, fields: {} }
+  });
+  console.log(`[wb] composio configure -> ${cfg.s}`);
+  const conn = await req('GET', `${B}/connectors/connected`);
+  const accounts = Array.isArray(conn.j?.accounts)
+    ? conn.j.accounts.map((a) => a.toolkit || a.slug || a.app || a).join(',')
+    : JSON.stringify(conn.j).slice(0, 200);
+  console.log(`[wb] connectors/connected -> ${conn.s}  [${accounts}]`);
+}
+
 let web = null;
 function shutdown() {
   shuttingDown = true;
@@ -148,31 +182,13 @@ process.on('SIGTERM', shutdown);
 startGateway();
 
 (async () => {
-  let ready = false;
-  for (let i = 0; i < 60; i++) {
-    if ((await req('GET', `${B}/llm/providers`)).s === 200) {
-      ready = true;
-      break;
-    }
-    await sleep(500);
-  }
-  if (!ready) {
+  if (!(await waitForGatewayReady())) {
     console.error('[wb] gateway never became ready\n', gwLogs.slice(-1500));
     shutdown();
     return;
   }
   console.log('[wb] gateway ready (/llm/providers 200)');
-
-  const cfg = await req('POST', `${B}/extensions/composio/setup`, {
-    action: 'configure',
-    payload: { secrets: { composio_api_key: COMPOSIO }, fields: {} }
-  });
-  console.log(`[wb] composio configure -> ${cfg.s}`);
-  const conn = await req('GET', `${B}/connectors/connected`);
-  const accounts = Array.isArray(conn.j?.accounts)
-    ? conn.j.accounts.map((a) => a.toolkit || a.slug || a.app || a).join(',')
-    : JSON.stringify(conn.j).slice(0, 200);
-  console.log(`[wb] connectors/connected -> ${conn.s}  [${accounts}]`);
+  await configureComposio();
 
   web = spawn(process.execPath, [path.join(REPO, 'scripts', 'serve-webui-static.mjs')], {
     cwd: REPO,
