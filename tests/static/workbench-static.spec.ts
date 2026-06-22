@@ -2888,16 +2888,9 @@ test('static workbench: reading panel creates a reviewable Gmail draft through t
   expect(connectorReadRequests.some((request) => request.tool === 'GMAIL_CREATE_EMAIL_DRAFT')).toBe(
     false
   );
-  // Opening the draft kicks off a short reply-generation turn ("reply ready") —
-  // an internal agent turn, never a mail send. Any chat traffic here is only that
-  // generation prompt; the sole Gmail write is the gated draft create above.
-  expect(
-    sentMessages.every((message) =>
-      String((message.body as Record<string, unknown>)?.content || '').includes(
-        'drafting a reply on my behalf'
-      )
-    )
-  ).toBe(true);
+  // Pre-drafting is opt-in (the user clicks "Pre-draft reply"); just opening the
+  // draft fires no turn, so the chat runtime is untouched and nothing is sent.
+  expect(sentMessages).toEqual([]);
 
   await expect(approve).toContainText('Draft created');
   await expect(approve).toContainText('id draft-renewal-1');
@@ -2996,14 +2989,8 @@ test('static workbench: Gmail draft write failure stays in the review modal with
       thread_id: 'thread-fail-draft'
     }
   });
-  // Any chat traffic is only the reply-generation turn — never a mail send.
-  expect(
-    sentMessages.every((message) =>
-      String((message.body as Record<string, unknown>)?.content || '').includes(
-        'drafting a reply on my behalf'
-      )
-    )
-  ).toBe(true);
+  // Pre-drafting is opt-in; opening the draft fires no turn — nothing is sent.
+  expect(sentMessages).toEqual([]);
 
   await expect(approve).toContainText('connector write failed');
   await expect(approve).toContainText('Gmail · create draft (no send)');

@@ -14,6 +14,7 @@ export function WorkbenchApprove({
   busy,
   generating = false,
   suggestedBody = '',
+  onGenerate,
   result,
   onCancel,
   onSubmit
@@ -32,11 +33,10 @@ export function WorkbenchApprove({
     setBody(context.body || '');
   }, [context]);
 
-  // Fill an agent-drafted reply when it arrives — only if the user hasn't typed,
-  // so generation never clobbers an edit and is fully optional.
+  // Fill the body with an agent-drafted reply when one arrives. Pre-drafting is
+  // opt-in (the user clicked "Pre-draft reply"), so replacing the body is intended.
   React.useEffect(() => {
-    if (!suggestedBody) return;
-    setBody((current) => (current && current.trim() ? current : suggestedBody));
+    if (suggestedBody) setBody(suggestedBody);
   }, [suggestedBody]);
 
   if (!open) return null;
@@ -105,8 +105,27 @@ export function WorkbenchApprove({
                     />
                   </label>
                   <div className="wb13-bodyprev">
-                    <div className="bh">
-                      Message${generating ? ' · drafting a reply in your voice…' : ''}
+                    <div
+                      className="bh"
+                      style=${{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '8px'
+                      }}
+                    >
+                      <span>Message</span>
+                      ${onGenerate
+                        ? html`<button
+                            type="button"
+                            className="wb13-button is-sm"
+                            data-testid="workbench-approve-generate"
+                            disabled=${generating}
+                            onClick=${onGenerate}
+                          >
+                            <${Icon} name="spark" />${generating ? 'Drafting…' : 'Pre-draft reply'}
+                          </button>`
+                        : null}
                     </div>
                     <textarea
                       aria-label="Draft message"

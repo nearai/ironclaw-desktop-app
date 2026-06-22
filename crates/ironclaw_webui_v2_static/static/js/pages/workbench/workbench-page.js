@@ -516,6 +516,8 @@ export function WorkbenchPage() {
   // clobbering what the user typed, and never re-seeding on reopen.
   const [draftSuggestion, setDraftSuggestion] = React.useState('');
   const draftTokenRef = React.useRef(0);
+  // The source message of the open draft, so "Pre-draft reply" can generate on demand.
+  const draftMessageRef = React.useRef(null);
   const savedWorkReadEnabled = savedWorkServerReadSupported(gatewayStatus);
   const approvalsReadEnabled = approvalsFeedReadSupported(gatewayStatus);
   const receiptsReadEnabled = receiptsFeedReadSupported(gatewayStatus);
@@ -556,11 +558,21 @@ export function WorkbenchPage() {
   const openDraftReply = React.useCallback((message) => {
     setDraftResult(null);
     setDraftSuggestion('');
+    setDraftGenerating(false);
+    // Open the draft empty — pre-drafting is opt-in (the "Pre-draft reply" button),
+    // not automatic, so no turn fires unless the user asks. Stash the source message
+    // + invalidate any in-flight generation from a prior draft.
+    draftMessageRef.current = message;
+    draftTokenRef.current += 1;
     setDraftContext(buildReplyDraft({ message, selected: message }));
-    // Draft a reply in the user's voice via a short agent turn (non-blocking — the
-    // modal is usable immediately). On any failure/timeout nothing fills (never
-    // fabricated). A token guards against a second draft landing on this one.
+  }, []);
+  // On-demand: draft a reply in the user's voice via a short agent turn. Replaces
+  // the body with the result (the user asked for it); '' on failure (never fabricated).
+  const generateDraftReply = React.useCallback(() => {
+    const message = draftMessageRef.current;
+    if (!message) return;
     const token = (draftTokenRef.current += 1);
+    setDraftSuggestion('');
     setDraftGenerating(true);
     let timezone;
     try {
@@ -1215,6 +1227,7 @@ export function WorkbenchPage() {
           busy=${draftBusy}
           generating=${draftGenerating}
           suggestedBody=${draftSuggestion}
+          onGenerate=${generateDraftReply}
           result=${draftResult}
           onCancel=${closeDraft}
           onSubmit=${submitDraft}

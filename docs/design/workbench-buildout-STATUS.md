@@ -14,6 +14,13 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Pre-draft reply is opt-in (button), not automatic (`2228e12`)
+
+User: don't draft every time — give a button. Done: `openDraftReply` opens empty (no turn fires); a "Pre-draft reply" (✨) button in the modal generates on demand → fills the body (resets so you can re-draft); '' on failure. Token-guarded. Reverted the 2 draft tests to `sentMessages==[]` (opt-in → no turn on open).
+- **LIVE proof:** open Draft reply → empty + "Pre-draft reply" button; click → fresh contextual reply filled in seconds, Create enabled, no console errors.
+- **Next phase (user-flagged):** attachments on replies (the v12 capability) — wire contract already fixed (data_base64 + gated draft path); add file-attach to the Draft-reply modal + carry on the draft write.
+- Gate: static 870, a11y 140, smoke, design, bundle green.
+
 ## Pre-drafted reply engine — "Draft reply" comes ready (`10431b6`)
 
 Step 1 of the briefing-as-home rebuild + the user's #1 ask. "Draft reply" now pre-fills a reply drafted in the user's voice (short agent turn), review/edit/create — never sent.
