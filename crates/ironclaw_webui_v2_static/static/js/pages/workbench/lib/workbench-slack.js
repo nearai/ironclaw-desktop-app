@@ -71,10 +71,37 @@ function cleanSlackText(raw) {
   return cleaned.length > 180 ? `${cleaned.slice(0, 179)}…` : cleaned;
 }
 
+// Precision filter: the Slack search returns anything that MENTIONS a blocker
+// word, which sweeps in status reports ("IronClaw QA Update: … What's Working …")
+// that merely contain "blocked"/"waiting" inside a multi-line summary. A genuine
+// blocker is terse and conversational; a broadcast/status report is long, multi-
+// line, or report-titled. Drop the reports; keep the real asks. Operates on the
+// RAW message text (before truncation) so line structure is intact. Pure.
+export function textLooksLikeBlocker(rawText) {
+  const raw = String(rawText || '');
+  const text = raw.replace(/\s+/g, ' ').trim();
+  if (!text) return false;
+  // Long / multi-line bodies are status reports, not a direct ask for help.
+  const lineCount = raw.split(/\r?\n/).filter((line) => line.trim()).length;
+  if (lineCount >= 3) return false;
+  if (text.length > 280) return false;
+  // Report-style titles even when they fit on a line: "… QA Update:", "Weekly
+  // Status", "What's Working", "Sprint recap", etc.
+  const reportTitle =
+    /\b(qa|status|standup|stand-?up|weekly|daily|monthly|sprint|release|bug\s*bash)\b[^.\n]{0,30}\b(update|report|summary|recap|notes?|digest)\b/i.test(
+      text
+    ) ||
+    /^[^.\n]{0,60}\b(update|report|summary|recap|digest)\s*:/i.test(text) ||
+    /\bwhat'?s\s+(working|new|next|shipped|done)\b/i.test(text);
+  if (reportTitle) return false;
+  return true;
+}
+
 // Normalize a SLACK_SEARCH_MESSAGES read into blocker rows:
 // `{ id, who, channel, when, text, permalink }`. Honest contract: [] on any
 // unsuccessful/empty/malformed payload; never fabricates a message; drops rows
-// with no readable text.
+// with no readable text and broadcast/status-report style matches (false
+// positives — see textLooksLikeBlocker).
 export function normalizeSlackBlockers(result, { limit = 8 } = {}) {
   if (!result || result.successful === false) return [];
   const data = result.data || result;
@@ -83,6 +110,7 @@ export function normalizeSlackBlockers(result, { limit = 8 } = {}) {
   const rows = [];
   for (const match of matches) {
     if (!match || typeof match !== 'object') continue;
+    if (!textLooksLikeBlocker(match.text)) continue;
     const text = cleanSlackText(match.text);
     if (!text) continue;
     const channel = match.channel || {};
