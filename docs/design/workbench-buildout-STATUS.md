@@ -14,6 +14,13 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Standalone chat-readiness shim — live chat-bar verbs unblocked (`4485ee7`)
+
+Loop #30's blocker fixed: the staged sidecar 404s `/api/gateway/status`, so the frontend's non-Tauri fallback left readiness UNVERIFIED and the composer couldn't send.
+- `scripts/serve-webui-static.mjs` (dev harness only) now answers `/api/gateway/status` with the booted gateway's real readiness (nearai + NEARAI_MODEL, verified 14/14). App/bundle + Tauri build untouched.
+- **Live-proven:** status → 'ready' (was 404); a full chat turn fires through the web tier → gateway → GLM: POST /threads → /messages → timeline → **ASSISTANT "pong"** at 6s.
+- Gate green: static 849, a11y 140, design DT-1..6, smoke, bundle. Unblocks live verification of the P2 chat-bar verbs (document/research/catch-up) on the standalone.
+
 ## Dismiss-to-learn loop closed — auto-file repeatedly-dismissed senders (`59aa615`)
 
 The #1 ask's learning half: dismissals now teach triage, not just record.
