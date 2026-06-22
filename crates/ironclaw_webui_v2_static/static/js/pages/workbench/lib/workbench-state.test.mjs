@@ -820,3 +820,47 @@ test('workbench GitHub rows truncate long titles and drop title-less notificatio
   assert.equal(github.rows[0].detail, 'On GitHub', 'no reason/repo -> generic detail');
   assert.equal(github.rows[0].href, undefined, 'no link -> no href');
 });
+
+test('workbench rail surfaces recent Notion pages and Drive files as awareness groups', () => {
+  const rail = buildWorkbenchStateRail({
+    notionPages: [
+      { id: 'p1', title: 'Q2 Management Meeting', url: 'https://notion.so/p1', when: '11:41 AM' },
+      { id: 'p2', title: '', url: '', when: '' } // no title/url -> still filtered by title here
+    ],
+    driveFiles: [
+      {
+        id: 'd1',
+        name: 'JASON Levels.xlsx',
+        kind: 'Sheet',
+        when: '4:11 PM',
+        link: 'https://docs.google.com/d1'
+      }
+    ]
+  });
+  const notion = rail.find((group) => group.id === 'notion');
+  const drive = rail.find((group) => group.id === 'drive');
+  assert.equal(notion.total, 1, 'title-less notion page dropped');
+  assert.equal(notion.rows[0].title, 'Q2 Management Meeting');
+  assert.equal(notion.rows[0].badge, 'Notion');
+  assert.equal(notion.rows[0].detail, 'Edited 11:41 AM');
+  assert.equal(notion.rows[0].href, 'https://notion.so/p1');
+  assert.equal(notion.rows[0].icon, 'file');
+  assert.equal(drive.total, 1);
+  assert.equal(drive.rows[0].title, 'JASON Levels.xlsx');
+  assert.equal(drive.rows[0].badge, 'Sheet', 'mime-derived kind becomes the badge');
+  assert.equal(drive.rows[0].detail, 'Modified 4:11 PM');
+  assert.equal(drive.rows[0].href, 'https://docs.google.com/d1');
+  assert.equal(drive.rows[0].icon, 'folder');
+});
+
+test('workbench Notion/Drive groups degrade to honest empty states with no data', () => {
+  const rail = buildWorkbenchStateRail({ notionPages: [], driveFiles: [] });
+  const notion = rail.find((group) => group.id === 'notion');
+  const drive = rail.find((group) => group.id === 'drive');
+  assert.equal(notion.total, 0);
+  assert.deepEqual(notion.rows, []);
+  assert.equal(notion.emptyDetail, 'Recently edited Notion pages will appear here.');
+  assert.equal(drive.total, 0);
+  assert.deepEqual(drive.rows, []);
+  assert.equal(drive.emptyDetail, 'Recently modified Drive files will appear here.');
+});

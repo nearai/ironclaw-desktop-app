@@ -702,6 +702,8 @@ export function WorkbenchPage() {
         calendar: { events: connectorCalendar.events },
         slackBlockers: slackBlockers.rows,
         githubNotifications: connectorGithub.notifications,
+        notionPages: connectorNotion.pages,
+        driveFiles: connectorDrive.files,
         tierOverrides,
         limit: 4
       }),
@@ -714,6 +716,8 @@ export function WorkbenchPage() {
       connectorInbox.messages,
       slackBlockers.rows,
       connectorGithub.notifications,
+      connectorNotion.pages,
+      connectorDrive.files,
       outletThreadsState?.threads,
       savedItems,
       sourceReadiness,

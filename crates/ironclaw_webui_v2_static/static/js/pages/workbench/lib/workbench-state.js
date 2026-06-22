@@ -142,6 +142,50 @@ function connectorGithubRows(notifications = []) {
     });
 }
 
+// Recently-edited Notion pages and recently-modified Drive files — awareness rows
+// (not "needs you"), surfaced low in the rail. Both read eagerly when connected
+// (same queryKeys as the briefing — deduped), so they populate on cold load.
+function connectorNotionRows(pages = []) {
+  const rows = Array.isArray(pages) ? pages : [];
+  return rows
+    .filter((row) => row && row.title)
+    .map((row) => {
+      const title = String(row.title);
+      return {
+        id: `notion-${row.id}`,
+        groupId: 'notion',
+        kind: 'notion',
+        icon: 'file',
+        title: title.length > 90 ? `${title.slice(0, 89)}…` : title,
+        badge: 'Notion',
+        detail: row.when ? `Edited ${row.when}` : 'Recently edited',
+        href: row.url || undefined,
+        timestamp: ''
+      };
+    });
+}
+
+function connectorDriveRows(files = []) {
+  const rows = Array.isArray(files) ? files : [];
+  return rows
+    .filter((row) => row && row.name)
+    .map((row) => {
+      const name = String(row.name);
+      const kind = String(row.kind || '').trim();
+      return {
+        id: `drive-${row.id}`,
+        groupId: 'drive',
+        kind: 'drive',
+        icon: 'folder',
+        title: name.length > 90 ? `${name.slice(0, 89)}…` : name,
+        badge: kind || 'Drive',
+        detail: row.when ? `Modified ${row.when}` : 'Recently modified',
+        href: row.link || undefined,
+        timestamp: ''
+      };
+    });
+}
+
 function connectorUpcomingRows(calendar = {}) {
   const events = Array.isArray(calendar.events) ? calendar.events : [];
   return events.map((event) => ({
@@ -631,6 +675,8 @@ export function buildWorkbenchStateRail({
   calendar = null,
   slackBlockers = [],
   githubNotifications = [],
+  notionPages = [],
+  driveFiles = [],
   tierOverrides = {},
   limit = 3
 } = {}) {
@@ -641,6 +687,8 @@ export function buildWorkbenchStateRail({
     ...connectorReplyRows(inbox || {}, tierOverrides),
     ...connectorSlackRows(slackBlockers),
     ...connectorGithubRows(githubNotifications),
+    ...connectorNotionRows(notionPages),
+    ...connectorDriveRows(driveFiles),
     ...sourceRows(sourceReadiness),
     ...workbenchFeedRows(feedItems),
     ...approvalFeedRows(approvals),
@@ -726,6 +774,18 @@ export const WORKBENCH_STATE_GROUPS = Object.freeze([
     sort: compareByTimestampAsc,
     emptyTitle: 'Nothing on the calendar.',
     emptyDetail: 'Your next calendar events will appear here.'
+  },
+  {
+    id: 'notion',
+    label: 'Recent in Notion',
+    emptyTitle: 'Nothing recent.',
+    emptyDetail: 'Recently edited Notion pages will appear here.'
+  },
+  {
+    id: 'drive',
+    label: 'Recent files',
+    emptyTitle: 'Nothing recent.',
+    emptyDetail: 'Recently modified Drive files will appear here.'
   },
   {
     id: 'scheduled',
