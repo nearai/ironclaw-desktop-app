@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #20 — P3): editable perspective — correct a sender's tier (`5a5d6f7`)
+
+The "You" surface is now observed AND correctable (v13).
+- `workbench-profile-overrides.js` (pure, 6 tests): localStorage per-sender tier overrides; `applyTierOverrides` overrides+flags+re-ranks (case-insensitive, non-mutating); `recountTiers`. You rows get a tier `<select>` → persists + re-renders + "you set this".
+- **Live-verified** (/you): set mara@theblockchainassociation.org → VIP → **moved to top**, badge VIP, "you set this", **persisted across reload** (localStorage). Read-only; per-device for now.
+- **Gate green:** static 814 (6 new tests), a11y 138, design DT-1..6, smoke, bundle under budget.
+- OBSERVED (P4): the long-running standalone gateway (:17640) crashed twice under sustained multi-tick load — stability/hardening item, not a regression here. Rebooted for the app.
+- Next: P4 — gateway stability under sustained load; own-repo extraction; (research blocked on web-search credential).
+
 ## Tick (loop #19): research verb diagnosed (BLOCKED on web-search credential) + validation PASS
 
 - **Research verb e2e attempt** (live agent turns, :17640): math turn replies **68** (plumbing works); research turn ("EU AI Act enforcement dates, cite sources") **no reply in ~90s, 0 tools invoked**. Root cause (gateway source): `web-access` is registered for the agent but needs a **search-provider (Exa) credential** the standalone lacks → web-access can't run → no convergence. **BLOCKED** on provisioning that credential (user's domain; won't fabricate) + #7 convergence for long turns. Research frontend (scene/label/routing) stays done + gate-proven.
