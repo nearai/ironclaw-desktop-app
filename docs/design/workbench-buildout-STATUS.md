@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #18 — P3): cut /you first-load — two-phase fast-paint→deep-refine (`5deffe9`)
+
+- `you-page.js`: two passes — **quick** (1 sent + 1 inbox page) paints at ~one read; **deep** (~100 sent) refines tiers in place with a "Refining from more of your history…" hint. `query = deep.data ? deep : quick`.
+- **Live-verified** (/you): ~8s painted (1 respond, 15 rows, refining hint) → ~26s refined (**2 respond**, 22 rows, hint gone) — vs a 22s blank spinner before. No console errors.
+- **Gate green:** static 808, a11y 138, design DT-1..6, smoke, bundle under budget.
+- Per-read gateway latency (~3.6s Composio) unchanged — this is the perceived-load fix for a cached secondary surface.
+- Next: long-horizon research verb proof; P4 hardening / own-repo extraction.
+
 ## Tick (loop #17 — P3): deepen "You" tiering with a paginated sent read (`52a251c`)
 
 - `readPaged()` in you-page.js follows the connector `nextPageToken`; sent deepened to ~100 (4 pages) + Primary inbox ~50 (2 pages) — each 25-row page reliable where a single large read 503s.
