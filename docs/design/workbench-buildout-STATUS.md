@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #24 — P3): Slack blockers as a first-class rail group (`163e1a7`)
+
+Triage now spans Gmail + Slack in the always-visible rail (not only the on-demand briefing).
+- `workbench-state.js`: `connectorSlackRows` maps SLACK_SEARCH_MESSAGES into rail rows (channel badge, "From @who in #channel", permalink href, 90-char truncation, empty rows dropped); new `slack` group after Needs-a-reply, recency preserved. Threaded via `buildWorkbenchStateRail({ slackBlockers })`; page passes `slackBlockers.rows`.
+- **Live-proven** (real Slack): before catch-up the group is hidden (empty); after catch-up the rail shows **SLACK BLOCKERS (8)** with real blocker messages from team channels, each linking to the Slack permalink, and it persists. Design intact (1180px screenshot).
+- **Gate green:** static 822 (3 new tests), a11y 138, design DT-1..6, smoke, bundle under budget.
+- **DEFERRED (logged):** eager always-on Slack read (rail shows Slack on cold load, no catch-up) was built + reverted — it shifts the catch-up briefing's in-flight read timing (test #118 asserts the "Reading Slack…" banner mid-read). Needs decoupling the rail read from the briefing summarize flow + a test redesign; not a one-line gate fix.
+- Next: decouple eager Slack read (own queryKey, independent of briefing) OR GitHub/Notion into the rail; own-repo extraction on your sign-off; research blocked on web-search credential.
+
 ## Tick (loop #23 — P3 validation): gauntlet now tests the REAL bulk classifier (`0980aa7`)
 
 The per-tick validation mandate, run after 3 ticks of triage changes — and tightened so it proves the ACTUAL surfaced logic.
