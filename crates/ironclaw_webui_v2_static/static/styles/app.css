@@ -26,6 +26,17 @@
   font-display: swap;
 }
 
+/* Newsreader (Production Type, OFL) — self-hosted variable serif (latin, wght
+   200–800). Display/editorial headings only (v13/v12 fidelity), applied via the
+   Workbench --wb-font-display token; body text stays Geist sans. */
+@font-face {
+  font-family: "Newsreader";
+  src: url('../fonts/newsreader-variable.woff2') format('woff2-variations');
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* ── Light theme ─────────────────────────────────────────────────── */
 :root {
   color-scheme: light;
