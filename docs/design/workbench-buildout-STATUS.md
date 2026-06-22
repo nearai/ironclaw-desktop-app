@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #13 — P3): behaviour-profile core for the "You" surface (`efbd324`)
+
+The "You" surface's validated foundation (UI next), pure + no I/O.
+- `lib/workbench-profile.js` `computeBehaviourProfile({sent,inbox})` → people (tier/replyRate/medianLatency), counts {vip,respond,fyi,ignore,bulk}, evidence-backed patterns. Same tier rubric as the standalone engine; VIP-first ranking. 4 unit tests.
+- **Live-validated** (gateway :17640): 17 senders, **11 newsletters → ignore** ("11 bulk senders auto-filed"), 6 real humans listed. Honest caveat: a small live sent-read (12) doesn't match reply-threads so humans show fyi; VIP/respond tiering needs a fuller sent window (standalone engine on 180 sent confirms john@salt.org/tjkovacs → respond). Logic correct; the You-UI tick reads more sent.
+- **Gate green:** static 807 (4 new tests), design DT-1..6, a11y 138, smoke. No UI change (module not yet bundled) → no design risk.
+- Next: render the "You" surface from this core (fuller sent read + tier badges + patterns, v13-styled); long-horizon research proof.
+
 ## Tick (loop #12 — P2): the "Draft" (Document) chat-bar verb (`f16a485`)
 
 Third P2 verb. Doc-product asks were MISLABELED "Research" (memo|brief were in the research matcher). Now they route to a dedicated Document scene → chat → the existing assistant work-product .docx export (chat/lib/work-product-export.js — real, 28 tests).
