@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #7 — pillar #3): needs-a-reply ranked by behaviour (`39f6530`)
+
+needs-a-reply surfaced human mail but in raw recency order; now ranks by Gmail IMPORTANT (a behaviour signal — how you engage a sender, clean since bulk is excluded).
+- `normalizeInboxMessages` stamps `important`; row carries it + "Important" badge; needs-reply group `sort: compareReplyRank` (IMPORTANT-first then recency — on the group, since the rail re-sorts groups). Inbox read 6→12 so more Primary threads surface. Regression test added.
+- **Live-verified** (:17641, real Gmail): order = [Important] "Re: Re-Intro" (Harshit), [Important] two "GDPR Coverage Enquiry / Regulatory Exposure" (anelda), then [Unread] "Capitol Hill Tax Fly-In" (Jonathan). GDPR/re-intro float above the fly-in invite; gemini-notes suppressed, newsletters gone.
+- **Gate green:** static 791 (new ranking test), design DT-1..6, a11y 138, smoke. Frontend-only.
+- Next: the "You" surface (expose/edit the learned model), then P2 chat-bar verbs (automate/schedule, research, DOCX).
+
 ## Tick (loop #6 — pillar #3): needs-a-reply reads the Primary tab (`ad8442b`)
 
 needs-a-reply was empty/flooded (the `in:inbox` read returns newsletters first → after suppression nothing human surfaced). Now it reads Gmail's Primary tab.
