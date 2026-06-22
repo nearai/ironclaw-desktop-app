@@ -5,6 +5,13 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (P1 loop): v13 fidelity — accent teal → signal blue (`d70b990`)
+
+First autonomous-loop tick toward the goal. Killed the teal/Geist accent divergence on the live standalone Workbench by retargeting BOTH token systems to v13 blue: global `--v2-accent*` (app.css, light+dark → #1c63d6/#5b9bf2) and the Workbench-scoped `--wb-accent*` + `--wb-rail-accent` (pages/workbench/styles/tokens.js, light+dark). Ask button, wb13 dots, active-nav now blue.
+- **Live-verified** (standalone :17641 /workbench, real auth + Gmail/Calendar data): Ask `#5b9bf2`, dots blue, **0 teal backgrounds remain**, no console errors, layout not degraded.
+- **Gate green:** test:static 789/789 (incl. WCAG AA contrast light+dark), design DT-1..6, smoke, a11y. Geist untouched (design contract intact). Gotcha logged: `prepare:webui-static` rebuilds `main.bundle.js` (committed artifact) — a hash-only URL change does NOT reload it; needs a real reload to verify.
+- Next P1 ticks: Newsreader serif for display (needs font asset), logo/avatar brand gradient (still teal-green), then behaviour-ranked Home + "You" surface wired to the live profile engine.
+
 ## Tick (2026-06-21 continuation): v13 design landed green + fresh 14/14 proof + #9 scoped
 
 Two substantial items + the user's #1 "does it actually work" proof, on `workbench-overnight-20260620`.
