@@ -1,52 +1,49 @@
 import { html } from '../../../lib/html.js';
-import { buildWeekColumns } from '../lib/workbench-connectors.js';
+import { buildWeekColumns, weekTimeWindow, layoutDayColumn } from '../lib/workbench-connectors.js';
 
-// Scoped styles for the week grid. Uses the app-wide --v2-* tokens (blue #1c63d6
-// accent, dark surfaces) + Newsreader for the day number, so it stays faithful to
-// the v13 shell. On narrow screens the 7 columns become a horizontal snap-scroll
-// so it still works at 375px.
+// Pixels per hour for the time ruler; the column height is hours × this.
+const HOUR_PX = 44;
+
+// Scoped styles for the time-ruler week grid. Uses the app-wide --v2-* tokens
+// (blue #1c63d6 accent, dark surfaces) + Newsreader for the day number, so it
+// stays faithful to the v13 shell. The whole grid is one horizontally-scrollable
+// block with a min-width, so it degrades to a swipeable week at 375px.
 const CALENDAR_STYLE = `
-.wb13-cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
-.wb13-cal-col { display: flex; flex-direction: column; border: 1px solid var(--v2-panel-border); border-radius: 12px; background: var(--v2-surface, transparent); min-height: 200px; overflow: hidden; }
-.wb13-cal-col.is-weekend { background: color-mix(in srgb, var(--v2-panel-border) 18%, transparent); }
-.wb13-cal-col.is-today { border-color: color-mix(in srgb, var(--v2-accent) 60%, var(--v2-panel-border)); box-shadow: inset 0 2px 0 0 var(--v2-accent); }
-.wb13-cal-colhead { display: flex; align-items: baseline; gap: 6px; padding: 9px 10px; border-bottom: 1px solid var(--v2-panel-border); }
-.wb13-cal-colhead .wd { font: 600 11px/1 var(--v2-font, inherit); letter-spacing: 0.05em; text-transform: uppercase; color: var(--v2-text-muted); }
-.wb13-cal-colhead .dn { font-family: "Newsreader", Georgia, serif; font-size: 19px; line-height: 1; color: var(--v2-text-strong); }
-.wb13-cal-col.is-today .wb13-cal-colhead .wd, .wb13-cal-col.is-today .wb13-cal-colhead .dn { color: var(--v2-accent-text); }
-.wb13-cal-stack { display: flex; flex-direction: column; gap: 5px; padding: 7px; flex: 1; }
-.wb13-cal-chip { font-size: 11.5px; line-height: 1.25; color: var(--v2-text); background: color-mix(in srgb, var(--v2-text-muted) 14%, transparent); border-radius: 6px; padding: 4px 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wb13-cal-event { display: block; text-decoration: none; border-left: 3px solid var(--v2-accent); background: color-mix(in srgb, var(--v2-accent) 9%, transparent); border-radius: 0 7px 7px 0; padding: 5px 8px; color: inherit; }
-.wb13-cal-event:hover { background: color-mix(in srgb, var(--v2-accent) 18%, transparent); }
-.wb13-cal-event .t { font: 600 11px/1.2 var(--v2-font, inherit); color: var(--v2-accent-text); }
-.wb13-cal-event .ti { font-size: 12.5px; line-height: 1.3; color: var(--v2-text-strong); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.wb13-cal-none { color: var(--v2-text-faint); font-size: 12px; padding: 2px; }
-@media (max-width: 900px) {
-  .wb13-cal-week { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 72%; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; padding-bottom: 6px; }
-  .wb13-cal-col { scroll-snap-align: start; }
-}
+.wb13-tcal { margin-top: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--v2-panel-border); border-radius: 14px; }
+.wb13-tcal-inner { min-width: 720px; }
+.wb13-tcal-row { display: grid; grid-template-columns: 52px repeat(7, minmax(0, 1fr)); }
+.wb13-tcal-head .wb13-tcal-cell { padding: 9px 8px; border-bottom: 1px solid var(--v2-panel-border); display: flex; align-items: baseline; gap: 6px; }
+.wb13-tcal-head .wb13-tcal-cell.is-today { background: color-mix(in srgb, var(--v2-accent) 12%, transparent); }
+.wb13-tcal-head .wd { font: 600 11px/1 var(--v2-font, inherit); letter-spacing: 0.05em; text-transform: uppercase; color: var(--v2-text-muted); }
+.wb13-tcal-head .dn { font-family: "Newsreader", Georgia, serif; font-size: 18px; line-height: 1; color: var(--v2-text-strong); }
+.wb13-tcal-head .is-today .wd, .wb13-tcal-head .is-today .dn { color: var(--v2-accent-text); }
+.wb13-tcal-axiscell { border-bottom: 1px solid var(--v2-panel-border); }
+.wb13-tcal-allday .wb13-tcal-cell { padding: 5px 6px; border-bottom: 1px solid var(--v2-panel-border); display: flex; flex-direction: column; gap: 3px; min-height: 20px; }
+.wb13-tcal-allday .axislabel { font: 600 9px/1.3 var(--v2-font, inherit); letter-spacing: 0.04em; text-transform: uppercase; color: var(--v2-text-faint); padding: 6px 4px; text-align: right; border-bottom: 1px solid var(--v2-panel-border); }
+.wb13-tcal-chip { font-size: 11px; line-height: 1.2; color: var(--v2-text); background: color-mix(in srgb, var(--v2-text-muted) 16%, transparent); border-radius: 5px; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb13-tcal-axis { border-right: 1px solid var(--v2-panel-border); }
+.wb13-tcal-hr { font: 500 10px/1 var(--v2-font, inherit); color: var(--v2-text-faint); text-align: right; padding: 0 6px; box-sizing: border-box; transform: translateY(-5px); }
+.wb13-tcal-col { position: relative; border-right: 1px solid var(--v2-panel-border); background-image: repeating-linear-gradient(to bottom, color-mix(in srgb, var(--v2-panel-border) 55%, transparent) 0, color-mix(in srgb, var(--v2-panel-border) 55%, transparent) 1px, transparent 1px, transparent ${HOUR_PX}px); }
+.wb13-tcal-col:last-child { border-right: 0; }
+.wb13-tcal-col.is-weekend { background-color: color-mix(in srgb, var(--v2-panel-border) 14%, transparent); }
+.wb13-tcal-ev { position: absolute; box-sizing: border-box; border-radius: 6px; border-left: 3px solid var(--v2-accent); background: color-mix(in srgb, var(--v2-accent) 16%, var(--v2-surface, #0b1220)); padding: 2px 5px; overflow: hidden; text-decoration: none; color: inherit; }
+.wb13-tcal-ev:hover { background: color-mix(in srgb, var(--v2-accent) 26%, var(--v2-surface, #0b1220)); z-index: 5; }
+.wb13-tcal-ev .t { font: 600 10px/1.2 var(--v2-font, inherit); color: var(--v2-accent-text); }
+.wb13-tcal-ev .ti { font-size: 11.5px; line-height: 1.25; color: var(--v2-text-strong); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wb13-tcal-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--v2-accent); z-index: 6; }
+.wb13-tcal-now::before { content: ''; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--v2-accent); }
 `;
 
-function EventBlock({ ev }) {
-  const inner = html`
-    <div className="t">${ev.timeLabel}</div>
-    <div className="ti">${ev.title || '(untitled event)'}</div>
-  `;
-  return ev.link
-    ? html`<a
-        className="wb13-cal-event"
-        href=${ev.link}
-        target="_blank"
-        rel="noreferrer noopener"
-        title=${ev.title || ''}
-        >${inner}</a
-      >`
-    : html`<div className="wb13-cal-event" title=${ev.title || ''}>${inner}</div>`;
+function nowMinutesOfDay() {
+  const d = new Date();
+  return d.getHours() * 60 + d.getMinutes();
 }
 
-// The Calendar (week grid) view — your live Google Calendar laid out as a rolling
-// 7-day week, today first. Read-only; events come from the same connector read
-// that feeds the rail's "Upcoming" group. Today-onward (past days are never shown).
+// The Calendar (time-ruler week) view — your live Google Calendar as a real week
+// grid: a left hour axis, 7 day columns with proportionally-tall event blocks,
+// overlaps split into side-by-side lanes, all-day events in a band on top, and a
+// "now" line on today. Read-only; today-onward. Events come from the same connector
+// read that feeds the rail's "Upcoming" group.
 export function CalendarView({
   events = [],
   calendarReady = false,
@@ -54,7 +51,17 @@ export function CalendarView({
   onConnect
 }) {
   const columns = buildWeekColumns(events);
+  const win = weekTimeWindow(columns);
+  const span = win.endMin - win.startMin || 1;
+  const gridHeight = (span / 60) * HOUR_PX;
+  const hours = [];
+  for (let m = win.startMin; m <= win.endMin; m += 60) hours.push(m / 60);
+  const hourLabel = (h) => `${((h + 11) % 12) + 1}${h < 12 || h === 24 ? 'a' : 'p'}`;
+  const hasAllDay = columns.some((c) => c.allDay.length);
   const hasEvents = columns.some((c) => c.allDay.length || c.timed.length);
+  const nowMin = nowMinutesOfDay();
+  const nowTopPct =
+    nowMin >= win.startMin && nowMin <= win.endMin ? ((nowMin - win.startMin) / span) * 100 : null;
 
   let body;
   if (!calendarReady) {
@@ -76,35 +83,92 @@ export function CalendarView({
     </section>`;
   } else {
     body = html`
-      <div className="wb13-cal-week" role="list" aria-label="This week">
-        ${columns.map(
-          (col) => html`
-            <div
-              key=${col.dateKey}
-              role="listitem"
-              className=${['wb13-cal-col', col.isToday && 'is-today', col.isWeekend && 'is-weekend']
-                .filter(Boolean)
-                .join(' ')}
-            >
-              <div className="wb13-cal-colhead">
-                <span className="wd">${col.weekday}</span>
-                <span className="dn">${col.dayNum}</span>
-              </div>
-              <div className="wb13-cal-stack">
-                ${col.allDay.map(
-                  (ev) =>
-                    html`<div key=${ev.id} className="wb13-cal-chip" title=${ev.title || ''}>
-                      ${ev.title || '(untitled event)'}
+      <div className="wb13-tcal">
+        <div className="wb13-tcal-inner">
+          <div className="wb13-tcal-row wb13-tcal-head">
+            <div className="wb13-tcal-axiscell"></div>
+            ${columns.map(
+              (col) =>
+                html`<div
+                  key=${col.dateKey}
+                  className=${['wb13-tcal-cell', col.isToday && 'is-today']
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  <span className="wd">${col.weekday}</span
+                  ><span className="dn">${col.dayNum}</span>
+                </div>`
+            )}
+          </div>
+          ${hasAllDay
+            ? html`<div className="wb13-tcal-row wb13-tcal-allday">
+                <div className="axislabel">all-day</div>
+                ${columns.map(
+                  (col) =>
+                    html`<div key=${col.dateKey} className="wb13-tcal-cell">
+                      ${col.allDay.map(
+                        (ev) =>
+                          html`<div key=${ev.id} className="wb13-tcal-chip" title=${ev.title || ''}>
+                            ${ev.title || '(untitled event)'}
+                          </div>`
+                      )}
                     </div>`
                 )}
-                ${col.timed.map((ev) => html`<${EventBlock} key=${ev.id} ev=${ev} />`)}
-                ${!col.allDay.length && !col.timed.length
-                  ? html`<div className="wb13-cal-none">—</div>`
-                  : null}
-              </div>
+              </div>`
+            : null}
+          <div className="wb13-tcal-row" style=${{ height: `${gridHeight}px` }}>
+            <div className="wb13-tcal-axis">
+              ${hours.map(
+                (h, i) =>
+                  html`<div key=${h} className="wb13-tcal-hr" style=${{ height: `${HOUR_PX}px` }}>
+                    ${i === 0 ? '' : hourLabel(h % 24)}
+                  </div>`
+              )}
             </div>
-          `
-        )}
+            ${columns.map((col) => {
+              const laid = layoutDayColumn(col.timed, win.startMin, win.endMin);
+              return html`<div
+                key=${col.dateKey}
+                className=${['wb13-tcal-col', col.isWeekend && 'is-weekend']
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                ${col.isToday && nowTopPct != null
+                  ? html`<div className="wb13-tcal-now" style=${{ top: `${nowTopPct}%` }}></div>`
+                  : null}
+                ${laid.map((ev) => {
+                  const style = {
+                    top: `${ev.topPct}%`,
+                    height: `${ev.heightPct}%`,
+                    left: `calc(${ev.leftPct}% + 2px)`,
+                    width: `calc(${ev.widthPct}% - 4px)`
+                  };
+                  const inner = html`<div className="t">${ev.timeLabel}</div>
+                    <div className="ti">${ev.title || '(untitled event)'}</div>`;
+                  return ev.link
+                    ? html`<a
+                        key=${ev.id}
+                        className="wb13-tcal-ev"
+                        style=${style}
+                        href=${ev.link}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        title=${ev.title || ''}
+                        >${inner}</a
+                      >`
+                    : html`<div
+                        key=${ev.id}
+                        className="wb13-tcal-ev"
+                        style=${style}
+                        title=${ev.title || ''}
+                      >
+                        ${inner}
+                      </div>`;
+                })}
+              </div>`;
+            })}
+          </div>
+        </div>
       </div>
       ${!hasEvents
         ? html`<div className="wb13-inspector-note">Nothing scheduled in the week ahead.</div>`

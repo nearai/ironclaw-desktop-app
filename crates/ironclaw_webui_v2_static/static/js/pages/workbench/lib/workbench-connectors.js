@@ -470,6 +470,12 @@ function readEventWhen(event) {
   }
 }
 
+function readEventEnd(event) {
+  const end = event?.end;
+  if (typeof end === 'string') return end.trim();
+  return asString(end?.dateTime) || asString(end?.date) || asString(event?.endTime) || '';
+}
+
 function readEventLink(event) {
   const link = asString(event?.htmlLink) || asString(event?.hangoutLink) || asString(event?.link);
   return /^https?:\/\//i.test(link) ? link : '';
@@ -498,6 +504,7 @@ export function normalizeCalendarEvents(result, { limit = 6 } = {}) {
       title: readEventTitle(event),
       when: readEventWhen(event),
       start: readEventStart(event),
+      end: readEventEnd(event),
       location: asString(event.location)
     };
     if (link) row.link = link;
@@ -570,10 +577,98 @@ export function buildWeekColumns(events, { now = Date.now(), days = 7 } = {}) {
     const timeLabel = (sep >= 0 ? when.slice(sep + 1) : '').trim();
     const isAllDay = !timeLabel || /all\s*day/i.test(timeLabel);
     const item = { ...ev, ms, timeLabel: isAllDay ? 'All day' : timeLabel, allDay: isAllDay };
+    if (!isAllDay) {
+      // Minutes-of-day for the time-grid layout. End defaults to +60m; a same-day
+      // end uses its clock time; an end that rolls past midnight clamps to 1440.
+      const startMin = minutesOfDay(ms);
+      const endMs = toEpochMs(ev.end);
+      let endMin = startMin + 60;
+      if (endMs && endMs > ms) endMin = dayKey(endMs) === dayKey(ms) ? minutesOfDay(endMs) : 1440;
+      if (endMin <= startMin) endMin = Math.min(1440, startMin + 30);
+      item.startMin = startMin;
+      item.endMin = endMin;
+    }
     (isAllDay ? col.allDay : col.timed).push(item);
   }
   for (const col of columns) col.timed.sort((a, b) => a.ms - b.ms);
   return columns;
+}
+
+const minutesOfDay = (ms) => {
+  const d = new Date(ms);
+  return d.getHours() * 60 + d.getMinutes();
+};
+
+// The visible vertical window for the time grid: the hour before the earliest
+// event to the hour after the latest, snapped to whole hours and clamped to the
+// day, with a sensible default (08:00–19:00) when there are no timed events. Pure.
+export function weekTimeWindow(columns, { defaultStart = 480, defaultEnd = 1140 } = {}) {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const col of Array.isArray(columns) ? columns : []) {
+    for (const ev of col?.timed || []) {
+      if (Number.isFinite(ev.startMin)) min = Math.min(min, ev.startMin);
+      if (Number.isFinite(ev.endMin)) max = Math.max(max, ev.endMin);
+    }
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
+    return { startMin: defaultStart, endMin: defaultEnd };
+  }
+  let start = Math.max(0, Math.floor((min - 30) / 60) * 60);
+  let end = Math.min(1440, Math.ceil((max + 30) / 60) * 60);
+  if (end - start < 240) end = Math.min(1440, start + 240);
+  return { startMin: start, endMin: end };
+}
+
+// Position timed events within one day column for the time grid. Events that
+// overlap in time are split into side-by-side lanes (greedy, per overlap cluster),
+// so a busy day reads as parallel columns rather than stacked blocks. Returns each
+// event with topPct/heightPct (vertical position in the window) + leftPct/widthPct
+// (its lane). Pure; `events` need startMin/endMin (from buildWeekColumns).
+export function layoutDayColumn(events, winStart, winEnd) {
+  const span = winEnd - winStart || 1;
+  const list = (Array.isArray(events) ? events : [])
+    .filter((e) => Number.isFinite(e.startMin) && Number.isFinite(e.endMin))
+    .slice()
+    .sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+  const out = [];
+  let i = 0;
+  while (i < list.length) {
+    // Extend a cluster while the next event starts before the cluster's max end.
+    let clusterEnd = list[i].endMin;
+    let j = i + 1;
+    while (j < list.length && list[j].startMin < clusterEnd) {
+      clusterEnd = Math.max(clusterEnd, list[j].endMin);
+      j++;
+    }
+    const cluster = list.slice(i, j);
+    const laneEnds = [];
+    for (const ev of cluster) {
+      let lane = laneEnds.findIndex((end) => end <= ev.startMin);
+      if (lane === -1) {
+        lane = laneEnds.length;
+        laneEnds.push(ev.endMin);
+      } else {
+        laneEnds[lane] = ev.endMin;
+      }
+      ev.__lane = lane;
+    }
+    const laneCount = laneEnds.length || 1;
+    for (const ev of cluster) {
+      const s = Math.min(Math.max(ev.startMin, winStart), winEnd);
+      const e = Math.min(Math.max(ev.endMin, s + 15), winEnd);
+      out.push({
+        ...ev,
+        topPct: ((s - winStart) / span) * 100,
+        heightPct: Math.max(((e - s) / span) * 100, 2.5),
+        leftPct: (ev.__lane / laneCount) * 100,
+        widthPct: (1 / laneCount) * 100,
+        laneCount
+      });
+    }
+    i = j;
+  }
+  return out;
 }
 
 export function unreadInboxCount(rows) {

@@ -4,6 +4,8 @@ import test from 'node:test';
 import {
   answeredThreadIndex,
   buildWeekColumns,
+  weekTimeWindow,
+  layoutDayColumn,
   cleanEmailBody,
   connectorFamilyReadiness,
   decodeBase64Part,
@@ -131,6 +133,45 @@ test('buildWeekColumns lays out a rolling week, places + sorts events, splits al
   );
   assert.deepEqual(buildWeekColumns([]).length, 7, 'empty input still yields the week scaffold');
   assert.deepEqual(buildWeekColumns(null).length, 7);
+});
+
+test('weekTimeWindow brackets events to whole hours; defaults when empty', () => {
+  const cols = [
+    {
+      timed: [
+        { startMin: 9 * 60 + 15, endMin: 10 * 60 },
+        { startMin: 16 * 60, endMin: 17 * 60 + 30 }
+      ]
+    }
+  ];
+  const w = weekTimeWindow(cols);
+  assert.equal(w.startMin, 480, 'earliest 9:15 brackets down to 08:00');
+  assert.equal(w.endMin, 1080, 'latest 17:30 brackets up to 18:00');
+  const d = weekTimeWindow([]);
+  assert.equal(d.startMin, 480);
+  assert.equal(d.endMin, 1140);
+});
+
+test('layoutDayColumn splits overlaps into lanes, full width when free', () => {
+  const laid = layoutDayColumn(
+    [
+      { id: 'a', startMin: 540, endMin: 600 }, // 9:00-10:00
+      { id: 'b', startMin: 570, endMin: 630 }, // 9:30-10:30 (overlaps a)
+      { id: 'c', startMin: 840, endMin: 900 } // 14:00-15:00 (free)
+    ],
+    540,
+    1020
+  );
+  const byId = Object.fromEntries(laid.map((e) => [e.id, e]));
+  assert.equal(byId.a.laneCount, 2);
+  assert.equal(byId.a.leftPct, 0);
+  assert.equal(byId.a.widthPct, 50);
+  assert.equal(byId.b.leftPct, 50, 'overlapping event gets the second lane');
+  assert.equal(byId.c.laneCount, 1);
+  assert.equal(byId.c.widthPct, 100, 'a free event spans the column');
+  assert.equal(byId.a.topPct, 0, 'window start sits at the top');
+  assert.equal(byId.c.topPct, ((840 - 540) / 480) * 100);
+  assert.deepEqual(layoutDayColumn([], 540, 1020), []);
 });
 
 test('buildWeekColumns is today-onward: past + out-of-window events are dropped', () => {

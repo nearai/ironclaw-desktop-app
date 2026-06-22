@@ -14,6 +14,14 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Calendar time-ruler week grid + lazy-load (`1dc89a1`)
+
+Iterated the calendar into a true gcal-style time-ruler week (hour axis, proportional event blocks, overlap lanes, all-day band, now-line) after the user pushed on presentation again.
+- New pure `weekTimeWindow` + `layoutDayColumn` (greedy per-cluster lanes); `readEventEnd`/`end` + per-event startMin/endMin. Component rewritten as the time grid; scoped `wb13-tcal-*` styles on --v2 tokens; horizontally scrollable for 375px.
+- **Lazy-loaded** (React.lazy + Suspense) to keep it out of cold-start — the static version was 0.9 KB OVER budget; lazy brought cold-start to 395.5/401. Lazy first blanked (React.lazy wants `default`; CalendarView is named) — fixed with `.then(m => ({default:m.CalendarView}))`.
+- **LIVE proof**: 7 columns, 20 event blocks placed proportionally, overlap lanes working, today highlighted; lazy chunk mounts on open; desktop + 390px screenshots, v13 fidelity intact.
+- Gate: static 859 (+2 layout tests), a11y 140, design DT-1..6, smoke, bundle PASS.
+
 ## Calendar week-grid view (user-requested) (`6ce5131`)
 
 User asked to see their calendar "as a gcal view from within here." Chose native week/grid over an embedded Google iframe (embed only shows private events in a Google-signed-in browser, blank in the packaged app, off-theme).

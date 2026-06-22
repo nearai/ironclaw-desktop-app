@@ -58,7 +58,12 @@ import { WorkbenchReadingPanel } from './components/workbench-reading-panel.js';
 import { WorkbenchWorkspaceFiles } from './components/workbench-files.js';
 import { LibraryView } from './components/workbench-library.js';
 import { MemoryView } from './components/workbench-memory.js';
-import { CalendarView } from './components/workbench-calendar.js';
+// Calendar is a secondary view — lazy-load it so its time-grid styles + layout
+// logic stay out of the cold-start bundle. React.lazy wants a default export, so
+// map the named CalendarView onto `.default`.
+const CalendarView = React.lazy(() =>
+  import('./components/workbench-calendar.js').then((m) => ({ default: m.CalendarView }))
+);
 import { WorkPacketPreview } from './components/workbench-packet.js';
 import { WorkbenchSceneWorkspace } from './components/workbench-scenes.js';
 import { WorkbenchDock, WorkbenchNav, WorkbenchTop } from './components/workbench-shell.js';
@@ -1085,12 +1090,22 @@ export function WorkbenchPage() {
         ${view === 'memory'
           ? html`<${MemoryView} />`
           : view === 'calendar'
-            ? html`<${CalendarView}
-                events=${connectorCalendar.events}
-                calendarReady=${connectedAccounts.calendarReady}
-                calendarError=${connectorCalendar.isError}
-                onConnect=${() => setShowSources(true)}
-              />`
+            ? html`<${React.Suspense}
+                fallback=${html`<main className="wb13-main">
+                  <div className="wb13-page">
+                    <div className="wb13-wrap">
+                      <div className="wb13-head"><h1>Your week</h1></div>
+                    </div>
+                  </div>
+                </main>`}
+              >
+                <${CalendarView}
+                  events=${connectorCalendar.events}
+                  calendarReady=${connectedAccounts.calendarReady}
+                  calendarError=${connectorCalendar.isError}
+                  onConnect=${() => setShowSources(true)}
+                />
+              </${React.Suspense}>`
             : view === 'library'
               ? html`<${LibraryView}
                   savedItems=${savedItems}
