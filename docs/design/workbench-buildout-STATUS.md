@@ -5,6 +5,16 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #27 — P3): Slack decoupled to eager/cold-load (`bb446fd`)
+
+Resolves the loop #24 deferral — **all six triage sources now load eagerly on cold load**.
+- `workbench-page.js`: `useConnectorSlackBlockers` `enabled` → just `slackReady` (was gated on `slackBlockersActive||briefingSlackActive`).
+- **The deferral was a false alarm:** the only broken assertion was test #118 line 2056 (no-read-before-catch-up laziness). The catch-up "Reading Slack" in-flight banner still works (500ms mock delay keeps the read in-flight at catch-up; in-flight test #119 passed unchanged). Updated #118 to assert the eager read is the read-only blocker search + nothing sent.
+- **Live-proven:** cold load shows **SLACK BLOCKERS (8)** with no catch-up. Rail on cold load: NEEDS A REPLY · SLACK BLOCKERS · GITHUB · UPCOMING · RECENT IN NOTION · RECENT FILES.
+- **Gate green:** static 827, a11y 138, design DT-1..6, smoke, bundle under budget. No visual change (same group as #24).
+- Cross-source triage pillar is now COMPLETE (Gmail behaviour-ranked + Slack + GitHub + Notion + Drive + Calendar, all eager, newsletters suppressed, corrections drive ranking).
+- Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
+
 ## Tick (loop #26 — P3): Notion + Drive as rail awareness groups (`b9fe20b`)
 
 Rail triage now spans **Gmail · Slack · GitHub · Notion · Drive · Calendar** — the full source set.
