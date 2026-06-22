@@ -117,15 +117,36 @@ function connectorSlackRows(slackBlockers = []) {
 // subscribed to, surfaced into the rail. Already eagerly read when GitHub is
 // connected (same queryKey as the briefing — React-Query dedupes), so this group
 // populates on cold load. Degrades to nothing when GitHub is not connected.
+// GitHub notification reasons ranked by how much they actually need YOU. A review
+// request or assignment is a real action item; a bare mention or subscribed-thread
+// update (incl. the bot/digest @-mentions that are GitHub's version of newsletters)
+// ranks lower so genuine work surfaces first. Objective "needs-you-ness", not a
+// per-user preference. See compareGithubRank.
+const GITHUB_REASON_RANK = {
+  review_requested: 5,
+  assign: 5,
+  security_alert: 5,
+  ci_activity: 4,
+  mention: 3,
+  team_mention: 3,
+  comment: 2,
+  author: 2,
+  state_change: 2,
+  invitation: 2,
+  manual: 1,
+  subscribed: 1
+};
+
 function connectorGithubRows(notifications = []) {
   const rows = Array.isArray(notifications) ? notifications : [];
   return rows
     .filter((row) => row && row.title)
     .map((row) => {
       const repo = String(row.repo || '').trim();
-      const reason = String(row.reason || '')
-        .replace(/_/g, ' ')
-        .trim();
+      const rawReason = String(row.reason || '')
+        .trim()
+        .toLowerCase();
+      const reason = rawReason.replace(/_/g, ' ');
       const kind = String(row.kind || '').trim();
       const title = String(row.title);
       return {
@@ -136,6 +157,7 @@ function connectorGithubRows(notifications = []) {
         title: title.length > 90 ? `${title.slice(0, 89)}…` : title,
         badge: kind || 'GitHub',
         detail: [reason, repo].filter(Boolean).join(' · ') || 'On GitHub',
+        githubRank: GITHUB_REASON_RANK[rawReason] != null ? GITHUB_REASON_RANK[rawReason] : 1,
         href: row.link || undefined,
         timestamp: ''
       };
@@ -724,6 +746,12 @@ function compareReplyRank(a, b) {
   return (b.replyRank || 0) - (a.replyRank || 0) || compareByTimestampDesc(a, b);
 }
 
+// GitHub: rank by reason (review requests / assignments / security first), then the
+// API's recency order within a band (github rows carry no timestamp -> stable).
+function compareGithubRank(a, b) {
+  return (b.githubRank || 0) - (a.githubRank || 0) || compareByTimestampDesc(a, b);
+}
+
 export const WORKBENCH_STATE_GROUPS = Object.freeze([
   {
     id: 'needs-reply',
@@ -765,6 +793,7 @@ export const WORKBENCH_STATE_GROUPS = Object.freeze([
   {
     id: 'github',
     label: 'GitHub',
+    sort: compareGithubRank,
     emptyTitle: 'No GitHub activity.',
     emptyDetail: 'Mentions, review requests, and CI failures will appear here.'
   },

@@ -795,6 +795,51 @@ test('workbench rail surfaces GitHub notifications as their own group', () => {
   assert.equal(github.rows[0].icon, 'spark', 'matches the briefing GitHub icon');
 });
 
+test('workbench GitHub group ranks by reason — review requests above digest/subscribed mentions', () => {
+  const rail = buildWorkbenchStateRail({
+    githubNotifications: [
+      // newsletter-as-GitHub: a bot digest @-mention (reason: mention) on a repo you don't own
+      {
+        id: 'spam',
+        title: '🦞 Daily ecosystem digest 2026-06-20',
+        kind: 'Issue',
+        reason: 'mention',
+        repo: 'thirdparty/agents-radar',
+        when: '11:00',
+        link: 'https://github.com/x/1'
+      },
+      // a passive subscribed-thread update
+      {
+        id: 'sub',
+        title: 'Thread you follow updated',
+        kind: 'Issue',
+        reason: 'subscribed',
+        repo: 'nearai/ironclaw',
+        when: '10:30',
+        link: 'https://github.com/x/2'
+      },
+      // a genuine action item, oldest — must still rank first
+      {
+        id: 'req',
+        title: 'Please review the scheduler fix',
+        kind: 'PullRequest',
+        reason: 'review_requested',
+        repo: 'nearai/ironclaw',
+        when: '08:00',
+        link: 'https://github.com/x/3'
+      }
+    ]
+  });
+  const github = rail.find((group) => group.id === 'github');
+  assert.deepEqual(
+    github.rows.map((row) => row.id),
+    ['github-req', 'github-spam', 'github-sub'],
+    'review_requested floats to the top; subscribed sinks; digest mention in the middle'
+  );
+  assert.equal(github.rows[0].githubRank, 5, 'review_requested ranks highest');
+  assert.equal(github.rows[2].githubRank, 1, 'subscribed ranks lowest');
+});
+
 test('workbench GitHub group degrades to an honest empty state with no activity', () => {
   const rail = buildWorkbenchStateRail({ githubNotifications: [] });
   const github = rail.find((group) => group.id === 'github');
