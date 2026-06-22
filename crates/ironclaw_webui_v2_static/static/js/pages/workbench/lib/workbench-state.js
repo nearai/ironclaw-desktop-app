@@ -83,6 +83,36 @@ function connectorReplyRows(inbox = {}, overrides = {}) {
   );
 }
 
+// Slack blocker-language mentions (SLACK_SEARCH_MESSAGES) surfaced into the
+// always-visible rail, so triage spans Gmail AND Slack without opening a briefing.
+// Already recency-sorted by the read; rows carry the permalink so a click opens
+// the message in Slack. Degrades to nothing when Slack is not connected.
+function connectorSlackRows(slackBlockers = []) {
+  const rows = Array.isArray(slackBlockers) ? slackBlockers : [];
+  return rows
+    .filter((row) => row && row.text)
+    .map((row) => {
+      const text = String(row.text);
+      const who = String(row.who || '').trim();
+      const channel = String(row.channel || '').trim();
+      return {
+        id: `slack-${row.id}`,
+        groupId: 'slack',
+        kind: 'slack',
+        icon: 'chat',
+        title: text.length > 90 ? `${text.slice(0, 89)}…` : text,
+        badge: channel ? `#${channel}` : 'Slack',
+        detail: who
+          ? `From @${who}${channel ? ` in #${channel}` : ''}`
+          : channel
+            ? `In #${channel}`
+            : 'In Slack',
+        href: row.permalink || undefined,
+        timestamp: ''
+      };
+    });
+}
+
 function connectorUpcomingRows(calendar = {}) {
   const events = Array.isArray(calendar.events) ? calendar.events : [];
   return events.map((event) => ({
@@ -570,6 +600,7 @@ export function buildWorkbenchStateRail({
   sourceReadiness = [],
   inbox = null,
   calendar = null,
+  slackBlockers = [],
   tierOverrides = {},
   limit = 3
 } = {}) {
@@ -578,6 +609,7 @@ export function buildWorkbenchStateRail({
     .filter(Boolean);
   const rows = [
     ...connectorReplyRows(inbox || {}, tierOverrides),
+    ...connectorSlackRows(slackBlockers),
     ...sourceRows(sourceReadiness),
     ...workbenchFeedRows(feedItems),
     ...approvalFeedRows(approvals),
@@ -620,6 +652,12 @@ export const WORKBENCH_STATE_GROUPS = Object.freeze([
     emptyTitle: 'Inbox is clear.',
     emptyDetail: 'Unread mail that needs you will appear here.',
     sort: compareReplyRank
+  },
+  {
+    id: 'slack',
+    label: 'Slack blockers',
+    emptyTitle: 'No Slack blockers.',
+    emptyDetail: 'Messages mentioning blockers in your channels will appear here.'
   },
   {
     id: 'needs-approval',

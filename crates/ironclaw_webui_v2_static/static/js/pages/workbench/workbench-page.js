@@ -582,6 +582,11 @@ export function WorkbenchPage() {
     enabled: connectedAccounts.calendarReady,
     maxResults: 6
   });
+  // Slack blocker search stays lazy (a catch-up / Slack intent activates it) so we
+  // don't change the briefing's in-flight read timing. Once it has run, its rows
+  // also feed the always-visible "Slack blockers" rail group (buildWorkbenchStateRail),
+  // so Slack triage persists in the rail after a catch-up. An always-on eager read
+  // is deferred — it would require decoupling from the briefing summarize flow.
   const slackBlockers = useConnectorSlackBlockers({
     enabled: (slackBlockersActive || briefingSlackActive) && connectedAccounts.slackReady,
     maxResults: 8
@@ -695,6 +700,7 @@ export function WorkbenchPage() {
         sourceReadiness,
         inbox: { messages: connectorInbox.messages },
         calendar: { events: connectorCalendar.events },
+        slackBlockers: slackBlockers.rows,
         tierOverrides,
         limit: 4
       }),
@@ -705,6 +711,7 @@ export function WorkbenchPage() {
       workbenchFeedQuery.data,
       connectorCalendar.events,
       connectorInbox.messages,
+      slackBlockers.rows,
       outletThreadsState?.threads,
       savedItems,
       sourceReadiness,

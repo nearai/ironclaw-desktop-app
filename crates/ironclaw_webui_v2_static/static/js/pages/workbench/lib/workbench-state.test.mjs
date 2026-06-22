@@ -693,3 +693,67 @@ test('tier corrections match the sender email case-insensitively', () => {
   );
   assert.equal(reply.rows[0].replyRank, 2, 'respond outranks IMPORTANT (1)');
 });
+
+test('workbench rail surfaces Slack blockers as their own group, recency-preserving', () => {
+  const rail = buildWorkbenchStateRail({
+    slackBlockers: [
+      {
+        id: 't1',
+        who: 'cameron',
+        channel: 'gtm',
+        when: '10:00',
+        text: 'Launch copy is blocked on pricing approval',
+        permalink: 'https://near-foundation.slack.com/archives/C1/p1'
+      },
+      {
+        id: 't2',
+        who: 'joe',
+        channel: 'bug-bash',
+        when: '09:00',
+        text: 'QA is stuck waiting on the staging deploy',
+        permalink: 'https://near-foundation.slack.com/archives/C2/p2'
+      }
+    ]
+  });
+  const slack = rail.find((group) => group.id === 'slack');
+  assert.ok(slack, 'slack group present');
+  assert.equal(slack.total, 2);
+  assert.deepEqual(
+    slack.rows.map((row) => row.id),
+    ['slack-t1', 'slack-t2'],
+    'API recency order preserved'
+  );
+  assert.equal(slack.rows[0].title, 'Launch copy is blocked on pricing approval');
+  assert.equal(slack.rows[0].badge, '#gtm', 'channel becomes the badge');
+  assert.equal(slack.rows[0].detail, 'From @cameron in #gtm');
+  assert.equal(
+    slack.rows[0].href,
+    'https://near-foundation.slack.com/archives/C1/p1',
+    'permalink opens the message'
+  );
+});
+
+test('workbench Slack group degrades to an honest empty state with no blockers', () => {
+  const rail = buildWorkbenchStateRail({ slackBlockers: [] });
+  const slack = rail.find((group) => group.id === 'slack');
+  assert.ok(slack, 'group still present');
+  assert.equal(slack.total, 0);
+  assert.deepEqual(slack.rows, []);
+  assert.equal(slack.emptyTitle, 'No Slack blockers.');
+});
+
+test('workbench Slack rows truncate long messages and never fabricate a row', () => {
+  const long = 'x'.repeat(200);
+  const rail = buildWorkbenchStateRail({
+    slackBlockers: [
+      { id: 'a', who: '', channel: '', when: '', text: long, permalink: '' },
+      { id: 'b', who: 'kai', channel: 'eng', when: '', text: '', permalink: '' } // empty text -> dropped
+    ]
+  });
+  const slack = rail.find((group) => group.id === 'slack');
+  assert.equal(slack.total, 1, 'empty-text row dropped');
+  assert.ok(slack.rows[0].title.endsWith('…'), 'long text truncated');
+  assert.equal(slack.rows[0].title.length, 90, 'truncated to 90 chars incl. ellipsis');
+  assert.equal(slack.rows[0].detail, 'In Slack', 'no sender/channel -> generic detail');
+  assert.equal(slack.rows[0].href, undefined, 'no permalink -> no href');
+});
