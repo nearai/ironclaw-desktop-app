@@ -62,3 +62,25 @@ test('workbench command action label follows inferred work type', () => {
   assert.equal(commandActionLabel('Grow a channel for our audience.'), 'Plan');
   assert.equal(commandActionLabel('Help me think through this weird thing.'), 'Ask');
 });
+
+test('explicit scheduling asks infer the Schedule scene with an honest runs-while-open boundary', () => {
+  for (const ask of [
+    'Every weekday at 9am summarize my inbox',
+    'Schedule this brief daily',
+    'Remind me each morning to review approvals',
+    'Automate a daily digest'
+  ]) {
+    assert.equal(commandActionLabel(ask), 'Schedule', `"${ask}" → Schedule`);
+    assert.equal(inferWorkbenchScene(ask).id, 'schedule', `"${ask}" → schedule scene`);
+  }
+  // Honest framing: a native recurring job that runs while the app is open + gated delivery.
+  assert.match(inferWorkbenchScene('every morning brief me').detail, /runs while the app is open/i);
+  const rows = actionRows('schedule');
+  assert.ok(
+    rows.some((row) => /recurring/i.test(row[0]) || /scheduler/i.test(row[1])),
+    'schedule scene stages a recurring job'
+  );
+  assert.ok(rows.some((row) => row[2] === 'Approval'), 'each run stays gated');
+  // Monitor terms still map to Monitor, not Schedule.
+  assert.equal(inferWorkbenchScene('watch competitor pricing weekly').id, 'monitor');
+});

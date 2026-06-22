@@ -60,6 +60,36 @@ const WORKBENCH_SCENES = [
     outputHint: 'source changes, private briefs, and delivery approvals'
   },
   {
+    id: 'schedule',
+    // Explicit scheduling/automation verbs. Ordered AFTER monitor so an
+    // observation ask with a cadence ("watch competitor … every Friday") stays
+    // Monitor; pure scheduling ("schedule this daily", "every weekday at 9am")
+    // lands here.
+    matcher:
+      /\b(every (morning|day|night|hour|monday|tuesday|wednesday|thursday|friday|saturday|sunday)|each (morning|day|week|month)|weekdays?|daily|automate|schedule (this|that|it|a|the|my)|set up a schedule|on a schedule|remind me|cron)\b/,
+    scene: {
+      id: 'schedule',
+      label: 'Schedule',
+      title: 'Automation staged',
+      detail:
+        'IronClaw will set this up as a recurring job that runs while the app is open and asks before anything leaves.'
+    },
+    actionRows: [
+      ['Create a recurring job', 'Stage the cadence as a native scheduled trigger.', 'Private'],
+      [
+        'Run while IronClaw is open',
+        'The scheduler fires on cadence on your Mac — nothing runs in the cloud.',
+        'Draft'
+      ],
+      [
+        'Ask before delivery',
+        'Each run holds sends, posts, and changes for your approval.',
+        'Approval'
+      ]
+    ],
+    outputHint: 'a scheduled job, its cadence, and per-run approvals'
+  },
+  {
     id: 'investor',
     matcher: /\b(investor|board|update|runway|finance|stakeholder)\b/,
     scene: {
@@ -135,6 +165,8 @@ export function commandActionLabel(brief) {
   const text = String(brief || '').trim();
   if (!text) return 'Ask';
   switch (inferWorkbenchScene(text).id) {
+    case 'schedule':
+      return 'Schedule';
     case 'packet':
       return 'Review';
     case 'growth':
