@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #12 — P2): the "Draft" (Document) chat-bar verb (`f16a485`)
+
+Third P2 verb. Doc-product asks were MISLABELED "Research" (memo|brief were in the research matcher). Now they route to a dedicated Document scene → chat → the existing assistant work-product .docx export (chat/lib/work-product-export.js — real, 28 tests).
+- New `document` scene (before research; memo|brief removed from research) matches "draft a memo"/"one-pager"/"prepare a brief"/"compose a letter"/".docx/work product". Honest framing: a formatted doc (headings + Sources) you edit + export to .docx; sharing gated. `commandActionLabel` → "Draft".
+- **Live-verified** (:17641): "Draft a memo on the Q3 roadmap" → **Draft**; "Write a one-pager…" → **Draft**; precedence preserved — contract → Review, research → Research, scheduling → Schedule. No console errors.
+- **Gate green:** static 803 (new document-scene test), design DT-1..6, a11y 138, smoke.
+- GOTCHA (recurring): `prettier --check` (lint-staged) rejects new .js until `npx prettier --write` is run — do that BEFORE committing, then re-prepare. And hash-only preview URL changes don't reload the bundle — use ?cb= to verify.
+- P2 verbs now: Ask / **Draft (Document → .docx)** / Schedule / Research / Review. Next: long-horizon research proof; the "You" surface.
+
 ## Tick (loop #11 — P2): markdown → real .docx + full validation re-run (`137fdaf`)
 
 Generalizes DOCX work product beyond the briefing: ANY drafted markdown → a real editable Word doc (reusable core for the document verb).
