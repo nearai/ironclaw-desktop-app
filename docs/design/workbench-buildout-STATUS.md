@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #22 — P3): tier corrections drive the live triage (`56f79b4`)
+
+A "You" correction now changes the day — overrides feed BOTH triage paths (rail + briefing).
+- `connectorReplyRows`/`buildBriefing` take `tierOverrides`: VIP/Respond outrank Gmail IMPORTANT (replyRank 3/2/1/0); Ignore drops the sender (and leaves `counts.replies`); badge reflects the tier. `workbench-page` re-reads on mount and threads them in.
+- **Live-proven** (/workbench, real Gmail): correct jonathan@digitalchamber.org → VIP → "TDC Capitol Hill…" jumps to **row #1, badged VIP**, above 3 IMPORTANT threads. → Ignore → count **5→4**, row gone. Design intact (serif/blue/dark dock, 375 + 1280).
+- **Gate green:** static 819 (5 new tests), a11y 138, design DT-1..6, smoke, bundle under budget. Bulk suppression untouched (messageIsBulk + tests unchanged).
+- Next: own-repo extraction (the full "broken out" pillar); research still blocked on web-search credential.
+
 ## Tick (loop #21 — P4): gateway supervisor — standalone self-heals on sidecar exit (`718978f`)
 
 Root-caused loop #20's "gateway crashed twice": NOT a crash (no panic/OOM) — the sidecar is reaped with the launcher's process group when the session tears down (the nohup'd reboot survived).
