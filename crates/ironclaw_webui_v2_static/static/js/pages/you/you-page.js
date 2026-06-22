@@ -69,12 +69,13 @@ async function readPaged(query, { signal, pages = 1, perPage = 25 } = {}) {
   return rows;
 }
 
-async function readProfile({ signal }) {
+async function readProfile({ signal, sentPages = 4, inboxPages = 2 }) {
   // Sent is paged deeper (≈100) so VIP/respond tiers actually surface; the Primary
-  // inbox is paged lightly (≈50) for sender coverage.
+  // inbox is paged lightly (≈50) for sender coverage. The "quick" pass (1 page each)
+  // paints the surface fast (~one read); the "deep" pass refines it in the background.
   const [sentRows, inboxRows] = await Promise.all([
-    readPaged('in:sent', { signal, pages: 4, perPage: 25 }),
-    readPaged(PRIMARY_INBOX_QUERY, { signal, pages: 2, perPage: 25 })
+    readPaged('in:sent', { signal, pages: sentPages, perPage: 25 }),
+    readPaged(PRIMARY_INBOX_QUERY, { signal, pages: inboxPages, perPage: 25 })
   ]);
   return computeBehaviourProfile({
     sent: sentRows.map((row) => ({ threadId: row.threadId, timestamp: row.timestamp })),
@@ -114,14 +115,25 @@ function PersonRow({ person }) {
 }
 
 export function YouPage() {
-  const query = useQuery({
-    queryKey: ['workbench-you-profile'],
-    queryFn: readProfile,
+  // Two-phase load so the surface paints fast: a quick 1-page pass (~one read)
+  // renders immediately, then a deep pass (~100 sent) refines the tiers in place.
+  const quick = useQuery({
+    queryKey: ['workbench-you-profile', 'quick'],
+    queryFn: ({ signal }) => readProfile({ signal, sentPages: 1, inboxPages: 1 }),
     staleTime: 120_000,
     retry: 1,
     throwOnError: false
   });
+  const deep = useQuery({
+    queryKey: ['workbench-you-profile', 'deep'],
+    queryFn: ({ signal }) => readProfile({ signal, sentPages: 4, inboxPages: 2 }),
+    staleTime: 120_000,
+    retry: 1,
+    throwOnError: false
+  });
+  const query = deep.data ? deep : quick;
   const profile = query.data;
+  const refining = Boolean(quick.data) && deep.isLoading && !deep.data;
   const people = profile && Array.isArray(profile.people) ? profile.people : [];
   const counts = (profile && profile.counts) || {};
   const patterns = (profile && profile.patterns) || [];
@@ -140,6 +152,11 @@ export function YouPage() {
         </p>
       </header>
 
+      ${refining
+        ? html`<p className="wb13-you-meta" style=${{ margin: '0 0 12px' }}>
+            Refining from more of your history…
+          </p>`
+        : null}
       ${query.isLoading
         ? html`<p className="wb13-you-empty">Reading your recent mail…</p>`
         : query.isError || !profile
