@@ -134,3 +134,25 @@ export function learnedIgnoreSenders(dismissals, { minCount = 2 } = {}) {
   for (const [sender, n] of Object.entries(counts)) if (n >= minCount) learned.add(sender);
   return learned;
 }
+
+// Undo the learning for one sender: drop all of that sender's dismissals so they
+// surface again (and fall below the learned-ignore threshold). Returns the next map.
+export function clearSenderDismissals(sender) {
+  const target = String(sender || '')
+    .trim()
+    .toLowerCase();
+  const next = {};
+  for (const [key, value] of Object.entries(readDismissals())) {
+    if (
+      target &&
+      String((value && value.sender) || '')
+        .trim()
+        .toLowerCase() === target
+    ) {
+      continue; // drop this sender's dismissals
+    }
+    next[key] = value;
+  }
+  writeDismissals(next);
+  return next;
+}

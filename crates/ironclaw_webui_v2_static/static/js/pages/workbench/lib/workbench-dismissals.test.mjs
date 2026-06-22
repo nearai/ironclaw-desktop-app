@@ -3,11 +3,18 @@ import test from 'node:test';
 
 import {
   DISMISS_REASONS,
+  clearSenderDismissals,
   dismissalSignalsBySender,
   isDismissed,
   learnedIgnoreSenders,
   restoreRow
 } from './workbench-dismissals.js';
+
+test('clearSenderDismissals degrades safely without storage and never throws', () => {
+  assert.doesNotThrow(() => clearSenderDismissals('noisy@vendor.com'));
+  assert.deepEqual(clearSenderDismissals(''), {});
+  assert.deepEqual(clearSenderDismissals(null), {});
+});
 
 test('learnedIgnoreSenders auto-files a sender filed >=2x for sender-level reasons', () => {
   const dismissals = {

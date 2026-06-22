@@ -12,6 +12,12 @@ import {
   setTierOverride,
   TIER_OPTIONS
 } from '../workbench/lib/workbench-profile-overrides.js';
+import {
+  readDismissals,
+  learnedIgnoreSenders,
+  dismissalSignalsBySender,
+  clearSenderDismissals
+} from '../workbench/lib/workbench-dismissals.js';
 
 // The "You" surface — what IronClaw has learned about how you actually work,
 // from your own mail (who you reply to, how fast, who it auto-files). Everything
@@ -48,6 +54,8 @@ const YOU_STYLE = `
 .wb13-you-email { color: var(--v2-text-strong); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 .wb13-you-meta { color: var(--v2-text-muted); font-size: 12.5px; }
 .wb13-you-select { flex: none; margin-left: auto; font: 12px var(--v2-font, inherit); color: var(--v2-text-strong); background: var(--v2-input-bg, transparent); border: 1px solid var(--v2-panel-border); border-radius: 7px; padding: 5px 7px; cursor: pointer; }
+.wb13-you-restore { flex: none; margin-left: auto; font: 600 12px var(--v2-font, inherit); color: var(--v2-accent-text, var(--v2-text-strong)); background: transparent; border: 1px solid var(--v2-panel-border); border-radius: 7px; padding: 5px 9px; cursor: pointer; }
+.wb13-you-restore:hover { border-color: color-mix(in srgb, var(--v2-accent) 40%, var(--v2-panel-border)); background: var(--v2-surface-soft, transparent); }
 .wb13-you-empty { color: var(--v2-text-muted); font-size: 14px; padding: 12px 0; }
 .wb13-you-foot { display: flex; align-items: center; gap: 8px; margin-top: 24px; color: var(--v2-text-faint); font-size: 12.5px; }
 .wb13-you-foot svg { width: 15px; height: 15px; }
@@ -162,6 +170,19 @@ export function YouPage() {
     (email, tier) => setOverrides(setTierOverride(email, tier)),
     []
   );
+  // Senders the dismiss-to-learn loop has auto-filed (≥2 sender-level dismissals).
+  // Shown so the learning is transparent + reversible — "Surface again" un-files one.
+  const [dismissals, setDismissals] = React.useState(() => readDismissals());
+  const onSurfaceAgain = React.useCallback(
+    (email) => setDismissals(clearSenderDismissals(email)),
+    []
+  );
+  const learnedRows = React.useMemo(() => {
+    const signals = dismissalSignalsBySender(dismissals);
+    return [...learnedIgnoreSenders(dismissals)]
+      .map((email) => ({ email, count: signals[email]?.count || 0 }))
+      .sort((a, b) => b.count - a.count);
+  }, [dismissals]);
   const rawPeople = profile && Array.isArray(profile.people) ? profile.people : [];
   const people = applyTierOverrides(rawPeople, overrides);
   const counts = profile ? recountTiers(people) : {};
@@ -224,6 +245,33 @@ export function YouPage() {
                       No correspondents yet — they appear as you exchange mail.
                     </p>`}
               </section>
+
+              ${learnedRows.length
+                ? html`<section className="wb13-you-section" aria-label="Auto-filed senders">
+                    <h2>Auto-filed from your dismissals</h2>
+                    <p className="wb13-you-meta" style=${{ margin: '0 0 8px' }}>
+                      You filed these often enough that new mail from them is suppressed. Surface
+                      one again to undo.
+                    </p>
+                    ${learnedRows.map(
+                      (row) =>
+                        html`<div key=${row.email} className="wb13-you-row">
+                          <div className="wb13-you-rowmain">
+                            <span className="wb13-you-email">${row.email}</span>
+                            <span className="wb13-you-meta">filed ${row.count}×</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="wb13-you-restore"
+                            data-testid="workbench-you-surface-again"
+                            onClick=${() => onSurfaceAgain(row.email)}
+                          >
+                            Surface again
+                          </button>
+                        </div>`
+                    )}
+                  </section>`
+                : null}
 
               <div className="wb13-you-foot">
                 <${Icon} name="shield" />

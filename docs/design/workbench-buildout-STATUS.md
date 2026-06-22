@@ -14,6 +14,14 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## "You" surface shows + restores learned-filed senders + validation PASS (`c34d6d0`)
+
+Closes the visibility/control gap in the dismiss-to-learn loop (#32).
+- `clearSenderDismissals(sender)` (un-files a sender) + a gated "Auto-filed from your dismissals" section on the You page (each learned sender + "Surface again" → un-learns). Reuses verified `.wb13-you-row` + accent-token button; hidden when nothing's learned (default view unchanged).
+- **Validation:** profile engine re-run — V1 newsletter suppression **0 leaked PASS**, V2 2 items/0 bulk PASS. Foundation holds after the learning-loop + viewer changes.
+- Gate green: static 850 (1 new test), a11y 140, design DT-1..6, smoke, bundle. Live screenshot deferred (preview can't attach to the custom standalone since #33 — fidelity preserved by construction: gated section, reused components).
+- Triage is now observed → correctable → self-teaching → **visible + undoable**, end to end.
+
 ## Supervisor self-heal fix + document-verb live BLOCKED on #7 (`a4582be`)
 
 - **Fix (landed):** loop #21 supervisor respawned the gateway WITHOUT re-configuring Composio (the configure was one-time in the IIFE), so a self-healed gateway had zero connectors. Extracted `waitForGatewayReady`/`configureComposio`, run after every (re)spawn. Live-proven (alt ports): kill sidecar → respawn → **Composio reconfigured + 8 connectors back** (~4s). Gate: static 849, smoke; launcher not bundled.
