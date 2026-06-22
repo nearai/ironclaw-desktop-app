@@ -14,6 +14,12 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Attachments-on-replies BLOCKED (gateway) + home-restructure scoped (`d910a54`)
+
+- **Attachments on replies = gateway-gated.** Gateway forwards write `arguments` verbatim, so it's Composio's schema: GMAIL_CREATE_EMAIL_DRAFT `attachment` is a FileUploadable requiring an `s3key` (live probes: base64 → 400 "valid dictionary or FileUploadable"; `{name,mimetype,data}` → 400 "missing attachment.s3key"). Unblock = add a Composio files-upload step in the gateway (bytes → s3key) + a gated upload route the modal calls before the draft write. Spec in evidence.
+- **Home restructure (step 2) is holistic, not a quick cut.** The three cruft surfaces are each asserted by many static tests (sources-ready ×8, arrived ×9, upcoming ×6) — so the cut + briefing-relabel + ~18-test rewrite must land as ONE coherent pass. Queued as a focused tick (radar/this-week/best-times sections still #7-gated; radar foundation already shipped).
+- This tick: foundation re-validated (profile engine — V1 newsletter suppression 0 leaked PASS, V2 1/0 bulk PASS). No code change — declined to rush a regression-prone partial cut at tick-end.
+
 ## Pre-draft reply is opt-in (button), not automatic (`2228e12`)
 
 User: don't draft every time — give a button. Done: `openDraftReply` opens empty (no turn fires); a "Pre-draft reply" (✨) button in the modal generates on demand → fills the body (resets so you can re-draft); '' on failure. Token-guarded. Reverted the 2 draft tests to `sentMessages==[]` (opt-in → no turn on open).
