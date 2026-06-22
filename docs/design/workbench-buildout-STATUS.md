@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #3 — goal pillar #3): newsletters NEVER surface as "needs a reply" (`ba42ba2`)
+
+The live triage was surfacing The Information / Substack newsletters under "Needs a reply" (buildBriefing + the rail's connectorReplyRows took every unread message, no bulk filter). The single most goal-critical bug — fixed.
+- New exported `messageIsBulk()` in workbench-connectors.js (List-Unsubscribe / List-Id / Precedence:bulk|list / Gmail CATEGORY_* / automated local-part — the validated profile-engine signals). `normalizeInboxMessages` stamps `isBulk`; `connectorReplyRows` + `buildBriefing` suppress bulk from needs-a-reply. Newsletters still appear in "recent/arrived" context, never as needing a reply.
+- **Live-validated** (standalone :17641, real Gmail): every newsletter in the unread sample suppressed, **0 surfaced as needs-a-reply**; the group correctly disappears when all unread is bulk. Profile engine V2 confirms the inverse (real human threads john@salt.org, tjkovacs@fbi.gov DO surface).
+- **Gate green:** test:static 790 (new suppression regression test), design DT-1..6, a11y 138, smoke. Frontend-only — gateway connector route unchanged.
+- Next: wire the full behaviour ranking (tiers/latency) into the live triage ordering, and the "You" surface; real Newsreader woff2.
+
 ## Tick (P1 loop #2): serif display + brand/avatar → blue (`7d677c2`)
 
 Completes "zero teal" and adds the v13 editorial serif.
