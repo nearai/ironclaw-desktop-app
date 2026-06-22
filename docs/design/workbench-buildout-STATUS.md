@@ -14,6 +14,14 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Briefing-as-home greenlit — radar foundation + reply-engine probe (`937156e`)
+
+User reviewed the briefing-as-home mockup and greenlit it (Ask bar stays; per-card actions correct), and pointed me to memory/sessions for the identity/allowlist derivation.
+- **Derivation captured (how the skill runs):** CLO → legal domain (title_map); legal radar vocab (custody/securities/token-mechanics/…) verbatim from the skill config.yaml; scan WITHIN the user's channels (#x-intents,#t-agentmarket,#x-nearai-compliance,#kyc_status,#wallet_status); no-Hermes/no-OpenRouter (IronClaw gateway). Shipped as `lib/workbench-radar.js` (`resolveDomain`/`radarScopeForTitle`/`DOMAIN_TRIGGERS`/`normalizeChannelAllowlist`, +4 tests) — generic; user's title/channels supplied at runtime, not hardcoded.
+- **Reply-engine probe:** a short "draft a reply" turn completed live in ~17s — the #1 ask (replies ready) is buildable now; only the long read-everything radar turn is #7-gated.
+- **Build order:** (1) wire reply pre-fill into the cards (short turn), (2) restructure home to the briefing sections + cut connector-health/Arrived/Upcoming-list, (3) light up the radar once the read-everything turn is reliable.
+- Gate: static 864 (+4), a11y 140, smoke, design, bundle — green. Radar module pure + unimported (no bundle impact).
+
 ## Calendar Join-link affordance (`770e970`)
 
 Did the user's requested calendar follow-up ("ok please do that"): a join-link affordance on the time-ruler event blocks.
