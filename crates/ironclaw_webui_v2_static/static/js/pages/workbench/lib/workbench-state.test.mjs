@@ -324,37 +324,6 @@ test('workbench rail renders real unread inbox mail as a Needs a reply group', (
   assert.equal(needsReply.rows[0].detail, 'From Dana Lee');
 });
 
-test('workbench rail renders real calendar events as an Upcoming group, soonest first', () => {
-  const rail = buildWorkbenchStateRail({
-    calendar: {
-      events: [
-        {
-          id: 'e-late',
-          title: 'Strategy sync',
-          when: 'Mon, Jun 23 · 1:00 PM',
-          start: '2026-06-23T17:00:00.000Z',
-          location: ''
-        },
-        {
-          id: 'e-soon',
-          title: 'Legal Weekly',
-          when: 'Mon, Jun 22 · 10:00 AM',
-          start: '2026-06-22T14:00:00.000Z',
-          location: 'Zoom'
-        }
-      ]
-    }
-  });
-
-  const upcoming = rail.find((group) => group.id === 'upcoming');
-  assert.equal(upcoming.total, 2);
-  assert.deepEqual(
-    upcoming.rows.map((row) => row.title),
-    ['Legal Weekly', 'Strategy sync']
-  );
-  assert.equal(upcoming.rows[0].detail, 'Zoom');
-});
-
 test('workbench rail uses direct thread attention detail before browser-local fallback', () => {
   const rail = buildWorkbenchStateRail({
     threads: [

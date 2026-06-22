@@ -14,6 +14,13 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Home cruft cut — surface 1/3: Upcoming removed (`6f7ed36`)
+
+- The user named three cruft surfaces (connector-health, Arrived, Upcoming). A single big-bang cut of all three broke **13 a11y + 1 static** test at once — too much to land green safely. Revised plan: **one clean surface per tick** (each surface's tests are disjoint, so no double-churn). NO-REGRESSIONS over speed.
+- **This tick: Upcoming** ("it's a calendar" — the Calendar tab now owns the schedule). Removed the HomeView `<WorkbenchUpcoming>` card + the rail 'upcoming' group + dead code (connectorUpcomingRows, compareByTimestampAsc); deleted the 3 obsolete surface tests; the `no-calendar hides Upcoming` test stays green.
+- Full gate GREEN: static 869/0, a11y 138, design DT-1..6, smoke, bundle-size. Live: rail groups = [NEEDS A REPLY, SLACK BLOCKERS, GITHUB, RECENT IN NOTION, RECENT FILES], no Upcoming; Calendar tab present; v13 fidelity intact (screenshot). Evidence: docs/design/evidence/home-cut-upcoming-20260622.md.
+- **Next bounded surfaces:** Arrived (~9 tests) then connector-health/SourceReadinessStrip (~8 tests), each its own green commit; then relabel toward briefing ("Needs a decision" → "Needs you").
+
 ## Attachments-on-replies BLOCKED (gateway) + home-restructure scoped (`d910a54`)
 
 - **Attachments on replies = gateway-gated.** Gateway forwards write `arguments` verbatim, so it's Composio's schema: GMAIL_CREATE_EMAIL_DRAFT `attachment` is a FileUploadable requiring an `s3key` (live probes: base64 → 400 "valid dictionary or FileUploadable"; `{name,mimetype,data}` → 400 "missing attachment.s3key"). Unblock = add a Composio files-upload step in the gateway (bytes → s3key) + a gated upload route the modal calls before the draft write. Spec in evidence.

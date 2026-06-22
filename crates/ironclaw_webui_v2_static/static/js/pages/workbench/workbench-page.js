@@ -48,8 +48,7 @@ import {
   SourceReadinessStrip,
   WorkbenchArrived,
   WorkbenchColdStart,
-  WorkbenchDecisions,
-  WorkbenchUpcoming
+  WorkbenchDecisions
 } from './components/workbench-arrived.js';
 import { WorkbenchApprove } from './components/workbench-approve.js';
 import { WorkbenchBriefing } from './components/workbench-briefing.js';
@@ -231,11 +230,6 @@ function HomeView(props) {
             isLoading=${props.inboxLoading}
             isError=${props.inboxError}
             onOpenMessage=${props.onOpenMessage}
-          />
-          <${WorkbenchUpcoming}
-            calendarReady=${props.calendarReady}
-            events=${props.calendarEvents}
-            isError=${props.calendarError}
           />
           <${WorkbenchSceneWorkspace} work=${props.startedWork} />
           <${TriageSection}
@@ -638,8 +632,8 @@ export function WorkbenchPage() {
   // The reply-state read: recent sent mail, used only to suppress already-answered
   // threads from triage (selectTriageInbox's reply-state gate). Gated on Gmail.
   const connectorSent = useConnectorSent({ enabled: connectedAccounts.gmailReady });
-  // Read a fuller window (the Calendar agenda view groups these by day); the rail's
-  // "Upcoming" group caps its own display to stay tight (connectorUpcomingRows).
+  // Read a fuller window — the Calendar tab groups these by day. (Calendar is no
+  // longer duplicated on the home rail; the Calendar tab owns the schedule.)
   const connectorCalendar = useConnectorCalendar({
     enabled: connectedAccounts.calendarReady,
     maxResults: 25

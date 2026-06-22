@@ -2559,65 +2559,6 @@ test('static workbench: no unread mail hides the Needs a decision cards', async 
   await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
 });
 
-test('static workbench: Upcoming card renders real calendar events from Composio reads', async ({
-  page
-}) => {
-  const consoleIssues: string[] = [];
-  page.on('console', (message) => {
-    if (['error', 'warning'].includes(message.type())) {
-      consoleIssues.push(`${message.type()}: ${message.text()}`);
-    }
-  });
-  page.on('pageerror', (error) => {
-    consoleIssues.push(`pageerror: ${error.message}`);
-  });
-
-  await installWorkbenchMocks(page, {
-    connectorAccounts: [
-      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
-      { toolkit: 'googlecalendar', status: 'ACTIVE', user_id: 'pg-test' }
-    ],
-    connectorReads: {
-      gmail: { successful: true, data: { messages: [] } },
-      GOOGLECALENDAR_EVENTS_LIST: {
-        successful: true,
-        data: {
-          items: [
-            {
-              id: 'evt-ooo',
-              summary: '[ooo] USA & Abhi',
-              start: { date: '2026-06-22' },
-              end: { date: '2026-06-23' },
-              htmlLink: 'https://www.google.com/calendar/event?eid=ooo'
-            },
-            {
-              id: 'evt-legal',
-              summary: 'Legal Weekly',
-              start: { dateTime: '2026-06-22T10:00:00-04:00', timeZone: 'Europe/London' },
-              location: 'Zoom',
-              htmlLink: 'https://www.google.com/calendar/event?eid=legal'
-            }
-          ]
-        }
-      }
-    }
-  });
-  await page.goto('/v2/workbench?token=workbench-static-token');
-
-  const upcoming = page.getByTestId('workbench-upcoming');
-  await expect(upcoming).toBeVisible();
-  await expect(upcoming).toContainText('Upcoming');
-  await expect(upcoming).toContainText('[ooo] USA & Abhi');
-  await expect(upcoming).toContainText('Legal Weekly');
-  await expect(upcoming).toContainText('Zoom');
-
-  // The event row with an htmlLink renders as a real external link.
-  const oooLink = upcoming.getByRole('link', { name: /\[ooo\] USA & Abhi/ });
-  await expect(oooLink).toHaveAttribute('href', 'https://www.google.com/calendar/event?eid=ooo');
-
-  expect(consoleIssues).toEqual([]);
-});
-
 test('static workbench: no calendar account hides Upcoming with no console errors', async ({
   page
 }) => {
@@ -3061,46 +3002,6 @@ test('static workbench: email rows expose Gmail links and decision drafts stay i
   await expect(reply).toBeVisible();
   await reply.click();
   await expect(page.getByTestId('workbench-reading-panel')).toBeVisible();
-});
-
-test('static workbench: rail Upcoming items link out to the real calendar htmlLink', async ({
-  page
-}) => {
-  await installWorkbenchMocks(page, {
-    connectorAccounts: [
-      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
-      { toolkit: 'googlecalendar', status: 'ACTIVE', user_id: 'pg-test' }
-    ],
-    connectorReads: {
-      GMAIL_FETCH_EMAILS: { successful: true, data: { messages: [] } },
-      GOOGLECALENDAR_EVENTS_LIST: {
-        successful: true,
-        data: {
-          items: [
-            {
-              id: 'evt-legal',
-              summary: 'Legal Weekly',
-              start: { dateTime: '2026-06-22T10:00:00-04:00' },
-              location: 'Zoom',
-              htmlLink: 'https://www.google.com/calendar/event?eid=legal'
-            }
-          ]
-        }
-      }
-    }
-  });
-  await page.goto('/v2/workbench?token=workbench-static-token');
-
-  // The active-work rail is present; its Upcoming row carries the real htmlLink
-  // and opens in a new tab (no dead /v2/workbench route).
-  const activeWork = page.getByRole('complementary', { name: 'Active work' });
-  await expect(activeWork).toContainText('Legal Weekly');
-  const upcomingRail = activeWork.getByTestId('workbench-rail-upcoming').first();
-  await expect(upcomingRail).toHaveAttribute(
-    'href',
-    'https://www.google.com/calendar/event?eid=legal'
-  );
-  await expect(upcomingRail).toHaveAttribute('target', '_blank');
 });
 
 test('static workbench: a failed full-message read shows an honest panel error', async ({

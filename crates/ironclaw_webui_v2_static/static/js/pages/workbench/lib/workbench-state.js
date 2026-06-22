@@ -222,23 +222,6 @@ function connectorDriveRows(files = []) {
     });
 }
 
-function connectorUpcomingRows(calendar = {}) {
-  const events = Array.isArray(calendar.events) ? calendar.events : [];
-  // The calendar read is now wider (it also feeds the Calendar agenda view); keep
-  // the rail's Upcoming group to the next handful so it stays a glance, not a list.
-  return events.slice(0, 6).map((event) => ({
-    id: `upcoming-${event.id}`,
-    groupId: 'upcoming',
-    kind: 'calendar',
-    icon: 'calendar',
-    title: event.title || '(untitled event)',
-    badge: event.when || 'Scheduled',
-    detail: event.location ? event.location : 'On your calendar',
-    href: event.link || '/v2/workbench',
-    timestamp: event.start || ''
-  }));
-}
-
 function approvalFeedRows(approvals = []) {
   return (Array.isArray(approvals) ? approvals : [])
     .map((approval) => {
@@ -735,8 +718,7 @@ export function buildWorkbenchStateRail({
     ...recentThreadRows(normalizedThreads, threadStates),
     ...savedWorkRows(savedItems),
     ...automationRows(automations),
-    ...receiptFeedRows(receipts),
-    ...connectorUpcomingRows(calendar || {})
+    ...receiptFeedRows(receipts)
   ];
 
   return WORKBENCH_STATE_GROUPS.map((group) => ({
@@ -750,10 +732,6 @@ export function buildWorkbenchStateRail({
 
 // Upcoming events sort ascending (soonest first); everything else sorts by most
 // recent activity.
-function compareByTimestampAsc(a, b) {
-  return timestampValue(a.timestamp) - timestampValue(b.timestamp);
-}
-
 // "Needs a reply" ranks behaviour-first: a sender you corrected to VIP/Respond
 // floats highest, then Gmail IMPORTANT (derived from how you engage that sender).
 // WITHIN a band, the urgency score (direct ask / deadline / blocker / age) breaks
@@ -817,13 +795,6 @@ export const WORKBENCH_STATE_GROUPS = Object.freeze([
     sort: compareGithubRank,
     emptyTitle: 'No GitHub activity.',
     emptyDetail: 'Mentions, review requests, and CI failures will appear here.'
-  },
-  {
-    id: 'upcoming',
-    label: 'Upcoming',
-    sort: compareByTimestampAsc,
-    emptyTitle: 'Nothing on the calendar.',
-    emptyDetail: 'Your next calendar events will appear here.'
   },
   {
     id: 'notion',
