@@ -451,12 +451,55 @@ export function cleanEmailBody(raw) {
     .trim();
 }
 
+// Decode a Gmail message part body — base64url (Gmail uses -_ and may drop
+// padding) → UTF-8 text. Returns '' on anything unexpected (never throws).
+export function decodeBase64Part(data) {
+  const raw = asString(data);
+  if (!raw || typeof atob !== 'function') return '';
+  try {
+    const normalized = raw.replace(/-/g, '+').replace(/_/g, '/');
+    const binary = atob(normalized);
+    try {
+      // atob yields a binary string; re-decode as UTF-8 so accented/emoji bytes
+      // render correctly.
+      return decodeURIComponent(
+        Array.prototype.map
+          .call(binary, (c) => `%${`00${c.charCodeAt(0).toString(16)}`.slice(-2)}`)
+          .join('')
+      );
+    } catch (_) {
+      return binary;
+    }
+  } catch (_) {
+    return '';
+  }
+}
+
+// Pull the original text/html part out of a Gmail payload (the rich version with
+// tables/images/layout), recursing through nested multiparts. '' when the
+// message is plain-text only. This is the source for the native email render;
+// the plain-text body stays as the fallback.
+export function extractHtmlBody(payload) {
+  if (!payload || typeof payload !== 'object') return '';
+  const mime = String(payload.mimeType || '').toLowerCase();
+  if (mime === 'text/html' && payload.body && payload.body.data) {
+    const decoded = decodeBase64Part(payload.body.data);
+    if (decoded) return decoded;
+  }
+  const parts = Array.isArray(payload.parts) ? payload.parts : [];
+  for (const part of parts) {
+    const found = extractHtmlBody(part);
+    if (found) return found;
+  }
+  return '';
+}
+
 // Normalize a GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID read into a full-message view
 // model for the reading panel: `{ messageId, threadId, sender, to, subject,
-// timestamp, body, ok, error }`. Honest contract: on an unsuccessful or
-// malformed payload it returns `{ ok: false, error }` and never fabricates a
-// body. The route surfaces `messageText` as already-decoded plain text; we fall
-// back to the HTML payload body when the plain text is missing.
+// timestamp, body, htmlBody, ok, error }`. Honest contract: on an unsuccessful
+// or malformed payload it returns `{ ok: false, error }` and never fabricates a
+// body. `messageText` is already-decoded plain text (the fallback); `htmlBody`
+// is the original HTML part for a faithful native render (sanitized at the view).
 export function normalizeFullMessage(result) {
   if (!result || result.successful === false) {
     return {
@@ -477,11 +520,15 @@ export function normalizeFullMessage(result) {
     cleanEmailBody(data?.body) ||
     cleanEmailBody(data?.payload?.body?.data) ||
     cleanEmailBody(data?.preview?.body);
+  // The original HTML part, for a faithful native render. Falls back to '' for
+  // plain-text-only mail, in which case the panel renders the cleaned `body`.
+  const htmlBody = extractHtmlBody(data?.payload) || asString(data?.messageHtml);
   return {
     ok: true,
     error: '',
     messageId: asString(data?.messageId) || asString(data?.id),
     threadId: asString(data?.threadId),
+    htmlBody,
     sender: readSender(data) || asString(data?.sender) || 'Unknown sender',
     // The original sender's bare email address, for pre-filling a reply draft's
     // recipient. '' when not extractable — the draft modal leaves it editable.

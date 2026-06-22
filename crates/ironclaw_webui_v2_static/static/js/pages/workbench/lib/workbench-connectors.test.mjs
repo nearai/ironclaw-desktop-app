@@ -4,6 +4,8 @@ import test from 'node:test';
 import {
   cleanEmailBody,
   connectorFamilyReadiness,
+  decodeBase64Part,
+  extractHtmlBody,
   gmailMessageHref,
   hasActiveToolkit,
   normalizeCalendarEvents,
@@ -13,6 +15,63 @@ import {
   selectTriageInbox,
   unreadInboxCount
 } from './workbench-connectors.js';
+
+test('decodeBase64Part decodes base64url Gmail part data to text', () => {
+  const text = '<p>Hi & bye — net 60?</p>';
+  const b64 = Buffer.from(text, 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_');
+  assert.equal(decodeBase64Part(b64), text);
+  assert.equal(decodeBase64Part(''), '');
+  assert.equal(decodeBase64Part(null), '');
+});
+
+test('extractHtmlBody pulls the text/html part out of a (nested) Gmail payload', () => {
+  const htmlData = Buffer.from(
+    '<html><body><table><tr><td>Renewal</td></tr></table></body></html>'
+  ).toString('base64');
+  const payload = {
+    mimeType: 'multipart/mixed',
+    parts: [
+      {
+        mimeType: 'multipart/alternative',
+        parts: [
+          { mimeType: 'text/plain', body: { data: Buffer.from('plain').toString('base64') } },
+          { mimeType: 'text/html', body: { data: htmlData } }
+        ]
+      }
+    ]
+  };
+  assert.match(extractHtmlBody(payload), /<table><tr><td>Renewal/);
+  assert.equal(
+    extractHtmlBody({ mimeType: 'text/plain', body: { data: 'x' } }),
+    '',
+    'plain-only -> no html'
+  );
+  assert.equal(extractHtmlBody(null), '');
+});
+
+test('normalizeFullMessage surfaces htmlBody for a native render, body as fallback', () => {
+  const htmlData = Buffer.from('<html><body><p>Rich body</p></body></html>').toString('base64');
+  const full = normalizeFullMessage({
+    successful: true,
+    data: {
+      messageId: 'm1',
+      messageText: 'Rich body',
+      payload: {
+        mimeType: 'multipart/alternative',
+        parts: [{ mimeType: 'text/html', body: { data: htmlData } }]
+      }
+    }
+  });
+  assert.equal(full.ok, true);
+  assert.match(full.htmlBody, /<p>Rich body<\/p>/, 'htmlBody carries the original HTML');
+  assert.equal(full.body, 'Rich body', 'plain-text fallback preserved');
+  const plain = normalizeFullMessage({
+    successful: true,
+    data: { messageId: 'm2', messageText: 'just text' }
+  });
+  assert.equal(plain.htmlBody, '', 'plain-only message has no htmlBody (panel uses text)');
+  assert.equal(plain.body, 'just text');
+});
 
 test('selectTriageInbox keeps human mail but files bulk, ignored senders, and dismissed rows', () => {
   const messages = [

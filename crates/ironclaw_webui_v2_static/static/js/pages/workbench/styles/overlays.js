@@ -145,6 +145,16 @@ export const WORKBENCH_OVERLAYS_STYLE = `.wb13-inspector {
   overflow-wrap: anywhere;
 }
 .wb13-reader-para { margin: 0 0 12px; white-space: pre-wrap; }
+/* Native email render: the sanitized HTML runs in a sandboxed iframe (no
+   scripts), on a white sheet because email HTML is authored for light
+   backgrounds. Fills the reader and scrolls internally. */
+.wb13-reader-frame {
+  width: 100%;
+  height: 62vh;
+  border: 1px solid var(--wb-line);
+  border-radius: 10px;
+  background: #fff;
+}
 .wb13-reader-note {
   display: flex;
   align-items: flex-start;

@@ -13,6 +13,37 @@ function bodyParagraphs(body) {
     .filter(Boolean);
 }
 
+// Sanitize an email's original HTML for a faithful NATIVE render. Defense in
+// depth: (1) DOMPurify strips scripts, event handlers, and dangerous tags while
+// keeping layout (tables, images, styles); (2) the result is shown in a
+// sandboxed iframe with NO allow-scripts (below), so even a DOMPurify bypass
+// cannot execute. Returns '' when there is no HTML part or DOMPurify is absent —
+// the panel then falls back to the cleaned plain-text body.
+function sanitizeEmailHtml(raw) {
+  const value = String(raw || '');
+  if (!value || typeof window === 'undefined' || !window.DOMPurify) return '';
+  try {
+    return window.DOMPurify.sanitize(value, {
+      WHOLE_DOCUMENT: true,
+      ADD_ATTR: ['target'],
+      FORBID_TAGS: [
+        'script',
+        'iframe',
+        'object',
+        'embed',
+        'form',
+        'input',
+        'button',
+        'textarea',
+        'noscript'
+      ],
+      FORBID_ATTR: ['srcdoc']
+    });
+  } catch (_) {
+    return '';
+  }
+}
+
 // The reading panel: a v13-styled right-side drawer that shows the FULL email
 // for a selected decision/inbox row. The body is fetched live via
 // GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID (a READ tool), so it never fabricates
@@ -34,6 +65,7 @@ export function WorkbenchReadingPanel({ selected, onClose, onDraftReply }) {
     messageId: message?.messageId || selected.messageId
   });
   const paragraphs = message?.ok ? bodyParagraphs(message.body) : [];
+  const safeHtml = message?.ok ? sanitizeEmailHtml(message.htmlBody) : '';
   const failed = isError || (message && message.ok === false);
   const draftSource = message?.ok ? message : selected;
 
@@ -106,13 +138,21 @@ export function WorkbenchReadingPanel({ selected, onClose, onDraftReply }) {
                     now.${message?.error ? ` ${message.error}` : ''}
                   </span>
                 </div>`
-              : paragraphs.length
-                ? paragraphs.map(
-                    (para, index) => html`<p key=${index} className="wb13-reader-para">${para}</p>`
-                  )
-                : html`<div className="wb13-reader-note">
-                    This message has no readable text body.
-                  </div>`}
+              : safeHtml
+                ? html`<iframe
+                    className="wb13-reader-frame"
+                    title="Email content"
+                    sandbox="allow-popups allow-popups-to-escape-sandbox"
+                    srcdoc=${safeHtml}
+                  ></iframe>`
+                : paragraphs.length
+                  ? paragraphs.map(
+                      (para, index) =>
+                        html`<p key=${index} className="wb13-reader-para">${para}</p>`
+                    )
+                  : html`<div className="wb13-reader-note">
+                      This message has no readable text body.
+                    </div>`}
         </div>
       </aside>
     </div>
