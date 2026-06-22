@@ -35,7 +35,11 @@ function connectorReplyRows(inbox = {}) {
         kind: 'inbox',
         icon: 'mail',
         title: message.subject || '(no subject)',
-        badge: 'Unread',
+        // Gmail IMPORTANT is a behaviour signal (how you engage this sender), clean
+        // now that bulk is excluded. Carried onto the row so the needs-reply group
+        // can rank important mail first (see compareReplyRank).
+        important: Boolean(message.important),
+        badge: message.important ? 'Important' : 'Unread',
         detail: message.sender ? `From ${message.sender}` : 'In your inbox',
         // No href: an inbox row opens the in-app reading panel (see WorkbenchDock),
         // not a route. Carry the real ids the panel needs to fetch the message.
@@ -569,12 +573,19 @@ function compareByTimestampAsc(a, b) {
   return timestampValue(a.timestamp) - timestampValue(b.timestamp);
 }
 
+// "Needs a reply" ranks behaviour-first: mail Gmail marks IMPORTANT (derived from
+// how you engage that sender) floats above the rest, then most-recent within each.
+function compareReplyRank(a, b) {
+  return (b.important ? 1 : 0) - (a.important ? 1 : 0) || compareByTimestampDesc(a, b);
+}
+
 export const WORKBENCH_STATE_GROUPS = Object.freeze([
   {
     id: 'needs-reply',
     label: 'Needs a reply',
     emptyTitle: 'Inbox is clear.',
-    emptyDetail: 'Unread mail that needs you will appear here.'
+    emptyDetail: 'Unread mail that needs you will appear here.',
+    sort: compareReplyRank
   },
   {
     id: 'needs-approval',

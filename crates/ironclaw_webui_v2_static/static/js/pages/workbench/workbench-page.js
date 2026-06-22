@@ -575,7 +575,7 @@ export function WorkbenchPage() {
   const connectedAccounts = useConnectedAccounts();
   const connectorInbox = useConnectorInbox({
     enabled: connectedAccounts.gmailReady,
-    maxResults: 6
+    maxResults: 12
   });
   const connectorCalendar = useConnectorCalendar({
     enabled: connectedAccounts.calendarReady,

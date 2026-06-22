@@ -270,6 +270,9 @@ export function normalizeInboxMessages(result, { limit = 6 } = {}) {
       subject,
       unread,
       isBulk: messageIsBulk(message),
+      // Gmail's IMPORTANT marker — a behaviour signal (how you engage this sender)
+      // the rail ranks "needs a reply" by, now meaningful since bulk is excluded.
+      important: labels.includes('IMPORTANT'),
       preview: readPreview(message),
       timestamp: asString(message.messageTimestamp) || asString(message.internalDate) || ''
     });

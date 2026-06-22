@@ -542,3 +542,27 @@ function displayName(id) {
     .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
     .join(' ');
 }
+
+test('needs-a-reply ranks IMPORTANT human mail first, badges it, and never includes bulk', () => {
+  const rail = buildWorkbenchStateRail({
+    inbox: {
+      messages: [
+        // unread, non-important human mail (older)
+        { id: 'a', subject: 'Tax fly-in', sender: 'jonathan@digitalchamber.org', unread: true, isBulk: false, important: false, timestamp: '2026-06-22T08:00:00Z' },
+        // unread, IMPORTANT human mail (should rank first despite being older than 'a')
+        { id: 'b', subject: 'GDPR coverage enquiry', sender: 'anelda@near.foundation', unread: true, isBulk: false, important: true, timestamp: '2026-06-22T07:00:00Z' },
+        // unread newsletter — must be excluded even though it is "important" + newest
+        { id: 'c', subject: 'The Briefing', sender: 'news@substack.com', unread: true, isBulk: true, important: true, timestamp: '2026-06-22T11:00:00Z' }
+      ]
+    }
+  });
+  const reply = rail.find((group) => group.id === 'needs-reply');
+  assert.ok(reply, 'needs-reply group present');
+  assert.deepEqual(
+    reply.rows.map((row) => row.id),
+    ['reply-b', 'reply-a'],
+    'IMPORTANT human mail first; bulk excluded entirely'
+  );
+  assert.equal(reply.rows[0].badge, 'Important', 'important row badged Important');
+  assert.equal(reply.rows[1].badge, 'Unread', 'non-important row badged Unread');
+});
