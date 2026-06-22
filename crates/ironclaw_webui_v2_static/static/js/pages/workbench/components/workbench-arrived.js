@@ -1,5 +1,5 @@
 import { Icon } from '../../../design-system/icons.js';
-import { html } from '../../../lib/html.js';
+import { React, html } from '../../../lib/html.js';
 import { cn } from '../../../utils/cn.js';
 import {
   WORKBENCH_CONNECTOR_FAMILIES,
@@ -7,6 +7,7 @@ import {
   gmailMessageHref,
   unreadInboxCount
 } from '../lib/workbench-connectors.js';
+import { DISMISS_REASONS } from '../lib/workbench-dismissals.js';
 
 // Cold-open: when NO connector is live yet, the Workbench would otherwise be a
 // command box stacked over a column of empty sections — exactly the "nothing
@@ -87,7 +88,98 @@ function openMessage(onOpenMessage, message) {
 // create a reviewable Gmail draft; it never sends. Renders ONLY when Gmail is a
 // live ACTIVE account AND there is unread mail; on empty/error it stays hidden
 // (never a fabricated card).
-export function WorkbenchDecisions({ gmailReady, messages, onOpenMessage, onDraftMessage }) {
+function DecisionCard({ message, onOpenMessage, onDraftMessage, onDismiss }) {
+  const [picking, setPicking] = React.useState(false);
+  const when = formatInboxWhen(message.timestamp);
+  const meta = [message.sender, when].filter(Boolean).join(' · ');
+  const canDismiss = typeof onDismiss === 'function';
+  return html`
+    <div className="wb13-card wb13-card-readable" data-testid="workbench-decision-card">
+      <button
+        type="button"
+        className="wb13-card-open"
+        data-testid="workbench-decision-open"
+        aria-label=${`Open email: ${message.subject}`}
+        onClick=${() => openMessage(onOpenMessage, message)}
+      >
+        <div className="wb13-action-icon is-hold">
+          <${Icon} name="mail" />
+        </div>
+        <div className="wb13-card-main">
+          <div className="wb13-card-title">${message.subject}</div>
+          ${message.preview ? html`<div className="wb13-card-copy">${message.preview}</div>` : null}
+          ${meta
+            ? html`<div className="wb13-card-trigger">
+                <${Icon} name="mail" />
+                <span>${meta}</span>
+              </div>`
+            : null}
+        </div>
+      </button>
+      <div className="wb13-card-actions">
+        ${typeof onDraftMessage === 'function'
+          ? html`<button
+              type="button"
+              className="wb13-button is-primary is-sm"
+              data-testid="workbench-decision-draft"
+              title="Opens a reviewable Gmail draft. Nothing is sent."
+              onClick=${() => onDraftMessage(message)}
+            >
+              Draft reply
+            </button>`
+          : null}
+        ${canDismiss
+          ? html`<button
+              type="button"
+              className="wb13-button is-ghost is-sm"
+              data-testid="workbench-decision-dismiss"
+              aria-expanded=${picking}
+              title="File this away — and tell IronClaw why, so it learns."
+              onClick=${() => setPicking((value) => !value)}
+            >
+              Not for me
+            </button>`
+          : null}
+      </div>
+      ${canDismiss && picking
+        ? html`<div className="wb13-card-dismiss" data-testid="workbench-decision-dismiss-reasons">
+            <span className="wb13-card-dismiss-label">Why? IronClaw learns from this.</span>
+            <div className="wb13-card-dismiss-reasons">
+              ${DISMISS_REASONS.map(
+                (reason) =>
+                  html`<button
+                    key=${reason}
+                    type="button"
+                    className="wb13-button is-sm"
+                    onClick=${() => {
+                      setPicking(false);
+                      onDismiss(message, reason);
+                    }}
+                  >
+                    ${reason}
+                  </button>`
+              )}
+              <button
+                type="button"
+                className="wb13-button is-ghost is-sm"
+                onClick=${() => setPicking(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>`
+        : null}
+    </div>
+  `;
+}
+
+export function WorkbenchDecisions({
+  gmailReady,
+  messages,
+  onOpenMessage,
+  onDraftMessage,
+  onDismiss
+}) {
   if (!gmailReady) return null;
   const unread = (Array.isArray(messages) ? messages : []).filter((message) => message.unread);
   if (!unread.length) return null;
@@ -98,50 +190,16 @@ export function WorkbenchDecisions({ gmailReady, messages, onOpenMessage, onDraf
         <div className="wb13-group-title is-hold">
           Needs a decision<span>· ${unread.length}</span>
         </div>
-        ${unread.map((message) => {
-          const when = formatInboxWhen(message.timestamp);
-          const meta = [message.sender, when].filter(Boolean).join(' · ');
-          return html`
-            <div key=${message.id} className="wb13-card wb13-card-readable">
-              <button
-                type="button"
-                className="wb13-card-open"
-                data-testid="workbench-decision-open"
-                aria-label=${`Open email: ${message.subject}`}
-                onClick=${() => openMessage(onOpenMessage, message)}
-              >
-                <div className="wb13-action-icon is-hold">
-                  <${Icon} name="mail" />
-                </div>
-                <div className="wb13-card-main">
-                  <div className="wb13-card-title">${message.subject}</div>
-                  ${message.preview
-                    ? html`<div className="wb13-card-copy">${message.preview}</div>`
-                    : null}
-                  ${meta
-                    ? html`<div className="wb13-card-trigger">
-                        <${Icon} name="mail" />
-                        <span>${meta}</span>
-                      </div>`
-                    : null}
-                </div>
-              </button>
-              <div className="wb13-card-actions">
-                ${typeof onDraftMessage === 'function'
-                  ? html`<button
-                      type="button"
-                      className="wb13-button is-primary is-sm"
-                      data-testid="workbench-decision-draft"
-                      title="Opens a reviewable Gmail draft. Nothing is sent."
-                      onClick=${() => onDraftMessage(message)}
-                    >
-                      Draft reply
-                    </button>`
-                  : null}
-              </div>
-            </div>
-          `;
-        })}
+        ${unread.map(
+          (message) =>
+            html`<${DecisionCard}
+              key=${message.id}
+              message=${message}
+              onOpenMessage=${onOpenMessage}
+              onDraftMessage=${onDraftMessage}
+              onDismiss=${onDismiss}
+            />`
+        )}
       </div>
     </div>
   `;

@@ -30,6 +30,7 @@ import { fetchReceiptsFeed, receiptsFeedReadSupported } from './lib/receipts-fee
 import { fetchWorkbenchFeed, workbenchFeedReadSupported } from './lib/workbench-feed-api.js';
 import { buildWorkbenchStateRail } from './lib/workbench-state.js';
 import { readTierOverrides } from './lib/workbench-profile-overrides.js';
+import { readDismissals, dismissRow } from './lib/workbench-dismissals.js';
 import { selectTriageInbox } from './lib/workbench-connectors.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
@@ -213,6 +214,7 @@ function HomeView(props) {
             messages=${props.decisionMessages}
             onOpenMessage=${props.onOpenMessage}
             onDraftMessage=${props.onDraftMessage}
+            onDismiss=${props.onDismissDecision}
           />
           <${SourceReadinessStrip} families=${props.connectorFamilies} />
           <${WorkbenchArrived}
@@ -687,13 +689,23 @@ export function WorkbenchPage() {
   // Per-sender tier corrections from the "You" surface; re-read on mount so a
   // correction made there reorders this rail when you return. Drives reply rank.
   const tierOverrides = React.useMemo(() => readTierOverrides(), []);
+  // Rows the user X-ed out with a reason ("Just context", "Already handled", …).
+  // They stop being surfaced and the reason is recorded so the profile can learn.
+  const [dismissals, setDismissals] = React.useState(() => readDismissals());
+  const onDismissDecision = React.useCallback((message, reason) => {
+    if (!message) return;
+    const key = String(message.messageId || message.id || '');
+    if (!key) return;
+    setDismissals(dismissRow(key, { reason, sender: message.fromEmail || message.sender || '' }));
+  }, []);
   // Triage-worthy inbox = what may be surfaced on the Workbench (Needs-a-decision,
-  // Arrived). Drops bulk/newsletters/notes (e.g. gemini-notes meeting summaries) and
-  // ignore-corrected senders, mirroring the rail's Needs-a-reply. The raw inbox still
-  // feeds the rail + briefing, which filter themselves.
+  // Arrived). Drops bulk/newsletters/notes (e.g. gemini-notes meeting summaries),
+  // ignore-corrected senders, and rows the user dismissed — mirroring the rail's
+  // Needs-a-reply. The raw inbox still feeds the rail + briefing, which filter
+  // themselves.
   const triageInbox = React.useMemo(
-    () => selectTriageInbox(connectorInbox.messages, { overrides: tierOverrides }),
-    [connectorInbox.messages, tierOverrides]
+    () => selectTriageInbox(connectorInbox.messages, { overrides: tierOverrides, dismissals }),
+    [connectorInbox.messages, tierOverrides, dismissals]
   );
   const railGroups = React.useMemo(
     () =>
@@ -707,7 +719,7 @@ export function WorkbenchPage() {
         approvals: approvalsFeedQuery.data || [],
         receipts: receiptsFeedQuery.data || [],
         sourceReadiness,
-        inbox: { messages: connectorInbox.messages },
+        inbox: { messages: triageInbox },
         calendar: { events: connectorCalendar.events },
         slackBlockers: slackBlockers.rows,
         githubNotifications: connectorGithub.notifications,
@@ -722,7 +734,7 @@ export function WorkbenchPage() {
       receiptsFeedQuery.data,
       workbenchFeedQuery.data,
       connectorCalendar.events,
-      connectorInbox.messages,
+      triageInbox,
       slackBlockers.rows,
       connectorGithub.notifications,
       connectorNotion.pages,
@@ -1080,6 +1092,7 @@ export function WorkbenchPage() {
                 calendarError=${connectorCalendar.isError}
                 onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
                 onDraftMessage=${openDraftReply}
+                onDismissDecision=${onDismissDecision}
               />`}
         ${showSources
           ? html`<${WorkbenchSourcesInspector}

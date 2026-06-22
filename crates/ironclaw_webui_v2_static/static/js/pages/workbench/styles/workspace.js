@@ -470,7 +470,7 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
 .wb13-card-trigger svg { width: 13px; height: 13px; }
 .wb13-card-actions { display: flex; flex: none; gap: 7px; align-self: center; }
 /* A decision card whose body is a clickable button that opens the reading panel. */
-.wb13-card-readable { cursor: default; }
+.wb13-card-readable { cursor: default; flex-wrap: wrap; }
 .wb13-card-open {
   display: flex;
   flex: 1;
@@ -524,6 +524,25 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   color: var(--wb-faint);
 }
 .wb13-button.is-sm { min-height: 32px; padding: 6px 11px; font-size: 12.5px; }
+.wb13-button.is-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--wb-muted);
+  font-weight: 600;
+}
+.wb13-button.is-ghost:hover { border-color: var(--wb-line); color: var(--wb-ink); }
+.wb13-card-dismiss {
+  flex-basis: 100%;
+  width: 100%;
+  margin-top: 8px;
+  padding-top: 9px;
+  border-top: 1px solid var(--wb-line-2);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.wb13-card-dismiss-label { font-size: 11.5px; color: var(--wb-faint); }
+.wb13-card-dismiss-reasons { display: flex; flex-wrap: wrap; gap: 6px; }
 .wb13-empty {
   border: 1px dashed var(--wb-line);
   border-radius: 11px;
