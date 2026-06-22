@@ -124,6 +124,42 @@ export function useConnectorInbox({ enabled = true, maxResults = 6 } = {}) {
   };
 }
 
+// The reply-state read: the user's own recent SENT mail, used only to build a
+// threadId -> latest-sent-timestamp index so triage can suppress threads the
+// user has already answered (selectTriageInbox's reply-state gate). Read-only,
+// bounded to the recent window (a stale older reply can't reopen a loop), and
+// pulled deeper than the inbox (one row per thread isn't enough — we need the
+// sent side of the threads currently in the inbox).
+export function useConnectorSent({ enabled = true, maxResults = 50 } = {}) {
+  const query = useQuery({
+    queryKey: ['workbench-connector-sent', maxResults],
+    enabled: Boolean(enabled),
+    staleTime: 60_000,
+    retry: 1,
+    throwOnError: false,
+    queryFn: ({ signal }) =>
+      connectorRead({
+        toolkit: 'gmail',
+        tool: 'GMAIL_FETCH_EMAILS',
+        arguments: { max_results: maxResults, query: 'in:sent newer_than:30d' },
+        signal
+      })
+  });
+
+  const messages = React.useMemo(
+    () => (query.isError ? [] : normalizeInboxMessages(query.data, { limit: maxResults })),
+    [query.data, query.isError, maxResults]
+  );
+
+  return {
+    messages,
+    isLoading: query.isLoading && enabled,
+    isFetching: query.isFetching,
+    isError: query.isError,
+    enabled: Boolean(enabled)
+  };
+}
+
 // How far ahead the Upcoming card looks. The Composio GOOGLECALENDAR_EVENTS_LIST
 // read returns nothing for a bare `timeMin` (no upper bound), so we pass an
 // explicit `timeMax` window. 30 days comfortably surfaces the next handful of

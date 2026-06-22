@@ -131,15 +131,66 @@ export function messageIsBulk(message) {
   return BULK_LOCALPARTS.test(localPart);
 }
 
+// Parse a Gmail timestamp string (epoch-ms internalDate like "1718900000000", or
+// an ISO/RFC date) into epoch milliseconds. Returns 0 when unparseable, so a
+// missing/garbage timestamp never produces a false "you replied after" signal.
+export function toEpochMs(value) {
+  const raw = asString(value).trim();
+  if (!raw) return 0;
+  if (/^\d{10,}$/.test(raw)) {
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : 0;
+  }
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+// The reply-state primitive: from the user's own SENT rows, build threadId ->
+// latest-sent-timestamp (ms). Used to suppress threads the user has already
+// answered (they spoke last). Pure; tolerates missing threadId/timestamp.
+export function answeredThreadIndex(sentRows) {
+  const list = Array.isArray(sentRows) ? sentRows : [];
+  const index = new Map();
+  for (const row of list) {
+    const threadId = asString(row?.threadId);
+    if (!threadId) continue;
+    const ts = toEpochMs(row?.timestamp);
+    if (!ts) continue;
+    const prev = index.get(threadId) || 0;
+    if (ts > prev) index.set(threadId, ts);
+  }
+  return index;
+}
+
+// The reply-state rule, shared by triage and the briefing: true when the user has
+// already replied in this message's thread (a sent message dated after this
+// inbound). Positive evidence only — returns false on a missing index/thread/ts,
+// so an unverifiable thread is never falsely filed.
+export function isAnsweredThread(message, sentThreadIndex) {
+  if (!message) return false;
+  const answered = sentThreadIndex instanceof Map ? sentThreadIndex : null;
+  if (!answered || !answered.size) return false;
+  const threadId = String(message.threadId || '');
+  if (!threadId) return false;
+  const sentTs = answered.get(threadId) || 0;
+  const inboundTs = toEpochMs(message.timestamp);
+  return Boolean(sentTs && inboundTs && sentTs > inboundTs);
+}
+
 // The single source of truth for which inbox mail is "triage-worthy" — i.e. may
 // be surfaced on the Workbench (Needs-a-decision, Arrived, and the rail's
 // Needs-a-reply). Drops bulk/newsletter/notes mail (messageIsBulk — e.g. the
 // gemini-notes meeting summaries the user never replies to), senders the user
-// corrected to "ignore", and rows the user has dismissed. Everything dropped is
-// still in the mailbox — filed, not surfaced. Pure; mutates nothing.
+// corrected to "ignore", rows the user has dismissed, and — the reply-state gate
+// — threads the user has ALREADY ANSWERED (a sent message in the thread dated
+// after the inbound), so the surface is an open-loop queue, not an unread list.
+// Bias-to-safety: a thread is dropped ONLY on positive evidence (a later sent
+// timestamp); absent that evidence the item stays surfaced, since hiding a real
+// open loop is worse than one extra row. Everything dropped is still in the
+// mailbox — filed, not surfaced. Pure; mutates nothing.
 export function selectTriageInbox(
   messages,
-  { overrides = {}, dismissals = {}, learnedIgnore } = {}
+  { overrides = {}, dismissals = {}, learnedIgnore, sentThreadIndex } = {}
 ) {
   const list = Array.isArray(messages) ? messages : [];
   const norm = {};
@@ -150,6 +201,7 @@ export function selectTriageInbox(
   }
   const dismissed = dismissals && typeof dismissals === 'object' ? dismissals : {};
   const learned = learnedIgnore instanceof Set ? learnedIgnore : new Set();
+  const answered = sentThreadIndex instanceof Map ? sentThreadIndex : new Map();
   return list.filter((message) => {
     if (!message || message.isBulk) return false;
     const email = String(message.fromEmail || '').toLowerCase();
@@ -160,6 +212,9 @@ export function selectTriageInbox(
     // Learned auto-file: a sender repeatedly dismissed as sender-level noise.
     // An explicit VIP/Respond/FYI correction (any non-ignore tier) overrides it.
     if (!tier && learned.has(email)) return false;
+    // Reply-state gate: filed if you've already replied in-thread (a sent
+    // message dated after this inbound). Positive evidence only.
+    if (isAnsweredThread(message, answered)) return false;
     return true;
   });
 }

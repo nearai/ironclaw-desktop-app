@@ -14,6 +14,14 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Reply-state gate — triage stops surfacing already-answered threads (`b27ced3`)
+
+Adopted Rec #1 from the daily-briefing skill mining. The Workbench's "Needs a reply/decision" was an unread view; now it's an open-loop queue.
+- New: `toEpochMs`, `answeredThreadIndex`, `isAnsweredThread` + `selectTriageInbox`/`buildBriefing` drop a row only when a SENT message in its thread postdates the inbound (positive evidence only — never drops on absent evidence). New `useConnectorSent` read (`in:sent newer_than:30d`, read-only, Gmail-gated).
+- **LIVE proof**: sent read fires (26 threads/30d, 200); on the real mailbox top-12 → 0 filed (no false drops), 40-thread scan → **1 already-answered thread correctly filed** (replied ~2.08h after inbound, concrete ts). No console errors; v13 fidelity intact (screenshot).
+- Gate: static 854 (+4 tests), a11y 140, design DT-1..6, smoke, bundle. Profile engine: V1 0 leaked PASS, V2 2/0 bulk PASS. Connector suite 14/14 (prior tick).
+- Fast-follows on the same chokepoint: composite urgency score (Rec #2), ask/FYI/noise classification (Rec #3).
+
 ## Preview screenshotting RESTORED + live v13/loop-#35 verification (`fdfb4cd`)
 
 - **Preview attach restored** (dropped at #33): added a local `wb-preview` workspace launch.json entry (port 17651 → live gateway 17640) so the design-guardrail screenshots work again. Local-only config; recipe in the evidence note.

@@ -31,7 +31,7 @@ import { fetchWorkbenchFeed, workbenchFeedReadSupported } from './lib/workbench-
 import { buildWorkbenchStateRail } from './lib/workbench-state.js';
 import { readTierOverrides } from './lib/workbench-profile-overrides.js';
 import { readDismissals, dismissRow, learnedIgnoreSenders } from './lib/workbench-dismissals.js';
-import { selectTriageInbox } from './lib/workbench-connectors.js';
+import { selectTriageInbox, answeredThreadIndex } from './lib/workbench-connectors.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
   useConnectedAccounts,
@@ -39,6 +39,7 @@ import {
   useConnectorDrive,
   useConnectorGithub,
   useConnectorInbox,
+  useConnectorSent,
   useConnectorNotion,
   useConnectorSlackBlockers
 } from './hooks/useWorkbenchConnectors.js';
@@ -581,6 +582,9 @@ export function WorkbenchPage() {
     enabled: connectedAccounts.gmailReady,
     maxResults: 12
   });
+  // The reply-state read: recent sent mail, used only to suppress already-answered
+  // threads from triage (selectTriageInbox's reply-state gate). Gated on Gmail.
+  const connectorSent = useConnectorSent({ enabled: connectedAccounts.gmailReady });
   const connectorCalendar = useConnectorCalendar({
     enabled: connectedAccounts.calendarReady,
     maxResults: 6
@@ -706,14 +710,21 @@ export function WorkbenchPage() {
   // The "it learns" set: senders filed ≥2× for sender-level reasons are
   // auto-suppressed from triage going forward (overridable on the You surface).
   const learnedIgnore = React.useMemo(() => learnedIgnoreSenders(dismissals), [dismissals]);
+  // Reply-state index: threadId -> latest sent timestamp, so triage can file
+  // threads the user already answered (they spoke last).
+  const sentThreadIndex = React.useMemo(
+    () => answeredThreadIndex(connectorSent.messages),
+    [connectorSent.messages]
+  );
   const triageInbox = React.useMemo(
     () =>
       selectTriageInbox(connectorInbox.messages, {
         overrides: tierOverrides,
         dismissals,
-        learnedIgnore
+        learnedIgnore,
+        sentThreadIndex
       }),
-    [connectorInbox.messages, tierOverrides, dismissals]
+    [connectorInbox.messages, tierOverrides, dismissals, learnedIgnore, sentThreadIndex]
   );
   const railGroups = React.useMemo(
     () =>
@@ -909,6 +920,7 @@ export function WorkbenchPage() {
         driveReady: connectedAccounts.driveReady,
         notionReady: connectedAccounts.notionReady,
         tierOverrides,
+        sentThreadIndex,
         now: new Date()
       })
     );
@@ -931,6 +943,7 @@ export function WorkbenchPage() {
     connectedAccounts.driveReady,
     connectedAccounts.notionReady,
     tierOverrides,
+    sentThreadIndex,
     setError
   ]);
   React.useEffect(() => {

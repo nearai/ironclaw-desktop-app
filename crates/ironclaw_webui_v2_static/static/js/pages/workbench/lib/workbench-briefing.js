@@ -9,7 +9,7 @@
 // reachable. Anything open-ended still goes to the Chat runtime as before. These
 // helpers are pure and side-effect free.
 
-import { unreadInboxCount } from './workbench-connectors.js';
+import { unreadInboxCount, isAnsweredThread } from './workbench-connectors.js';
 
 // Free-text intents the briefing can satisfy from connector data alone. These
 // match BOTH the short phrasings a user types ("catch me up") AND the verbose
@@ -135,6 +135,7 @@ export function buildBriefing({
   driveReady = false,
   notionReady = false,
   tierOverrides = {},
+  sentThreadIndex = null,
   now = new Date()
 } = {}) {
   // Per-sender tier corrections from the "You" surface shape the morning view:
@@ -163,7 +164,11 @@ export function buildBriefing({
   // Honor "ignore" corrections before anything else: a sender you told us you
   // never reply to is removed from the replies bucket entirely.
   const rawInbox = allInbox.filter((message) => overrideFor(message) !== 'ignore');
-  const inbox = rawInbox.filter((message) => !message?.isBulk);
+  // Reply-state gate: a thread you've already answered is not "waiting on you" —
+  // keep the briefing's replies bucket consistent with the decision cards/rail.
+  const inbox = rawInbox.filter(
+    (message) => !message?.isBulk && !isAnsweredThread(message, sentThreadIndex)
+  );
   const unread = inbox.filter((message) => message?.unread);
   // Prefer unread; if everything is read, still show the most recent threads so
   // the briefing is never blank when the mailbox simply has no unread mail.

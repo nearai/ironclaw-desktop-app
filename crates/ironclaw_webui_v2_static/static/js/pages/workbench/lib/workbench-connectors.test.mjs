@@ -2,19 +2,74 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  answeredThreadIndex,
   cleanEmailBody,
   connectorFamilyReadiness,
   decodeBase64Part,
   extractHtmlBody,
   gmailMessageHref,
   hasActiveToolkit,
+  isAnsweredThread,
   normalizeCalendarEvents,
   normalizeConnectedAccounts,
   normalizeFullMessage,
   normalizeInboxMessages,
   selectTriageInbox,
+  toEpochMs,
   unreadInboxCount
 } from './workbench-connectors.js';
+
+test('toEpochMs parses epoch-ms strings, ISO dates, and degrades to 0', () => {
+  assert.equal(toEpochMs('1718900000000'), 1718900000000);
+  assert.equal(toEpochMs('2026-06-20T10:00:00Z'), Date.parse('2026-06-20T10:00:00Z'));
+  assert.equal(toEpochMs(''), 0);
+  assert.equal(toEpochMs('not-a-date'), 0);
+  assert.equal(toEpochMs(null), 0);
+});
+
+test('answeredThreadIndex maps threadId -> latest sent timestamp', () => {
+  const index = answeredThreadIndex([
+    { threadId: 'T1', timestamp: '1000000000000' },
+    { threadId: 'T1', timestamp: '1000000005000' }, // later reply in same thread wins
+    { threadId: 'T2', timestamp: '2026-01-01T00:00:00Z' },
+    { threadId: '', timestamp: '999' }, // no threadId -> skipped
+    { threadId: 'T3', timestamp: 'garbage' } // unparseable -> skipped
+  ]);
+  assert.equal(index.get('T1'), 1000000005000);
+  assert.equal(index.get('T2'), Date.parse('2026-01-01T00:00:00Z'));
+  assert.equal(index.has('T3'), false);
+  assert.equal(index.size, 2);
+});
+
+test('isAnsweredThread: positive evidence only (sent after inbound)', () => {
+  const index = new Map([['T1', 2000]]);
+  // you replied after the inbound -> answered
+  assert.equal(isAnsweredThread({ threadId: 'T1', timestamp: '1000' }, index), true);
+  // your reply predates this newer inbound -> still waiting
+  assert.equal(isAnsweredThread({ threadId: 'T1', timestamp: '3000' }, index), false);
+  // no sent record for this thread -> never falsely filed
+  assert.equal(isAnsweredThread({ threadId: 'T9', timestamp: '1000' }, index), false);
+  // missing index/thread/ts -> false (bias to surface)
+  assert.equal(isAnsweredThread({ threadId: 'T1', timestamp: '1000' }, null), false);
+  assert.equal(isAnsweredThread({ threadId: '', timestamp: '1000' }, index), false);
+  assert.equal(isAnsweredThread({ threadId: 'T1', timestamp: '' }, index), false);
+});
+
+test('selectTriageInbox reply-state gate files answered threads, keeps open loops', () => {
+  const messages = [
+    { messageId: 'a', threadId: 'T1', fromEmail: 'x@y.com', timestamp: '1000' }, // answered
+    { messageId: 'b', threadId: 'T2', fromEmail: 'x@y.com', timestamp: '1000' }, // open
+    { messageId: 'c', threadId: 'T3', fromEmail: 'x@y.com', timestamp: '5000' } // replied earlier, new inbound -> open
+  ];
+  const sentThreadIndex = new Map([
+    ['T1', 2000],
+    ['T3', 2000]
+  ]);
+  const kept = selectTriageInbox(messages, { sentThreadIndex }).map((m) => m.messageId);
+  assert.deepEqual(kept, ['b', 'c']);
+  // No index -> nothing filed by the reply-state gate (backward compatible).
+  assert.equal(selectTriageInbox(messages, {}).length, 3);
+});
 
 test('decodeBase64Part decodes base64url Gmail part data to text', () => {
   const text = '<p>Hi & bye — net 60?</p>';
