@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #11 — P2): markdown → real .docx + full validation re-run (`137fdaf`)
+
+Generalizes DOCX work product beyond the briefing: ANY drafted markdown → a real editable Word doc (reusable core for the document verb).
+- `markdownToWorkProduct(md)` (pure, tested): #→title, ##/###→sections, lists→paragraphs, a Sources/References heading routed to editable citations, inline markdown stripped. python-docx-validated (sample memo → .docx reads back, markers stripped, Sources routed). Sample: `evidence/wb-memo-from-markdown.docx`.
+- **Gate green:** static 802 (3 new parser tests, 10 docx tests), design DT-1..6, a11y 138, smoke, bundle under budget.
+- **Mandated validation (does it still work for HIM after 11 ticks) — ALL PASS:** connector suite **14/14** (live Composio, write-gate, agent turn) + profile engine (180 sent/250 inbox/98 senders) V1 0 leaked + V2 2 real human threads, 0 bulk.
+- Next: a 'document' scene drafting via the agent → export through markdownToWorkProduct (one-click .docx for any memo/brief); long-horizon research verb; the "You" surface.
+
 ## Tick (loop #10 — P2): DOCX work product, one click from the bar (`676bd79`)
 
 Wired the .docx generator to the deterministic briefing — "what needs me today?" → a real editable Word work product, no agent turn.
