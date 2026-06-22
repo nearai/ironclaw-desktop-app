@@ -213,3 +213,22 @@ test('buildBriefing shows recent threads for display but never calls read mail "
   assert.equal(briefing.replies.length, 2, 'recent threads still surfaced for display');
   assert.ok(/all clear/i.test(briefing.headline), 'all-clear headline when nothing waits');
 });
+
+test('buildBriefing suppresses bulk/newsletter mail from replies-waiting', () => {
+  const briefing = buildBriefing({
+    inboxMessages: [
+      { id: 'n1', subject: 'Exclusive: Lime Plans IPO', sender: 'The Information', unread: true, isBulk: true },
+      { id: 'n2', subject: 'The Briefing: Cannes', sender: 'The Information Briefing', unread: true, isBulk: true },
+      { id: 'h1', subject: 'RE: NEAR in Wyoming', sender: 'john@salt.org', unread: true, isBulk: false }
+    ],
+    gmailReady: true,
+    now: new Date('2026-06-22T09:00:00')
+  });
+  assert.equal(briefing.counts.replies, 1, 'only the human thread counts as waiting');
+  assert.equal(briefing.replies.length, 1, 'newsletters are not surfaced as replies');
+  assert.equal(briefing.replies[0].id, 'h1', 'the surfaced reply is the human thread');
+  assert.ok(
+    !briefing.replies.some((r) => r.isBulk),
+    'no bulk message ever appears in replies-waiting'
+  );
+});

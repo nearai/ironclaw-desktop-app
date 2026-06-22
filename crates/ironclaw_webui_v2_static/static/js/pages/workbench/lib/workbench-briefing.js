@@ -127,7 +127,12 @@ export function buildBriefing({
   notionReady = false,
   now = new Date()
 } = {}) {
-  const inbox = Array.isArray(inboxMessages) ? inboxMessages : [];
+  // Newsletters / list broadcasts / promotions never "need a reply" — suppress
+  // bulk mail from the replies-waiting bucket entirely (matches the validated
+  // profile engine). A bulk sender must never be surfaced as waiting on you.
+  const inbox = (Array.isArray(inboxMessages) ? inboxMessages : []).filter(
+    (message) => !message?.isBulk
+  );
   const unread = inbox.filter((message) => message?.unread);
   // Prefer unread; if everything is read, still show the most recent threads so
   // the briefing is never blank when the mailbox simply has no unread mail.

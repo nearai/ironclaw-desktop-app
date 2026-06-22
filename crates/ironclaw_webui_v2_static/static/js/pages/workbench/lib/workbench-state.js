@@ -24,24 +24,28 @@ const WORKBENCH_FEED_GROUPS = new Set([
 // never fabricate a row.
 function connectorReplyRows(inbox = {}) {
   const messages = Array.isArray(inbox.messages) ? inbox.messages : [];
-  return messages
-    .filter((message) => message && message.unread)
-    .map((message) => ({
-      id: `reply-${message.id}`,
-      groupId: 'needs-reply',
-      kind: 'inbox',
-      icon: 'mail',
-      title: message.subject || '(no subject)',
-      badge: 'Unread',
-      detail: message.sender ? `From ${message.sender}` : 'In your inbox',
-      // No href: an inbox row opens the in-app reading panel (see WorkbenchDock),
-      // not a route. Carry the real ids the panel needs to fetch the message.
-      messageId: message.messageId || message.id || '',
-      threadId: message.threadId || '',
-      sender: message.sender || '',
-      subject: message.subject || '',
-      timestamp: message.timestamp || ''
-    }));
+  return (
+    messages
+      // Bulk/newsletter mail (List-Unsubscribe, promotions, list broadcasts) never
+      // needs a reply — never surface it as one. Mirrors the validated profile engine.
+      .filter((message) => message && message.unread && !message.isBulk)
+      .map((message) => ({
+        id: `reply-${message.id}`,
+        groupId: 'needs-reply',
+        kind: 'inbox',
+        icon: 'mail',
+        title: message.subject || '(no subject)',
+        badge: 'Unread',
+        detail: message.sender ? `From ${message.sender}` : 'In your inbox',
+        // No href: an inbox row opens the in-app reading panel (see WorkbenchDock),
+        // not a route. Carry the real ids the panel needs to fetch the message.
+        messageId: message.messageId || message.id || '',
+        threadId: message.threadId || '',
+        sender: message.sender || '',
+        subject: message.subject || '',
+        timestamp: message.timestamp || ''
+      }))
+  );
 }
 
 function connectorUpcomingRows(calendar = {}) {

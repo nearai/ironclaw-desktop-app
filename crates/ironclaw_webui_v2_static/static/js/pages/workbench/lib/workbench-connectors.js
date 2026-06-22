@@ -93,6 +93,42 @@ function decodeLabelIds(message) {
   return ids.map((id) => asString(id).toUpperCase());
 }
 
+function headerValue(message, name) {
+  const headers = Array.isArray(message?.payload?.headers) ? message.payload.headers : [];
+  const match = headers.find((h) => asString(h?.name).toLowerCase() === name.toLowerCase());
+  return asString(match?.value);
+}
+
+// Mailing-list / automated local-parts that never expect a personal reply.
+const BULK_LOCALPARTS =
+  /^(no[-_.]?reply|noreply|do[-_.]?not[-_.]?reply|newsletter|news|notifications?|updates?|mailer|mail|digest|alerts?|marketing|info|hello|invest|inquiry|pkginfo|donotreply)([+.]|$)/i;
+
+// True when a message is bulk/newsletter mail — list broadcasts, promotions,
+// automated updates — i.e. it must NEVER be surfaced as "needs a reply". Same
+// signals the validated profile engine uses (scripts/workbench-profile-engine.mjs):
+// List-Unsubscribe / List-Id / Precedence:bulk|list / Gmail bulk categories /
+// an automated sender local-part. Pure + side-effect free.
+export function messageIsBulk(message) {
+  if (!message || typeof message !== 'object') return false;
+  if (headerValue(message, 'List-Unsubscribe')) return true;
+  if (headerValue(message, 'List-Id')) return true;
+  const precedence = headerValue(message, 'Precedence').toLowerCase();
+  if (precedence === 'bulk' || precedence === 'list' || precedence === 'junk') return true;
+  const labels = decodeLabelIds(message);
+  if (
+    labels.some((l) =>
+      ['CATEGORY_PROMOTIONS', 'CATEGORY_UPDATES', 'CATEGORY_FORUMS', 'CATEGORY_SOCIAL'].includes(l)
+    )
+  ) {
+    return true;
+  }
+  const address = extractEmailAddress(
+    asString(message?.sender) || asString(message?.from) || asString(message?.payload?.from)
+  );
+  const localPart = address.split('@')[0] || '';
+  return BULK_LOCALPARTS.test(localPart);
+}
+
 // Best-effort extraction of a human sender name/address from the varied shapes
 // Composio can return for GMAIL_FETCH_EMAILS.
 function readSender(message) {
@@ -231,6 +267,7 @@ export function normalizeInboxMessages(result, { limit = 6 } = {}) {
       fromEmail: extractEmailAddress(rawSender),
       subject,
       unread,
+      isBulk: messageIsBulk(message),
       preview: readPreview(message),
       timestamp: asString(message.messageTimestamp) || asString(message.internalDate) || ''
     });
