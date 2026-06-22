@@ -36,16 +36,22 @@ try {
   NK = execSync(
     'security find-generic-password -s com.openclaw.ironclaw-desktop -a llm-nearai:default -w',
     { stdio: ['ignore', 'pipe', 'ignore'] }
-  ).toString().trim();
+  )
+    .toString()
+    .trim();
 } catch {}
 if (!NK) {
-  console.error('No NEAR AI token in Keychain (com.openclaw.ironclaw-desktop / llm-nearai:default). Aborting.');
+  console.error(
+    'No NEAR AI token in Keychain (com.openclaw.ironclaw-desktop / llm-nearai:default). Aborting.'
+  );
   process.exit(1);
 }
 
 // Fresh home so we never lock the real ~/.ironclaw libSQL db while the real
 // desktop app might be open. Connectors are re-wired via the Composio route.
-try { fs.rmSync(HOME_DIR, { recursive: true, force: true }); } catch {}
+try {
+  fs.rmSync(HOME_DIR, { recursive: true, force: true });
+} catch {}
 fs.mkdirSync(HOME_DIR, { recursive: true });
 
 const gwEnv = {
@@ -63,41 +69,91 @@ const gwEnv = {
   NEARAI_MODEL: process.env.NEARAI_MODEL || 'z-ai/glm-5.2',
   IRONCLAW_AGENT_CONNECTORS_ENABLED: '1',
   IRONCLAW_TRIGGER_POLLER_ENABLED: '1',
-  RUST_LOG: 'warn',
+  RUST_LOG: 'warn'
 };
 
-console.log(`[wb] booting gateway: ${BIN} serve --host 127.0.0.1 --port ${GW_PORT}`);
-const gw = spawn(BIN, ['serve', '--host', '127.0.0.1', '--port', String(GW_PORT)], {
-  cwd: REPO, env: gwEnv, stdio: ['ignore', 'pipe', 'pipe'],
-});
+// Supervised gateway: if the sidecar exits unexpectedly (crash under load), respawn
+// it with linear backoff so the standalone app self-heals instead of going dark.
+// (Run the launcher itself under `nohup … &` so it survives the shell/session that
+// started it — otherwise the whole process group, gateway included, is reaped.)
+let gw = null;
 let gwLogs = '';
-gw.stdout.on('data', (c) => (gwLogs += c));
-gw.stderr.on('data', (c) => (gwLogs += c));
+let shuttingDown = false;
+let gwRestarts = 0;
+const GW_MAX_RESTARTS = 20;
+function startGateway() {
+  console.log(`[wb] booting gateway: ${BIN} serve --host 127.0.0.1 --port ${GW_PORT}`);
+  gw = spawn(BIN, ['serve', '--host', '127.0.0.1', '--port', String(GW_PORT)], {
+    cwd: REPO,
+    env: gwEnv,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+  gw.stdout.on('data', (c) => (gwLogs += c));
+  gw.stderr.on('data', (c) => (gwLogs += c));
+  gw.on('exit', (code, signal) => {
+    if (shuttingDown) return;
+    gwRestarts += 1;
+    if (gwRestarts > GW_MAX_RESTARTS) {
+      console.error(
+        `[wb] gateway exited (code=${code} signal=${signal}); restart cap (${GW_MAX_RESTARTS}) hit, giving up\n`,
+        gwLogs.slice(-1500)
+      );
+      shutdown();
+      return;
+    }
+    const backoff = Math.min(8000, 1000 * gwRestarts);
+    console.error(
+      `[wb] gateway exited (code=${code} signal=${signal}); respawn #${gwRestarts} in ${backoff}ms`
+    );
+    setTimeout(startGateway, backoff);
+  });
+}
 
 const H = { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' };
 const req = async (m, p, b) => {
   try {
-    const r = await fetch(ORIGIN + p, { method: m, headers: H, body: b ? JSON.stringify(b) : undefined });
+    const r = await fetch(ORIGIN + p, {
+      method: m,
+      headers: H,
+      body: b ? JSON.stringify(b) : undefined
+    });
     const t = await r.text();
-    let j; try { j = JSON.parse(t); } catch { j = t; }
+    let j;
+    try {
+      j = JSON.parse(t);
+    } catch {
+      j = t;
+    }
     return { s: r.status, j };
-  } catch (e) { return { s: 'ERR', j: String(e.message) }; }
+  } catch (e) {
+    return { s: 'ERR', j: String(e.message) };
+  }
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let web = null;
 function shutdown() {
-  try { web && web.kill('SIGTERM'); } catch {}
-  try { gw.kill('SIGTERM'); } catch {}
+  shuttingDown = true;
+  try {
+    web && web.kill('SIGTERM');
+  } catch {}
+  try {
+    gw && gw.kill('SIGTERM');
+  } catch {}
   process.exit(0);
 }
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
+startGateway();
+
 (async () => {
   let ready = false;
   for (let i = 0; i < 60; i++) {
-    if ((await req('GET', `${B}/llm/providers`)).s === 200) { ready = true; break; }
+    if ((await req('GET', `${B}/llm/providers`)).s === 200) {
+      ready = true;
+      break;
+    }
     await sleep(500);
   }
   if (!ready) {
@@ -109,17 +165,24 @@ process.on('SIGTERM', shutdown);
 
   const cfg = await req('POST', `${B}/extensions/composio/setup`, {
     action: 'configure',
-    payload: { secrets: { composio_api_key: COMPOSIO }, fields: {} },
+    payload: { secrets: { composio_api_key: COMPOSIO }, fields: {} }
   });
   console.log(`[wb] composio configure -> ${cfg.s}`);
   const conn = await req('GET', `${B}/connectors/connected`);
-  const accounts = Array.isArray(conn.j?.accounts) ? conn.j.accounts.map((a) => a.toolkit || a.slug || a.app || a).join(',') : JSON.stringify(conn.j).slice(0, 200);
+  const accounts = Array.isArray(conn.j?.accounts)
+    ? conn.j.accounts.map((a) => a.toolkit || a.slug || a.app || a).join(',')
+    : JSON.stringify(conn.j).slice(0, 200);
   console.log(`[wb] connectors/connected -> ${conn.s}  [${accounts}]`);
 
   web = spawn(process.execPath, [path.join(REPO, 'scripts', 'serve-webui-static.mjs')], {
     cwd: REPO,
-    env: { ...process.env, IRONCLAW_GATEWAY_ORIGIN: ORIGIN, PORT: String(WEB_PORT), IRONCLAW_DEV_INJECT_TOKEN: TOKEN },
-    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      IRONCLAW_GATEWAY_ORIGIN: ORIGIN,
+      PORT: String(WEB_PORT),
+      IRONCLAW_DEV_INJECT_TOKEN: TOKEN
+    },
+    stdio: ['ignore', 'pipe', 'pipe']
   });
   web.stdout.on('data', (c) => process.stdout.write(`[web] ${c}`));
   web.stderr.on('data', (c) => process.stderr.write(`[web] ${c}`));
