@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #28 — P3): GitHub rail ranks by reason (`220efe4`)
+
+Behaviour-ranked triage extended to GitHub — real action items above GitHub's "newsletters".
+- `workbench-state.js`: `GITHUB_REASON_RANK` (review_requested/assign/security_alert=5, ci_activity=4, mention=3, …, subscribed=1); `connectorGithubRows` stamps `githubRank`; new `compareGithubRank` (rank desc, then API recency) set as the `github` group sort. Objective needs-you-ness, not per-user preference.
+- **Live-proven** (real GitHub): group reordered recency→reason. Before: "Bản tin hàng ngày" digest @-mentions (third-party agents-radar) led. Now: **nearai/ironclaw CI failures** (ci_activity) lead; digest mentions sink below. Real work surfaces above GitHub-newsletter noise.
+- **Gate green:** static 828 (1 new test), a11y 138, design DT-1..6, smoke, bundle under budget. No visual change (sort only).
+- Next: P2 verb depth (DOCX legal templates / research when web-search cred lands), UX polish, or connector-suite 14/14 validation; own-repo extraction on your sign-off.
+
 ## Tick (loop #27 — P3): Slack decoupled to eager/cold-load (`bb446fd`)
 
 Resolves the loop #24 deferral — **all six triage sources now load eagerly on cold load**.
