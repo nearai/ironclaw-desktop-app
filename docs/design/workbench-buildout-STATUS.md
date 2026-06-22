@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #23 — P3 validation): gauntlet now tests the REAL bulk classifier (`0980aa7`)
+
+The per-tick validation mandate, run after 3 ticks of triage changes — and tightened so it proves the ACTUAL surfaced logic.
+- `scripts/workbench-profile-engine.mjs` imports the UI's `messageIsBulk` (Node-importable, same raw GMAIL shape) as the authoritative bulk determinant; the old parallel `BULK_LOCALPARTS`/`bulkMarkers` is now diagnostic-only. No more drift — UI newsletter-logic changes auto-validate.
+- **Live run (real Gmail, 250 sent + 250 inbox):** V1 newsletter suppression **0 leaked → PASS ✅**; V2 surfaced **2 items, 0 bulk → PASS ✅**; V3 temporal-holdout clean (sparse positives). Profile output (real sender data) NOT committed.
+- **Gate green:** static 819 (engine is a script, not bundled).
+- **Own-repo extraction**: deliberately queued as a USER-REVIEW item, not auto-done — it's a structural decision (new repo location, sidecar binary handling, CI) the plan defers to morning review; the standalone is already functionally broken out (own gateway + serve, no Tauri). Research still blocked on web-search credential.
+- Next: deeper triage sources (Slack into the rail) or DOCX legal-format templates; own-repo extraction on your sign-off.
+
 ## Tick (loop #22 — P3): tier corrections drive the live triage (`56f79b4`)
 
 A "You" correction now changes the day — overrides feed BOTH triage paths (rail + briefing).
