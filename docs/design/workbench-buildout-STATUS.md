@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #4 — P1): real Newsreader woff2, v13 typography complete (`835bf5c`)
+
+Display headings were on a system-serif fallback. Self-hosted the real font.
+- Added `static/fonts/newsreader-variable.woff2` (58 KB, variable wght 200–800, OFL) + license; `@font-face` in app.css alongside Geist (Geist untouched; serif is display-only via --wb-font-display, body stays Geist sans).
+- **Live-verified** (:17641): font file 200 font/woff2; `document.fonts` "Newsreader" **loaded**; "What do you want handled?" renders real Newsreader; no console errors.
+- **Gate green:** static 790, design DT-1..6, a11y 138, smoke, bundle-size under budget (fonts not in the JS/CSS budget).
+- **v13 typography complete:** Newsreader serif display + Geist sans body + Geist Mono. v13 shell fidelity (accent + serif + brand) now done.
+- Next: behaviour ORDERING in triage (tier/latency rank from sent-history), the "You" surface, then P2 chat-bar verbs (automate/schedule, research, DOCX).
+
 ## Tick (loop #3 — goal pillar #3): newsletters NEVER surface as "needs a reply" (`ba42ba2`)
 
 The live triage was surfacing The Information / Substack newsletters under "Needs a reply" (buildBriefing + the rail's connectorReplyRows took every unread message, no bulk filter). The single most goal-critical bug — fixed.
