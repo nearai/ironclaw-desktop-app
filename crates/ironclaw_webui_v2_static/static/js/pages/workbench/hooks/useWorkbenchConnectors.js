@@ -90,7 +90,14 @@ export function useConnectorInbox({ enabled = true, maxResults = 6 } = {}) {
       connectorRead({
         toolkit: 'gmail',
         tool: 'GMAIL_FETCH_EMAILS',
-        arguments: { max_results: maxResults, query: 'in:inbox' },
+        // Read the Primary tab — human correspondence, not newsletters/promotions.
+        // Gmail's own category classification keeps bulk out so "needs a reply"
+        // surfaces real mail instead of a newsletter flood; messageIsBulk still
+        // suppresses any automated sender that slips into Primary.
+        arguments: {
+          max_results: maxResults,
+          query: 'in:inbox -category:promotions -category:updates -category:forums -category:social'
+        },
         signal
       })
   });

@@ -100,8 +100,10 @@ function headerValue(message, name) {
 }
 
 // Mailing-list / automated local-parts that never expect a personal reply.
+// Includes app-notification senders (Gemini, Calendar, Drive shares) that often
+// reach the Primary tab without List-Unsubscribe / category labels.
 const BULK_LOCALPARTS =
-  /^(no[-_.]?reply|noreply|do[-_.]?not[-_.]?reply|newsletter|news|notifications?|updates?|mailer|mail|digest|alerts?|marketing|info|hello|invest|inquiry|pkginfo|donotreply)([+.]|$)/i;
+  /^(no[-_.]?reply|noreply|do[-_.]?not[-_.]?reply|newsletter|news|notifications?|updates?|mailer|mail|digest|alerts?|marketing|info|hello|invest|inquiry|pkginfo|donotreply|gemini-notes|calendar-notification|drive-shares|via-google)([+.-]|$)/i;
 
 // True when a message is bulk/newsletter mail — list broadcasts, promotions,
 // automated updates — i.e. it must NEVER be surfaced as "needs a reply". Same
