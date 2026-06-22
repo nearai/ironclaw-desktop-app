@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   answeredThreadIndex,
+  buildWeekColumns,
   cleanEmailBody,
   connectorFamilyReadiness,
   decodeBase64Part,
@@ -91,6 +92,64 @@ test('urgencyScore: named signals raise the score; pure + bounded', () => {
   assert.ok(s >= 0 && s <= 1, 'score stays within 0..1');
   assert.equal(urgencyScore(null), 0);
   assert.equal(urgencyScore({}), urgencyScore({}), 'deterministic on empty');
+});
+
+test('buildWeekColumns lays out a rolling week, places + sorts events, splits all-day', () => {
+  const now = 1_750_000_000_000;
+  const cols = buildWeekColumns(
+    [
+      {
+        id: 'review',
+        title: 'Review',
+        when: 'Tue · 14:00',
+        start: String(now + 24 * 3600000 + 2 * 3600000)
+      },
+      { id: 'standup', title: 'Standup', when: 'Mon · 09:30', start: String(now + 3600000) },
+      { id: 'coffee', title: 'Coffee', when: 'Mon · 08:00', start: String(now) },
+      { id: 'ooo', title: 'OOO', when: 'Mon · all day', start: String(now + 1800000) }
+    ],
+    { now, days: 7 }
+  );
+  assert.equal(cols.length, 7, 'a rolling 7-day week');
+  assert.equal(cols[0].isToday, true);
+  assert.equal(cols[1].isTomorrow, true);
+  // today's column: timed events sorted by start; the all-day event split off
+  assert.deepEqual(
+    cols[0].timed.map((e) => e.id),
+    ['coffee', 'standup']
+  );
+  assert.equal(cols[0].timed[0].timeLabel, '08:00', 'time read from the · separator');
+  assert.deepEqual(
+    cols[0].allDay.map((e) => e.id),
+    ['ooo']
+  );
+  assert.equal(cols[0].allDay[0].allDay, true);
+  // tomorrow's column holds the next-day event
+  assert.deepEqual(
+    cols[1].timed.map((e) => e.id),
+    ['review']
+  );
+  assert.deepEqual(buildWeekColumns([]).length, 7, 'empty input still yields the week scaffold');
+  assert.deepEqual(buildWeekColumns(null).length, 7);
+});
+
+test('buildWeekColumns is today-onward: past + out-of-window events are dropped', () => {
+  const now = 1_750_000_000_000;
+  const cols = buildWeekColumns(
+    [
+      { id: 'past', title: 'Yesterday', when: 'Sun · 10:00', start: String(now - 30 * 3600000) },
+      {
+        id: 'far',
+        title: 'Next month',
+        when: 'Wed · 10:00',
+        start: String(now + 40 * 24 * 3600000)
+      },
+      { id: 'today', title: 'Now', when: 'Mon · 09:00', start: String(now) }
+    ],
+    { now }
+  );
+  const placed = cols.flatMap((c) => [...c.allDay, ...c.timed].map((e) => e.id));
+  assert.deepEqual(placed, ['today'], 'only the in-window event lands; past + far are dropped');
 });
 
 test('selectTriageInbox reply-state gate files answered threads, keeps open loops', () => {

@@ -47,6 +47,14 @@ export function WorkbenchNav({ view, onView }) {
       >
         <${Icon} name="book" />Memory
       </button>
+      <button
+        type="button"
+        className=${view === 'calendar' ? 'is-active' : ''}
+        aria-current=${view === 'calendar' ? 'page' : undefined}
+        onClick=${() => onView('calendar')}
+      >
+        <${Icon} name="calendar" />Calendar
+      </button>
       <div className="wb13-spacer"></div>
       <button
         type="button"
@@ -204,7 +212,9 @@ export function WorkbenchTop({ view, currentUser, dockOpen, onHome, onToggleDock
           ? html`<span>Work</span><span>/</span><strong>Library</strong>`
           : view === 'memory'
             ? html`<span>Work</span><span>/</span><strong>Memory</strong>`
-            : html`<strong>Work</strong>`}
+            : view === 'calendar'
+              ? html`<span>Work</span><span>/</span><strong>Calendar</strong>`
+              : html`<strong>Work</strong>`}
       </div>
       <div className="wb13-spacer"></div>
       <div className="wb13-account">

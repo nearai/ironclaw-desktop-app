@@ -224,7 +224,9 @@ function connectorDriveRows(files = []) {
 
 function connectorUpcomingRows(calendar = {}) {
   const events = Array.isArray(calendar.events) ? calendar.events : [];
-  return events.map((event) => ({
+  // The calendar read is now wider (it also feeds the Calendar agenda view); keep
+  // the rail's Upcoming group to the next handful so it stays a glance, not a list.
+  return events.slice(0, 6).map((event) => ({
     id: `upcoming-${event.id}`,
     groupId: 'upcoming',
     kind: 'calendar',

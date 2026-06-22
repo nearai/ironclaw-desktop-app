@@ -14,6 +14,15 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Calendar week-grid view (user-requested) (`6ce5131`)
+
+User asked to see their calendar "as a gcal view from within here." Chose native week/grid over an embedded Google iframe (embed only shows private events in a Google-signed-in browser, blank in the packaged app, off-theme).
+- New `buildWeekColumns` (rolling 7-day week, today first, places/sorts events by start-date column, splits all-day, today-onward by construction) replaces the agenda-only `groupEventsByDay`. New `CalendarView` week grid + a "Calendar" dock item; calendar read bumped 6→25, rail Upcoming capped at 6.
+- Scoped `wb13-cal-*` styles on the --v2 tokens (blue #1c63d6, dark, Newsreader); responsive to a horizontal snap-scroll at ≤900px (works at 375px).
+- **LIVE proof**: 22 events placed across Mon 22 (1 all-day+4) → Fri 26 (3), weekend empty, today highlighted; desktop + 390px screenshots, v13 fidelity intact. (Earlier empty grid was a cold-load, not a bug — verified placement math against a direct read.)
+- Why it wasn't there: the Workbench reads calendar via the Composio API connector (token), not a Google session, so it renders structured data itself. Same root as "desktop still in the app" — the Workbench is still a route in the desktop bundle; standalone extraction is the later P4 step.
+- Gate: static 857 (+2 tests), a11y 140, design DT-1..6, smoke, bundle.
+
 ## Composite urgency score — within-tier reply ranking (`29655bd`)
 
 Rec #2 from the daily-briefing skill mining; fast-follow on the reply-ranking chokepoint.

@@ -58,6 +58,7 @@ import { WorkbenchReadingPanel } from './components/workbench-reading-panel.js';
 import { WorkbenchWorkspaceFiles } from './components/workbench-files.js';
 import { LibraryView } from './components/workbench-library.js';
 import { MemoryView } from './components/workbench-memory.js';
+import { CalendarView } from './components/workbench-calendar.js';
 import { WorkPacketPreview } from './components/workbench-packet.js';
 import { WorkbenchSceneWorkspace } from './components/workbench-scenes.js';
 import { WorkbenchDock, WorkbenchNav, WorkbenchTop } from './components/workbench-shell.js';
@@ -585,9 +586,11 @@ export function WorkbenchPage() {
   // The reply-state read: recent sent mail, used only to suppress already-answered
   // threads from triage (selectTriageInbox's reply-state gate). Gated on Gmail.
   const connectorSent = useConnectorSent({ enabled: connectedAccounts.gmailReady });
+  // Read a fuller window (the Calendar agenda view groups these by day); the rail's
+  // "Upcoming" group caps its own display to stay tight (connectorUpcomingRows).
   const connectorCalendar = useConnectorCalendar({
     enabled: connectedAccounts.calendarReady,
-    maxResults: 6
+    maxResults: 25
   });
   // Slack is a first-class rail source (always-visible blocker triage), so the read
   // runs whenever Slack is connected — like Gmail/Calendar/GitHub/Drive/Notion — and
@@ -1081,40 +1084,47 @@ export function WorkbenchPage() {
         />
         ${view === 'memory'
           ? html`<${MemoryView} />`
-          : view === 'library'
-            ? html`<${LibraryView}
-                savedItems=${savedItems}
-                savedWorkSnapshot=${savedWorkSnapshot}
-                onView=${setView}
-              />`
-            : html`<${HomeView}
-                commandProps=${commandProps}
-                startedWork=${startedWork}
-                briefing=${briefing}
-                onDismissBriefing=${dismissBriefing}
-                slackBlockersActive=${slackBlockersActive}
-                slackBlockers=${slackBlockers}
-                onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
-                onOpenMessage=${openMessage}
-                groups=${railGroups}
-                savedItems=${savedItems}
-                packageTab=${packageTab}
-                onPackageTab=${setPackageTab}
-                connectorFamilies=${connectedAccounts.families}
-                connectorsLoading=${connectedAccounts.isLoading}
-                onConnectSources=${() => setShowSources(true)}
-                gmailReady=${connectedAccounts.gmailReady}
-                inboxMessages=${connectorInbox.messages}
-                decisionMessages=${triageInbox}
-                inboxLoading=${connectorInbox.isLoading}
-                inboxError=${connectorInbox.isError}
+          : view === 'calendar'
+            ? html`<${CalendarView}
+                events=${connectorCalendar.events}
                 calendarReady=${connectedAccounts.calendarReady}
-                calendarEvents=${connectorCalendar.events}
                 calendarError=${connectorCalendar.isError}
-                onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
-                onDraftMessage=${openDraftReply}
-                onDismissDecision=${onDismissDecision}
-              />`}
+                onConnect=${() => setShowSources(true)}
+              />`
+            : view === 'library'
+              ? html`<${LibraryView}
+                  savedItems=${savedItems}
+                  savedWorkSnapshot=${savedWorkSnapshot}
+                  onView=${setView}
+                />`
+              : html`<${HomeView}
+                  commandProps=${commandProps}
+                  startedWork=${startedWork}
+                  briefing=${briefing}
+                  onDismissBriefing=${dismissBriefing}
+                  slackBlockersActive=${slackBlockersActive}
+                  slackBlockers=${slackBlockers}
+                  onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
+                  onOpenMessage=${openMessage}
+                  groups=${railGroups}
+                  savedItems=${savedItems}
+                  packageTab=${packageTab}
+                  onPackageTab=${setPackageTab}
+                  connectorFamilies=${connectedAccounts.families}
+                  connectorsLoading=${connectedAccounts.isLoading}
+                  onConnectSources=${() => setShowSources(true)}
+                  gmailReady=${connectedAccounts.gmailReady}
+                  inboxMessages=${connectorInbox.messages}
+                  decisionMessages=${triageInbox}
+                  inboxLoading=${connectorInbox.isLoading}
+                  inboxError=${connectorInbox.isError}
+                  calendarReady=${connectedAccounts.calendarReady}
+                  calendarEvents=${connectorCalendar.events}
+                  calendarError=${connectorCalendar.isError}
+                  onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
+                  onDraftMessage=${openDraftReply}
+                  onDismissDecision=${onDismissDecision}
+                />`}
         ${showSources
           ? html`<${WorkbenchSourcesInspector}
               sourceReadiness=${sourceReadiness}

@@ -507,6 +507,75 @@ export function normalizeCalendarEvents(result, { limit = 6 } = {}) {
   return rows;
 }
 
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_LABELS = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec'
+];
+
+// Lay calendar rows (normalizeCalendarEvents output) out as a rolling week of day
+// columns for the Calendar grid — today first, `days` columns total. Each event is
+// placed in the column matching its start date; all-day vs timed is read from the
+// event's own `when` label ("· all day" vs "· 11:30"), and timed events are sorted
+// chronologically within the day. Today-onward by construction (events outside the
+// window are dropped), so a stale "yesterday" header never appears. `now` is
+// injectable for tests; date math + labels are local to the viewer's timezone.
+export function buildWeekColumns(events, { now = Date.now(), days = 7 } = {}) {
+  const list = Array.isArray(events) ? events : [];
+  const startOfToday = (() => {
+    const d = new Date(now);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  })();
+  const dayKey = (ms) => {
+    const d = new Date(ms);
+    return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  };
+  const columns = [];
+  const byKey = new Map();
+  for (let i = 0; i < days; i++) {
+    const d = new Date(startOfToday + i * 86400000);
+    const col = {
+      dateKey: `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`,
+      weekday: WEEKDAY_LABELS[d.getDay()],
+      dayNum: d.getDate(),
+      month: MONTH_LABELS[d.getMonth()],
+      isToday: i === 0,
+      isTomorrow: i === 1,
+      isWeekend: d.getDay() === 0 || d.getDay() === 6,
+      allDay: [],
+      timed: []
+    };
+    columns.push(col);
+    byKey.set(col.dateKey, col);
+  }
+  for (const ev of list) {
+    if (!ev || typeof ev !== 'object') continue;
+    const ms = toEpochMs(ev.start);
+    if (!ms) continue;
+    const col = byKey.get(dayKey(ms));
+    if (!col) continue; // outside the rolling window
+    const when = asString(ev.when);
+    const sep = when.indexOf('·');
+    const timeLabel = (sep >= 0 ? when.slice(sep + 1) : '').trim();
+    const isAllDay = !timeLabel || /all\s*day/i.test(timeLabel);
+    const item = { ...ev, ms, timeLabel: isAllDay ? 'All day' : timeLabel, allDay: isAllDay };
+    (isAllDay ? col.allDay : col.timed).push(item);
+  }
+  for (const col of columns) col.timed.sort((a, b) => a.ms - b.ms);
+  return columns;
+}
+
 export function unreadInboxCount(rows) {
   return (Array.isArray(rows) ? rows : []).filter((row) => row?.unread).length;
 }
