@@ -757,3 +757,66 @@ test('workbench Slack rows truncate long messages and never fabricate a row', ()
   assert.equal(slack.rows[0].detail, 'In Slack', 'no sender/channel -> generic detail');
   assert.equal(slack.rows[0].href, undefined, 'no permalink -> no href');
 });
+
+test('workbench rail surfaces GitHub notifications as their own group', () => {
+  const rail = buildWorkbenchStateRail({
+    githubNotifications: [
+      {
+        id: 'n1',
+        title: 'Approve the routing scheduler fix',
+        kind: 'PullRequest',
+        reason: 'review_requested',
+        repo: 'nearai/ironclaw',
+        when: '10:00',
+        link: 'https://github.com/nearai/ironclaw/pull/1'
+      },
+      {
+        id: 'n2',
+        title: 'CI failed on fix/routing',
+        kind: 'CheckSuite',
+        reason: 'ci_activity',
+        repo: 'nearai/ironclaw',
+        when: '09:00',
+        link: 'https://github.com/nearai/ironclaw/actions'
+      }
+    ]
+  });
+  const github = rail.find((group) => group.id === 'github');
+  assert.ok(github, 'github group present');
+  assert.equal(github.total, 2);
+  assert.equal(github.rows[0].title, 'Approve the routing scheduler fix');
+  assert.equal(github.rows[0].badge, 'PullRequest', 'subject type becomes the badge');
+  assert.equal(
+    github.rows[0].detail,
+    'review requested · nearai/ironclaw',
+    'reason (de-underscored) + repo'
+  );
+  assert.equal(github.rows[0].href, 'https://github.com/nearai/ironclaw/pull/1');
+  assert.equal(github.rows[0].icon, 'spark', 'matches the briefing GitHub icon');
+});
+
+test('workbench GitHub group degrades to an honest empty state with no activity', () => {
+  const rail = buildWorkbenchStateRail({ githubNotifications: [] });
+  const github = rail.find((group) => group.id === 'github');
+  assert.ok(github, 'group still present');
+  assert.equal(github.total, 0);
+  assert.deepEqual(github.rows, []);
+  assert.equal(github.emptyTitle, 'No GitHub activity.');
+});
+
+test('workbench GitHub rows truncate long titles and drop title-less notifications', () => {
+  const long = 'y'.repeat(200);
+  const rail = buildWorkbenchStateRail({
+    githubNotifications: [
+      { id: 'a', title: long, kind: '', reason: '', repo: '', when: '', link: '' },
+      { id: 'b', title: '', kind: 'Issue', reason: 'mention', repo: 'x/y', when: '', link: '' } // no title -> dropped
+    ]
+  });
+  const github = rail.find((group) => group.id === 'github');
+  assert.equal(github.total, 1, 'title-less notification dropped');
+  assert.ok(github.rows[0].title.endsWith('…'), 'long title truncated');
+  assert.equal(github.rows[0].title.length, 90);
+  assert.equal(github.rows[0].badge, 'GitHub', 'no subject type -> generic badge');
+  assert.equal(github.rows[0].detail, 'On GitHub', 'no reason/repo -> generic detail');
+  assert.equal(github.rows[0].href, undefined, 'no link -> no href');
+});

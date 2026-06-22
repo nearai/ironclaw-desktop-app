@@ -113,6 +113,35 @@ function connectorSlackRows(slackBlockers = []) {
     });
 }
 
+// GitHub notifications (mentions, reviews, CI failures) the authenticated user is
+// subscribed to, surfaced into the rail. Already eagerly read when GitHub is
+// connected (same queryKey as the briefing — React-Query dedupes), so this group
+// populates on cold load. Degrades to nothing when GitHub is not connected.
+function connectorGithubRows(notifications = []) {
+  const rows = Array.isArray(notifications) ? notifications : [];
+  return rows
+    .filter((row) => row && row.title)
+    .map((row) => {
+      const repo = String(row.repo || '').trim();
+      const reason = String(row.reason || '')
+        .replace(/_/g, ' ')
+        .trim();
+      const kind = String(row.kind || '').trim();
+      const title = String(row.title);
+      return {
+        id: `github-${row.id}`,
+        groupId: 'github',
+        kind: 'github',
+        icon: 'spark',
+        title: title.length > 90 ? `${title.slice(0, 89)}…` : title,
+        badge: kind || 'GitHub',
+        detail: [reason, repo].filter(Boolean).join(' · ') || 'On GitHub',
+        href: row.link || undefined,
+        timestamp: ''
+      };
+    });
+}
+
 function connectorUpcomingRows(calendar = {}) {
   const events = Array.isArray(calendar.events) ? calendar.events : [];
   return events.map((event) => ({
@@ -601,6 +630,7 @@ export function buildWorkbenchStateRail({
   inbox = null,
   calendar = null,
   slackBlockers = [],
+  githubNotifications = [],
   tierOverrides = {},
   limit = 3
 } = {}) {
@@ -610,6 +640,7 @@ export function buildWorkbenchStateRail({
   const rows = [
     ...connectorReplyRows(inbox || {}, tierOverrides),
     ...connectorSlackRows(slackBlockers),
+    ...connectorGithubRows(githubNotifications),
     ...sourceRows(sourceReadiness),
     ...workbenchFeedRows(feedItems),
     ...approvalFeedRows(approvals),
@@ -682,6 +713,12 @@ export const WORKBENCH_STATE_GROUPS = Object.freeze([
     label: 'Ready to review',
     emptyTitle: 'Nothing ready yet.',
     emptyDetail: 'Drafts, briefs, and saved artifacts will appear here.'
+  },
+  {
+    id: 'github',
+    label: 'GitHub',
+    emptyTitle: 'No GitHub activity.',
+    emptyDetail: 'Mentions, review requests, and CI failures will appear here.'
   },
   {
     id: 'upcoming',

@@ -701,6 +701,7 @@ export function WorkbenchPage() {
         inbox: { messages: connectorInbox.messages },
         calendar: { events: connectorCalendar.events },
         slackBlockers: slackBlockers.rows,
+        githubNotifications: connectorGithub.notifications,
         tierOverrides,
         limit: 4
       }),
@@ -712,6 +713,7 @@ export function WorkbenchPage() {
       connectorCalendar.events,
       connectorInbox.messages,
       slackBlockers.rows,
+      connectorGithub.notifications,
       outletThreadsState?.threads,
       savedItems,
       sourceReadiness,
