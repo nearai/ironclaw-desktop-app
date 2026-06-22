@@ -14,6 +14,11 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## User feedback round 2 — native email viewer (`392f135`); doc viewer blocked at gateway
+
+- **D1 — native email viewer (DONE, live-proven):** emails rendered weirdly because `normalizeFullMessage` stripped all HTML to plain text and ignored the `text/html` part in `payload.parts[]`. Now `extractHtmlBody`/`decodeBase64Part` surface `htmlBody`; the reading panel renders it via `DOMPurify.sanitize` (WHOLE_DOCUMENT; FORBID script/iframe/object/embed/form) inside a **sandboxed iframe** (no allow-scripts, no allow-same-origin) — faithful + XSS-safe; plain-text mail keeps the paragraph fallback. Live: a real email renders with quoted-thread indentation + clickable links on a white sheet. Gate: static 839 (+3 tests), a11y 138, design DT-1..6, smoke, bundle.
+- **D2 — Notion/Drive doc-body viewer: BLOCKED at the gateway connector layer** (verified by live probe, not assumed): `NOTION_FETCH_DATA` is search-only (get_pages/databases/all); `NOTION_FETCH_BLOCK_CONTENTS` 404s (integration lacks page block access); Drive `GOOGLEDRIVE_EXPORT_*`/`DOWNLOAD_FILE` are rejected by the read-only route guard (EXPORT/DOWNLOAD ∉ FETCH/LIST/GET/SEARCH/FIND/READ) → invalid_request; `GOOGLEDOCS_GET_DOCUMENT` unavailable. In-app doc reading needs a GATEWAY change: expose a read-only doc-content tool (allow EXPORT in the read route, or wire GOOGLEDOCS_GET_DOCUMENT, and ensure the Notion integration is shared on pages). Until then Notion/Drive rows open in the browser (external link works). This touches the read/write security boundary → deserves its own reviewed gateway PR.
+
 ## User feedback round 1 — triage quality + dismiss-to-learn (`9c13e0b`, `43ea58a`, `03c63a2`)
 
 Five issues raised; first three fixed (each gated + live-proven), two queued.
