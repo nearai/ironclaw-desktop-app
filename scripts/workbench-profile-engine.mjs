@@ -12,6 +12,12 @@
 // Reads metadata + headers only (sender/to/date/threadId/labels/List-Unsubscribe).
 // Never prints email bodies. Output: /tmp/wb-profile/{profile.json,report.md}.
 import fs from 'node:fs';
+// Validate against the SAME bulk classifier the UI surfaces with — not a parallel
+// reimplementation. messageIsBulk reads payload.headers + labelIds + sender, which
+// is exactly the raw GMAIL_FETCH_EMAILS shape this engine pulls, so it drops in
+// directly. If the UI's newsletter logic changes, this gauntlet validates the new
+// logic automatically (no drift).
+import { messageIsBulk } from '../crates/ironclaw_webui_v2_static/static/js/pages/workbench/lib/workbench-connectors.js';
 
 const GW = `http://127.0.0.1:${process.env.GW_PORT || 17640}`;
 const B = '/api/webchat/v2';
@@ -107,13 +113,16 @@ const hrs = (ms) => ms == null ? null : +(ms / 3.6e6).toFixed(1);
 
   // Per-sender aggregation over received (inbox) mail.
   const S = new Map();
-  const get = (e) => { if (!S.has(e)) S.set(e, { email: e, domain: domainOf(e), received: 0, replied: 0, latencies: [], lastSeen: 0, bulkHits: {}, subjects: [] }); return S.get(e); };
+  const get = (e) => { if (!S.has(e)) S.set(e, { email: e, domain: domainOf(e), received: 0, replied: 0, latencies: [], lastSeen: 0, bulkHits: {}, bulkMsgs: 0, subjects: [] }); return S.get(e); };
   for (const m of inbox) {
     const from = emailOf(m.sender); if (!from || from === me) continue;
     const rt = tsOf(m); const a = get(from);
     a.received++;
     if (rt && rt > a.lastSeen) a.lastSeen = rt;
     if (a.subjects.length < 3 && m.subject) a.subjects.push(String(m.subject).slice(0, 80));
+    // Authoritative: the UI's messageIsBulk. bulkMarkers stays for the diagnostic
+    // breakdown of WHICH signals fired, but the tier/validation use messageIsBulk.
+    if (messageIsBulk(m)) a.bulkMsgs += 1;
     for (const mk of bulkMarkers(m)) a.bulkHits[mk] = (a.bulkHits[mk] || 0) + 1;
     // replied? a sent message exists in this thread, after this received message.
     const st = sentThreads.get(m.threadId);
@@ -125,7 +134,9 @@ const hrs = (ms) => ms == null ? null : +(ms / 3.6e6).toFixed(1);
   function tierFor(a) {
     const rate = a.received ? a.replied / a.received : 0;
     const medLat = median(a.latencies);
-    const bulk = Object.keys(a.bulkHits).length > 0;
+    // A sender is bulk if the UI would classify ANY of their mail as bulk —
+    // mirrors the rail/briefing, which suppress a sender's bulk messages.
+    const bulk = (a.bulkMsgs || 0) > 0;
     const initiated = initiatedWith.has(a.email);
     // Newsletters / bulk: you don't reply to these -> Ignore (unless you genuinely
     // do reply, which would be unusual; keep them out of "needs you").
