@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useOutletContext } from 'react-router';
 import { Icon } from '../../design-system/icons.js';
-import { connectorWrite } from '../../lib/api.js';
+import { connectorWrite, createThread, sendMessage, fetchTimeline } from '../../lib/api.js';
 import { listAutomations } from '../../lib/automations-api.js';
 import { React, html } from '../../lib/html.js';
 import { useThreadAttentionDetails } from '../../lib/thread-attention-details.js';
@@ -22,6 +22,7 @@ import { WORKBENCH_AUTO_SOURCE_SCOPE } from './lib/workbench-plan.js';
 import { buildBriefing, isBriefingIntent } from './lib/workbench-briefing.js';
 import { isSlackBlockerIntent } from './lib/workbench-slack.js';
 import { buildReplyDraft, createdDraftId, draftWriteArguments } from './lib/workbench-draft.js';
+import { generateSuggestedReply } from './lib/workbench-reply.js';
 import { WORKBENCH_DRAFT_KEY, useWorkbenchStart } from './hooks/useWorkbenchStart.js';
 import { useDialogFocus } from './hooks/useDialogFocus.js';
 import { useWorkbenchSourceReadiness } from './hooks/useWorkbenchSourceReadiness.js';
@@ -506,6 +507,15 @@ export function WorkbenchPage() {
   const [draftContext, setDraftContext] = React.useState(null);
   const [draftBusy, setDraftBusy] = React.useState(false);
   const [draftResult, setDraftResult] = React.useState(null);
+  // While a reply is being drafted by the agent, the modal shows a generating
+  // state. A token guards against a second "Draft reply" landing its result on the
+  // wrong (newer) draft if the user opens another mid-generation.
+  const [draftGenerating, setDraftGenerating] = React.useState(false);
+  // The agent-drafted reply, passed to the modal separately from the (empty)
+  // draft context so a late arrival fills the body only if untouched — never
+  // clobbering what the user typed, and never re-seeding on reopen.
+  const [draftSuggestion, setDraftSuggestion] = React.useState('');
+  const draftTokenRef = React.useRef(0);
   const savedWorkReadEnabled = savedWorkServerReadSupported(gatewayStatus);
   const approvalsReadEnabled = approvalsFeedReadSupported(gatewayStatus);
   const receiptsReadEnabled = receiptsFeedReadSupported(gatewayStatus);
@@ -545,12 +555,37 @@ export function WorkbenchPage() {
 
   const openDraftReply = React.useCallback((message) => {
     setDraftResult(null);
+    setDraftSuggestion('');
     setDraftContext(buildReplyDraft({ message, selected: message }));
+    // Draft a reply in the user's voice via a short agent turn (non-blocking — the
+    // modal is usable immediately). On any failure/timeout nothing fills (never
+    // fabricated). A token guards against a second draft landing on this one.
+    const token = (draftTokenRef.current += 1);
+    setDraftGenerating(true);
+    let timezone;
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch (_) {
+      timezone = undefined;
+    }
+    generateSuggestedReply({
+      message,
+      deps: { createThread, sendMessage, fetchTimeline, timezone }
+    })
+      .then((reply) => {
+        if (reply && draftTokenRef.current === token) setDraftSuggestion(reply);
+      })
+      .finally(() => {
+        if (draftTokenRef.current === token) setDraftGenerating(false);
+      });
   }, []);
   const closeDraft = React.useCallback(() => {
+    draftTokenRef.current += 1;
     setDraftContext(null);
     setDraftResult(null);
     setDraftBusy(false);
+    setDraftGenerating(false);
+    setDraftSuggestion('');
   }, []);
   const submitDraft = React.useCallback(async (fields) => {
     setDraftBusy(true);
@@ -1178,6 +1213,8 @@ export function WorkbenchPage() {
           context=${draftContext}
           sendEnabled=${false}
           busy=${draftBusy}
+          generating=${draftGenerating}
+          suggestedBody=${draftSuggestion}
           result=${draftResult}
           onCancel=${closeDraft}
           onSubmit=${submitDraft}

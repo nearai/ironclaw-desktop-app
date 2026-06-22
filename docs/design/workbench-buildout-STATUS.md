@@ -14,6 +14,14 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Pre-drafted reply engine — "Draft reply" comes ready (`10431b6`)
+
+Step 1 of the briefing-as-home rebuild + the user's #1 ask. "Draft reply" now pre-fills a reply drafted in the user's voice (short agent turn), review/edit/create — never sent.
+- New `lib/workbench-reply.js` (buildSuggestedReplyPrompt/cleanReplyText/extractReplyText/generateSuggestedReply, deps-injected, +6 tests). Wired into `openDraftReply` (non-blocking, token-guarded) → modal `suggestedBody` fills the body only if untouched (never clobbers); "drafting…" hint; modal stays usable. Returns '' on failure (never fabricates).
+- **LIVE proof:** clicked Draft reply on a real decision card → filled with a ready, contextual, in-voice reply (speaker-invite confirm, recipient/subject correct, Create enabled, no console errors).
+- Updated 2 static draft tests: draft-open now fires a generation turn, so `sentMessages==[]` → "any chat traffic is only the reply-generation prompt"; the real no-send guarantee (connectorWrites = draft-create only) unchanged.
+- Gate: static 870 (+6), a11y 140, smoke, design, bundle (cold-start 396.8/401). Next: home restructure to the briefing sections + cut cruft.
+
 ## Briefing-as-home greenlit — radar foundation + reply-engine probe (`937156e`)
 
 User reviewed the briefing-as-home mockup and greenlit it (Ask bar stays; per-card actions correct), and pointed me to memory/sessions for the identity/allowlist derivation.

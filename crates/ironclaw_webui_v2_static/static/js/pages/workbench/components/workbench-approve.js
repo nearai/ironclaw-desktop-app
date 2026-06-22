@@ -12,6 +12,8 @@ export function WorkbenchApprove({
   context,
   sendEnabled = false,
   busy,
+  generating = false,
+  suggestedBody = '',
   result,
   onCancel,
   onSubmit
@@ -29,6 +31,13 @@ export function WorkbenchApprove({
     setSubject(context.subject || '');
     setBody(context.body || '');
   }, [context]);
+
+  // Fill an agent-drafted reply when it arrives — only if the user hasn't typed,
+  // so generation never clobbers an edit and is fully optional.
+  React.useEffect(() => {
+    if (!suggestedBody) return;
+    setBody((current) => (current && current.trim() ? current : suggestedBody));
+  }, [suggestedBody]);
 
   if (!open) return null;
 
@@ -96,14 +105,18 @@ export function WorkbenchApprove({
                     />
                   </label>
                   <div className="wb13-bodyprev">
-                    <div className="bh">Message</div>
+                    <div className="bh">
+                      Message${generating ? ' · drafting a reply in your voice…' : ''}
+                    </div>
                     <textarea
                       aria-label="Draft message"
                       className="wb13-approve-textarea"
                       rows="7"
                       value=${body}
                       data-testid="workbench-approve-body"
-                      placeholder="Write your reply. It will be saved as a draft — not sent."
+                      placeholder=${generating
+                        ? 'IronClaw is drafting a reply from the thread — or write your own.'
+                        : 'Write your reply. It will be saved as a draft — not sent.'}
                       onInput=${(event) => setBody(event.currentTarget.value)}
                     ></textarea>
                   </div>
