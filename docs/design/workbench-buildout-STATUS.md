@@ -14,6 +14,15 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## User feedback round 1 — triage quality + dismiss-to-learn (`9c13e0b`, `43ea58a`, `03c63a2`)
+
+Five issues raised; first three fixed (each gated + live-proven), two queued.
+- **A — notes out of "Needs a decision" (`9c13e0b`):** WorkbenchDecisions was fed the raw inbox and only filtered `.unread`, never `messageIsBulk`, so gemini-notes meeting summaries became decision cards. New pure `selectTriageInbox()` (drops bulk + ignore-corrected + dismissed) feeds a `decisionMessages` prop; Arrived keeps raw (context view). Live: notes gone from Needs-a-decision.
+- **B — Slack blocker precision (`43ea58a`):** the group was a keyword search, so multi-line "IronClaw QA Update … Blocked: …" reports matched. New `textLooksLikeBlocker()` drops broadcast/status reports (≥3 lines, >280 chars, report titles), keeps terse asks. Live: SLACK BLOCKERS 8 → 1 (only a real PR-review request).
+- **C — dismiss-with-reason "so it learns" (`03c63a2`, the #1 ask):** new `workbench-dismissals.js` (localStorage; `dismissalSignalsBySender` for the learn loop). Each decision card has "Not for me" → inline reason picker → files the row (clears from decisions AND rail) + records reason+sender; survives reload. v13 fidelity intact (screenshot).
+- **Gate green throughout:** static 836, a11y 138, design DT-1..6, smoke, bundle under budget.
+- **QUEUED (raised, not yet done):** (D) in-app viewer for notes/Notion/Drive so the user reads them here instead of Chrome tabs (reading panel is Gmail-only today); (E) live streaming chat-window test (only mocked-complete responses tested today). Honest answer to "did you test the chat window": not the live streaming interaction — that gap is real and (E) closes it.
+
 ## Tick (loop #28 — P3): GitHub rail ranks by reason (`220efe4`)
 
 Behaviour-ranked triage extended to GitHub — real action items above GitHub's "newsletters".
