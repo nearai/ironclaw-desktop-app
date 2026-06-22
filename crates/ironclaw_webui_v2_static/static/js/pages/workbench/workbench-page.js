@@ -30,6 +30,7 @@ import { fetchReceiptsFeed, receiptsFeedReadSupported } from './lib/receipts-fee
 import { fetchWorkbenchFeed, workbenchFeedReadSupported } from './lib/workbench-feed-api.js';
 import { buildWorkbenchStateRail } from './lib/workbench-state.js';
 import { readTierOverrides } from './lib/workbench-profile-overrides.js';
+import { selectTriageInbox } from './lib/workbench-connectors.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
   useConnectedAccounts,
@@ -209,7 +210,7 @@ function HomeView(props) {
           />
           <${WorkbenchDecisions}
             gmailReady=${props.gmailReady}
-            messages=${props.inboxMessages}
+            messages=${props.decisionMessages}
             onOpenMessage=${props.onOpenMessage}
             onDraftMessage=${props.onDraftMessage}
           />
@@ -230,7 +231,7 @@ function HomeView(props) {
           <${TriageSection}
             groups=${props.groups}
             hasDecisions=${props.gmailReady &&
-            props.inboxMessages.some((message) => message.unread)}
+            props.decisionMessages.some((message) => message.unread)}
           />
           ${hasReviewableSavedWork
             ? html`<${WorkPacketPreview}
@@ -686,6 +687,14 @@ export function WorkbenchPage() {
   // Per-sender tier corrections from the "You" surface; re-read on mount so a
   // correction made there reorders this rail when you return. Drives reply rank.
   const tierOverrides = React.useMemo(() => readTierOverrides(), []);
+  // Triage-worthy inbox = what may be surfaced on the Workbench (Needs-a-decision,
+  // Arrived). Drops bulk/newsletters/notes (e.g. gemini-notes meeting summaries) and
+  // ignore-corrected senders, mirroring the rail's Needs-a-reply. The raw inbox still
+  // feeds the rail + briefing, which filter themselves.
+  const triageInbox = React.useMemo(
+    () => selectTriageInbox(connectorInbox.messages, { overrides: tierOverrides }),
+    [connectorInbox.messages, tierOverrides]
+  );
   const railGroups = React.useMemo(
     () =>
       buildWorkbenchStateRail({
@@ -1063,6 +1072,7 @@ export function WorkbenchPage() {
                 onConnectSources=${() => setShowSources(true)}
                 gmailReady=${connectedAccounts.gmailReady}
                 inboxMessages=${connectorInbox.messages}
+                decisionMessages=${triageInbox}
                 inboxLoading=${connectorInbox.isLoading}
                 inboxError=${connectorInbox.isError}
                 calendarReady=${connectedAccounts.calendarReady}

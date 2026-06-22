@@ -2724,9 +2724,9 @@ test('static workbench: clicking a decision card opens the reading panel with th
             {
               messageId: '19ee5df98f8d839e',
               threadId: 'thread-spacex',
-              sender: 'The Information <hello@theinformation.com>',
-              subject: 'What the SpaceX offering could signal',
-              snippet: 'Subscribe now for $749.',
+              sender: 'Marcus Reed <marcus@northwind.com>',
+              subject: 'Renewal terms — can you confirm Q3?',
+              snippet: 'Can you confirm the net-60 terms before Friday?',
               labelIds: ['UNREAD', 'INBOX'],
               messageTimestamp: '2026-06-20T16:31:36Z'
             }
@@ -2738,12 +2738,12 @@ test('static workbench: clicking a decision card opens the reading panel with th
         data: {
           messageId: '19ee5df98f8d839e',
           threadId: 'thread-spacex',
-          sender: 'The Information <hello@theinformation.com>',
+          sender: 'Marcus Reed <marcus@northwind.com>',
           to: 'abhishek@near.foundation',
-          subject: 'What the SpaceX offering could signal',
+          subject: 'Renewal terms — can you confirm Q3?',
           messageTimestamp: '2026-06-20T16:31:36Z',
           messageText:
-            'Subscribe now for $749 and save 25% on the first year.\r\n\r\nThe SpaceX secondary could reset how investors price the next wave of AI IPOs.\r\n\r\nThe Information'
+            'Hi Abhishek,\r\n\r\nCan you confirm the net-60 payment terms before Friday so we can finalize the Q3 renewal?\r\n\r\nThanks,\r\nMarcus'
         }
       }
     }
@@ -2760,14 +2760,14 @@ test('static workbench: clicking a decision card opens the reading panel with th
   const panel = page.getByTestId('workbench-reading-panel');
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId('workbench-reading-panel-subject')).toContainText(
-    'What the SpaceX offering could signal'
+    'Renewal terms — can you confirm Q3?'
   );
-  await expect(panel).toContainText('The Information');
+  await expect(panel).toContainText('Marcus Reed');
   await expect(panel.getByTestId('workbench-reading-panel-body')).toContainText(
-    'Subscribe now for $749'
+    'confirm the net-60 payment terms'
   );
   await expect(panel.getByTestId('workbench-reading-panel-body')).toContainText(
-    'reset how investors price the next wave of AI IPOs'
+    'finalize the Q3 renewal'
   );
 
   // The panel "Open in Gmail" link is a real Gmail deep link to the thread.

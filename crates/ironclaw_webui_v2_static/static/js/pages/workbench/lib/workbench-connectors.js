@@ -131,6 +131,30 @@ export function messageIsBulk(message) {
   return BULK_LOCALPARTS.test(localPart);
 }
 
+// The single source of truth for which inbox mail is "triage-worthy" — i.e. may
+// be surfaced on the Workbench (Needs-a-decision, Arrived, and the rail's
+// Needs-a-reply). Drops bulk/newsletter/notes mail (messageIsBulk — e.g. the
+// gemini-notes meeting summaries the user never replies to), senders the user
+// corrected to "ignore", and rows the user has dismissed. Everything dropped is
+// still in the mailbox — filed, not surfaced. Pure; mutates nothing.
+export function selectTriageInbox(messages, { overrides = {}, dismissals = {} } = {}) {
+  const list = Array.isArray(messages) ? messages : [];
+  const norm = {};
+  for (const [email, tier] of Object.entries(
+    overrides && typeof overrides === 'object' ? overrides : {}
+  )) {
+    norm[String(email || '').toLowerCase()] = tier;
+  }
+  const dismissed = dismissals && typeof dismissals === 'object' ? dismissals : {};
+  return list.filter((message) => {
+    if (!message || message.isBulk) return false;
+    if (norm[String(message.fromEmail || '').toLowerCase()] === 'ignore') return false;
+    const key = String(message.messageId || message.id || '');
+    if (key && dismissed[key]) return false;
+    return true;
+  });
+}
+
 // Best-effort extraction of a human sender name/address from the varied shapes
 // Composio can return for GMAIL_FETCH_EMAILS.
 function readSender(message) {

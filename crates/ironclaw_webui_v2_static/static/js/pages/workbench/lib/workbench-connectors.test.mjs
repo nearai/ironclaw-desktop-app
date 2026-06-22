@@ -10,8 +10,65 @@ import {
   normalizeConnectedAccounts,
   normalizeFullMessage,
   normalizeInboxMessages,
+  selectTriageInbox,
   unreadInboxCount
 } from './workbench-connectors.js';
+
+test('selectTriageInbox keeps human mail but files bulk, ignored senders, and dismissed rows', () => {
+  const messages = [
+    {
+      id: 'h1',
+      messageId: 'h1',
+      fromEmail: 'dana@northwind.com',
+      subject: 'Renewal',
+      unread: true,
+      isBulk: false
+    },
+    // gemini-notes meeting summary — classified bulk upstream; must NOT surface as a decision
+    {
+      id: 'note',
+      messageId: 'note',
+      fromEmail: 'gemini-notes@google.com',
+      subject: 'Notes: Intents Steering Committee',
+      unread: true,
+      isBulk: true
+    },
+    {
+      id: 'ign',
+      messageId: 'ign',
+      fromEmail: 'chatty@vendor.com',
+      subject: 'Following up again',
+      unread: true,
+      isBulk: false
+    },
+    {
+      id: 'dis',
+      messageId: 'dis',
+      fromEmail: 'someone@x.com',
+      subject: 'Old thing',
+      unread: true,
+      isBulk: false
+    }
+  ];
+  const out = selectTriageInbox(messages, {
+    overrides: { 'chatty@vendor.com': 'ignore' },
+    dismissals: { dis: { reason: 'handled', ts: 1 } }
+  });
+  assert.deepEqual(
+    out.map((m) => m.id),
+    ['h1'],
+    'only the real human, non-dismissed, non-ignored, non-bulk message survives'
+  );
+});
+
+test('selectTriageInbox degrades safely on empty/garbage and never mutates input', () => {
+  assert.deepEqual(selectTriageInbox(null), []);
+  assert.deepEqual(selectTriageInbox([], {}), []);
+  const input = [{ id: 'a', isBulk: false, unread: true }];
+  const snapshot = JSON.parse(JSON.stringify(input));
+  selectTriageInbox(input, { overrides: null, dismissals: null });
+  assert.deepEqual(input, snapshot, 'input not mutated');
+});
 
 test('normalizeConnectedAccounts keeps only ACTIVE toolkits and de-dupes', () => {
   const set = normalizeConnectedAccounts({
