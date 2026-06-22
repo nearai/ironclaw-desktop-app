@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #21 — P4): gateway supervisor — standalone self-heals on sidecar exit (`718978f`)
+
+Root-caused loop #20's "gateway crashed twice": NOT a crash (no panic/OOM) — the sidecar is reaped with the launcher's process group when the session tears down (the nohup'd reboot survived).
+- `scripts/workbench-standalone.mjs`: `startGateway()` supervisor respawns the sidecar on unexpected exit (linear backoff cap 8s, 20-restart cap, shuttingDown guard); header documents running under `nohup … &`.
+- **Live-proven** (alt ports 17646): boot → ready → `kill -9` sidecar → "respawn #1 in 1000ms" → gateway back up. Self-heals.
+- **Gate green:** static 814, a11y 138, design DT-1..6, smoke (launcher not bundled; ran to confirm no regression).
+- Next: own-repo extraction (the full "broken out" pillar); research stays blocked on web-search credential.
+
 ## Tick (loop #20 — P3): editable perspective — correct a sender's tier (`5a5d6f7`)
 
 The "You" surface is now observed AND correctable (v13).
