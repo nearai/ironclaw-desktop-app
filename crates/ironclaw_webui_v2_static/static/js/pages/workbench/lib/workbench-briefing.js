@@ -40,6 +40,9 @@ export function isBriefingIntent(text) {
 // "replies waiting" section straight from the inbox read.
 const ATTENTION_GROUP_IDS = new Set(['needs-approval', 'blocked']);
 
+// Tier corrections outrank Gmail IMPORTANT (1): VIP=3, Respond=2 (see buildBriefing).
+const OVERRIDE_REPLY_RANK = { vip: 3, respond: 2 };
+
 function timeGreeting(now) {
   const hour = now instanceof Date && !Number.isNaN(now.getTime()) ? now.getHours() : 9;
   if (hour < 12) return 'Good morning';
@@ -131,18 +134,45 @@ export function buildBriefing({
   githubReady = false,
   driveReady = false,
   notionReady = false,
+  tierOverrides = {},
   now = new Date()
 } = {}) {
+  // Per-sender tier corrections from the "You" surface shape the morning view:
+  // an "ignore" sender is dropped from replies-waiting; "vip"/"respond" float to
+  // the top. Mirrors the rail's connectorReplyRows ranking.
+  const norm = {};
+  for (const [email, tier] of Object.entries(
+    tierOverrides && typeof tierOverrides === 'object' ? tierOverrides : {}
+  )) {
+    norm[String(email || '').toLowerCase()] = tier;
+  }
+  const overrideFor = (message) =>
+    norm[String((message && message.fromEmail) || '').toLowerCase()] || null;
+  const replyRank = (message) =>
+    OVERRIDE_REPLY_RANK[overrideFor(message)] != null
+      ? OVERRIDE_REPLY_RANK[overrideFor(message)]
+      : message?.important
+        ? 1
+        : 0;
+
   // Newsletters / list broadcasts / promotions never "need a reply" — suppress
   // bulk mail from the replies-waiting bucket entirely (matches the validated
   // profile engine). A bulk sender must never be surfaced as waiting on you.
-  const rawInbox = Array.isArray(inboxMessages) ? inboxMessages : [];
-  const filed = rawInbox.filter((message) => message?.isBulk).length;
+  const allInbox = Array.isArray(inboxMessages) ? inboxMessages : [];
+  const filed = allInbox.filter((message) => message?.isBulk).length;
+  // Honor "ignore" corrections before anything else: a sender you told us you
+  // never reply to is removed from the replies bucket entirely.
+  const rawInbox = allInbox.filter((message) => overrideFor(message) !== 'ignore');
   const inbox = rawInbox.filter((message) => !message?.isBulk);
   const unread = inbox.filter((message) => message?.unread);
   // Prefer unread; if everything is read, still show the most recent threads so
   // the briefing is never blank when the mailbox simply has no unread mail.
-  const replies = (unread.length ? unread : inbox).slice(0, 5);
+  // Behaviour-first within the pool: corrected VIP/Respond, then IMPORTANT, then
+  // the source's recency order (stable sort preserves it within a band).
+  const replies = (unread.length ? unread : inbox)
+    .slice()
+    .sort((a, b) => replyRank(b) - replyRank(a))
+    .slice(0, 5);
 
   const events = (Array.isArray(calendarEvents) ? calendarEvents : []).slice(0, 5);
 

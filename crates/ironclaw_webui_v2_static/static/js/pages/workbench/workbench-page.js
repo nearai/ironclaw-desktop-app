@@ -29,6 +29,7 @@ import { approvalsFeedReadSupported, fetchApprovalsFeed } from './lib/approvals-
 import { fetchReceiptsFeed, receiptsFeedReadSupported } from './lib/receipts-feed-api.js';
 import { fetchWorkbenchFeed, workbenchFeedReadSupported } from './lib/workbench-feed-api.js';
 import { buildWorkbenchStateRail } from './lib/workbench-state.js';
+import { readTierOverrides } from './lib/workbench-profile-overrides.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
   useConnectedAccounts,
@@ -677,6 +678,9 @@ export function WorkbenchPage() {
     setSourceIds([id]);
   }, []);
 
+  // Per-sender tier corrections from the "You" surface; re-read on mount so a
+  // correction made there reorders this rail when you return. Drives reply rank.
+  const tierOverrides = React.useMemo(() => readTierOverrides(), []);
   const railGroups = React.useMemo(
     () =>
       buildWorkbenchStateRail({
@@ -691,6 +695,7 @@ export function WorkbenchPage() {
         sourceReadiness,
         inbox: { messages: connectorInbox.messages },
         calendar: { events: connectorCalendar.events },
+        tierOverrides,
         limit: 4
       }),
     [
@@ -704,7 +709,8 @@ export function WorkbenchPage() {
       savedItems,
       sourceReadiness,
       threadAttentionDetails,
-      threadStates
+      threadStates,
+      tierOverrides
     ]
   );
 
@@ -860,6 +866,7 @@ export function WorkbenchPage() {
         githubReady: connectedAccounts.githubReady,
         driveReady: connectedAccounts.driveReady,
         notionReady: connectedAccounts.notionReady,
+        tierOverrides,
         now: new Date()
       })
     );
@@ -881,6 +888,7 @@ export function WorkbenchPage() {
     connectedAccounts.githubReady,
     connectedAccounts.driveReady,
     connectedAccounts.notionReady,
+    tierOverrides,
     setError
   ]);
   React.useEffect(() => {

@@ -217,9 +217,27 @@ test('buildBriefing shows recent threads for display but never calls read mail "
 test('buildBriefing suppresses bulk/newsletter mail from replies-waiting', () => {
   const briefing = buildBriefing({
     inboxMessages: [
-      { id: 'n1', subject: 'Exclusive: Lime Plans IPO', sender: 'The Information', unread: true, isBulk: true },
-      { id: 'n2', subject: 'The Briefing: Cannes', sender: 'The Information Briefing', unread: true, isBulk: true },
-      { id: 'h1', subject: 'RE: NEAR in Wyoming', sender: 'john@salt.org', unread: true, isBulk: false }
+      {
+        id: 'n1',
+        subject: 'Exclusive: Lime Plans IPO',
+        sender: 'The Information',
+        unread: true,
+        isBulk: true
+      },
+      {
+        id: 'n2',
+        subject: 'The Briefing: Cannes',
+        sender: 'The Information Briefing',
+        unread: true,
+        isBulk: true
+      },
+      {
+        id: 'h1',
+        subject: 'RE: NEAR in Wyoming',
+        sender: 'john@salt.org',
+        unread: true,
+        isBulk: false
+      }
     ],
     gmailReady: true,
     now: new Date('2026-06-22T09:00:00')
@@ -239,4 +257,64 @@ test('buildBriefing suppresses bulk/newsletter mail from replies-waiting', () =>
     /2 newsletters filed — not surfaced\./,
     'headline owns the filing'
   );
+});
+
+test('buildBriefing floats a VIP-corrected sender above Gmail IMPORTANT in replies', () => {
+  const briefing = buildBriefing({
+    gmailReady: true,
+    inboxMessages: [
+      {
+        id: 'imp',
+        subject: 'Board deck',
+        sender: 'Chair',
+        fromEmail: 'chair@near.foundation',
+        unread: true,
+        important: true
+      },
+      {
+        id: 'vip',
+        subject: 'quick q',
+        sender: 'Dana',
+        fromEmail: 'dana@northwind.com',
+        unread: true,
+        important: false
+      }
+    ],
+    tierOverrides: { 'dana@northwind.com': 'vip' },
+    now: new Date('2026-06-22T09:00:00')
+  });
+  assert.equal(briefing.replies[0].id, 'vip', 'VIP-corrected sender leads the replies');
+  assert.equal(briefing.counts.replies, 2, 'both still count as waiting');
+});
+
+test('buildBriefing drops an Ignore-corrected sender from replies and the waiting count', () => {
+  const briefing = buildBriefing({
+    gmailReady: true,
+    inboxMessages: [
+      {
+        id: 'keep',
+        subject: 'Renewal',
+        sender: 'Dana',
+        fromEmail: 'dana@northwind.com',
+        unread: true,
+        important: false
+      },
+      {
+        id: 'drop',
+        subject: 'FYI',
+        sender: 'Auto',
+        fromEmail: 'noreply@vendor.com',
+        unread: true,
+        important: true
+      }
+    ],
+    tierOverrides: { 'noreply@vendor.com': 'ignore' },
+    now: new Date('2026-06-22T09:00:00')
+  });
+  assert.deepEqual(
+    briefing.replies.map((r) => r.id),
+    ['keep'],
+    'ignore-corrected sender suppressed'
+  );
+  assert.equal(briefing.counts.replies, 1, 'ignored sender no longer counts as waiting');
 });

@@ -548,11 +548,35 @@ test('needs-a-reply ranks IMPORTANT human mail first, badges it, and never inclu
     inbox: {
       messages: [
         // unread, non-important human mail (older)
-        { id: 'a', subject: 'Tax fly-in', sender: 'jonathan@digitalchamber.org', unread: true, isBulk: false, important: false, timestamp: '2026-06-22T08:00:00Z' },
+        {
+          id: 'a',
+          subject: 'Tax fly-in',
+          sender: 'jonathan@digitalchamber.org',
+          unread: true,
+          isBulk: false,
+          important: false,
+          timestamp: '2026-06-22T08:00:00Z'
+        },
         // unread, IMPORTANT human mail (should rank first despite being older than 'a')
-        { id: 'b', subject: 'GDPR coverage enquiry', sender: 'anelda@near.foundation', unread: true, isBulk: false, important: true, timestamp: '2026-06-22T07:00:00Z' },
+        {
+          id: 'b',
+          subject: 'GDPR coverage enquiry',
+          sender: 'anelda@near.foundation',
+          unread: true,
+          isBulk: false,
+          important: true,
+          timestamp: '2026-06-22T07:00:00Z'
+        },
         // unread newsletter — must be excluded even though it is "important" + newest
-        { id: 'c', subject: 'The Briefing', sender: 'news@substack.com', unread: true, isBulk: true, important: true, timestamp: '2026-06-22T11:00:00Z' }
+        {
+          id: 'c',
+          subject: 'The Briefing',
+          sender: 'news@substack.com',
+          unread: true,
+          isBulk: true,
+          important: true,
+          timestamp: '2026-06-22T11:00:00Z'
+        }
       ]
     }
   });
@@ -565,4 +589,107 @@ test('needs-a-reply ranks IMPORTANT human mail first, badges it, and never inclu
   );
   assert.equal(reply.rows[0].badge, 'Important', 'important row badged Important');
   assert.equal(reply.rows[1].badge, 'Unread', 'non-important row badged Unread');
+});
+
+test('a VIP correction floats that sender above Gmail IMPORTANT in needs-a-reply', () => {
+  const rail = buildWorkbenchStateRail({
+    inbox: {
+      messages: [
+        // IMPORTANT human mail (would normally rank first)
+        {
+          id: 'imp',
+          subject: 'Board deck',
+          sender: 'Chair',
+          fromEmail: 'chair@near.foundation',
+          unread: true,
+          isBulk: false,
+          important: true,
+          timestamp: '2026-06-22T09:00:00Z'
+        },
+        // ordinary unread from a sender the user corrected to VIP — should outrank IMPORTANT
+        {
+          id: 'vip',
+          subject: 'quick question',
+          sender: 'Dana',
+          fromEmail: 'dana@northwind.com',
+          unread: true,
+          isBulk: false,
+          important: false,
+          timestamp: '2026-06-22T08:00:00Z'
+        }
+      ]
+    },
+    tierOverrides: { 'dana@northwind.com': 'vip' }
+  });
+  const reply = rail.find((group) => group.id === 'needs-reply');
+  assert.deepEqual(
+    reply.rows.map((row) => row.id),
+    ['reply-vip', 'reply-imp'],
+    'VIP-corrected sender ranks above IMPORTANT'
+  );
+  assert.equal(reply.rows[0].badge, 'VIP', 'VIP-corrected row carries the VIP badge');
+});
+
+test('an Ignore correction removes that sender from needs-a-reply entirely', () => {
+  const rail = buildWorkbenchStateRail({
+    inbox: {
+      messages: [
+        {
+          id: 'keep',
+          subject: 'Renewal',
+          sender: 'Dana',
+          fromEmail: 'dana@northwind.com',
+          unread: true,
+          isBulk: false,
+          important: false,
+          timestamp: '2026-06-22T09:00:00Z'
+        },
+        // even though IMPORTANT + newest, an ignore correction drops it
+        {
+          id: 'drop',
+          subject: 'FYI roundup',
+          sender: 'Auto',
+          fromEmail: 'noreply@vendor.com',
+          unread: true,
+          isBulk: false,
+          important: true,
+          timestamp: '2026-06-22T10:00:00Z'
+        }
+      ]
+    },
+    tierOverrides: { 'noreply@vendor.com': 'ignore' }
+  });
+  const reply = rail.find((group) => group.id === 'needs-reply');
+  assert.deepEqual(
+    reply.rows.map((row) => row.id),
+    ['reply-keep'],
+    'ignore-corrected sender is suppressed'
+  );
+});
+
+test('tier corrections match the sender email case-insensitively', () => {
+  const rail = buildWorkbenchStateRail({
+    inbox: {
+      messages: [
+        {
+          id: 'x',
+          subject: 'hi',
+          sender: 'Dana',
+          fromEmail: 'Dana@Northwind.com',
+          unread: true,
+          isBulk: false,
+          important: false,
+          timestamp: '2026-06-22T09:00:00Z'
+        }
+      ]
+    },
+    tierOverrides: { 'dana@northwind.com': 'respond' }
+  });
+  const reply = rail.find((group) => group.id === 'needs-reply');
+  assert.equal(
+    reply.rows[0].badge,
+    'Respond',
+    'respond correction applied despite mixed-case email'
+  );
+  assert.equal(reply.rows[0].replyRank, 2, 'respond outranks IMPORTANT (1)');
 });

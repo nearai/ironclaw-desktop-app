@@ -22,33 +22,64 @@ const WORKBENCH_FEED_GROUPS = new Set([
 // reply" group and upcoming calendar events become an "Upcoming" group. Both
 // derive from live Composio reads and degrade to nothing on empty/error — they
 // never fabricate a row.
-function connectorReplyRows(inbox = {}) {
+// Per-sender tier corrections (from the "You" surface) outrank Gmail IMPORTANT:
+// a VIP/Respond override floats that sender to the top of "needs a reply"; an
+// Ignore override removes them entirely (you told us you don't reply to them).
+const OVERRIDE_REPLY_RANK = { vip: 3, respond: 2 };
+
+function connectorReplyRows(inbox = {}, overrides = {}) {
   const messages = Array.isArray(inbox.messages) ? inbox.messages : [];
+  const norm = {};
+  for (const [email, tier] of Object.entries(
+    overrides && typeof overrides === 'object' ? overrides : {}
+  )) {
+    norm[String(email || '').toLowerCase()] = tier;
+  }
+  const overrideFor = (message) =>
+    norm[String((message && message.fromEmail) || '').toLowerCase()] || null;
   return (
     messages
-      // Bulk/newsletter mail (List-Unsubscribe, promotions, list broadcasts) never
-      // needs a reply — never surface it as one. Mirrors the validated profile engine.
       .filter((message) => message && message.unread && !message.isBulk)
-      .map((message) => ({
-        id: `reply-${message.id}`,
-        groupId: 'needs-reply',
-        kind: 'inbox',
-        icon: 'mail',
-        title: message.subject || '(no subject)',
-        // Gmail IMPORTANT is a behaviour signal (how you engage this sender), clean
-        // now that bulk is excluded. Carried onto the row so the needs-reply group
-        // can rank important mail first (see compareReplyRank).
-        important: Boolean(message.important),
-        badge: message.important ? 'Important' : 'Unread',
-        detail: message.sender ? `From ${message.sender}` : 'In your inbox',
-        // No href: an inbox row opens the in-app reading panel (see WorkbenchDock),
-        // not a route. Carry the real ids the panel needs to fetch the message.
-        messageId: message.messageId || message.id || '',
-        threadId: message.threadId || '',
-        sender: message.sender || '',
-        subject: message.subject || '',
-        timestamp: message.timestamp || ''
-      }))
+      // A sender you corrected to "ignore" never needs a reply — drop it.
+      .filter((message) => overrideFor(message) !== 'ignore')
+      .map((message) => {
+        const overrideTier = overrideFor(message);
+        const important = Boolean(message.important);
+        // Override (VIP=3/Respond=2) outranks IMPORTANT (1); see compareReplyRank.
+        const replyRank =
+          OVERRIDE_REPLY_RANK[overrideTier] != null
+            ? OVERRIDE_REPLY_RANK[overrideTier]
+            : important
+              ? 1
+              : 0;
+        return {
+          id: `reply-${message.id}`,
+          groupId: 'needs-reply',
+          kind: 'inbox',
+          icon: 'mail',
+          title: message.subject || '(no subject)',
+          important,
+          overrideTier,
+          replyRank,
+          badge:
+            overrideTier === 'vip'
+              ? 'VIP'
+              : overrideTier === 'respond'
+                ? 'Respond'
+                : important
+                  ? 'Important'
+                  : 'Unread',
+          detail: message.sender ? `From ${message.sender}` : 'In your inbox',
+          // No href: an inbox row opens the in-app reading panel (see WorkbenchDock),
+          // not a route. Carry the real ids the panel needs to fetch the message.
+          messageId: message.messageId || message.id || '',
+          threadId: message.threadId || '',
+          sender: message.sender || '',
+          fromEmail: message.fromEmail || '',
+          subject: message.subject || '',
+          timestamp: message.timestamp || ''
+        };
+      })
   );
 }
 
@@ -539,13 +570,14 @@ export function buildWorkbenchStateRail({
   sourceReadiness = [],
   inbox = null,
   calendar = null,
+  tierOverrides = {},
   limit = 3
 } = {}) {
   const normalizedThreads = (Array.isArray(threads) ? threads : [])
     .map(normalizeThread)
     .filter(Boolean);
   const rows = [
-    ...connectorReplyRows(inbox || {}),
+    ...connectorReplyRows(inbox || {}, tierOverrides),
     ...sourceRows(sourceReadiness),
     ...workbenchFeedRows(feedItems),
     ...approvalFeedRows(approvals),
@@ -573,10 +605,12 @@ function compareByTimestampAsc(a, b) {
   return timestampValue(a.timestamp) - timestampValue(b.timestamp);
 }
 
-// "Needs a reply" ranks behaviour-first: mail Gmail marks IMPORTANT (derived from
-// how you engage that sender) floats above the rest, then most-recent within each.
+// "Needs a reply" ranks behaviour-first: a sender you corrected to VIP/Respond
+// floats highest, then Gmail IMPORTANT (derived from how you engage that sender),
+// then most-recent within each band (replyRank encodes all of this — see
+// connectorReplyRows).
 function compareReplyRank(a, b) {
-  return (b.important ? 1 : 0) - (a.important ? 1 : 0) || compareByTimestampDesc(a, b);
+  return (b.replyRank || 0) - (a.replyRank || 0) || compareByTimestampDesc(a, b);
 }
 
 export const WORKBENCH_STATE_GROUPS = Object.freeze([
