@@ -5,6 +5,12 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #15): /you nav promotion BLOCKED (a11y) + mandated validation PASS
+
+- **Attempted** promoting /you to the visible primary nav (unhide + Work section + nav.you i18n + IA-guard update). test:static green (808) but **a11y RED, deterministic (2 runs)**: 4 `connections` sub-pages hit `scrollable-region-focusable` (serious) on an empty conversations sub-panel that lacks keyboard access — only with the 7th visible nav item. **Reverted** per guardrail; tree green (static 808, a11y 138). /you stays hidden + reachable. **Unblock prereq:** add keyboard access (tabindex=0/role) to that empty scrollable region in shared chrome, then re-attempt — next tick.
+- **Mandated validation — ALL PASS:** connector suite **14/14** (live Composio, write-gate, agent turn) + profile engine (180 sent/250 inbox/98 senders) V1 0 leaked + V2 2 real human threads, 0 bulk. Stack still works after 14 ticks.
+- Evidence: `docs/design/evidence/loop15-nav-blocked.md`.
+
 ## Tick (loop #14 — P3): the "You" perspective surface, live (`629fefb`)
 
 Renders the behaviour-profile core as a real route — what IronClaw learned about how you work.
