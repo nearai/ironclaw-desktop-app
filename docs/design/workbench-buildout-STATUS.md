@@ -14,6 +14,13 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## User feedback round 3 — chat-window test + doc-viewer (parallel workflow)
+
+Ran a parallel workflow (probe Notion/Drive content tools + author the chat test); integrated under the main loop.
+- **Chat-window streaming test (DONE, `ace522a`):** new `chat-streaming-static.spec.ts` (2 tests, a11y → 140) — renders an assistant reply + composer sends to the gateway. Modeled on the proven mermaid contract. Live-drive surfaced a real finding: the standalone's staged sidecar 404s `/api/gateway/status`, so a live model turn doesn't fire there (sidecar-version gap, not a UI bug; the Tauri app ships a newer sidecar).
+- **Notion doc viewer — data layer (DONE):** the workflow PROVED `NOTION_FETCH_BLOCK_CONTENTS{block_id}` works (3 pages, real blocks). New `normalizeNotionPageContent` (flattens blocks→render model: heading/para/bullet/number/todo/quote/code/divider) + `useConnectorNotionPage` hook + 2 tests. **Next tick:** wire the panel (kind-switch in WorkbenchReadingPanel + add a `notion` DockRow branch + drop href/add pageId in connectorNotionRows + block CSS) — the routing is clean (additive branch, email path untouched). Gate: static 841, a11y 140, design, smoke, bundle.
+- **Drive doc viewer — BLOCKED (confirmed by exhaustive live probe):** no read-only tool returns a Drive doc/sheet BODY. EXPORT/DOWNLOAD rejected by the read-route guard; GOOGLEDOCS unavailable; FIND/LIST return metadata only. Needs a GATEWAY change (a read-only doc-content tool, e.g. GOOGLEDRIVE_GET_DOCUMENT_TEXT / GOOGLESHEETS values, or allow EXPORT in the read route) — a reviewed gateway PR. Drive rows stay external-link until then.
+
 ## User feedback round 2 — native email viewer (`392f135`); doc viewer blocked at gateway
 
 - **D1 — native email viewer (DONE, live-proven):** emails rendered weirdly because `normalizeFullMessage` stripped all HTML to plain text and ignored the `text/html` part in `payload.parts[]`. Now `extractHtmlBody`/`decodeBase64Part` surface `htmlBody`; the reading panel renders it via `DOMPurify.sanitize` (WHOLE_DOCUMENT; FORBID script/iframe/object/embed/form) inside a **sandboxed iframe** (no allow-scripts, no allow-same-origin) — faithful + XSS-safe; plain-text mail keeps the paragraph fallback. Live: a real email renders with quoted-thread indentation + clickable links on a white sheet. Gate: static 839 (+3 tests), a11y 138, design DT-1..6, smoke, bundle.

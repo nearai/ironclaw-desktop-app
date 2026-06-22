@@ -1,7 +1,62 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { normalizeNotionPages, notionTitle, NOTION_PAGE_LIMIT } from './workbench-notion.js';
+import {
+  normalizeNotionPages,
+  normalizeNotionPageContent,
+  notionTitle,
+  NOTION_PAGE_LIMIT
+} from './workbench-notion.js';
+
+test('normalizeNotionPageContent flattens NOTION_FETCH_BLOCK_CONTENTS into render blocks', () => {
+  const result = {
+    successful: true,
+    data: {
+      block_child_data: {
+        results: [
+          {
+            type: 'heading_2',
+            heading_2: { rich_text: [{ plain_text: '🔹 Updates from the Teams' }] }
+          },
+          {
+            type: 'paragraph',
+            paragraph: {
+              rich_text: [{ plain_text: 'Each team has ' }, { plain_text: '3 minutes' }]
+            }
+          },
+          {
+            type: 'bulleted_list_item',
+            bulleted_list_item: { rich_text: [{ plain_text: 'First point' }] }
+          },
+          { type: 'to_do', to_do: { rich_text: [{ plain_text: 'Ship it' }], checked: true } },
+          { type: 'divider', divider: {} },
+          { type: 'paragraph', paragraph: { rich_text: [] } } // empty -> dropped
+        ]
+      }
+    }
+  };
+  const out = normalizeNotionPageContent(result);
+  assert.equal(out.ok, true);
+  assert.deepEqual(
+    out.blocks.map((b) => [b.kind, b.text || b.kind]),
+    [
+      ['heading', '🔹 Updates from the Teams'],
+      ['para', 'Each team has 3 minutes'],
+      ['bullet', 'First point'],
+      ['todo', 'Ship it'],
+      ['divider', 'divider']
+    ],
+    'block types mapped + empty paragraph dropped + rich-text runs joined'
+  );
+  assert.equal(out.blocks[0].level, 2, 'heading level preserved');
+  assert.equal(out.blocks[3].checked, true, 'to_do checked flag preserved');
+});
+
+test('normalizeNotionPageContent is honest on failed/empty reads', () => {
+  assert.equal(normalizeNotionPageContent({ successful: false, error: 'no access' }).ok, false);
+  assert.deepEqual(normalizeNotionPageContent({ successful: true, data: {} }).blocks, []);
+  assert.deepEqual(normalizeNotionPageContent(null).blocks, []);
+});
 
 test('NOTION_PAGE_LIMIT is the documented default', () => {
   assert.equal(NOTION_PAGE_LIMIT, 6);
@@ -89,7 +144,11 @@ test('normalizeNotionPages drops archived/trashed pages and non-page objects', (
       }
     }
   });
-  assert.deepEqual(rows, [], 'archived, trashed, non-page, and title-less+url-less rows are all dropped');
+  assert.deepEqual(
+    rows,
+    [],
+    'archived, trashed, non-page, and title-less+url-less rows are all dropped'
+  );
 });
 
 test('normalizeNotionPages keeps a url-only page even when the title is empty', () => {

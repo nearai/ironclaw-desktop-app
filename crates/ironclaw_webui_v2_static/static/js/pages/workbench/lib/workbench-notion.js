@@ -63,3 +63,56 @@ export function normalizeNotionPages(result, { limit = 6 } = {}) {
   }
   return rows;
 }
+
+const s = (v) => (v == null ? '' : String(v));
+
+// Normalize a NOTION_FETCH_BLOCK_CONTENTS read of a page into renderable blocks
+// for the in-app viewer. The gateway returns the page's child blocks under
+// `data.block_child_data.results[]`; each block carries a `type` and the content
+// under a field of that same name (e.g. a "heading_2" block has its rich text at
+// `block.heading_2.rich_text[]`). We flatten each block's rich-text runs to plain
+// text and map the Notion block type to a small render vocabulary. Honest
+// contract: `{ ok:false, error }` on a failed/empty read; never fabricates text.
+export function normalizeNotionPageContent(result) {
+  if (!result || result.successful === false) {
+    return {
+      ok: false,
+      error: s(result && result.error) || 'Could not load this page.',
+      blocks: []
+    };
+  }
+  const data = result.data || result;
+  const results =
+    (data && data.block_child_data && data.block_child_data.results) ||
+    (data && data.results) ||
+    [];
+  if (!Array.isArray(results)) return { ok: true, error: '', blocks: [] };
+  const blocks = [];
+  for (const block of results) {
+    if (!block || typeof block !== 'object') continue;
+    const type = s(block.type);
+    if (type === 'divider') {
+      blocks.push({ kind: 'divider', text: '' });
+      continue;
+    }
+    const content = block[type] || {};
+    const text = Array.isArray(content.rich_text)
+      ? content.rich_text
+          .map((run) => s(run && run.plain_text))
+          .join('')
+          .trim()
+      : '';
+    if (!text) continue;
+    const headingMatch = /^heading_([123])$/.exec(type);
+    if (headingMatch) blocks.push({ kind: 'heading', level: Number(headingMatch[1]), text });
+    else if (type === 'bulleted_list_item') blocks.push({ kind: 'bullet', text });
+    else if (type === 'numbered_list_item') blocks.push({ kind: 'number', text });
+    else if (type === 'to_do')
+      blocks.push({ kind: 'todo', text, checked: Boolean(content.checked) });
+    else if (type === 'quote') blocks.push({ kind: 'quote', text });
+    else if (type === 'code') blocks.push({ kind: 'code', text });
+    else if (type === 'callout') blocks.push({ kind: 'callout', text });
+    else blocks.push({ kind: 'para', text });
+  }
+  return { ok: true, error: '', blocks };
+}

@@ -11,7 +11,11 @@ import {
 } from '../lib/workbench-connectors.js';
 import { SLACK_BLOCKER_QUERY, normalizeSlackBlockers } from '../lib/workbench-slack.js';
 import { DRIVE_FILE_LIMIT, normalizeDriveFiles } from '../lib/workbench-drive.js';
-import { NOTION_PAGE_LIMIT, normalizeNotionPages } from '../lib/workbench-notion.js';
+import {
+  NOTION_PAGE_LIMIT,
+  normalizeNotionPages,
+  normalizeNotionPageContent
+} from '../lib/workbench-notion.js';
 import {
   GITHUB_NOTIFICATION_LIMIT,
   normalizeGithubNotifications
@@ -338,6 +342,42 @@ export function useConnectorMessage(messageId) {
 
   return {
     message,
+    isLoading: query.isLoading && Boolean(id),
+    isError: query.isError,
+    enabled: Boolean(id)
+  };
+}
+
+// Fetch a Notion page's content (its child blocks) for the in-app viewer. READ
+// tool (NOTION_FETCH_BLOCK_CONTENTS — the FETCH segment passes the read-only
+// route guard). Keyed on the page id; only runs when one is set, so opening the
+// viewer triggers the fetch and the result stays cached when it closes.
+export function useConnectorNotionPage(pageId) {
+  const id = typeof pageId === 'string' ? pageId.trim() : '';
+  const query = useQuery({
+    queryKey: ['workbench-connector-notion-page', id],
+    enabled: Boolean(id),
+    staleTime: 60_000,
+    retry: 1,
+    throwOnError: false,
+    queryFn: ({ signal }) =>
+      connectorRead({
+        toolkit: 'notion',
+        tool: 'NOTION_FETCH_BLOCK_CONTENTS',
+        arguments: { block_id: id },
+        signal
+      })
+  });
+
+  const page = React.useMemo(() => {
+    if (!id) return null;
+    if (query.isError) return null;
+    if (!query.data) return null;
+    return normalizeNotionPageContent(query.data);
+  }, [id, query.data, query.isError]);
+
+  return {
+    page,
     isLoading: query.isLoading && Boolean(id),
     isError: query.isError,
     enabled: Boolean(id)
