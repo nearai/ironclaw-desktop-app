@@ -13,6 +13,12 @@ const gatewayOrigin = (process.env.IRONCLAW_GATEWAY_ORIGIN || "http://127.0.0.1:
   /\/+$/,
   "",
 );
+// Dev-only: when set, seed the SPA's bearer into sessionStorage before the app
+// boots so a standalone web run (scripts/workbench-standalone.mjs) authenticates
+// on every load — no manual paste, survives a plain reload. Opt-in via env, so
+// the desktop app + static test harnesses (env unset) are byte-for-byte
+// unchanged. Never set in production/packaged builds.
+const injectToken = process.env.IRONCLAW_DEV_INJECT_TOKEN || "";
 
 await import("./prepare-webui-static.mjs");
 
@@ -133,6 +139,20 @@ const server = http.createServer(async (req, res) => {
   try {
     await access(filePath);
     const ext = path.extname(filePath);
+    // Dev token injection: rewrite HTML in-memory to seed the bearer before the
+    // app bundle runs. Only when IRONCLAW_DEV_INJECT_TOKEN is set (opt-in).
+    if (injectToken && ext === ".html") {
+      const { readFile } = await import("node:fs/promises");
+      let htmlBody = await readFile(filePath, "utf8");
+      const snippet = `<script>try{sessionStorage.setItem('ironclaw_token',${JSON.stringify(
+        injectToken,
+      )});}catch(e){}</script>`;
+      htmlBody = htmlBody.includes("</head>")
+        ? htmlBody.replace("</head>", `${snippet}</head>`)
+        : `${snippet}${htmlBody}`;
+      send(res, 200, htmlBody, { "Content-Type": "text/html; charset=utf-8" });
+      return;
+    }
     res.writeHead(200, {
       "Cache-Control": "no-store",
       "Content-Type": contentTypes.get(ext) || "application/octet-stream",
