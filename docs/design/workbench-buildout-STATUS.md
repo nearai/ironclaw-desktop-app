@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #26 — P3): Notion + Drive as rail awareness groups (`b9fe20b`)
+
+Rail triage now spans **Gmail · Slack · GitHub · Notion · Drive · Calendar** — the full source set.
+- `workbench-state.js`: `connectorNotionRows` (title, "Edited <when>", page-url href, `file` icon) + `connectorDriveRows` (name, mime-kind badge, "Modified <when>", webViewLink href, `folder` icon); 90-char truncate, empties dropped. New `notion`/`drive` groups after Upcoming (awareness, low priority). Threaded via `buildWorkbenchStateRail({ notionPages, driveFiles })`; page passes `connectorNotion.pages`/`connectorDrive.files`.
+- Both eager (deduped with briefing) → populate on **cold load**.
+- **Live-proven** (real data): cold load shows **RECENT IN NOTION (6)** + **RECENT FILES (6)**, each linking out. Design intact (reuses group/row component + existing file/folder icons, no new CSS).
+- **Gate green:** static 827 (2 new tests), a11y 138, design DT-1..6, smoke, bundle under budget.
+- Next: decouple Slack eager-read (so it's cold-load like the rest); rank/group ordering polish; own-repo extraction on your sign-off; research blocked on web-search credential.
+
 ## Tick (loop #25 — P3): GitHub notifications as a rail group (`acac9de`)
 
 Rail triage now spans Gmail + Slack + GitHub.
