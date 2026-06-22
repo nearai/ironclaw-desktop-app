@@ -45,20 +45,37 @@ const YOU_STYLE = `
 .wb13-you-foot svg { width: 15px; height: 15px; }
 `;
 
-async function readProfile({ signal }) {
-  const read = (query, max) =>
-    connectorRead({
+// Read up to `pages` × `perPage` messages for a query, following the connector's
+// nextPageToken. Tiering needs a fuller sent window than one page so reply-threads
+// match the inbox (one page tiers everyone "fyi"); each 25-row page is reliable
+// where a single large read 503s. Degrades to whatever pages succeed.
+async function readPaged(query, { signal, pages = 1, perPage = 25 } = {}) {
+  const rows = [];
+  let pageToken;
+  for (let i = 0; i < pages; i++) {
+    const args = { max_results: perPage, query };
+    if (pageToken) args.page_token = pageToken;
+    const res = await connectorRead({
       toolkit: 'gmail',
       tool: 'GMAIL_FETCH_EMAILS',
-      arguments: { max_results: max, query },
+      arguments: args,
       signal
     }).catch(() => null);
-  const [sentRes, inboxRes] = await Promise.all([
-    read('in:sent', 25),
-    read(PRIMARY_INBOX_QUERY, 25)
+    if (!res) break;
+    rows.push(...normalizeInboxMessages(res, { limit: perPage }));
+    pageToken = res?.data?.nextPageToken || res?.data?.next_page_token;
+    if (!pageToken) break;
+  }
+  return rows;
+}
+
+async function readProfile({ signal }) {
+  // Sent is paged deeper (≈100) so VIP/respond tiers actually surface; the Primary
+  // inbox is paged lightly (≈50) for sender coverage.
+  const [sentRows, inboxRows] = await Promise.all([
+    readPaged('in:sent', { signal, pages: 4, perPage: 25 }),
+    readPaged(PRIMARY_INBOX_QUERY, { signal, pages: 2, perPage: 25 })
   ]);
-  const sentRows = normalizeInboxMessages(sentRes, { limit: 25 });
-  const inboxRows = normalizeInboxMessages(inboxRes, { limit: 25 });
   return computeBehaviourProfile({
     sent: sentRows.map((row) => ({ threadId: row.threadId, timestamp: row.timestamp })),
     inbox: inboxRows.map((row) => ({
