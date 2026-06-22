@@ -14,6 +14,14 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Preview screenshotting RESTORED + live v13/loop-#35 verification (`fdfb4cd`)
+
+- **Preview attach restored** (dropped at #33): added a local `wb-preview` workspace launch.json entry (port 17651 → live gateway 17640) so the design-guardrail screenshots work again. Local-only config; recipe in the evidence note.
+- **v13 fidelity VERIFIED LIVE** on /workbench: Newsreader serif, blue #1c63d6 accent, dark dock, full live data across all 7 connectors (no teal/Geist). Screenshot captured.
+- **Loop #35 "You" learned section VERIFIED LIVE**: the "Auto-filed from your dismissals" section renders learned senders ("filed 2×") + "Surface again" un-files one (buttons 2→1, storage cleared, no console errors).
+- **Validation:** connector suite **14/14** (reads + write-gate + short live agent turn); test:static 850. (Profile-engine newsletter suppression PASS last tick.)
+- Triage end-to-end in the live app: observed → correctable → self-teaching → visible + undoable.
+
 ## "You" surface shows + restores learned-filed senders + validation PASS (`c34d6d0`)
 
 Closes the visibility/control gap in the dismiss-to-learn loop (#32).
