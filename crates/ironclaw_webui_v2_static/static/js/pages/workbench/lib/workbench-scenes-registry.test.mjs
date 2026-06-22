@@ -50,7 +50,10 @@ test('workbench scene registry preserves fallback copy', () => {
     ['Save output', 'Drafts and artifacts can be saved back to Work.', 'Draft']
   ]);
   assert.equal(outputHint('missing-scene'), 'drafts, documents, research notes, and decisions');
-  assert.equal(inferWorkbenchScene('please help with something unusual').title, 'Work session started');
+  assert.equal(
+    inferWorkbenchScene('please help with something unusual').title,
+    'Work session started'
+  );
 });
 
 test('workbench command action label follows inferred work type', () => {
@@ -80,7 +83,37 @@ test('explicit scheduling asks infer the Schedule scene with an honest runs-whil
     rows.some((row) => /recurring/i.test(row[0]) || /scheduler/i.test(row[1])),
     'schedule scene stages a recurring job'
   );
-  assert.ok(rows.some((row) => row[2] === 'Approval'), 'each run stays gated');
+  assert.ok(
+    rows.some((row) => row[2] === 'Approval'),
+    'each run stays gated'
+  );
   // Monitor terms still map to Monitor, not Schedule.
   assert.equal(inferWorkbenchScene('watch competitor pricing weekly').id, 'monitor');
+});
+
+test('document-product asks infer the Document scene (Draft), routing away from Research', () => {
+  for (const ask of [
+    'Draft a memo on the Q3 roadmap',
+    'Write a one-pager on the pricing change',
+    'Prepare a brief summarizing the GDPR exposure',
+    'Compose a letter to the regulator',
+    'Turn this into a .docx work product'
+  ]) {
+    assert.equal(commandActionLabel(ask), 'Draft', `"${ask}" → Draft`);
+    assert.equal(inferWorkbenchScene(ask).id, 'document', `"${ask}" → document scene`);
+  }
+  // Honest framing: a formatted, source-cited draft, exportable, gated on send.
+  assert.match(inferWorkbenchScene('draft a memo').detail, /export to \.docx/i);
+  const rows = actionRows('document');
+  assert.ok(
+    rows.some((row) => /sources/i.test(row[1])),
+    'document keeps citations editable'
+  );
+  assert.ok(
+    rows.some((row) => row[2] === 'Approval'),
+    'sharing stays gated'
+  );
+  // Research stays Research; contract review still routes to the packet scene.
+  assert.equal(inferWorkbenchScene('Research privacy-preserving TEE vendors.').id, 'research');
+  assert.equal(inferWorkbenchScene('Redline the MSA agreement terms.').id, 'packet');
 });

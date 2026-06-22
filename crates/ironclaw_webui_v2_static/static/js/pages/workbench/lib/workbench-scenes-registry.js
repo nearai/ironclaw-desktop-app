@@ -110,8 +110,38 @@ const WORKBENCH_SCENES = [
     outputHint: 'brief drafts, source gaps, and send-package approvals'
   },
   {
+    id: 'document',
+    // Drafting NEW work product (memo/brief/letter/one-pager/.docx). Ordered before
+    // research so "draft a memo" is a Document, not Research; contract/MSA review
+    // still matches the earlier `packet` scene. The draft routes to chat, where the
+    // assistant work-product response exports to a real .docx (work-product-export).
+    matcher:
+      /\b(memo|one[- ]?pager|white ?paper|work product|\.docx|word document)\b|\b(draft|write|prepare|compose|put together)\b[^.\n]{0,48}\b(document|brief|letter|note|summary|report|write[- ]?up)\b/,
+    scene: {
+      id: 'document',
+      label: 'Draft document',
+      title: 'Document workspace started',
+      detail:
+        'IronClaw drafts a formatted document — headings and a Sources section — you can review, edit, and export to .docx. Nothing is sent.'
+    },
+    actionRows: [
+      [
+        'Draft the document',
+        'Produce a structured, source-cited draft (Arial, headings).',
+        'Private'
+      ],
+      [
+        'Keep sources editable',
+        'Citations land in a Sources section you can edit and extend.',
+        'Draft'
+      ],
+      ['Hold sending', 'Sharing or sending the document waits for your approval.', 'Approval']
+    ],
+    outputHint: 'a formatted document draft, its sources, and an exportable .docx'
+  },
+  {
     id: 'research',
-    matcher: /\b(research|vendors?|compare|deep dive|memo|brief)\b/,
+    matcher: /\b(research|vendors?|compare|deep dive)\b/,
     scene: {
       id: 'research',
       label: 'Research workspace',
@@ -167,6 +197,8 @@ export function commandActionLabel(brief) {
   switch (inferWorkbenchScene(text).id) {
     case 'schedule':
       return 'Schedule';
+    case 'document':
+      return 'Draft';
     case 'packet':
       return 'Review';
     case 'growth':
