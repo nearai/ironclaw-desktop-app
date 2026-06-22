@@ -5,9 +5,9 @@ export const defaultRoute = '/workbench';
 // Unhide a route only when its visible workflow is honest and supported.
 export const primaryRoutes = [
   { id: 'workbench', path: '/workbench', labelKey: 'nav.workbench', hidden: false },
-  // Hidden for now (reachable at /you); promoted to the nav once tiering reads a
-  // fuller sent window. The "How you work" perspective surface.
-  { id: 'you', path: '/you', labelKey: 'nav.you', hidden: true },
+  // The "How you work" perspective surface — what IronClaw learned about who you
+  // reply to / how fast / what it auto-files.
+  { id: 'you', path: '/you', labelKey: 'nav.you', hidden: false },
   { id: 'chat', path: '/chat', labelKey: 'nav.chat' },
   { id: 'work', path: '/work', labelKey: 'nav.work', hidden: false },
   { id: 'workspace', path: '/workspace', labelKey: 'nav.workspace', hidden: true },
@@ -28,6 +28,7 @@ export const routeSectionDefs = [
     labelKey: 'nav.sectionWork',
     ids: [
       'workbench',
+      'you',
       'chat',
       'work',
       'automations',

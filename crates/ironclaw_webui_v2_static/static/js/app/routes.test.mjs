@@ -11,8 +11,10 @@ test('desktop primary information architecture stays simple for normal users', (
   assert.equal(defaultRoute, '/workbench');
   // 'automations' (labelled "Scheduled") is a real, gateway-backed read-only
   // viewer of recurring work the agent created — promoted into primary nav.
+  // 'you' is the live behaviour-profile ("How you work") surface, profile-backed.
   assert.deepEqual(visibleRouteIds(), [
     'workbench',
+    'you',
     'chat',
     'work',
     'automations',

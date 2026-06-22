@@ -279,7 +279,12 @@ export function SidebarThreads({
             className="h-11 w-full rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[12px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
           />
         </div>`}
-        <div className="mt-1 flex flex-col gap-2 overflow-y-auto [scrollbar-width:thin]">
+        <div
+          className="mt-1 flex flex-col gap-2 overflow-y-auto [scrollbar-width:thin]"
+          role="region"
+          aria-label="Conversations"
+          tabindex="0"
+        >
           ${threads.length === 0 &&
           (isLoading
             ? html`<div
