@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #9 — P2): real zero-dependency .docx work-product generator (`4828d0e`)
+
+The DOCX pillar's hard part — a REAL editable Word doc — built with no library (no bundle-budget hit).
+- `pages/workbench/lib/workbench-docx.js`: pure-JS OOXML + hand-rolled STORED zip (CRC32 + headers + EOCD). `buildDocxBytes/Blob(doc)` from { title, subtitle, sections[], sources[] }. Arial + bold headings + an explicit numbered **Sources** section (citations first-class + editable), per [[feedback_legal_doc_formatting]]; XML-escaped.
+- **Validated it opens as Word:** /tmp sample → `unzip -l` shows 4 OPC parts; **python-docx read back all 6 paragraphs** with the heading bold + font Arial. Sample committed at `evidence/wb-sample-workproduct.docx`.
+- **Gate green:** static 797 (5 new docx tests), design DT-1..6, a11y 138, smoke, bundle-size under budget. No UI change (no design risk).
+- Next: wire it to the bar — a 'document' scene producing structured content + "Download .docx" via lib/save-file.js (one click from the bar); then long-horizon research verb + the "You" surface.
+
 ## Tick (loop #8 — P2 START): the "Schedule" chat-bar verb (`bd723c9`)
 
 First P2 chat-bar verb. The bar now recognizes scheduling asks + the backend chain is proven live.
