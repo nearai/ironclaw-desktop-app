@@ -63,9 +63,13 @@ import { briefingToWorkProduct, buildDocumentXml as _bx } from './workbench-docx
 
 test('briefingToWorkProduct maps a real briefing into an editable work-product doc', () => {
   const doc = briefingToWorkProduct({
-    headline: 'Good morning. 1 reply waiting, 2 events on your calendar. 6 newsletters filed — not surfaced.',
+    headline:
+      'Good morning. 1 reply waiting, 2 events on your calendar. 6 newsletters filed — not surfaced.',
     counts: { replies: 1, events: 2, filed: 6 },
-    sources: [{ id: 'gmail', label: 'Gmail', count: 1 }, { id: 'calendar', label: 'Calendar', count: 2 }],
+    sources: [
+      { id: 'gmail', label: 'Gmail', count: 1 },
+      { id: 'calendar', label: 'Calendar', count: 2 }
+    ],
     replies: [{ id: 'r1', subject: 'Re: NEAR in Wyoming', sender: 'john@salt.org' }],
     events: [{ id: 'e1', title: 'Chris / George', when: 'Mon 9:00' }],
     attention: [],
@@ -95,4 +99,52 @@ test('briefingToWorkProduct degrades safely on an empty briefing', () => {
   assert.equal(doc.title, 'IronClaw Daily Brief');
   assert.equal(doc.sections.length, 1);
   assert.equal(doc.sections[0].heading, 'Summary');
+});
+
+import { markdownToWorkProduct } from './workbench-docx.js';
+
+const MEMO_MD = `# Memorandum — Northwind MSA Counter
+
+## Summary
+We recommend a **12-month** liability cap and net 60 terms.
+The counter holds the data/security indemnity language.
+
+## Open issues
+- Governing law still unconfirmed
+- Net 60 vs net 45
+
+## Sources
+- Gmail: Dana Reyes thread (2026-06-21)
+- [Drive: Northwind MSA v3](https://drive.example/abc)
+`;
+
+test('markdownToWorkProduct parses title, sections, lists, and inline markdown', () => {
+  const doc = markdownToWorkProduct(MEMO_MD);
+  assert.equal(doc.title, 'Memorandum — Northwind MSA Counter');
+  const headings = doc.sections.map((s) => s.heading);
+  assert.ok(
+    headings.includes('Summary') && headings.includes('Open issues'),
+    'section headings parsed'
+  );
+  const summary = doc.sections.find((s) => s.heading === 'Summary');
+  assert.ok(summary.paragraphs.join(' ').includes('12-month'), 'bold markers stripped, text kept');
+  const issues = doc.sections.find((s) => s.heading === 'Open issues');
+  assert.equal(issues.paragraphs.length, 2, 'list items become paragraphs');
+});
+
+test('markdownToWorkProduct routes a Sources section into editable citations', () => {
+  const doc = markdownToWorkProduct(MEMO_MD);
+  assert.ok(!doc.sections.some((s) => /sources/i.test(s.heading)), 'Sources is not a body section');
+  assert.equal(doc.sources.length, 2, 'two sources captured');
+  assert.ok(
+    doc.sources[1].includes('Drive: Northwind MSA v3'),
+    'markdown link reduced to its label'
+  );
+  assert.ok(!doc.sources[1].includes('http'), 'url stripped from the citation label');
+});
+
+test('markdownToWorkProduct degrades safely on empty input', () => {
+  const doc = markdownToWorkProduct('');
+  assert.equal(doc.title, 'Untitled work product');
+  assert.equal(doc.sections.length, 1);
 });

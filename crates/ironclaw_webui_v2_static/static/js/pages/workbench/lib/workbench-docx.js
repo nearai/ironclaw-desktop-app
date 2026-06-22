@@ -234,3 +234,89 @@ export function briefingToWorkProduct(briefing = {}) {
     sources
   };
 }
+
+// Strip inline markdown to the plain text the .docx run model renders:
+// **bold**, *italic*, `code`, and [label](url) → label.
+function stripInline(text) {
+  return String(text == null ? '' : text)
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/(^|[^*])\*([^*]+)\*/g, '$1$2')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/^#{1,6}\s*/, '')
+    .trim();
+}
+
+// Parse drafted markdown (agent output, or a paste) into the work-product doc
+// model — so ANY memo/brief becomes a real editable .docx. Pure + defensive:
+//   # Title          → title
+//   ## / ### Heading  → section heading (a "Sources"/"References" heading routes
+//                       its list items into the editable Sources section)
+//   - / * / 1. item   → paragraph (bullet kept as text)
+//   blank line        → paragraph break
+export function markdownToWorkProduct(markdown, { title } = {}) {
+  const lines = String(markdown == null ? '' : markdown)
+    .replace(/\r\n?/g, '\n')
+    .split('\n');
+  let docTitle = title || '';
+  const sections = [];
+  const sources = [];
+  let current = null; // { heading, paragraphs }
+  let inSources = false;
+  let buffer = '';
+
+  const flush = () => {
+    const text = buffer.trim();
+    buffer = '';
+    if (!text) return;
+    if (inSources) {
+      sources.push(text);
+    } else {
+      if (!current) current = { heading: '', paragraphs: [] };
+      current.paragraphs.push(text);
+    }
+  };
+  const closeSection = () => {
+    flush();
+    if (current && (current.heading || current.paragraphs.length)) sections.push(current);
+    current = null;
+  };
+
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, '');
+    const h1 = line.match(/^#\s+(.*)$/);
+    const h = line.match(/^#{2,6}\s+(.*)$/);
+    if (h1 && !docTitle) {
+      flush();
+      docTitle = stripInline(h1[1]);
+      continue;
+    }
+    if (h1 || h) {
+      closeSection();
+      const headingText = stripInline((h1 || h)[1]);
+      inSources = /^(sources?|references?|citations?)\b/i.test(headingText);
+      if (!inSources) current = { heading: headingText, paragraphs: [] };
+      continue;
+    }
+    if (!line.trim()) {
+      flush();
+      continue;
+    }
+    const li = line.match(/^\s*(?:[-*+]|\d+[.)])\s+(.*)$/);
+    if (li) {
+      flush();
+      buffer = stripInline(li[1]);
+      flush();
+      continue;
+    }
+    buffer = buffer ? `${buffer} ${stripInline(line)}` : stripInline(line);
+  }
+  closeSection();
+
+  return {
+    title: docTitle || 'Untitled work product',
+    sections: sections.length ? sections : [{ heading: '', paragraphs: ['(empty document)'] }],
+    sources
+  };
+}
