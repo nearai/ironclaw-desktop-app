@@ -5,6 +5,17 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (2026-06-21 continuation): v13 design landed green + fresh 14/14 proof + #9 scoped
+
+Two substantial items + the user's #1 "does it actually work" proof, on `workbench-overnight-20260620`.
+
+- **v13 design committed `9f98921`** (behaviour-ranked Home + "You" perspective surface + model customizability, faithful to v12). **Full frontend gate green:** `test:static` 789/789, `test:a11y-static` 138/138, `test:design-static` DT-1..6, `smoke:webui-static` PASS. Removed the divergent Geist/teal render.
+- **Phase 1 connector suite 14/14 (fresh)** on the staged binary `ironclaw-reborn-aarch64-apple-darwin` (`connector-live-test.mjs --write`, live Composio): 8 accounts; all 6 families read live (gmail/calendar/drive/notion/github/slack); write-gate enforced (SEND rejected flag-off, DELETE forbidden, DRAFT created s=200); approvals route; live agent turn replied. Evidence: `evidence/phase1-connector-continuation.md`. Confirms the legal-use-case foundation still works after the design commit.
+- **#9 scoped precisely (why it's a multi-tick backend rock, not a one-tick UI add):**
+  - The automations viewer is **intentionally READ-ONLY** — `automations-honesty.contract.test.mjs` HARD-asserts no `<form>/<input>/<textarea>` in the list and that creation routes through `/chat`. A create *form* cannot be added without first exposing a real create capability (Design Law: no fake readiness).
+  - `ironclaw_triggers::TriggerRepository` exposes only reads (`get/list/list_scoped/list_due/list_active/run_history`) + `update_claimed_fire` — **no `create`, `pause/set_paused`, or `delete`.** Creation today runs through the `create_trigger` first-party tool (`first_party_tools/trigger_management.rs`) entangled with the conversation-init `TriggerCreateHook`.
+  - So #9 = add repo-level create + pause/resume (+ optional delete) across the trait + `libsql.rs` + `postgres.rs` + in-memory impl → a service method in `ironclaw_product_workflow` → ingress route `POST /automations` + `POST /automations/{id}/pause` + descriptors → frontend `automations-api` create/pause + an honest create UI (unhide the form path, relax the read-only honesty test to "create via direct route" ) → **sidecar rebuild** + a create-without-agent e2e. Firing itself is already verified (poller, tick 4). **Next tick's main rock; budget for the Rust rebuild.**
+
 ## ⭐ Milestone (2026-06-21 late PM, tick 5): REAL APP E2E (npm run tauri dev) + poller live in-app
 
 The user's #1 ask — "does it actually work?" — answered with a real GUI boot of the actual Tauri app.
