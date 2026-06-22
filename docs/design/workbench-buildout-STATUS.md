@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #17 — P3): deepen "You" tiering with a paginated sent read (`52a251c`)
+
+- `readPaged()` in you-page.js follows the connector `nextPageToken`; sent deepened to ~100 (4 pages) + Primary inbox ~50 (2 pages) — each 25-row page reliable where a single large read 503s.
+- **Live-verified** (/you, real mail): tiers improve **0 VIP/1 respond → 0 VIP/2 respond/20 FYI/5 auto-filed** (22 rows), matching the standalone engine's V2 (john@salt.org, tjkovacs@fbi.gov). "You" nav item visible. No console errors.
+- **Gate green:** static 808, a11y 138, design DT-1..6, smoke, bundle under budget.
+- HONEST: first-load ≈22s (6 sequential reads + gateway 503s), caches 120s — follow-up (prefetch/parallelize/gateway latency). VIP stays 0 by rubric (respond senders have received 1–2), correct.
+- Next: long-horizon research verb proof; P4 hardening / own-repo extraction; You first-load latency.
+
 ## Tick (loop #16): conversations a11y fixed → /you PROMOTED to the visible nav (`28faf6a`)
 
 Unblocked loop #15.
