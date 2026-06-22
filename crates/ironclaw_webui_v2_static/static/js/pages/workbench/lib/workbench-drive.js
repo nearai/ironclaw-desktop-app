@@ -57,10 +57,63 @@ export function normalizeDriveFiles(result, { limit = 6 } = {}) {
       id,
       name: rawName || '(untitled)',
       kind: driveKind(file.mimeType),
+      // Raw mime so the rail can route a Google Doc into the in-app viewer
+      // (GOOGLEDOCS_GET_DOCUMENT_BY_ID) while other types open externally.
+      mimeType: String(file.mimeType || '').trim(),
       when: formatInboxWhen(file.modifiedTime),
       link: driveLink(file.webViewLink, id)
     });
     if (rows.length >= limit) break;
   }
   return rows;
+}
+
+// The Drive mimeType for a native Google Doc — the only Drive type with a
+// read-only body tool wired here (Sheets toolkit is not connected; binaries
+// can't render as text), so only Docs open in the in-app viewer.
+export const GOOGLE_DOC_MIME = 'application/vnd.google-apps.document';
+
+const sdoc = (v) => (v == null ? '' : String(v));
+
+// Normalize a GOOGLEDOCS_GET_DOCUMENT_BY_ID read into renderable blocks for the
+// in-app viewer (same block model as Notion). The Google Docs API returns
+// `response_data.body.content[]`; each paragraph carries `elements[].textRun.content`
+// and a `paragraphStyle.namedStyleType` (TITLE / HEADING_n / NORMAL_TEXT). We
+// flatten runs to plain text — no raw HTML, so no XSS surface. Honest contract:
+// `{ ok:false, error }` on a failed read; never fabricates text.
+export function normalizeGoogleDocContent(result) {
+  if (!result || result.successful === false) {
+    return {
+      ok: false,
+      error: sdoc(result && result.error) || 'Could not load this document.',
+      blocks: []
+    };
+  }
+  const data = result.data || result;
+  const rd = (data && data.response_data) || data || {};
+  const content = (rd.body && rd.body.content) || [];
+  if (!Array.isArray(content)) return { ok: true, error: '', blocks: [] };
+  const blocks = [];
+  for (const el of content) {
+    const para = el && el.paragraph;
+    if (!para) continue;
+    const text = (Array.isArray(para.elements) ? para.elements : [])
+      .map((e) => sdoc(e && e.textRun && e.textRun.content))
+      .join('')
+      .replace(/\f/g, '')
+      .trim();
+    if (!text) continue;
+    if (para.bullet) {
+      blocks.push({ kind: 'bullet', text });
+      continue;
+    }
+    const style = sdoc(para.paragraphStyle && para.paragraphStyle.namedStyleType);
+    const headingMatch = /^HEADING_(\d)$/.exec(style);
+    if (style === 'TITLE') blocks.push({ kind: 'heading', level: 1, text });
+    else if (headingMatch)
+      blocks.push({ kind: 'heading', level: Math.min(3, Number(headingMatch[1])), text });
+    else if (style === 'SUBTITLE') blocks.push({ kind: 'heading', level: 3, text });
+    else blocks.push({ kind: 'para', text });
+  }
+  return { ok: true, error: '', blocks };
 }

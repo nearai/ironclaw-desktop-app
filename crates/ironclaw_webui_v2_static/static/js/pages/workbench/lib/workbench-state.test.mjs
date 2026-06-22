@@ -902,6 +902,38 @@ test('workbench rail surfaces recent Notion pages and Drive files as awareness g
   assert.equal(drive.rows[0].icon, 'folder');
 });
 
+test('a Drive Google Doc opens the in-app viewer (drivedoc); other types stay external', () => {
+  const rail = buildWorkbenchStateRail({
+    driveFiles: [
+      {
+        id: 'doc1',
+        name: 'IronClaw Use Cases',
+        kind: 'Doc',
+        mimeType: 'application/vnd.google-apps.document',
+        when: '7:06 AM',
+        link: 'https://docs.google.com/document/d/doc1'
+      },
+      {
+        id: 'sheet1',
+        name: 'BD Data',
+        kind: 'Sheet',
+        mimeType: 'application/vnd.google-apps.spreadsheet',
+        when: '6:00 AM',
+        link: 'https://docs.google.com/spreadsheets/d/sheet1'
+      }
+    ]
+  });
+  const drive = rail.find((group) => group.id === 'drive');
+  const docRow = drive.rows.find((row) => row.id === 'drive-doc1');
+  const sheetRow = drive.rows.find((row) => row.id === 'drive-sheet1');
+  assert.equal(docRow.kind, 'drivedoc', 'Google Doc opens the in-app viewer');
+  assert.equal(docRow.href, undefined, 'no external href for the Doc');
+  assert.equal(docRow.docId, 'doc1');
+  assert.equal(docRow.docUrl, 'https://docs.google.com/document/d/doc1');
+  assert.equal(sheetRow.kind, 'drive', 'a Sheet stays a plain external drive row');
+  assert.equal(sheetRow.href, 'https://docs.google.com/spreadsheets/d/sheet1');
+});
+
 test('workbench Notion/Drive groups degrade to honest empty states with no data', () => {
   const rail = buildWorkbenchStateRail({ notionPages: [], driveFiles: [] });
   const notion = rail.find((group) => group.id === 'notion');

@@ -14,6 +14,14 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## In-app Google Doc viewer wired — doc-viewer ask COMPLETE (`9071118`)
+
+The Drive "blocked at gateway" was a wrong tool name: `GOOGLEDOCS_GET_DOCUMENT_BY_ID{id}` is a read-only GET that works — NO gateway change needed.
+- `normalizeGoogleDocContent` (Docs body.content → same block model as Notion) + `useConnectorDriveDoc` (GOOGLEDOCS_GET_DOCUMENT_BY_ID) + `GOOGLE_DOC_MIME`; `connectorDriveRows` routes a Google Doc to `drivedoc` (in-app) while Sheets/PDFs stay external; DockRow drivedoc branch; `WorkbenchReadingPanel` doc branch generalized for Notion + Drive Docs (shared renderer). Email path byte-identical.
+- **Live-proven:** fetched a real Google Doc through the app's connector call → 200, 59 paragraphs; render path = the live-proven Notion panel. (The drivedoc rail row is in the overflow today — the one Doc is 5th of 6 recent files, rail shows 4.)
+- Gate green: static 846, a11y 140, design DT-1..6, smoke, bundle.
+- **Doc-viewer ask COMPLETE:** ✅ email (sandboxed iframe), ✅ Notion, ✅ Google Docs in-app. Drive Sheets/PDFs stay external (no read-only body tool — googlesheets toolkit not connected).
+
 ## In-app Notion viewer wired (`846d276`)
 
 The Notion doc viewer is now user-visible (data layer landed last tick):

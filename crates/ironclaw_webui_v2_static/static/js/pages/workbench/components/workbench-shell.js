@@ -83,12 +83,18 @@ function DockRow({ group, row, onClose, onOpenMessage }) {
     </span>
   `;
 
-  if (row.kind === 'inbox' || row.kind === 'notion') {
+  if (row.kind === 'inbox' || row.kind === 'notion' || row.kind === 'drivedoc') {
+    const testid =
+      row.kind === 'notion'
+        ? 'workbench-rail-notion'
+        : row.kind === 'drivedoc'
+          ? 'workbench-rail-drivedoc'
+          : 'workbench-rail-reply';
     return html`
       <button
         type="button"
         className="wb13-dock-item"
-        data-testid=${row.kind === 'notion' ? 'workbench-rail-notion' : 'workbench-rail-reply'}
+        data-testid=${testid}
         onClick=${() => {
           onClose?.();
           onOpenMessage?.(row);

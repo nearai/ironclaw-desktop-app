@@ -1,7 +1,11 @@
 import { Icon } from '../../../design-system/icons.js';
 import { html } from '../../../lib/html.js';
 import { useDialogFocus } from '../hooks/useDialogFocus.js';
-import { useConnectorMessage, useConnectorNotionPage } from '../hooks/useWorkbenchConnectors.js';
+import {
+  useConnectorMessage,
+  useConnectorNotionPage,
+  useConnectorDriveDoc
+} from '../hooks/useWorkbenchConnectors.js';
 import { formatInboxWhen, gmailMessageHref } from '../lib/workbench-connectors.js';
 
 // Render the flattened Notion blocks (from normalizeNotionPageContent) as a
@@ -84,20 +88,33 @@ export function WorkbenchReadingPanel({ selected, onClose, onDraftReply }) {
   const open = Boolean(selected);
   const { panelRef } = useDialogFocus(open);
   const isNotion = selected?.kind === 'notion';
-  // Both reads are keyed; only the one matching the selected kind is enabled (the
-  // other gets '' and stays idle), so hook order is stable across kinds.
+  const isDriveDoc = selected?.kind === 'drivedoc';
+  const isDoc = isNotion || isDriveDoc;
+  // All three reads are keyed; only the one matching the selected kind is enabled
+  // (the others get '' and stay idle), so hook order is stable across kinds.
   const { message, isLoading, isError } = useConnectorMessage(
-    isNotion ? '' : selected?.messageId || ''
+    isDoc ? '' : selected?.messageId || ''
   );
   const notion = useConnectorNotionPage(isNotion ? selected?.pageId || '' : '');
+  const driveDoc = useConnectorDriveDoc(isDriveDoc ? selected?.docId || '' : '');
 
   if (!open) return null;
 
-  // Notion page: a native in-app read of the page's blocks (no Chrome tab).
-  if (isNotion) {
-    const title = selected.title || 'Notion page';
-    const blocks = notion.page && notion.page.ok ? notion.page.blocks : [];
-    const notionFailed = notion.isError || (notion.page && notion.page.ok === false);
+  // Notion page / Google Doc: a native in-app read of the document blocks (no
+  // Chrome tab). Plain-text blocks, never raw HTML.
+  if (isDoc) {
+    const sourceLabel = isNotion ? 'Notion' : 'Doc';
+    const openLabel = isNotion ? 'Open in Notion' : 'Open in Drive';
+    const openTestId = isNotion
+      ? 'workbench-reading-panel-open-notion'
+      : 'workbench-reading-panel-open-drive';
+    const openUrl = isNotion ? selected.pageUrl : selected.docUrl;
+    const docState = isNotion ? notion.page : driveDoc.doc;
+    const docLoading = isNotion ? notion.isLoading : driveDoc.isLoading;
+    const docError = isNotion ? notion.isError : driveDoc.isError;
+    const title = selected.title || `${sourceLabel} document`;
+    const blocks = docState && docState.ok ? docState.blocks : [];
+    const docFailed = docError || (docState && docState.ok === false);
     return html`
       <div>
         <button
@@ -111,11 +128,11 @@ export function WorkbenchReadingPanel({ selected, onClose, onDraftReply }) {
           tabindex=${-1}
           className="wb13-inspector wb13-reader"
           data-testid="workbench-reading-panel"
-          aria-label="Notion page"
+          aria-label=${`${sourceLabel} document`}
         >
           <div className="wb13-inspector-head">
             <${Icon} name="file" />
-            Notion
+            ${sourceLabel}
             <button type="button" aria-label="Close" onClick=${onClose}>
               <${Icon} name="close" />
             </button>
@@ -125,35 +142,35 @@ export function WorkbenchReadingPanel({ selected, onClose, onDraftReply }) {
               ${title}
             </h2>
           </div>
-          ${selected.pageUrl
+          ${openUrl
             ? html`<div className="wb13-reader-actions">
                 <a
                   className="wb13-button is-sm"
-                  data-testid="workbench-reading-panel-open-notion"
-                  href=${selected.pageUrl}
+                  data-testid=${openTestId}
+                  href=${openUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                 >
                   <${Icon} name="external" />
-                  Open in Notion
+                  ${openLabel}
                 </a>
               </div>`
             : null}
           <div className="wb13-reader-body" data-testid="workbench-reading-panel-body">
-            ${notion.isLoading && !notion.page
-              ? html`<div className="wb13-reader-note">Loading the page…</div>`
-              : notionFailed
+            ${docLoading && !docState
+              ? html`<div className="wb13-reader-note">Loading the document…</div>`
+              : docFailed
                 ? html`<div className="wb13-reader-note is-error">
                     <${Icon} name="flag" />
                     <span>
-                      Could not load this page right
-                      now.${notion.page?.error ? ` ${notion.page.error}` : ''}
+                      Could not load this document right
+                      now.${docState?.error ? ` ${docState.error}` : ''}
                     </span>
                   </div>`
                 : blocks.length
                   ? html`<${NotionBlocks} blocks=${blocks} />`
                   : html`<div className="wb13-reader-note">
-                      This page has no readable content.
+                      This document has no readable content.
                     </div>`}
           </div>
         </aside>

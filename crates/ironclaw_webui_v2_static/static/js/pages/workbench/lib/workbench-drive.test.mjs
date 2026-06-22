@@ -1,7 +1,96 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { normalizeDriveFiles, driveKind, DRIVE_FILE_LIMIT } from './workbench-drive.js';
+import {
+  normalizeDriveFiles,
+  normalizeGoogleDocContent,
+  driveKind,
+  DRIVE_FILE_LIMIT,
+  GOOGLE_DOC_MIME
+} from './workbench-drive.js';
+
+test('GOOGLE_DOC_MIME is the native Google Doc mime', () => {
+  assert.equal(GOOGLE_DOC_MIME, 'application/vnd.google-apps.document');
+});
+
+test('normalizeDriveFiles carries the raw mimeType for in-app-viewer routing', () => {
+  const rows = normalizeDriveFiles({
+    successful: true,
+    data: {
+      files: [
+        {
+          id: 'd1',
+          name: 'Doc',
+          mimeType: 'application/vnd.google-apps.document',
+          webViewLink: 'https://x/d1'
+        }
+      ]
+    }
+  });
+  assert.equal(rows[0].mimeType, 'application/vnd.google-apps.document');
+});
+
+test('normalizeGoogleDocContent flattens GOOGLEDOCS_GET_DOCUMENT_BY_ID into render blocks', () => {
+  const result = {
+    successful: true,
+    data: {
+      response_data: {
+        title: 'Use Cases',
+        body: {
+          content: [
+            {
+              paragraph: {
+                paragraphStyle: { namedStyleType: 'TITLE' },
+                elements: [{ textRun: { content: 'Staging Setup\n' } }]
+              }
+            },
+            {
+              paragraph: {
+                paragraphStyle: { namedStyleType: 'HEADING_2' },
+                elements: [{ textRun: { content: 'Server\n' } }]
+              }
+            },
+            {
+              paragraph: {
+                paragraphStyle: { namedStyleType: 'NORMAL_TEXT' },
+                elements: [
+                  { textRun: { content: 'Go to ' } },
+                  { textRun: { content: 'agent-stg\n' } }
+                ]
+              }
+            },
+            {
+              paragraph: {
+                bullet: { listId: 'l1' },
+                elements: [{ textRun: { content: 'A bullet point\n' } }]
+              }
+            },
+            { paragraph: { elements: [{ textRun: { content: '\n' } }] } }, // empty -> dropped
+            { sectionBreak: {} } // non-paragraph -> skipped
+          ]
+        }
+      }
+    }
+  };
+  const out = normalizeGoogleDocContent(result);
+  assert.equal(out.ok, true);
+  assert.deepEqual(
+    out.blocks.map((b) => [b.kind, b.level || 0, b.text]),
+    [
+      ['heading', 1, 'Staging Setup'],
+      ['heading', 2, 'Server'],
+      ['para', 0, 'Go to agent-stg'],
+      ['bullet', 0, 'A bullet point']
+    ],
+    'TITLE/HEADING mapped, runs joined, bullets detected, empty + non-paragraph dropped'
+  );
+});
+
+test('normalizeGoogleDocContent is honest on failed/empty reads', () => {
+  assert.equal(normalizeGoogleDocContent({ successful: false, error: 'no access' }).ok, false);
+  assert.deepEqual(normalizeGoogleDocContent({ successful: true, data: {} }).blocks, []);
+  assert.deepEqual(normalizeGoogleDocContent(null).blocks, []);
+});
 
 test('DRIVE_FILE_LIMIT is the documented default', () => {
   assert.equal(DRIVE_FILE_LIMIT, 6);
@@ -86,7 +175,11 @@ test('normalizeDriveFiles falls back name to (untitled) and drops fully empty ro
     successful: true,
     data: {
       files: [
-        { id: 'hasIdNoName', mimeType: 'application/pdf', modifiedTime: '2026-06-17T00:00:00.000Z' },
+        {
+          id: 'hasIdNoName',
+          mimeType: 'application/pdf',
+          modifiedTime: '2026-06-17T00:00:00.000Z'
+        },
         { mimeType: 'application/vnd.google-apps.document' } // no id and no name -> dropped
       ]
     }

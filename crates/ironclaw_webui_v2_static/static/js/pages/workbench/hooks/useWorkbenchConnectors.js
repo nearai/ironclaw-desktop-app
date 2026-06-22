@@ -10,7 +10,11 @@ import {
   normalizeInboxMessages
 } from '../lib/workbench-connectors.js';
 import { SLACK_BLOCKER_QUERY, normalizeSlackBlockers } from '../lib/workbench-slack.js';
-import { DRIVE_FILE_LIMIT, normalizeDriveFiles } from '../lib/workbench-drive.js';
+import {
+  DRIVE_FILE_LIMIT,
+  normalizeDriveFiles,
+  normalizeGoogleDocContent
+} from '../lib/workbench-drive.js';
 import {
   NOTION_PAGE_LIMIT,
   normalizeNotionPages,
@@ -378,6 +382,41 @@ export function useConnectorNotionPage(pageId) {
 
   return {
     page,
+    isLoading: query.isLoading && Boolean(id),
+    isError: query.isError,
+    enabled: Boolean(id)
+  };
+}
+
+// Fetch a Google Doc's content for the in-app viewer. READ tool
+// (GOOGLEDOCS_GET_DOCUMENT_BY_ID — the GET segment passes the read-only route
+// guard). Keyed on the file id; only runs when one is set.
+export function useConnectorDriveDoc(fileId) {
+  const id = typeof fileId === 'string' ? fileId.trim() : '';
+  const query = useQuery({
+    queryKey: ['workbench-connector-drive-doc', id],
+    enabled: Boolean(id),
+    staleTime: 60_000,
+    retry: 1,
+    throwOnError: false,
+    queryFn: ({ signal }) =>
+      connectorRead({
+        toolkit: 'googledocs',
+        tool: 'GOOGLEDOCS_GET_DOCUMENT_BY_ID',
+        arguments: { id },
+        signal
+      })
+  });
+
+  const doc = React.useMemo(() => {
+    if (!id) return null;
+    if (query.isError) return null;
+    if (!query.data) return null;
+    return normalizeGoogleDocContent(query.data);
+  }, [id, query.data, query.isError]);
+
+  return {
+    doc,
     isLoading: query.isLoading && Boolean(id),
     isError: query.isError,
     enabled: Boolean(id)

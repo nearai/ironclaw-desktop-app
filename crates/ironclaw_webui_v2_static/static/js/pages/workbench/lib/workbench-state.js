@@ -4,6 +4,7 @@ import {
   threadAttentionDetailFromGate
 } from '../../../lib/thread-attention-details.js';
 import { firstArtifact, savedWorkHref } from './workbench-work-items.js';
+import { GOOGLE_DOC_MIME } from './workbench-drive.js';
 
 const SOURCE_RAIL_STATES = new Set(['in-progress', 'needs-reconnect']);
 const WORKBENCH_FEED_GROUPS = new Set([
@@ -197,17 +198,23 @@ function connectorDriveRows(files = []) {
     .map((row) => {
       const name = String(row.name);
       const kind = String(row.kind || '').trim();
-      return {
+      const title = name.length > 90 ? `${name.slice(0, 89)}…` : name;
+      const isGoogleDoc = String(row.mimeType || '') === GOOGLE_DOC_MIME;
+      const base = {
         id: `drive-${row.id}`,
         groupId: 'drive',
-        kind: 'drive',
         icon: 'folder',
-        title: name.length > 90 ? `${name.slice(0, 89)}…` : name,
+        title,
         badge: kind || 'Drive',
         detail: row.when ? `Modified ${row.when}` : 'Recently modified',
-        href: row.link || undefined,
         timestamp: ''
       };
+      // Google Docs open in the in-app viewer (GOOGLEDOCS_GET_DOCUMENT_BY_ID); other
+      // Drive types (Sheets/PDF/binaries — no read-only body tool) open externally.
+      if (isGoogleDoc) {
+        return { ...base, kind: 'drivedoc', docId: String(row.id || ''), docUrl: row.link || '' };
+      }
+      return { ...base, kind: 'drive', href: row.link || undefined };
     });
 }
 
