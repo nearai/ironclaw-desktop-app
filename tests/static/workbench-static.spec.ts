@@ -2053,7 +2053,13 @@ test('static workbench: catch-up briefing includes Slack blocker context from a 
   await page.goto('/v2/workbench?token=workbench-static-token');
 
   await expect(page.getByTestId('workbench-sources-ready')).toContainText('Slack');
-  await expect(connectorReadRequests).toEqual([]);
+  // Slack is a first-class rail source now: it reads eagerly on load (read-only),
+  // like Gmail/Calendar/GitHub/Drive/Notion, so the "Slack blockers" rail group is
+  // populated without a catch-up. Assert the eager read is the read-only blocker
+  // search and that nothing is ever sent — not that no read happened.
+  await expect.poll(() => connectorReadRequests.length).toBeGreaterThan(0);
+  expect(connectorReadRequests.every((entry) => entry.tool === 'SLACK_SEARCH_MESSAGES')).toBe(true);
+  expect(sentMessages).toEqual([]);
 
   await page.getByTestId('workbench-brief-input').fill('What needs me today?');
   await page.getByTestId('workbench-send-button').click();

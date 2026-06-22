@@ -582,13 +582,13 @@ export function WorkbenchPage() {
     enabled: connectedAccounts.calendarReady,
     maxResults: 6
   });
-  // Slack blocker search stays lazy (a catch-up / Slack intent activates it) so we
-  // don't change the briefing's in-flight read timing. Once it has run, its rows
-  // also feed the always-visible "Slack blockers" rail group (buildWorkbenchStateRail),
-  // so Slack triage persists in the rail after a catch-up. An always-on eager read
-  // is deferred — it would require decoupling from the briefing summarize flow.
+  // Slack is a first-class rail source (always-visible blocker triage), so the read
+  // runs whenever Slack is connected — like Gmail/Calendar/GitHub/Drive/Notion — and
+  // the "Slack blockers" rail group populates on cold load. The catch-up briefing
+  // still shows "Reading Slack" while that read is in-flight (briefingLoadingSources),
+  // exactly as it does for the other eager sources.
   const slackBlockers = useConnectorSlackBlockers({
-    enabled: (slackBlockersActive || briefingSlackActive) && connectedAccounts.slackReady,
+    enabled: connectedAccounts.slackReady,
     maxResults: 8
   });
   const connectorDrive = useConnectorDrive({ enabled: connectedAccounts.driveReady });
