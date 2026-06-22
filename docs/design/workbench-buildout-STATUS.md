@@ -5,6 +5,16 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #25 — P3): GitHub notifications as a rail group (`acac9de`)
+
+Rail triage now spans Gmail + Slack + GitHub.
+- `workbench-state.js`: `connectorGithubRows` maps GITHUB_LIST_NOTIFICATIONS into rail rows (subject-type badge, "<reason> · <repo>" detail, html_url href, 90-char truncation, title-less dropped); new `github` group after Ready-to-review (icon `spark`). Threaded via `buildWorkbenchStateRail({ githubNotifications })`; page passes `connectorGithub.notifications`.
+- GitHub reads EAGERLY (deduped with the briefing → no extra read, no test #118 timing coupling), so the group populates on **cold load** — better than Slack (lazy).
+- **Live-proven** (real GitHub): cold load shows **GITHUB (6)** real notifications (Issue mentions in public repos + nearai/ironclaw CI), each linking to the repo. Design intact (reuses group/row component + existing `spark` icon, no new CSS).
+- **Gate green:** static 825 (3 new tests), a11y 138, design DT-1..6, smoke, bundle under budget.
+- Rail breadth: Needs-a-reply (Gmail, behaviour-ranked) · Slack blockers (post catch-up) · GitHub (eager) · approvals/blocked/working/review · Upcoming (Calendar).
+- Next: Notion/Drive into the rail (same eager pattern); decouple Slack eager-read; own-repo extraction on your sign-off; research blocked on web-search credential.
+
 ## Tick (loop #24 — P3): Slack blockers as a first-class rail group (`163e1a7`)
 
 Triage now spans Gmail + Slack in the always-visible rail (not only the on-demand briefing).
