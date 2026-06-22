@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #14 — P3): the "You" perspective surface, live (`629fefb`)
+
+Renders the behaviour-profile core as a real route — what IronClaw learned about how you work.
+- New `pages/you/you-page.js` + `/you` route (routes.js `hidden:true` → no nav-rail change; mounted in app.js under the authed layout). Reads in:sent + Primary inbox → computeBehaviourProfile → tier stats (VIP/respond/FYI/filed) + evidence patterns + per-person list (tier badges, reply latency). Self-contained `<style>` on --v2-* tokens, Newsreader serif; read-only.
+- **Live-verified** (:17641 /you, real mail): "How you work" serif heading; stats **0 VIP · 1 respond · 14 FYI · 2 auto-filed** (25-msg sent read matched a respond-tier — tiering deepens with more history); 15 rows; no console errors; design clean.
+- **Gate green:** static 808 (route-registration test), design DT-1..6, a11y 138, smoke, bundle under budget.
+- GOTCHA: adding a key to i18n/en.js trips a hard count (933) + per-locale baseline — a hidden route needs NO en key (label never renders). Kept en.js unchanged.
+- Next: promote /you to visible nav (i18n nav.you + nav section + bump the 933 count + baseline) once tiering reads a fuller sent window; long-horizon research verb proof.
+
 ## Tick (loop #13 — P3): behaviour-profile core for the "You" surface (`efbd324`)
 
 The "You" surface's validated foundation (UI next), pure + no I/O.
