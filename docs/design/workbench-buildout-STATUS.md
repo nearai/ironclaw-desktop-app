@@ -14,6 +14,13 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Dismiss-to-learn loop closed — auto-file repeatedly-dismissed senders (`59aa615`)
+
+The #1 ask's learning half: dismissals now teach triage, not just record.
+- `learnedIgnoreSenders(dismissals, minCount=2)` (sender-level reasons only: Just context / Not relevant / Not for me) → senders to auto-file; `selectTriageInbox` suppresses their NEW mail from decisions + rail, overridable by an explicit You-surface tier. `workbench-page` memoizes + threads it.
+- **Live-proven:** 2 sender-level dismissals for a sender → on reload their other unread mail auto-files (Needs-a-reply 3→2) without dismissing each; reversible via an explicit correction.
+- Gate green: static 849 (4 new tests), a11y 140, design DT-1..6, smoke, bundle.
+
 ## In-app Google Doc viewer wired — doc-viewer ask COMPLETE (`9071118`)
 
 The Drive "blocked at gateway" was a wrong tool name: `GOOGLEDOCS_GET_DOCUMENT_BY_ID{id}` is a read-only GET that works — NO gateway change needed.

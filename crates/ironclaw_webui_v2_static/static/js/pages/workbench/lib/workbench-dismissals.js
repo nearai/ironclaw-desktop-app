@@ -108,3 +108,29 @@ export function dismissalSignalsBySender(dismissals) {
   }
   return bySender;
 }
+
+// Reasons that say "this SENDER generally isn't worth surfacing" (vs "Already
+// handled", which is about one specific message). Repeated sender-level
+// dismissals are what teach the auto-file.
+export const SENDER_LEVEL_DISMISS_REASONS = ['Just context', 'Not relevant', 'Not for me'];
+
+// The "it learns" loop: senders the user has filed (with a sender-level reason)
+// at least `minCount` times. New mail from these senders is auto-suppressed from
+// triage — so the user doesn't keep dismissing the same chatty sender. An
+// explicit VIP/Respond/FYI correction on the "You" surface overrides this (see
+// selectTriageInbox). Pure; returns a Set of lowercased emails.
+export function learnedIgnoreSenders(dismissals, { minCount = 2 } = {}) {
+  const map = dismissals && typeof dismissals === 'object' ? dismissals : {};
+  const counts = {};
+  for (const value of Object.values(map)) {
+    const sender = String((value && value.sender) || '')
+      .trim()
+      .toLowerCase();
+    const reason = String((value && value.reason) || '').trim();
+    if (!sender || !SENDER_LEVEL_DISMISS_REASONS.includes(reason)) continue;
+    counts[sender] = (counts[sender] || 0) + 1;
+  }
+  const learned = new Set();
+  for (const [sender, n] of Object.entries(counts)) if (n >= minCount) learned.add(sender);
+  return learned;
+}

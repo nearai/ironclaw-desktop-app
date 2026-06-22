@@ -30,7 +30,7 @@ import { fetchReceiptsFeed, receiptsFeedReadSupported } from './lib/receipts-fee
 import { fetchWorkbenchFeed, workbenchFeedReadSupported } from './lib/workbench-feed-api.js';
 import { buildWorkbenchStateRail } from './lib/workbench-state.js';
 import { readTierOverrides } from './lib/workbench-profile-overrides.js';
-import { readDismissals, dismissRow } from './lib/workbench-dismissals.js';
+import { readDismissals, dismissRow, learnedIgnoreSenders } from './lib/workbench-dismissals.js';
 import { selectTriageInbox } from './lib/workbench-connectors.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
@@ -703,8 +703,16 @@ export function WorkbenchPage() {
   // ignore-corrected senders, and rows the user dismissed — mirroring the rail's
   // Needs-a-reply. The raw inbox still feeds the rail + briefing, which filter
   // themselves.
+  // The "it learns" set: senders filed ≥2× for sender-level reasons are
+  // auto-suppressed from triage going forward (overridable on the You surface).
+  const learnedIgnore = React.useMemo(() => learnedIgnoreSenders(dismissals), [dismissals]);
   const triageInbox = React.useMemo(
-    () => selectTriageInbox(connectorInbox.messages, { overrides: tierOverrides, dismissals }),
+    () =>
+      selectTriageInbox(connectorInbox.messages, {
+        overrides: tierOverrides,
+        dismissals,
+        learnedIgnore
+      }),
     [connectorInbox.messages, tierOverrides, dismissals]
   );
   const railGroups = React.useMemo(

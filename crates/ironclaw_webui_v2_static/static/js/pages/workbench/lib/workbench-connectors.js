@@ -137,7 +137,10 @@ export function messageIsBulk(message) {
 // gemini-notes meeting summaries the user never replies to), senders the user
 // corrected to "ignore", and rows the user has dismissed. Everything dropped is
 // still in the mailbox — filed, not surfaced. Pure; mutates nothing.
-export function selectTriageInbox(messages, { overrides = {}, dismissals = {} } = {}) {
+export function selectTriageInbox(
+  messages,
+  { overrides = {}, dismissals = {}, learnedIgnore } = {}
+) {
   const list = Array.isArray(messages) ? messages : [];
   const norm = {};
   for (const [email, tier] of Object.entries(
@@ -146,11 +149,17 @@ export function selectTriageInbox(messages, { overrides = {}, dismissals = {} } 
     norm[String(email || '').toLowerCase()] = tier;
   }
   const dismissed = dismissals && typeof dismissals === 'object' ? dismissals : {};
+  const learned = learnedIgnore instanceof Set ? learnedIgnore : new Set();
   return list.filter((message) => {
     if (!message || message.isBulk) return false;
-    if (norm[String(message.fromEmail || '').toLowerCase()] === 'ignore') return false;
+    const email = String(message.fromEmail || '').toLowerCase();
+    const tier = norm[email];
+    if (tier === 'ignore') return false;
     const key = String(message.messageId || message.id || '');
     if (key && dismissed[key]) return false;
+    // Learned auto-file: a sender repeatedly dismissed as sender-level noise.
+    // An explicit VIP/Respond/FYI correction (any non-ignore tier) overrides it.
+    if (!tier && learned.has(email)) return false;
     return true;
   });
 }

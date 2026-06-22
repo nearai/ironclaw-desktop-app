@@ -5,8 +5,35 @@ import {
   DISMISS_REASONS,
   dismissalSignalsBySender,
   isDismissed,
+  learnedIgnoreSenders,
   restoreRow
 } from './workbench-dismissals.js';
+
+test('learnedIgnoreSenders auto-files a sender filed >=2x for sender-level reasons', () => {
+  const dismissals = {
+    a1: { reason: 'Just context', sender: 'noisy@vendor.com', ts: 1 },
+    a2: { reason: 'Not relevant', sender: 'Noisy@vendor.com', ts: 2 }, // case-insensitive, 2nd
+    b1: { reason: 'Already handled', sender: 'real@client.com', ts: 3 }, // per-item, not sender-level
+    b2: { reason: 'Already handled', sender: 'real@client.com', ts: 4 }, // still per-item -> NOT learned
+    c1: { reason: 'Not for me', sender: 'once@x.com', ts: 5 } // only 1x -> not yet learned
+  };
+  const learned = learnedIgnoreSenders(dismissals);
+  assert.ok(learned instanceof Set);
+  assert.equal(learned.has('noisy@vendor.com'), true, '2 sender-level dismissals -> learned');
+  assert.equal(
+    learned.has('real@client.com'),
+    false,
+    '"Already handled" is per-item, never learned'
+  );
+  assert.equal(learned.has('once@x.com'), false, 'a single dismissal is below the threshold');
+});
+
+test('learnedIgnoreSenders respects minCount + tolerates garbage', () => {
+  const dismissals = { a: { reason: 'Just context', sender: 's@x.com', ts: 1 } };
+  assert.equal(learnedIgnoreSenders(dismissals, { minCount: 1 }).has('s@x.com'), true);
+  assert.equal(learnedIgnoreSenders(null).size, 0);
+  assert.equal(learnedIgnoreSenders({}).size, 0);
+});
 
 // Note: dismissRow/readDismissals touch localStorage (absent under node --test),
 // so they degrade to in-memory no-ops; the pure helpers below are what we assert.

@@ -120,6 +120,43 @@ test('selectTriageInbox keeps human mail but files bulk, ignored senders, and di
   );
 });
 
+test('selectTriageInbox auto-files a learned-ignore sender, unless explicitly corrected', () => {
+  const messages = [
+    {
+      id: 'n1',
+      messageId: 'n1',
+      fromEmail: 'noisy@vendor.com',
+      subject: 'New noise',
+      unread: true,
+      isBulk: false
+    },
+    {
+      id: 'k1',
+      messageId: 'k1',
+      fromEmail: 'dana@northwind.com',
+      subject: 'Renewal',
+      unread: true,
+      isBulk: false
+    }
+  ];
+  const learnedIgnore = new Set(['noisy@vendor.com']);
+  // New mail from a learned-ignore sender is suppressed.
+  assert.deepEqual(
+    selectTriageInbox(messages, { learnedIgnore }).map((m) => m.id),
+    ['k1'],
+    'learned-ignore sender auto-filed; the rest stays'
+  );
+  // An explicit VIP/Respond correction overrides the learned signal.
+  assert.deepEqual(
+    selectTriageInbox(messages, {
+      learnedIgnore,
+      overrides: { 'noisy@vendor.com': 'respond' }
+    }).map((m) => m.id),
+    ['n1', 'k1'],
+    'an explicit correction beats the learned auto-file'
+  );
+});
+
 test('selectTriageInbox degrades safely on empty/garbage and never mutates input', () => {
   assert.deepEqual(selectTriageInbox(null), []);
   assert.deepEqual(selectTriageInbox([], {}), []);
