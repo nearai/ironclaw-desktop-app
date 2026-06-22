@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #5 — pillar #3): suppression transparency ("N newsletters filed") (`cfed6a3`)
+
+Suppression was silent; now the briefing owns it (v12 "handled, not surfaced" trust touch).
+- `buildBriefing` reports `counts.filed`; headline appends "N newsletters filed — not surfaced." Suppression regression test extended.
+- **Live-verified** (:17641, "what needs me today?"): "Good morning. 5 Slack items, 5 GitHub items, and 5 events on your calendar. 6 newsletters filed — not surfaced." — 0 replies-waiting (suppressed), real items still counted.
+- **Mandated validation PASS:** profile engine (180 sent / 250 inbox / 98 senders) — V1 0 bulk leaked, V2 surfaces 2 real human threads, 0 bulk.
+- **Gate green:** static 790, design DT-1..6, a11y 138, smoke. Frontend-only.
+- Next: sent-history-aware "needs a reply" (surface established reply threads, not just unread — the only clean behaviour signal on this newsletter-flooded demo mailbox), then the "You" surface; P2 chat-bar verbs.
+
 ## Tick (loop #4 — P1): real Newsreader woff2, v13 typography complete (`835bf5c`)
 
 Display headings were on a system-serif fallback. Self-hosted the real font.
