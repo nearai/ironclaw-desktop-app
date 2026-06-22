@@ -5,6 +5,14 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #6 — pillar #3): needs-a-reply reads the Primary tab (`ad8442b`)
+
+needs-a-reply was empty/flooded (the `in:inbox` read returns newsletters first → after suppression nothing human surfaced). Now it reads Gmail's Primary tab.
+- Inbox query → `in:inbox -category:promotions -category:updates -category:forums -category:social` (Gmail's own classification = human correspondence); messageIsBulk still suppresses automated senders that slip into Primary. Tightened BULK_LOCALPARTS (gemini-notes/calendar-notification/drive-shares/via-google + hyphen boundary).
+- **Live-verified** (:17641): needs-a-reply now shows a REAL human thread — "Re: Re-Intro - Abhi and Sidney — From Harshit Tiwari"; gemini-notes suppressed, The Information gone; human work mail present (anelda "Coverage Enquiry — DPO/GDPR", jonathan@digitalchamber). No console errors.
+- **Gate green:** static 790, design DT-1..6, a11y 138, smoke. Frontend-only.
+- Next: rank the surfaced human threads (latency/tier), the "You" surface, then P2 chat-bar verbs.
+
 ## Tick (loop #5 — pillar #3): suppression transparency ("N newsletters filed") (`cfed6a3`)
 
 Suppression was silent; now the briefing owns it (v12 "handled, not surfaced" trust touch).
