@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #29 — validation checkpoint): full foundation re-proven live
+
+Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates green vs the real gateway.
+- **Connector suite 14/14 PASS:** 6/6 live reads (gmail/calendar/drive/notion/github/slack); gated-write boundary holds (**SEND rejected · DELETE forbidden · DRAFT allowed**); approvals route; **live agent turn replied (68 chars)**.
+- **Profile engine PASS:** V1 newsletter suppression **0 leaked**; V2 surfaced 2 items / 0 bulk (validated against the real `messageIsBulk`).
+- No code change this tick (tree = loop #28's gate-green 828). Profile output (real sender data) not committed.
+- Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
+- Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
+
 ## Tick (loop #28 — P3): GitHub rail ranks by reason (`220efe4`)
 
 Behaviour-ranked triage extended to GitHub — real action items above GitHub's "newsletters".
