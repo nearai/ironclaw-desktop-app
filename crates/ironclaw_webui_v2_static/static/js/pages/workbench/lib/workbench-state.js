@@ -181,7 +181,10 @@ function connectorNotionRows(pages = []) {
         title: title.length > 90 ? `${title.slice(0, 89)}…` : title,
         badge: 'Notion',
         detail: row.when ? `Edited ${row.when}` : 'Recently edited',
-        href: row.url || undefined,
+        // No href: a Notion row opens the in-app reading panel (NotionBlocks), not
+        // a browser tab. Carry the page id for the read + the url for "Open in Notion".
+        pageId: String(row.id || ''),
+        pageUrl: row.url || '',
         timestamp: ''
       };
     });

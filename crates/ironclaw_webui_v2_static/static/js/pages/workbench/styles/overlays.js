@@ -155,6 +155,53 @@ export const WORKBENCH_OVERLAYS_STYLE = `.wb13-inspector {
   border-radius: 10px;
   background: #fff;
 }
+/* Native Notion page render: flattened blocks, on the dark v13 reader. */
+.wb13-notion-h {
+  color: var(--wb-ink);
+  font-family: var(--wb-font-display, var(--wb-font-body));
+  font-weight: 700;
+  margin: 14px 0 6px;
+  line-height: 1.3;
+}
+.wb13-notion-h1 {
+  font-size: 19px;
+}
+.wb13-notion-h2 {
+  font-size: 16px;
+}
+.wb13-notion-h3 {
+  font-size: 14.5px;
+}
+.wb13-notion-li {
+  margin: 3px 0 3px 6px;
+  color: var(--wb-ink);
+}
+.wb13-notion-quote {
+  margin: 8px 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--wb-line);
+  color: var(--wb-muted);
+}
+.wb13-notion-code {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--wb-line-2);
+  border-radius: 8px;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wb13-notion-callout {
+  margin: 8px 0;
+  padding: 9px 12px;
+  background: var(--wb-line-2);
+  border-radius: 8px;
+}
+.wb13-notion-divider {
+  border: 0;
+  border-top: 1px solid var(--wb-line);
+  margin: 12px 0;
+}
 .wb13-reader-note {
   display: flex;
   align-items: flex-start;

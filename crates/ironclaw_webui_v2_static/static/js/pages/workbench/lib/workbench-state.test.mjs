@@ -888,7 +888,11 @@ test('workbench rail surfaces recent Notion pages and Drive files as awareness g
   assert.equal(notion.rows[0].title, 'Q2 Management Meeting');
   assert.equal(notion.rows[0].badge, 'Notion');
   assert.equal(notion.rows[0].detail, 'Edited 11:41 AM');
-  assert.equal(notion.rows[0].href, 'https://notion.so/p1');
+  // Notion rows open the in-app viewer: no external href; carry the page id +
+  // url for the read + the "Open in Notion" fallback.
+  assert.equal(notion.rows[0].href, undefined, 'no external href — opens in-app');
+  assert.equal(notion.rows[0].pageId, 'p1');
+  assert.equal(notion.rows[0].pageUrl, 'https://notion.so/p1');
   assert.equal(notion.rows[0].icon, 'file');
   assert.equal(drive.total, 1);
   assert.equal(drive.rows[0].title, 'JASON Levels.xlsx');

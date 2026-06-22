@@ -14,6 +14,13 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## In-app Notion viewer wired (`846d276`)
+
+The Notion doc viewer is now user-visible (data layer landed last tick):
+- `connectorNotionRows` drops href, carries pageId+pageUrl; DockRow `notion` branch opens the in-app panel; `WorkbenchReadingPanel` kind-switches to render `NotionBlocks` (plain-text blocks, no XSS) via `useConnectorNotionPage` (NOTION_FETCH_BLOCK_CONTENTS); email path byte-identical.
+- **Live-proven:** clicked a Notion rail row → real page content (Description + bulleted "What changed") renders in-panel with "Open in Notion"; v13 fidelity intact (screenshot).
+- Gate green: static 841, a11y 140, design DT-1..6, smoke, bundle. Drive doc-body still gateway-blocked.
+
 ## User feedback round 3 — chat-window test + doc-viewer (parallel workflow)
 
 Ran a parallel workflow (probe Notion/Drive content tools + author the chat test); integrated under the main loop.

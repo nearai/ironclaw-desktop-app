@@ -1,8 +1,38 @@
 import { Icon } from '../../../design-system/icons.js';
 import { html } from '../../../lib/html.js';
 import { useDialogFocus } from '../hooks/useDialogFocus.js';
-import { useConnectorMessage } from '../hooks/useWorkbenchConnectors.js';
+import { useConnectorMessage, useConnectorNotionPage } from '../hooks/useWorkbenchConnectors.js';
 import { formatInboxWhen, gmailMessageHref } from '../lib/workbench-connectors.js';
+
+// Render the flattened Notion blocks (from normalizeNotionPageContent) as a
+// readable, on-design document. Plain text only — no raw HTML, so no XSS surface.
+function NotionBlocks({ blocks }) {
+  return html`${blocks.map((block, index) => {
+    if (block.kind === 'divider') return html`<hr key=${index} className="wb13-notion-divider" />`;
+    if (block.kind === 'heading') {
+      return html`<div key=${index} className=${`wb13-notion-h wb13-notion-h${block.level || 2}`}>
+        ${block.text}
+      </div>`;
+    }
+    if (block.kind === 'bullet')
+      return html`<div key=${index} className="wb13-notion-li">• ${block.text}</div>`;
+    if (block.kind === 'number')
+      return html`<div key=${index} className="wb13-notion-li">${block.text}</div>`;
+    if (block.kind === 'todo')
+      return html`<div key=${index} className="wb13-notion-li">
+        ${block.checked ? '☑' : '☐'} ${block.text}
+      </div>`;
+    if (block.kind === 'quote')
+      return html`<blockquote key=${index} className="wb13-notion-quote">
+        ${block.text}
+      </blockquote>`;
+    if (block.kind === 'code')
+      return html`<pre key=${index} className="wb13-notion-code">${block.text}</pre>`;
+    if (block.kind === 'callout')
+      return html`<div key=${index} className="wb13-notion-callout">${block.text}</div>`;
+    return html`<p key=${index} className="wb13-reader-para">${block.text}</p>`;
+  })}`;
+}
 
 // Split a cleaned email body into paragraphs (blank-line separated) so the
 // reading panel renders readable blocks instead of one wall of text.
@@ -53,9 +83,83 @@ function sanitizeEmailHtml(raw) {
 export function WorkbenchReadingPanel({ selected, onClose, onDraftReply }) {
   const open = Boolean(selected);
   const { panelRef } = useDialogFocus(open);
-  const { message, isLoading, isError } = useConnectorMessage(selected?.messageId || '');
+  const isNotion = selected?.kind === 'notion';
+  // Both reads are keyed; only the one matching the selected kind is enabled (the
+  // other gets '' and stays idle), so hook order is stable across kinds.
+  const { message, isLoading, isError } = useConnectorMessage(
+    isNotion ? '' : selected?.messageId || ''
+  );
+  const notion = useConnectorNotionPage(isNotion ? selected?.pageId || '' : '');
 
   if (!open) return null;
+
+  // Notion page: a native in-app read of the page's blocks (no Chrome tab).
+  if (isNotion) {
+    const title = selected.title || 'Notion page';
+    const blocks = notion.page && notion.page.ok ? notion.page.blocks : [];
+    const notionFailed = notion.isError || (notion.page && notion.page.ok === false);
+    return html`
+      <div>
+        <button
+          type="button"
+          className="wb13-scrim"
+          aria-label="Close page reading panel"
+          onClick=${onClose}
+        ></button>
+        <aside
+          ref=${panelRef}
+          tabindex=${-1}
+          className="wb13-inspector wb13-reader"
+          data-testid="workbench-reading-panel"
+          aria-label="Notion page"
+        >
+          <div className="wb13-inspector-head">
+            <${Icon} name="file" />
+            Notion
+            <button type="button" aria-label="Close" onClick=${onClose}>
+              <${Icon} name="close" />
+            </button>
+          </div>
+          <div className="wb13-reader-meta">
+            <h2 className="wb13-reader-subject" data-testid="workbench-reading-panel-subject">
+              ${title}
+            </h2>
+          </div>
+          ${selected.pageUrl
+            ? html`<div className="wb13-reader-actions">
+                <a
+                  className="wb13-button is-sm"
+                  data-testid="workbench-reading-panel-open-notion"
+                  href=${selected.pageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <${Icon} name="external" />
+                  Open in Notion
+                </a>
+              </div>`
+            : null}
+          <div className="wb13-reader-body" data-testid="workbench-reading-panel-body">
+            ${notion.isLoading && !notion.page
+              ? html`<div className="wb13-reader-note">Loading the page…</div>`
+              : notionFailed
+                ? html`<div className="wb13-reader-note is-error">
+                    <${Icon} name="flag" />
+                    <span>
+                      Could not load this page right
+                      now.${notion.page?.error ? ` ${notion.page.error}` : ''}
+                    </span>
+                  </div>`
+                : blocks.length
+                  ? html`<${NotionBlocks} blocks=${blocks} />`
+                  : html`<div className="wb13-reader-note">
+                      This page has no readable content.
+                    </div>`}
+          </div>
+        </aside>
+      </div>
+    `;
+  }
 
   const headerSender = message?.sender || selected.sender || 'Unknown sender';
   const headerSubject = message?.subject || selected.subject || '(no subject)';
