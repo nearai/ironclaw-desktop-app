@@ -12,10 +12,10 @@ export const WORKBENCH_TOKENS_STYLE = `
   --wb-line: #e3e6e0;
   --wb-line-2: #eef0ec;
   --wb-hair: #ebeee8;
-  --wb-accent: #0d7d6f;
-  --wb-accent-press: #0a655a;
-  --wb-accent-tint: #e3f2ef;
-  --wb-accent-soft: #f0f8f6;
+  --wb-accent: #1c63d6;
+  --wb-accent-press: #1654b8;
+  --wb-accent-tint: #eaf1fd;
+  --wb-accent-soft: #f3f7fe;
   --wb-hold: #bd5a2f;
   --wb-hold-text: #974320;
   --wb-hold-tint: #fbeae0;
@@ -39,7 +39,7 @@ export const WORKBENCH_TOKENS_STYLE = `
   --wb-rail-muted: #586173;
   --wb-rail-line: #e3e6e0;
   --wb-rail-active: #e3e6e0;
-  --wb-rail-accent: #0d7d6f;
+  --wb-rail-accent: #1c63d6;
   --wb-r: 8px;
   --wb-r-lg: 13px;
   --wb-shadow: 0 1px 2px rgba(20, 24, 33, 0.05);
@@ -64,10 +64,10 @@ export const WORKBENCH_TOKENS_STYLE = `
   --wb-line: #263241;
   --wb-line-2: #18222e;
   --wb-hair: #1d2835;
-  --wb-accent: #2dd4bf;
-  --wb-accent-press: #25b8a6;
-  --wb-accent-tint: #0e3b35;
-  --wb-accent-soft: #0a2521;
+  --wb-accent: #5b9bf2;
+  --wb-accent-press: #4a86db;
+  --wb-accent-tint: #172a45;
+  --wb-accent-soft: #131c2a;
   --wb-hold: #d07a4f;
   --wb-hold-text: #f0ad83;
   --wb-hold-tint: #2c1b14;
@@ -91,7 +91,7 @@ export const WORKBENCH_TOKENS_STYLE = `
   --wb-rail-muted: #8696a9;
   --wb-rail-line: #1c2734;
   --wb-rail-active: #152333;
-  --wb-rail-accent: #2dd4bf;
+  --wb-rail-accent: #5b9bf2;
   --wb-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
   --wb-shadow-pop: 0 24px 70px -22px rgba(0, 0, 0, 0.72);
 }
