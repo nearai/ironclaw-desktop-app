@@ -5,6 +5,15 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (P1 loop #2): serif display + brand/avatar → blue (`7d677c2`)
+
+Completes "zero teal" and adds the v13 editorial serif.
+- `--wb-font-display` Geist sans → Newsreader-first serif stack (body stays Geist sans). Brand mark gradient + avatar teal → blue. Real Newsreader woff2 deferred (bundle-size budget) — system serif fallback reads editorial + faithful.
+- Updated `tests/static/workbench-static.spec.ts` font-contract from the old no-serif decision to the v13 serif-display intent (intentional design move, not a silenced regression).
+- **Live-verified** (:17641 /workbench, real data): greeting renders serif, brand/avatar/active-nav blue, **0 teal anywhere**, no console errors, layout intact.
+- **Gate green:** static 789, design DT-1..6, a11y 138, smoke, bundle-size under budget.
+- Next: real Newsreader woff2 (within size budget); then wire behaviour-ranked Home + "You" surface to the live profile engine (P1→P3 bridge).
+
 ## Tick (P1 loop): v13 fidelity — accent teal → signal blue (`d70b990`)
 
 First autonomous-loop tick toward the goal. Killed the teal/Geist accent divergence on the live standalone Workbench by retargeting BOTH token systems to v13 blue: global `--v2-accent*` (app.css, light+dark → #1c63d6/#5b9bf2) and the Workbench-scoped `--wb-accent*` + `--wb-rail-accent` (pages/workbench/styles/tokens.js, light+dark). Ask button, wb13 dots, active-nav now blue.
