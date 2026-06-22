@@ -16,7 +16,8 @@ import {
   normalizeInboxMessages,
   selectTriageInbox,
   toEpochMs,
-  unreadInboxCount
+  unreadInboxCount,
+  urgencyScore
 } from './workbench-connectors.js';
 
 test('toEpochMs parses epoch-ms strings, ISO dates, and degrades to 0', () => {
@@ -53,6 +54,43 @@ test('isAnsweredThread: positive evidence only (sent after inbound)', () => {
   assert.equal(isAnsweredThread({ threadId: 'T1', timestamp: '1000' }, null), false);
   assert.equal(isAnsweredThread({ threadId: '', timestamp: '1000' }, index), false);
   assert.equal(isAnsweredThread({ threadId: 'T1', timestamp: '' }, index), false);
+});
+
+test('urgencyScore: named signals raise the score; pure + bounded', () => {
+  const now = 1_800_000_000_000;
+  const base = {
+    subject: 'lunch',
+    preview: 'see you there',
+    timestamp: String(now),
+    important: false
+  };
+  const ask = { ...base, subject: 'Can you review this?' };
+  const deadline = { ...base, preview: 'need this by EOD Friday please' };
+  const blocking = { ...base, preview: "I'm blocked waiting on you" };
+  const important = { ...base, important: true };
+  assert.ok(urgencyScore(ask, { now }) > urgencyScore(base, { now }), 'an ask scores higher');
+  assert.ok(
+    urgencyScore(deadline, { now }) > urgencyScore(base, { now }),
+    'a deadline scores higher'
+  );
+  assert.ok(
+    urgencyScore(blocking, { now }) > urgencyScore(base, { now }),
+    'a blocker scores higher'
+  );
+  assert.ok(
+    urgencyScore(important, { now }) > urgencyScore(base, { now }),
+    'IMPORTANT lifts proximity'
+  );
+  // Older unread ramps up (age signal), capped in [0,1].
+  const old = { ...base, timestamp: String(now - 80 * 3600000) };
+  assert.ok(urgencyScore(old, { now }) > urgencyScore(base, { now }), 'older mail scores higher');
+  const s = urgencyScore(
+    { ...ask, ...deadline, important: true, timestamp: String(now - 100 * 3600000) },
+    { now }
+  );
+  assert.ok(s >= 0 && s <= 1, 'score stays within 0..1');
+  assert.equal(urgencyScore(null), 0);
+  assert.equal(urgencyScore({}), urgencyScore({}), 'deterministic on empty');
 });
 
 test('selectTriageInbox reply-state gate files answered threads, keeps open loops', () => {

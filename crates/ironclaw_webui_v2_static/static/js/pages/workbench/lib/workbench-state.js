@@ -5,6 +5,7 @@ import {
 } from '../../../lib/thread-attention-details.js';
 import { firstArtifact, savedWorkHref } from './workbench-work-items.js';
 import { GOOGLE_DOC_MIME } from './workbench-drive.js';
+import { urgencyScore } from './workbench-connectors.js';
 
 const SOURCE_RAIL_STATES = new Set(['in-progress', 'needs-reconnect']);
 const WORKBENCH_FEED_GROUPS = new Set([
@@ -62,6 +63,9 @@ function connectorReplyRows(inbox = {}, overrides = {}) {
           important,
           overrideTier,
           replyRank,
+          // Within-tier tiebreak: a direct ask / deadline / blocker / older mail
+          // floats above casual same-tier mail (see compareReplyRank).
+          urgency: urgencyScore(message),
           badge:
             overrideTier === 'vip'
               ? 'VIP'
@@ -749,11 +753,16 @@ function compareByTimestampAsc(a, b) {
 }
 
 // "Needs a reply" ranks behaviour-first: a sender you corrected to VIP/Respond
-// floats highest, then Gmail IMPORTANT (derived from how you engage that sender),
-// then most-recent within each band (replyRank encodes all of this — see
-// connectorReplyRows).
+// floats highest, then Gmail IMPORTANT (derived from how you engage that sender).
+// WITHIN a band, the urgency score (direct ask / deadline / blocker / age) breaks
+// the tie before recency — so a same-tier "can you sign off by Friday?" outranks
+// a "thanks!". The tier is always primary, so urgency never jumps the lane.
 function compareReplyRank(a, b) {
-  return (b.replyRank || 0) - (a.replyRank || 0) || compareByTimestampDesc(a, b);
+  return (
+    (b.replyRank || 0) - (a.replyRank || 0) ||
+    (b.urgency || 0) - (a.urgency || 0) ||
+    compareByTimestampDesc(a, b)
+  );
 }
 
 // GitHub: rank by reason (review requests / assignments / security first), then the

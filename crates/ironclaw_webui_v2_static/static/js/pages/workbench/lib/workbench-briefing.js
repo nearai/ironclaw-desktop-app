@@ -9,7 +9,7 @@
 // reachable. Anything open-ended still goes to the Chat runtime as before. These
 // helpers are pure and side-effect free.
 
-import { unreadInboxCount, isAnsweredThread } from './workbench-connectors.js';
+import { unreadInboxCount, isAnsweredThread, urgencyScore } from './workbench-connectors.js';
 
 // Free-text intents the briefing can satisfy from connector data alone. These
 // match BOTH the short phrasings a user types ("catch me up") AND the verbose
@@ -176,7 +176,7 @@ export function buildBriefing({
   // the source's recency order (stable sort preserves it within a band).
   const replies = (unread.length ? unread : inbox)
     .slice()
-    .sort((a, b) => replyRank(b) - replyRank(a))
+    .sort((a, b) => replyRank(b) - replyRank(a) || urgencyScore(b) - urgencyScore(a))
     .slice(0, 5);
 
   const events = (Array.isArray(calendarEvents) ? calendarEvents : []).slice(0, 5);

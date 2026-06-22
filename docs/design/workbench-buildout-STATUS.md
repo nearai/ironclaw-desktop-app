@@ -14,6 +14,14 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Composite urgency score — within-tier reply ranking (`29655bd`)
+
+Rec #2 from the daily-briefing skill mining; fast-follow on the reply-ranking chokepoint.
+- New `urgencyScore(message)` (0..1 weighted sum: ask .30, deadline .25, age .20/72h, proximity .15, blocking .10). `compareReplyRank` now sorts tier → **urgency** → recency; the briefing's replies bucket gets the same tiebreak. Tier stays PRIMARY so a regex score can never jump the categorical lane.
+- **LIVE proof**: scored the real inbox (20) with the shipped regexes — 3/20 carry an ask signal and float to the top (0.54/0.54/0.37 vs 0.245 passive baseline). Rail renders 4 Important-tier items reordered by urgency-then-recency; no console errors; v13 fidelity intact (screenshot).
+- Gate: static 855 (+1 test), a11y 140, design DT-1..6, smoke, bundle. Profile engine: V1 0 leaked PASS, V2 2/0 bulk PASS (urgency reorders WITHIN a tier — never changes WHAT is surfaced). Reads proven live; skipped the draft-creating write-test (write-gate untouched, was 14/14 prior tick).
+- Remaining on this chokepoint: Rec #3 (ask/FYI/noise classification + self-promo demotion) — hides human mail, so file-don't-drop + audit when it lands.
+
 ## Reply-state gate — triage stops surfacing already-answered threads (`b27ced3`)
 
 Adopted Rec #1 from the daily-briefing skill mining. The Workbench's "Needs a reply/decision" was an unread view; now it's an open-loop queue.

@@ -162,6 +162,50 @@ export function answeredThreadIndex(sentRows) {
   return index;
 }
 
+const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
+
+// Named urgency signals + weights (a deterministic 0..1 linear sum), ported from
+// the daily-briefing skill's scorer. Used ONLY as a tiebreaker WITHIN a reply
+// tier (VIP/Respond/Important/Unread) — it reorders same-tier mail so a "can you
+// review by EOD?" floats above a casual "thanks!", but can never jump the
+// categorical lane (a bad regex score can't push a stranger above a VIP).
+const URGENCY_WEIGHTS = Object.freeze({
+  ask: 0.3,
+  deadline: 0.25,
+  age: 0.2,
+  proximity: 0.15,
+  blocking: 0.1
+});
+const ASK_RE =
+  /\?|\b(can|could|would|will)\s+you\b|\bplease\b|\blet me know\b|\byour (thoughts|input|feedback|take|review|sign[- ]?off)\b|\bwhat do you think\b/i;
+const DEADLINE_RE =
+  /\b(by\s+(eod|cob|end of (day|week)|tomorrow|today|mon|tue|wed|thu|fri|monday|tuesday|wednesday|thursday|friday)|deadline|asap|urgent|time[- ]sensitive|due\s|before\s+(eod|cob|tomorrow|the))\b/i;
+const BLOCKING_RE =
+  /\b(blocked|blocker|waiting on you|need(ed|s)? (it )?from you|need your|stuck|can'?t proceed|cannot proceed|holding up|gating)\b/i;
+
+// Score one inbox message 0..1 by named urgency signals. `now` is injectable for
+// tests. Pure; reads only the message's own subject/preview/timestamp/importance.
+export function urgencyScore(message, { now = Date.now(), weights = URGENCY_WEIGHTS } = {}) {
+  if (!message || typeof message !== 'object') return 0;
+  const text = `${asString(message.subject)} ${readPreview(message)}`;
+  const ask = ASK_RE.test(text) ? 1 : 0;
+  const deadline = DEADLINE_RE.test(text) ? 1 : 0;
+  const blocking = BLOCKING_RE.test(text) ? 1 : 0;
+  const ts = toEpochMs(message.timestamp);
+  // Older unread = more likely overdue; ramp linearly over 72h.
+  const age = ts ? clamp01(Math.max(0, now - ts) / (72 * 3600000)) : 0;
+  // Proximity is the sender's standing. Constant within a reply tier (so inert as
+  // a same-tier tiebreak), included so the score is meaningful standalone too.
+  const proximity = message.important ? 1 : 0.3;
+  return (
+    weights.ask * ask +
+    weights.deadline * deadline +
+    weights.age * age +
+    weights.proximity * proximity +
+    weights.blocking * blocking
+  );
+}
+
 // The reply-state rule, shared by triage and the briefing: true when the user has
 // already replied in this message's thread (a sent message dated after this
 // inbound). Positive evidence only — returns false on a missing index/thread/ts,
