@@ -5,6 +5,13 @@
 **Plan:** `~/.claude/plans/squishy-wobbling-sparrow.md`
 **Discipline:** every task = implement → full gate (prepare + test:static + a11y + smoke; cargo for backend) → commit only if green; revert + log BLOCKED if red. No regression. No merge to main.
 
+## Tick (loop #19): research verb diagnosed (BLOCKED on web-search credential) + validation PASS
+
+- **Research verb e2e attempt** (live agent turns, :17640): math turn replies **68** (plumbing works); research turn ("EU AI Act enforcement dates, cite sources") **no reply in ~90s, 0 tools invoked**. Root cause (gateway source): `web-access` is registered for the agent but needs a **search-provider (Exa) credential** the standalone lacks → web-access can't run → no convergence. **BLOCKED** on provisioning that credential (user's domain; won't fabricate) + #7 convergence for long turns. Research frontend (scene/label/routing) stays done + gate-proven.
+- **Mandated validation — ALL PASS:** connector suite **14/14** + profile engine V1 0 leaked + V2 2 real human threads.
+- Evidence: `docs/design/evidence/loop19-research-blocked.md`.
+- Next: You tier-correction (editable perspective, frontend, independent of the research blocker); P4 own-repo extraction.
+
 ## Tick (loop #18 — P3): cut /you first-load — two-phase fast-paint→deep-refine (`5deffe9`)
 
 - `you-page.js`: two passes — **quick** (1 sent + 1 inbox page) paints at ~one read; **deep** (~100 sent) refines tiers in place with a "Refining from more of your history…" hint. `query = deep.data ? deep : quick`.
