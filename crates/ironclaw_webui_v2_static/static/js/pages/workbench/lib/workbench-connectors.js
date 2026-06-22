@@ -481,6 +481,27 @@ function readEventLink(event) {
   return /^https?:\/\//i.test(link) ? link : '';
 }
 
+// The one-click video-call URL for an event, if any: Google Meet (hangoutLink),
+// a conferenceData video entry point, or a known meeting URL in the location.
+// Returns '' when there's nothing to join — never a non-video link.
+function readEventJoinUrl(event) {
+  const hangout = asString(event?.hangoutLink);
+  if (/^https?:\/\//i.test(hangout)) return hangout;
+  const entries = Array.isArray(event?.conferenceData?.entryPoints)
+    ? event.conferenceData.entryPoints
+    : [];
+  const video = entries.find(
+    (e) => e?.entryPointType === 'video' && /^https?:\/\//i.test(asString(e?.uri))
+  );
+  if (video) return asString(video.uri);
+  const loc = asString(event?.location);
+  const match = loc.match(/https?:\/\/\S+/);
+  if (match && /(meet\.google|zoom\.us|teams\.microsoft|webex\.com)/i.test(match[0])) {
+    return match[0];
+  }
+  return '';
+}
+
 // Normalize a GOOGLECALENDAR_*_LIST/FIND read into upcoming-event rows:
 // `{ id, title, when, link?, start, location }`. Same honesty contract as the
 // inbox: [] on any failure or empty payload; never fabricates an event.
@@ -499,6 +520,7 @@ export function normalizeCalendarEvents(result, { limit = 6 } = {}) {
     if (!event || typeof event !== 'object') continue;
     const id = asString(event.id) || asString(event.eventId) || readEventTitle(event);
     const link = readEventLink(event);
+    const joinUrl = readEventJoinUrl(event);
     const row = {
       id,
       title: readEventTitle(event),
@@ -508,6 +530,7 @@ export function normalizeCalendarEvents(result, { limit = 6 } = {}) {
       location: asString(event.location)
     };
     if (link) row.link = link;
+    if (joinUrl) row.joinUrl = joinUrl;
     rows.push(row);
     if (rows.length >= limit) break;
   }

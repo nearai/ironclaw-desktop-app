@@ -30,6 +30,7 @@ const CALENDAR_STYLE = `
 .wb13-tcal-ev:hover { background: color-mix(in srgb, var(--v2-accent) 26%, var(--v2-surface, #0b1220)); z-index: 5; }
 .wb13-tcal-ev .t { font: 600 10px/1.2 var(--v2-font, inherit); color: var(--v2-accent-text); }
 .wb13-tcal-ev .ti { font-size: 11.5px; line-height: 1.25; color: var(--v2-text-strong); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wb13-tcal-ev .jn { font: 700 8.5px/1 var(--v2-font, inherit); letter-spacing: 0.04em; text-transform: uppercase; color: var(--v2-accent-text); border: 1px solid color-mix(in srgb, var(--v2-accent) 45%, transparent); border-radius: 4px; padding: 1px 3px; vertical-align: 1px; }
 .wb13-tcal-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--v2-accent); z-index: 6; }
 .wb13-tcal-now::before { content: ''; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--v2-accent); }
 `;
@@ -143,17 +144,23 @@ export function CalendarView({
                     left: `calc(${ev.leftPct}% + 2px)`,
                     width: `calc(${ev.widthPct}% - 4px)`
                   };
-                  const inner = html`<div className="t">${ev.timeLabel}</div>
+                  // A joinable meeting links to its video call (the dominant
+                  // action); otherwise to the event page. Single anchor, with an
+                  // inline "Join" cue so the block reads as joinable.
+                  const href = ev.joinUrl || ev.link;
+                  const inner = html`<div className="t">
+                      ${ev.timeLabel}${ev.joinUrl ? html` <span className="jn">Join</span>` : ''}
+                    </div>
                     <div className="ti">${ev.title || '(untitled event)'}</div>`;
-                  return ev.link
+                  return href
                     ? html`<a
                         key=${ev.id}
                         className="wb13-tcal-ev"
                         style=${style}
-                        href=${ev.link}
+                        href=${href}
                         target="_blank"
                         rel="noreferrer noopener"
-                        title=${ev.title || ''}
+                        title=${ev.joinUrl ? `Join: ${ev.title || ''}` : ev.title || ''}
                         >${inner}</a
                       >`
                     : html`<div

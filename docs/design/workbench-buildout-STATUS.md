@@ -14,6 +14,13 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Calendar Join-link affordance (`770e970`)
+
+Did the user's requested calendar follow-up ("ok please do that"): a join-link affordance on the time-ruler event blocks.
+- `readEventJoinUrl` extracts the video URL (hangoutLink / conferenceData video entry / Meet·Zoom·Teams·Webex URL in location); `normalizeCalendarEvents` carries `joinUrl`. A meeting block with a joinUrl links to the call + shows an inline accent "JOIN" pill; non-video events keep linking to the event page.
+- **LIVE proof**: read carries join links on 20/25 events; 17/20 visible blocks render JOIN + link to a real meet URL; screenshot, no console errors, v13 fidelity intact.
+- Gate: static 860 (+1 test), a11y 140, design DT-1..6, smoke, bundle PASS.
+
 ## Review fixes — attachment data_base64 contract + mobile dock a11y (`92ab2af`)
 
 Acted on an independent review of the active checkout.

@@ -193,6 +193,53 @@ test('buildWeekColumns is today-onward: past + out-of-window events are dropped'
   assert.deepEqual(placed, ['today'], 'only the in-window event lands; past + far are dropped');
 });
 
+test('normalizeCalendarEvents extracts a join URL from hangoutLink/conferenceData/location', () => {
+  const rows = normalizeCalendarEvents(
+    {
+      successful: true,
+      data: {
+        events: [
+          {
+            id: 'a',
+            summary: 'Meet',
+            start: { dateTime: '2026-06-22T12:00:00Z' },
+            hangoutLink: 'https://meet.google.com/abc-defg-hij'
+          },
+          {
+            id: 'b',
+            summary: 'Conf',
+            start: { dateTime: '2026-06-22T13:00:00Z' },
+            conferenceData: {
+              entryPoints: [
+                { entryPointType: 'phone', uri: 'tel:+1' },
+                { entryPointType: 'video', uri: 'https://zoom.us/j/123' }
+              ]
+            }
+          },
+          {
+            id: 'c',
+            summary: 'Loc',
+            start: { dateTime: '2026-06-22T14:00:00Z' },
+            location: 'Room 4 https://teams.microsoft.com/l/meetup'
+          },
+          {
+            id: 'd',
+            summary: 'None',
+            start: { dateTime: '2026-06-22T15:00:00Z' },
+            location: 'Boardroom'
+          }
+        ]
+      }
+    },
+    { limit: 10 }
+  );
+  const byId = Object.fromEntries(rows.map((r) => [r.id, r]));
+  assert.equal(byId.a.joinUrl, 'https://meet.google.com/abc-defg-hij', 'hangoutLink');
+  assert.equal(byId.b.joinUrl, 'https://zoom.us/j/123', 'conferenceData video entry point');
+  assert.equal(byId.c.joinUrl, 'https://teams.microsoft.com/l/meetup', 'meeting URL in location');
+  assert.equal(byId.d.joinUrl, undefined, 'no join URL when none present');
+});
+
 test('selectTriageInbox reply-state gate files answered threads, keeps open loops', () => {
   const messages = [
     { messageId: 'a', threadId: 'T1', fromEmail: 'x@y.com', timestamp: '1000' }, // answered

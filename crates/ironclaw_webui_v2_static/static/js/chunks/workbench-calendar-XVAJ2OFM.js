@@ -1,4 +1,4 @@
-import{j as x,k as g,l as h}from"./chunk-APYF45I3.js";import{j as e}from"./chunk-NLGAQ5GP.js";var d=44,M=`
+import{j as g,k as h,l as u}from"./chunk-G3654ODO.js";import{j as e}from"./chunk-NLGAQ5GP.js";var d=44,C=`
 .wb13-tcal { margin-top: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--v2-panel-border); border-radius: 14px; }
 .wb13-tcal-inner { min-width: 720px; }
 .wb13-tcal-row { display: grid; grid-template-columns: 52px repeat(7, minmax(0, 1fr)); }
@@ -20,9 +20,10 @@ import{j as x,k as g,l as h}from"./chunk-APYF45I3.js";import{j as e}from"./chunk
 .wb13-tcal-ev:hover { background: color-mix(in srgb, var(--v2-accent) 26%, var(--v2-surface, #0b1220)); z-index: 5; }
 .wb13-tcal-ev .t { font: 600 10px/1.2 var(--v2-font, inherit); color: var(--v2-accent-text); }
 .wb13-tcal-ev .ti { font-size: 11.5px; line-height: 1.25; color: var(--v2-text-strong); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.wb13-tcal-ev .jn { font: 700 8.5px/1 var(--v2-font, inherit); letter-spacing: 0.04em; text-transform: uppercase; color: var(--v2-accent-text); border: 1px solid color-mix(in srgb, var(--v2-accent) 45%, transparent); border-radius: 4px; padding: 1px 3px; vertical-align: 1px; }
 .wb13-tcal-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--v2-accent); z-index: 6; }
 .wb13-tcal-now::before { content: ''; position: absolute; left: -3px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--v2-accent); }
-`;function C(){let n=new Date;return n.getHours()*60+n.getMinutes()}function P({events:n=[],calendarReady:u=!1,calendarError:f=!1,onConnect:c}){let r=x(n),i=g(r),p=i.endMin-i.startMin||1,$=p/60*d,b=[];for(let a=i.startMin;a<=i.endMin;a+=60)b.push(a/60);let y=a=>`${(a+11)%12+1}${a<12||a===24?"a":"p"}`,N=r.some(a=>a.allDay.length),k=r.some(a=>a.allDay.length||a.timed.length),s=C(),v=s>=i.startMin&&s<=i.endMin?(s-i.startMin)/p*100:null,o;return u?f?o=e`<section className="wb13-group">
+`;function D(){let n=new Date;return n.getHours()*60+n.getMinutes()}function P({events:n=[],calendarReady:f=!1,calendarError:$=!1,onConnect:c}){let l=g(n),i=h(l),p=i.endMin-i.startMin||1,y=p/60*d,b=[];for(let a=i.startMin;a<=i.endMin;a+=60)b.push(a/60);let N=a=>`${(a+11)%12+1}${a<12||a===24?"a":"p"}`,k=l.some(a=>a.allDay.length),M=l.some(a=>a.allDay.length||a.timed.length),s=D(),v=s>=i.startMin&&s<=i.endMin?(s-i.startMin)/p*100:null,o;return f?$?o=e`<section className="wb13-group">
       <div className="wb13-read">
         <p>Couldn't read your calendar right now. Try again in a moment.</p>
       </div>
@@ -31,7 +32,7 @@ import{j as x,k as g,l as h}from"./chunk-APYF45I3.js";import{j as e}from"./chunk
         <div className="wb13-tcal-inner">
           <div className="wb13-tcal-row wb13-tcal-head">
             <div className="wb13-tcal-axiscell"></div>
-            ${r.map(a=>e`<div
+            ${l.map(a=>e`<div
                   key=${a.dateKey}
                   className=${["wb13-tcal-cell",a.isToday&&"is-today"].filter(Boolean).join(" ")}
                 >
@@ -39,34 +40,36 @@ import{j as x,k as g,l as h}from"./chunk-APYF45I3.js";import{j as e}from"./chunk
                   ><span className="dn">${a.dayNum}</span>
                 </div>`)}
           </div>
-          ${N?e`<div className="wb13-tcal-row wb13-tcal-allday">
+          ${k?e`<div className="wb13-tcal-row wb13-tcal-allday">
                 <div className="axislabel">all-day</div>
-                ${r.map(a=>e`<div key=${a.dateKey} className="wb13-tcal-cell">
-                      ${a.allDay.map(l=>e`<div key=${l.id} className="wb13-tcal-chip" title=${l.title||""}>
-                            ${l.title||"(untitled event)"}
+                ${l.map(a=>e`<div key=${a.dateKey} className="wb13-tcal-cell">
+                      ${a.allDay.map(r=>e`<div key=${r.id} className="wb13-tcal-chip" title=${r.title||""}>
+                            ${r.title||"(untitled event)"}
                           </div>`)}
                     </div>`)}
               </div>`:null}
-          <div className="wb13-tcal-row" style=${{height:`${$}px`}}>
+          <div className="wb13-tcal-row" style=${{height:`${y}px`}}>
             <div className="wb13-tcal-axis">
-              ${b.map((a,l)=>e`<div key=${a} className="wb13-tcal-hr" style=${{height:`${d}px`}}>
-                    ${l===0?"":y(a%24)}
+              ${b.map((a,r)=>e`<div key=${a} className="wb13-tcal-hr" style=${{height:`${d}px`}}>
+                    ${r===0?"":N(a%24)}
                   </div>`)}
             </div>
-            ${r.map(a=>{let l=h(a.timed,i.startMin,i.endMin);return e`<div
+            ${l.map(a=>{let r=u(a.timed,i.startMin,i.endMin);return e`<div
                 key=${a.dateKey}
                 className=${["wb13-tcal-col",a.isWeekend&&"is-weekend"].filter(Boolean).join(" ")}
               >
                 ${a.isToday&&v!=null?e`<div className="wb13-tcal-now" style=${{top:`${v}%`}}></div>`:null}
-                ${l.map(t=>{let w={top:`${t.topPct}%`,height:`${t.heightPct}%`,left:`calc(${t.leftPct}% + 2px)`,width:`calc(${t.widthPct}% - 4px)`},m=e`<div className="t">${t.timeLabel}</div>
-                    <div className="ti">${t.title||"(untitled event)"}</div>`;return t.link?e`<a
+                ${r.map(t=>{let w={top:`${t.topPct}%`,height:`${t.heightPct}%`,left:`calc(${t.leftPct}% + 2px)`,width:`calc(${t.widthPct}% - 4px)`},x=t.joinUrl||t.link,m=e`<div className="t">
+                      ${t.timeLabel}${t.joinUrl?e` <span className="jn">Join</span>`:""}
+                    </div>
+                    <div className="ti">${t.title||"(untitled event)"}</div>`;return x?e`<a
                         key=${t.id}
                         className="wb13-tcal-ev"
                         style=${w}
-                        href=${t.link}
+                        href=${x}
                         target="_blank"
                         rel="noreferrer noopener"
-                        title=${t.title||""}
+                        title=${t.joinUrl?`Join: ${t.title||""}`:t.title||""}
                         >${m}</a
                       >`:e`<div
                         key=${t.id}
@@ -80,7 +83,7 @@ import{j as x,k as g,l as h}from"./chunk-APYF45I3.js";import{j as e}from"./chunk
           </div>
         </div>
       </div>
-      ${k?null:e`<div className="wb13-inspector-note">Nothing scheduled in the week ahead.</div>`}
+      ${M?null:e`<div className="wb13-inspector-note">Nothing scheduled in the week ahead.</div>`}
     `:o=e`<section className="wb13-group">
       <div className="wb13-read">
         <p>Connect Google Calendar to see your week here.</p>
@@ -91,7 +94,7 @@ import{j as x,k as g,l as h}from"./chunk-APYF45I3.js";import{j as e}from"./chunk
     </section>`,e`
     <main className="wb13-main" data-testid="workbench-calendar">
       <style>
-        ${M}
+        ${C}
       </style>
       <div className="wb13-page">
         <div className="wb13-wrap">
