@@ -20,6 +20,7 @@ import {
 import { useConnectExtension, useExtensions } from '../extensions/hooks/useExtensions.js';
 import { WORKBENCH_AUTO_SOURCE_SCOPE } from './lib/workbench-plan.js';
 import { buildBriefing, isBriefingIntent } from './lib/workbench-briefing.js';
+import { synthesizeBriefing } from './lib/workbench-brief-synth.js';
 import { isSlackBlockerIntent } from './lib/workbench-slack.js';
 import { buildReplyDraft, createdDraftId, draftWriteArguments } from './lib/workbench-draft.js';
 import { generateSuggestedReply } from './lib/workbench-reply.js';
@@ -47,6 +48,7 @@ import {
 import { WorkbenchColdStart, WorkbenchDecisions } from './components/workbench-arrived.js';
 import { WorkbenchApprove } from './components/workbench-approve.js';
 import { WorkbenchBriefing } from './components/workbench-briefing.js';
+import { WorkbenchBrief } from './components/workbench-brief.js';
 import { WorkbenchSlackBlockers } from './components/workbench-slack-blockers.js';
 import { WorkbenchCommandSurface } from './components/workbench-command.js';
 import { WorkbenchReadingPanel } from './components/workbench-reading-panel.js';
@@ -76,6 +78,24 @@ import { WORKBENCH_STYLE } from './workbench-styles.js';
 // connector-derived schedule) and is excluded from triage so it shows only as a
 // rail row. Not dead config — do not remove without dropping the feed pathway.
 const TRIAGE_EXCLUDED_GROUPS = new Set(['needs-reply', 'upcoming']);
+
+// Profile that scopes the rich briefing's "Worth weighing in" radar (role -> domain
+// + the channels the radar may scan). The radar module (workbench-radar.js) is
+// generic; the profile is supplied at runtime. For the first test user it is
+// configured here from known facts.
+// TODO: wire a real profile source (a live Slack profile read or in-app settings)
+// so this is not hardcoded — see the briefing-as-home plan.
+const WORKBENCH_PROFILE = Object.freeze({
+  name: 'Abhishek Vaidyanathan',
+  title: 'Chief Legal Officer',
+  channels: [
+    '#x-intents',
+    '#t-agentmarket',
+    '#x-nearai-compliance',
+    '#kyc_status',
+    '#wallet_status'
+  ]
+});
 
 function TriageSection({ groups, hasDecisions = false }) {
   const populatedGroups = groups.filter(
@@ -202,11 +222,17 @@ function HomeView(props) {
             isLoading=${props.connectorsLoading}
             onConnect=${props.onConnectSources}
           />
-          <${WorkbenchBriefing}
-            briefing=${props.briefing}
-            onOpenMessage=${props.onOpenMessage}
-            onDismiss=${props.onDismissBriefing}
-          />
+          ${props.briefing?.kind === 'rich'
+            ? html`<${WorkbenchBrief}
+                briefing=${props.briefing}
+                onDraftReply=${props.onBriefDraftReply}
+                onDismiss=${props.onDismissBriefing}
+              />`
+            : html`<${WorkbenchBriefing}
+                briefing=${props.briefing}
+                onOpenMessage=${props.onOpenMessage}
+                onDismiss=${props.onDismissBriefing}
+              />`}
           <${WorkbenchSlackBlockers}
             active=${props.slackBlockersActive}
             rows=${props.slackBlockers.rows}
@@ -502,6 +528,9 @@ export function WorkbenchPage() {
   const draftTokenRef = React.useRef(0);
   // The source message of the open draft, so "Pre-draft reply" can generate on demand.
   const draftMessageRef = React.useRef(null);
+  // Guards the async briefing synthesis: a late/failed synthesis only swaps in the
+  // rich briefing if it is still the current request (not dismissed or superseded).
+  const briefingTokenRef = React.useRef(0);
   const savedWorkReadEnabled = savedWorkServerReadSupported(gatewayStatus);
   const approvalsReadEnabled = approvalsFeedReadSupported(gatewayStatus);
   const receiptsReadEnabled = receiptsFeedReadSupported(gatewayStatus);
@@ -942,28 +971,46 @@ export function WorkbenchPage() {
   const runBriefing = React.useCallback(() => {
     setError('');
     setBriefingPending(false);
-    setBriefing(
-      buildBriefing({
-        inboxMessages: connectorInbox.messages,
-        calendarEvents: connectorCalendar.events,
-        railGroups,
-        slackBlockers: slackBlockers.rows,
-        githubNotifications: connectorGithub.notifications,
-        driveFiles: connectorDrive.files,
-        notionPages: connectorNotion.pages,
-        sourceProblems: briefingSourceProblems,
-        gmailReady: connectedAccounts.gmailReady,
-        calendarReady: connectedAccounts.calendarReady,
-        slackReady: connectedAccounts.slackReady && (briefingSlackActive || slackBlockers.enabled),
-        githubReady: connectedAccounts.githubReady,
-        driveReady: connectedAccounts.driveReady,
-        notionReady: connectedAccounts.notionReady,
-        tierOverrides,
-        sentThreadIndex,
-        now: new Date()
-      })
-    );
+    // The deterministic briefing renders INSTANTLY and is the fallback: if the
+    // synthesis turn fails or times out, this stays on screen — never blank.
+    const det = buildBriefing({
+      inboxMessages: connectorInbox.messages,
+      calendarEvents: connectorCalendar.events,
+      railGroups,
+      slackBlockers: slackBlockers.rows,
+      githubNotifications: connectorGithub.notifications,
+      driveFiles: connectorDrive.files,
+      notionPages: connectorNotion.pages,
+      sourceProblems: briefingSourceProblems,
+      gmailReady: connectedAccounts.gmailReady,
+      calendarReady: connectedAccounts.calendarReady,
+      slackReady: connectedAccounts.slackReady && (briefingSlackActive || slackBlockers.enabled),
+      githubReady: connectedAccounts.githubReady,
+      driveReady: connectedAccounts.driveReady,
+      notionReady: connectedAccounts.notionReady,
+      tierOverrides,
+      sentThreadIndex,
+      now: new Date()
+    });
+    setBriefing(det);
     setBrief('');
+    // Upgrade to the RICH briefing via a tool-free synthesis turn (no tool calls →
+    // does not hit the long multi-tool wedge). On success, swap in the five-section
+    // brief; on null/failure the deterministic briefing already on screen remains.
+    const token = (briefingTokenRef.current += 1);
+    let timezone;
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch (_) {
+      timezone = undefined;
+    }
+    synthesizeBriefing({
+      briefing: det,
+      profile: WORKBENCH_PROFILE,
+      deps: { createThread, sendMessage, fetchTimeline, timezone }
+    }).then((rich) => {
+      if (rich && briefingTokenRef.current === token) setBriefing({ ...rich, kind: 'rich' });
+    });
   }, [
     connectorInbox.messages,
     connectorCalendar.events,
@@ -993,8 +1040,26 @@ export function WorkbenchPage() {
   const dismissBriefing = React.useCallback(() => {
     setBriefingPending(false);
     setBriefingSlackActive(false);
+    // Invalidate any in-flight synthesis so a late result can't re-open the brief.
+    briefingTokenRef.current += 1;
     setBriefing(null);
   }, []);
+  // "Save as draft" from a rich-brief Needs-you item: map it back to its inbox
+  // message by id and open the gated draft modal pre-filled with the edited reply.
+  const onBriefDraftReply = React.useCallback(
+    ({ item, body } = {}) => {
+      const id = String(item?.id || '');
+      const message = (connectorInbox.messages || []).find(
+        (m) => String(m.id || m.messageId || m.threadId || '') === id
+      );
+      if (!message) return;
+      openDraftReply(message);
+      // The modal seeds an empty body; fill it with the (possibly edited) reply via
+      // the same suggestedBody path the "Pre-draft reply" button uses.
+      setDraftSuggestion(String(body || '').trim());
+    },
+    [connectorInbox.messages, openDraftReply]
+  );
 
   const handleAsk = React.useCallback(() => {
     // Slack-blocker intent is checked first (it is more specific than the
@@ -1148,6 +1213,7 @@ export function WorkbenchPage() {
                   startedWork=${startedWork}
                   briefing=${briefing}
                   onDismissBriefing=${dismissBriefing}
+                  onBriefDraftReply=${onBriefDraftReply}
                   slackBlockersActive=${slackBlockersActive}
                   slackBlockers=${slackBlockers}
                   onDismissSlackBlockers=${() => setSlackBlockersActive(false)}

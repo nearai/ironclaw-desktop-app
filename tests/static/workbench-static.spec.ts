@@ -2408,6 +2408,133 @@ test('static workbench: Slack blocker search failure degrades without fabricatin
   expect(appConsoleIssues).toEqual([]);
 });
 
+test('static workbench: a briefing trigger upgrades to the rich five-section brief via a synthesis turn', async ({
+  page
+}) => {
+  const richBrief = JSON.stringify({
+    needsYou: [
+      {
+        id: 'm-unread',
+        source: 'Email',
+        sender: 'Dana Lee',
+        badges: ['Decision', 'time-sensitive'],
+        context: 'Renewal terms need your sign-off before the deck is finalized.',
+        suggestedReply: 'net 45 and an 8% cap work for the renewal — sending the redline now.',
+        replyHref: 'https://mail.google.com/mail/u/0/#all/thread-unread',
+        bestWindow: 'this morning'
+      }
+    ],
+    worthWeighingIn: [
+      {
+        id: 's1',
+        title: 'AML posture is blocking partner re-engagements',
+        channel: '#x-intents',
+        whyYours: 'It is a legal read on the critical path for partner revenue.',
+        myTake: 'A short AML-posture memo would unblock outreach without another meeting.',
+        confidence: 70,
+        link: 'https://slack.example/p1'
+      }
+    ],
+    thisWeek: [
+      {
+        id: 'w1',
+        title: 'Agent marketplace 1 July launch',
+        yourMove: 'lock the launch-gate with Anelda this week',
+        priority: 'high'
+      }
+    ],
+    bestTimes: [{ person: 'David Mirzadeh', window: 'now' }]
+  });
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [{ toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' }],
+    connectorReads: {
+      gmail: {
+        successful: true,
+        data: {
+          messages: [
+            {
+              messageId: 'm-unread',
+              threadId: 'thread-unread',
+              sender: 'Dana Lee <dana@customer.example>',
+              subject: 'Renewal terms for Q3',
+              snippet: 'We would like net 60.',
+              labelIds: ['UNREAD', 'INBOX']
+            }
+          ]
+        }
+      }
+    },
+    timelineMessages: [
+      { kind: 'user', content: 'synthesis prompt' },
+      { kind: 'assistant', content: richBrief }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page.getByTestId('workbench-brief-input').fill('What needs me today?');
+  await page.getByTestId('workbench-send-button').click();
+
+  // The deterministic briefing renders first; the tool-free synthesis turn then
+  // upgrades the home to the rich five-section brief (the daily-briefing skill).
+  const brief = page.getByTestId('workbench-brief');
+  await expect(brief).toBeVisible({ timeout: 8000 });
+  // Needs you: the synthesized context + an inline, editable, ready reply.
+  await expect(brief.getByTestId('workbench-brief-needsyou')).toContainText('Needs you');
+  await expect(brief).toContainText('Dana Lee');
+  await expect(brief).toContainText('Renewal terms need your sign-off');
+  await expect(brief.getByTestId('workbench-brief-reply')).toHaveValue(/net 45 and an 8% cap/);
+  // Worth weighing in: the radar item with the take + confidence.
+  await expect(brief.getByTestId('workbench-brief-weighin-section')).toContainText(
+    'AML posture is blocking partner re-engagements'
+  );
+  await expect(brief).toContainText('confidence 70%');
+  // This week + Best times.
+  await expect(brief.getByTestId('workbench-brief-week-section')).toContainText(
+    'Agent marketplace'
+  );
+  await expect(brief.getByTestId('workbench-brief-besttimes-section')).toContainText(
+    'David Mirzadeh'
+  );
+});
+
+test('static workbench: a briefing whose synthesis returns no JSON falls back to the deterministic brief', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [{ toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' }],
+    connectorReads: {
+      gmail: {
+        successful: true,
+        data: {
+          messages: [
+            {
+              messageId: 'm-unread',
+              threadId: 'thread-unread',
+              sender: 'Dana Lee <dana@customer.example>',
+              subject: 'Renewal terms for Q3',
+              snippet: 'net 60',
+              labelIds: ['UNREAD', 'INBOX']
+            }
+          ]
+        }
+      }
+    },
+    timelineMessages: [{ kind: 'assistant', content: 'I could not produce a briefing right now.' }]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page.getByTestId('workbench-brief-input').fill('What needs me today?');
+  await page.getByTestId('workbench-send-button').click();
+
+  // The deterministic briefing renders and STAYS — synthesis returned no usable
+  // JSON, so there is no rich upgrade (honest fallback, never blank).
+  const briefing = page.getByTestId('workbench-briefing');
+  await expect(briefing).toBeVisible();
+  await expect(briefing).toContainText('Renewal terms for Q3');
+  await page.waitForTimeout(2500);
+  await expect(page.getByTestId('workbench-brief')).toHaveCount(0);
+});
+
 test('static workbench: real unread mail renders as v13 Needs you cards', async ({ page }) => {
   // v13 fidelity: unread inbox mail is the primary "what needs me" surface and
   // renders as decision cards (subject as the decision, sender + date as the

@@ -22,6 +22,13 @@ User pushed back hard: the home is a chat box + a thin card list + a 1500px scro
 
 Sequencing (atomic green commits): **1/3 synthesis engine (THIS commit)** → 2/3 rich five-section render w/ inline replies → 3/3 home = briefing-on-open + ops-dump removed + live screenshot.
 
+## Briefing-as-home WIRED behind the trigger — step 3/3 (A) (`d071e56`)
+
+- Wired the synthesis end-to-end: `runBriefing` (workbench-page.js) now renders the **deterministic** briefing INSTANTLY (the fallback), then fires a tool-free `synthesizeBriefing` turn; on success it swaps in the rich **WorkbenchBrief** (five sections), guarded by a `briefingTokenRef` (a late/failed/dismissed synthesis can't clobber). HomeView render branches on `briefing.kind==='rich'`. `onBriefDraftReply({item,body})` maps the rich item back to its inbox message by id and opens the gated draft modal pre-filled (reuses openDraftReply + the suggestedBody path). Profile (`WORKBENCH_PROFILE`) configured for the first test user Abhi (CLO + 5 channels) with a TODO to wire a real profile source — radar module stays generic.
+- **Race-safe test fix (one rule, not scattered):** the synthesis sends its (read-only) prompt via the same turn API, which polluted `sentMessages` in briefing tests (2 failed, ~3 latently racy). Fixture now records only external/command sends, excluding the briefing-synthesis prompt — `sentMessages` means "nothing external sent". +2 new spec tests: rich five-section render via a mocked synthesis turn, and deterministic fallback when synthesis returns no JSON.
+- Full gate GREEN: static 879, **a11y 140 (+2)**, design DT-1..6, smoke, cold-start **400.3<401** (TIGHT — WorkbenchBrief is now bundled; **watch: React.lazy it like the calendar before step B/C push over budget**).
+- **Next:** (B) auto-run the briefing on open (needs a test opt-out so it doesn't fire synthesis on every page-load test); (C) remove the ops-dump TriageSection from the home main column. Then live-verify the rich brief on the standalone.
+
 ## Rich five-section render — step 2/3 (`e9c73ee`)
 
 - New `components/workbench-brief.js` (+ `briefSummaryLine` unit test x3): renders the synthesis output as the skill's five sections — summary count head, **Needs you** (source+sender+badges, why-it's-on-you context, an INLINE editable reply pre-filled with the synthesized suggestion + "Save as draft" → gated modal, reply link + best window), **Worth weighing in** (title/channel/why-yours/my-take/confidence), **This week** (title + your-move + priority dot), **Best times**. Reuses the wb13-brief-* tokens; new CSS scoped under `.wb13-brief-rich` (multi-line wrap) so the deterministic briefing's compact rows are untouched.

@@ -416,7 +416,14 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
       } catch {
         body = {};
       }
-      options.sentMessages?.push({ path, body });
+      // The rich briefing fires a tool-free SYNTHESIS turn — read-only, it only
+      // writes the briefing JSON and never takes an external action. sentMessages
+      // tracks external/command sends (what a test means by "nothing was sent"),
+      // so the internal synthesis prompt is excluded here; the rich-briefing test
+      // asserts on the rendered sections, not on this turn.
+      const content = typeof body.content === 'string' ? body.content : '';
+      const isBriefingSynthesis = /chief of staff writing their morning briefing/.test(content);
+      if (!isBriefingSynthesis) options.sentMessages?.push({ path, body });
       return json(route, {
         thread_id: 'thread-workbench-runtime',
         run_id: 'run-workbench-runtime',
