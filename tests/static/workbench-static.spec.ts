@@ -2446,9 +2446,8 @@ test('static workbench: a briefing trigger upgrades to the rich five-section bri
     bestTimes: [{ person: 'David Mirzadeh', window: 'now' }]
   });
   await installWorkbenchMocks(page, {
-    // Gmail feeds the "Needs you" (replies) turn; Calendar gives the radar/week
-    // turn something to run on — synthesis is two parallel turns, and the radar
-    // turn only fires when there is slack/calendar/work-status context.
+    // Gmail feeds the one LLM turn ("Needs you"); Calendar feeds the deterministic
+    // "This week"; Best times is derived from the reply windows.
     connectorAccounts: [
       { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
       { toolkit: 'googlecalendar', status: 'ACTIVE', user_id: 'pg-test' }
@@ -2501,18 +2500,11 @@ test('static workbench: a briefing trigger upgrades to the rich five-section bri
   await expect(brief).toContainText('Dana Lee');
   await expect(brief).toContainText('Renewal terms need your sign-off');
   await expect(brief.getByTestId('workbench-brief-reply')).toHaveValue(/net 45 and an 8% cap/);
-  // Worth weighing in: the radar item with the take + confidence.
-  await expect(brief.getByTestId('workbench-brief-weighin-section')).toContainText(
-    'AML posture is blocking partner re-engagements'
-  );
-  await expect(brief).toContainText('confidence 70%');
-  // This week + Best times.
-  await expect(brief.getByTestId('workbench-brief-week-section')).toContainText(
-    'Agent marketplace'
-  );
-  await expect(brief.getByTestId('workbench-brief-besttimes-section')).toContainText(
-    'David Mirzadeh'
-  );
+  // This week: derived deterministically from the calendar. Best times: from the
+  // reply's window. (Worth weighing in is derived from slack domain-triggers — its
+  // logic is covered by the deriveWorthWeighingIn unit tests.)
+  await expect(brief.getByTestId('workbench-brief-week-section')).toContainText('Regulator call');
+  await expect(brief.getByTestId('workbench-brief-besttimes-section')).toContainText('Dana Lee');
 });
 
 test('static workbench: a briefing whose synthesis returns no JSON falls back to the deterministic brief', async ({

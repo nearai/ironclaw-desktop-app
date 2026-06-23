@@ -123,22 +123,65 @@ export function buildNeedsYouPrompt(bundle, profile = {}) {
 }
 
 // Turn B — the radar + week + best-times. Small output (no long replies), runs in
-// parallel with Turn A over only the slack/calendar/work-status context. Pure.
-export function buildRadarPrompt(bundle, profile = {}) {
-  const domain = bundle?.profile?.domain || 'my role';
-  return [
-    briefHeader(bundle, profile),
-    `Output ONLY one JSON object (no prose, no code fence) with: worthWeighingIn:[{id,title,channel,whyYours,myTake:"a pressure-test, not advice",confidence:0-100,link}] — ONLY slackSignals in my channels where a decision is forming in my domain (${domain}) and I was NOT tagged; else []. thisWeek:[{id,title,yourMove,priority:"high"|"med"}] from calendar+signals. bestTimes:[{person,window}] from the data only.`,
-    ``,
-    `CONTEXT:`,
-    JSON.stringify({
-      profile: bundle.profile,
-      domainTriggers: bundle.domainTriggers,
-      slackSignals: bundle.slackSignals,
-      calendar: bundle.calendar,
-      context: bundle.context
-    })
-  ].join('\n');
+// "Worth weighing in" is DERIVED DETERMINISTICALLY, not via an LLM turn — the
+// radar LLM turn was too slow to converge (#7), and the surfacing logic is exactly
+// what workbench-radar.js already encodes: scan my own channel's slack signals for
+// a decision forming in my domain's trigger vocabulary. Honest: it surfaces the
+// signal + WHY it's mine, and OMITS a "my take" rather than fabricate one without
+// the model. Pure + instant. (A short per-item "take" turn could enrich it later.)
+export function deriveWorthWeighingIn(bundle) {
+  const triggers = (Array.isArray(bundle.domainTriggers) ? bundle.domainTriggers : []).map((t) =>
+    String(t).toLowerCase()
+  );
+  if (!triggers.length) return [];
+  const out = [];
+  const seen = new Set();
+  for (const s of Array.isArray(bundle.slackSignals) ? bundle.slackSignals : []) {
+    const text = String(s.text || '').toLowerCase();
+    const hit = triggers.find((t) => t && text.includes(t));
+    if (!hit) continue;
+    const id = String(s.id || s.link || s.text || '');
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push({
+      id,
+      title: clip(s.text, 200),
+      channel: String(s.channel || '').replace(/^#+/, ''),
+      whyYours: `Touches ${hit} — in your domain${s.channel ? `, from #${String(s.channel).replace(/^#+/, '')}` : ''}.`,
+      myTake: '',
+      confidence: null,
+      link: String(s.link || '')
+    });
+    if (out.length >= 5) break;
+  }
+  return out;
+}
+
+// "This week" — forward commitments from the calendar. Deterministic; the move is
+// left to the user (no fabricated "your move" without the model). Pure.
+export function deriveThisWeek(bundle) {
+  return (Array.isArray(bundle.calendar) ? bundle.calendar : []).slice(0, 5).map((e) => ({
+    id: String(e.id || e.title || ''),
+    title: [e.title, e.when].filter(Boolean).join(' · '),
+    yourMove: '',
+    priority: 'med'
+  }));
+}
+
+// "Best times" — when to reach the people who are awaiting a reply, taken from the
+// per-item bestWindow the replies turn produced. Deterministic; deduped by person.
+export function deriveBestTimes(needsYou) {
+  const out = [];
+  const seen = new Set();
+  for (const it of Array.isArray(needsYou) ? needsYou : []) {
+    const person = clip(it.sender, 120);
+    const window = clip(it.bestWindow, 120);
+    if (!person || !window || seen.has(person.toLowerCase())) continue;
+    seen.add(person.toLowerCase());
+    out.push({ person, window });
+    if (out.length >= 5) break;
+  }
+  return out;
 }
 
 const VALID_PRIORITY = new Set(['high', 'med']);
@@ -266,13 +309,14 @@ async function runSynthesisTurn(prompt, d, sleep, maxTries) {
   return null;
 }
 
-// Orchestrate the synthesis as TWO SMALL PARALLEL turns (see buildNeedsYouPrompt):
-// the replies turn and the radar/week/times turn each fit the poll window, while
-// one combined turn overran it for a realistic inbox. Returns the merged rich
-// briefing, or null on total failure (caller falls back to the deterministic
-// briefing). A PARTIAL result — one turn succeeds, the other times out — still
-// beats falling all the way back. `deps` = { createThread, sendMessage,
-// fetchTimeline, sleep?, timezone?, maxTries? }, injected for testability.
+// Orchestrate the briefing as ONE fast LLM turn + deterministic derivation:
+// - needsYou (the replies) is the single LLM turn — the heavy generative part,
+//   which on its own converges in the poll window (~30s live).
+// - worthWeighingIn / thisWeek / bestTimes are DERIVED deterministically (no LLM):
+//   the radar LLM turn was too slow (#7), and the derivations are instant + honest.
+// Returns the merged rich briefing, or null on total failure (caller falls back to
+// the deterministic briefing). `deps` = { createThread, sendMessage, fetchTimeline,
+// sleep?, timezone?, maxTries? }, injected for testability.
 export async function synthesizeBriefing({ briefing, profile, deps } = {}) {
   const d = deps || {};
   if (!d.createThread || !d.sendMessage || !d.fetchTimeline) return null;
@@ -285,19 +329,18 @@ export async function synthesizeBriefing({ briefing, profile, deps } = {}) {
   const maxTries = Number.isFinite(d.maxTries) ? d.maxTries : 24;
   const p = profile || {};
   try {
-    const needsYouTask = bundle.needsReply.length
-      ? runSynthesisTurn(buildNeedsYouPrompt(bundle, p), d, sleep, maxTries).catch(() => null)
-      : Promise.resolve(null);
-    const radarTask =
-      bundle.slackSignals.length || bundle.calendar.length || bundle.context.attention.length
-        ? runSynthesisTurn(buildRadarPrompt(bundle, p), d, sleep, maxTries).catch(() => null)
-        : Promise.resolve(null);
-    const [a, b] = await Promise.all([needsYouTask, radarTask]);
-    const needsYou = (a && a.needsYou) || [];
-    const worthWeighingIn = (b && b.worthWeighingIn) || [];
-    const thisWeek = (b && b.thisWeek) || [];
-    const bestTimes = (b && b.bestTimes) || [];
-    if (!needsYou.length && !worthWeighingIn.length && !thisWeek.length && !bestTimes.length) {
+    const turn = bundle.needsReply.length
+      ? await runSynthesisTurn(buildNeedsYouPrompt(bundle, p), d, sleep, maxTries).catch(() => null)
+      : null;
+    const needsYou = (turn && turn.needsYou) || [];
+    const worthWeighingIn = deriveWorthWeighingIn(bundle);
+    const thisWeek = deriveThisWeek(bundle);
+    const bestTimes = deriveBestTimes(needsYou);
+    // Show the rich brief only when it has SUBSTANTIVE content — the replies or the
+    // radar. thisWeek/bestTimes alone (e.g. the LLM turn failed but the calendar has
+    // events) would be a hollow brief; fall back to the deterministic briefing,
+    // which still shows replies + events.
+    if (!needsYou.length && !worthWeighingIn.length) {
       return null;
     }
     return {

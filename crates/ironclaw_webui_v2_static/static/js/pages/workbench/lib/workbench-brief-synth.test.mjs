@@ -4,7 +4,9 @@ import test from 'node:test';
 import {
   buildBriefSynthesisBundle,
   buildNeedsYouPrompt,
-  buildRadarPrompt,
+  deriveWorthWeighingIn,
+  deriveThisWeek,
+  deriveBestTimes,
   parseBriefJson,
   synthesizeBriefing
 } from './workbench-brief-synth.js';
@@ -95,16 +97,45 @@ test('buildNeedsYouPrompt is the replies-only turn: needsYou schema + inbox data
   );
 });
 
-test('buildRadarPrompt is the radar/week/times turn, scoped to my domain + channels', () => {
+test('deriveWorthWeighingIn surfaces slack signals matching my domain triggers (no LLM)', () => {
   const bundle = buildBriefSynthesisBundle(SAMPLE_BRIEFING, PROFILE);
-  const p = buildRadarPrompt(bundle, PROFILE);
-  assert.match(p, /worthWeighingIn/);
-  assert.match(p, /thisWeek/);
-  assert.match(p, /bestTimes/);
-  assert.match(p, /NOT tagged/i, 'radar instruction: only decisions I was not tagged on');
-  assert.match(p, /\blegal\b/, 'scoped to my resolved domain');
-  assert.doesNotMatch(p, /needsYou/, 'replies are a separate turn');
-  assert.ok(p.includes('David Mirzadeh'), 'the slack-signal context is embedded');
+  // David's signal mentions "AML posture ... legal read" — the legal domain's
+  // triggers include "securities"/"custody"/etc; add one the text hits.
+  const out = deriveWorthWeighingIn({
+    ...bundle,
+    slackSignals: [
+      {
+        id: 's1',
+        channel: 'x-intents',
+        text: 'New custody flow for partner funds — needs a read.',
+        link: 'https://slack/p1'
+      },
+      { id: 's2', channel: 'x-intents', text: 'Lunch plans for Friday', link: 'https://slack/p2' }
+    ]
+  });
+  assert.equal(out.length, 1, 'only the trigger-matching signal surfaces');
+  assert.equal(out[0].id, 's1');
+  assert.match(out[0].whyYours, /custody/, 'explains which trigger made it mine');
+  assert.equal(out[0].myTake, '', 'no fabricated take without the model');
+  assert.equal(out[0].link, 'https://slack/p1');
+});
+
+test('deriveWorthWeighingIn is empty when the domain is unknown (radar off, never borrows vocab)', () => {
+  const bundle = buildBriefSynthesisBundle(SAMPLE_BRIEFING, { name: 'X', title: 'Marketing Lead' });
+  assert.deepEqual(deriveWorthWeighingIn(bundle), []);
+});
+
+test('deriveThisWeek lists calendar commitments; deriveBestTimes pulls reply windows', () => {
+  const bundle = buildBriefSynthesisBundle(SAMPLE_BRIEFING, PROFILE);
+  const week = deriveThisWeek(bundle);
+  assert.equal(week.length, 1);
+  assert.match(week[0].title, /Regulator call/);
+  const best = deriveBestTimes([
+    { sender: 'Dana Lee', bestWindow: 'this morning' },
+    { sender: 'Dana Lee', bestWindow: 'later' }, // deduped by person
+    { sender: 'No Window' }
+  ]);
+  assert.deepEqual(best, [{ person: 'Dana Lee', window: 'this morning' }]);
 });
 
 test('parseBriefJson extracts JSON from a fenced/prose reply and normalizes every field', () => {
@@ -176,10 +207,8 @@ test('parseBriefJson returns null on non-JSON or an entirely-empty briefing (cal
   );
 });
 
-test('synthesizeBriefing runs the two split turns in parallel and merges them', async () => {
+test('synthesizeBriefing runs ONE needsYou turn and merges the deterministic sections', async () => {
   const sent = [];
-  const byThread = {};
-  let threadN = 0;
   const needsYouJson = JSON.stringify({
     needsYou: [
       {
@@ -189,51 +218,54 @@ test('synthesizeBriefing runs the two split turns in parallel and merges them', 
         badges: ['Decision'],
         context: 'Renewal terms.',
         suggestedReply: 'net 45 works.',
-        replyHref: 'https://mail.google.com/x'
+        replyHref: 'https://mail.google.com/x',
+        bestWindow: 'this morning'
       }
     ]
   });
-  const radarJson = JSON.stringify({
-    worthWeighingIn: [
+  // A briefing with a trigger-matching slack signal (custody) + a calendar event,
+  // so worthWeighingIn (deterministic radar) and thisWeek (calendar) both populate.
+  const briefing = {
+    ...SAMPLE_BRIEFING,
+    slack: [
       {
         id: 's1',
-        title: 'AML posture',
-        channel: 'x-intents',
-        whyYours: 'a legal read',
-        myTake: 'a short memo',
-        confidence: 70,
+        channel: '#x-intents',
+        sender: 'David Mirzadeh',
+        text: 'New custody flow for partner funds — needs a legal read.',
         link: 'https://slack.example/p1'
       }
-    ],
-    thisWeek: [{ id: 'w1', title: 'Launch', yourMove: 'lock the gate', priority: 'high' }],
-    bestTimes: [{ person: 'David', window: 'now' }]
-  });
+    ]
+  };
   const deps = {
-    // Distinct thread per turn; the timeline reply is chosen by which prompt that
-    // thread received — robust to the two turns running concurrently.
-    createThread: async () => ({ thread: { thread_id: `T${++threadN}` } }),
+    createThread: async () => ({ thread: { thread_id: 'T1' } }),
     sendMessage: async (args) => {
       sent.push(args);
-      byThread[args.threadId] = String(args.content || '');
       return { status: 'Queued' };
     },
-    fetchTimeline: async ({ threadId }) => {
-      const isRadar = /worthWeighingIn/.test(byThread[threadId] || '');
-      return { messages: [{ kind: 'assistant', content: isRadar ? radarJson : needsYouJson }] };
-    },
+    fetchTimeline: async () => ({ messages: [{ kind: 'assistant', content: needsYouJson }] }),
     sleep: async () => {},
     maxTries: 3
   };
-  const out = await synthesizeBriefing({ briefing: SAMPLE_BRIEFING, profile: PROFILE, deps });
+  const out = await synthesizeBriefing({ briefing, profile: PROFILE, deps });
   assert.ok(out, 'returns the merged briefing');
-  assert.equal(out.needsYou[0].suggestedReply, 'net 45 works.', 'needsYou from the replies turn');
-  assert.equal(out.worthWeighingIn[0].title, 'AML posture', 'radar from the second turn');
-  assert.equal(out.thisWeek[0].yourMove, 'lock the gate');
-  assert.equal(out.bestTimes[0].person, 'David');
+  assert.equal(out.needsYou[0].suggestedReply, 'net 45 works.', 'needsYou from the LLM turn');
+  assert.match(
+    out.worthWeighingIn[0].whyYours,
+    /custody/,
+    'worthWeighingIn derived deterministically'
+  );
+  assert.match(out.thisWeek[0].title, /Regulator call/, 'thisWeek derived from the calendar');
+  assert.deepEqual(
+    out.bestTimes,
+    [{ person: 'Dana Lee', window: 'this morning' }],
+    'bestTimes from reply windows'
+  );
   assert.deepEqual(out.summary, { awaitingReply: 1, flagged: 1, weeklySignals: 1 });
-  assert.equal(sent.length, 2, 'exactly two turns');
-  assert.ok(
-    sent.some((m) => /Renewal terms for Q3/.test(m.content)),
+  assert.equal(sent.length, 1, 'exactly ONE LLM turn — the rest is deterministic');
+  assert.match(
+    sent[0].content,
+    /Renewal terms for Q3/,
     'the inbox context rode into the replies turn'
   );
 });

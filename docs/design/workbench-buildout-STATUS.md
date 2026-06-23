@@ -22,7 +22,12 @@ User pushed back hard: the home is a chat box + a thin card list + a 1500px scro
 
 Sequencing (atomic green commits): **1/3 synthesis engine (THIS commit)** → 2/3 rich five-section render w/ inline replies → 3/3 home = briefing-on-open + ops-dump removed + live screenshot.
 
-## Synthesis SPLIT into two parallel turns — the live-latency fix (`8afeecf`)
+## Briefing = ONE fast LLM turn + DETERMINISTIC sections — the latency fix (`21ce8c7`)
+
+- The split's radar turn was still too slow (>58s) and Promise.all made the brief wait for it. Replaced with: **needsYou is the only LLM turn** (the replies — converges ~30s), and **worthWeighingIn / thisWeek / bestTimes are DERIVED deterministically** (no LLM, instant): `deriveWorthWeighingIn` scans my slack signals for domain-trigger matches via workbench-radar.js (honest — surfaces the signal + why it's mine, omits a fabricated "take"); `deriveThisWeek` from the calendar; `deriveBestTimes` from the replies' bestWindow. Dropped buildRadarPrompt.
+- Guard: the rich brief shows only when it has a SUBSTANTIVE section (needsYou or worthWeighingIn); otherwise fall back to the deterministic briefing (no hollow brief).
+- Engine 10/10 (3 new derive tests + one-turn orchestrator test), full gate GREEN: static 882, a11y 140, design DT-1..6, smoke, cold-start 397.1. The a11y rich-brief test renders needsYou + thisWeek + bestTimes from gmail+calendar (radar logic covered by the unit tests).
+- **Next:** LIVE verify — with one ~30s turn + instant derivations the rich brief should render in-window now. Fresh preview server (dodge the unhashed-bundle cache). Then debug any residual render hiccup; then (B) auto-run on open.## Synthesis SPLIT into two parallel turns — the live-latency fix (`8afeecf`)
 
 - **Per-turn fast model is blocked** (gateway WebUiSendMessageRequest has no model field → needs a gateway-crate change + sidecar rebuild). So took the SPLIT path (option 2), which the live data validates: a needsYou-only turn (4 replies) converged ~30-38s in-window, while one combined all-5-sections turn overran (>56s) — **output volume** is the driver.
 - `synthesizeBriefing` now runs **two SMALL parallel turns** and merges: Turn A `buildNeedsYouPrompt` (just the replies → context + ready reply, the heavy generative part), Turn B `buildRadarPrompt` (worthWeighingIn + thisWeek + bestTimes over slack/calendar/work-status only). Each fits the poll window; a PARTIAL result (one turn succeeds) still beats falling back. Turn B only fires when there's radar input (slack/calendar/attention).
