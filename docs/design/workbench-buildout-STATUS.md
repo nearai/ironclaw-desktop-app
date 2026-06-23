@@ -22,6 +22,13 @@ User pushed back hard: the home is a chat box + a thin card list + a 1500px scro
 
 Sequencing (atomic green commits): **1/3 synthesis engine (THIS commit)** → 2/3 rich five-section render w/ inline replies → 3/3 home = briefing-on-open + ops-dump removed + live screenshot.
 
+## Synthesis latency CHARACTERIZED — terse schema + dropped context (`17247b9`)
+
+- **Decisive live measurement (curl, bypassing the browser cache):** the synthesis turn latency scales STEEPLY with prompt+output size on this gateway/model (z-ai/glm-5.2): a ~1.1KB prompt converges in ~20s with perfect JSON, but a realistic ~3.8KB prompt produced NO reply even at 56s. **Correction to the prior commit's claim:** clip-tightening alone did NOT make realistic briefings fit the poll window — a real inbox (4+ detailed items) is inherently ~3.8KB.
+- This commit shrinks further: **terse schema** (compact key spec instead of the verbose multi-line shape) + **dropped the low-signal recent-activity context** (github/drive/notion — the model ignored it) + caps 6→4. Real prompt 4429→3765, cold-start 397.3→396.9. Engine 7/7, full gate green (static 879, a11y 140, design DT-1..6, smoke). A reasonable improvement, but **NOT a full fix** — 3765 still overran 56s.
+- **The live rich briefing is BLOCKED on synthesis-turn latency (#7)** for realistic inputs — NOT the engine/render (small-probe returned perfect JSON; mocked tests render all five sections; deterministic fallback works live). 
+- **Real fix options (next, curl-validate each before UI):** (1) a FAST synthesis model via a per-turn model override (the current default is slow for ~4KB generative turns) — most promising; (2) SPLIT synthesis (needsYou+replies in one small turn; radar/thisWeek/bestTimes in another or deterministic); (3) streaming/partial render; (4) gateway #7 latency fix. Then the live UI screenshot (in a clean env — the preview caches the unhashed main.bundle.js, so restart the preview server to load a rebuild).
+
 ## LIVE synthesis VALIDATED + bundle tightened (`36bc1b3`) — reverses the earlier BLOCKED
 
 - **The live synthesis WORKS.** On a healthy standalone gateway (short probe converged ~18s), a representative ~1.1KB synthesis prompt returned PERFECT parseable JSON in ~20s: exactly the five keys, needsYou:2/worthWeighingIn:1/thisWeek:1/bestTimes:3, with a real in-voice reply ("Thanks, Dana. net 60 and the 12% cap fall outside our standard renewal terms…"). The engine + prompt produce skill-quality output live; render + wiring proven by the mocked tests. Evidence: docs/design/evidence/live-synthesis-validated-20260623.md.

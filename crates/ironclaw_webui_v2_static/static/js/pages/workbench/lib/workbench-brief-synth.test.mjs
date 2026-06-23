@@ -83,12 +83,12 @@ test('buildBriefSynthesisBundle clips long bodies so the turn stays short', () =
 test('buildBriefSynthesisPrompt states the JSON shape, the domain lens, and the output-only rule', () => {
   const bundle = buildBriefSynthesisBundle(SAMPLE_BRIEFING, PROFILE);
   const p = buildBriefSynthesisPrompt(bundle, PROFILE);
-  assert.match(p, /"needsYou"/);
-  assert.match(p, /"worthWeighingIn"/);
-  assert.match(p, /"thisWeek"/);
-  assert.match(p, /"bestTimes"/);
+  assert.match(p, /needsYou/);
+  assert.match(p, /worthWeighingIn/);
+  assert.match(p, /thisWeek/);
+  assert.match(p, /bestTimes/);
   assert.match(p, /Chief Legal Officer/);
-  assert.match(p, /Output ONLY the JSON object/i);
+  assert.match(p, /Output ONLY one JSON object/i);
   assert.match(p, /NOT tagged/i, 'radar instruction: only decisions I was not tagged on');
   assert.ok(p.includes('Dana Lee'), 'the bundle data is embedded in the prompt');
 });

@@ -50,7 +50,7 @@ export function buildBriefSynthesisBundle(briefing, profile = {}) {
   // determines turn latency. A ~1KB bundle converges in ~20s live; a ~3KB bundle
   // overruns the poll window. So clip aggressively + cap counts — enough signal
   // for the model to write context + a reply, not the whole thread (tie-in #7).
-  const needsReply = (Array.isArray(b.replies) ? b.replies : []).slice(0, 6).map((m) => ({
+  const needsReply = (Array.isArray(b.replies) ? b.replies : []).slice(0, 4).map((m) => ({
     id: String(m.id || m.messageId || m.threadId || ''),
     source: m.channel ? 'Slack' : 'Email',
     sender: senderName(m),
@@ -63,7 +63,7 @@ export function buildBriefSynthesisBundle(briefing, profile = {}) {
     replyHref: String(m.replyHref || m.gmailHref || m.permalink || m.link || '')
   }));
 
-  const slackSignals = (Array.isArray(b.slack) ? b.slack : []).slice(0, 6).map((s) => ({
+  const slackSignals = (Array.isArray(b.slack) ? b.slack : []).slice(0, 4).map((s) => ({
     id: String(s.id || ''),
     channel: String(s.channel || '').replace(/^#+/, ''),
     sender: senderName(s),
@@ -71,17 +71,18 @@ export function buildBriefSynthesisBundle(briefing, profile = {}) {
     link: String(s.link || s.permalink || '')
   }));
 
-  const calendar = (Array.isArray(b.events) ? b.events : []).slice(0, 6).map((e) => ({
+  const calendar = (Array.isArray(b.events) ? b.events : []).slice(0, 4).map((e) => ({
     id: String(e.id || ''),
     title: clip(e.title, 120),
     when: clip(e.when, 60),
     location: clip(e.location, 80)
   }));
 
+  // Context the briefing actually reasons over: actionable work-status (approval
+  // gates / blocked) only. The recent-ACTIVITY feeds (github/drive/notion) were
+  // low-signal bulk the model mostly ignored — dropping them shrinks the prompt
+  // (and the turn) without changing the briefing's sections.
   const context = {
-    github: (Array.isArray(b.github) ? b.github : []).slice(0, 3).map((g) => clip(g.title, 110)),
-    drive: (Array.isArray(b.drive) ? b.drive : []).slice(0, 3).map((d) => clip(d.title, 110)),
-    notion: (Array.isArray(b.notion) ? b.notion : []).slice(0, 3).map((n) => clip(n.title, 110)),
     attention: (Array.isArray(b.attention) ? b.attention : []).slice(0, 4).map((a) => ({
       title: clip(a.title, 120),
       detail: clip(a.detail, 120),
@@ -107,26 +108,19 @@ export function buildBriefSynthesisPrompt(bundle, profile = {}) {
   const name = String(profile.name || bundle?.profile?.name || '').trim();
   const title = String(profile.title || bundle?.profile?.title || '').trim();
   const who = [name, title].filter(Boolean).join(', ');
+  const domain = bundle?.profile?.domain || 'my role';
+  // Terse schema on purpose: the prompt length (instructions + context) drives the
+  // turn's latency, and a compact spec converges fast while still pinning the
+  // exact keys (validated live — a ~1KB prompt returns clean JSON in ~20s).
   return [
-    `You are ${who || 'the user'}'s chief of staff writing their morning briefing.`,
-    `Use ONLY the JSON context below — every person, subject, and link must come from it. Never invent a sender, a link, or an item that is not in the data.`,
-    '',
-    `Produce a briefing as a single JSON object with EXACTLY these keys:`,
-    `{`,
-    `  "summary": { "awaitingReply": <int>, "flagged": <int>, "weeklySignals": <int> },`,
-    `  "needsYou": [ { "id": "<echo the input id>", "source": "Email"|"Slack", "sender": "<from input>", "badges": ["Decision"|"FYI"|"time-sensitive"], "context": "<1-2 sentences: what it is and why it sits on you>", "suggestedReply": "<a ready reply in my voice, lowercase-casual, OR empty string if no reply is owed (e.g. FYI)>", "replyHref": "<echo the input replyHref>", "bestWindow": "<when to reply, or empty>" } ],`,
-    `  "worthWeighingIn": [ { "id": "<echo>", "title": "<the decision forming>", "channel": "<channel>", "whyYours": "<why this is in my domain>", "myTake": "<a pressure-test, not advice>", "confidence": <0-100>, "link": "<echo input link>" } ],`,
-    `  "thisWeek": [ { "id": "<echo or short slug>", "title": "<the item>", "yourMove": "<the one concrete move>", "priority": "high"|"med" } ],`,
-    `  "bestTimes": [ { "person": "<name>", "window": "<when>" } ]`,
-    `}`,
-    '',
-    `Rules:`,
-    `- "needsYou": one entry per item in needsReply (and any slackSignals that directly @ or await me). suggestedReply ONLY when a reply is genuinely owed; for pure FYI use "".`,
-    `- "worthWeighingIn": ONLY from slackSignals in my channels where a decision is forming in my domain (${bundle?.profile?.domain || 'my role'}) and I was NOT tagged. Use the domainTriggers as the lens. If none qualify, return [].`,
-    `- "thisWeek": forward commitments/deadlines from calendar + signals, each with my one move. "bestTimes": who to reach and when, from the data only.`,
-    `- Counts in "summary" must equal the array lengths you produce.`,
-    `- Output ONLY the JSON object. No prose, no code fence, no commentary.`,
-    '',
+    `You are ${who || 'the user'}'s chief of staff writing their morning briefing. Use ONLY the CONTEXT JSON — never invent a sender, link, or item.`,
+    `Output ONLY one JSON object (no prose, no code fence) with these keys:`,
+    `summary:{awaitingReply:int,flagged:int,weeklySignals:int}`,
+    `needsYou:[{id,source:"Email"|"Slack",sender,badges:["Decision"|"FYI"|"time-sensitive"],context:"1-2 sentences on what it is and why it sits on you",suggestedReply:"ready reply in my voice, lowercase-casual, or empty string if no reply is owed",replyHref,bestWindow}] — one per needsReply item; echo id+replyHref.`,
+    `worthWeighingIn:[{id,title,channel,whyYours,myTake:"a pressure-test, not advice",confidence:0-100,link}] — ONLY slackSignals in my channels where a decision is forming in my domain (${domain}) and I was NOT tagged; else [].`,
+    `thisWeek:[{id,title,yourMove,priority:"high"|"med"}] from calendar+signals. bestTimes:[{person,window}] from the data only.`,
+    `summary counts must equal the array lengths.`,
+    ``,
     `CONTEXT:`,
     JSON.stringify(bundle)
   ].join('\n');
