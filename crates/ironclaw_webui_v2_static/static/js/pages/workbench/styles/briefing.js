@@ -205,4 +205,39 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
 }
 .wb13-approve-body .wb13-pill-control { width: 100%; margin-top: 12px; }
 .wb13-approve-body .wb13-pill-control input { flex: 1; max-width: none; }
+
+/* Rich daily-briefing (workbench-brief.js): the synthesized context, the inline
+   editable reply, the radar take, and the weekly moves are multi-line prose, so
+   within .wb13-brief-rich rows align to the top and text WRAPS instead of
+   truncating like a one-line email subject. Scoped so the deterministic briefing
+   keeps its compact one-line rows. */
+.wb13-brief-rich .wb13-brief-row { align-items: flex-start; }
+.wb13-brief-rich .wb13-brief-rowtitle { white-space: normal; }
+.wb13-brief-rich .wb13-brief-rowmeta {
+  white-space: normal;
+  overflow: visible;
+  line-height: 1.5;
+}
+.wb13-brief-needsyou-main { gap: 5px; cursor: default; }
+.wb13-brief-reply {
+  margin-top: 6px;
+  border: 1px solid var(--wb-line);
+  border-radius: 9px;
+}
+.wb13-brief-replyactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 7px;
+}
+.wb13-brief-prio {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 999px;
+  background: var(--wb-danger-text, #d23b3b);
+  vertical-align: middle;
+}
 `;
