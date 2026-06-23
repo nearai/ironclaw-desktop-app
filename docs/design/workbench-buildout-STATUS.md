@@ -22,6 +22,13 @@ User pushed back hard: the home is a chat box + a thin card list + a 1500px scro
 
 Sequencing (atomic green commits): **1/3 synthesis engine (THIS commit)** → 2/3 rich five-section render w/ inline replies → 3/3 home = briefing-on-open + ops-dump removed + live screenshot.
 
+## LIVE synthesis VALIDATED + bundle tightened (`36bc1b3`) — reverses the earlier BLOCKED
+
+- **The live synthesis WORKS.** On a healthy standalone gateway (short probe converged ~18s), a representative ~1.1KB synthesis prompt returned PERFECT parseable JSON in ~20s: exactly the five keys, needsYou:2/worthWeighingIn:1/thisWeek:1/bestTimes:3, with a real in-voice reply ("Thanks, Dana. net 60 and the 12% cap fall outside our standard renewal terms…"). The engine + prompt produce skill-quality output live; render + wiring proven by the mocked tests. Evidence: docs/design/evidence/live-synthesis-validated-20260623.md.
+- **Why the UI didn't show it:** the FULL bundle prompt was ~4KB → the turn overran the 40s poll window (no reply even at 50s — #7 heavy-turn latency), while the 1.1KB probe was fast. NOT an engine defect. (Also: driving the UI send via the preview tool needs a full pointer-event sequence; plain click() doesn't fire React's delegated handler — harness quirk.)
+- **Fix:** tightened buildBriefSynthesisBundle (snippet/text clips 600→220, subject→110, counts capped: needsReply/slack top 6, context feeds top 3, attention top 4) → bundle ~3KB→~1KB, near the proven-fast probe; poll window maxTries 20→24 (~48s) insurance. Engine 7/7, full gate green (static 879, a11y 140, design DT-1..6, smoke, cold-start 397.3<401).
+- **Next:** re-verify the live rich brief renders in the UI with the tightened bundle; if still tight, shrink further / faster synthesis model (#7). Then (B) auto-run on open.
+
 ## WorkbenchBrief lazy-loaded — step 3/3 (LAZY) (`8552c17`)
 
 - React.lazy'd WorkbenchBrief (like CalendarView): it renders only AFTER a synthesis turn (never on cold start), so its weight moved out of the cold-start bundle. Render wrapped in React.Suspense fallback=null. Cold-start **400.3 → 397.3 KB** (reclaimed ~3 KB of headroom under the 401 budget) — unblocks further wiring (step B).

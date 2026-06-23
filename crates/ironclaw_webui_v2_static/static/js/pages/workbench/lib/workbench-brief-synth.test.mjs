@@ -33,7 +33,9 @@ const SAMPLE_BRIEFING = {
   github: [{ title: 'PR #482 merged' }],
   drive: [],
   notion: [],
-  attention: [{ title: 'Time-off approval', detail: 'A report is blocked', groupLabel: 'Needs approval' }]
+  attention: [
+    { title: 'Time-off approval', detail: 'A report is blocked', groupLabel: 'Needs approval' }
+  ]
 };
 
 const PROFILE = {
@@ -45,12 +47,23 @@ const PROFILE = {
 test('buildBriefSynthesisBundle pulls from the deterministic briefing + resolves the profile domain', () => {
   const bundle = buildBriefSynthesisBundle(SAMPLE_BRIEFING, PROFILE);
   assert.equal(bundle.profile.domain, 'legal', 'CLO title resolves to the legal domain');
-  assert.deepEqual(bundle.profile.channels, ['x-intents', 'kyc_status'], 'channels normalized + deduped');
+  assert.deepEqual(
+    bundle.profile.channels,
+    ['x-intents', 'kyc_status'],
+    'channels normalized + deduped'
+  );
   assert.ok(bundle.domainTriggers.includes('custody'), 'carries the legal trigger vocabulary');
   assert.equal(bundle.needsReply.length, 1);
-  assert.equal(bundle.needsReply[0].sender, 'Dana Lee', 'sender display name is parsed from the header');
+  assert.equal(
+    bundle.needsReply[0].sender,
+    'Dana Lee',
+    'sender display name is parsed from the header'
+  );
   assert.equal(bundle.needsReply[0].source, 'Email');
-  assert.equal(bundle.needsReply[0].replyHref, 'https://mail.google.com/mail/u/0/#all/thread-renewal');
+  assert.equal(
+    bundle.needsReply[0].replyHref,
+    'https://mail.google.com/mail/u/0/#all/thread-renewal'
+  );
   assert.equal(bundle.slackSignals[0].channel, 'x-intents', 'slack channel stripped of #');
   assert.equal(bundle.calendar[0].title, 'Regulator call — Bermuda');
   assert.equal(bundle.context.attention[0].group, 'Needs approval');
@@ -61,7 +74,10 @@ test('buildBriefSynthesisBundle clips long bodies so the turn stays short', () =
     { replies: [{ id: 'x', sender: 'A', subject: 'S', preview: 'y'.repeat(5000) }] },
     {}
   );
-  assert.ok(bundle.needsReply[0].snippet.length <= 600, 'snippet capped to 600 chars');
+  assert.ok(
+    bundle.needsReply[0].snippet.length <= 220,
+    'snippet capped tight so the turn stays fast'
+  );
 });
 
 test('buildBriefSynthesisPrompt states the JSON shape, the domain lens, and the output-only rule', () => {
@@ -107,7 +123,14 @@ test('parseBriefJson extracts JSON from a fenced/prose reply and normalizes ever
           link: 'https://slack.example/p1'
         }
       ],
-      thisWeek: [{ id: 'w1', title: 'Agent marketplace launch', yourMove: 'lock the gate', priority: 'urgent' }],
+      thisWeek: [
+        {
+          id: 'w1',
+          title: 'Agent marketplace launch',
+          yourMove: 'lock the gate',
+          priority: 'urgent'
+        }
+      ],
       bestTimes: [{ person: 'David', window: 'now' }]
     }),
     '```'
@@ -131,7 +154,9 @@ test('parseBriefJson returns null on non-JSON or an entirely-empty briefing (cal
   assert.equal(parseBriefJson(''), null);
   assert.equal(parseBriefJson('{ not valid json'), null);
   assert.equal(
-    parseBriefJson(JSON.stringify({ needsYou: [], worthWeighingIn: [], thisWeek: [], bestTimes: [] })),
+    parseBriefJson(
+      JSON.stringify({ needsYou: [], worthWeighingIn: [], thisWeek: [], bestTimes: [] })
+    ),
     null,
     'all-empty arrays -> null so the deterministic briefing shows instead'
   );
@@ -173,7 +198,11 @@ test('synthesizeBriefing orchestrates create -> send -> poll -> parse and return
   const out = await synthesizeBriefing({ briefing: SAMPLE_BRIEFING, profile: PROFILE, deps });
   assert.ok(out, 'returns the parsed briefing');
   assert.equal(out.needsYou[0].suggestedReply, 'net 45 works.');
-  assert.match(sent[0].content, /Renewal terms for Q3/, 'the inbox context rode into the synthesis prompt');
+  assert.match(
+    sent[0].content,
+    /Renewal terms for Q3/,
+    'the inbox context rode into the synthesis prompt'
+  );
   assert.equal(sent[0].threadId, 'T1');
 });
 

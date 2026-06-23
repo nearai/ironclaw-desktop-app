@@ -46,12 +46,16 @@ export function buildBriefSynthesisBundle(briefing, profile = {}) {
   const channels = normalizeChannelAllowlist(profile.channels);
   const scope = radarScopeForTitle(title);
 
-  const needsReply = (Array.isArray(b.replies) ? b.replies : []).map((m) => ({
+  // Tight caps: the synthesis prompt's schema is fixed; the CONTEXT bundle is what
+  // determines turn latency. A ~1KB bundle converges in ~20s live; a ~3KB bundle
+  // overruns the poll window. So clip aggressively + cap counts — enough signal
+  // for the model to write context + a reply, not the whole thread (tie-in #7).
+  const needsReply = (Array.isArray(b.replies) ? b.replies : []).slice(0, 6).map((m) => ({
     id: String(m.id || m.messageId || m.threadId || ''),
     source: m.channel ? 'Slack' : 'Email',
     sender: senderName(m),
-    subject: clip(m.subject, 160),
-    snippet: clip(m.preview || m.snippet || m.messageText || m.body, 600),
+    subject: clip(m.subject, 110),
+    snippet: clip(m.preview || m.snippet || m.messageText || m.body, 220),
     channel: m.channel ? String(m.channel).replace(/^#+/, '') : '',
     when: clip(m.when, 40),
     unread: Boolean(m.unread),
@@ -59,28 +63,28 @@ export function buildBriefSynthesisBundle(briefing, profile = {}) {
     replyHref: String(m.replyHref || m.gmailHref || m.permalink || m.link || '')
   }));
 
-  const slackSignals = (Array.isArray(b.slack) ? b.slack : []).map((s) => ({
+  const slackSignals = (Array.isArray(b.slack) ? b.slack : []).slice(0, 6).map((s) => ({
     id: String(s.id || ''),
     channel: String(s.channel || '').replace(/^#+/, ''),
     sender: senderName(s),
-    text: clip(s.text || s.title || s.preview, 600),
+    text: clip(s.text || s.title || s.preview, 220),
     link: String(s.link || s.permalink || '')
   }));
 
-  const calendar = (Array.isArray(b.events) ? b.events : []).map((e) => ({
+  const calendar = (Array.isArray(b.events) ? b.events : []).slice(0, 6).map((e) => ({
     id: String(e.id || ''),
-    title: clip(e.title, 160),
-    when: clip(e.when, 80),
-    location: clip(e.location, 120)
+    title: clip(e.title, 120),
+    when: clip(e.when, 60),
+    location: clip(e.location, 80)
   }));
 
   const context = {
-    github: (Array.isArray(b.github) ? b.github : []).slice(0, 6).map((g) => clip(g.title, 160)),
-    drive: (Array.isArray(b.drive) ? b.drive : []).slice(0, 6).map((d) => clip(d.title, 160)),
-    notion: (Array.isArray(b.notion) ? b.notion : []).slice(0, 6).map((n) => clip(n.title, 160)),
-    attention: (Array.isArray(b.attention) ? b.attention : []).map((a) => ({
-      title: clip(a.title, 160),
-      detail: clip(a.detail, 240),
+    github: (Array.isArray(b.github) ? b.github : []).slice(0, 3).map((g) => clip(g.title, 110)),
+    drive: (Array.isArray(b.drive) ? b.drive : []).slice(0, 3).map((d) => clip(d.title, 110)),
+    notion: (Array.isArray(b.notion) ? b.notion : []).slice(0, 3).map((n) => clip(n.title, 110)),
+    attention: (Array.isArray(b.attention) ? b.attention : []).slice(0, 4).map((a) => ({
+      title: clip(a.title, 120),
+      detail: clip(a.detail, 120),
       group: clip(a.groupLabel, 60)
     }))
   };
@@ -253,7 +257,7 @@ export async function synthesizeBriefing({ briefing, profile, deps } = {}) {
   }
   const prompt = buildBriefSynthesisPrompt(bundle, profile || {});
   const sleep = d.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
-  const maxTries = Number.isFinite(d.maxTries) ? d.maxTries : 20;
+  const maxTries = Number.isFinite(d.maxTries) ? d.maxTries : 24;
   try {
     const thread = await d.createThread({});
     const threadId = readThreadId(thread);
