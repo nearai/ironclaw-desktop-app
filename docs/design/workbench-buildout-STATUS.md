@@ -14,6 +14,12 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Relabel: "Needs a decision" cards → "Needs you" (`83669af`)
+
+- User greenlit "Needs you" as the home's primary needs-me header. Renamed the **WorkbenchDecisions** surface (the prominent amber unread-mail cards) "Needs a decision · N" → **"Needs you · N"** + its comment + 3 spec assertions/titles. Live-verified: header reads "Needs you · 3".
+- **Left distinct on purpose:** the TriageSection approval-gate label + all-clear ("Needs a decision", workbench-page.js 96/128) and the docx export heading — different surfaces; renaming both would make two identical "Needs you" headers when mail + approval gates both populate. Flag if you want those unified too.
+- Full gate GREEN: static 869/0, a11y 138, design DT-1..6, smoke, cold-start 396.0<401. Home is now the briefing's top section: Ask bar + chips + "Needs you" cards + rail.
+
 ## Home cruft cut — surface 3/3: connector-health strip removed — CUT COMPLETE (`fffffcf`)
 
 - **connector-health (`SourceReadinessStrip`) is gone** ("connector health? why is it in here?"). The always-on "Gmail · Ready · via Composio" chips were noise on a "what needs me" home. Readiness still lives, on demand, in the "What's allowed" source inspector — the right place for it. Removed the component + HomeView render + import + the dead CSS block (.wb13-sources-ready / .wb13-source-ready*).

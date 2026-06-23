@@ -55,7 +55,7 @@ function openMessage(onOpenMessage, message) {
   onOpenMessage(message);
 }
 
-// "Needs a decision" — the v13 decision-card surface, fed by the user's REAL
+// "Needs you" — the v13 decision-card surface, fed by the user's REAL
 // unread Composio inbox. Each unread email becomes a decision card: an amber
 // status icon, the subject as the decision, the sender + date as the meta line.
 // Clicking the card body opens the reading panel (fetches the FULL message via
@@ -162,9 +162,7 @@ export function WorkbenchDecisions({
   return html`
     <div className="wb13-section" data-testid="workbench-decisions">
       <div className="wb13-group">
-        <div className="wb13-group-title is-hold">
-          Needs a decision<span>· ${unread.length}</span>
-        </div>
+        <div className="wb13-group-title is-hold">Needs you<span>· ${unread.length}</span></div>
         ${unread.map(
           (message) =>
             html`<${DecisionCard}

@@ -3423,9 +3423,7 @@ ${ve}`;if(P.current.gateKey!==Ne&&(P.current={gateKey:Ne,credentialRef:null,inFl
   `}function xT({gmailReady:e,messages:t,onOpenMessage:a,onDraftMessage:n,onDismiss:r}){if(!e)return null;let o=(Array.isArray(t)?t:[]).filter(i=>i.unread);return o.length?l`
     <div className="wb13-section" data-testid="workbench-decisions">
       <div className="wb13-group">
-        <div className="wb13-group-title is-hold">
-          Needs a decision<span>· ${o.length}</span>
-        </div>
+        <div className="wb13-group-title is-hold">Needs you<span>· ${o.length}</span></div>
         ${o.map(i=>l`<${MK}
               key=${i.id}
               message=${i}

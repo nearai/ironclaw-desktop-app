@@ -2408,9 +2408,7 @@ test('static workbench: Slack blocker search failure degrades without fabricatin
   expect(appConsoleIssues).toEqual([]);
 });
 
-test('static workbench: real unread mail renders as v13 Needs a decision cards', async ({
-  page
-}) => {
+test('static workbench: real unread mail renders as v13 Needs you cards', async ({ page }) => {
   // v13 fidelity: unread inbox mail is the primary "what needs me" surface and
   // renders as decision cards (subject as the decision, sender + date as the
   // meta line, a filled-blue action that opens a held in-app draft). Read mail
@@ -2467,7 +2465,7 @@ test('static workbench: real unread mail renders as v13 Needs a decision cards',
 
   const decisions = page.getByTestId('workbench-decisions');
   await expect(decisions).toBeVisible();
-  await expect(decisions).toContainText('Needs a decision');
+  await expect(decisions).toContainText('Needs you');
   await expect(decisions).toContainText('· 1');
   await expect(decisions).toContainText('Renewal terms for Q3');
   await expect(decisions).toContainText('Dana Lee');
@@ -2510,7 +2508,7 @@ test('static workbench: real unread mail renders as v13 Needs a decision cards',
   expect(consoleIssues).toEqual([]);
 });
 
-test('static workbench: no unread mail hides the Needs a decision cards', async ({ page }) => {
+test('static workbench: no unread mail hides the Needs you cards', async ({ page }) => {
   await installWorkbenchMocks(page, {
     connectorAccounts: [{ toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' }],
     connectorReads: {
