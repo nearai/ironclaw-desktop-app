@@ -696,11 +696,14 @@ export function WorkbenchPage() {
   });
   // Slack-first sourcing for the catch-up briefing: read the user's channels deeply
   // and classify into awaiting-reply (you were tagged) vs decision-forming (a thread
-  // you're absent from). Runs only when a briefing is requested and Slack is live;
-  // degrades to [] (identity unresolved / read failure), leaving the blocker fallback.
+  // you're absent from). Eager when Slack is connected — like the blocker search —
+  // so the home's Slack-first data is ready by the time a briefing is requested; the
+  // result is cached (60s staleTime) and degrades to [] (identity unresolved / read
+  // failure), leaving the blocker fallback. Channel fan-out is capped to bound cost.
   const slackDeep = useConnectorSlackDeep({
-    enabled: connectedAccounts.slackReady && briefingSlackActive,
-    email: WORKBENCH_PROFILE.email
+    enabled: connectedAccounts.slackReady,
+    email: WORKBENCH_PROFILE.email,
+    channelLimit: 6
   });
   const connectorDrive = useConnectorDrive({ enabled: connectedAccounts.driveReady });
   const connectorNotion = useConnectorNotion({ enabled: connectedAccounts.notionReady });

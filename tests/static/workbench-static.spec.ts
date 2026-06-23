@@ -2297,17 +2297,32 @@ test('static workbench: Slack blocker chip runs a read-only Slack search without
   );
 
   expect(sentMessages).toEqual([]);
-  expect(connectorReadRequests).toEqual([
-    {
-      toolkit: 'slack',
-      tool: 'SLACK_SEARCH_MESSAGES',
-      arguments: {
-        query: 'blocked OR blocker OR stuck OR waiting OR unblock',
-        count: 8,
-        sort: 'timestamp'
-      }
+  // The blocker SEARCH fires with its exact read-only args; the eager deep read adds
+  // more read-only Slack calls (identity/channels/team). Assert membership in the
+  // read-only allowlist — no write ever leaks.
+  expect(connectorReadRequests).toContainEqual({
+    toolkit: 'slack',
+    tool: 'SLACK_SEARCH_MESSAGES',
+    arguments: {
+      query: 'blocked OR blocker OR stuck OR waiting OR unblock',
+      count: 8,
+      sort: 'timestamp'
     }
-  ]);
+  });
+  expect(
+    connectorReadRequests.every(
+      (entry) =>
+        entry.toolkit === 'slack' &&
+        [
+          'SLACK_SEARCH_MESSAGES',
+          'SLACK_LIST_ALL_USERS',
+          'SLACK_LIST_ALL_CHANNELS',
+          'SLACK_FETCH_TEAM_INFO',
+          'SLACK_FETCH_CONVERSATION_HISTORY',
+          'SLACK_FETCH_CONVERSATION_REPLIES'
+        ].includes(String(entry.tool))
+    )
+  ).toBe(true);
   expect(consoleIssues).toEqual([]);
 });
 
@@ -2371,17 +2386,32 @@ test('static workbench: catch-up replaces the standalone Slack blocker panel wit
   await expect(page.getByTestId('workbench-slack-blockers')).toHaveCount(0);
 
   expect(sentMessages).toEqual([]);
-  expect(connectorReadRequests).toEqual([
-    {
-      toolkit: 'slack',
-      tool: 'SLACK_SEARCH_MESSAGES',
-      arguments: {
-        query: 'blocked OR blocker OR stuck OR waiting OR unblock',
-        count: 8,
-        sort: 'timestamp'
-      }
+  // The blocker SEARCH fires with its exact read-only args; the eager deep read adds
+  // more read-only Slack calls (identity/channels/team). Assert membership in the
+  // read-only allowlist — no write ever leaks.
+  expect(connectorReadRequests).toContainEqual({
+    toolkit: 'slack',
+    tool: 'SLACK_SEARCH_MESSAGES',
+    arguments: {
+      query: 'blocked OR blocker OR stuck OR waiting OR unblock',
+      count: 8,
+      sort: 'timestamp'
     }
-  ]);
+  });
+  expect(
+    connectorReadRequests.every(
+      (entry) =>
+        entry.toolkit === 'slack' &&
+        [
+          'SLACK_SEARCH_MESSAGES',
+          'SLACK_LIST_ALL_USERS',
+          'SLACK_LIST_ALL_CHANNELS',
+          'SLACK_FETCH_TEAM_INFO',
+          'SLACK_FETCH_CONVERSATION_HISTORY',
+          'SLACK_FETCH_CONVERSATION_REPLIES'
+        ].includes(String(entry.tool))
+    )
+  ).toBe(true);
   expect(consoleIssues).toEqual([]);
 });
 
@@ -2586,7 +2616,10 @@ test('static workbench: a briefing whose synthesis returns no JSON falls back to
   page
 }) => {
   await installWorkbenchMocks(page, {
-    connectorAccounts: [{ toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' }],
+    connectorAccounts: [
+      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
+      { toolkit: 'slack', status: 'ACTIVE', user_id: 'pg-test' }
+    ],
     connectorReads: {
       gmail: {
         successful: true,
@@ -2602,6 +2635,44 @@ test('static workbench: a briefing whose synthesis returns no JSON falls back to
             }
           ]
         }
+      },
+      // Deep Slack read: identity (matched to the profile email) -> channels ->
+      // history with a thread that @-mentions me (an awaiting-reply item). No
+      // decision-forming thread + no blockers, so the radar has no candidate and
+      // the synthesis falls back to the deterministic briefing (no rich upgrade).
+      SLACK_LIST_ALL_USERS: {
+        successful: true,
+        data: {
+          data: {
+            members: [
+              {
+                id: 'UME',
+                profile: { email: 'abby.vaidyanathan@gmail.com', display_name: 'Abhi' }
+              },
+              { id: 'UCARLA', profile: { display_name: 'Carla' } }
+            ]
+          }
+        }
+      },
+      SLACK_LIST_ALL_CHANNELS: {
+        successful: true,
+        data: { channels: [{ id: 'C1', name: 'legal', is_member: true, is_archived: false }] }
+      },
+      SLACK_FETCH_TEAM_INFO: {
+        successful: true,
+        data: { team: { domain: 'near-foundation' } }
+      },
+      SLACK_FETCH_CONVERSATION_HISTORY: {
+        successful: true,
+        data: {
+          messages: [
+            {
+              user: 'UCARLA',
+              ts: '1781279600.1',
+              text: 'Hey <@UME>, how should we approach the Cavenwell directorship terms?'
+            }
+          ]
+        }
       }
     },
     timelineMessages: [{ kind: 'assistant', content: 'I could not produce a briefing right now.' }]
@@ -2612,9 +2683,19 @@ test('static workbench: a briefing whose synthesis returns no JSON falls back to
   await page.getByTestId('workbench-send-button').click();
 
   // The deterministic briefing renders and STAYS — synthesis returned no usable
-  // JSON, so there is no rich upgrade (honest fallback, never blank).
+  // JSON, so there is no rich upgrade (honest fallback, never blank). It is
+  // Slack-first: the @-mention surfaces as an "Awaiting your reply" section with the
+  // channel · sender and a thread link, above the email replies.
   const briefing = page.getByTestId('workbench-briefing');
   await expect(briefing).toBeVisible();
+  const awaiting = briefing.getByTestId('workbench-briefing-slack-awaiting');
+  await expect(awaiting).toBeVisible();
+  await expect(awaiting).toContainText('#legal · Carla');
+  await expect(awaiting).toContainText('Cavenwell directorship');
+  await expect(awaiting).toHaveAttribute(
+    'href',
+    'https://near-foundation.slack.com/archives/C1/p17812796001'
+  );
   await expect(briefing).toContainText('Renewal terms for Q3');
   await page.waitForTimeout(2500);
   await expect(page.getByTestId('workbench-brief')).toHaveCount(0);

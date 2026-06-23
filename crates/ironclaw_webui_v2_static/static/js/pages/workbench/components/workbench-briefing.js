@@ -197,6 +197,8 @@ export function WorkbenchBriefing({ briefing, onOpenMessage, onDismiss }) {
     events,
     attention,
     slack,
+    slackAwaiting = [],
+    slackWeighIn = [],
     github,
     drive,
     notion,
@@ -206,6 +208,8 @@ export function WorkbenchBriefing({ briefing, onOpenMessage, onDismiss }) {
     !replies.length &&
     !events.length &&
     !attention.length &&
+    !(slackAwaiting && slackAwaiting.length) &&
+    !(slackWeighIn && slackWeighIn.length) &&
     !(slack && slack.length) &&
     !(github && github.length) &&
     !(drive && drive.length) &&
@@ -246,6 +250,46 @@ export function WorkbenchBriefing({ briefing, onOpenMessage, onDismiss }) {
             you right now.
           </p>`
         : html`<div className="wb13-brief-grid">
+            ${slackAwaiting && slackAwaiting.length
+              ? html`<${BriefSection}
+                  icon="chat"
+                  title="Awaiting your reply"
+                  count=${counts.slackAwaiting}
+                >
+                  ${slackAwaiting.map(
+                    (row) =>
+                      html`<${BriefLinkRow}
+                        key=${row.id}
+                        title=${row.text}
+                        meta=${[row.channel ? `#${row.channel}` : '', row.who]
+                          .filter(Boolean)
+                          .join(' · ')}
+                        link=${row.replyHref}
+                        testid="workbench-briefing-slack-awaiting"
+                      />`
+                  )}
+                <//>`
+              : null}
+            ${slackWeighIn && slackWeighIn.length
+              ? html`<${BriefSection}
+                  icon="chat"
+                  title="Worth weighing in"
+                  count=${counts.slackWeighIn}
+                >
+                  ${slackWeighIn.map(
+                    (row) =>
+                      html`<${BriefLinkRow}
+                        key=${row.id}
+                        title=${row.text}
+                        meta=${[row.channel ? `#${row.channel}` : '', "you weren't tagged"]
+                          .filter(Boolean)
+                          .join(' · ')}
+                        link=${row.replyHref}
+                        testid="workbench-briefing-slack-weighin"
+                      />`
+                  )}
+                <//>`
+              : null}
             ${replies.length
               ? html`<${BriefSection} icon="mail" title="Replies waiting" count=${counts.replies}>
                   ${replies.map(
