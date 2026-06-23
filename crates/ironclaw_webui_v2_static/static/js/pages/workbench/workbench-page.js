@@ -70,10 +70,11 @@ import { WORKBENCH_STYLE } from './workbench-styles.js';
 
 // Groups with a dedicated, richer main-column surface are not also repeated as
 // triage cards: unread mail renders as decision cards (WorkbenchDecisions) and
-// still appears as a compact row in the rail. 'upcoming' is a legacy backend-
-// feed group with no home surface (the Calendar tab owns the schedule); it is
-// kept excluded defensively while it remains in WORKBENCH_FEED_GROUPS (tracked
-// for its own dead-config cleanup pass).
+// still appears as a compact row in the rail. 'upcoming' is a LIVE backend-feed
+// rail group (server-advertised calendar/upcoming feed items — see
+// workbench-feed-api.js); it has no home surface (the Calendar tab owns the
+// connector-derived schedule) and is excluded from triage so it shows only as a
+// rail row. Not dead config — do not remove without dropping the feed pathway.
 const TRIAGE_EXCLUDED_GROUPS = new Set(['needs-reply', 'upcoming']);
 
 function TriageSection({ groups, hasDecisions = false }) {
