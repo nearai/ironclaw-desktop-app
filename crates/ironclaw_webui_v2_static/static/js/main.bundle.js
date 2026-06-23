@@ -16224,7 +16224,7 @@ ${JSON.stringify(t||{},null,2)}</pre
     error=${e.error}
     oauthRedirectAfter=${o}
     onSubmit=${i}
-  />`}function nQ({auth:e,children:t}){let a=Je();return e.isChecking?c`<${bL} />`:e.isAuthenticated?t:c`<${Ma} to=${tQ} replace state=${{from:a}} />`}function rQ({auth:e}){return c`
+  />`}function nQ({auth:e,children:t}){let a=Je();return e.isChecking&&!e.isAuthenticated?c`<${bL} />`:e.isAuthenticated?t:c`<${Ma} to=${tQ} replace state=${{from:a}} />`}function rQ({auth:e}){return c`
     <${nQ} auth=${e}>
       <${dR}
         token=${e.token}

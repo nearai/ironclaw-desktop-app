@@ -67,7 +67,12 @@ function LoginPage({ auth }) {
 function RequireAuth({ auth, children }) {
   const location = useLocation();
 
-  if (auth.isChecking) {
+  // Only block on the INITIAL check (no token yet). Once authenticated, a
+  // background re-exchange (isChecking flips true again) must NOT swap the tree to
+  // the loading screen — doing so unmounts and remounts EVERY page below, wiping
+  // in-progress state (e.g. a freshly rendered briefing reverts to null). Keep the
+  // app mounted through background re-checks.
+  if (auth.isChecking && !auth.isAuthenticated) {
     return html`<${AuthLoading} />`;
   }
 
