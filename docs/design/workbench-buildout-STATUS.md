@@ -14,6 +14,19 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Briefing-as-home — the real rebuild (user: "objectively worse than my daily-briefing skill")
+
+User pushed back hard: the home is a chat box + a thin card list + a 1500px scroll of duplicated ops cards (Slack/GitHub-CI/Notion/Drive — already in the rail), while the daily-briefing skill produces five curated sections. Confirmed direction (AskUserQuestion): (1) **home BE the briefing on open**, ops-dump → rail; (2) **inline ready replies** (like the skill, not the opt-in button); (3) **rich LLM synthesis on open** (skill-quality context/radar/takes), IronClaw-native.
+
+**Wedge sidestep (the unlock):** the connector reads already happen client-side (deterministic, working). The thing that wedges (#7) is multi-TOOL turns. So the synthesis turn does NO tool calls — it is handed the already-read data and only WRITES the briefing JSON. A tool-free generative turn is the short kind that completes (~17s, proven by reply-drafting). One turn produces context + radar + inline replies. Fallback to the deterministic briefing on failure → never blank, never fabricated.
+
+Sequencing (atomic green commits): **1/3 synthesis engine (THIS commit)** → 2/3 rich five-section render w/ inline replies → 3/3 home = briefing-on-open + ops-dump removed + live screenshot.
+
+## Briefing synthesis engine — step 1/3 (`60a4510`)
+
+- New `lib/workbench-brief-synth.js` (+7 tests, pure + injectable, not yet wired to UI): `buildBriefSynthesisBundle(briefing, profile)` consumes **buildBriefing's already-filtered output** (so newsletter-suppression / answered-thread gating / tier ranking are INHERITED, never reimplemented) + the profile (name/title→domain via workbench-radar.js / channel allowlist); `buildBriefSynthesisPrompt` (strict honesty contract: only provided data, echo ids/links, radar only from my channels within my domain, suggestedReply only when owed, output ONLY JSON); `parseBriefJson` (extract from fence/prose, validate, drop malformed, clamp confidence, **derive counts from kept arrays not the model's self-report**, null on garbage/all-empty → caller falls back); `synthesizeBriefing({briefing,profile,deps})` orchestrator (one tool-free turn, null on fail/timeout).
+- Full gate GREEN: test:static 876/0 (+7). Engine is additive — main.bundle.js unchanged (nothing imports it yet).
+
 ## Relabel: "Needs a decision" cards → "Needs you" (`83669af`)
 
 - User greenlit "Needs you" as the home's primary needs-me header. Renamed the **WorkbenchDecisions** surface (the prominent amber unread-mail cards) "Needs a decision · N" → **"Needs you · N"** + its comment + 3 spec assertions/titles. Live-verified: header reads "Needs you · 3".
