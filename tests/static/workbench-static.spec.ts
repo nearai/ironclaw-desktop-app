@@ -2038,8 +2038,21 @@ test('static workbench: catch-up briefing includes Slack blocker context from a 
   // like Gmail/Calendar/GitHub/Drive/Notion, so the "Slack blockers" rail group is
   // populated without a catch-up. Assert the eager read is the read-only blocker
   // search and that nothing is ever sent — not that no read happened.
+  // Read-only Slack tools the surface may call: the eager blocker SEARCH plus the
+  // deep-read fan-out a catch-up briefing triggers (identity / channels / history /
+  // team domain). All are reads — asserting membership proves no write ever leaks.
+  const SLACK_READ_ONLY_TOOLS = [
+    'SLACK_SEARCH_MESSAGES',
+    'SLACK_LIST_ALL_USERS',
+    'SLACK_LIST_ALL_CHANNELS',
+    'SLACK_FETCH_TEAM_INFO',
+    'SLACK_FETCH_CONVERSATION_HISTORY',
+    'SLACK_FETCH_CONVERSATION_REPLIES'
+  ];
   await expect.poll(() => connectorReadRequests.length).toBeGreaterThan(0);
-  expect(connectorReadRequests.every((entry) => entry.tool === 'SLACK_SEARCH_MESSAGES')).toBe(true);
+  expect(
+    connectorReadRequests.every((entry) => SLACK_READ_ONLY_TOOLS.includes(String(entry.tool)))
+  ).toBe(true);
   expect(sentMessages).toEqual([]);
 
   await page.getByTestId('workbench-brief-input').fill('What needs me today?');
@@ -2063,17 +2076,22 @@ test('static workbench: catch-up briefing includes Slack blocker context from a 
   await expect(page.getByTestId('workbench-slack-blockers')).toHaveCount(0);
 
   expect(sentMessages).toEqual([]);
-  expect(connectorReadRequests).toEqual([
-    {
-      toolkit: 'slack',
-      tool: 'SLACK_SEARCH_MESSAGES',
-      arguments: {
-        query: 'blocked OR blocker OR stuck OR waiting OR unblock',
-        count: 8,
-        sort: 'timestamp'
-      }
+  // The blocker SEARCH still fires with its exact read-only args, and every Slack
+  // read remains in the read-only allowlist — the deep fan-out never escalates to a write.
+  expect(connectorReadRequests).toContainEqual({
+    toolkit: 'slack',
+    tool: 'SLACK_SEARCH_MESSAGES',
+    arguments: {
+      query: 'blocked OR blocker OR stuck OR waiting OR unblock',
+      count: 8,
+      sort: 'timestamp'
     }
-  ]);
+  });
+  expect(
+    connectorReadRequests.every(
+      (entry) => entry.toolkit === 'slack' && SLACK_READ_ONLY_TOOLS.includes(String(entry.tool))
+    )
+  ).toBe(true);
   expect(consoleIssues).toEqual([]);
 });
 

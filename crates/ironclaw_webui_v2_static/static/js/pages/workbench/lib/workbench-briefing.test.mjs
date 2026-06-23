@@ -170,6 +170,50 @@ test('buildBriefing folds Slack blocker rows into the catch-up briefing', () => 
   assert.ok(!/all clear/i.test(briefing.headline), 'Slack rows prevent false all-clear');
 });
 
+test('buildBriefing emits slackAwaiting + slackWeighIn as distinct arrays (blocker back-compat intact)', () => {
+  const briefing = buildBriefing({
+    slackReady: true,
+    slackBlockers: [{ id: 'b1', who: 'cameron', channel: 'gtm', text: 'launch is blocked' }],
+    slackAwaiting: [
+      {
+        id: 'a1',
+        channel: 'legal',
+        who: 'Carla',
+        text: 'Cavenwell terms?',
+        replyHref: 'https://x/p1'
+      }
+    ],
+    slackWeighIn: [
+      {
+        id: 'w1',
+        channel: 'xfn-np-nf',
+        who: 'David',
+        text: 'intercompany SA?',
+        replyHref: 'https://x/p2'
+      }
+    ],
+    now: new Date('2026-06-20T09:00:00')
+  });
+  // the two new sourcing arrays are distinct from the legacy blocker list
+  assert.equal(briefing.slackAwaiting.length, 1);
+  assert.equal(briefing.slackAwaiting[0].channel, 'legal');
+  assert.equal(briefing.slackWeighIn.length, 1);
+  assert.equal(briefing.slackWeighIn[0].who, 'David');
+  assert.equal(briefing.counts.slackAwaiting, 1);
+  assert.equal(briefing.counts.slackWeighIn, 1);
+  // back-compat: the blocker list (and its count) are untouched
+  assert.equal(briefing.slack.length, 1);
+  assert.equal(briefing.counts.slack, 1);
+});
+
+test('buildBriefing slackAwaiting/slackWeighIn default to [] when not supplied', () => {
+  const briefing = buildBriefing({ gmailReady: true, now: new Date('2026-06-20T20:00:00') });
+  assert.deepEqual(briefing.slackAwaiting, []);
+  assert.deepEqual(briefing.slackWeighIn, []);
+  assert.equal(briefing.counts.slackAwaiting, 0);
+  assert.equal(briefing.counts.slackWeighIn, 0);
+});
+
 test('buildBriefing degrades to an honest all-clear with no data', () => {
   const briefing = buildBriefing({ gmailReady: true, now: new Date('2026-06-20T20:00:00') });
   assert.equal(briefing.counts.replies, 0);

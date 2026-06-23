@@ -43,7 +43,8 @@ import {
   useConnectorInbox,
   useConnectorSent,
   useConnectorNotion,
-  useConnectorSlackBlockers
+  useConnectorSlackBlockers,
+  useConnectorSlackDeep
 } from './hooks/useWorkbenchConnectors.js';
 import { WorkbenchColdStart, WorkbenchDecisions } from './components/workbench-arrived.js';
 import { WorkbenchApprove } from './components/workbench-approve.js';
@@ -97,6 +98,12 @@ const TRIAGE_EXCLUDED_GROUPS = new Set(['needs-reply', 'upcoming', 'github', 'no
 const WORKBENCH_PROFILE = Object.freeze({
   name: 'Abhishek Vaidyanathan',
   title: 'Chief Legal Officer',
+  // Email is the key that resolves the signed-in user inside the Slack workspace
+  // (SLACK_LIST_ALL_USERS, matched by profile.email) so the briefing can tell apart
+  // "you were @-mentioned" from "a decision is forming without you". When it does not
+  // match a workspace member the deep read degrades to the blocker fallback.
+  // TODO: source this from the connected Gmail/Slack identity rather than hardcoding.
+  email: 'abby.vaidyanathan@gmail.com',
   channels: [
     '#x-intents',
     '#t-agentmarket',
@@ -677,6 +684,14 @@ export function WorkbenchPage() {
     enabled: connectedAccounts.slackReady,
     maxResults: 8
   });
+  // Slack-first sourcing for the catch-up briefing: read the user's channels deeply
+  // and classify into awaiting-reply (you were tagged) vs decision-forming (a thread
+  // you're absent from). Runs only when a briefing is requested and Slack is live;
+  // degrades to [] (identity unresolved / read failure), leaving the blocker fallback.
+  const slackDeep = useConnectorSlackDeep({
+    enabled: connectedAccounts.slackReady && briefingSlackActive,
+    email: WORKBENCH_PROFILE.email
+  });
   const connectorDrive = useConnectorDrive({ enabled: connectedAccounts.driveReady });
   const connectorNotion = useConnectorNotion({ enabled: connectedAccounts.notionReady });
   const connectorGithub = useConnectorGithub({ enabled: connectedAccounts.githubReady });
@@ -896,8 +911,11 @@ export function WorkbenchPage() {
       'Calendar'
     );
     add(
-      connectedAccounts.slackReady && slackBlockers.enabled,
-      slackBlockers.isLoading || slackBlockers.isFetching,
+      connectedAccounts.slackReady && (slackBlockers.enabled || slackDeep.enabled),
+      slackBlockers.isLoading ||
+        slackBlockers.isFetching ||
+        slackDeep.isLoading ||
+        slackDeep.isFetching,
       'slack',
       'Slack'
     );
@@ -934,6 +952,9 @@ export function WorkbenchPage() {
     slackBlockers.enabled,
     slackBlockers.isLoading,
     slackBlockers.isFetching,
+    slackDeep.enabled,
+    slackDeep.isLoading,
+    slackDeep.isFetching,
     connectorGithub.isLoading,
     connectorGithub.isFetching,
     connectorDrive.isLoading,
@@ -989,6 +1010,8 @@ export function WorkbenchPage() {
       calendarEvents: connectorCalendar.events,
       railGroups,
       slackBlockers: slackBlockers.rows,
+      slackAwaiting: slackDeep.awaiting,
+      slackWeighIn: slackDeep.weighIn,
       githubNotifications: connectorGithub.notifications,
       driveFiles: connectorDrive.files,
       notionPages: connectorNotion.pages,
@@ -1028,6 +1051,8 @@ export function WorkbenchPage() {
     railGroups,
     slackBlockers.rows,
     slackBlockers.enabled,
+    slackDeep.awaiting,
+    slackDeep.weighIn,
     connectorGithub.notifications,
     connectorDrive.files,
     connectorNotion.pages,

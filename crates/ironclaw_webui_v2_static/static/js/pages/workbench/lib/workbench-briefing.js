@@ -124,6 +124,8 @@ export function buildBriefing({
   calendarEvents = [],
   railGroups = [],
   slackBlockers = [],
+  slackAwaiting = [],
+  slackWeighIn = [],
   githubNotifications = [],
   driveFiles = [],
   notionPages = [],
@@ -195,6 +197,11 @@ export function buildBriefing({
 
   const github = (Array.isArray(githubNotifications) ? githubNotifications : []).slice(0, 5);
   const slack = (Array.isArray(slackBlockers) ? slackBlockers : []).slice(0, 5);
+  // Slack-first sourcing: messages where you were @-mentioned and owe a reply,
+  // and active threads forming a decision you're absent from. Distinct from the
+  // legacy blocker search (`slack`), which stays for back-compat / the rail.
+  const awaitingSlack = (Array.isArray(slackAwaiting) ? slackAwaiting : []).slice(0, 6);
+  const weighInSlack = (Array.isArray(slackWeighIn) ? slackWeighIn : []).slice(0, 6);
   const drive = (Array.isArray(driveFiles) ? driveFiles : []).slice(0, 5);
   const notion = (Array.isArray(notionPages) ? notionPages : []).slice(0, 5);
   const sourceProblemRows = normalizeSourceProblems(sourceProblems);
@@ -208,6 +215,8 @@ export function buildBriefing({
     events: events.length,
     attention: attention.length,
     slack: slack.length,
+    slackAwaiting: awaitingSlack.length,
+    slackWeighIn: weighInSlack.length,
     github: github.length,
     drive: drive.length,
     notion: notion.length,
@@ -236,6 +245,8 @@ export function buildBriefing({
     events,
     attention,
     slack,
+    slackAwaiting: awaitingSlack,
+    slackWeighIn: weighInSlack,
     github,
     drive,
     notion,
