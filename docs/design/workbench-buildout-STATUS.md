@@ -22,6 +22,13 @@ User pushed back hard: the home is a chat box + a thin card list + a 1500px scro
 
 Sequencing (atomic green commits): **1/3 synthesis engine (THIS commit)** → 2/3 rich five-section render w/ inline replies → 3/3 home = briefing-on-open + ops-dump removed + live screenshot.
 
+## Home ops-dump trimmed — step 3/3 (C) (`f9a2f51`)
+
+- The home's main column was stacking the rail's **recent-activity** feeds as a wall of cards — the bulk of the noise the user saw ("can't see the rest"): ~6 GitHub CI-failure cards + recent Notion/Drive duplication. Added `github`, `notion`, `drive` to `TRIAGE_EXCLUDED_GROUPS` so they show only as compact rows in the left rail (where they belong), not as main-column cards.
+- **Deliberately NOT a full TriageSection removal:** the section also surfaces genuinely-actionable work-STATUS (approvals, blocked, working, ready-to-review, receipts, scheduled) — real gateway feeds with ~8 dedicated tests. Fully removing + re-homing all of those to the rail is a separate, higher-risk product call (where do approvals/receipts live?), deferred. The surgical exclusion kills the visible noise with ZERO test breakage.
+- Full gate GREEN: static 879, a11y 140, design DT-1..6, smoke, cold-start 400.3<401. The execution-feed tests (scheduled/approvals/receipts/global) stay green (those groups remain); the briefing test asserts github/drive/notion in the BRIEFING, not triage.
+- **Next:** (LAZY) React.lazy WorkbenchBrief to reclaim the tight cold-start budget; (B) auto-run on open; re-verify live once the gateway turn path is healthy.
+
 ## Briefing-as-home WIRED behind the trigger — step 3/3 (A) (`d071e56`)
 
 - Wired the synthesis end-to-end: `runBriefing` (workbench-page.js) now renders the **deterministic** briefing INSTANTLY (the fallback), then fires a tool-free `synthesizeBriefing` turn; on success it swaps in the rich **WorkbenchBrief** (five sections), guarded by a `briefingTokenRef` (a late/failed/dismissed synthesis can't clobber). HomeView render branches on `briefing.kind==='rich'`. `onBriefDraftReply({item,body})` maps the rich item back to its inbox message by id and opens the gated draft modal pre-filled (reuses openDraftReply + the suggestedBody path). Profile (`WORKBENCH_PROFILE`) configured for the first test user Abhi (CLO + 5 channels) with a TODO to wire a real profile source — radar module stays generic.

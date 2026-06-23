@@ -8214,7 +8214,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   .wb13-email-head { grid-template-columns: 1fr; }
   .wb13-pk-head h1 { font-size: 19px; }
 }
-`;var gD=[lD,cD,uD,dD,mD,fD,pD,hD,vD].join("");var SG=h.default.lazy(()=>import("./chunks/workbench-calendar-TH2GTAIX.js").then(e=>({default:e.CalendarView}))),_G=new Set(["needs-reply","upcoming"]),RG=Object.freeze({name:"Abhishek Vaidyanathan",title:"Chief Legal Officer",channels:["#x-intents","#t-agentmarket","#x-nearai-compliance","#kyc_status","#wallet_status"]});function CG({groups:e,hasDecisions:t=!1}){let a=e.filter(n=>n.rows.length>0&&!_G.has(n.id));return!a.length&&t?null:a.length?l`
+`;var gD=[lD,cD,uD,dD,mD,fD,pD,hD,vD].join("");var SG=h.default.lazy(()=>import("./chunks/workbench-calendar-TH2GTAIX.js").then(e=>({default:e.CalendarView}))),_G=new Set(["needs-reply","upcoming","github","notion","drive"]),RG=Object.freeze({name:"Abhishek Vaidyanathan",title:"Chief Legal Officer",channels:["#x-intents","#t-agentmarket","#x-nearai-compliance","#kyc_status","#wallet_status"]});function CG({groups:e,hasDecisions:t=!1}){let a=e.filter(n=>n.rows.length>0&&!_G.has(n.id));return!a.length&&t?null:a.length?l`
     <div className="wb13-section" data-testid="workbench-triage">
       ${a.map(n=>{let r=n.id==="needs-approval"?"hold":n.id==="blocked"?"danger":n.id==="working"?"run":n.id==="receipts"?"done":"ready";return l`
           <div key=${n.id} className="wb13-group">

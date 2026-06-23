@@ -70,14 +70,18 @@ import { WorkbenchSourcesInspector } from './components/workbench-sources-inspec
 import { WorkModeInspector } from './components/workbench-work-mode.js';
 import { WORKBENCH_STYLE } from './workbench-styles.js';
 
-// Groups with a dedicated, richer main-column surface are not also repeated as
-// triage cards: unread mail renders as decision cards (WorkbenchDecisions) and
-// still appears as a compact row in the rail. 'upcoming' is a LIVE backend-feed
-// rail group (server-advertised calendar/upcoming feed items — see
-// workbench-feed-api.js); it has no home surface (the Calendar tab owns the
-// connector-derived schedule) and is excluded from triage so it shows only as a
-// rail row. Not dead config — do not remove without dropping the feed pathway.
-const TRIAGE_EXCLUDED_GROUPS = new Set(['needs-reply', 'upcoming']);
+// Groups NOT repeated as main-column triage cards. The home is a briefing, not an
+// ops console: unread mail renders as decision cards (WorkbenchDecisions); the
+// recent-ACTIVITY feeds (github notifications, recent Notion pages, recent Drive
+// files) are low-signal context that belongs in the rail, not stacked as a wall
+// of cards in the main column (they were the bulk of the home's noise — e.g. six
+// CI-failure cards). All of these still appear as compact rows in the left rail.
+// 'upcoming' is a LIVE backend-feed rail group (server-advertised calendar/upcoming
+// items — see workbench-feed-api.js); the Calendar tab owns the schedule. The
+// triage still surfaces genuinely-actionable work-STATUS (approvals, blocked,
+// working, ready-to-review, receipts, scheduled).
+// Not dead config — do not remove 'upcoming' without dropping the feed pathway.
+const TRIAGE_EXCLUDED_GROUPS = new Set(['needs-reply', 'upcoming', 'github', 'notion', 'drive']);
 
 // Profile that scopes the rich briefing's "Worth weighing in" radar (role -> domain
 // + the channels the radar may scan). The radar module (workbench-radar.js) is
