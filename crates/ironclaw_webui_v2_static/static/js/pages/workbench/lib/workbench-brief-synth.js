@@ -50,7 +50,23 @@ export function buildBriefSynthesisBundle(briefing, profile = {}) {
   // determines turn latency. A ~1KB bundle converges in ~20s live; a ~3KB bundle
   // overruns the poll window. So clip aggressively + cap counts — enough signal
   // for the model to write context + a reply, not the whole thread (tie-in #7).
-  const needsReply = (Array.isArray(b.replies) ? b.replies : []).slice(0, 4).map((m) => ({
+  // Slack-FIRST "Needs you": threads where you were @-mentioned and owe a reply,
+  // ahead of email replies. Both get a voice-matched suggested reply from the turn.
+  const slackReplies = (Array.isArray(b.slackAwaiting) ? b.slackAwaiting : [])
+    .slice(0, 4)
+    .map((s) => ({
+      id: String(s.id || ''),
+      source: 'Slack',
+      sender: String(s.who || senderName(s) || '').trim(),
+      subject: '',
+      snippet: clip(s.text || s.preview, 220),
+      channel: String(s.channel || '').replace(/^#+/, ''),
+      when: clip(s.when, 40),
+      unread: true,
+      important: false,
+      replyHref: String(s.replyHref || s.permalink || s.link || '')
+    }));
+  const emailReplies = (Array.isArray(b.replies) ? b.replies : []).slice(0, 4).map((m) => ({
     id: String(m.id || m.messageId || m.threadId || ''),
     source: m.channel ? 'Slack' : 'Email',
     sender: senderName(m),
@@ -62,7 +78,22 @@ export function buildBriefSynthesisBundle(briefing, profile = {}) {
     important: Boolean(m.important),
     replyHref: String(m.replyHref || m.gmailHref || m.permalink || m.link || '')
   }));
+  const needsReply = [...slackReplies, ...emailReplies].slice(0, 6);
 
+  // Pre-classified "decision forming, you weren't tagged" Slack threads — the radar
+  // candidates the "Worth weighing in" turn (or its deterministic fallback) enriches.
+  const weighInCandidates = (Array.isArray(b.slackWeighIn) ? b.slackWeighIn : [])
+    .slice(0, 5)
+    .map((s) => ({
+      id: String(s.id || ''),
+      channel: String(s.channel || '').replace(/^#+/, ''),
+      sender: String(s.who || '').trim(),
+      text: clip(s.text || s.preview, 220),
+      link: String(s.replyHref || s.permalink || s.link || '')
+    }));
+
+  // Legacy blocker-search signals — kept as a supplementary radar source for users
+  // whose deep Slack read is unavailable (identity unresolved / search-only grant).
   const slackSignals = (Array.isArray(b.slack) ? b.slack : []).slice(0, 4).map((s) => ({
     id: String(s.id || ''),
     channel: String(s.channel || '').replace(/^#+/, ''),
@@ -90,10 +121,24 @@ export function buildBriefSynthesisBundle(briefing, profile = {}) {
     }))
   };
 
+  // 1-2 short real example replies in the user's own voice; the needsYou turn
+  // few-shots off these so its suggested replies sound like the user, not the model.
+  const voiceSample = (Array.isArray(profile.voiceSample) ? profile.voiceSample : [])
+    .map((v) => clip(v, 400))
+    .filter(Boolean)
+    .slice(0, 2);
+
   return {
-    profile: { name: String(profile.name || '').trim(), title, domain: scope.domain, channels },
+    profile: {
+      name: String(profile.name || '').trim(),
+      title,
+      domain: scope.domain,
+      channels,
+      voiceSample
+    },
     domainTriggers: scope.triggers,
     needsReply,
+    weighInCandidates,
     slackSignals,
     calendar,
     context
@@ -113,9 +158,14 @@ function briefHeader(bundle, profile = {}) {
 // synthesis runs two SMALL turns in parallel. Turn A — "Needs you": just the
 // replies, context + a ready reply per item (the heavy generative part). Pure.
 export function buildNeedsYouPrompt(bundle, profile = {}) {
+  const voiceSample = Array.isArray(bundle?.profile?.voiceSample) ? bundle.profile.voiceSample : [];
+  const voiceLine = voiceSample.length
+    ? `Match the style of these real examples of how I write replies: ${JSON.stringify(voiceSample)}.`
+    : `Write the way I would dash off a quick, decisive Slack reply.`;
   return [
     briefHeader(bundle, profile),
-    `Output ONLY one JSON object (no prose, no code fence): {needsYou:[{id,source:"Email"|"Slack",sender,badges:["Decision"|"FYI"|"time-sensitive"],context:"1-2 sentences on what it is and why it sits on you",suggestedReply:"ready reply in my voice, lowercase-casual, or empty string if no reply is owed",replyHref,bestWindow}]} — one per needsReply item; echo id+replyHref.`,
+    `Output ONLY one JSON object (no prose, no code fence): {needsYou:[{id,source:"Email"|"Slack",sender,badges:["Decision"|"FYI"|"time-sensitive"],context:"2-4 sentences naming the parties, the decision on the table, the current positions, and why it sits on ME specifically",suggestedReply:"a ready reply in MY voice, or empty string if no reply is owed",replyHref,bestWindow}]} — one per needsReply item; echo id+replyHref; never invent a sender or link.`,
+    `The suggestedReply must be in MY voice: all-lowercase, first-person, decisive, a specific position not a hedge. ${voiceLine}`,
     ``,
     `CONTEXT:`,
     JSON.stringify({ profile: bundle.profile, needsReply: bundle.needsReply })
@@ -130,12 +180,34 @@ export function buildNeedsYouPrompt(bundle, profile = {}) {
 // signal + WHY it's mine, and OMITS a "my take" rather than fabricate one without
 // the model. Pure + instant. (A short per-item "take" turn could enrich it later.)
 export function deriveWorthWeighingIn(bundle) {
+  const out = [];
+  const seen = new Set();
+  // Primary: the deep read's pre-classified "decision forming, you weren't tagged"
+  // threads. These are already the right items — no trigger match needed.
+  for (const c of Array.isArray(bundle.weighInCandidates) ? bundle.weighInCandidates : []) {
+    const id = String(c.id || c.link || c.text || '');
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const channel = String(c.channel || '').replace(/^#+/, '');
+    out.push({
+      id,
+      title: clip(c.text, 200),
+      channel,
+      whyYours: `An active decision${channel ? ` in #${channel}` : ''} you weren't tagged on.`,
+      myTake: '',
+      confidence: null,
+      link: String(c.link || '')
+    });
+    if (out.length >= 5) break;
+  }
+  if (out.length) return out;
+  // Fallback (no deep read / identity unresolved): legacy blocker-search signals
+  // that hit the domain's trigger vocabulary. Honest: omits a take rather than
+  // fabricate one, and stays empty when the domain is unknown.
   const triggers = (Array.isArray(bundle.domainTriggers) ? bundle.domainTriggers : []).map((t) =>
     String(t).toLowerCase()
   );
   if (!triggers.length) return [];
-  const out = [];
-  const seen = new Set();
   for (const s of Array.isArray(bundle.slackSignals) ? bundle.slackSignals : []) {
     const text = String(s.text || '').toLowerCase();
     const hit = triggers.find((t) => t && text.includes(t));
@@ -155,6 +227,27 @@ export function deriveWorthWeighingIn(bundle) {
     if (out.length >= 5) break;
   }
   return out;
+}
+
+// Turn B — "Worth weighing in". A SMALL tool-free turn that enriches the 2-5
+// pre-filtered radar candidates with why-it's-mine + a pressure-test take + a
+// confidence. Tiny CONTEXT (~1KB), so it converges in the poll window and runs in
+// PARALLEL with the needsYou turn. On timeout the caller keeps the deterministic
+// candidates (no take, no confidence) — never blocks, never fabricates. Pure.
+export function buildWorthWeighingInPrompt(bundle, candidates, profile = {}) {
+  const rows = (Array.isArray(candidates) ? candidates : []).map((c) => ({
+    id: String(c.id || ''),
+    title: clip(c.title || c.text, 200),
+    channel: String(c.channel || '').replace(/^#+/, ''),
+    link: String(c.link || '')
+  }));
+  return [
+    briefHeader(bundle, profile),
+    `These are active Slack decisions I was NOT tagged on. Output ONLY one JSON object (no prose, no code fence): {worthWeighingIn:[{id,title,channel,whyYours:"why this decision sits in MY domain and on me",take:"my pressure-test position — the risk to flag or the move to make, in my voice",confidence:0-100,link}]} — one per candidate; echo id+link; never invent an item.`,
+    ``,
+    `CONTEXT:`,
+    JSON.stringify({ profile: bundle.profile, candidates: rows })
+  ].join('\n');
 }
 
 // "This week" — forward commitments from the calendar. Deterministic; the move is
@@ -236,7 +329,7 @@ export function parseBriefJson(raw) {
       title: clip(it.title, 240),
       channel: clip(it.channel, 80).replace(/^#+/, ''),
       whyYours: clip(it.whyYours, 600),
-      myTake: clip(it.myTake, 600),
+      myTake: clip(it.myTake || it.take, 600),
       confidence: clampConfidence(it.confidence),
       link: String(it.link || '')
     }));
@@ -262,10 +355,14 @@ export function parseBriefJson(raw) {
     weeklySignals: thisWeek.length
   };
 
+  // Optional one-line meta-summary ("Pulled from … — left those out"). Carried
+  // through when the model supplies one; the orchestrator derives one otherwise.
+  const intro = clip(parsed.intro, 400);
+
   if (!needsYou.length && !worthWeighingIn.length && !thisWeek.length && !bestTimes.length) {
     return null;
   }
-  return { summary, needsYou, worthWeighingIn, thisWeek, bestTimes };
+  return { summary, intro, needsYou, worthWeighingIn, thisWeek, bestTimes };
 }
 
 function readThreadId(thread) {
@@ -309,51 +406,111 @@ async function runSynthesisTurn(prompt, d, sleep, maxTries) {
   return null;
 }
 
-// Orchestrate the briefing as ONE fast LLM turn + deterministic derivation:
-// - needsYou (the replies) is the single LLM turn — the heavy generative part,
-//   which on its own converges in the poll window (~30s live).
-// - worthWeighingIn / thisWeek / bestTimes are DERIVED deterministically (no LLM):
-//   the radar LLM turn was too slow (#7), and the derivations are instant + honest.
-// Returns the merged rich briefing, or null on total failure (caller falls back to
-// the deterministic briefing). `deps` = { createThread, sendMessage, fetchTimeline,
-// sleep?, timezone?, maxTries? }, injected for testability.
-export async function synthesizeBriefing({ briefing, profile, deps } = {}) {
+// Honest one-line provenance ("Pulled from Slack and Email."). Deterministic — lists
+// only the sources that actually contributed; never fabricates "closed loops". Pure.
+export function deriveIntro(bundle) {
+  const sources = [];
+  const seen = new Set();
+  const add = (label) => {
+    if (label && !seen.has(label)) {
+      seen.add(label);
+      sources.push(label);
+    }
+  };
+  for (const r of Array.isArray(bundle.needsReply) ? bundle.needsReply : []) {
+    add(r.source === 'Slack' ? 'Slack' : 'Email');
+  }
+  if ((Array.isArray(bundle.weighInCandidates) ? bundle.weighInCandidates : []).length)
+    add('Slack');
+  if ((Array.isArray(bundle.calendar) ? bundle.calendar : []).length) add('your calendar');
+  if (!sources.length) return '';
+  const joined =
+    sources.length === 1
+      ? sources[0]
+      : `${sources.slice(0, -1).join(', ')} and ${sources[sources.length - 1]}`;
+  return `Pulled from ${joined}.`;
+}
+
+// Orchestrate the briefing as TWO small tool-free turns run in PARALLEL plus
+// deterministic derivation:
+// - needsYou (the replies, voice-matched) — the heavy generative turn.
+// - worthWeighingIn (the radar, enriched with why-it's-mine + a take + confidence)
+//   over the 2-5 pre-filtered candidates — a SMALL turn that converges fast.
+// Promise.allSettled (not all) means a slow/failed radar turn never blocks needsYou,
+// and the radar falls back to the DETERMINISTIC candidates (no take/confidence) — so
+// there is never a regression vs the prior single-turn behaviour. When `onPartial`
+// is supplied, the needsYou half renders the moment turn A lands (deterministic
+// radar), then the enriched radar upgrades it when turn B lands — progressive, so
+// the home fills in ~one turn's time, not the sum. Returns the final merged brief,
+// or null on total failure (caller keeps the deterministic briefing). `deps` =
+// { createThread, sendMessage, fetchTimeline, sleep?, timezone?, maxTries? }.
+export async function synthesizeBriefing({ briefing, profile, deps, onPartial } = {}) {
   const d = deps || {};
   if (!d.createThread || !d.sendMessage || !d.fetchTimeline) return null;
   const bundle = buildBriefSynthesisBundle(briefing, profile || {});
   // Nothing to synthesize from — let the caller show the deterministic briefing.
-  if (!bundle.needsReply.length && !bundle.slackSignals.length && !bundle.calendar.length) {
+  if (!bundle.needsReply.length && !bundle.weighInCandidates.length && !bundle.calendar.length) {
     return null;
   }
   const sleep = d.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const maxTries = Number.isFinite(d.maxTries) ? d.maxTries : 24;
   const p = profile || {};
+  const candidates = deriveWorthWeighingIn(bundle);
+  const thisWeek = deriveThisWeek(bundle);
+  const intro = deriveIntro(bundle);
+  const assemble = (needsYou, worthWeighingIn) => ({
+    summary: {
+      awaitingReply: needsYou.length,
+      flagged: worthWeighingIn.length,
+      weeklySignals: thisWeek.length
+    },
+    intro,
+    needsYou,
+    worthWeighingIn,
+    thisWeek,
+    bestTimes: deriveBestTimes(needsYou)
+  });
   try {
-    const turn = bundle.needsReply.length
-      ? await runSynthesisTurn(buildNeedsYouPrompt(bundle, p), d, sleep, maxTries).catch(() => null)
-      : null;
-    const needsYou = (turn && turn.needsYou) || [];
-    const worthWeighingIn = deriveWorthWeighingIn(bundle);
-    const thisWeek = deriveThisWeek(bundle);
-    const bestTimes = deriveBestTimes(needsYou);
-    // Show the rich brief only when it has SUBSTANTIVE content — the replies or the
-    // radar. thisWeek/bestTimes alone (e.g. the LLM turn failed but the calendar has
-    // events) would be a hollow brief; fall back to the deterministic briefing,
-    // which still shows replies + events.
-    if (!needsYou.length && !worthWeighingIn.length) {
+    // Launch both turns concurrently. Each catches its own failure to null so
+    // allSettled below never lets one turn's error reject the other.
+    const needsYouTurn = bundle.needsReply.length
+      ? runSynthesisTurn(buildNeedsYouPrompt(bundle, p), d, sleep, maxTries).catch(() => null)
+      : Promise.resolve(null);
+    const radarTurn = candidates.length
+      ? runSynthesisTurn(
+          buildWorthWeighingInPrompt(bundle, candidates, p),
+          d,
+          sleep,
+          maxTries
+        ).catch(() => null)
+      : Promise.resolve(null);
+
+    // Progressive render: as soon as the needsYou turn lands, emit the brief with the
+    // DETERMINISTIC radar so the home fills fast; the radar turn upgrades it after.
+    if (typeof onPartial === 'function') {
+      needsYouTurn
+        .then((turn) => {
+          const needsYou = (turn && turn.needsYou) || [];
+          if (needsYou.length || candidates.length) onPartial(assemble(needsYou, candidates));
+        })
+        .catch(() => {});
+    }
+
+    const [aSettled, bSettled] = await Promise.allSettled([needsYouTurn, radarTurn]);
+    const aTurn = aSettled.status === 'fulfilled' ? aSettled.value : null;
+    const bTurn = bSettled.status === 'fulfilled' ? bSettled.value : null;
+    const needsYou = (aTurn && aTurn.needsYou) || [];
+    // Prefer the LLM-enriched radar; fall back to the deterministic candidates so a
+    // non-converging turn B degrades silently (no take/confidence, but real items).
+    const enrichedRadar =
+      bTurn && Array.isArray(bTurn.worthWeighingIn) && bTurn.worthWeighingIn.length
+        ? bTurn.worthWeighingIn
+        : candidates;
+
+    if (!needsYou.length && !enrichedRadar.length) {
       return null;
     }
-    return {
-      summary: {
-        awaitingReply: needsYou.length,
-        flagged: worthWeighingIn.length,
-        weeklySignals: thisWeek.length
-      },
-      needsYou,
-      worthWeighingIn,
-      thisWeek,
-      bestTimes
-    };
+    return assemble(needsYou, enrichedRadar);
   } catch (_) {
     return null;
   }

@@ -20,7 +20,9 @@ import {
 import { useConnectExtension, useExtensions } from '../extensions/hooks/useExtensions.js';
 import { WORKBENCH_AUTO_SOURCE_SCOPE } from './lib/workbench-plan.js';
 import { buildBriefing, isBriefingIntent } from './lib/workbench-briefing.js';
-import { synthesizeBriefing } from './lib/workbench-brief-synth.js';
+// workbench-brief-synth is loaded lazily (dynamic import in runBriefing) so the
+// synthesis engine + its prompts stay out of the cold-start bundle — it is only
+// needed once a catch-up briefing is actually requested.
 import { isSlackBlockerIntent } from './lib/workbench-slack.js';
 import { buildReplyDraft, createdDraftId, draftWriteArguments } from './lib/workbench-draft.js';
 import { generateSuggestedReply } from './lib/workbench-reply.js';
@@ -110,6 +112,14 @@ const WORKBENCH_PROFILE = Object.freeze({
     '#x-nearai-compliance',
     '#kyc_status',
     '#wallet_status'
+  ],
+  // Real examples of how this user writes replies — the needsYou synthesis turn
+  // few-shots off these so suggested replies sound like the user (lowercase, first-
+  // person, a specific legal position), not a generic assistant. TODO: source from
+  // the user's recent sent Slack/email instead of hardcoding.
+  voiceSample: [
+    "fine to match the NF terms, but i'm not signing uncapped liability on directorship services — make the liability cap mutual and carve out gross negligence / wilful misconduct on the indemnities. if they won't move, note the residual exposure and we accept it consciously. hold signature until i've seen the final clause.",
+    "devhub grant terms don't cover this — external BD with full crm access needs at minimum an NDA with a non-solicit over anything in the NF pipeline. don't grant access until that's signed."
   ]
 });
 
@@ -1038,13 +1048,25 @@ export function WorkbenchPage() {
     } catch (_) {
       timezone = undefined;
     }
-    synthesizeBriefing({
-      briefing: det,
-      profile: WORKBENCH_PROFILE,
-      deps: { createThread, sendMessage, fetchTimeline, timezone }
-    }).then((rich) => {
-      if (rich && briefingTokenRef.current === token) setBriefing({ ...rich, kind: 'rich' });
-    });
+    // Lazy-load the synthesis engine so its prompts stay out of the cold bundle.
+    import('./lib/workbench-brief-synth.js')
+      .then(({ synthesizeBriefing }) =>
+        synthesizeBriefing({
+          briefing: det,
+          profile: WORKBENCH_PROFILE,
+          deps: { createThread, sendMessage, fetchTimeline, timezone },
+          // Progressive: render the needsYou half (with the deterministic radar) the
+          // moment turn A lands, then the final upgrades worthWeighingIn when turn B
+          // lands. Both guarded by the token so a stale run can never overwrite a newer.
+          onPartial: (partial) => {
+            if (briefingTokenRef.current === token) setBriefing({ ...partial, kind: 'rich' });
+          }
+        })
+      )
+      .then((rich) => {
+        if (rich && briefingTokenRef.current === token) setBriefing({ ...rich, kind: 'rich' });
+      })
+      .catch(() => {});
   }, [
     connectorInbox.messages,
     connectorCalendar.events,
