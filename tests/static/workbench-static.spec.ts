@@ -2432,6 +2432,19 @@ test('static workbench: a briefing trigger upgrades to the rich five-section bri
   const richBrief = JSON.stringify({
     needsYou: [
       {
+        id: 'slack-carla',
+        source: 'Slack',
+        sender: 'Carla',
+        channel: 'legal',
+        badges: ['Decision', 'time-sensitive'],
+        context:
+          'Carla asked how to approach the Cavenwell directorship negotiation before signing.',
+        suggestedReply:
+          "fine to match the terms, but make the liability cap mutual — hold signature until i've seen the final clause.",
+        replyHref: 'https://near-foundation.slack.com/archives/C1/p1781279600000000',
+        bestWindow: '9-11 AM ET'
+      },
+      {
         id: 'm-unread',
         source: 'Email',
         sender: 'Dana Lee',
@@ -2468,7 +2481,8 @@ test('static workbench: a briefing trigger upgrades to the rich five-section bri
     // "This week"; Best times is derived from the reply windows.
     connectorAccounts: [
       { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
-      { toolkit: 'googlecalendar', status: 'ACTIVE', user_id: 'pg-test' }
+      { toolkit: 'googlecalendar', status: 'ACTIVE', user_id: 'pg-test' },
+      { toolkit: 'slack', status: 'ACTIVE', user_id: 'pg-test' }
     ],
     connectorReads: {
       gmail: {
@@ -2484,6 +2498,25 @@ test('static workbench: a briefing trigger upgrades to the rich five-section bri
               labelIds: ['UNREAD', 'INBOX']
             }
           ]
+        }
+      },
+      // A custody blocker so the deterministic radar has a candidate and the
+      // worthWeighingIn turn fires (its enriched take renders below).
+      SLACK_SEARCH_MESSAGES: {
+        successful: true,
+        data: {
+          messages: {
+            matches: [
+              {
+                iid: 's1',
+                username: 'david',
+                channel: { id: 'C2', name: 'x-intents' },
+                ts: '1781276971.5',
+                text: 'new custody flow for partner funds — need a legal read before we ship.',
+                permalink: 'https://near-foundation.slack.com/archives/C2/p1781276971'
+              }
+            ]
+          }
         }
       },
       GOOGLECALENDAR_EVENTS_LIST: {
@@ -2517,12 +2550,36 @@ test('static workbench: a briefing trigger upgrades to the rich five-section bri
   await expect(brief.getByTestId('workbench-brief-needsyou')).toContainText('Needs you');
   await expect(brief).toContainText('Dana Lee');
   await expect(brief).toContainText('Renewal terms need your sign-off');
-  await expect(brief.getByTestId('workbench-brief-reply')).toHaveValue(/net 45 and an 8% cap/);
+  // Two needsYou items now (Slack first, email second) — each gets its own editable
+  // reply. The Slack reply leads with the user's voice; the email reply follows.
+  await expect(brief.getByTestId('workbench-brief-reply').first()).toHaveValue(
+    /make the liability cap mutual/
+  );
+  await expect(brief.getByTestId('workbench-brief-reply').nth(1)).toHaveValue(
+    /net 45 and an 8% cap/
+  );
   // This week: derived deterministically from the calendar. Best times: from the
   // reply's window. (Worth weighing in is derived from slack domain-triggers — its
   // logic is covered by the deriveWorthWeighingIn unit tests.)
   await expect(brief.getByTestId('workbench-brief-week-section')).toContainText('Regulator call');
   await expect(brief.getByTestId('workbench-brief-besttimes-section')).toContainText('Dana Lee');
+
+  // Deterministic provenance intro under the summary.
+  await expect(brief).toContainText('Pulled from');
+  // Slack-first "Needs you": the Slack item shows #channel · sender and gets the
+  // zero-write Slack actions (Reply-in-Slack opens the thread; Copy-reply copies),
+  // never the Gmail draft button. The email item keeps Save-as-draft.
+  await expect(brief).toContainText('#legal · Carla');
+  await expect(brief.getByTestId('workbench-brief-replyslack')).toHaveAttribute(
+    'href',
+    'https://near-foundation.slack.com/archives/C1/p1781279600000000'
+  );
+  await expect(brief.getByTestId('workbench-brief-copyreply')).toBeVisible();
+  await expect(brief.getByTestId('workbench-brief-savedraft')).toBeVisible();
+  // The radar turn enriched the candidate with a pressure-test take.
+  await expect(brief.getByTestId('workbench-brief-weighin-section')).toContainText(
+    'Take (pressure-test):'
+  );
 });
 
 test('static workbench: a briefing whose synthesis returns no JSON falls back to the deterministic brief', async ({

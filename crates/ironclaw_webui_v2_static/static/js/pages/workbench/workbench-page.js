@@ -1106,6 +1106,10 @@ export function WorkbenchPage() {
   // message by id and open the gated draft modal pre-filled with the edited reply.
   const onBriefDraftReply = React.useCallback(
     ({ item, body } = {}) => {
+      // Defense-in-depth: a Slack item never reaches the Gmail-draft path (the card
+      // shows Reply-in-Slack + Copy-reply for those and never calls this). Slack has
+      // no draft API, so there is nothing gated to open here.
+      if (item?.source === 'Slack') return;
       const id = String(item?.id || '');
       const message = (connectorInbox.messages || []).find(
         (m) => String(m.id || m.messageId || m.threadId || '') === id

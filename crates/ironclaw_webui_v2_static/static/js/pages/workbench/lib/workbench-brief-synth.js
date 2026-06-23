@@ -164,7 +164,7 @@ export function buildNeedsYouPrompt(bundle, profile = {}) {
     : `Write the way I would dash off a quick, decisive Slack reply.`;
   return [
     briefHeader(bundle, profile),
-    `Output ONLY one JSON object (no prose, no code fence): {needsYou:[{id,source:"Email"|"Slack",sender,badges:["Decision"|"FYI"|"time-sensitive"],context:"2-4 sentences naming the parties, the decision on the table, the current positions, and why it sits on ME specifically",suggestedReply:"a ready reply in MY voice, or empty string if no reply is owed",replyHref,bestWindow}]} — one per needsReply item; echo id+replyHref; never invent a sender or link.`,
+    `Output ONLY one JSON object (no prose, no code fence): {needsYou:[{id,source:"Email"|"Slack",sender,channel:"the Slack channel for a Slack item, else empty",badges:["Decision"|"FYI"|"time-sensitive"],context:"2-4 sentences naming the parties, the decision on the table, the current positions, and why it sits on ME specifically",suggestedReply:"a ready reply in MY voice, or empty string if no reply is owed",replyHref,bestWindow}]} — one per needsReply item; echo id+channel+replyHref; never invent a sender or link.`,
     `The suggestedReply must be in MY voice: all-lowercase, first-person, decisive, a specific position not a hedge. ${voiceLine}`,
     ``,
     `CONTEXT:`,
@@ -313,6 +313,7 @@ export function parseBriefJson(raw) {
       id: String(it.id || ''),
       source: it.source === 'Slack' ? 'Slack' : 'Email',
       sender: clip(it.sender, 160),
+      channel: clip(it.channel, 80).replace(/^#+/, ''),
       badges: asArray(it.badges)
         .map((x) => clip(x, 24))
         .filter(Boolean),

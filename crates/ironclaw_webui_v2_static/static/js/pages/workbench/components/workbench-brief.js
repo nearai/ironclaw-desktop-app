@@ -28,15 +28,48 @@ function Badges({ items }) {
   return html`<span className="wb13-brief-rowmeta">${badges.join(' · ')}</span>`;
 }
 
-// One "Needs you" item: who + badges, the context line, and — when a reply is
-// owed — an editable draft (pre-filled with the synthesized suggestion) plus a
-// "Save as draft" action that opens the gated write. Pure FYI items show context
-// + a reply link only. The textarea is local state so the user edits before the
-// gated modal ever opens.
+// Copy the (possibly edited) reply to the clipboard. Best-effort: the async
+// Clipboard API where available, a hidden-textarea execCommand fallback otherwise
+// (non-secure contexts). NEVER posts anything — copy only.
+function copyReplyToClipboard(text) {
+  const value = String(text || '');
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).catch(() => {});
+      return;
+    }
+  } catch (_) {
+    // fall through to the textarea path
+  }
+  try {
+    const area = document.createElement('textarea');
+    area.value = value;
+    area.setAttribute('readonly', '');
+    area.style.position = 'absolute';
+    area.style.left = '-9999px';
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand('copy');
+    document.body.removeChild(area);
+  } catch (_) {
+    // copy is a convenience; a failure is non-fatal
+  }
+}
+
+// One "Needs you" item: who (channel · sender for Slack, source · sender for email)
+// + badges, the context line, and — when a reply is owed — an editable draft. The
+// action branches on source to keep the read-only / gated-write posture intact:
+//   Email -> "Save as draft" opens the reviewable Gmail draft (a Draft-classed write).
+//   Slack -> "Reply in Slack" opens the thread + "Copy reply" copies the text; Slack
+//            has no draft API, so v1 posts NOTHING (no SLACK_POST is wired).
+// The textarea is local state so the user edits before any of that.
 function NeedsYouCard({ item, onDraftReply }) {
   const [body, setBody] = React.useState(item.suggestedReply || '');
   const hasReply = Boolean((item.suggestedReply || '').trim());
-  const who = [item.source, item.sender].filter(Boolean).join(' · ');
+  const isSlack = item.source === 'Slack';
+  const who = isSlack
+    ? [item.channel ? `#${item.channel}` : 'Slack', item.sender].filter(Boolean).join(' · ')
+    : [item.source, item.sender].filter(Boolean).join(' · ');
   return html`
     <div className="wb13-brief-row wb13-brief-needsyou" data-testid="workbench-brief-needsyou-item">
       <div className="wb13-brief-rowmain wb13-brief-needsyou-main">
@@ -53,24 +86,46 @@ function NeedsYouCard({ item, onDraftReply }) {
                 onInput=${(event) => setBody(event.currentTarget.value)}
               ></textarea>
               <div className="wb13-brief-replyactions">
-                ${typeof onDraftReply === 'function'
-                  ? html`<button
-                      type="button"
-                      className="wb13-button is-primary is-sm"
-                      data-testid="workbench-brief-savedraft"
-                      title="Opens a reviewable Gmail draft. Nothing is sent."
-                      onClick=${() => onDraftReply({ item, body })}
-                    >
-                      Save as draft
-                    </button>`
-                  : null}
+                ${isSlack
+                  ? html`${item.replyHref
+                        ? html`<a
+                            className="wb13-button is-primary is-sm"
+                            data-testid="workbench-brief-replyslack"
+                            href=${item.replyHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Opens the Slack thread. Nothing is posted."
+                          >
+                            Reply in Slack
+                          </a>`
+                        : null}
+                      <button
+                        type="button"
+                        className="wb13-button is-sm"
+                        data-testid="workbench-brief-copyreply"
+                        title="Copies the suggested reply. Nothing is posted."
+                        onClick=${() => copyReplyToClipboard(body)}
+                      >
+                        Copy reply
+                      </button>`
+                  : typeof onDraftReply === 'function'
+                    ? html`<button
+                        type="button"
+                        className="wb13-button is-primary is-sm"
+                        data-testid="workbench-brief-savedraft"
+                        title="Opens a reviewable Gmail draft. Nothing is sent."
+                        onClick=${() => onDraftReply({ item, body })}
+                      >
+                        Save as draft
+                      </button>`
+                    : null}
                 ${item.bestWindow
                   ? html`<span className="wb13-brief-rowmeta">Best: ${item.bestWindow}</span>`
                   : null}
               </div>`
           : null}
       </div>
-      ${item.replyHref
+      ${item.replyHref && !isSlack
         ? html`<a
             className="wb13-brief-rowlink"
             href=${item.replyHref}
@@ -97,7 +152,7 @@ function WeighInRow({ item }) {
       ? html`<span className="wb13-brief-rowmeta">Why yours: ${item.whyYours}</span>`
       : null}
     ${item.myTake
-      ? html`<span className="wb13-brief-rowmeta">My take: ${item.myTake}</span>`
+      ? html`<span className="wb13-brief-rowmeta">Take (pressure-test): ${item.myTake}</span>`
       : null}
     ${Number.isFinite(item.confidence)
       ? html`<span className="wb13-brief-rowmeta">confidence ${item.confidence}%</span>`
@@ -182,6 +237,9 @@ export function WorkbenchBrief({ briefing, onDraftReply, onDismiss }) {
         <div className="wb13-brief-headline">
           <div className="wb13-brief-eyebrow">Daily briefing · updated just now</div>
           <h2>${briefSummaryLine(briefing.summary)}</h2>
+          ${briefing.intro
+            ? html`<div className="wb13-brief-intro wb13-brief-rowmeta">${briefing.intro}</div>`
+            : null}
         </div>
         ${typeof onDismiss === 'function'
           ? html`<button
