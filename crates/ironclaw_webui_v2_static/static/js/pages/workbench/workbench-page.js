@@ -48,7 +48,12 @@ import {
 import { WorkbenchColdStart, WorkbenchDecisions } from './components/workbench-arrived.js';
 import { WorkbenchApprove } from './components/workbench-approve.js';
 import { WorkbenchBriefing } from './components/workbench-briefing.js';
-import { WorkbenchBrief } from './components/workbench-brief.js';
+// The rich briefing renders only AFTER a synthesis turn (never on cold start), so
+// lazy-load it to keep its weight out of the cold-start bundle. React.lazy wants a
+// default export, so map the named WorkbenchBrief onto `.default`.
+const WorkbenchBrief = React.lazy(() =>
+  import('./components/workbench-brief.js').then((m) => ({ default: m.WorkbenchBrief }))
+);
 import { WorkbenchSlackBlockers } from './components/workbench-slack-blockers.js';
 import { WorkbenchCommandSurface } from './components/workbench-command.js';
 import { WorkbenchReadingPanel } from './components/workbench-reading-panel.js';
@@ -227,11 +232,13 @@ function HomeView(props) {
             onConnect=${props.onConnectSources}
           />
           ${props.briefing?.kind === 'rich'
-            ? html`<${WorkbenchBrief}
-                briefing=${props.briefing}
-                onDraftReply=${props.onBriefDraftReply}
-                onDismiss=${props.onDismissBriefing}
-              />`
+            ? html`<${React.Suspense} fallback=${null}>
+                <${WorkbenchBrief}
+                  briefing=${props.briefing}
+                  onDraftReply=${props.onBriefDraftReply}
+                  onDismiss=${props.onDismissBriefing}
+                />
+              </${React.Suspense}>`
             : html`<${WorkbenchBriefing}
                 briefing=${props.briefing}
                 onOpenMessage=${props.onOpenMessage}

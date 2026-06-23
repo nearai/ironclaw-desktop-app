@@ -22,6 +22,12 @@ User pushed back hard: the home is a chat box + a thin card list + a 1500px scro
 
 Sequencing (atomic green commits): **1/3 synthesis engine (THIS commit)** → 2/3 rich five-section render w/ inline replies → 3/3 home = briefing-on-open + ops-dump removed + live screenshot.
 
+## WorkbenchBrief lazy-loaded — step 3/3 (LAZY) (`8552c17`)
+
+- React.lazy'd WorkbenchBrief (like CalendarView): it renders only AFTER a synthesis turn (never on cold start), so its weight moved out of the cold-start bundle. Render wrapped in React.Suspense fallback=null. Cold-start **400.3 → 397.3 KB** (reclaimed ~3 KB of headroom under the 401 budget) — unblocks further wiring (step B).
+- Full gate GREEN: static 879, a11y 140 (rich-brief test renders via the lazy chunk, 3.1s), design DT-1..6, smoke.
+- **Next:** (B) auto-run the briefing on open (with a static-fixture opt-out so it doesn't fire synthesis on every page-load test); re-verify the live rich brief once the gateway turn path is healthy (#7).
+
 ## Home ops-dump trimmed — step 3/3 (C) (`f9a2f51`)
 
 - The home's main column was stacking the rail's **recent-activity** feeds as a wall of cards — the bulk of the noise the user saw ("can't see the rest"): ~6 GitHub CI-failure cards + recent Notion/Drive duplication. Added `github`, `notion`, `drive` to `TRIAGE_EXCLUDED_GROUPS` so they show only as compact rows in the left rail (where they belong), not as main-column cards.
