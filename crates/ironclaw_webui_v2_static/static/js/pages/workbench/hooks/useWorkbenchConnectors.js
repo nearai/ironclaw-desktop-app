@@ -9,7 +9,11 @@ import {
   normalizeFullMessage,
   normalizeInboxMessages
 } from '../lib/workbench-connectors.js';
-import { SLACK_BLOCKER_QUERY, normalizeSlackBlockers } from '../lib/workbench-slack.js';
+import {
+  SLACK_BLOCKER_QUERY,
+  fetchSlackDeep,
+  normalizeSlackBlockers
+} from '../lib/workbench-slack.js';
 import {
   DRIVE_FILE_LIMIT,
   normalizeDriveFiles,
@@ -348,6 +352,44 @@ export function useConnectorSlackBlockers({ enabled = false, maxResults = 8 } = 
     isFetching: query.isFetching && Boolean(enabled),
     isError: query.isError,
     enabled: Boolean(enabled)
+  };
+}
+
+// Deep Slack read for the briefing's "Awaiting your reply" + "Worth weighing in"
+// sections. Runs ONLY when a briefing is requested (the `enabled` latch) AND the
+// user's email is known — it needs that email to resolve the signed-in user inside
+// the workspace. The queryFn fans out four READ tools (identity, channels, per-
+// channel history, team domain) through `fetchSlackDeep`, which classifies the
+// result with the pure helpers. Honest degrade: identity unresolved or any read
+// failing collapses to empty arrays, so the page falls back to the blocker list
+// and the surface never fabricates a Slack item. No write tool is ever called.
+export function useConnectorSlackDeep({ enabled = false, email = '', channelLimit = 8 } = {}) {
+  const account = String(email || '').trim();
+  const active = Boolean(enabled) && Boolean(account);
+  const query = useQuery({
+    queryKey: ['workbench-connector-slack-deep', account, channelLimit],
+    enabled: active,
+    staleTime: 60_000,
+    retry: 1,
+    throwOnError: false,
+    queryFn: ({ signal }) =>
+      fetchSlackDeep({
+        email: account,
+        channelLimit,
+        read: (tool, args) =>
+          connectorRead({ toolkit: 'slack', tool, arguments: args, signal }).catch(() => null)
+      })
+  });
+
+  const data = query.data || {};
+  return {
+    awaiting: Array.isArray(data.awaiting) ? data.awaiting : [],
+    weighIn: Array.isArray(data.weighIn) ? data.weighIn : [],
+    selfResolved: Boolean(data.selfResolved),
+    isLoading: (query.isLoading || query.isFetching) && active,
+    isFetching: query.isFetching && active,
+    isError: query.isError,
+    enabled: active
   };
 }
 
