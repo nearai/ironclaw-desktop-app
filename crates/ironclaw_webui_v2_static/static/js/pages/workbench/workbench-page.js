@@ -44,11 +44,7 @@ import {
   useConnectorNotion,
   useConnectorSlackBlockers
 } from './hooks/useWorkbenchConnectors.js';
-import {
-  SourceReadinessStrip,
-  WorkbenchColdStart,
-  WorkbenchDecisions
-} from './components/workbench-arrived.js';
+import { WorkbenchColdStart, WorkbenchDecisions } from './components/workbench-arrived.js';
 import { WorkbenchApprove } from './components/workbench-approve.js';
 import { WorkbenchBriefing } from './components/workbench-briefing.js';
 import { WorkbenchSlackBlockers } from './components/workbench-slack-blockers.js';
@@ -224,7 +220,6 @@ function HomeView(props) {
             onDraftMessage=${props.onDraftMessage}
             onDismiss=${props.onDismissDecision}
           />
-          <${SourceReadinessStrip} families=${props.connectorFamilies} />
           <${WorkbenchSceneWorkspace} work=${props.startedWork} />
           <${TriageSection}
             groups=${props.groups}

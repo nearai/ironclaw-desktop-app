@@ -1394,10 +1394,8 @@ test('static workbench: active connector readiness unblocks manual source choice
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  const sourcesReady = page.getByTestId('workbench-sources-ready');
-  await expect(sourcesReady).toContainText('Gmail');
-  await expect(sourcesReady).toContainText('Drive');
-  await expect(sourcesReady).toContainText('Slack');
+  // Connectors are live once the cold-open yields to the real surface.
+  await expect(page.getByTestId('workbench-coldstart')).toHaveCount(0);
 
   await page
     .getByTestId('workbench-brief-input')
@@ -1823,15 +1821,9 @@ test('static workbench: connector reads drive the readiness strip and Needs-a-de
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  // Source readiness chips reflect only ACTIVE accounts (Notion was INITIATED).
-  const sourcesReady = page.getByTestId('workbench-sources-ready');
-  await expect(sourcesReady).toContainText('Gmail');
-  await expect(sourcesReady).toContainText('Calendar');
-  await expect(sourcesReady).toContainText('Slack');
-  await expect(sourcesReady).toContainText('via Composio');
-  await expect(sourcesReady).not.toContainText('Notion');
-
-  // Unread mail renders as a Needs-a-decision card; read mail does not.
+  // Unread mail renders as a Needs-a-decision card; read mail does not. (Which
+  // accounts read as Ready, incl. INITIATED-not-Ready, is the source-inspector
+  // test's subject.)
   const decisions = page.getByTestId('workbench-decisions');
   await expect(decisions).toBeVisible();
   await expect(decisions).toContainText('Renewal terms for Q3');
@@ -1933,12 +1925,6 @@ test('static workbench: catch-up briefing spans GitHub Drive and Notion from rea
     }
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
-
-  const sourcesReady = page.getByTestId('workbench-sources-ready');
-  await expect(sourcesReady).toContainText('GitHub');
-  await expect(sourcesReady).toContainText('Drive');
-  await expect(sourcesReady).toContainText('Notion');
-  await expect(sourcesReady).toContainText('via Composio');
 
   await expect
     .poll(
@@ -2048,7 +2034,6 @@ test('static workbench: catch-up briefing includes Slack blocker context from a 
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  await expect(page.getByTestId('workbench-sources-ready')).toContainText('Slack');
   // Slack is a first-class rail source now: it reads eagerly on load (read-only),
   // like Gmail/Calendar/GitHub/Drive/Notion, so the "Slack blockers" rail group is
   // populated without a catch-up. Assert the eager read is the read-only blocker
@@ -2137,7 +2122,6 @@ test('static workbench: catch-up briefing waits for in-flight connector reads be
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  await expect(page.getByTestId('workbench-sources-ready')).toContainText('GitHub');
   await expect
     .poll(
       () =>
@@ -2193,11 +2177,6 @@ test('static workbench: catch-up briefing reports source read failures without a
     ]
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
-
-  const sourcesReady = page.getByTestId('workbench-sources-ready');
-  await expect(sourcesReady).toContainText('GitHub');
-  await expect(sourcesReady).toContainText('Drive');
-  await expect(sourcesReady).toContainText('Notion');
 
   await expect
     .poll(
@@ -2281,7 +2260,8 @@ test('static workbench: Slack blocker chip runs a read-only Slack search without
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  await expect(page.getByTestId('workbench-sources-ready')).toContainText('Slack');
+  // Connectors are live once the cold-open yields to the real surface.
+  await expect(page.getByTestId('workbench-coldstart')).toHaveCount(0);
   await page.getByRole('button', { name: 'Find Slack blockers' }).click();
   await page.getByTestId('workbench-send-button').click();
 
@@ -2597,9 +2577,8 @@ test('static workbench: no connected account shows the cold-open, not empty surf
   await page.goto('/v2/workbench?token=workbench-static-token');
 
   await expect(page.getByTestId('workbench-page')).toBeVisible();
-  // No Gmail account → no Needs-a-decision cards; no live source → no readiness strip.
+  // No Gmail account → no Needs-a-decision cards.
   await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
-  await expect(page.getByTestId('workbench-sources-ready')).toHaveCount(0);
   // With no connector live the Workbench would be an empty column; the cold-open
   // takes its place with an anticipatory connect prompt (DESIGN.md Law 1).
   await expect(page.getByTestId('workbench-coldstart')).toBeVisible();

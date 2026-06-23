@@ -50,25 +50,6 @@ export function WorkbenchColdStart({ families, isLoading, onConnect }) {
   `;
 }
 
-// Source-readiness strip: which apps are live "via Composio". Renders nothing
-// until at least one real ACTIVE account is reported (honest: no empty chrome).
-function SourceReadinessStrip({ families }) {
-  if (!families.length) return null;
-  return html`
-    <div className="wb13-sources-ready" data-testid="workbench-sources-ready">
-      ${families.map(
-        (family) => html`
-          <span key=${family.id} className="wb13-source-ready">
-            <${Icon} name=${family.icon} />
-            <span className="wb13-source-ready-name">${family.label}</span>
-            <span className="wb13-source-ready-via">Ready · via ${family.via}</span>
-          </span>
-        `
-      )}
-    </div>
-  `;
-}
-
 function openMessage(onOpenMessage, message) {
   if (typeof onOpenMessage !== 'function') return;
   onOpenMessage(message);
@@ -198,5 +179,3 @@ export function WorkbenchDecisions({
     </div>
   `;
 }
-
-export { SourceReadinessStrip };

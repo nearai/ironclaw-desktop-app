@@ -596,27 +596,6 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   font-size: 12.5px;
   line-height: 1.5;
 }
-.wb13-sources-ready {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 22px;
-}
-.wb13-source-ready {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--wb-good-tint);
-  background: var(--wb-good-tint);
-  color: var(--wb-good-text);
-  border-radius: 999px;
-  padding: 6px 11px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.wb13-source-ready svg { width: 14px; height: 14px; }
-.wb13-source-ready-name { color: var(--wb-ink-2); font-weight: 700; }
-.wb13-source-ready-via { color: var(--wb-good-text); font-weight: 600; }
 .wb13-coldstart {
   margin-top: 28px;
   padding: 26px 26px 24px;
