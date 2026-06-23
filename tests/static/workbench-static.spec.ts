@@ -1765,7 +1765,7 @@ test('static workbench on mobile: no overflow and primary controls clear 44px', 
   }
 });
 
-test('static workbench: connector inbox renders real sender + subject from Composio reads', async ({
+test('static workbench: connector reads drive the readiness strip and Needs-a-decision cards', async ({
   page
 }) => {
   const consoleIssues: string[] = [];
@@ -1831,18 +1831,14 @@ test('static workbench: connector inbox renders real sender + subject from Compo
   await expect(sourcesReady).toContainText('via Composio');
   await expect(sourcesReady).not.toContainText('Notion');
 
-  // The Arrived surface renders the real inbox sender + subject lines.
-  const arrived = page.getByTestId('workbench-arrived');
-  await expect(arrived).toBeVisible();
-  await expect(arrived).toContainText('Dana Lee');
-  await expect(arrived).toContainText('Renewal terms for Q3');
-  await expect(arrived).toContainText('GitHub');
-  await expect(arrived).toContainText('PR #482 was merged');
-  await expect(arrived).toContainText('Unread');
-  await expect(arrived).toContainText('1 unread · 2 recent');
+  // Unread mail renders as a Needs-a-decision card; read mail does not.
+  const decisions = page.getByTestId('workbench-decisions');
+  await expect(decisions).toBeVisible();
+  await expect(decisions).toContainText('Renewal terms for Q3');
+  await expect(decisions).not.toContainText('PR #482 was merged');
 
-  // Clicking an inbox row opens the reading panel with the real full message.
-  await arrived.getByTestId('workbench-arrived-open').first().click();
+  // Clicking the decision opens the reading panel with the real full message.
+  await decisions.getByTestId('workbench-decision-open').first().click();
   const panel = page.getByTestId('workbench-reading-panel');
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId('workbench-reading-panel-subject')).toContainText(
@@ -2555,11 +2551,10 @@ test('static workbench: no unread mail hides the Needs a decision cards', async 
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  await expect(page.getByTestId('workbench-arrived')).toBeVisible();
   await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
 });
 
-test('static workbench: no calendar account hides Upcoming with no console errors', async ({
+test('static workbench: a live connector with an empty inbox hides the cold-open without console errors', async ({
   page
 }) => {
   const consoleIssues: string[] = [];
@@ -2578,14 +2573,14 @@ test('static workbench: no calendar account hides Upcoming with no console error
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  await expect(page.getByTestId('workbench-arrived')).toBeVisible();
-  await expect(page.getByTestId('workbench-upcoming')).toHaveCount(0);
-  // A live connector means the cold-open must yield to the real surface.
+  // A live connector means the cold-open yields to the real surface, and an
+  // empty inbox fabricates no decision cards.
   await expect(page.getByTestId('workbench-coldstart')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
   expect(consoleIssues).toEqual([]);
 });
 
-test('static workbench: no Gmail account hides Arrived with no console errors', async ({
+test('static workbench: no connected account shows the cold-open, not empty surfaces', async ({
   page
 }) => {
   const consoleIssues: string[] = [];
@@ -2602,7 +2597,8 @@ test('static workbench: no Gmail account hides Arrived with no console errors', 
   await page.goto('/v2/workbench?token=workbench-static-token');
 
   await expect(page.getByTestId('workbench-page')).toBeVisible();
-  await expect(page.getByTestId('workbench-arrived')).toHaveCount(0);
+  // No Gmail account → no Needs-a-decision cards; no live source → no readiness strip.
+  await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
   await expect(page.getByTestId('workbench-sources-ready')).toHaveCount(0);
   // With no connector live the Workbench would be an empty column; the cold-open
   // takes its place with an anticipatory connect prompt (DESIGN.md Law 1).
@@ -2635,10 +2631,9 @@ test('static workbench: connector read failure degrades honestly without fabrica
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  const arrived = page.getByTestId('workbench-arrived');
-  await expect(arrived).toBeVisible();
-  await expect(arrived).toContainText('Could not read the inbox right now');
-  await expect(page.getByTestId('workbench-arrived-list')).toHaveCount(0);
+  // A failed inbox read fabricates no decision cards. The briefing carries the
+  // honest source-read-failure notice (see the briefing source-problems test).
+  await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
   expect(appConsoleIssues).toEqual([]);
 });
 
@@ -2948,7 +2943,7 @@ test('static workbench: Gmail draft write failure stays in the review modal with
   ).toEqual([]);
 });
 
-test('static workbench: email rows expose Gmail links and decision drafts stay in-app', async ({
+test('static workbench: decision card drafts open the gated in-app modal, not an external compose', async ({
   page
 }) => {
   await installWorkbenchMocks(page, {
@@ -2973,13 +2968,6 @@ test('static workbench: email rows expose Gmail links and decision drafts stay i
     }
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
-
-  // The Arrived inbox row exposes an "Open in Gmail" external link.
-  const arrived = page.getByTestId('workbench-arrived');
-  await expect(arrived.getByTestId('workbench-arrived-gmail').first()).toHaveAttribute(
-    'href',
-    'https://mail.google.com/mail/u/0/#all/thread-unread'
-  );
 
   // The decision card draft action opens the gated in-app draft modal, not an
   // external Gmail compose URL.

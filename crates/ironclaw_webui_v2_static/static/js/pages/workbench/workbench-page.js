@@ -46,7 +46,6 @@ import {
 } from './hooks/useWorkbenchConnectors.js';
 import {
   SourceReadinessStrip,
-  WorkbenchArrived,
   WorkbenchColdStart,
   WorkbenchDecisions
 } from './components/workbench-arrived.js';
@@ -73,10 +72,12 @@ import { WorkbenchSourcesInspector } from './components/workbench-sources-inspec
 import { WorkModeInspector } from './components/workbench-work-mode.js';
 import { WORKBENCH_STYLE } from './workbench-styles.js';
 
-// Groups that have a dedicated, richer main-column surface and so are not
-// repeated as triage cards: unread mail renders as decision cards
-// (WorkbenchDecisions) and calendar events render in the Upcoming card
-// (WorkbenchUpcoming). They still appear as compact rows in the rail.
+// Groups with a dedicated, richer main-column surface are not also repeated as
+// triage cards: unread mail renders as decision cards (WorkbenchDecisions) and
+// still appears as a compact row in the rail. 'upcoming' is a legacy backend-
+// feed group with no home surface (the Calendar tab owns the schedule); it is
+// kept excluded defensively while it remains in WORKBENCH_FEED_GROUPS (tracked
+// for its own dead-config cleanup pass).
 const TRIAGE_EXCLUDED_GROUPS = new Set(['needs-reply', 'upcoming']);
 
 function TriageSection({ groups, hasDecisions = false }) {
@@ -224,13 +225,6 @@ function HomeView(props) {
             onDismiss=${props.onDismissDecision}
           />
           <${SourceReadinessStrip} families=${props.connectorFamilies} />
-          <${WorkbenchArrived}
-            gmailReady=${props.gmailReady}
-            messages=${props.inboxMessages}
-            isLoading=${props.inboxLoading}
-            isError=${props.inboxError}
-            onOpenMessage=${props.onOpenMessage}
-          />
           <${WorkbenchSceneWorkspace} work=${props.startedWork} />
           <${TriageSection}
             groups=${props.groups}
@@ -1170,10 +1164,7 @@ export function WorkbenchPage() {
                   connectorsLoading=${connectedAccounts.isLoading}
                   onConnectSources=${() => setShowSources(true)}
                   gmailReady=${connectedAccounts.gmailReady}
-                  inboxMessages=${connectorInbox.messages}
                   decisionMessages=${triageInbox}
-                  inboxLoading=${connectorInbox.isLoading}
-                  inboxError=${connectorInbox.isError}
                   calendarReady=${connectedAccounts.calendarReady}
                   calendarEvents=${connectorCalendar.events}
                   calendarError=${connectorCalendar.isError}

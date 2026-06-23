@@ -14,6 +14,15 @@ Mandated per-tick validation, run end-to-end after 8 triage ticks. Both gates gr
 - Foundation proven for the first test user: live connectors + enforced gated writes + completing agent turns + newsletter suppression.
 - Next: P2 verb depth (DOCX legal templates / research when web-search cred lands) or UX polish; own-repo extraction on your sign-off.
 
+## Home cruft cut — surface 2/3: Arrived removed (`de22156`)
+
+- **Arrived** is gone ("arrived? why do i need this?"). The "Needs a decision" cards already surface unread mail that needs a reply, and the reading panel already carries the full message + Gmail deep-link — a separate read-only inbox list was redundant. Removed `WorkbenchArrived` + `InboxRow`, the HomeView render, and the now-dead `inboxMessages`/`inboxLoading`/`inboxError` props (the inbox read still feeds Decisions + the briefing).
+- Also swept the **dead orphans** the surface-1 commit left behind: `WorkbenchUpcoming` + `EventRow` (no longer imported/rendered) and unused imports (`cn`, `gmailMessageHref`, `unreadInboxCount`).
+- **Re-homed every guarantee** rather than dropping tests (6 spec edits): inbox-renders + click→reading-panel → Decisions; INITIATED-not-Ready → kept; no-Gmail/empty/read-failure → Decisions count-0; Gmail deep-link → already in the reading-panel test; in-app gated draft → kept verbatim.
+- Full gate GREEN: static 869/0, a11y 138, design DT-1..6, smoke, cold-start 396.1<401 (−0.7 KB). Live standalone DOM: arrived 0 / upcoming 0 / decisions 1 / sources-ready 1 / coldstart 0; screenshot confirms v13 fidelity (serif, blue #1c63d6, dark dock, real rail). Evidence: docs/design/evidence/home-cut-arrived-20260623.md.
+- **Deferred (own bounded tick):** the lingering dead 'upcoming' config chain (FEED_GROUPS + feed-api map + TRIAGE_EXCLUDED + shell dot) — internally consistent, so removing only part changes behavior; cut it whole later.
+- **Next surface 3/3:** connector-health (`SourceReadinessStrip`) — "connector health? why is it in here?" Then relabel "Needs a decision" toward the briefing's "Needs you".
+
 ## Home cruft cut — surface 1/3: Upcoming removed (`6f7ed36`)
 
 - The user named three cruft surfaces (connector-health, Arrived, Upcoming). A single big-bang cut of all three broke **13 a11y + 1 static** test at once — too much to land green safely. Revised plan: **one clean surface per tick** (each surface's tests are disjoint, so no double-churn). NO-REGRESSIONS over speed.
