@@ -100,29 +100,44 @@ export function buildBriefSynthesisBundle(briefing, profile = {}) {
   };
 }
 
-// The synthesis prompt. Strict honesty contract: only the provided data, echo ids
-// + links, no fabricated senders/links, suggestedReply only when a reply is
-// genuinely owed, the radar only from the user's own channels within the domain.
-// Output is ONLY the JSON object. Pure.
-export function buildBriefSynthesisPrompt(bundle, profile = {}) {
+function briefHeader(bundle, profile = {}) {
   const name = String(profile.name || bundle?.profile?.name || '').trim();
   const title = String(profile.title || bundle?.profile?.title || '').trim();
   const who = [name, title].filter(Boolean).join(', ');
-  const domain = bundle?.profile?.domain || 'my role';
-  // Terse schema on purpose: the prompt length (instructions + context) drives the
-  // turn's latency, and a compact spec converges fast while still pinning the
-  // exact keys (validated live — a ~1KB prompt returns clean JSON in ~20s).
+  return `You are ${who || 'the user'}'s chief of staff writing their morning briefing. Use ONLY the CONTEXT JSON — never invent a sender, link, or item.`;
+}
+
+// THE SPLIT (validated live): one turn that writes ALL five sections overruns the
+// poll window for a realistic inbox (~3.8KB prompt, the heavy output is the
+// several in-voice replies), while each HALF on its own converges (~30-38s). So
+// synthesis runs two SMALL turns in parallel. Turn A — "Needs you": just the
+// replies, context + a ready reply per item (the heavy generative part). Pure.
+export function buildNeedsYouPrompt(bundle, profile = {}) {
   return [
-    `You are ${who || 'the user'}'s chief of staff writing their morning briefing. Use ONLY the CONTEXT JSON — never invent a sender, link, or item.`,
-    `Output ONLY one JSON object (no prose, no code fence) with these keys:`,
-    `summary:{awaitingReply:int,flagged:int,weeklySignals:int}`,
-    `needsYou:[{id,source:"Email"|"Slack",sender,badges:["Decision"|"FYI"|"time-sensitive"],context:"1-2 sentences on what it is and why it sits on you",suggestedReply:"ready reply in my voice, lowercase-casual, or empty string if no reply is owed",replyHref,bestWindow}] — one per needsReply item; echo id+replyHref.`,
-    `worthWeighingIn:[{id,title,channel,whyYours,myTake:"a pressure-test, not advice",confidence:0-100,link}] — ONLY slackSignals in my channels where a decision is forming in my domain (${domain}) and I was NOT tagged; else [].`,
-    `thisWeek:[{id,title,yourMove,priority:"high"|"med"}] from calendar+signals. bestTimes:[{person,window}] from the data only.`,
-    `summary counts must equal the array lengths.`,
+    briefHeader(bundle, profile),
+    `Output ONLY one JSON object (no prose, no code fence): {needsYou:[{id,source:"Email"|"Slack",sender,badges:["Decision"|"FYI"|"time-sensitive"],context:"1-2 sentences on what it is and why it sits on you",suggestedReply:"ready reply in my voice, lowercase-casual, or empty string if no reply is owed",replyHref,bestWindow}]} — one per needsReply item; echo id+replyHref.`,
     ``,
     `CONTEXT:`,
-    JSON.stringify(bundle)
+    JSON.stringify({ profile: bundle.profile, needsReply: bundle.needsReply })
+  ].join('\n');
+}
+
+// Turn B — the radar + week + best-times. Small output (no long replies), runs in
+// parallel with Turn A over only the slack/calendar/work-status context. Pure.
+export function buildRadarPrompt(bundle, profile = {}) {
+  const domain = bundle?.profile?.domain || 'my role';
+  return [
+    briefHeader(bundle, profile),
+    `Output ONLY one JSON object (no prose, no code fence) with: worthWeighingIn:[{id,title,channel,whyYours,myTake:"a pressure-test, not advice",confidence:0-100,link}] — ONLY slackSignals in my channels where a decision is forming in my domain (${domain}) and I was NOT tagged; else []. thisWeek:[{id,title,yourMove,priority:"high"|"med"}] from calendar+signals. bestTimes:[{person,window}] from the data only.`,
+    ``,
+    `CONTEXT:`,
+    JSON.stringify({
+      profile: bundle.profile,
+      domainTriggers: bundle.domainTriggers,
+      slackSignals: bundle.slackSignals,
+      calendar: bundle.calendar,
+      context: bundle.context
+    })
   ].join('\n');
 }
 
@@ -235,12 +250,29 @@ function latestAssistantText(timelineData) {
   return '';
 }
 
-// Orchestrate the synthesis: create a thread, send the (tool-free) synthesis
-// prompt, poll the timeline until the assistant replies, parse the JSON. Returns
-// the rich briefing object, or null on any failure/timeout (caller falls back to
-// the deterministic briefing). `deps` = { createThread, sendMessage,
-// fetchTimeline, sleep?, timezone?, maxTries? } — injected so this is testable
-// without a live gateway.
+// One tool-free turn: create a thread, send the prompt, poll the timeline until
+// the assistant replies, parse the JSON. Returns the parsed object or null.
+async function runSynthesisTurn(prompt, d, sleep, maxTries) {
+  const thread = await d.createThread({});
+  const threadId = readThreadId(thread);
+  if (!threadId) return null;
+  await d.sendMessage({ threadId, content: prompt, timezone: d.timezone });
+  for (let i = 0; i < maxTries; i++) {
+    await sleep(2000);
+    const tl = await d.fetchTimeline({ threadId, limit: 20 });
+    const parsed = parseBriefJson(latestAssistantText(tl));
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
+// Orchestrate the synthesis as TWO SMALL PARALLEL turns (see buildNeedsYouPrompt):
+// the replies turn and the radar/week/times turn each fit the poll window, while
+// one combined turn overran it for a realistic inbox. Returns the merged rich
+// briefing, or null on total failure (caller falls back to the deterministic
+// briefing). A PARTIAL result — one turn succeeds, the other times out — still
+// beats falling all the way back. `deps` = { createThread, sendMessage,
+// fetchTimeline, sleep?, timezone?, maxTries? }, injected for testability.
 export async function synthesizeBriefing({ briefing, profile, deps } = {}) {
   const d = deps || {};
   if (!d.createThread || !d.sendMessage || !d.fetchTimeline) return null;
@@ -249,21 +281,36 @@ export async function synthesizeBriefing({ briefing, profile, deps } = {}) {
   if (!bundle.needsReply.length && !bundle.slackSignals.length && !bundle.calendar.length) {
     return null;
   }
-  const prompt = buildBriefSynthesisPrompt(bundle, profile || {});
   const sleep = d.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const maxTries = Number.isFinite(d.maxTries) ? d.maxTries : 24;
+  const p = profile || {};
   try {
-    const thread = await d.createThread({});
-    const threadId = readThreadId(thread);
-    if (!threadId) return null;
-    await d.sendMessage({ threadId, content: prompt, timezone: d.timezone });
-    for (let i = 0; i < maxTries; i++) {
-      await sleep(2000);
-      const tl = await d.fetchTimeline({ threadId, limit: 20 });
-      const parsed = parseBriefJson(latestAssistantText(tl));
-      if (parsed) return parsed;
+    const needsYouTask = bundle.needsReply.length
+      ? runSynthesisTurn(buildNeedsYouPrompt(bundle, p), d, sleep, maxTries).catch(() => null)
+      : Promise.resolve(null);
+    const radarTask =
+      bundle.slackSignals.length || bundle.calendar.length || bundle.context.attention.length
+        ? runSynthesisTurn(buildRadarPrompt(bundle, p), d, sleep, maxTries).catch(() => null)
+        : Promise.resolve(null);
+    const [a, b] = await Promise.all([needsYouTask, radarTask]);
+    const needsYou = (a && a.needsYou) || [];
+    const worthWeighingIn = (b && b.worthWeighingIn) || [];
+    const thisWeek = (b && b.thisWeek) || [];
+    const bestTimes = (b && b.bestTimes) || [];
+    if (!needsYou.length && !worthWeighingIn.length && !thisWeek.length && !bestTimes.length) {
+      return null;
     }
-    return null;
+    return {
+      summary: {
+        awaitingReply: needsYou.length,
+        flagged: worthWeighingIn.length,
+        weeklySignals: thisWeek.length
+      },
+      needsYou,
+      worthWeighingIn,
+      thisWeek,
+      bestTimes
+    };
   } catch (_) {
     return null;
   }

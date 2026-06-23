@@ -3,7 +3,8 @@ import test from 'node:test';
 
 import {
   buildBriefSynthesisBundle,
-  buildBriefSynthesisPrompt,
+  buildNeedsYouPrompt,
+  buildRadarPrompt,
   parseBriefJson,
   synthesizeBriefing
 } from './workbench-brief-synth.js';
@@ -80,17 +81,30 @@ test('buildBriefSynthesisBundle clips long bodies so the turn stays short', () =
   );
 });
 
-test('buildBriefSynthesisPrompt states the JSON shape, the domain lens, and the output-only rule', () => {
+test('buildNeedsYouPrompt is the replies-only turn: needsYou schema + inbox data, no radar', () => {
   const bundle = buildBriefSynthesisBundle(SAMPLE_BRIEFING, PROFILE);
-  const p = buildBriefSynthesisPrompt(bundle, PROFILE);
+  const p = buildNeedsYouPrompt(bundle, PROFILE);
   assert.match(p, /needsYou/);
+  assert.match(p, /Chief Legal Officer/);
+  assert.match(p, /Output ONLY one JSON object/i);
+  assert.ok(p.includes('Dana Lee'), 'the inbox context is embedded');
+  assert.doesNotMatch(
+    p,
+    /worthWeighingIn/,
+    'the radar is a separate turn — keeps this prompt small'
+  );
+});
+
+test('buildRadarPrompt is the radar/week/times turn, scoped to my domain + channels', () => {
+  const bundle = buildBriefSynthesisBundle(SAMPLE_BRIEFING, PROFILE);
+  const p = buildRadarPrompt(bundle, PROFILE);
   assert.match(p, /worthWeighingIn/);
   assert.match(p, /thisWeek/);
   assert.match(p, /bestTimes/);
-  assert.match(p, /Chief Legal Officer/);
-  assert.match(p, /Output ONLY one JSON object/i);
   assert.match(p, /NOT tagged/i, 'radar instruction: only decisions I was not tagged on');
-  assert.ok(p.includes('Dana Lee'), 'the bundle data is embedded in the prompt');
+  assert.match(p, /\blegal\b/, 'scoped to my resolved domain');
+  assert.doesNotMatch(p, /needsYou/, 'replies are a separate turn');
+  assert.ok(p.includes('David Mirzadeh'), 'the slack-signal context is embedded');
 });
 
 test('parseBriefJson extracts JSON from a fenced/prose reply and normalizes every field', () => {
@@ -162,9 +176,11 @@ test('parseBriefJson returns null on non-JSON or an entirely-empty briefing (cal
   );
 });
 
-test('synthesizeBriefing orchestrates create -> send -> poll -> parse and returns the rich briefing', async () => {
+test('synthesizeBriefing runs the two split turns in parallel and merges them', async () => {
   const sent = [];
-  const richJson = JSON.stringify({
+  const byThread = {};
+  let threadN = 0;
+  const needsYouJson = JSON.stringify({
     needsYou: [
       {
         id: 'm1',
@@ -175,35 +191,51 @@ test('synthesizeBriefing orchestrates create -> send -> poll -> parse and return
         suggestedReply: 'net 45 works.',
         replyHref: 'https://mail.google.com/x'
       }
+    ]
+  });
+  const radarJson = JSON.stringify({
+    worthWeighingIn: [
+      {
+        id: 's1',
+        title: 'AML posture',
+        channel: 'x-intents',
+        whyYours: 'a legal read',
+        myTake: 'a short memo',
+        confidence: 70,
+        link: 'https://slack.example/p1'
+      }
     ],
-    worthWeighingIn: [],
-    thisWeek: [],
-    bestTimes: []
+    thisWeek: [{ id: 'w1', title: 'Launch', yourMove: 'lock the gate', priority: 'high' }],
+    bestTimes: [{ person: 'David', window: 'now' }]
   });
   const deps = {
-    createThread: async () => ({ thread: { thread_id: 'T1' } }),
+    // Distinct thread per turn; the timeline reply is chosen by which prompt that
+    // thread received — robust to the two turns running concurrently.
+    createThread: async () => ({ thread: { thread_id: `T${++threadN}` } }),
     sendMessage: async (args) => {
       sent.push(args);
+      byThread[args.threadId] = String(args.content || '');
       return { status: 'Queued' };
     },
-    fetchTimeline: async () => ({
-      messages: [
-        { kind: 'user', content: 'prompt' },
-        { kind: 'assistant', content: richJson }
-      ]
-    }),
+    fetchTimeline: async ({ threadId }) => {
+      const isRadar = /worthWeighingIn/.test(byThread[threadId] || '');
+      return { messages: [{ kind: 'assistant', content: isRadar ? radarJson : needsYouJson }] };
+    },
     sleep: async () => {},
     maxTries: 3
   };
   const out = await synthesizeBriefing({ briefing: SAMPLE_BRIEFING, profile: PROFILE, deps });
-  assert.ok(out, 'returns the parsed briefing');
-  assert.equal(out.needsYou[0].suggestedReply, 'net 45 works.');
-  assert.match(
-    sent[0].content,
-    /Renewal terms for Q3/,
-    'the inbox context rode into the synthesis prompt'
+  assert.ok(out, 'returns the merged briefing');
+  assert.equal(out.needsYou[0].suggestedReply, 'net 45 works.', 'needsYou from the replies turn');
+  assert.equal(out.worthWeighingIn[0].title, 'AML posture', 'radar from the second turn');
+  assert.equal(out.thisWeek[0].yourMove, 'lock the gate');
+  assert.equal(out.bestTimes[0].person, 'David');
+  assert.deepEqual(out.summary, { awaitingReply: 1, flagged: 1, weeklySignals: 1 });
+  assert.equal(sent.length, 2, 'exactly two turns');
+  assert.ok(
+    sent.some((m) => /Renewal terms for Q3/.test(m.content)),
+    'the inbox context rode into the replies turn'
   );
-  assert.equal(sent[0].threadId, 'T1');
 });
 
 test('synthesizeBriefing returns null on missing deps, empty bundle, or timeout (never fabricates)', async () => {

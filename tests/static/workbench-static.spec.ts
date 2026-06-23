@@ -2446,7 +2446,13 @@ test('static workbench: a briefing trigger upgrades to the rich five-section bri
     bestTimes: [{ person: 'David Mirzadeh', window: 'now' }]
   });
   await installWorkbenchMocks(page, {
-    connectorAccounts: [{ toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' }],
+    // Gmail feeds the "Needs you" (replies) turn; Calendar gives the radar/week
+    // turn something to run on — synthesis is two parallel turns, and the radar
+    // turn only fires when there is slack/calendar/work-status context.
+    connectorAccounts: [
+      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
+      { toolkit: 'googlecalendar', status: 'ACTIVE', user_id: 'pg-test' }
+    ],
     connectorReads: {
       gmail: {
         successful: true,
@@ -2459,6 +2465,18 @@ test('static workbench: a briefing trigger upgrades to the rich five-section bri
               subject: 'Renewal terms for Q3',
               snippet: 'We would like net 60.',
               labelIds: ['UNREAD', 'INBOX']
+            }
+          ]
+        }
+      },
+      GOOGLECALENDAR_EVENTS_LIST: {
+        successful: true,
+        data: {
+          items: [
+            {
+              id: 'evt-1',
+              summary: 'Regulator call — Bermuda',
+              start: { dateTime: '2026-06-23T17:30:00Z' }
             }
           ]
         }

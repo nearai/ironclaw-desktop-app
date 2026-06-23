@@ -22,6 +22,13 @@ User pushed back hard: the home is a chat box + a thin card list + a 1500px scro
 
 Sequencing (atomic green commits): **1/3 synthesis engine (THIS commit)** → 2/3 rich five-section render w/ inline replies → 3/3 home = briefing-on-open + ops-dump removed + live screenshot.
 
+## Synthesis SPLIT into two parallel turns — the live-latency fix (`8afeecf`)
+
+- **Per-turn fast model is blocked** (gateway WebUiSendMessageRequest has no model field → needs a gateway-crate change + sidecar rebuild). So took the SPLIT path (option 2), which the live data validates: a needsYou-only turn (4 replies) converged ~30-38s in-window, while one combined all-5-sections turn overran (>56s) — **output volume** is the driver.
+- `synthesizeBriefing` now runs **two SMALL parallel turns** and merges: Turn A `buildNeedsYouPrompt` (just the replies → context + ready reply, the heavy generative part), Turn B `buildRadarPrompt` (worthWeighingIn + thisWeek + bestTimes over slack/calendar/work-status only). Each fits the poll window; a PARTIAL result (one turn succeeds) still beats falling back. Turn B only fires when there's radar input (slack/calendar/attention).
+- Tests updated: split-prompt builders (buildNeedsYouPrompt replies-only, buildRadarPrompt domain-scoped), the orchestrator test exercises both turns + the merge (distinct mock thread per turn, JSON chosen by prompt), and the a11y rich-brief test now seeds a calendar event so the radar turn runs. Engine 8/8, full gate green (static 880, a11y 140, design DT-1..6, smoke, cold-start 397.0).
+- **Next:** live-validate BOTH turns converge in-window via curl (real prompts), then the live UI screenshot (fresh preview server to dodge the unhashed-bundle cache).
+
 ## Synthesis latency CHARACTERIZED — terse schema + dropped context (`17247b9`)
 
 - **Decisive live measurement (curl, bypassing the browser cache):** the synthesis turn latency scales STEEPLY with prompt+output size on this gateway/model (z-ai/glm-5.2): a ~1.1KB prompt converges in ~20s with perfect JSON, but a realistic ~3.8KB prompt produced NO reply even at 56s. **Correction to the prior commit's claim:** clip-tightening alone did NOT make realistic briefings fit the poll window — a real inbox (4+ detailed items) is inherently ~3.8KB.
