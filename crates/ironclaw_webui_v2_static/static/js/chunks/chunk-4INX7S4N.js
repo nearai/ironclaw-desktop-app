@@ -1,4 +1,4 @@
-import{j as h}from"./chunk-NLGAQ5GP.js";var a={attach:h`<path
+import{c as h}from"./chunk-IG4LZQG4.js";var a={attach:h`<path
     d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"
   />`,bolt:h`<path d="M13 2.8 5.8 13h5.1L10 21.2 18.2 10h-5.4L13 2.8Z" />`,calendar:h`<path d="M6.5 4.5v3M17.5 4.5v3" /><path d="M4.5 7h15v12.5h-15V7Z" /><path
       d="M4.5 10.5h15"
