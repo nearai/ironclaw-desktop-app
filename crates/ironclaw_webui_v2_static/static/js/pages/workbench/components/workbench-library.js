@@ -2,6 +2,7 @@ import { Link } from 'react-router';
 
 import { Icon } from '../../../design-system/icons.js';
 import { React, html } from '../../../lib/html.js';
+import { readLibraryItems, removeLibraryItem } from '../lib/workbench-library-store.js';
 import { firstArtifact, savedWorkHref } from '../lib/workbench-work-items.js';
 
 const DEFAULT_SAVED_WORK_SNAPSHOT = Object.freeze({
@@ -13,16 +14,26 @@ const DEFAULT_SAVED_WORK_SNAPSHOT = Object.freeze({
 
 export function LibraryView({ savedItems, savedWorkSnapshot, onView }) {
   const [query, setQuery] = React.useState('');
+  // Work you've kept on this device (e.g. a brief you exported), persisted locally.
+  const [saved, setSaved] = React.useState(() => readLibraryItems());
   const source = savedWorkSnapshot || DEFAULT_SAVED_WORK_SNAPSHOT;
+  const needle = query.trim().toLowerCase();
+
   const artifactRows = (Array.isArray(savedItems) ? savedItems : [])
     .map((item) => ({ item, artifact: firstArtifact(item) }))
     .filter((row) => row.artifact);
-  const visible = artifactRows.filter(({ item, artifact }) => {
+  const visibleArtifacts = artifactRows.filter(({ item, artifact }) => {
     const haystack = `${item?.title || ''} ${artifact?.title || ''} ${
       artifact?.filename || ''
     }`.toLowerCase();
-    return !query || haystack.includes(query.toLowerCase());
+    return !needle || haystack.includes(needle);
   });
+  const visibleSaved = saved.filter(
+    (it) => !needle || `${it.title} ${it.kind}`.toLowerCase().includes(needle)
+  );
+  const isEmpty = visibleSaved.length === 0 && visibleArtifacts.length === 0;
+
+  const onForget = (id) => setSaved(removeLibraryItem(id));
 
   return html`
     <main className="wb13-main" data-testid="workbench-library">
@@ -48,25 +59,45 @@ export function LibraryView({ savedItems, savedWorkSnapshot, onView }) {
               onInput=${(event) => setQuery(event.currentTarget.value)}
             />
           </label>
-          <div className="wb13-section wb13-list">
-            ${visible.length
-              ? visible.map(
-                  ({ item, artifact }) => html`
-                    <${Link} key=${item.id} to=${savedWorkHref(item)} className="wb13-row">
-                      <span className="wb13-row-icon"><${Icon} name="file" /></span>
-                      <span>
-                        <span className="wb13-row-title">${item.title || 'Saved work'}</span>
-                        <span className="wb13-row-copy"
-                          >${artifact.title || artifact.filename || 'Saved artifact'}</span
-                        >
-                      </span>
-                      <span className="wb13-row-meta">open</span>
-                    <//>
-                  `
-                )
-              : html`<div className="wb13-empty">
-                  No saved artifacts match this ${source.label || 'desktop profile'} library. Saved
-                  outputs from Chat will appear here when this browser can read them.
+          <div className="wb13-section wb13-list" data-testid="workbench-library-list">
+            ${visibleSaved.map(
+              (it) => html`
+                <div key=${it.id} className="wb13-row">
+                  <span className="wb13-row-icon"><${Icon} name="file" /></span>
+                  <span>
+                    <span className="wb13-row-title">${it.title}</span>
+                    <span className="wb13-row-copy">${it.kind}</span>
+                  </span>
+                  <button
+                    type="button"
+                    className="wb13-button is-sm"
+                    aria-label=${`Remove ${it.title} from library`}
+                    onClick=${() => onForget(it.id)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              `
+            )}
+            ${visibleArtifacts.map(
+              ({ item, artifact }) => html`
+                <${Link} key=${item.id} to=${savedWorkHref(item)} className="wb13-row">
+                  <span className="wb13-row-icon"><${Icon} name="file" /></span>
+                  <span>
+                    <span className="wb13-row-title">${item.title || 'Saved work'}</span>
+                    <span className="wb13-row-copy"
+                      >${artifact.title || artifact.filename || 'Saved artifact'}</span
+                    >
+                  </span>
+                  <span className="wb13-row-meta">open</span>
+                <//>
+              `
+            )}
+            ${isEmpty
+              ? html`<div className="wb13-empty">
+                  ${needle
+                    ? `No saved work matches "${query.trim()}".`
+                    : 'Nothing saved yet. Briefings and work you export are filed here.'}
                   <button
                     type="button"
                     className="wb13-button is-sm"
@@ -74,7 +105,8 @@ export function LibraryView({ savedItems, savedWorkSnapshot, onView }) {
                   >
                     Back to Work
                   </button>
-                </div>`}
+                </div>`
+              : null}
           </div>
         </div>
       </div>

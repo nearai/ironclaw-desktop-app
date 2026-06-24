@@ -5,12 +5,15 @@ import { html } from '../../../lib/html.js';
 import { saveBlob } from '../../../lib/save-file.js';
 import { formatInboxWhen, gmailMessageHref } from '../lib/workbench-connectors.js';
 import { buildDocxBlob, briefingToWorkProduct } from '../lib/workbench-docx.js';
+import { saveLibraryItem } from '../lib/workbench-library-store.js';
 
 // Save the current briefing as a real, editable .docx work product (Arial, bold
-// headings, a Sources section). Read-only: it writes a local file, sends nothing.
+// headings, a Sources section), and file a record of it in the local Library so it
+// shows up under saved work. Read-only: it writes a local file, sends nothing.
 async function downloadBriefDocx(briefing) {
   try {
     await saveBlob(buildDocxBlob(briefingToWorkProduct(briefing)), 'ironclaw-daily-brief.docx');
+    saveLibraryItem({ title: briefing?.headline || 'Daily briefing', kind: 'Briefing' });
   } catch (_) {
     // A failed save is non-fatal — the briefing stays on screen.
   }
