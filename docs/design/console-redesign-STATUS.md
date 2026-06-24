@@ -1,5 +1,47 @@
 # Workbench → Direction B "The Console" redesign — overnight roadmap
 
+## ☀️ MORNING SUMMARY (2026-06-24) — the redesign is complete
+
+You went to bed asking for the full **Direction B "The Console"** redesign + every screen + the
+functionality, run autonomously overnight. **All of it landed, gate-green and live-verified in a
+real browser, on branch `workbench-overnight-20260620`** (latest push `e8b4e08` + this summary).
+Nothing required you; nothing sensitive or the demo-identity override was committed.
+
+**What changed, by your original complaints:**
+- **"entire design is not working / i might as well use claude"** → the whole Workbench is now the
+  light **Console**: a 3-column shell (rail · live source-stream · center), Console tokens (no more
+  dark/Newsreader), and a center **"Triage" cockpit** (header + All/Decisions/Replies/Blocked pills). [C1, C2a, C2b, C3]
+- **"settings takes me to IronClaw Desktop / i don't want it anywhere"** → settings is a native
+  Workbench sheet (separated earlier); **but you CAN still ask one-off questions** — the command box
+  Ask works end-to-end (verified: "capital of France?" → answered), with **model configurability**
+  (a 47-model NEAR AI Cloud picker + effort levels). [pre-C1 + C9]
+- **"can't send a response or add people (invoices@near.foundation won't show up)"** → compose now
+  takes **multiple To + Cc recipients**, shows them as chips, de-dupes, and files to the gated draft
+  (sending stays behind your approval — a deliberate checkpoint). [C7]
+- **"slack isn't pulling what i care about / the claude skill does it better"** → Slack is now
+  **relevance-ranked** (reusing your own daily-briefing reach model), dropping noise instead of
+  sorting by recency. [C8]
+- **"library format weird"** → real saved-work Library with search + remove. [C4]
+- **"memory doesn't work, i can't save anything"** → Memory **actually saves** (persists across reload). [C5]
+- **"calendar is unreadable"** → a clean day-grouped **agenda**. [C6]
+- **Mobile:** the Console collapses cleanly at 375px (dock becomes a toggle overlay, no overflow). [responsive]
+
+**How it was built (per your discipline):** one coherent chunk per hour, **full gate green before
+every commit** (938 static unit cases, 141 a11y/Playwright, design DT-1..6, smoke, cold-start
+388.3/401 KB), then **live-verified in a real Chromium** (never the reloading preview tool). The four
+substantial chunks (C7, C8, C2b — and C8's design) each went through a **multi-agent Workflow design
++ adversarial review**; those reviews caught **real blocker bugs the green tests missed** — silently
+buried @-replies (C8) and blank dead-end filter views (C2b) — all fixed in-chunk and regression-locked.
+
+**The one thing still needing you (a deliberate human checkpoint, per the build-out plan):** flipping
+on real outbound **email sends** (`IRONCLAW_WORKBENCH_SEND_ENABLED` + approving the first send).
+Everything up to the draft works; sending is the only gated-off step.
+
+**To see it:** `git checkout workbench-overnight-20260620` then the standalone boot in §discipline, or
+open a PR from that branch. Evidence screenshots for every chunk are in `docs/design/evidence/`.
+
+---
+
 **Mandate (from the user, going to bed 2026-06-23):** completely redo the Workbench design
 as **Direction B — "The Console"** from the Claude Design handoff, complete every screen in the
 new design, and build the rest of the functionality. Run autonomously every hour overnight; the
@@ -53,8 +95,8 @@ not a regression.
   - **Deferred to the user (human checkpoint, per the build-out plan):** enabling real outbound SENDS (`IRONCLAW_WORKBENCH_SEND_ENABLED` + approving the first send). Compose/drafts are fully working; sending is intentionally still gated off.
 - [x] **C8 — Slack relevance** (2026-06-24): the "Slack isn't surfacing what I care about" fix. Replaced the recency-only sort + the "any ≥2-reply thread" weigh-in trigger with **FootprintGatedRelevance** — `score = address × (footprintPrior + vitality + earned-lexical) × recency-DECAY`, so recency is a bounded multiplier (not the sort key) and low-relevance weigh-in noise is DROPPED. The footprint reuses the user's OWN daily-briefing reach model (you @them +3 / they @you +3 / they post +1) so relevance generalizes from behaviour with no hardcoded interests. Designed via a 3-lens Workflow design panel → synthesis, then **adversarially reviewed via Workflow** (correctness / over-drop-safety / robustness). The review caught 3 blockers + 2 highs — all real over-drops (a human @-reply saying "PR 22 ready?" or from a person named "Workflow" was being killed as a bot; substantive multi-person threads outside the footprint window were buried; an urgent msg with an incidental social word was dampened). **All fixed in-chunk**: bot detection is now flag-based (is_bot/is_app set, never a name regex), awaiting drops ONLY on a confirmed bot, ≥3-distinct-replier non-social threads are carried over the bar, the social dampener is gated on no-urgency, and the blocker-search multi-line rule now keeps real asks. Gate green (static 932, a11y 141, design, smoke, cold 387.3); **30 Slack unit tests** (regression-locked). Live-verified twice `loads=1`, ranking runs on real Slack with zero errors. Evidence `docs/design/evidence/c8-slack-relevance.png`.
   - **Honest limit (logged):** the relevance constants (0.34 drop / 24h half-life / weights) are calibrated to worked examples, not fit to real Slack — one tuning pass with per-item component logging on a real pull is the right follow-up. Lexical banks are English-bound; multi-person vitality carries non-English/idiomatic threads so they aren't buried.
-- [ ] **C9 — Functionality (Workflow)**: wire the remaining actions end-to-end; adversarial-review each substantial PR; live-verify.
-- [ ] Responsive (375px) + a11y pass on the Console; final full gate; push; morning summary at the top of this file.
+- [x] **C9 — Functionality** (2026-06-24): the actions the user asked for are wired and live-verified end-to-end. The one-off **Ask** works (typed "capital of France?" → the turn answered "Paris"); **model configurability** works (the command box "Choose model and effort" opens a chooser with a **47-model NEAR AI Cloud select + effort levels**). The substantial chunks (C7 compose, C8 Slack, C2b cockpit) were each built + adversarially reviewed via Workflow and live-verified. No remaining unwired action was found — every original functional complaint (compose/recipients, Slack relevance, Memory save, Library, Calendar) is verified working. Evidence `docs/design/evidence/c9-ask-modelpicker.png`, `c9-model-overlay.png`.
+- [x] **Responsive (375px) + a11y pass** (2026-06-24): the Console collapses correctly at 375px via `styles/responsive.js` — the 3-column grid becomes nav + center (center ~321px, usable), the source-stream dock becomes a toggle-revealed off-canvas overlay (verified hidden→visible at x=54 via the "Show active work" toggle), and there is **no horizontal overflow**. a11y suite green (141 Playwright cases incl. 390px tap-target floors). Final full gate green (static 938, design, smoke, cold 388.3<401). Evidence `docs/design/evidence/c9-375-before.png`, `c9-375-dock-open.png`.
 
 ## Log
 - 2026-06-24: **Bundle headroom watch** — cold-start is at **399.4 / 401 KB** (~1.6 KB left) after C4. C7 (compose UI) will likely cross it. FIRST step of C7: free cold-start by `React.lazy`-loading the secondary nav views that are currently eager imports in `workbench-page.js` (Library / Memory — Calendar is already lazy). That moves them to on-demand chunks and buys multiple KB. Verify the lazy split with a Suspense fallback + a live nav into each view.
