@@ -161,8 +161,18 @@ test('static workbench: Memory nav opens the v13 preference-capture scene', asyn
   await expect(memory.getByRole('heading', { name: 'Save a preference?' })).toBeVisible();
   await expect(memory.getByRole('radiogroup', { name: 'Memory scope' })).toBeVisible();
   await expect(memory.getByRole('radio', { name: 'Personal' })).toBeVisible();
-  // Honest by construction: saving is disabled until a writable memory backend exists.
-  await expect(memory.getByRole('button', { name: 'Save preference' })).toBeDisabled();
+  // Memory now actually saves: Save is disabled until you type a preference, then it
+  // persists locally (survives reload) and appears in the saved list.
+  const saveBtn = memory.getByTestId('workbench-memory-save');
+  await expect(saveBtn).toBeDisabled();
+  await memory
+    .getByTestId('workbench-memory-input')
+    .fill('Show sources before any external draft leaves');
+  await expect(saveBtn).toBeEnabled();
+  await saveBtn.click();
+  await expect(memory.getByTestId('workbench-memory-list')).toContainText(
+    'Show sources before any external draft leaves'
+  );
 });
 
 test('static workbench: first-screen suggestions are action language, not a function picker', async ({
