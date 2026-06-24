@@ -4908,7 +4908,7 @@ ${he}`;if(P.current.gateKey!==_e&&(P.current={gateKey:_e,credentialRef:null,inFl
       </a>
     `:l`
     <${xe} to=${t.href} className="wb13-dock-item" onClick=${a}> ${r}${o} <//>
-  `}function oD({groups:e,open:t=!1,onClose:a,onOpenMessage:n,currentUser:r}){let o=e.filter(i=>i.rows.length>0);return l`
+  `}function oD({groups:e,open:t=!1,onClose:a,onOpenMessage:n,currentUser:r}){let[o,i]=h.default.useState(""),s=o.trim().toLowerCase(),c=e.filter(u=>u.rows.length>0).map(u=>{if(!s)return u;let d=u.rows.filter(m=>[m.title,m.detail,m.badge].some(f=>String(f||"").toLowerCase().includes(s)));return{...u,rows:d,total:d.length}}).filter(u=>u.rows.length>0);return l`
     <aside
       id="workbench-active-work-dock"
       className=${B("wb13-dock",t&&"is-open")}
@@ -4916,7 +4916,10 @@ ${he}`;if(P.current.gateKey!==_e&&(P.current={gateKey:_e,credentialRef:null,inFl
     >
       <div className="wb13-workspace">
         <div>
-          <div className="wb13-workspace-title">Workbench</div>
+          <div className="wb13-workspace-titlerow">
+            <div className="wb13-workspace-title">Workbench</div>
+            <span className="wb13-live"><span className="wb13-live-dot"></span>live</span>
+          </div>
           <div className="wb13-workspace-sub">${fG(r)}</div>
         </div>
         <button
@@ -4928,25 +4931,39 @@ ${he}`;if(P.current.gateKey!==_e&&(P.current={gateKey:_e,credentialRef:null,inFl
           <${N} name="close" />
         </button>
       </div>
-      ${o.length?o.map(i=>l`
-              <section key=${i.id}>
+      <div className="wb13-dock-search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8" />
+          <path d="m20 20-3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+        <input
+          type="search"
+          aria-label="Search across tools"
+          placeholder="Search across tools"
+          data-testid="workbench-source-search"
+          value=${o}
+          onInput=${u=>i(u.currentTarget.value)}
+        />
+      </div>
+      ${c.length?c.map(u=>l`
+              <section key=${u.id}>
                 <div className="wb13-dock-group">
-                  ${i.label}
-                  <span className="wb13-dock-count">${i.total}</span>
+                  ${u.label}
+                  <span className="wb13-dock-count">${u.total}</span>
                 </div>
-                ${i.rows.map(s=>l`
+                ${u.rows.map(d=>l`
                     <${pG}
-                      key=${s.id}
-                      group=${i}
-                      row=${s}
+                      key=${d.id}
+                      group=${u}
+                      row=${d}
                       onClose=${a}
                       onOpenMessage=${n}
                     />
                   `)}
               </section>
-            `):l`<div className="wb13-dock-allclear">
-            Nothing needs you right now. Active work appears here as it starts.
-          </div>`}
+            `):s?l`<div className="wb13-dock-empty">No matches for "${o.trim()}".</div>`:l`<div className="wb13-dock-allclear">
+              Nothing needs you right now. Active work appears here as it starts.
+            </div>`}
     </aside>
   `}function iD({view:e,currentUser:t,dockOpen:a,onHome:n,onToggleDock:r}){let o=e!=="home",i=t?.displayName||t?.email||"Account";return l`
     <header className="wb13-top">
@@ -5362,7 +5379,7 @@ ${he}`;if(P.current.gateKey!==_e&&(P.current={gateKey:_e,credentialRef:null,inFl
 }
 `;var pD=`.wb13-shell {
   display: grid;
-  grid-template-columns: 54px 252px minmax(0, 1fr);
+  grid-template-columns: 64px 296px minmax(0, 1fr);
   grid-template-rows: 52px minmax(0, 1fr);
   grid-template-areas: "nav dock top" "nav dock main";
   height: 100%;
@@ -5472,10 +5489,56 @@ ${he}`;if(P.current.gateKey!==_e&&(P.current={gateKey:_e,credentialRef:null,inFl
   margin-left: auto;
   border-radius: 999px;
   background: var(--wb-rail-2);
-  color: #fff;
+  color: var(--wb-ink-2);
+  font-weight: 600;
   padding: 0 6px;
   font-size: 10px;
   line-height: 15px;
+}
+.wb13-workspace-titlerow { display: flex; align-items: center; gap: 8px; }
+.wb13-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  background: var(--wb-good-tint);
+  color: var(--wb-good-text);
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.wb13-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--wb-good);
+}
+.wb13-dock-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 2px 2px;
+  padding: 7px 10px;
+  border: 1px solid var(--wb-line);
+  border-radius: var(--wb-r);
+  background: var(--wb-surface);
+}
+.wb13-dock-search svg { color: var(--wb-faint); width: 15px; height: 15px; }
+.wb13-dock-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wb-ink);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.wb13-dock-search input::placeholder { color: var(--wb-faint); }
+.wb13-dock-empty {
+  padding: 14px 6px;
+  color: var(--wb-faint);
+  font-size: 12px;
 }
 .wb13-dock-item {
   display: grid;
