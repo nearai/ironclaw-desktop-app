@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 
 import { Icon } from '../../../design-system/icons.js';
 import { useInterfaceTheme } from '../../../design-system/theme.js';
-import { html } from '../../../lib/html.js';
+import { React, html } from '../../../lib/html.js';
 import { cn } from '../../../utils/cn.js';
 
 function railToneForGroup(groupId) {
@@ -142,9 +142,26 @@ function DockRow({ group, row, onClose, onOpenMessage }) {
 }
 
 export function WorkbenchDock({ groups, open = false, onClose, onOpenMessage, currentUser }) {
-  // Mirror v13: only render groups that actually have rows, so the rail stays
-  // dense instead of stacking placeholder "Nothing… 0" rows.
-  const populatedGroups = groups.filter((group) => group.rows.length > 0);
+  // The Console source-stream: a persistent, live, grouped feed of everything across
+  // your tools. Only groups with rows render (no placeholder "Nothing… 0" rows). The
+  // search filters the rows in place across every group — a real client-side filter
+  // over the live reads, not a decorative box.
+  const [query, setQuery] = React.useState('');
+  const needle = query.trim().toLowerCase();
+  const populatedGroups = groups
+    .filter((group) => group.rows.length > 0)
+    .map((group) => {
+      if (!needle) return group;
+      const rows = group.rows.filter((row) =>
+        [row.title, row.detail, row.badge].some((field) =>
+          String(field || '')
+            .toLowerCase()
+            .includes(needle)
+        )
+      );
+      return { ...group, rows, total: rows.length };
+    })
+    .filter((group) => group.rows.length > 0);
   return html`
     <aside
       id="workbench-active-work-dock"
@@ -153,7 +170,10 @@ export function WorkbenchDock({ groups, open = false, onClose, onOpenMessage, cu
     >
       <div className="wb13-workspace">
         <div>
-          <div className="wb13-workspace-title">Workbench</div>
+          <div className="wb13-workspace-titlerow">
+            <div className="wb13-workspace-title">Workbench</div>
+            <span className="wb13-live"><span className="wb13-live-dot"></span>live</span>
+          </div>
           <div className="wb13-workspace-sub">${workspaceIdentity(currentUser)}</div>
         </div>
         <button
@@ -164,6 +184,20 @@ export function WorkbenchDock({ groups, open = false, onClose, onOpenMessage, cu
         >
           <${Icon} name="close" />
         </button>
+      </div>
+      <div className="wb13-dock-search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8" />
+          <path d="m20 20-3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+        <input
+          type="search"
+          aria-label="Search across tools"
+          placeholder="Search across tools"
+          data-testid="workbench-source-search"
+          value=${query}
+          onInput=${(event) => setQuery(event.currentTarget.value)}
+        />
       </div>
       ${populatedGroups.length
         ? populatedGroups.map(
@@ -187,9 +221,11 @@ export function WorkbenchDock({ groups, open = false, onClose, onOpenMessage, cu
               </section>
             `
           )
-        : html`<div className="wb13-dock-allclear">
-            Nothing needs you right now. Active work appears here as it starts.
-          </div>`}
+        : needle
+          ? html`<div className="wb13-dock-empty">No matches for "${query.trim()}".</div>`
+          : html`<div className="wb13-dock-allclear">
+              Nothing needs you right now. Active work appears here as it starts.
+            </div>`}
     </aside>
   `;
 }

@@ -1,6 +1,6 @@
 export const WORKBENCH_SHELL_STYLE = `.wb13-shell {
   display: grid;
-  grid-template-columns: 54px 252px minmax(0, 1fr);
+  grid-template-columns: 64px 296px minmax(0, 1fr);
   grid-template-rows: 52px minmax(0, 1fr);
   grid-template-areas: "nav dock top" "nav dock main";
   height: 100%;
@@ -110,10 +110,56 @@ export const WORKBENCH_SHELL_STYLE = `.wb13-shell {
   margin-left: auto;
   border-radius: 999px;
   background: var(--wb-rail-2);
-  color: #fff;
+  color: var(--wb-ink-2);
+  font-weight: 600;
   padding: 0 6px;
   font-size: 10px;
   line-height: 15px;
+}
+.wb13-workspace-titlerow { display: flex; align-items: center; gap: 8px; }
+.wb13-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  background: var(--wb-good-tint);
+  color: var(--wb-good-text);
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.wb13-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--wb-good);
+}
+.wb13-dock-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 2px 2px;
+  padding: 7px 10px;
+  border: 1px solid var(--wb-line);
+  border-radius: var(--wb-r);
+  background: var(--wb-surface);
+}
+.wb13-dock-search svg { color: var(--wb-faint); width: 15px; height: 15px; }
+.wb13-dock-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--wb-ink);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.wb13-dock-search input::placeholder { color: var(--wb-faint); }
+.wb13-dock-empty {
+  padding: 14px 6px;
+  color: var(--wb-faint);
+  font-size: 12px;
 }
 .wb13-dock-item {
   display: grid;
