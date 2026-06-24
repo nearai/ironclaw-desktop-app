@@ -81,12 +81,8 @@ export function textLooksLikeBlocker(rawText) {
   const raw = String(rawText || '');
   const text = raw.replace(/\s+/g, ' ').trim();
   if (!text) return false;
-  // Long / multi-line bodies are status reports, not a direct ask for help.
-  const lineCount = raw.split(/\r?\n/).filter((line) => line.trim()).length;
-  if (lineCount >= 3) return false;
-  if (text.length > 280) return false;
-  // Report-style titles even when they fit on a line: "… QA Update:", "Weekly
-  // Status", "What's Working", "Sprint recap", etc.
+  // Report-style titles are broadcasts, not a direct ask — drop regardless of length:
+  // "… QA Update:", "Weekly Status", "What's Working", "Sprint recap", etc.
   const reportTitle =
     /\b(qa|status|standup|stand-?up|weekly|daily|monthly|sprint|release|bug\s*bash)\b[^.\n]{0,30}\b(update|report|summary|recap|notes?|digest)\b/i.test(
       text
@@ -94,6 +90,14 @@ export function textLooksLikeBlocker(rawText) {
     /^[^.\n]{0,60}\b(update|report|summary|recap|digest)\s*:/i.test(text) ||
     /\bwhat'?s\s+(working|new|next|shipped|done)\b/i.test(text);
   if (reportTitle) return false;
+  // A direct ask (a question, "can you", "please", an @-mention) keeps a message even
+  // when it spans several short lines — people routinely write real blockers that way.
+  // Only LONG, multi-line, NON-ask broadcasts are dropped as status reports.
+  const hasAsk = /\?|\bcan you\b|\bcould you\b|\bplease\b|<@[A-Z0-9]+>/i.test(text);
+  if (hasAsk) return true;
+  const lineCount = raw.split(/\r?\n/).filter((line) => line.trim()).length;
+  if (lineCount >= 3) return false;
+  if (text.length > 280) return false;
   return true;
 }
 
@@ -285,36 +289,326 @@ export function classifySlackRow(row, { selfUserId } = {}) {
   return null;
 }
 
-// Merge per-channel histories into the two briefing arrays, newest-first, capped.
-// Resolves the author id to a display name and synthesizes a reply link per item.
+// ---- Relevance ranking: FootprintGatedRelevance (FGR) ---------------------------
+// The deep read used to flag ANY >=2-reply thread and sort BOTH buckets by recency
+// only — so trivia outranked substance and channels the user doesn't care about
+// surfaced as noise. FGR scores each candidate by how much it actually deserves the
+// user's attention and DROPS low-relevance weigh-in noise, while @-mention items
+// ("awaiting") are near-immune to dropping. score = (address) × (footprintPrior +
+// vitality + earned-lexical-signals) × recency-DECAY (recency is a bounded multiplier,
+// not the sort key). The footprint reuses the user's own daily-briefing reach model
+// (you @them +3, they @you +3, they post +1) so relevance generalizes from behaviour
+// with NO hardcoded interests. Constants are named + tunable (calibrated to worked
+// examples — log per-item components on a real pull before trusting the cutoffs).
+const REL = {
+  people: 0.34, // footprintPrior weights (sum to 1)
+  chan: 0.3,
+  thread: 0.2,
+  org: 0.16,
+  vitality: 0.24, // thread-liveness weight in the body
+  ask: 0.34, // lexical: an outward ask
+  decision: 0.22,
+  blocker: 0.2,
+  deadline: 0.14,
+  urgencyFamilyCap: 0.4, // decision+blocker+deadline can't exceed this
+  targetNamed: 0.1, // an ask that names someone other than self
+  targetBroadcast: 0.04,
+  socialDampen: 0.4 // multiplier on un-addressed social/celebration chatter
+};
+const DROP_THRESHOLD = 0.34;
+const VITALITY_FLOOR = 0.15;
+const AWAIT_FLOOR = 0.55;
+const DECAY_FLOOR = 0.5;
+const DECAY_HALFLIFE_H = 24;
+
+const MENTION_RE = /<@([UW][A-Z0-9]+)>/g;
+const BROADCAST_RE = /<!(here|channel|everyone)>|@(here|channel|everyone)\b/i;
+const ASK_RE =
+  /\?\s*$|\b(can|could|would) (you|someone|anyone)\b|\b(pls|please (review|confirm|approve|send|check|look)|thoughts|wdyt|ptal|lmk|eta|need (you|your|someone) to)\b/i;
+const DECISION_RE =
+  /\b(approv\w+|sign[- ]?off|signoff|go ?\/? ?no[- ]?go|green ?light|final call|need a decision|your call|ok to (proceed|merge)|please confirm)\b/i;
+const BLOCKER_RE =
+  /\b(blocker|block(ed|ing)|can'?t proceed|stuck on|waiting (on you|for)|regression|outage|incident|sev[12]|p[01]\b|urgent|asap|critical)\b/i;
+const DEADLINE_RE =
+  /\b(eod|eow|cob|by (today|tomorrow|mon|tue|wed|thu|fri|tonight|noon)|deadline|due (today|tomorrow|by)|time[- ]sensitive)\b/i;
+const SOCIAL_RE =
+  /\b(congrat\w*|welcome|happy (birthday|friday)|kudos|shout[- ]?out|excited to|thrilled to|offsite|lunch|coffee|good morning|on (pto|vacation)|no updates|same as yesterday)\b|[🎉🥳🙌🎂]/u;
+
+const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
+
+// Length of the text once Slack markup + emoji + whitespace are stripped — used to
+// drop reactions/emoji-only rows as hard noise.
+function strippedLength(text) {
+  return String(text || '')
+    .replace(/<@[^>]+>/g, '')
+    .replace(/<#[^>]+>/g, '')
+    .replace(/<https?:[^>]+>/g, '')
+    .replace(/:[a-z0-9_+-]+:/gi, '')
+    .replace(/\p{Extended_Pictographic}/gu, '')
+    .replace(/\s+/g, '').length;
+}
+
+// Set of automated-author ids from SLACK_LIST_ALL_USERS, using Slack's real is_bot/
+// is_app FLAGS (plus USLACKBOT) — NOT a name heuristic. This is what makes "is this a
+// bot?" reliable: a human whose display name contains "app"/"workflow" is never
+// misread as a bot (a prior name-regex did exactly that and silently dropped owed
+// @-replies). {} payload -> a set with just USLACKBOT.
+export function buildSlackBotIdSet(result) {
+  const data = slackData(result);
+  const members = Array.isArray(data?.members) ? data.members : [];
+  const set = new Set(['USLACKBOT']);
+  for (const member of members) {
+    const id = String(member?.id || '').trim();
+    if (id && (member.is_bot || member.is_app || member.is_workflow_bot)) set.add(id);
+  }
+  return set;
+}
+
+// Is the author a confirmed automated account? Flag-driven only (the bot-id set built
+// from is_bot/is_app), so it never false-positives on a human's name.
+export function isBotAuthor(whoId, botIds) {
+  const id = String(whoId || '');
+  if (!id) return false;
+  if (id === 'USLACKBOT') return true;
+  return botIds instanceof Set ? botIds.has(id) : false;
+}
+
+// id -> email domain map from SLACK_LIST_ALL_USERS, for the org-proximity signal.
+// {} on a malformed payload; an address without a domain is simply omitted.
+export function buildSlackEmailDomainMap(result) {
+  const data = slackData(result);
+  const members = Array.isArray(data?.members) ? data.members : [];
+  const map = {};
+  for (const member of members) {
+    const id = String(member?.id || '').trim();
+    const email = String(member?.profile?.email || '')
+      .trim()
+      .toLowerCase();
+    if (id && email.includes('@')) map[id] = email.split('@')[1];
+  }
+  return map;
+}
+
+// PASS 1 — derive the per-user footprint from the already-fetched histories (no extra
+// read, no LLM). channelAffinity = how much the user posts in each channel; peopleAff
+// reuses the daily-briefing reach model; touchedThreads = threads the user posted in.
+export function buildFootprint(histories, { selfUserId } = {}) {
+  const self = String(selfUserId || '').trim();
+  const chanCount = new Map();
+  const peerScore = new Map();
+  const touchedThreads = new Set();
+  const bump = (m, k, n) => k && m.set(k, (m.get(k) || 0) + n);
+  if (self) {
+    for (const rows of histories || []) {
+      for (const row of rows || []) {
+        if (!row) continue;
+        const who = String(row.who || '').trim();
+        if (!who) continue;
+        const mentions = [...String(row.raw || '').matchAll(MENTION_RE)].map((x) => x[1]);
+        if (who === self) {
+          bump(chanCount, String(row.channelId || ''), 1);
+          if (row.thread_ts) touchedThreads.add(String(row.thread_ts));
+          for (const t of mentions) if (t !== self) bump(peerScore, t, 3);
+        } else {
+          bump(peerScore, who, 1);
+          if (mentions.includes(self)) bump(peerScore, who, 3);
+        }
+      }
+    }
+  }
+  let maxChan = 1;
+  let maxPeer = 1;
+  for (const v of chanCount.values()) if (v > maxChan) maxChan = v;
+  for (const v of peerScore.values()) if (v > maxPeer) maxPeer = v;
+  return { chanCount, peerScore, touchedThreads, maxChan, maxPeer };
+}
+
+function recencyDecay(ts) {
+  const sec = Number(ts);
+  if (!Number.isFinite(sec) || sec <= 0) return DECAY_FLOOR;
+  const ageH = Math.max(0, (Date.now() / 1000 - sec) / 3600);
+  return DECAY_FLOOR + (1 - DECAY_FLOOR) * Math.exp(-ageH / DECAY_HALFLIFE_H);
+}
+
+// Score one classified row. ctx: { selfUserId, kind, footprint, userMap,
+// emailDomainMap, userDomain }. Returns { score, drop, reason, ...components }. Pure.
+export function scoreSlackRelevance(row, ctx = {}) {
+  const { selfUserId, kind, footprint, botIds, emailDomainMap = {}, userDomain = '' } = ctx;
+  const self = String(selfUserId || '').trim();
+  const who = String(row.who || '').trim();
+  const raw = String(row.raw || '');
+  const text = String(row.text || '');
+  const decay = recencyDecay(row.ts);
+
+  // HARD-NOISE. The ONLY thing that can drop an AWAITING (@-mention) item is a
+  // confirmed BOT author — never a text pattern. ("PR 22 ready for your review?",
+  // "deploy is down, fix?" are real owed replies, not CI noise; system join/leave
+  // rows are already filtered upstream by normalizeSlackHistory.) Weigh-in items
+  // additionally drop reactions/emoji-only rows (no real discussion to weigh in on).
+  if (isBotAuthor(who, botIds)) {
+    return { score: 0, drop: true, reason: 'hard-noise', address: 0, decay };
+  }
+  if (kind === 'weighin' && strippedLength(text) < 3) {
+    return { score: 0, drop: true, reason: 'hard-noise', address: 0, decay };
+  }
+
+  const replyUsers = Array.isArray(row.reply_users) ? row.reply_users : [];
+  // graded direct-address class
+  let address = 0;
+  if (kind === 'awaiting') address = BROADCAST_RE.test(raw) ? 0.3 : 1;
+  else if (replyUsers.includes(self)) address = 0.45; // weigh-in I'm already in
+
+  // footprintPrior — the generalizing, behaviour-derived relevance core
+  const fp = footprint || buildFootprint([], {});
+  let peopleAff = 0;
+  for (const id of [who, ...replyUsers]) {
+    peopleAff = Math.max(peopleAff, (fp.peerScore.get(id) || 0) / fp.maxPeer);
+  }
+  const chanAff = (fp.chanCount.get(String(row.channelId || '')) || 0) / fp.maxChan;
+  const threadTouch = row.thread_ts && fp.touchedThreads.has(String(row.thread_ts)) ? 1 : 0;
+  const authorDomain = String(emailDomainMap[who] || '').toLowerCase();
+  const orgProx =
+    authorDomain && userDomain && authorDomain === String(userDomain).toLowerCase() ? 1 : 0;
+  const prior = clamp01(
+    REL.people * peopleAff + REL.chan * chanAff + REL.thread * threadTouch + REL.org * orgProx
+  );
+
+  // vitality — distinct PEOPLE dominate (raw reply_count was the old noise source)
+  const haveReplyUsers = Array.isArray(row.reply_users);
+  const distinct = new Set(replyUsers).size;
+  const replyCount = Number(row.reply_count || 0);
+  const vitality = haveReplyUsers
+    ? 0.6 * clamp01(distinct / 4) + 0.4 * clamp01(replyCount / 6)
+    : clamp01(replyCount / 6);
+
+  // earned lexical signals (family-capped, bounded nudges)
+  const hasAsk = ASK_RE.test(text);
+  let urg = 0;
+  if (DECISION_RE.test(text)) urg += REL.decision;
+  if (BLOCKER_RE.test(text)) urg += REL.blocker;
+  if (DEADLINE_RE.test(text)) urg += REL.deadline;
+  urg = Math.min(urg, REL.urgencyFamilyCap);
+  let earned = (hasAsk ? REL.ask : 0) + urg;
+  if (hasAsk) {
+    const others = [...raw.matchAll(MENTION_RE)].map((x) => x[1]).filter((id) => id !== self);
+    earned += others.length ? REL.targetNamed : BROADCAST_RE.test(raw) ? REL.targetBroadcast : 0;
+  }
+
+  // body + social dampener. Fires only on un-addressed chatter with NO ask AND NO
+  // urgency/decision/blocker signal — so "excited to report the sev1 outage" or
+  // "congrats, but we're blocked on sign-off" is NOT mistaken for celebration noise.
+  let body = prior + REL.vitality * vitality + earned;
+  const isSocial = address === 0 && !hasAsk && urg === 0 && SOCIAL_RE.test(text);
+  if (isSocial) body *= REL.socialDampen;
+
+  // A genuine multi-person discussion (>=3 distinct repliers, not social chatter) is
+  // worth surfacing even from someone outside the recent footprint window — otherwise
+  // a busy thread among real colleagues you simply haven't posted in gets buried. Let
+  // vitality carry it over the bar so it ranks sensibly, not just survives.
+  const substantive = kind === 'weighin' && distinct >= 3 && !isSocial;
+
+  let score = Math.min(1, (0.4 + 0.6 * address) * body * decay);
+  if (kind === 'awaiting') {
+    // an owed reply is never near the bottom, even from a stranger
+    score = Math.max(score, AWAIT_FLOOR + 0.25 * ((decay - DECAY_FLOOR) / (1 - DECAY_FLOOR)));
+  } else if (substantive) {
+    score = Math.max(score, DROP_THRESHOLD + 0.2 * clamp01(vitality - VITALITY_FLOOR));
+  }
+
+  let drop = false;
+  let reason = 'kept';
+  if (kind === 'weighin') {
+    if (haveReplyUsers && vitality < VITALITY_FLOOR) {
+      drop = true;
+      reason = 'low-vitality';
+    } else if (substantive) {
+      // kept: real multi-person discussion
+    } else if (score < DROP_THRESHOLD) {
+      drop = true;
+      reason = 'below-threshold';
+    } else if (prior === 0 && !hasAsk && urg === 0) {
+      drop = true;
+      reason = 'stranger-no-ask';
+    }
+  }
+  return {
+    score: Number(score.toFixed(4)),
+    drop,
+    reason,
+    address,
+    prior: Number(prior.toFixed(4)),
+    vitality: Number(vitality.toFixed(4)),
+    earned: Number(earned.toFixed(4)),
+    isSocial,
+    decay: Number(decay.toFixed(4))
+  };
+}
+
+function toSlackItem(row, domain, userMap, score) {
+  return {
+    id: row.id,
+    channel: row.channel,
+    channelId: row.channelId,
+    whoId: row.who,
+    who: userMap[row.who] || row.who,
+    text: row.text,
+    when: row.when,
+    ts: row.ts,
+    score,
+    replyHref: slackArchiveLink(domain, row.channelId, row.thread_ts || row.ts)
+  };
+}
+
+// Merge per-channel histories into the two briefing arrays, RELEVANCE-ranked (not
+// recency), dropping low-relevance weigh-in noise. Resolves the author id to a display
+// name and synthesizes a reply link per item. Awaiting items only drop on hard noise;
+// if every weigh-in item is filtered out, the single best survivor is kept so the
+// section is never silently empty when there was real (if marginal) activity.
 export function buildSlackSignals(
   histories,
-  { selfUserId, domain, userMap = {}, awaitingLimit = 6, weighInLimit = 6 } = {}
+  {
+    selfUserId,
+    domain,
+    userMap = {},
+    botIds,
+    emailDomainMap = {},
+    userDomain = '',
+    awaitingLimit = 6,
+    weighInLimit = 6
+  } = {}
 ) {
-  const awaiting = [];
-  const weighIn = [];
+  const footprint = buildFootprint(histories, { selfUserId });
+  const awaitingRows = [];
+  const weighInRows = [];
   for (const rows of histories || []) {
     for (const row of rows || []) {
       const kind = classifySlackRow(row, { selfUserId });
-      if (!kind) continue;
-      const item = {
-        id: row.id,
-        channel: row.channel,
-        channelId: row.channelId,
-        whoId: row.who,
-        who: userMap[row.who] || row.who,
-        text: row.text,
-        when: row.when,
-        ts: row.ts,
-        replyHref: slackArchiveLink(domain, row.channelId, row.thread_ts || row.ts)
-      };
-      (kind === 'awaiting' ? awaiting : weighIn).push(item);
+      if (kind === 'awaiting') awaitingRows.push(row);
+      else if (kind === 'weighin') weighInRows.push(row);
     }
   }
-  const byRecency = (a, b) => Number(b.ts || 0) - Number(a.ts || 0);
-  awaiting.sort(byRecency);
-  weighIn.sort(byRecency);
-  return { awaiting: awaiting.slice(0, awaitingLimit), weighIn: weighIn.slice(0, weighInLimit) };
+  const ctxBase = { selfUserId, footprint, botIds, emailDomainMap, userDomain };
+  const rank = (rows, kind, limit) => {
+    const scored = rows.map((row) => ({
+      row,
+      rel: scoreSlackRelevance(row, { ...ctxBase, kind })
+    }));
+    let kept = scored.filter((s) => !s.rel.drop);
+    if (kind === 'weighin' && kept.length === 0) {
+      const best = scored
+        .filter((s) => s.rel.reason !== 'hard-noise')
+        .sort((a, b) => b.rel.score - a.rel.score)[0];
+      if (best) kept = [best];
+    }
+    return kept
+      .sort((a, b) => b.rel.score - a.rel.score || Number(b.row.ts || 0) - Number(a.row.ts || 0))
+      .slice(0, limit)
+      .map((s) => toSlackItem(s.row, domain, userMap, s.rel.score));
+  };
+  return {
+    awaiting: rank(awaitingRows, 'awaiting', awaitingLimit),
+    weighIn: rank(weighInRows, 'weighin', weighInLimit)
+  };
 }
 
 // Orchestrate the deep read with an injected `read(tool, args) -> result | null`
@@ -345,7 +639,10 @@ export async function fetchSlackDeep({ read, email, channelLimit = 8 } = {}) {
   const signals = buildSlackSignals(histories, {
     selfUserId: self.userId,
     domain: slackTeamDomain(teamResult),
-    userMap: buildSlackUserMap(usersResult)
+    userMap: buildSlackUserMap(usersResult),
+    botIds: buildSlackBotIdSet(usersResult),
+    emailDomainMap: buildSlackEmailDomainMap(usersResult),
+    userDomain: String(email || '').split('@')[1] || ''
   });
   return { ...signals, selfResolved: true };
 }
