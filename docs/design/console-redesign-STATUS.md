@@ -47,7 +47,7 @@ not a regression.
 - [ ] **C3 — Source stream**: the persistent left aside — grouped live sources (Needs a reply / Slack / GitHub / Notion / Files) from the existing connector reads, with search.
 - [ ] **C4 — Library** (new design + actually works): real saved-work list (client-persisted via localStorage if no server route); Console styling.
 - [ ] **C5 — Memory** (new design + actually saves): persist preferences to localStorage (a real writable store) so "save" works; Console styling.
-- [ ] **C6 — Calendar** (readable): replace the cramped 24h week-grid with a readable agenda/day list in the Console style.
+- [x] **C6 — Calendar** (2026-06-24): replaced the cramped 24h time-ruler week-grid (v2 tokens + Newsreader) with a readable **agenda** — events grouped by day (big day number + weekday/month + Today badge), each a `time · title · JOIN` row, no overlap/truncation, on wb13 (Direction B) tokens + system font. Gate green; live-verified `loads=1`, 5 day-groups / 21 real events render, old grid gone. Evidence `docs/design/evidence/c6-calendar-agenda.png`.
 - [ ] **C7 — Real compose**: To/Cc, add/edit recipients, loop people in; an approved send path within the gated-write posture (drafts always; sends behind approval + the send flag). The "can't add invoices@near.foundation / can't send" fix.
 - [ ] **C8 — Slack relevance**: rank the deep-read items to the user's domain (match the Claude daily-briefing skill's selectivity); drop noise.
 - [ ] **C9 — Functionality (Workflow)**: wire the remaining actions end-to-end; adversarial-review each substantial PR; live-verify.
