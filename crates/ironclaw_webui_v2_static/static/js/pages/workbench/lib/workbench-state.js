@@ -5,7 +5,7 @@ import {
 } from '../../../lib/thread-attention-details.js';
 import { firstArtifact, savedWorkHref } from './workbench-work-items.js';
 import { GOOGLE_DOC_MIME } from './workbench-drive.js';
-import { urgencyScore } from './workbench-connectors.js';
+import { isCalendarInviteNoise, urgencyScore } from './workbench-connectors.js';
 
 const SOURCE_RAIL_STATES = new Set(['in-progress', 'needs-reconnect']);
 const WORKBENCH_FEED_GROUPS = new Set([
@@ -42,6 +42,8 @@ function connectorReplyRows(inbox = {}, overrides = {}) {
   return (
     messages
       .filter((message) => message && message.unread && !message.isBulk)
+      // Calendar invite updates/cancellations/RSVP replies are not a reply you owe.
+      .filter((message) => !isCalendarInviteNoise(message))
       // A sender you corrected to "ignore" never needs a reply — drop it.
       .filter((message) => overrideFor(message) !== 'ignore')
       .map((message) => {

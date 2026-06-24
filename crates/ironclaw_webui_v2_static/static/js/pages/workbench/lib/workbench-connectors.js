@@ -245,6 +245,16 @@ export function isAnsweredThread(message, sentThreadIndex) {
 // timestamp); absent that evidence the item stays surfaced, since hiding a real
 // open loop is worse than one extra row. Everything dropped is still in the
 // mailbox — filed, not surfaced. Pure; mutates nothing.
+// Google Calendar invite-system emails are not a reply you owe — they're invitations,
+// updates, cancellations, or RSVP responses, and the Calendar tab owns them. None
+// belongs in "needs a reply"/triage. Matches Google's subject prefixes, including the
+// "… with note:" variant the organizer triggers when they add a message. Pure.
+const CALENDAR_INVITE_NOISE_RE =
+  /^\s*(invitation|updated invitation|canceled event|cancelled event|updated event|accepted|declined|tentative|invitation reply)( with note)?\s*:/i;
+export function isCalendarInviteNoise(message) {
+  return CALENDAR_INVITE_NOISE_RE.test(String(message?.subject || ''));
+}
+
 export function selectTriageInbox(
   messages,
   { overrides = {}, dismissals = {}, learnedIgnore, sentThreadIndex } = {}
@@ -261,6 +271,8 @@ export function selectTriageInbox(
   const answered = sentThreadIndex instanceof Map ? sentThreadIndex : new Map();
   return list.filter((message) => {
     if (!message || message.isBulk) return false;
+    // Calendar invite updates/cancellations/RSVP replies are not action items.
+    if (isCalendarInviteNoise(message)) return false;
     const email = String(message.fromEmail || '').toLowerCase();
     const tier = norm[email];
     if (tier === 'ignore') return false;

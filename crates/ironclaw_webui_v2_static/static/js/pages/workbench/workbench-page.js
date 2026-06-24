@@ -612,13 +612,6 @@ export function WorkbenchPage() {
         run: () => setView('library')
       },
       {
-        id: 'nav-chat',
-        label: 'Open Chat',
-        icon: 'chat',
-        keywords: 'thread conversation',
-        run: () => navigate('/chat')
-      },
-      {
         id: 'nav-automations',
         label: 'Automations',
         icon: 'clock',
@@ -1310,20 +1303,6 @@ export function WorkbenchPage() {
     startWorkbenchRequest
   ]);
 
-  const openDraftInChat = React.useCallback(() => {
-    if (!draft) {
-      setError('Add the work you want IronClaw to handle.');
-      return;
-    }
-    setError('');
-    setDraft(NEW_DRAFT_KEY, draft);
-    setStagedAttachments(NEW_DRAFT_KEY, {
-      images: attachmentsState.images,
-      attachments: attachmentsState.attachments
-    });
-    navigate('/chat', { state: { composerDraft: draft } });
-  }, [attachmentsState.attachments, attachmentsState.images, draft, navigate, setError]);
-
   const openSourceSetup = React.useCallback(
     (entry) => {
       const ref = entry?.package_ref || entry?.packageRef;
@@ -1356,7 +1335,6 @@ export function WorkbenchPage() {
     startBlockReason,
     startSoftNotice,
     error,
-    openDraftInChat,
     attachmentsState
   };
 

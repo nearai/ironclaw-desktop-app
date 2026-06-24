@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
 
 import { Icon } from '../../../design-system/icons.js';
-import { fetchTimeline } from '../../../lib/api.js';
+import { fetchTimeline, sendMessage } from '../../../lib/api.js';
 import { React, html } from '../../../lib/html.js';
 import { cn } from '../../../utils/cn.js';
 import { useSSE } from '../../chat/hooks/useSSE.js';
@@ -30,12 +29,6 @@ function SceneSummary({ work }) {
         <h2>${work.scene.title}</h2>
         <p>${work.scene.detail}</p>
       </div>
-      <${Link}
-        to=${`/chat/${encodeURIComponent(work.threadId)}`}
-        className="wb13-button is-primary"
-      >
-        Open live thread
-      <//>
     </div>
   `;
 }
@@ -207,9 +200,6 @@ function TimelinePreview({ work, timelineQuery, liveMessages }) {
             : null}
         </div>
         <${WorkbenchRunTimeline} messages=${messages} />
-        <${Link} to=${`/chat/${encodeURIComponent(work.threadId)}`} className="wb13-button is-sm">
-          Review full thread
-        <//>
       </div>
     `;
   }
@@ -220,8 +210,8 @@ function TimelinePreview({ work, timelineQuery, liveMessages }) {
         <${Icon} name="flag" />
         <span>
           <strong>Live preview unavailable.</strong>
-          Open the live thread to inspect the run. Workbench will not invent a draft without the
-          timeline.
+          The run is still attached; its output will appear here when the timeline returns.
+          Workbench will not invent a draft without it.
         </span>
       </div>
     `;
@@ -231,10 +221,10 @@ function TimelinePreview({ work, timelineQuery, liveMessages }) {
     <div className="wb13-runtime-state">
       <${Icon} name="shield" />
       <span>
-        <strong>${user ? 'Runtime accepted the request.' : 'Waiting on the live thread.'}</strong>
+        <strong>${user ? 'Working in the Workbench.' : 'Starting the run.'}</strong>
         ${user
-          ? 'The request is in the registered Chat timeline. Assistant output will appear here when it lands.'
-          : `When the thread returns ${outputHint(work.scene.id)}, they will appear here for review.`}
+          ? 'Assistant output streams here as it lands — reply below to keep going, no need to leave.'
+          : `When the run returns ${outputHint(work.scene.id)}, they will appear here for review.`}
       </span>
     </div>
   `;
@@ -245,10 +235,9 @@ function TimelinePreview({ work, timelineQuery, liveMessages }) {
 // work.threadId. Resolving a gate is a real outbound action (Phase 4, behind
 // the send sign-off), so this view only shows what is waiting and links into
 // the live thread to act — it never approves or denies here.
-function WorkbenchRunApprovals({ approvals, threadId }) {
+function WorkbenchRunApprovals({ approvals }) {
   const rows = Array.isArray(approvals) ? approvals : [];
   if (!rows.length) return null;
-  const fallbackHref = threadId ? `/chat/${encodeURIComponent(threadId)}` : '/workbench';
   return html`
     <div className="wb13-run-gates" data-testid="workbench-run-approvals">
       <div className="wb13-run-gates-head">
@@ -264,7 +253,6 @@ function WorkbenchRunApprovals({ approvals, threadId }) {
               <div className="wb13-run-gate-title">${row.title}</div>
               ${row.detail ? html`<div className="wb13-run-gate-detail">${row.detail}</div>` : null}
             </div>
-            <${Link} to=${row.href || fallbackHref} className="wb13-button is-sm"> Review <//>
           </div>
         `
       )}
@@ -283,7 +271,7 @@ function RuntimeWorkspace({ work, timelineQuery, approvals, liveMessages }) {
           timelineQuery=${timelineQuery}
           liveMessages=${liveMessages}
         />
-        <${WorkbenchRunApprovals} approvals=${approvals} threadId=${work.threadId} />
+        <${WorkbenchRunApprovals} approvals=${approvals} />
         <div className="wb13-source-card is-hold">
           <${Icon} name="shield" />
           <strong>External actions still need approval.</strong>
@@ -306,9 +294,6 @@ function RuntimeWorkspace({ work, timelineQuery, approvals, liveMessages }) {
             `
           )}
         </div>
-        <${Link} to=${`/chat/${encodeURIComponent(work.threadId)}`} className="wb13-button is-sm">
-          Continue in live thread
-        <//>
       </div>
     </div>
   `;
@@ -321,6 +306,78 @@ function SceneBody({ work, timelineQuery, approvals, liveMessages }) {
     approvals=${approvals}
     liveMessages=${liveMessages}
   />`;
+}
+
+// Inline follow-up composer — reply to / continue the run WITHOUT leaving the
+// Workbench. Posts to the existing thread; the SSE stream + timeline refetch above
+// render the assistant's reply in place. This is what makes the Ask a real in-Workbench
+// conversation instead of a hand-off to the desktop chat.
+function WorkbenchRunComposer({ threadId, onSent }) {
+  const [text, setText] = React.useState('');
+  const [sending, setSending] = React.useState(false);
+  const [err, setErr] = React.useState('');
+  const submit = async () => {
+    const content = text.trim();
+    if (!content || sending || !threadId) return;
+    setSending(true);
+    setErr('');
+    try {
+      let timezone = 'UTC';
+      try {
+        timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      } catch (_) {
+        timezone = 'UTC';
+      }
+      await sendMessage({ threadId, content, timezone });
+      setText('');
+      if (typeof onSent === 'function') onSent();
+    } catch (_) {
+      setErr('Could not send that. Try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+  return html`
+    <form
+      className="wb13-run-composer"
+      onSubmit=${(event) => {
+        event.preventDefault();
+        submit();
+      }}
+    >
+      <textarea
+        className="wb13-approve-textarea"
+        rows="2"
+        data-testid="workbench-run-composer"
+        aria-label="Continue this conversation"
+        placeholder="Reply or ask a follow-up — it stays here in the Workbench."
+        value=${text}
+        onInput=${(event) => setText(event.currentTarget.value)}
+        onKeyDown=${(event) => {
+          if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+            event.preventDefault();
+            submit();
+          }
+        }}
+      ></textarea>
+      <div className="wb13-run-composer-row">
+        <span className="x">⌘↵ to send · stays in the Workbench</span>
+        <button
+          type="submit"
+          className="wb13-button is-primary is-sm"
+          data-testid="workbench-run-send"
+          disabled=${!text.trim() || sending}
+        >
+          ${sending ? 'Sending…' : 'Send'}
+        </button>
+      </div>
+      ${err
+        ? html`<div className="wb13-reader-note is-error" role="alert">
+            <${Icon} name="flag" /><span>${err}</span>
+          </div>`
+        : null}
+    </form>
+  `;
 }
 
 export function WorkbenchSceneWorkspace({ work }) {
@@ -395,6 +452,7 @@ export function WorkbenchSceneWorkspace({ work }) {
         approvals=${approvalsQuery.data || []}
         liveMessages=${liveMessages}
       />
+      <${WorkbenchRunComposer} threadId=${threadId} onSent=${() => timelineQuery.refetch()} />
     </section>
   `;
 }

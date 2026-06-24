@@ -1026,10 +1026,10 @@ test('static workbench: accepts broad chief-of-staff prompts into Chat runtime s
     await expect(page.getByTestId('workbench-scene-workspace')).toContainText(
       /workspace started|session started|monitor started/i
     );
-    await expect(page.getByRole('link', { name: 'Open live thread' })).toHaveAttribute(
-      'href',
-      '/v2/chat/thread-workbench-runtime'
-    );
+    // The conversation stays IN the Workbench: an inline composer to continue it, and
+    // NO hand-off link to the desktop chat.
+    await expect(page.getByTestId('workbench-run-composer')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open live thread' })).toHaveCount(0);
 
     const content = String(sentMessages[index].body.content);
     expect(content).toContain('Workbench request');
@@ -1069,15 +1069,14 @@ test('static workbench: command starts stay in first-class Workbench scenes', as
     await expect.poll(() => sentMessages.length).toBe(index + 1);
     const workspace = page.getByTestId('workbench-scene-workspace');
     await expect(workspace).toContainText(scene.title);
-    await expect(workspace).toContainText('Waiting on the live thread.');
+    await expect(workspace).toContainText('Starting the run.');
     await expect(workspace).toContainText('Preferences sent');
     await expect(workspace).not.toContainText('Fortanix');
     await expect(workspace).not.toContainText('Cash runway source is stale.');
     await expect(page).toHaveURL(/\/v2\/workbench$/);
-    await expect(page.getByRole('link', { name: 'Open live thread' })).toHaveAttribute(
-      'href',
-      '/v2/chat/thread-workbench-runtime'
-    );
+    // Stays in the Workbench — inline composer present, no desktop-chat hand-off link.
+    await expect(workspace.getByTestId('workbench-run-composer')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open live thread' })).toHaveCount(0);
   }
 });
 
@@ -1360,13 +1359,15 @@ test('static workbench: pending approval gates surface read-only on the run card
   await expect.poll(() => sentMessages.length).toBe(1);
 
   // The run card scopes the per-thread approvals read to its own thread and
-  // surfaces the pending gate read-only — no approve/deny here (resolving is a
-  // real Phase-4 action), just what is waiting + a link into the live thread.
+  // surfaces the pending gate READ-ONLY — no approve/deny here (resolving is a real
+  // Phase-4 action) and no hand-off link to the desktop chat (that route is gone).
+  // Just what is waiting + the destination.
   const gates = page.getByTestId('workbench-run-approvals');
   await expect(gates).toBeVisible();
   await expect(gates).toContainText('Waiting on your approval');
   await expect(gates).toContainText('Send the vendor email');
-  await expect(gates.getByRole('link', { name: 'Review' })).toBeVisible();
+  await expect(gates).toContainText('ops@acme.com');
+  await expect(gates.getByRole('link')).toHaveCount(0);
   // The read was scoped to the run's thread, not a global probe.
   await expect.poll(() => approvalsRequests.length).toBeGreaterThan(0);
 });

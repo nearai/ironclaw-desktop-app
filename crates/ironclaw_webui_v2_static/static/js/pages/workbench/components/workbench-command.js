@@ -132,7 +132,6 @@ export function WorkbenchCommandSurface({
   startBlockReason,
   startSoftNotice,
   error,
-  openDraftInChat,
   attachmentsState
 }) {
   const [showMore, setShowMore] = React.useState(false);
@@ -291,11 +290,6 @@ export function WorkbenchCommandSurface({
         ? html`<div className="wb13-alert" role="alert">
             <${Icon} name="flag" />
             <span>${error}</span>
-            ${brief
-              ? html`<button type="button" className="wb13-button is-sm" onClick=${openDraftInChat}>
-                  Open draft in Chat
-                </button>`
-              : null}
           </div>`
         : null}
       ${!error && startBlocked && startBlockReason

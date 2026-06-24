@@ -14,6 +14,7 @@ import {
   gmailProfileEmail,
   hasActiveToolkit,
   isAnsweredThread,
+  isCalendarInviteNoise,
   normalizeCalendarEvents,
   normalizeConnectedAccounts,
   normalizeFullMessage,
@@ -328,6 +329,72 @@ test('normalizeFullMessage surfaces htmlBody for a native render, body as fallba
   });
   assert.equal(plain.htmlBody, '', 'plain-only message has no htmlBody (panel uses text)');
   assert.equal(plain.body, 'just text');
+});
+
+test('isCalendarInviteNoise flags every calendar-invite-system email (incl. "with note"), keeps real mail', () => {
+  // all calendar-system mail is noise in "needs a reply" — the Calendar tab owns it
+  for (const subject of [
+    'Invitation: Abhi <> Alycia @ Wed Jun 24',
+    'Updated invitation: Board sync @ Mon Jun 30',
+    'Canceled event: Hot Takes @ Tue',
+    // the real-world variant that slipped through: organizer added a note
+    'Canceled event with note: Hot Takes | NEAR @ Wed (abhi@near.foundation)',
+    'Updated invitation with note: Standup',
+    'Cancelled event: Standup',
+    'Accepted: Vendor call @ Thu',
+    'Declined: 1:1',
+    'Tentative: Offsite',
+    'Invitation reply: Sarah accepted'
+  ]) {
+    assert.equal(isCalendarInviteNoise({ subject }), true, `should be noise: ${subject}`);
+  }
+  // real mail is untouched
+  assert.equal(isCalendarInviteNoise({ subject: 'Re: term sheet redline' }), false);
+  assert.equal(isCalendarInviteNoise({ subject: 'Quick question on the SOW' }), false);
+  assert.equal(isCalendarInviteNoise({ subject: '' }), false);
+  assert.equal(isCalendarInviteNoise({}), false);
+});
+
+test('selectTriageInbox drops calendar invite emails (invitations/updates/cancellations) from triage', () => {
+  const messages = [
+    {
+      id: 'a',
+      messageId: 'a',
+      fromEmail: 'organizer@near.org',
+      subject: 'Updated invitation: DM & Maggie @ Jul 6',
+      unread: true,
+      isBulk: false
+    },
+    {
+      id: 'b',
+      messageId: 'b',
+      fromEmail: 'organizer@near.org',
+      subject: 'Canceled event with note: Hot Takes',
+      unread: true,
+      isBulk: false
+    },
+    {
+      id: 'i',
+      messageId: 'i',
+      fromEmail: 'organizer@near.org',
+      subject: 'Invitation: Abhi <> Alycia @ Wed',
+      unread: true,
+      isBulk: false
+    },
+    {
+      id: 'c',
+      messageId: 'c',
+      fromEmail: 'counsel@firm.com',
+      subject: 'Re: the SA redline',
+      unread: true,
+      isBulk: false
+    }
+  ];
+  assert.deepEqual(
+    selectTriageInbox(messages, {}).map((m) => m.id),
+    ['c'],
+    'all calendar-system mail filed; the real reply survives'
+  );
 });
 
 test('selectTriageInbox keeps human mail but files bulk, ignored senders, and dismissed rows', () => {
