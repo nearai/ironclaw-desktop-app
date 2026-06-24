@@ -21,7 +21,7 @@ export const WORKBENCH_SHELL_STYLE = `.wb13-shell {
   height: 30px;
   margin-bottom: 10px;
   border-radius: 9px;
-  background: linear-gradient(150deg, #4a86db, #1c63d6 55%, #1654b8);
+  background: linear-gradient(150deg, #33a8ff, var(--wb-accent) 55%, var(--wb-accent-press));
 }
 .wb13-nav button {
   position: relative;

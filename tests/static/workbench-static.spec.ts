@@ -11,11 +11,12 @@ import {
 } from './workbench-static-fixtures';
 
 test('static workbench stylesheet: visual polish guards wrap detail text and dim disabled actions', () => {
-  // Body = self-hosted Geist (variable, sans). Display = Newsreader serif (v13/v12
-  // fidelity) with a system-serif fallback stack until the Newsreader woff2 lands.
-  expect(workbenchStylesSource).toContain('--wb-font-body: "Geist", "Geist Variable"');
-  expect(workbenchStylesSource).toContain('--wb-font-display: "Newsreader"');
-  expect(workbenchStylesSource).toMatch(/--wb-font-display:[^;]*serif;/);
+  // Direction B (the redesign): system font everywhere — real SF Pro on Apple via
+  // -apple-system, Pretendard as the off-Apple fallback. Both body and display use
+  // the system sans stack (no Newsreader serif); this supersedes the v13 type.
+  expect(workbenchStylesSource).toContain('--wb-font-body: -apple-system');
+  expect(workbenchStylesSource).toContain('--wb-font-display: -apple-system');
+  expect(workbenchStylesSource).toMatch(/--wb-font-display:[^;]*sans-serif;/);
   expect(workbenchStylesSource).toContain('[data-theme="dark"] .wb13');
   expect(workbenchStylesSource).toContain('resize: none;');
   expect(workbenchStylesSource).toContain(
@@ -115,10 +116,11 @@ test('static workbench: direct route renders v13 replacement shell with real wir
   await page.evaluate(() => {
     document.documentElement.setAttribute('data-theme', 'dark');
   });
-  await expect(page.locator('.wb13-main')).toHaveCSS('background-color', 'rgb(11, 16, 22)');
+  // Direction B dark surfaces (supersedes the v13 navy): --wb-surface #0e0f10, --wb-canvas #131517.
+  await expect(page.locator('.wb13-main')).toHaveCSS('background-color', 'rgb(14, 15, 16)');
   await expect(page.locator('.wb13-well textarea')).toHaveCSS(
     'background-color',
-    'rgb(17, 24, 33)'
+    'rgb(19, 21, 23)'
   );
   await expect(page.getByRole('link', { name: /Open in Work/ })).toHaveAttribute(
     'href',

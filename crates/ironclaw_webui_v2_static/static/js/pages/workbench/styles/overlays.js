@@ -199,7 +199,7 @@ export const WORKBENCH_OVERLAYS_STYLE = `.wb13-inspector {
   margin: 3px 0;
 }
 .wb13-reader-markdown a {
-  color: var(--wb-accent, #1c63d6);
+  color: var(--wb-accent, #0091fd);
   text-decoration: underline;
 }
 .wb13-reader-markdown strong {

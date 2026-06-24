@@ -41,7 +41,7 @@ changes the look, so the gate validates the new design, not the old. This is an 
 not a regression.
 
 ## Screen / work checklist (ordered; check off + date as completed)
-- [ ] **C1 — Console design tokens**: add the light NEAR-Private-Chat token set (from colors_and_type.css) into the workbench styles as the Console theme; SF Pro/Pretendard system font. Update DT-1..6 to the Console spec.
+- [x] **C1 — Console design tokens** (2026-06-23): re-mapped `styles/tokens.js` light+dark to the Direction-B palette (`--wb-surface #f8f8f6`, `--wb-canvas #fff`, `--wb-accent #0091fd`, system SF Pro for body AND display — Newsreader serif gone) + brand-mark gradient → Console blue. DT-1..6 assert `--v2-*` (not wb13), so unaffected; updated the two v13-fidelity asserts in workbench-static.spec.ts (`:13` fonts, `:41` dark surfaces) to the Console values. Gate green; live-verified light surface `rgb(248,248,246)` + SF Pro, `loads=1` — evidence `docs/design/evidence/c1-console-tokens-light.png`.
 - [ ] **C2 — Console shell + Work/Triage home**: re-lay the Workbench home to the 3-column Console (rail + persistent source-stream + center command-bar + status-grouped Triage). The briefing data already exists (buildBriefing / synthesizeBriefing) — render it in the Console's Triage + source-stream shape. Keep the gear → native settings sheet.
 - [ ] **C3 — Source stream**: the persistent left aside — grouped live sources (Needs a reply / Slack / GitHub / Notion / Files) from the existing connector reads, with search.
 - [ ] **C4 — Library** (new design + actually works): real saved-work list (client-persisted via localStorage if no server route); Console styling.
