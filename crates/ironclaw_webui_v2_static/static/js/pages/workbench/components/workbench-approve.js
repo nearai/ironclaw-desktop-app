@@ -1,13 +1,57 @@
 import { Icon } from '../../../design-system/icons.js';
 import { React, html } from '../../../lib/html.js';
+import { cn } from '../../../utils/cn.js';
 import { useDialogFocus } from '../hooks/useDialogFocus.js';
-import { draftValidationError } from '../lib/workbench-draft.js';
+import { draftValidationError, isValidEmail, resolveRecipients } from '../lib/workbench-draft.js';
 
-// The gated-write approval modal. The user reviews and edits a reply draft, then
-// "Create draft" writes a REVIEWABLE draft to Gmail (nothing is sent). A "Send"
-// affordance appears only when the gateway reports the send capability is on;
-// otherwise the modal states plainly that sending from the Workbench is off.
-// This is the only place a connector write is initiated from the UI.
+const APPROVE_STYLE = `
+.wb13-recip-hint { font-size: 11.5px; color: var(--wb-faint); margin: -2px 0 2px; }
+.wb13-linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--wb-accent); cursor: pointer; text-decoration: underline; }
+.wb13-recip-preview { display: flex; flex-wrap: wrap; gap: 6px; margin: 2px 0 4px; }
+.wb13-recip-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; line-height: 1; padding: 5px 9px; border-radius: 999px;
+  background: var(--wb-accent-soft); color: var(--wb-accent); border: 1px solid var(--wb-accent-tint);
+}
+.wb13-recip-chip .tag { font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; opacity: 0.75; }
+.wb13-recip-chip.is-bad { background: color-mix(in srgb, var(--wb-danger) 12%, transparent); color: var(--wb-danger); border-color: color-mix(in srgb, var(--wb-danger) 35%, transparent); }
+`;
+
+// A read-only preview of who the draft will go to, so added addresses visibly
+// register (the "invoices@near.foundation doesn't show up as a recipient" fix).
+// Each To/Cc address parsed from the fields becomes a chip; invalid ones are flagged.
+function RecipientPreview({ recipient, cc }) {
+  // Mirror exactly what will be written: de-duplicated To, and Cc with To overlap
+  // removed. Using the same resolver as draftWriteArguments keeps the preview honest
+  // and guarantees unique chip keys.
+  const { to, cc: ccList } = resolveRecipients({ recipient, cc });
+  if (!to.length && !ccList.length) return null;
+  return html`<div className="wb13-recip-preview" data-testid="workbench-approve-recipients">
+    ${to.map(
+      (email) =>
+        html`<span
+          key=${`to-${email}`}
+          className=${cn('wb13-recip-chip', !isValidEmail(email) && 'is-bad')}
+          >${email}</span
+        >`
+    )}
+    ${ccList.map(
+      (email) =>
+        html`<span
+          key=${`cc-${email}`}
+          className=${cn('wb13-recip-chip', !isValidEmail(email) && 'is-bad')}
+          ><span className="tag">cc</span>${email}</span
+        >`
+    )}
+  </div>`;
+}
+
+// The gated-write approval modal. The user reviews and edits a reply draft — To
+// (one or more comma-separated addresses), Cc, subject, body — then "Create draft"
+// writes a REVIEWABLE draft to Gmail (nothing is sent). A "Send" affordance appears
+// only when the gateway reports the send capability is on; otherwise the modal
+// states plainly that sending from the Workbench is off. This is the only place a
+// connector write is initiated from the UI.
 export function WorkbenchApprove({
   context,
   sendEnabled = false,
@@ -22,6 +66,8 @@ export function WorkbenchApprove({
   const open = Boolean(context);
   const { panelRef } = useDialogFocus(open);
   const [recipient, setRecipient] = React.useState('');
+  const [cc, setCc] = React.useState('');
+  const [showCc, setShowCc] = React.useState(false);
   const [subject, setSubject] = React.useState('');
   const [body, setBody] = React.useState('');
 
@@ -29,6 +75,8 @@ export function WorkbenchApprove({
   React.useEffect(() => {
     if (!context) return;
     setRecipient(context.recipient || '');
+    setCc(context.cc || '');
+    setShowCc(Boolean(context.cc));
     setSubject(context.subject || '');
     setBody(context.body || '');
   }, [context]);
@@ -42,14 +90,17 @@ export function WorkbenchApprove({
   if (!open) return null;
 
   const created = Boolean(result && result.ok);
-  const validation = created ? '' : draftValidationError({ recipient, subject, body });
+  const validation = created ? '' : draftValidationError({ recipient, cc, subject, body });
   const submit = () => {
     if (validation || busy) return;
-    onSubmit({ recipient, subject, body, threadId: context.threadId });
+    onSubmit({ recipient, cc, subject, body, threadId: context.threadId });
   };
 
   return html`
     <div>
+      <style>
+        ${APPROVE_STYLE}
+      </style>
       <button
         type="button"
         className="wb13-scrim"
@@ -88,13 +139,40 @@ export function WorkbenchApprove({
                   <label className="wb13-pill-control wb13-full-control">
                     To
                     <input
-                      type="email"
+                      type="text"
                       value=${recipient}
                       data-testid="workbench-approve-recipient"
-                      placeholder="recipient@example.com"
+                      placeholder="name@company.com, second@company.com"
                       onInput=${(event) => setRecipient(event.currentTarget.value)}
                     />
                   </label>
+                  <div className="wb13-recip-hint">
+                    Add more than one — separate addresses with a comma.
+                    ${showCc
+                      ? null
+                      : html` ·
+                          <button
+                            type="button"
+                            className="wb13-linkbtn"
+                            data-testid="workbench-approve-addcc"
+                            onClick=${() => setShowCc(true)}
+                          >
+                            Add Cc
+                          </button>`}
+                  </div>
+                  ${showCc
+                    ? html`<label className="wb13-pill-control wb13-full-control">
+                        Cc
+                        <input
+                          type="text"
+                          value=${cc}
+                          data-testid="workbench-approve-cc"
+                          placeholder="cc@company.com"
+                          onInput=${(event) => setCc(event.currentTarget.value)}
+                        />
+                      </label>`
+                    : null}
+                  <${RecipientPreview} recipient=${recipient} cc=${cc} />
                   <label className="wb13-pill-control wb13-full-control">
                     Subject
                     <input
