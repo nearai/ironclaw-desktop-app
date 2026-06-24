@@ -1,5 +1,6 @@
 import { Icon } from '../../../design-system/icons.js';
 import { html } from '../../../lib/html.js';
+import { renderMarkdown } from '../../../lib/markdown.js';
 import { useDialogFocus } from '../hooks/useDialogFocus.js';
 import {
   useConnectorMessage,
@@ -10,8 +11,16 @@ import { formatInboxWhen, gmailMessageHref } from '../lib/workbench-connectors.j
 
 // Render the flattened Notion blocks (from normalizeNotionPageContent) as a
 // readable, on-design document. Plain text only — no raw HTML, so no XSS surface.
+// Consecutive numbered_list_item blocks get a real running ordinal (the normalizer
+// flattens them to bare text); any other block resets the count.
 function NotionBlocks({ blocks }) {
+  let ordinal = 0;
   return html`${blocks.map((block, index) => {
+    if (block.kind === 'number') {
+      ordinal += 1;
+      return html`<div key=${index} className="wb13-notion-li">${ordinal}. ${block.text}</div>`;
+    }
+    ordinal = 0;
     if (block.kind === 'divider') return html`<hr key=${index} className="wb13-notion-divider" />`;
     if (block.kind === 'heading') {
       return html`<div key=${index} className=${`wb13-notion-h wb13-notion-h${block.level || 2}`}>
@@ -20,8 +29,6 @@ function NotionBlocks({ blocks }) {
     }
     if (block.kind === 'bullet')
       return html`<div key=${index} className="wb13-notion-li">• ${block.text}</div>`;
-    if (block.kind === 'number')
-      return html`<div key=${index} className="wb13-notion-li">${block.text}</div>`;
     if (block.kind === 'todo')
       return html`<div key=${index} className="wb13-notion-li">
         ${block.checked ? '☑' : '☐'} ${block.text}
@@ -267,10 +274,10 @@ export function WorkbenchReadingPanel({ selected, onClose, onDraftReply }) {
                     srcdoc=${safeHtml}
                   ></iframe>`
                 : paragraphs.length
-                  ? paragraphs.map(
-                      (para, index) =>
-                        html`<p key=${index} className="wb13-reader-para">${para}</p>`
-                    )
+                  ? html`<div
+                      className="wb13-reader-markdown"
+                      dangerouslySetInnerHTML=${{ __html: renderMarkdown(message.body) }}
+                    ></div>`
                   : html`<div className="wb13-reader-note">
                       This message has no readable text body.
                     </div>`}

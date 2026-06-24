@@ -2989,6 +2989,70 @@ test('static workbench: clicking a decision card opens the reading panel with th
   expect(consoleIssues).toEqual([]);
 });
 
+test('static workbench: a markdown email body renders as formatted structure, not raw markdown', async ({
+  page
+}) => {
+  const consoleIssues: string[] = [];
+  page.on('console', (message) => {
+    if (['error', 'warning'].includes(message.type())) consoleIssues.push(message.text());
+  });
+  page.on('pageerror', (error) => consoleIssues.push(`pageerror: ${error.message}`));
+
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [{ toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' }],
+    connectorReads: {
+      GMAIL_FETCH_EMAILS: {
+        successful: true,
+        data: {
+          messages: [
+            {
+              messageId: 'md-1',
+              threadId: 'thread-md',
+              sender: 'Counsel <counsel@northwind.com>',
+              subject: 'Q3 renewal checklist',
+              snippet: 'A few items before Friday',
+              labelIds: ['UNREAD', 'INBOX'],
+              messageTimestamp: '2026-06-20T16:31:36Z'
+            }
+          ]
+        }
+      },
+      GMAIL_FETCH_MESSAGE_BY_MESSAGE_ID: {
+        successful: true,
+        data: {
+          messageId: 'md-1',
+          threadId: 'thread-md',
+          sender: 'Counsel <counsel@northwind.com>',
+          subject: 'Q3 renewal checklist',
+          messageTimestamp: '2026-06-20T16:31:36Z',
+          // A plain-text body that is actually markdown — must render structure.
+          messageText:
+            '## Q3 renewal checklist\n\nPlease confirm the following **before Friday**:\n\n- net-60 payment terms\n- the 8% cap\n- signature on page 2\n'
+        }
+      }
+    }
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page
+    .getByTestId('workbench-decisions')
+    .getByTestId('workbench-decision-open')
+    .first()
+    .click();
+  const body = page
+    .getByTestId('workbench-reading-panel')
+    .getByTestId('workbench-reading-panel-body');
+  await expect(body).toBeVisible();
+  // Rendered as real elements (heading, bold, list) — not literal markdown glyphs.
+  await expect(body.locator('h2')).toContainText('Q3 renewal checklist');
+  await expect(body.locator('strong')).toContainText('before Friday');
+  await expect(body.locator('li')).toHaveCount(3);
+  await expect(body).not.toContainText('## Q3');
+  await expect(body).not.toContainText('- net-60');
+
+  expect(consoleIssues).toEqual([]);
+});
+
 test('static workbench: reading panel creates a reviewable Gmail draft through the gated write route', async ({
   page
 }) => {

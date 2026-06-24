@@ -145,6 +145,77 @@ export const WORKBENCH_OVERLAYS_STYLE = `.wb13-inspector {
   overflow-wrap: anywhere;
 }
 .wb13-reader-para { margin: 0 0 12px; white-space: pre-wrap; }
+/* Markdown text body (plain-text emails + agent output): render real structure
+   instead of raw #/*/- . Sanitized by renderMarkdown (DOMPurify) before it lands
+   here, so no raw-HTML/XSS surface. Styled on the dark v13 reader tokens. */
+.wb13-reader-markdown {
+  color: var(--wb-ink);
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.wb13-reader-markdown > :first-child {
+  margin-top: 0;
+}
+.wb13-reader-markdown p {
+  margin: 0 0 12px;
+}
+.wb13-reader-markdown h1,
+.wb13-reader-markdown h2,
+.wb13-reader-markdown h3 {
+  font-family: var(--wb-font-display, var(--wb-font-body));
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 16px 0 8px;
+}
+.wb13-reader-markdown h1 {
+  font-size: 19px;
+}
+.wb13-reader-markdown h2 {
+  font-size: 16px;
+}
+.wb13-reader-markdown h3 {
+  font-size: 14.5px;
+}
+.wb13-reader-markdown ul,
+.wb13-reader-markdown ol {
+  margin: 0 0 12px;
+  padding-left: 22px;
+}
+.wb13-reader-markdown li {
+  margin: 3px 0;
+}
+.wb13-reader-markdown a {
+  color: var(--wb-accent, #1c63d6);
+  text-decoration: underline;
+}
+.wb13-reader-markdown strong {
+  font-weight: 700;
+}
+.wb13-reader-markdown blockquote {
+  margin: 8px 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--wb-line);
+  color: var(--wb-muted);
+}
+.wb13-reader-markdown code {
+  font-size: 12.5px;
+  background: var(--wb-line-2);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.wb13-reader-markdown pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--wb-line-2);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.wb13-reader-markdown pre code {
+  background: none;
+  padding: 0;
+}
 /* Native email render: the sanitized HTML runs in a sandboxed iframe (no
    scripts), on a white sheet because email HTML is authored for light
    backgrounds. Fills the reader and scrolls internally. */
