@@ -25,6 +25,12 @@ import { buildBriefing, isBriefingIntent } from './lib/workbench-briefing.js';
 // needed once a catch-up briefing is actually requested.
 import { isSlackBlockerIntent } from './lib/workbench-slack.js';
 import { buildReplyDraft, createdDraftId, draftWriteArguments } from './lib/workbench-draft.js';
+import {
+  CENTER_FILTERS,
+  centerFilterHasContent,
+  triageStatusFilterFor,
+  workbenchTriageCounts
+} from './lib/workbench-triage.js';
 import { generateSuggestedReply } from './lib/workbench-reply.js';
 import { WORKBENCH_DRAFT_KEY, useWorkbenchStart } from './hooks/useWorkbenchStart.js';
 import { useDialogFocus } from './hooks/useDialogFocus.js';
@@ -133,10 +139,18 @@ const WORKBENCH_PROFILE = Object.freeze({
   ]
 });
 
-function TriageSection({ groups, hasDecisions = false }) {
+function TriageSection({ groups, hasDecisions = false, statusFilter = null }) {
   const populatedGroups = groups.filter(
-    (group) => group.rows.length > 0 && !TRIAGE_EXCLUDED_GROUPS.has(group.id)
+    (group) =>
+      group.rows.length > 0 &&
+      !TRIAGE_EXCLUDED_GROUPS.has(group.id) &&
+      (!statusFilter || statusFilter.includes(group.id))
   );
+
+  // When a triage cockpit pill (Decisions/Blocked) is filtering to specific status
+  // groups, render nothing if none match — the cockpit shows its own empty note,
+  // and an "all clear" box here would contradict the active filter.
+  if (!populatedGroups.length && statusFilter) return null;
 
   // When real unread mail is already rendered as decision cards above, an empty
   // "Nothing needs you" box would be a false negative — suppress it.
@@ -242,11 +256,60 @@ function TriageCard({ row, tone }) {
   `;
 }
 
+// Direction B "Triage" cockpit: the center reads as one triage surface with a header
+// (title + counts) and filter pills (CENTER_FILTERS, from ./lib/workbench-triage). The
+// pills filter the stacked sections via centerFilter; default 'all' renders everything
+// (so the briefing, decisions, and triage all show by default exactly as before). The
+// count + has-content predicates live in the lib so they're unit-tested against the
+// blank-center failure modes.
+const TRIAGE_HEAD_STYLE = `
+.wb13-triage-head { display:flex; align-items:baseline; gap:10px; margin: 20px 0 0; }
+.wb13-triage-head h2 { font-size:19px; font-weight:650; letter-spacing:-0.01em; margin:0; color:var(--wb-ink); }
+.wb13-triage-head .count { font-size:13px; color:var(--wb-muted); }
+.wb13-triage-pills { display:flex; flex-wrap:wrap; gap:7px; margin: 10px 0 2px; }
+.wb13-triage-empty { margin: 12px 0; color: var(--wb-faint); font-size: 13px; display:flex; gap:8px; align-items:center; }
+`;
+
 function HomeView(props) {
+  const [centerFilter, setCenterFilter] = React.useState('all');
   const hasReviewableSavedWork = props.savedItems.some((item) => firstArtifact(item));
   const showWorkspaceFiles =
     props.commandProps.sourceMode !== WORKBENCH_AUTO_SOURCE_SCOPE.id &&
     props.commandProps.sourceIds.includes('local-files');
+
+  const groups = Array.isArray(props.groups) ? props.groups : [];
+  const decisionMessages = Array.isArray(props.decisionMessages) ? props.decisionMessages : [];
+  const slackBlockerRows = props.slackBlockers?.rows?.length || 0;
+  const countCtx = {
+    gmailReady: props.gmailReady,
+    decisionMessages,
+    groups,
+    slackBlockersActive: props.slackBlockersActive,
+    slackBlockerRows
+  };
+  const { needYou, handled } = workbenchTriageCounts(countCtx);
+  const populatedTriage = groups.filter(
+    (g) => g.rows.length > 0 && !TRIAGE_EXCLUDED_GROUPS.has(g.id)
+  ).length;
+  // Show the cockpit header only when there is real attention to triage — a briefing,
+  // an UNREAD decision (a read-only inbox must not raise a "0 need you" header), or a
+  // populated triage group.
+  const showTriageHeader =
+    Boolean(props.briefing) ||
+    (props.gmailReady && decisionMessages.some((m) => m.unread)) ||
+    populatedTriage > 0;
+
+  // If the data underlying the active filter drains away (so the header — and with it
+  // the pills — would unmount), fall back to 'all' so the user is never stranded.
+  React.useEffect(() => {
+    if (!showTriageHeader && centerFilter !== 'all') setCenterFilter('all');
+  }, [showTriageHeader, centerFilter]);
+
+  // visible(...filters): a section shows in 'all', plus the filters it's tagged with.
+  const visible = (...filters) => centerFilter === 'all' || filters.includes(centerFilter);
+  const triageStatusFilter = triageStatusFilterFor(centerFilter);
+  const filterHasContent = centerFilterHasContent(centerFilter, countCtx);
+  const activeLabel = CENTER_FILTERS.find((f) => f.id === centerFilter)?.label || '';
 
   return html`
     <main className="wb13-main">
@@ -258,7 +321,35 @@ function HomeView(props) {
             isLoading=${props.connectorsLoading}
             onConnect=${props.onConnectSources}
           />
-          ${props.briefing?.kind === 'rich'
+          ${showTriageHeader
+            ? html`
+                <style>
+                  ${TRIAGE_HEAD_STYLE}
+                </style>
+                <div className="wb13-triage-head">
+                  <h2>Triage</h2>
+                  <span className="count" data-testid="workbench-triage-count"
+                    >${needYou} need you${handled ? ` · ${handled} handled` : ''}</span
+                  >
+                </div>
+                <div className="wb13-triage-pills" role="group" aria-label="Triage filter">
+                  ${CENTER_FILTERS.map(
+                    (f) =>
+                      html`<button
+                        key=${f.id}
+                        type="button"
+                        aria-pressed=${centerFilter === f.id}
+                        data-testid=${`workbench-triage-pill-${f.id}`}
+                        className=${cn('wb13-chip', centerFilter === f.id && 'is-active')}
+                        onClick=${() => setCenterFilter(f.id)}
+                      >
+                        ${f.label}
+                      </button>`
+                  )}
+                </div>
+              `
+            : null}
+          ${centerFilter === 'all' && props.briefing?.kind === 'rich'
             ? html`<${React.Suspense} fallback=${null}>
                 <${WorkbenchBrief}
                   briefing=${props.briefing}
@@ -266,39 +357,62 @@ function HomeView(props) {
                   onDismiss=${props.onDismissBriefing}
                 />
               </${React.Suspense}>`
-            : html`<${WorkbenchBriefing}
-                briefing=${props.briefing}
+            : centerFilter === 'all'
+              ? html`<${WorkbenchBriefing}
+                  briefing=${props.briefing}
+                  onOpenMessage=${props.onOpenMessage}
+                  onDismiss=${props.onDismissBriefing}
+                />`
+              : null}
+          ${visible('blocked')
+            ? html`<${WorkbenchSlackBlockers}
+                active=${props.slackBlockersActive}
+                rows=${props.slackBlockers.rows}
+                isLoading=${props.slackBlockers.isLoading}
+                isError=${props.slackBlockers.isError}
+                onDismiss=${props.onDismissSlackBlockers}
+              />`
+            : null}
+          ${visible('replies')
+            ? html`<${WorkbenchDecisions}
+                gmailReady=${props.gmailReady}
+                messages=${props.decisionMessages}
                 onOpenMessage=${props.onOpenMessage}
-                onDismiss=${props.onDismissBriefing}
-              />`}
-          <${WorkbenchSlackBlockers}
-            active=${props.slackBlockersActive}
-            rows=${props.slackBlockers.rows}
-            isLoading=${props.slackBlockers.isLoading}
-            isError=${props.slackBlockers.isError}
-            onDismiss=${props.onDismissSlackBlockers}
-          />
-          <${WorkbenchDecisions}
-            gmailReady=${props.gmailReady}
-            messages=${props.decisionMessages}
-            onOpenMessage=${props.onOpenMessage}
-            onDraftMessage=${props.onDraftMessage}
-            onDismiss=${props.onDismissDecision}
-          />
-          <${WorkbenchSceneWorkspace} work=${props.startedWork} />
-          <${TriageSection}
-            groups=${props.groups}
-            hasDecisions=${props.gmailReady &&
-            props.decisionMessages.some((message) => message.unread)}
-          />
-          ${hasReviewableSavedWork
+                onDraftMessage=${props.onDraftMessage}
+                onDismiss=${props.onDismissDecision}
+              />`
+            : null}
+          ${centerFilter === 'all'
+            ? html`<${WorkbenchSceneWorkspace} work=${props.startedWork} />`
+            : null}
+          ${visible('decisions', 'blocked')
+            ? html`<${TriageSection}
+                groups=${props.groups}
+                statusFilter=${triageStatusFilter}
+                hasDecisions=${props.gmailReady &&
+                decisionMessages.some((message) => message.unread)}
+              />`
+            : null}
+          ${!filterHasContent
+            ? html`<div className="wb13-triage-empty">
+                Nothing in ${activeLabel} right now.
+                <button
+                  type="button"
+                  className="wb13-button is-sm"
+                  onClick=${() => setCenterFilter('all')}
+                >
+                  Show all
+                </button>
+              </div>`
+            : null}
+          ${centerFilter === 'all' && hasReviewableSavedWork
             ? html`<${WorkPacketPreview}
                 savedItems=${props.savedItems}
                 activeTab=${props.packageTab}
                 onTab=${props.onPackageTab}
               />`
             : null}
-          ${showWorkspaceFiles
+          ${centerFilter === 'all' && showWorkspaceFiles
             ? html`<${WorkbenchWorkspaceFiles} onAttachFile=${props.onAttachWorkspaceFile} />`
             : null}
         </div>
