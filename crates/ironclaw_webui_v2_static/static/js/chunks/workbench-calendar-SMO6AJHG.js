@@ -1,4 +1,4 @@
-import{k as w}from"./chunk-44YACJZV.js";import{c as a}from"./chunk-IG4LZQG4.js";import"./chunk-NAT75VSJ.js";var g=`
+import{l as w}from"./chunk-T72P5ZJK.js";import{c as a}from"./chunk-IG4LZQG4.js";import"./chunk-NAT75VSJ.js";var g=`
 .wb13-agenda { margin-top: 8px; display: flex; flex-direction: column; gap: 22px; }
 .wb13-agenda-day { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 18px; align-items: start; }
 .wb13-agenda-dayhead { position: sticky; top: 0; display: flex; align-items: baseline; gap: 8px; padding-top: 2px; }
