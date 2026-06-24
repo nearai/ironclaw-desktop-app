@@ -54,4 +54,5 @@ not a regression.
 - [ ] Responsive (375px) + a11y pass on the Console; final full gate; push; morning summary at the top of this file.
 
 ## Log
+- 2026-06-24: **Bundle headroom watch** — cold-start is at **399.4 / 401 KB** (~1.6 KB left) after C4. C7 (compose UI) will likely cross it. FIRST step of C7: free cold-start by `React.lazy`-loading the secondary nav views that are currently eager imports in `workbench-page.js` (Library / Memory — Calendar is already lazy). That moves them to on-demand chunks and buys multiple KB. Verify the lazy split with a Suspense fallback + a live nav into each view.
 - 2026-06-23: Roadmap created. Handoff persisted. Hourly autonomous loop set up. Branch `workbench-overnight-20260620`. Prior work (Slack-first briefing, settings separation, doc reader, identity sourcing) already on origin (e07fff4 + c2514a6 local).
