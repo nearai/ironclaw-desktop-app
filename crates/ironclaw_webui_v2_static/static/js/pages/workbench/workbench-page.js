@@ -62,8 +62,15 @@ import { WorkbenchSlackBlockers } from './components/workbench-slack-blockers.js
 import { WorkbenchCommandSurface } from './components/workbench-command.js';
 import { WorkbenchReadingPanel } from './components/workbench-reading-panel.js';
 import { WorkbenchWorkspaceFiles } from './components/workbench-files.js';
-import { LibraryView } from './components/workbench-library.js';
-import { MemoryView } from './components/workbench-memory.js';
+// Library + Memory are secondary nav views (not on the cold-start path), so
+// lazy-load them like Calendar/Brief to keep their weight (+ their localStorage
+// stores) out of the cold-start bundle. React.lazy wants a default export.
+const LibraryView = React.lazy(() =>
+  import('./components/workbench-library.js').then((m) => ({ default: m.LibraryView }))
+);
+const MemoryView = React.lazy(() =>
+  import('./components/workbench-memory.js').then((m) => ({ default: m.MemoryView }))
+);
 // Calendar is a secondary view — lazy-load it so its time-grid styles + layout
 // logic stay out of the cold-start bundle. React.lazy wants a default export, so
 // map the named CalendarView onto `.default`.
@@ -1269,7 +1276,17 @@ export function WorkbenchPage() {
           onToggleDock=${() => setDockOpen((value) => !value)}
         />
         ${view === 'memory'
-          ? html`<${MemoryView} />`
+          ? html`<${React.Suspense}
+              fallback=${html`<main className="wb13-main">
+                <div className="wb13-page">
+                  <div className="wb13-wrap">
+                    <div className="wb13-head"><h1>Save a preference?</h1></div>
+                  </div>
+                </div>
+              </main>`}
+            >
+              <${MemoryView} />
+            </${React.Suspense}>`
           : view === 'calendar'
             ? html`<${React.Suspense}
                 fallback=${html`<main className="wb13-main">
@@ -1288,11 +1305,21 @@ export function WorkbenchPage() {
                 />
               </${React.Suspense}>`
             : view === 'library'
-              ? html`<${LibraryView}
-                  savedItems=${savedItems}
-                  savedWorkSnapshot=${savedWorkSnapshot}
-                  onView=${setView}
-                />`
+              ? html`<${React.Suspense}
+                  fallback=${html`<main className="wb13-main">
+                    <div className="wb13-page">
+                      <div className="wb13-wide">
+                        <div className="wb13-head"><h1>Library</h1></div>
+                      </div>
+                    </div>
+                  </main>`}
+                >
+                  <${LibraryView}
+                    savedItems=${savedItems}
+                    savedWorkSnapshot=${savedWorkSnapshot}
+                    onView=${setView}
+                  />
+                </${React.Suspense}>`
               : html`<${HomeView}
                   commandProps=${commandProps}
                   startedWork=${startedWork}
