@@ -88,6 +88,19 @@ export function hasActiveToolkit(payload, family) {
   return connectorFamilyReadiness(payload).some((item) => item.id === family);
 }
 
+// The signed-in user's own email, from GMAIL_GET_PROFILE
+// (data.response_data.emailAddress, with a couple of envelope fallbacks). Used to
+// resolve the user inside the Slack workspace so the briefing is theirs, not a
+// hardcoded identity. '' on any unsuccessful/malformed payload (caller then falls
+// back to the configured profile email).
+export function gmailProfileEmail(result) {
+  if (!result || result.successful === false) return '';
+  const data = result.data || result;
+  const inner = data.response_data || data.data || data;
+  const email = inner && typeof inner === 'object' ? inner.emailAddress || inner.email : '';
+  return typeof email === 'string' ? email.trim() : '';
+}
+
 function decodeLabelIds(message) {
   const ids = Array.isArray(message?.labelIds) ? message.labelIds : [];
   return ids.map((id) => asString(id).toUpperCase());

@@ -45,6 +45,7 @@ import {
   useConnectorInbox,
   useConnectorSent,
   useConnectorNotion,
+  useConnectorSelfEmail,
   useConnectorSlackBlockers,
   useConnectorSlackDeep
 } from './hooks/useWorkbenchConnectors.js';
@@ -100,11 +101,12 @@ const TRIAGE_EXCLUDED_GROUPS = new Set(['needs-reply', 'upcoming', 'github', 'no
 const WORKBENCH_PROFILE = Object.freeze({
   name: 'Abhishek Vaidyanathan',
   title: 'Chief Legal Officer',
-  // Email is the key that resolves the signed-in user inside the Slack workspace
-  // (SLACK_LIST_ALL_USERS, matched by profile.email) so the briefing can tell apart
-  // "you were @-mentioned" from "a decision is forming without you". When it does not
-  // match a workspace member the deep read degrades to the blocker fallback.
-  // TODO: source this from the connected Gmail/Slack identity rather than hardcoding.
+  // FALLBACK identity only. The live Slack identity is sourced from the connected
+  // Gmail account (useConnectorSelfEmail -> GMAIL_GET_PROFILE), which is the email the
+  // deep read matches against in SLACK_LIST_ALL_USERS to tell "you were @-mentioned"
+  // from "a decision is forming without you". This value is used only when Gmail is
+  // not connected; when neither resolves a workspace member, the deep read degrades
+  // to the blocker fallback.
   email: 'abby.vaidyanathan@gmail.com',
   channels: [
     '#x-intents',
@@ -694,15 +696,23 @@ export function WorkbenchPage() {
     enabled: connectedAccounts.slackReady,
     maxResults: 8
   });
+  // Resolve the user's own email from the connected Gmail account; this is the
+  // identity the Slack deep read matches against. Falls back to the configured
+  // profile email until/unless Gmail provides one.
+  const selfEmail = useConnectorSelfEmail({ enabled: connectedAccounts.gmailReady });
+  const slackIdentityEmail = selfEmail.email || WORKBENCH_PROFILE.email;
+
   // Slack-first sourcing for the catch-up briefing: read the user's channels deeply
   // and classify into awaiting-reply (you were tagged) vs decision-forming (a thread
   // you're absent from). Eager when Slack is connected — like the blocker search —
   // so the home's Slack-first data is ready by the time a briefing is requested; the
   // result is cached (60s staleTime) and degrades to [] (identity unresolved / read
   // failure), leaving the blocker fallback. Channel fan-out is capped to bound cost.
+  // Wait for the Gmail-sourced identity to settle first so the read uses the real
+  // email, not the fallback guess (avoids a wasted fan-out under the wrong identity).
   const slackDeep = useConnectorSlackDeep({
-    enabled: connectedAccounts.slackReady,
-    email: WORKBENCH_PROFILE.email,
+    enabled: connectedAccounts.slackReady && selfEmail.isSettled,
+    email: slackIdentityEmail,
     channelLimit: 6
   });
   const connectorDrive = useConnectorDrive({ enabled: connectedAccounts.driveReady });

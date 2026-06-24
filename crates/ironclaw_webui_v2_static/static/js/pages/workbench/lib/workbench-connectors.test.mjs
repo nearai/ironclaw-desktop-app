@@ -11,6 +11,7 @@ import {
   decodeBase64Part,
   extractHtmlBody,
   gmailMessageHref,
+  gmailProfileEmail,
   hasActiveToolkit,
   isAnsweredThread,
   normalizeCalendarEvents,
@@ -29,6 +30,22 @@ test('toEpochMs parses epoch-ms strings, ISO dates, and degrades to 0', () => {
   assert.equal(toEpochMs(''), 0);
   assert.equal(toEpochMs('not-a-date'), 0);
   assert.equal(toEpochMs(null), 0);
+});
+
+test('gmailProfileEmail extracts the self email from GMAIL_GET_PROFILE (response_data envelope)', () => {
+  assert.equal(
+    gmailProfileEmail({
+      successful: true,
+      data: { response_data: { emailAddress: 'abhishek.vaidyanathan@near.foundation' } }
+    }),
+    'abhishek.vaidyanathan@near.foundation'
+  );
+  // envelope fallbacks + honest-empty on malformed/unsuccessful
+  assert.equal(gmailProfileEmail({ data: { data: { email: 'x@y.com' } } }), 'x@y.com');
+  assert.equal(gmailProfileEmail({ data: { emailAddress: 'z@y.com' } }), 'z@y.com');
+  assert.equal(gmailProfileEmail({ successful: false }), '');
+  assert.equal(gmailProfileEmail(null), '');
+  assert.equal(gmailProfileEmail({ data: { response_data: {} } }), '');
 });
 
 test('answeredThreadIndex maps threadId -> latest sent timestamp', () => {

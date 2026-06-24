@@ -4,6 +4,7 @@ import { React } from '../../../lib/html.js';
 import { connectorRead, connectorsConnected } from '../../../lib/api.js';
 import {
   connectorFamilyReadiness,
+  gmailProfileEmail,
   hasActiveToolkit,
   normalizeCalendarEvents,
   normalizeFullMessage,
@@ -352,6 +353,37 @@ export function useConnectorSlackBlockers({ enabled = false, maxResults = 8 } = 
     isFetching: query.isFetching && Boolean(enabled),
     isError: query.isError,
     enabled: Boolean(enabled)
+  };
+}
+
+// The signed-in user's own email, read once from the connected Gmail account
+// (GMAIL_GET_PROFILE — a read tool). This is the identity the Slack deep read matches
+// against, so the briefing is the user's own, not a hardcoded address. Long staleTime
+// (identity is stable); '' until resolved / on failure, so the caller falls back to
+// the configured profile email.
+export function useConnectorSelfEmail({ enabled = false } = {}) {
+  const query = useQuery({
+    queryKey: ['workbench-connector-self-email'],
+    enabled: Boolean(enabled),
+    staleTime: 3_600_000,
+    retry: 1,
+    throwOnError: false,
+    queryFn: ({ signal }) =>
+      connectorRead({ toolkit: 'gmail', tool: 'GMAIL_GET_PROFILE', arguments: {}, signal })
+  });
+
+  const email = React.useMemo(
+    () => (query.isError ? '' : gmailProfileEmail(query.data)),
+    [query.data, query.isError]
+  );
+
+  return {
+    email,
+    // Settled = we have an answer either way, so the deep read can stop waiting.
+    isSettled:
+      !enabled || Boolean(email) || query.isError || (!query.isLoading && !query.isFetching),
+    isLoading: query.isLoading && Boolean(enabled),
+    isError: query.isError
   };
 }
 
