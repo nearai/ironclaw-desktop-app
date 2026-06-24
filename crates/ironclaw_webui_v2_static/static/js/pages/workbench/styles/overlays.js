@@ -46,6 +46,19 @@ export const WORKBENCH_OVERLAYS_STYLE = `.wb13-inspector {
 }
 .wb13-inspector-sub { margin: 0 0 16px; color: var(--wb-muted); font-size: 12px; }
 .wb13-inspector-block { margin-bottom: 16px; }
+.wb13-settings-conns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 0 0 10px;
+}
+.wb13-settings-conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--wb-ink);
+}
 .wb13-inspector-block h5 {
   margin: 0 0 7px;
   color: var(--wb-faint);

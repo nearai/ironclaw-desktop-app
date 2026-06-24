@@ -17,7 +17,7 @@ function railToneForGroup(groupId) {
   return '';
 }
 
-export function WorkbenchNav({ view, onView }) {
+export function WorkbenchNav({ view, onView, onSettings }) {
   const { theme, toggleTheme } = useInterfaceTheme();
   const nextThemeLabel = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
   return html`
@@ -66,9 +66,16 @@ export function WorkbenchNav({ view, onView }) {
       >
         <${Icon} name=${theme === 'dark' ? 'sun' : 'moon'} />
       </button>
-      <${Link} to="/settings/inference" className="wb13-top-button" title="Settings">
+      <button
+        type="button"
+        className="wb13-top-button"
+        title="Settings"
+        aria-label="Settings"
+        data-testid="workbench-nav-settings"
+        onClick=${onSettings}
+      >
         <${Icon} name="settings" />
-      <//>
+      </button>
     </nav>
   `;
 }

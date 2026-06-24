@@ -76,6 +76,7 @@ import { WorkbenchDock, WorkbenchNav, WorkbenchTop } from './components/workbenc
 import { WorkbenchCommandPalette } from './components/workbench-command-palette.js';
 import { WorkbenchShortcuts } from './components/workbench-shortcuts.js';
 import { WorkbenchSourcesInspector } from './components/workbench-sources-inspector.js';
+import { WorkbenchSettings } from './components/workbench-settings.js';
 import { WorkModeInspector } from './components/workbench-work-mode.js';
 import { WORKBENCH_STYLE } from './workbench-styles.js';
 
@@ -400,6 +401,7 @@ export function WorkbenchPage() {
   const [briefingSlackActive, setBriefingSlackActive] = React.useState(false);
   const [dockOpen, setDockOpen] = React.useState(false);
   const [showSources, setShowSources] = React.useState(false);
+  const [showSettings, setShowSettings] = React.useState(false);
   const [showCadence, setShowCadence] = React.useState(false);
   const [showWorkMode, setShowWorkMode] = React.useState(false);
   const [paletteOpen, setPaletteOpen] = React.useState(false);
@@ -782,12 +784,20 @@ export function WorkbenchPage() {
   const savedItems = savedWorkSnapshot.items;
 
   React.useEffect(() => {
-    if (!showSources && !showCadence && !showWorkMode && !dockOpen && !selectedMessage) {
+    if (
+      !showSources &&
+      !showSettings &&
+      !showCadence &&
+      !showWorkMode &&
+      !dockOpen &&
+      !selectedMessage
+    ) {
       return undefined;
     }
     const onKeyDown = (event) => {
       if (event.key !== 'Escape') return;
       setShowSources(false);
+      setShowSettings(false);
       setShowCadence(false);
       setShowWorkMode(false);
       setDockOpen(false);
@@ -795,7 +805,7 @@ export function WorkbenchPage() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [showSources, showCadence, showWorkMode, dockOpen, selectedMessage]);
+  }, [showSources, showSettings, showCadence, showWorkMode, dockOpen, selectedMessage]);
 
   const automations = React.useMemo(
     () => normalizeAutomations(automationsQuery.data),
@@ -1235,7 +1245,7 @@ export function WorkbenchPage() {
         ${WORKBENCH_STYLE}
       </style>
       <div className="wb13-shell">
-        <${WorkbenchNav} view=${view} onView=${setView} />
+        <${WorkbenchNav} view=${view} onView=${setView} onSettings=${() => setShowSettings(true)} />
         <${WorkbenchDock}
           groups=${railGroups}
           open=${dockOpen}
@@ -1317,6 +1327,22 @@ export function WorkbenchPage() {
               onConnectSource=${sourceConnection.connect}
               onManualSetupSource=${openSourceSetup}
               onClose=${() => setShowSources(false)}
+            />`
+          : null}
+        ${showSettings
+          ? html`<${WorkbenchSettings}
+              modelId=${modelId}
+              setModelId=${selectModelId}
+              modelOptions=${modelOptions}
+              modelsLoading=${modelsLoading}
+              modelsError=${modelsError}
+              connectorFamilies=${connectedAccounts.families}
+              currentUser=${currentUser}
+              onManageConnections=${() => {
+                setShowSettings(false);
+                setShowSources(true);
+              }}
+              onClose=${() => setShowSettings(false)}
             />`
           : null}
         ${showCadence
