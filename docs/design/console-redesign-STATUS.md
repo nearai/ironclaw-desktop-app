@@ -124,6 +124,36 @@ rendered specimen.
   the status; only the *flat* decision list needed pills (R2). R7 (dark contrast) verified clean
   earlier. Honest de-scope: don't "fix" non-issues.
 
+### Resurface part 2 (2026-06-25, awake user: "polish the rest… make sure shit works" + "both" for jarvis)
+- [x] **R8 — unify the triage cockpit to the mockup** (`93eed84`): triage items were still the old
+  icon-tile + group-header style while the reply cards had the R2 pill craft, so the cockpit read
+  mono. `TriageSection` now flattens to ONE pilled list (no per-group headers) — each item a card with
+  its own colored status pill (Needs a decision / Blocked / Ready to review / In motion / Done),
+  legible meta, no icon tile. Card padding 13/14→14/16 + `--wb-r-lg`. The lingering "mono" look is
+  honest data (today it's all Gmail replies; the amber/red pills light up when approvals/blocked exist).
+  Specs updated (dropped "Recent receipts" header → "Done" pill). Live-verified loads=1.
+- [x] **R9 — skeleton loading state** (`2e25e91`): killed the false "Nothing needs you" that flashed
+  during the ~8s first connector read (center all-clear AND rail active-work empty). Center shows
+  `WorkbenchTriageSkeleton` (3 shimmer cards), the all-clear is suppressed while loading, and the dock
+  shows shimmer rows while any source is still fetching. Respects `prefers-reduced-motion`.
+  Live-verified: EARLY centerSkel=3 dockSkel=5 nothingNeedsYou=false; SETTLED 8 real cards.
+- [x] **R10 — Slack on the default home + respond-in-place** (`384e03a`): the deep Slack read already
+  ran on the home but only fed the briefing. `WorkbenchSlackReplies` now surfaces awaiting threads as
+  pilled cards on the DEFAULT home; `WorkbenchSlackCompose` drafts a reply in your voice (same short
+  read-only turn as email), editable, then Copy / Open thread. Posting to Slack is an outbound SEND →
+  stays behind the `sendEnabled` checkpoint (Post button hidden until enabled; `postSlackReply` wired
+  for the flip). Triage counts + Replies filter now include Slack awaiting. New render test drives the
+  whole pipeline + asserts zero connector writes.
+- [x] **R11 — jarvis (pm-backend) as a real Workbench surface** (`b28d97e`): "both, not just a direct
+  call." New **Projects** nav view reads jarvis live — Owed to you / Your commitments (approvals
+  floated, done dropped) / Projects — in the cockpit card craft. `scripts/jarvis-proxy.mjs` is an MCP
+  streamable-HTTP client (init→tools/call, SSE parse) behind a dev-harness `/api/jarvis/summary` shim
+  (same pattern as `/api/gateway/status`); credential is `JARVIS_API_KEY` env, server-side only, never
+  committed. Read-only. Live-verified against jarvis STAGING through the standalone: 3 owed-to-you, 25
+  commitments, 11 projects. (Screenshot withheld — real PM data, public branch.)
+  **Follow-up:** the packaged Tauri gateway must serve `/api/jarvis/*` natively (today only the dev
+  harness does); writes (create/approve commitment) stay deferred behind a gate like email sends.
+
 ## Log
 - 2026-06-24: **Dark mode verified** (post-completion sweep). The standalone defaults to `data-theme="dark"` (rail has a real sun/moon `useInterfaceTheme` toggle), so I verified the Console in dark across every surface I built this run. All components are 100% token-driven (`var(--wb-*)` / `color-mix`, zero hardcoded colors — confirmed by grep), so they adapt automatically. Live readings: home/cockpit main-bg luminance 15 + triage header text 255 (white-on-dark); Calendar agenda card-bg 21 / title 255 / day-number 122; compose modal bg 21 — all readable, no light-on-light. Evidence `docs/design/evidence/c-dark-{home,calendar,memory,compose}.png`. No code change required.
 - 2026-06-24: **Bundle headroom watch** — cold-start is at **399.4 / 401 KB** (~1.6 KB left) after C4. C7 (compose UI) will likely cross it. FIRST step of C7: free cold-start by `React.lazy`-loading the secondary nav views that are currently eager imports in `workbench-page.js` (Library / Memory — Calendar is already lazy). That moves them to on-demand chunks and buys multiple KB. Verify the lazy split with a Suspense fallback + a live nav into each view.
