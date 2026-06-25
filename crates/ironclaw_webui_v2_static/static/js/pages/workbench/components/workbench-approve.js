@@ -114,7 +114,14 @@ export function WorkbenchApprove({
           className="wb13-approve"
           data-testid="workbench-approve"
           role="dialog"
+          aria-modal="true"
           aria-label="Create draft"
+          onKeyDown=${(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              onCancel();
+            }
+          }}
         >
           <div className="wb13-approve-head">
             <span className="eyebrow"><${Icon} name="shield" /> Gated write · draft</span>

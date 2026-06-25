@@ -694,11 +694,51 @@ test('workbench rail surfaces Slack blockers as their own group, recency-preserv
   );
   assert.equal(slack.rows[0].title, 'Launch copy is blocked on pricing approval');
   assert.equal(slack.rows[0].badge, '#gtm', 'channel becomes the badge');
-  assert.equal(slack.rows[0].detail, 'From @cameron in #gtm');
+  assert.equal(
+    slack.rows[0].detail,
+    'From @cameron',
+    'detail drops the channel — the badge carries it'
+  );
   assert.equal(
     slack.rows[0].href,
     'https://near-foundation.slack.com/archives/C1/p1',
     'permalink opens the message'
+  );
+});
+
+test('workbench rail collapses identical GitHub notifications (no more 4x CI-failure rows)', () => {
+  const ci = (id) => ({
+    id,
+    title: 'check workflow run failed for workbench-overnight-20260620 branch',
+    reason: 'ci_activity',
+    repo: 'nearai/ironclaw-desktop-app',
+    kind: 'CheckSuite'
+  });
+  const rail = buildWorkbenchStateRail({
+    githubNotifications: [
+      ci('a'),
+      ci('b'),
+      ci('c'),
+      ci('d'),
+      {
+        id: 'e',
+        title: 'Review requested on PR #5040',
+        reason: 'review_requested',
+        repo: 'nearai/ironclaw'
+      }
+    ]
+  });
+  const github = rail.find((group) => group.id === 'github');
+  assert.ok(github, 'github group present');
+  const titles = github.rows.map((r) => r.title);
+  assert.equal(
+    titles.filter((t) => /CI-failure|workflow run failed/i.test(t)).length,
+    1,
+    'the four identical CI-failure notifications collapse to one row'
+  );
+  assert.ok(
+    titles.some((t) => /Review requested/i.test(t)),
+    'the distinct review-request notification survives'
   );
 });
 

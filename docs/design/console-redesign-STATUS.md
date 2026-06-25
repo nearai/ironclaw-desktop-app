@@ -111,7 +111,7 @@ rendered specimen.
   --wb-faint), title de-shouted 800→600, amber icon-tile dropped. Reusable `wb13-status-pill`
   (is-reply/is-decision/is-blocked). Gate green (static 940, a11y 141); live-verified loads=1,
   5 cards repilled, old trigger-meta gone. Evidence `home-cards-v2.png`.
-- [ ] R3 — quiet the source-stream (repeated CI rows, hashtag soup, low-contrast meta).
+- [x] **R3 — quiet the source-stream** (`this commit`): deduped identical GitHub notifications (the 4× CI-failure rows for the overnight branch collapse to 1 — verified 4→1 live) and dropped the redundant channel from Slack-blocker detail (the badge already carries `#channel`). Regression test added. Also fixed a real UX gap found in the pass: the compose modal now closes on **Escape** (+ `aria-modal`). Gate green (state 32, static 941, a11y 141, design, smoke); live-verified loads=1.
 - [ ] R4 — triage-group cards get matching status pills (needs-approval/blocked).
 - [ ] R5 — Calendar: JOIN only when joinable + rhythm. R6 — Library purpose + copy. R7 — dark-mode card contrast.
 
