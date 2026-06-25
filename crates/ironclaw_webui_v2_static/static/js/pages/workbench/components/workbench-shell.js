@@ -55,6 +55,14 @@ export function WorkbenchNav({ view, onView, onSettings }) {
       >
         <${Icon} name="calendar" />Calendar
       </button>
+      <button
+        type="button"
+        className=${view === 'projects' ? 'is-active' : ''}
+        aria-current=${view === 'projects' ? 'page' : undefined}
+        onClick=${() => onView('projects')}
+      >
+        <${Icon} name="check" />Projects
+      </button>
       <div className="wb13-spacer"></div>
       <button
         type="button"

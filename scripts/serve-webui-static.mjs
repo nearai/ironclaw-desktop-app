@@ -137,6 +137,37 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Dev-harness shim: the staged sidecar does not serve /api/jarvis/* yet (the packaged
+  // gateway will). Give the standalone a LIVE jarvis (pm-backend) surface by proxying the
+  // read tools here. The credential is read from JARVIS_API_KEY (env) and never leaves
+  // this process; with no key the endpoint honestly reports { configured:false }.
+  if (pathname === '/api/jarvis/summary') {
+    const { fetchJarvisSummary } = await import('./jarvis-proxy.mjs');
+    let summary;
+    try {
+      summary = await fetchJarvisSummary({
+        key: process.env.JARVIS_API_KEY || '',
+        base: process.env.JARVIS_MCP_URL || undefined
+      });
+    } catch (err) {
+      summary = {
+        configured: true,
+        error: String(err?.message || err),
+        projects: [],
+        outstanding: [],
+        commitments: []
+      };
+    }
+    const body = JSON.stringify(summary);
+    res.writeHead(200, {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': Buffer.byteLength(body)
+    });
+    res.end(body);
+    return;
+  }
+
   if (pathname.startsWith('/api/') || pathname.startsWith('/auth/')) {
     await proxyGateway(req, res, rawUrl);
     return;

@@ -1513,6 +1513,72 @@ test('static workbench: Slack awaiting renders on the home with a zero-write res
   expect(connectorWriteRequests.length).toBe(0);
 });
 
+test('static workbench: Projects (jarvis) view renders commitments + projects from the summary', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {});
+  // The jarvis summary endpoint is served by the gateway/dev-harness, not the Composio
+  // mock — intercept it directly (registered after installWorkbenchMocks so it wins).
+  await page.route('**/api/jarvis/summary', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        configured: true,
+        projects: [
+          {
+            id: 'p1',
+            slug: 'platform',
+            name: 'Platform',
+            state: 'active',
+            lead: 'Luca Mayer',
+            openIssueCount: 3
+          }
+        ],
+        outstanding: [
+          {
+            id: 'c1',
+            shortId: 'OPE5-101',
+            title: 'Share Jarvis MCP access',
+            state: 'needs_approval',
+            needsApproval: true
+          }
+        ],
+        commitments: [
+          {
+            id: 'c2',
+            shortId: 'OPE5-103',
+            title: 'Integrate Jarvis MCP with mobile app',
+            state: 'todo'
+          },
+          {
+            id: 'c3',
+            shortId: 'INBOX-53',
+            title: 'Address ChatGPT org usage',
+            state: 'needs_approval',
+            needsApproval: true
+          },
+          { id: 'c4', shortId: 'DONE-1', title: 'Already finished work', state: 'done' }
+        ]
+      })
+    })
+  );
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByRole('button', { name: 'Projects' }).click();
+
+  await expect(page.getByTestId('workbench-jarvis-outstanding')).toContainText(
+    'Share Jarvis MCP access'
+  );
+  const commitments = page.getByTestId('workbench-jarvis-commitments');
+  await expect(commitments).toContainText('Integrate Jarvis MCP with mobile app');
+  await expect(commitments).toContainText('Needs approval');
+  // Done/canceled commitments are dropped from the actionable list.
+  await expect(commitments).not.toContainText('Already finished work');
+  const projects = page.getByTestId('workbench-jarvis-projects');
+  await expect(projects).toContainText('Platform');
+  await expect(projects).toContainText('Lead: Luca Mayer');
+});
+
 test('static workbench: command posts a general research request to the existing runtime API', async ({
   page
 }) => {
