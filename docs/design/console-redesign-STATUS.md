@@ -112,8 +112,17 @@ rendered specimen.
   (is-reply/is-decision/is-blocked). Gate green (static 940, a11y 141); live-verified loads=1,
   5 cards repilled, old trigger-meta gone. Evidence `home-cards-v2.png`.
 - [x] **R3 — quiet the source-stream** (`this commit`): deduped identical GitHub notifications (the 4× CI-failure rows for the overnight branch collapse to 1 — verified 4→1 live) and dropped the redundant channel from Slack-blocker detail (the badge already carries `#channel`). Regression test added. Also fixed a real UX gap found in the pass: the compose modal now closes on **Escape** (+ `aria-modal`). Gate green (state 32, static 941, a11y 141, design, smoke); live-verified loads=1.
-- [ ] R4 — triage-group cards get matching status pills (needs-approval/blocked).
-- [ ] R5 — Calendar: JOIN only when joinable + rhythm. R6 — Library purpose + copy. R7 — dark-mode card contrast.
+- [x] **R6 — Library copy** (`this commit`): killed the dev-speak. The local-only saved-work
+  snapshot said "Local profile · Showing artifacts saved from this desktop profile. Server-backed
+  Work history is not wired yet." Rewrote it at the source (`chat/lib/work-product-save.js`, shared
+  by the Workbench Library AND the chat /work page) to "On this device · Briefings and documents you
+  export are kept here, on this device. Nothing is sent." Updated 3 specs. Gate green.
+- [x] **R4/R5/R7 — closed by looking closer (no-op):** R5 (Calendar JOIN) is NOT a bug — JOIN is
+  already gated on a real `joinUrl`; live check showed 12/18 events joinable and **zero**
+  all-day/OOO/holiday rows with a Join pill, so my "JOIN everywhere" critique was wrong. R4
+  (per-card triage pills) is redundant — triage cards sit under group headers that already label
+  the status; only the *flat* decision list needed pills (R2). R7 (dark contrast) verified clean
+  earlier. Honest de-scope: don't "fix" non-issues.
 
 ## Log
 - 2026-06-24: **Dark mode verified** (post-completion sweep). The standalone defaults to `data-theme="dark"` (rail has a real sun/moon `useInterfaceTheme` toggle), so I verified the Console in dark across every surface I built this run. All components are 100% token-driven (`var(--wb-*)` / `color-mix`, zero hardcoded colors — confirmed by grep), so they adapt automatically. Live readings: home/cockpit main-bg luminance 15 + triage header text 255 (white-on-dark); Calendar agenda card-bg 21 / title 255 / day-number 122; compose modal bg 21 — all readable, no light-on-light. Evidence `docs/design/evidence/c-dark-{home,calendar,memory,compose}.png`. No code change required.

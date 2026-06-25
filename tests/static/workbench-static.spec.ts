@@ -952,9 +952,9 @@ test('static workbench: document workspace renders real local Work artifacts', a
 
   await page.getByRole('button', { name: 'Library' }).click();
   const library = page.getByTestId('workbench-library');
-  await expect(page.getByTestId('workbench-library-source')).toContainText('Local profile');
+  await expect(page.getByTestId('workbench-library-source')).toContainText('On this device');
   await expect(page.getByTestId('workbench-library-source')).toContainText(
-    'Server-backed Work history is not wired yet'
+    'kept here, on this device'
   );
   await expect(library).toContainText('Workbench buildout instructions');
   await page.getByLabel('Search library').fill('scenario');

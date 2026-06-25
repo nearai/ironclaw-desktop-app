@@ -90,7 +90,7 @@ test('readSavedWorkSnapshot returns local source metadata with filtered saved it
 
   assert.equal(snapshot.source, 'local-browser');
   assert.equal(snapshot.status, 'local-only');
-  assert.equal(snapshot.statusLabel, 'Local profile');
+  assert.equal(snapshot.statusLabel, 'On this device');
   assert.deepEqual(
     snapshot.items.map((item) => item.id),
     ['work-1', 'work-2']

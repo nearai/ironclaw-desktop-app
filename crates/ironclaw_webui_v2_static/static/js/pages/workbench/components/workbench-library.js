@@ -6,10 +6,9 @@ import { readLibraryItems, removeLibraryItem } from '../lib/workbench-library-st
 import { firstArtifact, savedWorkHref } from '../lib/workbench-work-items.js';
 
 const DEFAULT_SAVED_WORK_SNAPSHOT = Object.freeze({
-  statusLabel: 'Local profile',
+  statusLabel: 'On this device',
   label: 'This desktop',
-  detail:
-    'Showing artifacts saved from this desktop profile. Server-backed Work history is not wired yet.'
+  detail: 'Briefings and documents you export are kept here, on this device. Nothing is sent.'
 });
 
 export function LibraryView({ savedItems, savedWorkSnapshot, onView }) {

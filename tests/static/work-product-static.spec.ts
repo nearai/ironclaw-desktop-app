@@ -81,8 +81,8 @@ test('static work product: saved chat artifact reloads in Work route', async ({ 
   await page.goto('/v2/work?item=work-static-1&artifact=artifact-static-1&token=static-work-token');
 
   const savedWorkRail = page.locator('aside[aria-label="Saved work"]');
-  await expect(savedWorkRail).toContainText('Local profile');
-  await expect(savedWorkRail).toContainText('Server-backed Work history is not wired yet');
+  await expect(savedWorkRail).toContainText('On this device');
+  await expect(savedWorkRail).toContainText('kept here, on this device');
   await expect(page.locator('article h1').first()).toHaveText('Services agreement draft');
   await expect(page.getByTestId('saved-work-artifact')).toContainText(
     'Acme Labs hires Northstar Ops'

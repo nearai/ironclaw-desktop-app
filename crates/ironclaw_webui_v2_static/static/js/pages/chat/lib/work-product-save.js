@@ -12,9 +12,8 @@ const SAVED_WORK_LOCAL_SOURCE = Object.freeze({
   source: 'local-browser',
   status: 'local-only',
   label: 'This desktop',
-  statusLabel: 'Local profile',
-  detail:
-    'Showing artifacts saved from this desktop profile. Server-backed Work history is not wired yet.'
+  statusLabel: 'On this device',
+  detail: 'Briefings and documents you export are kept here, on this device. Nothing is sent.'
 });
 const SAVED_WORK_UNAVAILABLE_SOURCE = Object.freeze({
   source: 'local-browser',
