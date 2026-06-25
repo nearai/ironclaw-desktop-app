@@ -1,12 +1,13 @@
-export const WORKBENCH_COMMAND_STYLE = `.wb13-command { padding-top: 42px; }
-.wb13-greet {
-  margin: 0 0 4px;
-  font-family: var(--wb-font-display);
-  font-size: 26px;
-  font-weight: 750;
-  line-height: 1.2;
+export const WORKBENCH_COMMAND_STYLE = `.wb13-command { padding-top: 16px; }
+.wb13-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
-.wb13-sub { margin: 0 0 20px; color: var(--wb-muted); font-size: 14px; }
 .wb13-well { position: relative; }
 .wb13-compose-box { position: relative; }
 .wb13-well.is-dragover .wb13-compose-box textarea {
@@ -15,7 +16,7 @@ export const WORKBENCH_COMMAND_STYLE = `.wb13-command { padding-top: 42px; }
 }
 .wb13-well textarea {
   width: 100%;
-  min-height: 144px;
+  min-height: 104px;
   resize: none;
   overflow-y: auto;
   border: 1px solid var(--wb-line);
@@ -24,9 +25,9 @@ export const WORKBENCH_COMMAND_STYLE = `.wb13-command { padding-top: 42px; }
   color: var(--wb-ink);
   box-shadow: var(--wb-shadow);
   outline: none;
-  padding: 17px 18px 62px;
-  font-size: 17px;
-  line-height: 1.55;
+  padding: 13px 16px 58px;
+  font-size: 14.5px;
+  line-height: 1.5;
 }
 .wb13-well textarea::placeholder { color: var(--wb-placeholder); }
 .wb13-well:focus-within textarea {

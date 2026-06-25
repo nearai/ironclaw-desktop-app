@@ -186,11 +186,7 @@ export function WorkbenchCommandSurface({
 
   return html`
     <div className="wb13-command">
-      <h1 className="wb13-greet">What do you want handled?</h1>
-      <p className="wb13-sub">
-        Ask across your connected tools. IronClaw reads, drafts, and prepares - you approve what
-        leaves.
-      </p>
+      <h1 className="wb13-sr-only">Ask IronClaw</h1>
       <div
         className=${cn('wb13-well', dragOver && 'is-dragover')}
         onDrop=${onDrop}
@@ -221,7 +217,7 @@ export function WorkbenchCommandSurface({
               }
             }}
             onPaste=${onPaste}
-            placeholder="Describe the work in plain language. Paste a thread, drop a file, or give a multi-step instruction..."
+            placeholder="Ask IronClaw across your tools, or describe a multi-step task…"
           />
           <div className="wb13-wbar">
             <${SourceScopePicker}

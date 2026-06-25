@@ -58,7 +58,7 @@ test('static workbench: direct route renders v13 replacement shell with real wir
 
   await expect(page).toHaveURL(/\/v2\/workbench$/);
   await expect(page.getByTestId('workbench-page')).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'What do you want handled?' })).toBeVisible();
+  await expect(page.getByTestId('workbench-brief-input')).toBeVisible();
   await expect(page.getByRole('button', { name: 'New' })).toHaveCount(0);
   await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toHaveCount(0);
 
@@ -85,10 +85,10 @@ test('static workbench: direct route renders v13 replacement shell with real wir
   // v13 fidelity: the dock identity line reflects the signed-in NEAR AI Cloud account.
   await expect(activeWork).toContainText('NEAR AI Cloud');
   await expect(activeWork).not.toContainText('Private work, held for review');
-  await expect(page.getByRole('heading', { name: 'What do you want handled?' })).toBeVisible();
+  await expect(page.getByTestId('workbench-brief-input')).toBeVisible();
   await expect(page.getByTestId('workbench-brief-input')).toHaveAttribute(
     'placeholder',
-    'Describe the work in plain language. Paste a thread, drop a file, or give a multi-step instruction...'
+    'Ask IronClaw across your tools, or describe a multi-step task…'
   );
   const modelControl = page.getByRole('button', { name: 'Choose model and effort' });
   await expect(modelControl).toContainText('Auto');

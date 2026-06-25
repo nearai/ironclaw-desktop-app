@@ -46,7 +46,6 @@ export const WORKBENCH_RESPONSIVE_STYLE = `@media (max-width: 1120px) {
   .wb13-pk-head h1 { font-size: 21px; }
 }
 @media (max-width: 560px) {
-  .wb13-greet { font-size: 22px; }
   .wb13-wbar { flex-wrap: wrap; }
   .wb13-mode-btn {
     order: 2;

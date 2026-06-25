@@ -66,7 +66,7 @@ const surfaces: Surface[] = [
     path: '/v2/workbench',
     authenticated: true,
     waitFor: async (page) => {
-      await expect(page.getByRole('heading', { name: 'What do you want handled?' })).toBeVisible();
+      await expect(page.getByTestId('workbench-brief-input')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Choose model and effort' })).toBeVisible();
       await expect(page.getByRole('button', { name: 'Ask' })).toBeVisible();
     }
