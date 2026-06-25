@@ -470,6 +470,31 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
 .wb13-dock-skel-row { display: flex; align-items: center; gap: 9px; }
 .wb13-skel-line.is-dot { height: 8px; width: 8px; border-radius: 999px; flex: none; }
 .wb13-skel-line.is-row { height: 11px; flex: 1; }
+.wb13-section-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wb-muted);
+  margin: 16px 2px 10px;
+}
+.wb13-section-label svg { width: 14px; height: 14px; flex: none; }
+.wb13-section-count { margin-left: auto; font-weight: 500; color: var(--wb-faint); }
+.wb13-slack-quote {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  margin-bottom: 13px;
+  border-radius: var(--wb-r-lg);
+  background: var(--wb-surface);
+  border: 1px solid var(--wb-line);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--wb-ink-2);
+}
+.wb13-slack-quote .who { font-weight: 600; font-size: 11.5px; color: var(--wb-muted); }
 .wb13-skel-head,
 .wb13-skel-line {
   background: linear-gradient(

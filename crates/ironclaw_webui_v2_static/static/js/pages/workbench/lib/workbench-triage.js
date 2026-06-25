@@ -31,7 +31,8 @@ export function workbenchTriageCounts({
   decisionMessages = [],
   groups = [],
   slackBlockersActive = false,
-  slackBlockerRows = 0
+  slackBlockerRows = 0,
+  slackAwaitingRows = 0
 } = {}) {
   const msgs = Array.isArray(decisionMessages) ? decisionMessages : [];
   const unreadDecisions = gmailReady ? msgs.filter((m) => m && m.unread).length : 0;
@@ -39,7 +40,8 @@ export function workbenchTriageCounts({
     unreadDecisions +
     groupTotalOf(groups, 'needs-approval') +
     groupTotalOf(groups, 'blocked') +
-    (slackBlockersActive ? slackBlockerRows : 0);
+    (slackBlockersActive ? slackBlockerRows : 0) +
+    Math.max(0, Number(slackAwaitingRows) || 0);
   const handled = groupTotalOf(groups, 'receipts');
   return { unreadDecisions, needYou, handled };
 }
@@ -55,13 +57,15 @@ export function centerFilterHasContent(
     decisionMessages = [],
     groups = [],
     slackBlockersActive = false,
-    slackBlockerRows = 0
+    slackBlockerRows = 0,
+    slackAwaitingRows = 0
   } = {}
 ) {
   if (filter === 'all') return true;
   const msgs = Array.isArray(decisionMessages) ? decisionMessages : [];
   if (filter === 'decisions') return groupRowsOf(groups, 'needs-approval') > 0;
-  if (filter === 'replies') return gmailReady && msgs.some((m) => m && m.unread);
+  if (filter === 'replies')
+    return (gmailReady && msgs.some((m) => m && m.unread)) || Number(slackAwaitingRows) > 0;
   if (filter === 'blocked') {
     return groupRowsOf(groups, 'blocked') > 0 || (slackBlockersActive && slackBlockerRows > 0);
   }

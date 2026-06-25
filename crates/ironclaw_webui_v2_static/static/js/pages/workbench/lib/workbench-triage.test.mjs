@@ -97,6 +97,35 @@ test('workbenchTriageCounts sums unread decisions + approvals + blocked; Slack o
   );
 });
 
+test('Slack awaiting items report Replies content even with no unread Gmail', () => {
+  // The deep Slack read surfaces threads awaiting your reply on the default home;
+  // the Replies pill must count them so it never shows a blank center.
+  assert.equal(
+    centerFilterHasContent('replies', {
+      gmailReady: true,
+      decisionMessages: [],
+      slackAwaitingRows: 2
+    }),
+    true,
+    'Slack awaiting with no unread Gmail => Replies has content'
+  );
+  assert.equal(
+    centerFilterHasContent('replies', { gmailReady: false, slackAwaitingRows: 0 }),
+    false,
+    'no Gmail, no Slack => Replies empty'
+  );
+});
+
+test('workbenchTriageCounts includes Slack awaiting in needYou', () => {
+  const counts = workbenchTriageCounts({
+    gmailReady: true,
+    decisionMessages: [{ id: 'm1', unread: true }],
+    groups: groups({ approvalTotal: 1 }),
+    slackAwaitingRows: 3
+  });
+  assert.equal(counts.needYou, 1 + 1 + 3, 'unread(1)+approval(1)+slackAwaiting(3)');
+});
+
 test('triageStatusFilterFor maps pills to triage status groups', () => {
   assert.deepEqual(triageStatusFilterFor('decisions'), ['needs-approval']);
   assert.deepEqual(triageStatusFilterFor('blocked'), ['blocked']);

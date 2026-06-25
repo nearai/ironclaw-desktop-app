@@ -1438,6 +1438,81 @@ test('static workbench: active connector readiness unblocks manual source choice
   expect(String(sentMessages[0].body.content)).not.toContain('Notion ready');
 });
 
+test('static workbench: Slack awaiting renders on the home with a zero-write respond-in-place compose', async ({
+  page
+}) => {
+  // Recent ts so the FGR recency decay keeps the @-mention above the awaiting floor.
+  const nowTs = (Date.now() / 1000).toFixed(4);
+  const connectorWriteRequests: Array<Record<string, unknown>> = [];
+  await installWorkbenchMocks(page, {
+    connectorWriteRequests,
+    connectorAccounts: [
+      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
+      { toolkit: 'slack', status: 'ACTIVE', user_id: 'pg-test' }
+    ],
+    connectorReads: {
+      gmail: { successful: true, data: { messages: [] } },
+      SLACK_LIST_ALL_USERS: {
+        successful: true,
+        data: {
+          members: [
+            {
+              id: 'USELF',
+              name: 'self',
+              real_name: 'Abby',
+              profile: { email: 'abby.vaidyanathan@gmail.com', display_name: 'Abby' }
+            },
+            {
+              id: 'UCAM',
+              name: 'cameron',
+              real_name: 'Cameron',
+              profile: { email: 'cam@near.org', display_name: 'cameron' }
+            }
+          ]
+        }
+      },
+      SLACK_LIST_ALL_CHANNELS: {
+        successful: true,
+        data: { channels: [{ id: 'C1', name: 'launch', is_member: true, is_archived: false }] }
+      },
+      SLACK_FETCH_CONVERSATION_HISTORY: {
+        successful: true,
+        data: {
+          messages: [
+            {
+              user: 'UCAM',
+              text: 'hey <@USELF> can you review the launch plan before EOD?',
+              ts: nowTs,
+              reply_count: 0
+            }
+          ]
+        }
+      },
+      SLACK_FETCH_TEAM_INFO: { successful: true, data: { team: { domain: 'nearteam' } } }
+    }
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  const slack = page.getByTestId('workbench-slack-replies');
+  await expect(slack).toContainText('Slack · awaiting your reply');
+  await expect(slack).toContainText('launch');
+  await expect(slack).toContainText('review the launch plan');
+
+  // Open the respond-in-place compose for the thread.
+  await page.getByTestId('workbench-slack-reply').first().click();
+  const compose = page.getByTestId('workbench-slack-compose');
+  await expect(compose).toBeVisible();
+  await expect(compose).toContainText('review the launch plan');
+
+  // Posting straight to Slack is gated OFF, so there is no Post button — Copy is the
+  // primary action and nothing is ever written.
+  await expect(page.getByTestId('workbench-slack-post')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-slack-copy')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(compose).toHaveCount(0);
+  expect(connectorWriteRequests.length).toBe(0);
+});
+
 test('static workbench: command posts a general research request to the existing runtime API', async ({
   page
 }) => {

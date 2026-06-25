@@ -65,6 +65,10 @@ const WorkbenchBrief = React.lazy(() =>
   import('./components/workbench-brief.js').then((m) => ({ default: m.WorkbenchBrief }))
 );
 import { WorkbenchSlackBlockers } from './components/workbench-slack-blockers.js';
+import {
+  WorkbenchSlackReplies,
+  WorkbenchSlackCompose
+} from './components/workbench-slack-replies.js';
 import { WorkbenchCommandSurface } from './components/workbench-command.js';
 import { WorkbenchReadingPanel } from './components/workbench-reading-panel.js';
 import { WorkbenchWorkspaceFiles } from './components/workbench-files.js';
@@ -311,12 +315,14 @@ function HomeView(props) {
   const groups = Array.isArray(props.groups) ? props.groups : [];
   const decisionMessages = Array.isArray(props.decisionMessages) ? props.decisionMessages : [];
   const slackBlockerRows = props.slackBlockers?.rows?.length || 0;
+  const slackAwaitingRows = Array.isArray(props.slackAwaiting) ? props.slackAwaiting.length : 0;
   const countCtx = {
     gmailReady: props.gmailReady,
     decisionMessages,
     groups,
     slackBlockersActive: props.slackBlockersActive,
-    slackBlockerRows
+    slackBlockerRows,
+    slackAwaitingRows
   };
   const { needYou, handled } = workbenchTriageCounts(countCtx);
   const populatedTriage = groups.filter(
@@ -328,6 +334,7 @@ function HomeView(props) {
   const showTriageHeader =
     Boolean(props.briefing) ||
     (props.gmailReady && decisionMessages.some((m) => m.unread)) ||
+    slackAwaitingRows > 0 ||
     populatedTriage > 0;
 
   // First-load skeleton: the connectors are still being read AND nothing has arrived
@@ -423,6 +430,12 @@ function HomeView(props) {
                 onOpenMessage=${props.onOpenMessage}
                 onDraftMessage=${props.onDraftMessage}
                 onDismiss=${props.onDismissDecision}
+              />`
+            : null}
+          ${visible('replies')
+            ? html`<${WorkbenchSlackReplies}
+                items=${props.slackAwaiting}
+                onReply=${props.onSlackReply}
               />`
             : null}
           ${centerFilter === 'all'
@@ -718,6 +731,15 @@ export function WorkbenchPage() {
   const draftTokenRef = React.useRef(0);
   // The source message of the open draft, so "Pre-draft reply" can generate on demand.
   const draftMessageRef = React.useRef(null);
+  // Slack respond-in-place state. Mirrors the email draft flow: a context (the
+  // awaiting item), an on-demand in-voice suggestion, and a token so a stale draft
+  // turn can never land on a newer thread. Posting is gated (see postSlackReply).
+  const [slackReplyContext, setSlackReplyContext] = React.useState(null);
+  const [slackReplySuggestion, setSlackReplySuggestion] = React.useState('');
+  const [slackReplyGenerating, setSlackReplyGenerating] = React.useState(false);
+  const [slackReplyPosting, setSlackReplyPosting] = React.useState(false);
+  const [slackReplyResult, setSlackReplyResult] = React.useState(null);
+  const slackReplyTokenRef = React.useRef(0);
   // Guards the async briefing synthesis: a late/failed synthesis only swaps in the
   // rich briefing if it is still the current request (not dismissed or superseded).
   const briefingTokenRef = React.useRef(0);
@@ -826,6 +848,93 @@ export function WorkbenchPage() {
     } finally {
       setDraftBusy(false);
     }
+  }, []);
+
+  // --- Slack respond-in-place (mirror of the email draft flow) ---
+  const openSlackReply = React.useCallback((item) => {
+    slackReplyTokenRef.current += 1;
+    setSlackReplySuggestion('');
+    setSlackReplyGenerating(false);
+    setSlackReplyPosting(false);
+    setSlackReplyResult(null);
+    setSlackReplyContext(item || null);
+  }, []);
+  const generateSlackReply = React.useCallback(() => {
+    const item = slackReplyContext;
+    if (!item) return;
+    const token = (slackReplyTokenRef.current += 1);
+    setSlackReplySuggestion('');
+    setSlackReplyGenerating(true);
+    let timezone;
+    try {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch (_) {
+      timezone = undefined;
+    }
+    generateSuggestedReply({
+      message: { sender: item.who, channel: item.channel, messageText: item.text },
+      deps: { createThread, sendMessage, fetchTimeline, timezone }
+    })
+      .then((reply) => {
+        if (reply && slackReplyTokenRef.current === token) setSlackReplySuggestion(reply);
+      })
+      .finally(() => {
+        if (slackReplyTokenRef.current === token) setSlackReplyGenerating(false);
+      });
+  }, [slackReplyContext]);
+  const copySlackReply = React.useCallback(async (text) => {
+    const value = String(text || '').trim();
+    if (!value) return false;
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }, []);
+  // Posting to Slack is an outbound SEND, so it is gated exactly like Gmail sends:
+  // the compose passes sendEnabled=false, so this never fires today (the Post button
+  // is hidden). It is wired so the deferred "enable sends" checkpoint turns it on
+  // without further plumbing. SLACK_SENDS_A_MESSAGE goes through the same gated-write
+  // connector route as every other write.
+  const postSlackReply = React.useCallback(
+    async (text) => {
+      const item = slackReplyContext;
+      const value = String(text || '').trim();
+      if (!item || !value) return;
+      setSlackReplyPosting(true);
+      setSlackReplyResult(null);
+      try {
+        const args = { channel: item.channel || '', text: value };
+        if (item.threadTs || item.ts) args.thread_ts = String(item.threadTs || item.ts);
+        const response = await connectorWrite({
+          toolkit: 'slack',
+          tool: 'SLACK_SENDS_A_MESSAGE',
+          arguments: args
+        });
+        const ok = Boolean(response) && response.successful !== false;
+        setSlackReplyResult({
+          ok,
+          error: ok ? '' : String(response?.error || 'The reply was not posted.')
+        });
+      } catch (err) {
+        setSlackReplyResult({
+          ok: false,
+          error: String(err?.message || 'Could not post the reply.')
+        });
+      } finally {
+        setSlackReplyPosting(false);
+      }
+    },
+    [slackReplyContext]
+  );
+  const closeSlackReply = React.useCallback(() => {
+    slackReplyTokenRef.current += 1;
+    setSlackReplyContext(null);
+    setSlackReplySuggestion('');
+    setSlackReplyGenerating(false);
+    setSlackReplyPosting(false);
+    setSlackReplyResult(null);
   }, []);
 
   const { sourceReadiness } = useWorkbenchSourceReadiness({
@@ -1478,6 +1587,8 @@ export function WorkbenchPage() {
                   onConnectSources=${() => setShowSources(true)}
                   gmailReady=${connectedAccounts.gmailReady}
                   decisionMessages=${triageInbox}
+                  slackAwaiting=${slackDeep.awaiting}
+                  onSlackReply=${openSlackReply}
                   calendarReady=${connectedAccounts.calendarReady}
                   calendarEvents=${connectorCalendar.events}
                   calendarError=${connectorCalendar.isError}
@@ -1545,6 +1656,18 @@ export function WorkbenchPage() {
           result=${draftResult}
           onCancel=${closeDraft}
           onSubmit=${submitDraft}
+        />
+        <${WorkbenchSlackCompose}
+          context=${slackReplyContext}
+          sendEnabled=${false}
+          generating=${slackReplyGenerating}
+          suggestion=${slackReplySuggestion}
+          posting=${slackReplyPosting}
+          result=${slackReplyResult}
+          onGenerate=${generateSlackReply}
+          onCopy=${copySlackReply}
+          onPost=${postSlackReply}
+          onCancel=${closeSlackReply}
         />
         <${WorkbenchCommandPalette}
           open=${paletteOpen}
