@@ -173,36 +173,47 @@ function TriageSection({ groups, hasDecisions = false, statusFilter = null }) {
     `;
   }
 
+  // One cohesive pilled list (no per-group headers): every actionable item reads as a
+  // card carrying its own colored status pill — the varied Decision / Blocked / Ready
+  // cockpit. Groups are already in priority order, so flatMap preserves the ranking.
+  const toneFor = (id) =>
+    id === 'needs-approval'
+      ? 'hold'
+      : id === 'blocked'
+        ? 'danger'
+        : id === 'working'
+          ? 'run'
+          : id === 'receipts'
+            ? 'done'
+            : 'ready';
+  const pillClassFor = (tone) =>
+    ({ hold: 'is-decision', danger: 'is-blocked', run: 'is-working', done: 'is-done' })[tone] ||
+    'is-reply';
+  const pillLabelFor = (group) =>
+    ({
+      'needs-approval': 'Needs a decision',
+      blocked: 'Blocked',
+      'needs-review': 'Ready to review',
+      working: 'In motion',
+      receipts: 'Done',
+      scheduled: 'Scheduled'
+    })[group.id] || group.label;
   return html`
-    <div className="wb13-section" data-testid="workbench-triage">
-      ${populatedGroups.map((group) => {
-        const tone =
-          group.id === 'needs-approval'
-            ? 'hold'
-            : group.id === 'blocked'
-              ? 'danger'
-              : group.id === 'working'
-                ? 'run'
-                : group.id === 'receipts'
-                  ? 'done'
-                  : 'ready';
-        return html`
-          <div key=${group.id} className="wb13-group">
-            <div
-              className=${cn(
-                'wb13-group-title',
-                group.id === 'needs-approval' && 'is-hold',
-                group.id === 'blocked' && 'is-danger'
-              )}
-            >
-              ${group.id === 'needs-approval' ? 'Needs a decision' : group.label}
-              <span>${group.total ? `· ${group.total}` : ''}</span>
-            </div>
-            ${group.rows.map(
-              (row) => html`<${TriageCard} key=${row.id} row=${row} tone=${tone} />`
-            )}
-          </div>
-        `;
+    <div className="wb13-section wb13-list" data-testid="workbench-triage">
+      ${populatedGroups.flatMap((group) => {
+        const tone = toneFor(group.id);
+        const pillCls = pillClassFor(tone);
+        const pillLabel = pillLabelFor(group);
+        return group.rows.map(
+          (row) =>
+            html`<${TriageCard}
+              key=${row.id}
+              row=${row}
+              tone=${tone}
+              pillCls=${pillCls}
+              pillLabel=${pillLabel}
+            />`
+        );
       })}
     </div>
   `;
@@ -221,32 +232,21 @@ function triageCtaLabel(row, tone) {
   return 'Open';
 }
 
-function TriageCard({ row, tone }) {
+function TriageCard({ row, tone, pillCls = 'is-reply', pillLabel = '' }) {
   const ctaLabel = triageCtaLabel(row, tone);
   return html`
-    <div className="wb13-card">
-      <div
-        className=${cn(
-          'wb13-action-icon',
-          tone === 'hold' && 'is-hold',
-          tone === 'danger' && 'is-danger',
-          tone === 'done' && 'is-done',
-          row.badge === 'Needs recovery' && 'is-danger'
-        )}
-      >
-        <${Icon} name=${row.icon || 'spark'} />
-      </div>
+    <div className="wb13-card wb13-card-readable">
       <div className="wb13-card-main">
-        <div className="wb13-card-title">${row.title}</div>
-        <div className="wb13-card-copy">${row.detail}</div>
-        <div className="wb13-card-trigger">
-          <${Icon} name=${row.icon || 'shield'} />
-          <span>${row.badge}</span>
+        <div className="wb13-card-status">
+          <span className=${cn('wb13-status-pill', pillCls)}>${pillLabel}</span>
+          ${row.badge ? html`<span className="wb13-card-when">${row.badge}</span>` : null}
         </div>
+        <div className="wb13-card-title">${row.title}</div>
+        ${row.detail ? html`<div className="wb13-card-copy">${row.detail}</div>` : null}
       </div>
       <div className="wb13-card-actions">
         <${Link}
-          to=${row.href}
+          to=${row.href || '/workbench'}
           className=${cn('wb13-button is-sm', tone === 'hold' && 'is-primary')}
         >
           ${ctaLabel}

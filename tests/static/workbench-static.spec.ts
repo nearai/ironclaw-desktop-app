@@ -329,7 +329,7 @@ test('static workbench: active rail renders real scheduled automation reads', as
   await expect(triage).toContainText('Weekly operator digest');
   await expect(triage).toContainText('Market watch');
   await expect(triage).toContainText('Source sync');
-  await expect(triage).toContainText('Recent receipts');
+  await expect(triage).toContainText('Done');
   await expect(triage).not.toContainText('Create automation');
 });
 
@@ -573,7 +573,7 @@ test('static workbench: receipts feed populates recent receipts when advertised'
   await expect(activeWork).toContainText('Gmail draft created; nothing was sent.');
 
   const triage = page.getByTestId('workbench-triage');
-  await expect(triage).toContainText('Recent receipts');
+  await expect(triage).toContainText('Done');
   await expect(triage).toContainText('Draft saved for Northwind');
   await expect(triage).toContainText('Gmail draft created; nothing was sent.');
   expect(receiptsRequests).toEqual(['GET /api/webchat/v2/receipts']);

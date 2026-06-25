@@ -451,11 +451,11 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 9px;
   border: 1px solid var(--wb-line);
-  border-radius: 11px;
+  border-radius: var(--wb-r-lg);
   background: var(--wb-canvas);
-  padding: 13px 14px;
+  padding: 14px 16px;
 }
 .wb13-card:hover { border-color: var(--wb-muted); }
 .wb13-action-icon {
@@ -502,6 +502,11 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   background: color-mix(in srgb, var(--wb-danger) 13%, transparent);
   color: var(--wb-danger);
 }
+.wb13-status-pill.is-working {
+  background: var(--wb-accent-soft);
+  color: var(--wb-ink-2);
+}
+.wb13-status-pill.is-done { background: var(--wb-good-tint); color: var(--wb-good-text); }
 .wb13-card-meta {
   display: flex;
   align-items: center;
