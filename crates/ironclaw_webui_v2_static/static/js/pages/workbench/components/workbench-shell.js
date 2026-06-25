@@ -141,7 +141,14 @@ function DockRow({ group, row, onClose, onOpenMessage }) {
   `;
 }
 
-export function WorkbenchDock({ groups, open = false, onClose, onOpenMessage, currentUser }) {
+export function WorkbenchDock({
+  groups,
+  open = false,
+  loading = false,
+  onClose,
+  onOpenMessage,
+  currentUser
+}) {
   // The Console source-stream: a persistent, live, grouped feed of everything across
   // your tools. Only groups with rows render (no placeholder "Nothing… 0" rows). The
   // search filters the rows in place across every group — a real client-side filter
@@ -223,9 +230,19 @@ export function WorkbenchDock({ groups, open = false, onClose, onOpenMessage, cu
           )
         : needle
           ? html`<div className="wb13-dock-empty">No matches for "${query.trim()}".</div>`
-          : html`<div className="wb13-dock-allclear">
-              Nothing needs you right now. Active work appears here as it starts.
-            </div>`}
+          : loading
+            ? html`<div className="wb13-dock-skel" aria-hidden="true">
+                ${[0, 1, 2, 3, 4].map(
+                  (i) =>
+                    html`<div key=${i} className="wb13-dock-skel-row">
+                      <div className="wb13-skel-line is-dot"></div>
+                      <div className="wb13-skel-line is-row"></div>
+                    </div>`
+                )}
+              </div>`
+            : html`<div className="wb13-dock-allclear">
+                Nothing needs you right now. Active work appears here as it starts.
+              </div>`}
     </aside>
   `;
 }

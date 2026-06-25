@@ -458,6 +458,44 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   padding: 14px 16px;
 }
 .wb13-card:hover { border-color: var(--wb-muted); }
+.wb13-skel-card { pointer-events: none; }
+.wb13-skel-card .wb13-card-main { flex: 1; min-width: 0; }
+.wb13-skel-head { height: 16px; width: 110px; border-radius: 6px; margin: 2px 0 12px; }
+.wb13-skel-line { border-radius: 6px; }
+.wb13-skel-line.is-pill { height: 18px; width: 92px; border-radius: 999px; margin-bottom: 11px; }
+.wb13-skel-line.is-title { height: 13px; width: 68%; margin-bottom: 9px; }
+.wb13-skel-line.is-copy { height: 12px; width: 90%; }
+.wb13-skel-line.is-action { height: 30px; width: 82px; border-radius: var(--wb-r-lg); flex: none; }
+.wb13-dock-skel { display: flex; flex-direction: column; gap: 15px; padding: 10px 2px; }
+.wb13-dock-skel-row { display: flex; align-items: center; gap: 9px; }
+.wb13-skel-line.is-dot { height: 8px; width: 8px; border-radius: 999px; flex: none; }
+.wb13-skel-line.is-row { height: 11px; flex: 1; }
+.wb13-skel-head,
+.wb13-skel-line {
+  background: linear-gradient(
+    90deg,
+    var(--wb-line) 0%,
+    color-mix(in srgb, var(--wb-line) 45%, var(--wb-canvas)) 50%,
+    var(--wb-line) 100%
+  );
+  background-size: 200% 100%;
+  animation: wb13-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes wb13-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wb13-skel-head,
+  .wb13-skel-line {
+    animation: none;
+    background: var(--wb-line);
+  }
+}
 .wb13-action-icon {
   display: grid;
   width: 30px;

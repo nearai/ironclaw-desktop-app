@@ -139,13 +139,18 @@ const WORKBENCH_PROFILE = Object.freeze({
   ]
 });
 
-function TriageSection({ groups, hasDecisions = false, statusFilter = null }) {
+function TriageSection({ groups, hasDecisions = false, statusFilter = null, loading = false }) {
   const populatedGroups = groups.filter(
     (group) =>
       group.rows.length > 0 &&
       !TRIAGE_EXCLUDED_GROUPS.has(group.id) &&
       (!statusFilter || statusFilter.includes(group.id))
   );
+
+  // While the first connector read is still in flight, the skeleton in HomeView stands
+  // in for the cockpit — suppress the "Nothing needs you" all-clear so the home never
+  // flashes a false-empty before the reads land.
+  if (!populatedGroups.length && loading) return null;
 
   // When a triage cockpit pill (Decisions/Blocked) is filtering to specific status
   // groups, render nothing if none match — the cockpit shows its own empty note,
@@ -256,6 +261,32 @@ function TriageCard({ row, tone, pillCls = 'is-reply', pillLabel = '' }) {
   `;
 }
 
+// Loading placeholder for the cockpit: while the first connector read is in flight we
+// show shimmer cards shaped like the real decision/triage cards instead of the
+// "Nothing needs you" all-clear — so the home reads as "working", never false-empty.
+function WorkbenchTriageSkeleton() {
+  return html`
+    <div
+      className="wb13-section wb13-list"
+      data-testid="workbench-triage-skeleton"
+      aria-hidden="true"
+    >
+      <div className="wb13-skel-head"></div>
+      ${[0, 1, 2].map(
+        (i) =>
+          html`<div key=${i} className="wb13-card wb13-skel-card">
+            <div className="wb13-card-main">
+              <div className="wb13-skel-line is-pill"></div>
+              <div className="wb13-skel-line is-title"></div>
+              <div className="wb13-skel-line is-copy"></div>
+            </div>
+            <div className="wb13-skel-line is-action"></div>
+          </div>`
+      )}
+    </div>
+  `;
+}
+
 // Direction B "Triage" cockpit: the center reads as one triage surface with a header
 // (title + counts) and filter pills (CENTER_FILTERS, from ./lib/workbench-triage). The
 // pills filter the stacked sections via centerFilter; default 'all' renders everything
@@ -299,6 +330,17 @@ function HomeView(props) {
     (props.gmailReady && decisionMessages.some((m) => m.unread)) ||
     populatedTriage > 0;
 
+  // First-load skeleton: the connectors are still being read AND nothing has arrived
+  // yet (no briefing, no decisions, no triage, no live work). Stand in shimmer cards
+  // for the cockpit so the home reads as "working", not "Nothing needs you".
+  const homeLoading = Boolean(props.homeLoading);
+  const showSkeleton =
+    homeLoading &&
+    !props.briefing &&
+    !decisionMessages.length &&
+    !populatedTriage &&
+    !props.startedWork;
+
   // If the data underlying the active filter drains away (so the header — and with it
   // the pills — would unmount), fall back to 'all' so the user is never stranded.
   React.useEffect(() => {
@@ -321,6 +363,7 @@ function HomeView(props) {
             isLoading=${props.connectorsLoading}
             onConnect=${props.onConnectSources}
           />
+          ${showSkeleton ? html`<${WorkbenchTriageSkeleton} />` : null}
           ${showTriageHeader
             ? html`
                 <style>
@@ -389,6 +432,7 @@ function HomeView(props) {
             ? html`<${TriageSection}
                 groups=${props.groups}
                 statusFilter=${triageStatusFilter}
+                loading=${homeLoading}
                 hasDecisions=${props.gmailReady &&
                 decisionMessages.some((message) => message.unread)}
               />`
@@ -1348,6 +1392,7 @@ export function WorkbenchPage() {
         <${WorkbenchDock}
           groups=${railGroups}
           open=${dockOpen}
+          loading=${briefingLoadingSources.length > 0}
           onClose=${() => setDockOpen(false)}
           onOpenMessage=${openMessage}
           currentUser=${currentUser}
@@ -1428,6 +1473,8 @@ export function WorkbenchPage() {
                   onPackageTab=${setPackageTab}
                   connectorFamilies=${connectedAccounts.families}
                   connectorsLoading=${connectedAccounts.isLoading}
+                  homeLoading=${connectedAccounts.gmailReady &&
+                  (connectorInbox.isLoading || connectorInbox.isFetching)}
                   onConnectSources=${() => setShowSources(true)}
                   gmailReady=${connectedAccounts.gmailReady}
                   decisionMessages=${triageInbox}
