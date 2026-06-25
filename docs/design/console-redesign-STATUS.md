@@ -98,6 +98,23 @@ not a regression.
 - [x] **C9 — Functionality** (2026-06-24): the actions the user asked for are wired and live-verified end-to-end. The one-off **Ask** works (typed "capital of France?" → the turn answered "Paris"); **model configurability** works (the command box "Choose model and effort" opens a chooser with a **47-model NEAR AI Cloud select + effort levels**). The substantial chunks (C7 compose, C8 Slack, C2b cockpit) were each built + adversarially reviewed via Workflow and live-verified. No remaining unwired action was found — every original functional complaint (compose/recipients, Slack relevance, Memory save, Library, Calendar) is verified working. Evidence `docs/design/evidence/c9-ask-modelpicker.png`, `c9-model-overlay.png`.
 - [x] **Responsive (375px) + a11y pass** (2026-06-24): the Console collapses correctly at 375px via `styles/responsive.js` — the 3-column grid becomes nav + center (center ~321px, usable), the source-stream dock becomes a toggle-revealed off-canvas overlay (verified hidden→visible at x=54 via the "Show active work" toggle), and there is **no horizontal overflow**. a11y suite green (141 Playwright cases incl. 390px tap-target floors). Final full gate green (static 938, design, smoke, cold 388.3<401). Evidence `docs/design/evidence/c9-375-before.png`, `c9-375-dock-open.png`.
 
+## Craft resurface pass (2026-06-25, awake user + impeccable/interface-design skills)
+Director's critique: the home broke its own first law — a chatbot-style hero ("What do you
+want handled?" + 144px empty textarea) dominated, burying the triaged decisions (= "i might
+as well use claude"). Resurfacing to a triage-led desk; direction approved by the user via a
+rendered specimen.
+- [x] **R1 — invert the home** (`15748c8`): demoted the command hero to a compact bar (no big
+  headline, textarea 144→104px / 17→14.5px, padding 42→16px, sr-only h1). Triage now leads
+  (header at y=401, above the fold). Gate green; loads=1.
+- [x] **R2 — decision-card craft** (this commit): each "needs you" card now leads with a blue
+  "Reply owed" status pill + a legible `Gmail · sender · time` line (was low-contrast
+  --wb-faint), title de-shouted 800→600, amber icon-tile dropped. Reusable `wb13-status-pill`
+  (is-reply/is-decision/is-blocked). Gate green (static 940, a11y 141); live-verified loads=1,
+  5 cards repilled, old trigger-meta gone. Evidence `home-cards-v2.png`.
+- [ ] R3 — quiet the source-stream (repeated CI rows, hashtag soup, low-contrast meta).
+- [ ] R4 — triage-group cards get matching status pills (needs-approval/blocked).
+- [ ] R5 — Calendar: JOIN only when joinable + rhythm. R6 — Library purpose + copy. R7 — dark-mode card contrast.
+
 ## Log
 - 2026-06-24: **Dark mode verified** (post-completion sweep). The standalone defaults to `data-theme="dark"` (rail has a real sun/moon `useInterfaceTheme` toggle), so I verified the Console in dark across every surface I built this run. All components are 100% token-driven (`var(--wb-*)` / `color-mix`, zero hardcoded colors — confirmed by grep), so they adapt automatically. Live readings: home/cockpit main-bg luminance 15 + triage header text 255 (white-on-dark); Calendar agenda card-bg 21 / title 255 / day-number 122; compose modal bg 21 — all readable, no light-on-light. Evidence `docs/design/evidence/c-dark-{home,calendar,memory,compose}.png`. No code change required.
 - 2026-06-24: **Bundle headroom watch** — cold-start is at **399.4 / 401 KB** (~1.6 KB left) after C4. C7 (compose UI) will likely cross it. FIRST step of C7: free cold-start by `React.lazy`-loading the secondary nav views that are currently eager imports in `workbench-page.js` (Library / Memory — Calendar is already lazy). That moves them to on-demand chunks and buys multiple KB. Verify the lazy split with a Suspense fallback + a live nav into each view.

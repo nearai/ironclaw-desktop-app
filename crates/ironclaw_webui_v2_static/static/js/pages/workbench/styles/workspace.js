@@ -472,8 +472,36 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
 .wb13-action-icon.is-danger { background: var(--wb-hold-tint); color: var(--wb-danger); }
 .wb13-action-icon.is-done { background: var(--wb-good-tint); color: var(--wb-good-text); }
 .wb13-card-main { min-width: 0; flex: 1; }
-.wb13-card-title { color: var(--wb-ink); font-size: 14.5px; font-weight: 800; }
-.wb13-card-copy { margin-top: 2px; color: var(--wb-muted); font-size: 13px; }
+.wb13-card-title { color: var(--wb-ink); font-size: 14.5px; font-weight: 600; }
+.wb13-card-copy { margin-top: 2px; color: var(--wb-muted); font-size: 13px; line-height: 1.5; }
+.wb13-card-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+.wb13-card-when { font-size: 12px; color: var(--wb-muted); white-space: nowrap; }
+.wb13-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--wb-accent-soft);
+  color: var(--wb-accent);
+  white-space: nowrap;
+}
+.wb13-status-pill svg { width: 12px; height: 12px; }
+.wb13-status-pill.is-reply { background: var(--wb-accent-soft); color: var(--wb-accent); }
+.wb13-status-pill.is-decision { background: var(--wb-hold-tint); color: var(--wb-hold-text); }
+.wb13-status-pill.is-blocked {
+  background: color-mix(in srgb, var(--wb-danger) 13%, transparent);
+  color: var(--wb-danger);
+}
 .wb13-card-meta {
   display: flex;
   align-items: center;

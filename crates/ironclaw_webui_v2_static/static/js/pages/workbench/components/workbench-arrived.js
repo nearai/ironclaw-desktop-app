@@ -66,7 +66,7 @@ function openMessage(onOpenMessage, message) {
 function DecisionCard({ message, onOpenMessage, onDraftMessage, onDismiss }) {
   const [picking, setPicking] = React.useState(false);
   const when = formatInboxWhen(message.timestamp);
-  const meta = [message.sender, when].filter(Boolean).join(' · ');
+  const metaLine = ['Gmail', message.sender, when].filter(Boolean).join(' · ');
   const canDismiss = typeof onDismiss === 'function';
   return html`
     <div className="wb13-card wb13-card-readable" data-testid="workbench-decision-card">
@@ -77,18 +77,13 @@ function DecisionCard({ message, onOpenMessage, onDraftMessage, onDismiss }) {
         aria-label=${`Open email: ${message.subject}`}
         onClick=${() => openMessage(onOpenMessage, message)}
       >
-        <div className="wb13-action-icon is-hold">
-          <${Icon} name="mail" />
-        </div>
         <div className="wb13-card-main">
+          <div className="wb13-card-status">
+            <span className="wb13-status-pill is-reply"><${Icon} name="mail" /> Reply owed</span>
+            ${metaLine ? html`<span className="wb13-card-when">${metaLine}</span>` : null}
+          </div>
           <div className="wb13-card-title">${message.subject}</div>
           ${message.preview ? html`<div className="wb13-card-copy">${message.preview}</div>` : null}
-          ${meta
-            ? html`<div className="wb13-card-trigger">
-                <${Icon} name="mail" />
-                <span>${meta}</span>
-              </div>`
-            : null}
         </div>
       </button>
       <div className="wb13-card-actions">
