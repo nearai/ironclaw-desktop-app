@@ -6601,11 +6601,11 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 9px;
   border: 1px solid var(--wb-line);
-  border-radius: 11px;
+  border-radius: var(--wb-r-lg);
   background: var(--wb-canvas);
-  padding: 13px 14px;
+  padding: 14px 16px;
 }
 .wb13-card:hover { border-color: var(--wb-muted); }
 .wb13-action-icon {
@@ -6652,6 +6652,11 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   background: color-mix(in srgb, var(--wb-danger) 13%, transparent);
   color: var(--wb-danger);
 }
+.wb13-status-pill.is-working {
+  background: var(--wb-accent-soft);
+  color: var(--wb-ink-2);
+}
+.wb13-status-pill.is-done { background: var(--wb-good-tint); color: var(--wb-good-text); }
 .wb13-card-meta {
   display: flex;
   align-items: center;
@@ -8296,21 +8301,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   .wb13-email-head { grid-template-columns: 1fr; }
   .wb13-pk-head h1 { font-size: 19px; }
 }
-`;var rE=[VR,YR,XR,JR,ZR,eE,tE,aE,nE].join("");var n7=v.default.lazy(()=>import("./chunks/workbench-brief-2JUJT5N6.js").then(e=>({default:e.WorkbenchBrief}))),r7=v.default.lazy(()=>import("./chunks/workbench-library-PA47NC6E.js").then(e=>({default:e.LibraryView}))),o7=v.default.lazy(()=>import("./chunks/workbench-memory-KJUIH2IM.js").then(e=>({default:e.MemoryView}))),s7=v.default.lazy(()=>import("./chunks/workbench-calendar-SMO6AJHG.js").then(e=>({default:e.CalendarView}))),sE=new Set(["needs-reply","upcoming","github","notion","drive"]),oE=Object.freeze({name:"Abhishek Vaidyanathan",title:"Chief Legal Officer",email:"abby.vaidyanathan@gmail.com",channels:["#x-intents","#t-agentmarket","#x-nearai-compliance","#kyc_status","#wallet_status"],voiceSample:["fine to match the NF terms, but i'm not signing uncapped liability on directorship services \u2014 make the liability cap mutual and carve out gross negligence / wilful misconduct on the indemnities. if they won't move, note the residual exposure and we accept it consciously. hold signature until i've seen the final clause.","devhub grant terms don't cover this \u2014 external BD with full crm access needs at minimum an NDA with a non-solicit over anything in the NF pipeline. don't grant access until that's signed."]});function i7({groups:e,hasDecisions:t=!1,statusFilter:a=null}){let n=e.filter(r=>r.rows.length>0&&!sE.has(r.id)&&(!a||a.includes(r.id)));return!n.length&&a||!n.length&&t?null:n.length?l`
-    <div className="wb13-section" data-testid="workbench-triage">
-      ${n.map(r=>{let o=r.id==="needs-approval"?"hold":r.id==="blocked"?"danger":r.id==="working"?"run":r.id==="receipts"?"done":"ready";return l`
-          <div key=${r.id} className="wb13-group">
-            <div
-              className=${z("wb13-group-title",r.id==="needs-approval"&&"is-hold",r.id==="blocked"&&"is-danger")}
-            >
-              ${r.id==="needs-approval"?"Needs a decision":r.label}
-              <span>${r.total?`\xB7 ${r.total}`:""}</span>
-            </div>
-            ${r.rows.map(s=>l`<${c7} key=${s.id} row=${s} tone=${o} />`)}
-          </div>
-        `})}
-    </div>
-  `:l`
+`;var rE=[VR,YR,XR,JR,ZR,eE,tE,aE,nE].join("");var n7=v.default.lazy(()=>import("./chunks/workbench-brief-2JUJT5N6.js").then(e=>({default:e.WorkbenchBrief}))),r7=v.default.lazy(()=>import("./chunks/workbench-library-PA47NC6E.js").then(e=>({default:e.LibraryView}))),o7=v.default.lazy(()=>import("./chunks/workbench-memory-KJUIH2IM.js").then(e=>({default:e.MemoryView}))),s7=v.default.lazy(()=>import("./chunks/workbench-calendar-SMO6AJHG.js").then(e=>({default:e.CalendarView}))),sE=new Set(["needs-reply","upcoming","github","notion","drive"]),oE=Object.freeze({name:"Abhishek Vaidyanathan",title:"Chief Legal Officer",email:"abby.vaidyanathan@gmail.com",channels:["#x-intents","#t-agentmarket","#x-nearai-compliance","#kyc_status","#wallet_status"],voiceSample:["fine to match the NF terms, but i'm not signing uncapped liability on directorship services \u2014 make the liability cap mutual and carve out gross negligence / wilful misconduct on the indemnities. if they won't move, note the residual exposure and we accept it consciously. hold signature until i've seen the final clause.","devhub grant terms don't cover this \u2014 external BD with full crm access needs at minimum an NDA with a non-solicit over anything in the NF pipeline. don't grant access until that's signed."]});function i7({groups:e,hasDecisions:t=!1,statusFilter:a=null}){let n=e.filter(i=>i.rows.length>0&&!sE.has(i.id)&&(!a||a.includes(i.id)));if(!n.length&&a||!n.length&&t)return null;if(!n.length)return l`
       <div className="wb13-section" data-testid="workbench-triage">
         <div className="wb13-group">
           <div className="wb13-group-title">Needs a decision<span></span></div>
@@ -8320,27 +8311,32 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
           </div>
         </div>
       </div>
-    `}function l7(e,t){return t==="hold"?"Review and decide":t==="danger"?/reconnect/i.test(e.detail||"")||/reconnect/i.test(e.badge||"")?"Reconnect source":"Recover run":t==="run"?"Open live thread":t==="done"?"View receipt":"Open"}function c7({row:e,tone:t}){let a=l7(e,t);return l`
-    <div className="wb13-card">
-      <div
-        className=${z("wb13-action-icon",t==="hold"&&"is-hold",t==="danger"&&"is-danger",t==="done"&&"is-done",e.badge==="Needs recovery"&&"is-danger")}
-      >
-        <${N} name=${e.icon||"spark"} />
-      </div>
+    `;let r=i=>i==="needs-approval"?"hold":i==="blocked"?"danger":i==="working"?"run":i==="receipts"?"done":"ready",o=i=>({hold:"is-decision",danger:"is-blocked",run:"is-working",done:"is-done"})[i]||"is-reply",s=i=>({"needs-approval":"Needs a decision",blocked:"Blocked","needs-review":"Ready to review",working:"In motion",receipts:"Done",scheduled:"Scheduled"})[i.id]||i.label;return l`
+    <div className="wb13-section wb13-list" data-testid="workbench-triage">
+      ${n.flatMap(i=>{let c=r(i.id),d=o(c),u=s(i);return i.rows.map(m=>l`<${c7}
+              key=${m.id}
+              row=${m}
+              tone=${c}
+              pillCls=${d}
+              pillLabel=${u}
+            />`)})}
+    </div>
+  `}function l7(e,t){return t==="hold"?"Review and decide":t==="danger"?/reconnect/i.test(e.detail||"")||/reconnect/i.test(e.badge||"")?"Reconnect source":"Recover run":t==="run"?"Open live thread":t==="done"?"View receipt":"Open"}function c7({row:e,tone:t,pillCls:a="is-reply",pillLabel:n=""}){let r=l7(e,t);return l`
+    <div className="wb13-card wb13-card-readable">
       <div className="wb13-card-main">
-        <div className="wb13-card-title">${e.title}</div>
-        <div className="wb13-card-copy">${e.detail}</div>
-        <div className="wb13-card-trigger">
-          <${N} name=${e.icon||"shield"} />
-          <span>${e.badge}</span>
+        <div className="wb13-card-status">
+          <span className=${z("wb13-status-pill",a)}>${n}</span>
+          ${e.badge?l`<span className="wb13-card-when">${e.badge}</span>`:null}
         </div>
+        <div className="wb13-card-title">${e.title}</div>
+        ${e.detail?l`<div className="wb13-card-copy">${e.detail}</div>`:null}
       </div>
       <div className="wb13-card-actions">
         <${_e}
-          to=${e.href}
+          to=${e.href||"/workbench"}
           className=${z("wb13-button is-sm",t==="hold"&&"is-primary")}
         >
-          ${a}
+          ${r}
         <//>
       </div>
     </div>
