@@ -3304,7 +3304,7 @@ ${fe}`;if(I.current.gateKey!==ke&&(I.current={gateKey:ke,credentialRef:null,inFl
             Connect your tools
           </button>`:null}
     </section>
-  `}function MK(e,t){typeof e=="function"&&e(t)}function OK({message:e,onOpenMessage:t,onDraftMessage:a,onDismiss:n}){let[r,o]=v.default.useState(!1),s=tn(e.timestamp),i=[e.sender,s].filter(Boolean).join(" \xB7 "),c=typeof n=="function";return l`
+  `}function MK(e,t){typeof e=="function"&&e(t)}function OK({message:e,onOpenMessage:t,onDraftMessage:a,onDismiss:n}){let[r,o]=v.default.useState(!1),s=tn(e.timestamp),i=["Gmail",e.sender,s].filter(Boolean).join(" \xB7 "),c=typeof n=="function";return l`
     <div className="wb13-card wb13-card-readable" data-testid="workbench-decision-card">
       <button
         type="button"
@@ -3313,16 +3313,13 @@ ${fe}`;if(I.current.gateKey!==ke&&(I.current={gateKey:ke,credentialRef:null,inFl
         aria-label=${`Open email: ${e.subject}`}
         onClick=${()=>MK(t,e)}
       >
-        <div className="wb13-action-icon is-hold">
-          <${N} name="mail" />
-        </div>
         <div className="wb13-card-main">
+          <div className="wb13-card-status">
+            <span className="wb13-status-pill is-reply"><${N} name="mail" /> Reply owed</span>
+            ${i?l`<span className="wb13-card-when">${i}</span>`:null}
+          </div>
           <div className="wb13-card-title">${e.subject}</div>
           ${e.preview?l`<div className="wb13-card-copy">${e.preview}</div>`:null}
-          ${i?l`<div className="wb13-card-trigger">
-                <${N} name="mail" />
-                <span>${i}</span>
-              </div>`:null}
         </div>
       </button>
       <div className="wb13-card-actions">
@@ -3901,11 +3898,7 @@ ${fe}`;if(I.current.gateKey!==ke&&(I.current={gateKey:ke,credentialRef:null,inFl
     </div>
   `}function NR({brief:e,setBrief:t,modelId:a,effort:n,sourceMode:r,sourceIds:o,onAutoSource:s,onSelectSource:i,onAsk:c,onOpenSources:d,onOpenCadence:u,onOpenWorkMode:m,isStarting:p,startBlocked:f,startBlockReason:b,startSoftNotice:x,error:y,attachmentsState:g}){let[h,w]=v.default.useState(!1),[$,k]=v.default.useState(!1),_=v.default.useRef(null),S=Fy.slice(0,6),T=Fy.slice(6),M=p?"Starting":yT(e),R=kT(a,n),L=g.attachments.some(G=>G.extraction==="extracting"),I=G=>{t(G)},F=v.default.useCallback(G=>{let ue=Array.from(G||[]);ue.length>0&&g.addFiles(ue)},[g]),P=v.default.useCallback(G=>{F(G.currentTarget.files),G.currentTarget.value=""},[F]),me=v.default.useCallback(G=>{let ue=Array.from(G.clipboardData?.files||[]);ue.length&&(G.preventDefault(),F(ue))},[F]),oe=v.default.useCallback(G=>{G.preventDefault(),k(!1),F(G.dataTransfer?.files)},[F]);return l`
     <div className="wb13-command">
-      <h1 className="wb13-greet">What do you want handled?</h1>
-      <p className="wb13-sub">
-        Ask across your connected tools. IronClaw reads, drafts, and prepares - you approve what
-        leaves.
-      </p>
+      <h1 className="wb13-sr-only">Ask IronClaw</h1>
       <div
         className=${z("wb13-well",$&&"is-dragover")}
         onDrop=${oe}
@@ -3923,7 +3916,7 @@ ${fe}`;if(I.current.gateKey!==ke&&(I.current={gateKey:ke,credentialRef:null,inFl
             onInput=${G=>t(G.currentTarget.value)}
             onKeyDown=${G=>{(G.metaKey||G.ctrlKey)&&G.key==="Enter"&&(G.preventDefault(),c())}}
             onPaste=${me}
-            placeholder="Describe the work in plain language. Paste a thread, drop a file, or give a multi-step instruction..."
+            placeholder="Ask IronClaw across your tools, or describe a multi-step task…"
           />
           <div className="wb13-wbar">
             <${ZK}
@@ -5615,15 +5608,16 @@ ${fe}`;if(I.current.gateKey!==ke&&(I.current={gateKey:ke,credentialRef:null,inFl
    the plain home stays a focused 720 column (DESIGN.md Law 3). */
 .wb13-wrap.is-wide { max-width: 1040px; }
 .wb13-wide { max-width: 960px; margin: 0 auto; }
-`;var XR=`.wb13-command { padding-top: 42px; }
-.wb13-greet {
-  margin: 0 0 4px;
-  font-family: var(--wb-font-display);
-  font-size: 26px;
-  font-weight: 750;
-  line-height: 1.2;
+`;var XR=`.wb13-command { padding-top: 16px; }
+.wb13-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
-.wb13-sub { margin: 0 0 20px; color: var(--wb-muted); font-size: 14px; }
 .wb13-well { position: relative; }
 .wb13-compose-box { position: relative; }
 .wb13-well.is-dragover .wb13-compose-box textarea {
@@ -5632,7 +5626,7 @@ ${fe}`;if(I.current.gateKey!==ke&&(I.current={gateKey:ke,credentialRef:null,inFl
 }
 .wb13-well textarea {
   width: 100%;
-  min-height: 144px;
+  min-height: 104px;
   resize: none;
   overflow-y: auto;
   border: 1px solid var(--wb-line);
@@ -5641,9 +5635,9 @@ ${fe}`;if(I.current.gateKey!==ke&&(I.current={gateKey:ke,credentialRef:null,inFl
   color: var(--wb-ink);
   box-shadow: var(--wb-shadow);
   outline: none;
-  padding: 17px 18px 62px;
-  font-size: 17px;
-  line-height: 1.55;
+  padding: 13px 16px 58px;
+  font-size: 14.5px;
+  line-height: 1.5;
 }
 .wb13-well textarea::placeholder { color: var(--wb-placeholder); }
 .wb13-well:focus-within textarea {
@@ -6626,8 +6620,36 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
 .wb13-action-icon.is-danger { background: var(--wb-hold-tint); color: var(--wb-danger); }
 .wb13-action-icon.is-done { background: var(--wb-good-tint); color: var(--wb-good-text); }
 .wb13-card-main { min-width: 0; flex: 1; }
-.wb13-card-title { color: var(--wb-ink); font-size: 14.5px; font-weight: 800; }
-.wb13-card-copy { margin-top: 2px; color: var(--wb-muted); font-size: 13px; }
+.wb13-card-title { color: var(--wb-ink); font-size: 14.5px; font-weight: 600; }
+.wb13-card-copy { margin-top: 2px; color: var(--wb-muted); font-size: 13px; line-height: 1.5; }
+.wb13-card-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+.wb13-card-when { font-size: 12px; color: var(--wb-muted); white-space: nowrap; }
+.wb13-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--wb-accent-soft);
+  color: var(--wb-accent);
+  white-space: nowrap;
+}
+.wb13-status-pill svg { width: 12px; height: 12px; }
+.wb13-status-pill.is-reply { background: var(--wb-accent-soft); color: var(--wb-accent); }
+.wb13-status-pill.is-decision { background: var(--wb-hold-tint); color: var(--wb-hold-text); }
+.wb13-status-pill.is-blocked {
+  background: color-mix(in srgb, var(--wb-danger) 13%, transparent);
+  color: var(--wb-danger);
+}
 .wb13-card-meta {
   display: flex;
   align-items: center;
@@ -8256,7 +8278,6 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   .wb13-pk-head h1 { font-size: 21px; }
 }
 @media (max-width: 560px) {
-  .wb13-greet { font-size: 22px; }
   .wb13-wbar { flex-wrap: wrap; }
   .wb13-mode-btn {
     order: 2;
