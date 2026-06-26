@@ -402,7 +402,12 @@ export function useChat(threadId) {
   // hook can route to `/chat/<id>` after the first send.
   const send = React.useCallback(
     async (content, opts = {}) => {
-      const connectable = await resolveConnectAction(content);
+      // The "connect a channel" sugar is a CHAT affordance (the user types
+      // "connect gmail"). A caller running a deliberate, structured request — e.g.
+      // the Workbench Ask, whose draft scaffold names Gmail/Calendar/Slack — must opt
+      // out, or that text is misread as a connect command and `send` short-circuits
+      // here, returning no thread id and the run never starts.
+      const connectable = opts.skipConnectDetection ? null : await resolveConnectAction(content);
       if (connectable) {
         setChannelConnectAction(connectable);
         return { channel_connect_action: connectable };
@@ -508,7 +513,12 @@ export function useChat(threadId) {
             prev.map((m) => (m.id === optimisticId ? { ...m, timelineMessageId } : m))
           );
         }
-        return response;
+        // Always surface the thread id to callers. The /messages response does not
+        // reliably echo thread_id at the top level, but the caller (Workbench start,
+        // chat.js navigation) needs it to attach the run — so merge in the thread we
+        // actually sent to. Without this the Workbench Ask throws "runtime did not
+        // return a thread id" even though the thread was created and the message landed.
+        return { ...(response || {}), thread_id: response?.thread_id || sendThreadId };
       } catch (err) {
         if (err.status === 429) {
           setCooldownUntil(Date.now() + retryAfterMs(err));

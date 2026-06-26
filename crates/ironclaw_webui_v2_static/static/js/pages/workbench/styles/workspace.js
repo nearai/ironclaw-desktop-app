@@ -331,6 +331,76 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   color: var(--wb-danger);
   background: var(--wb-hold-tint);
 }
+.wb13-chat {
+  display: flex;
+  flex-direction: column;
+}
+.wb13-chat-working {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 2px 34px;
+  font-size: 13px;
+  color: var(--wb-muted);
+}
+.wb13-chat-working.is-attention {
+  color: var(--wb-danger);
+}
+.wb13-chat-working svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+.wb13-typing {
+  display: inline-flex;
+  gap: 3px;
+}
+.wb13-typing i {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--wb-muted);
+  animation: wb13-typing-bounce 1.2s ease-in-out infinite;
+}
+.wb13-typing i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.wb13-typing i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes wb13-typing-bounce {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wb13-typing i {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+.wb13-chat-guard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--wb-line);
+  font-size: 12px;
+  color: var(--wb-faint);
+}
+.wb13-chat-guard svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
 .wb13-run-composer {
   margin-top: 14px;
   border: 1px solid var(--wb-line);

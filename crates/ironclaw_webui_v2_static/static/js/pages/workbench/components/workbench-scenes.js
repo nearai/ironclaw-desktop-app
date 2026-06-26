@@ -12,66 +12,11 @@ import {
   resetToolActivityState
 } from '../../chat/lib/tool-activity-state.js';
 import { fetchApprovalsFeed } from '../lib/approvals-feed-api.js';
-import { actionRows, outputHint } from '../lib/workbench-scenes-registry.js';
 import { WorkbenchRunTimeline } from './workbench-run-timeline.js';
 
 function cleanText(value, fallback = '') {
   const text = String(value || '').trim();
   return text || fallback;
-}
-
-function SceneSummary({ work }) {
-  return html`
-    <div className=${cn('wb13-scene-summary', `is-${work.scene.id}`)}>
-      <div className="wb13-scene-mark"><${Icon} name="pulse" /></div>
-      <div>
-        <div className="wb13-scene-kicker">${work.scene.label}</div>
-        <h2>${work.scene.title}</h2>
-        <p>${work.scene.detail}</p>
-      </div>
-    </div>
-  `;
-}
-
-function SceneActionRows({ sceneId }) {
-  return html`
-    <div className="wb13-scene-rows">
-      ${actionRows(sceneId).map(
-        ([title, detail, state]) => html`
-          <div key=${title} className="wb13-scene-row">
-            <span className="wb13-row-icon"
-              ><${Icon}
-                name=${state === 'Blocked' ? 'flag' : state === 'Scheduled' ? 'clock' : 'shield'}
-            /></span>
-            <span>
-              <span className="wb13-row-title">${title}</span>
-              <span className="wb13-row-copy">${detail}</span>
-            </span>
-            <span
-              className=${cn(
-                'wb13-scene-state',
-                state === 'Blocked' && 'is-blocked',
-                state === 'Draft' && 'is-draft',
-                state === 'Approval' && 'is-approval'
-              )}
-            >
-              ${state}
-            </span>
-          </div>
-        `
-      )}
-    </div>
-  `;
-}
-
-function preferenceRows(work) {
-  const preferences = work?.preferences || {};
-  return [
-    ['Model', preferences.model || 'Active NEAR AI Cloud model'],
-    ['Effort', preferences.effort || 'Standard'],
-    ['Sources', preferences.sources || 'Auto sources'],
-    ['Timing', preferences.timing || 'Not specified']
-  ];
 }
 
 function latestMessage(messages, role) {
@@ -163,18 +108,52 @@ export function mergeWorkbenchRuntimeMessages(timelineMessages = [], liveMessage
     .map(({ message }) => message);
 }
 
-function TimelinePreview({ work, timelineQuery, liveMessages }) {
+// The first user message sent to the runtime is the verbose prompt scaffold
+// (buildWorkbenchChatDraft: "Workbench request / Task / Execution preferences…").
+// That belongs in the model's context, NOT on screen — the user should see the clean
+// question they typed (work.title). Replace the FIRST user message's display content
+// with the brief; follow-ups from the inline composer are already clean.
+function withCleanQuestion(messages, title) {
+  const clean = cleanText(title);
+  if (!clean) return messages;
+  let swapped = false;
+  return messages.map((message) => {
+    if (!swapped && message && message.role === 'user') {
+      swapped = true;
+      return { ...message, content: clean };
+    }
+    return message;
+  });
+}
+
+function ThinkingIndicator({ attention = false }) {
+  if (attention) {
+    return html`<div
+      className="wb13-chat-working is-attention"
+      data-testid="workbench-run-attention"
+    >
+      <${Icon} name="flag" />
+      <span>A step needs your attention — reply below to steer it.</span>
+    </div>`;
+  }
+  return html`<div className="wb13-chat-working" data-testid="workbench-run-live">
+    <span className="wb13-typing" aria-hidden="true"><i></i><i></i><i></i></span>
+    <span>Thinking…</span>
+  </div>`;
+}
+
+// The conversation itself: the clean question, each tool step, and the assistant's
+// reply — streamed via SSE + the timeline poll, rendered in place. This is the real
+// in-Workbench chat surface; nothing is fabricated and nothing hands off to the
+// desktop chat.
+function ConversationThread({ work, timelineQuery, liveMessages }) {
   const messages = React.useMemo(() => {
     const timelineMessages = messagesFromTimeline(timelineQuery.data?.messages || [], []);
-    return mergeWorkbenchRuntimeMessages(timelineMessages, liveMessages);
-  }, [timelineQuery.data, liveMessages]);
-  const user = latestMessage(messages, 'user');
+    const merged = mergeWorkbenchRuntimeMessages(timelineMessages, liveMessages);
+    return withCleanQuestion(merged, work?.title);
+  }, [timelineQuery.data, liveMessages, work]);
 
   if (hasRenderableRun(messages)) {
-    // Run state from the live timeline alone — no fabrication. A landed
-    // assistant reply means done (a tool error_kind can precede a successful
-    // recovery, so a reply always wins). A failed tool with no reply yet is the
-    // honest "needs attention" state. Otherwise the run is still working.
     const assistant = latestMessage(messages, 'assistant');
     const failedTool = messages.some(
       (message) =>
@@ -182,24 +161,12 @@ function TimelinePreview({ work, timelineQuery, liveMessages }) {
         message.role === 'tool_activity' &&
         (message.toolError || message.toolStatus === 'error')
     );
-    const runState = assistant ? 'done' : failedTool ? 'attention' : 'running';
+    const working = !assistant && !failedTool;
     return html`
-      <div className="wb13-runtime-preview" data-testid="workbench-live-thread-preview">
-        <div className="wb13-runtime-preview-head">
-          <${Icon} name="pulse" />
-          <span>Live run</span>
-          ${runState === 'running'
-            ? html`<span className="wb13-run-live" data-testid="workbench-run-live">Working…</span>`
-            : null}
-          ${runState === 'attention'
-            ? html`<span
-                className="wb13-run-live is-attention"
-                data-testid="workbench-run-attention"
-                >Needs attention</span
-              >`
-            : null}
-        </div>
+      <div className="wb13-chat-thread" data-testid="workbench-live-thread-preview">
         <${WorkbenchRunTimeline} messages=${messages} />
+        ${working ? html`<${ThinkingIndicator} />` : null}
+        ${failedTool && !assistant ? html`<${ThinkingIndicator} attention=${true} />` : null}
       </div>
     `;
   }
@@ -210,31 +177,36 @@ function TimelinePreview({ work, timelineQuery, liveMessages }) {
         <${Icon} name="flag" />
         <span>
           <strong>Live preview unavailable.</strong>
-          The run is still attached; its output will appear here when the timeline returns.
-          Workbench will not invent a draft without it.
+          The run is still attached; the reply appears here the moment the timeline returns.
         </span>
       </div>
     `;
   }
 
+  // No rows yet — show the clean question + a thinking indicator so the turn never
+  // looks empty while the first token is in flight.
+  const question = cleanText(work?.title);
   return html`
-    <div className="wb13-runtime-state">
-      <${Icon} name="shield" />
-      <span>
-        <strong>${user ? 'Working in the Workbench.' : 'Starting the run.'}</strong>
-        ${user
-          ? 'Assistant output streams here as it lands — reply below to keep going, no need to leave.'
-          : `When the run returns ${outputHint(work.scene.id)}, they will appear here for review.`}
-      </span>
+    <div className="wb13-chat-thread" data-testid="workbench-live-thread-preview">
+      ${question
+        ? html`<ol className="wb13-run">
+            <li className="wb13-run-row is-user">
+              <span className="wb13-run-marker" aria-hidden="true"><${Icon} name="spark" /></span>
+              <div className="wb13-run-body">
+                <div className="wb13-run-role">You asked</div>
+                <p className="wb13-run-text">${question}</p>
+              </div>
+            </li>
+          </ol>`
+        : null}
+      <${ThinkingIndicator} />
     </div>
   `;
 }
 
 // In-place approval gates: the pending gates for THIS run's thread, surfaced
-// read-only on the run card. The route is per-thread, so we scope to
-// work.threadId. Resolving a gate is a real outbound action (Phase 4, behind
-// the send sign-off), so this view only shows what is waiting and links into
-// the live thread to act — it never approves or denies here.
+// read-only. Resolving a gate is a real outbound action (behind the send sign-off),
+// so this view only shows what is waiting — it never approves or denies here.
 function WorkbenchRunApprovals({ approvals }) {
   const rows = Array.isArray(approvals) ? approvals : [];
   if (!rows.length) return null;
@@ -260,58 +232,9 @@ function WorkbenchRunApprovals({ approvals }) {
   `;
 }
 
-function RuntimeWorkspace({ work, timelineQuery, approvals, liveMessages }) {
-  return html`
-    <div className="wb13-scene-grid">
-      <div className="wb13-scene-panel">
-        <div className="wb13-scene-title">Current request</div>
-        <p className="wb13-scene-copy">${cleanText(work.title, 'Workbench request')}</p>
-        <${TimelinePreview}
-          work=${work}
-          timelineQuery=${timelineQuery}
-          liveMessages=${liveMessages}
-        />
-        <${WorkbenchRunApprovals} approvals=${approvals} />
-        <div className="wb13-source-card is-hold">
-          <${Icon} name="shield" />
-          <strong>External actions still need approval.</strong>
-          <p>
-            Sending, posting, filing, or changing another system remains owned by the live approval
-            gate.
-          </p>
-          <span>Live run activity stays visible here; external changes remain gated.</span>
-        </div>
-      </div>
-      <div className="wb13-scene-panel">
-        <div className="wb13-scene-title">Preferences sent</div>
-        <div className="wb13-pref-list">
-          ${preferenceRows(work).map(
-            ([label, value]) => html`
-              <div key=${label} className="wb13-pref-row">
-                <span>${label}</span>
-                <strong>${value}</strong>
-              </div>
-            `
-          )}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function SceneBody({ work, timelineQuery, approvals, liveMessages }) {
-  return html`<${RuntimeWorkspace}
-    work=${work}
-    timelineQuery=${timelineQuery}
-    approvals=${approvals}
-    liveMessages=${liveMessages}
-  />`;
-}
-
-// Inline follow-up composer — reply to / continue the run WITHOUT leaving the
-// Workbench. Posts to the existing thread; the SSE stream + timeline refetch above
-// render the assistant's reply in place. This is what makes the Ask a real in-Workbench
-// conversation instead of a hand-off to the desktop chat.
+// Inline follow-up composer — continue the conversation WITHOUT leaving the Workbench.
+// Posts to the existing thread; the SSE stream + timeline refetch render the reply in
+// place. This is what makes the Ask a real in-Workbench chat, not a desktop hand-off.
 function WorkbenchRunComposer({ threadId, onSent }) {
   const [text, setText] = React.useState('');
   const [sending, setSending] = React.useState(false);
@@ -443,16 +366,21 @@ export function WorkbenchSceneWorkspace({ work }) {
   if (!work) return null;
 
   return html`
-    <section className="wb13-section wb13-scene" data-testid="workbench-scene-workspace">
-      <${SceneSummary} work=${work} />
-      <${SceneActionRows} sceneId=${work.scene.id} />
-      <${SceneBody}
+    <section className="wb13-section wb13-chat" data-testid="workbench-scene-workspace">
+      <${ConversationThread}
         work=${work}
         timelineQuery=${timelineQuery}
-        approvals=${approvalsQuery.data || []}
         liveMessages=${liveMessages}
       />
+      <${WorkbenchRunApprovals} approvals=${approvalsQuery.data || []} />
       <${WorkbenchRunComposer} threadId=${threadId} onSent=${() => timelineQuery.refetch()} />
+      <div className="wb13-chat-guard">
+        <${Icon} name="shield" />
+        <span
+          >Reads and drafts stay here. Sending, posting, or changing another system needs your
+          approval.</span
+        >
+      </div>
     </section>
   `;
 }

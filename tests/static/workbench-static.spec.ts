@@ -1023,9 +1023,9 @@ test('static workbench: accepts broad chief-of-staff prompts into Chat runtime s
       })
       .toBe(index + 1);
     await expect(page).toHaveURL(/\/v2\/workbench$/);
-    await expect(page.getByTestId('workbench-scene-workspace')).toContainText(
-      /workspace started|session started|monitor started/i
-    );
+    // The run reads as a clean conversation: your question is shown back (not the verbose
+    // prompt scaffold sent to the model).
+    await expect(page.getByTestId('workbench-scene-workspace')).toContainText(scenario.prompt);
     // The conversation stays IN the Workbench: an inline composer to continue it, and
     // NO hand-off link to the desktop chat.
     await expect(page.getByTestId('workbench-run-composer')).toBeVisible();
@@ -1068,9 +1068,10 @@ test('static workbench: command starts stay in first-class Workbench scenes', as
     await page.getByTestId('workbench-send-button').click();
     await expect.poll(() => sentMessages.length).toBe(index + 1);
     const workspace = page.getByTestId('workbench-scene-workspace');
-    await expect(workspace).toContainText(scene.title);
-    await expect(workspace).toContainText('Starting the run.');
-    await expect(workspace).toContainText('Preferences sent');
+    // Clean conversation: your question is shown back + an inline composer; no canned
+    // scene chrome or fabricated briefing content.
+    await expect(workspace).toContainText(scene.prompt);
+    await expect(page.getByTestId('workbench-run-composer')).toBeVisible();
     await expect(workspace).not.toContainText('Fortanix');
     await expect(workspace).not.toContainText('Cash runway source is stale.');
     await expect(page).toHaveURL(/\/v2\/workbench$/);
@@ -1150,16 +1151,9 @@ test('static workbench: command starts a Chat runtime thread with model, effort,
     })
     .toBe(1);
   await expect(page).toHaveURL(/\/v2\/workbench$/);
-  await expect(page.getByTestId('workbench-scene-workspace')).toContainText(
-    'Briefing workspace started'
-  );
-  await expect(page.getByTestId('workbench-scene-workspace')).toContainText(
-    'GLM 4.5 (z-ai/glm-4.5)'
-  );
-  // The run renders inline on the Workbench (prompt → output), not just a
-  // "latest reply" punt to Chat.
+  // The run renders inline on the Workbench as a clean conversation (your question →
+  // the reply), not a verbose "work request" card or a punt to Chat.
   await expect(page.getByTestId('workbench-run-timeline')).toBeVisible();
-  await expect(page.getByTestId('workbench-scene-workspace')).toContainText('Live run');
   await expect(page.getByTestId('workbench-scene-workspace')).toContainText('You asked');
   await expect(page.getByTestId('workbench-scene-workspace')).toContainText('Draft brief ready');
   await expect(page.getByTestId('workbench-scene-workspace')).not.toContainText(
@@ -1604,7 +1598,7 @@ test('static workbench: command posts a general research request to the existing
     .toBe(1);
   await expect(page).toHaveURL(/\/v2\/workbench$/);
   await expect(page.getByTestId('workbench-scene-workspace')).toContainText(
-    'Growth workspace started'
+    'Research the top 20 accounts'
   );
   expect(sentMessages[0].path).toBe('/api/webchat/v2/threads/thread-workbench-runtime/messages');
   expect(String(sentMessages[0].body.content)).toContain('Workbench request');
@@ -1689,7 +1683,7 @@ test('static workbench: attached files ride with the Chat runtime request', asyn
   expect(String(body.content)).toContain('<attachments ic="1">');
   await expect(page).toHaveURL(/\/v2\/workbench$/);
   await expect(page.getByTestId('workbench-scene-workspace')).toContainText(
-    'Review workspace started'
+    'Draft the response using the attached notes'
   );
 });
 

@@ -366,7 +366,12 @@ export function useWorkbenchStart({
       const response = await send(draft, {
         timezone: userTimezone(),
         images: attachmentsState.images,
-        attachments: attachmentsState.attachments
+        attachments: attachmentsState.attachments,
+        // A Workbench work-request is a deliberate run, not a chat "connect X"
+        // command. The verbose draft scaffold names Gmail/Calendar/Slack, which the
+        // chat connect-command detector would otherwise misread as "connect gmail" —
+        // short-circuiting the send so no thread is returned and the run never starts.
+        skipConnectDetection: true
       });
       const threadId = response?.thread_id || '';
       if (!threadId) throw new Error('The runtime did not return a thread id.');

@@ -166,6 +166,94 @@ test('useChat.send: accepted ref reconciles pending message on timeline reload',
   );
 });
 
+test('useChat.send: skipConnectDetection bypasses connect-command detection (Workbench runs)', async () => {
+  // REGRESSION: a Workbench work-request carries a verbose draft that names
+  // Gmail/Calendar/Slack — which trips looksLikeChannelConnectCommand. Without the
+  // opt-out, send short-circuits into a "connect gmail" action, returns NO thread id,
+  // and the run never starts (the Workbench Ask dead-ends).
+  const connectLike = 'connect gmail and set up the calendar workspace files';
+  assert.equal(
+    looksLikeChannelConnectCommand(connectLike),
+    true,
+    'precondition: this content WOULD trip connect detection'
+  );
+  let createThreadCalled = false;
+  let sendMessageCalled = false;
+  const context = {
+    AbortController,
+    TextEncoder,
+    Date,
+    Error,
+    Map,
+    Math,
+    React: createReactStub(),
+    addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
+    flattenCachedThreads,
+    cancelRunRequest: async () => {},
+    clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
+    createThreadRequest: async () => {
+      createThreadCalled = true;
+      return { thread: { thread_id: 'thread-wb' } };
+    },
+    globalThis: {},
+    listConnectableChannels: async () => {
+      throw new Error('skipConnectDetection must prevent any connectable-channels fetch');
+    },
+    looksLikeChannelConnectCommand,
+    queryClient: {
+      fetchQuery: async () => {
+        throw new Error('skipConnectDetection must prevent any connectable-channels fetch');
+      },
+      invalidateQueries: () => {},
+      getQueryData: () => undefined
+    },
+    recordAcceptedMessageRef,
+    removePending,
+    replacePending,
+    resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
+    resolveGateRequest: async () => {},
+    sendMessage: async () => {
+      sendMessageCalled = true;
+      // The /messages response intentionally omits thread_id at the top level — the
+      // caller must still receive it (merged from the created thread).
+      return { accepted_message_ref: 'msg:m1', run_id: 'run-1', status: 'queued' };
+    },
+    setInterval,
+    setTimeout,
+    submitManualToken: async () => {},
+    useChatEvents: () => () => {},
+    useHistory: () => ({
+      messages: [],
+      hasMore: false,
+      nextCursor: null,
+      isLoading: false,
+      loadHistory: async () => {},
+      setMessages: () => {}
+    }),
+    useSSE: () => ({ status: 'idle' })
+  };
+
+  vm.runInNewContext(useChatSourceForTest(), context);
+  const chat = context.globalThis.__testExports.useChat(null);
+  const result = await chat.send(connectLike, { skipConnectDetection: true });
+
+  assert.equal(createThreadCalled, true, 'a thread is created — the run actually starts');
+  assert.equal(sendMessageCalled, true, 'the message is actually sent');
+  assert.equal(result.channel_connect_action, undefined, 'no connect short-circuit');
+  assert.equal(
+    result.thread_id,
+    'thread-wb',
+    'send returns the thread id (merged from the created thread) so the run attaches'
+  );
+});
+
 test('useChat.send: forwards composer attachments to sendMessage and optimistic bubble', async () => {
   const threadId = 'thread-1';
   let renderedMessages = [];
