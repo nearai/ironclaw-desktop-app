@@ -45,7 +45,9 @@ function CommitmentCard({ commitment }) {
 
 function CommitmentList({ items, testid }) {
   return html`<div className="wb13-section wb13-list" data-testid=${testid}>
-    ${items.map((c) => html`<${CommitmentCard} key=${c.id || c.shortId} commitment=${c} />`)}
+    ${items.map(
+      (c, i) => html`<${CommitmentCard} key=${c.id || c.shortId || `c-${i}`} commitment=${c} />`
+    )}
   </div>`;
 }
 
@@ -60,6 +62,9 @@ export function JarvisView() {
 
   const data = query.data || { configured: false, projects: [], outstanding: [], commitments: [] };
   const loading = query.isLoading;
+  // A failed fetch (network / gateway down) must read as an error, NOT as
+  // "not connected" — those are different situations and the user fixes them differently.
+  const fetchFailed = query.isError;
   const outstanding = data.outstanding || [];
   const open = actionableCommitments(data.commitments);
   const projects = data.projects || [];
@@ -85,65 +90,77 @@ export function JarvisView() {
                     </div>`
                 )}
               </div>`
-            : !data.configured
-              ? html`<div className="wb13-allclear" data-testid="workbench-jarvis-unconfigured">
-                  jarvis is not connected yet. Add the jarvis credential to surface your
-                  commitments, projects, and decisions here.
+            : fetchFailed
+              ? html`<div className="wb13-reader-note is-error" role="alert">
+                  <${Icon} name="flag" /><span
+                    >jarvis could not be reached. Check the connection and try again.</span
+                  >
                 </div>`
-              : data.error
-                ? html`<div className="wb13-reader-note is-error" role="alert">
-                    <${Icon} name="flag" /><span>jarvis could not be reached: ${data.error}</span>
+              : !data.configured
+                ? html`<div className="wb13-allclear" data-testid="workbench-jarvis-unconfigured">
+                    jarvis is not connected yet. Add the jarvis credential to surface your
+                    commitments, projects, and decisions here.
                   </div>`
-                : html`
-                    <div className="wb13-section-label">
-                      <${Icon} name="check" /> Owed to you
-                      <span className="wb13-section-count">${outstanding.length}</span>
-                    </div>
-                    ${outstanding.length
-                      ? html`<${CommitmentList}
-                          items=${outstanding}
-                          testid="workbench-jarvis-outstanding"
-                        />`
-                      : html`<div className="wb13-allclear">
-                          Nobody owes you an open commitment right now.
-                        </div>`}
+                : data.error
+                  ? html`<div className="wb13-reader-note is-error" role="alert">
+                      <${Icon} name="flag" /><span>jarvis could not be reached: ${data.error}</span>
+                    </div>`
+                  : html`
+                      <div className="wb13-section-label">
+                        <${Icon} name="check" /> Owed to you
+                        <span className="wb13-section-count">${outstanding.length}</span>
+                      </div>
+                      ${outstanding.length
+                        ? html`<${CommitmentList}
+                            items=${outstanding}
+                            testid="workbench-jarvis-outstanding"
+                          />`
+                        : html`<div className="wb13-allclear">
+                            Nobody owes you an open commitment right now.
+                          </div>`}
 
-                    <div className="wb13-section-label">
-                      <${Icon} name="spark" /> Your commitments
-                      <span className="wb13-section-count">${open.length}</span>
-                    </div>
-                    ${open.length
-                      ? html`<${CommitmentList}
-                          items=${open}
-                          testid="workbench-jarvis-commitments"
-                        />`
-                      : html`<div className="wb13-allclear">
-                          No open commitments assigned to you.
-                        </div>`}
+                      <div className="wb13-section-label">
+                        <${Icon} name="spark" /> Your commitments
+                        <span className="wb13-section-count">${open.length}</span>
+                      </div>
+                      ${open.length
+                        ? html`<${CommitmentList}
+                            items=${open}
+                            testid="workbench-jarvis-commitments"
+                          />`
+                        : html`<div className="wb13-allclear">
+                            No open commitments assigned to you.
+                          </div>`}
 
-                    <div className="wb13-section-label">
-                      <${Icon} name="folder" /> Projects
-                      <span className="wb13-section-count">${projects.length}</span>
-                    </div>
-                    <div className="wb13-section wb13-list" data-testid="workbench-jarvis-projects">
-                      ${projects.map(
-                        (p) =>
-                          html`<div key=${p.id || p.slug} className="wb13-card wb13-card-readable">
-                            <div className="wb13-card-main">
-                              <div className="wb13-card-title">${p.name || p.slug}</div>
-                              <div className="wb13-card-copy">
-                                ${[
-                                  p.lead ? `Lead: ${p.lead}` : '',
-                                  p.openIssueCount ? `${p.openIssueCount} open` : ''
-                                ]
-                                  .filter(Boolean)
-                                  .join(' · ') || 'Active project'}
+                      <div className="wb13-section-label">
+                        <${Icon} name="folder" /> Projects
+                        <span className="wb13-section-count">${projects.length}</span>
+                      </div>
+                      <div
+                        className="wb13-section wb13-list"
+                        data-testid="workbench-jarvis-projects"
+                      >
+                        ${projects.map(
+                          (p, i) =>
+                            html`<div
+                              key=${p.id || p.slug || `p-${i}`}
+                              className="wb13-card wb13-card-readable"
+                            >
+                              <div className="wb13-card-main">
+                                <div className="wb13-card-title">${p.name || p.slug}</div>
+                                <div className="wb13-card-copy">
+                                  ${[
+                                    p.lead ? `Lead: ${p.lead}` : '',
+                                    p.openIssueCount ? `${p.openIssueCount} open` : ''
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' · ') || 'Active project'}
+                                </div>
                               </div>
-                            </div>
-                          </div>`
-                      )}
-                    </div>
-                  `}
+                            </div>`
+                        )}
+                      </div>
+                    `}
         </div>
       </div>
     </main>

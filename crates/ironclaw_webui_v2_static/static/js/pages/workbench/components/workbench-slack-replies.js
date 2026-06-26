@@ -8,6 +8,12 @@ import { useDialogFocus } from '../hooks/useDialogFocus.js';
 // pilled card matching the triage cockpit, with a real respond-in-place action.
 // Items: { id, who, channel, when, text, permalink }.
 
+// Only ever bind http(s) URLs to an href — don't rely on the framework scrubbing a
+// javascript:/data: scheme that slipped through a malformed permalink.
+function safeHttpUrl(value) {
+  return /^https?:\/\//i.test(String(value || '')) ? String(value) : '';
+}
+
 function slackMeta(item) {
   return [
     item.channel ? `#${String(item.channel).replace(/^#+/, '')}` : 'Slack',
@@ -40,10 +46,10 @@ function SlackReplyCard({ item, onReply }) {
         >
           Draft reply
         </button>
-        ${item.permalink
+        ${safeHttpUrl(item.permalink)
           ? html`<a
               className="wb13-button is-sm"
-              href=${item.permalink}
+              href=${safeHttpUrl(item.permalink)}
               target="_blank"
               rel="noopener noreferrer"
               >Open thread</a
@@ -237,10 +243,10 @@ export function WorkbenchSlackCompose({
                   >
                     <${Icon} name="copy" />${copied ? 'Copied' : 'Copy reply'}
                   </button>
-                  ${context.permalink
+                  ${safeHttpUrl(context.permalink)
                     ? html`<a
                         className="wb13-button is-sm"
-                        href=${context.permalink}
+                        href=${safeHttpUrl(context.permalink)}
                         target="_blank"
                         rel="noopener noreferrer"
                         >Open thread</a
