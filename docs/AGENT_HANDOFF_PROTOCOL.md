@@ -42,7 +42,8 @@ Use narrow agents. Each agent owns one lane and leaves a compact handoff.
 
 ### Sync Agent
 
-Purpose: pull latest `reborn-integration` and update the static WebUI source.
+Purpose: pull latest `origin/main` from `nearai/ironclaw` and update the static
+WebUI source.
 
 Owns:
 
@@ -195,29 +196,37 @@ Status: GREEN | YELLOW | RED
 Owner lane: Static UI | Runtime | Connector | Work Product | Hostile QA | Sync
 
 ### Goal
+
 One paragraph describing the phase objective.
 
 ### Changed
+
 - file/path: what changed and why
 
 ### Verified
+
 - command or rendered test: result
 
 ### Evidence
+
 - screenshot path, trace path, log path, curl response, process snapshot, or test result
 
 ### Still RED
+
 - blocker with exact file/route/repro
 
 ### Risks
+
 - residual uncertainty or unproven behavior
 
 ### Next Agent Should Start Here
+
 1. exact first command or file to inspect
 2. exact next failing behavior to reproduce
 3. exact acceptance gate to satisfy
 
 ### Do Not Touch
+
 - unrelated dirty files, user work, or known fragile area
 ```
 

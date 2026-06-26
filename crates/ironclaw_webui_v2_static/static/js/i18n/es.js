@@ -5,8 +5,13 @@ registerPack('es', {
   'language.switch': 'Idioma cambiado',
 
   'common.unknown': 'Desconocido',
+  'automations.delivery.loadFailedTitle': 'Valores de entrega no disponibles',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw no pudo confirmar los destinos de entrega desde la puerta de enlace, por lo que no asumira entrega solo en la web ni guardara un valor predeterminado.',
+  'automations.delivery.retry': 'Reintentar',
 
   'nav.chat': 'Chat',
+  'nav.workbench': 'Workbench',
   'nav.workspace': 'Workspace',
   'nav.projects': 'Proyectos',
   'nav.jobs': 'Trabajos',
@@ -241,16 +246,24 @@ registerPack('es', {
 
   'workspace.title': 'Workspace',
   'workspace.subtitle': 'Memoria persistente',
+  'workspace.readOnly': 'Solo lectura',
+  'workspace.filterPlaceholder': 'Filtrar por nombre...',
+  'workspace.emptyDir': 'Esta carpeta está vacía.',
   'workspace.refresh': 'Actualizar',
   'workspace.refreshing': 'Actualizando',
   'workspace.loading': 'Cargando...',
   'workspace.searching': 'Buscando...',
   'workspace.noResults': 'Sin resultados.',
   'workspace.noFiles': 'No hay archivos en el workspace.',
+  'workspace.noMatches': 'Nada coincide con el filtro.',
   'workspace.breadcrumbRoot': 'workspace',
   'workspace.pickFileTitle': 'Elige un archivo del workspace',
   'workspace.pickFileDesc':
-    'Elige un documento de memoria del árbol o de la búsqueda para inspeccionarlo y editarlo.',
+    'Elige un archivo del árbol para previsualizarlo o descargarlo. Este visor es de solo lectura.',
+  'workspace.download': 'Descargar',
+  'workspace.binaryPreviewUnavailable':
+    'No hay vista previa para este tipo de archivo. Descárgalo para ver el contenido.',
+  'workspace.fileMeta': '{mime} - {size} bytes',
   'workspace.edit': 'Editar',
   'workspace.cancel': 'Cancelar',
   'workspace.save': 'Guardar',
@@ -542,6 +555,9 @@ registerPack('es', {
   'chat.modeAutoReview': 'Revision automatica',
   'chat.runtimeLocal': 'Trabajar localmente',
   'chat.statusWorking': 'Trabajando',
+  'chat.deleteFailed': 'No se pudo eliminar esta conversación.',
+  'chat.deleteBusy':
+    'No se puede eliminar una conversación mientras se está ejecutando. Detenla primero y vuelve a intentarlo.',
 
   // Pestañas de extensiones — claves nuevas de v2
   'extensions.installed': 'Instaladas',

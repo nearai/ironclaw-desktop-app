@@ -22,8 +22,9 @@ first decision that belongs to the user is already at the top.
 
 ## Color Meaning
 
-- `#0091fd` / `--v2-accent`: the user's hand. Primary actions, links, focus,
-  selected states. Keep one dominant blue action per screen.
+- `#0d7d6f` (light) / `#2dd4bf` (dark) / `--v2-accent`: the user's hand. Primary
+  actions, links, focus, selected states. A deep teal — distinct from generic
+  SaaS blue, paired with gold below. Keep one dominant teal action per screen.
 - `#fbbf24` / `accent-gold`: the agent's hand. Generated work, proposed
   actions, approval context. Never use gold as decoration.
 - `#20d29a`, `#f5c15b`, `#ff6480`: success, warning, danger. Status must route
@@ -31,7 +32,9 @@ first decision that belongs to the user is already at the top.
 
 ## Type And Geometry
 
-- Font: self-hosted Inter Variable first, with system fallbacks.
+- Font: self-hosted **Geist** (variable, 100–900) first, with system fallbacks. One
+  typeface — no serif; display hierarchy comes from size and weight, not a second
+  family. Mono: self-hosted **Geist Mono** for IDs, tool names, and payloads.
 - Display: 28/600. Title: 20/600. Section: 16/600. Body: 14/450. Label:
   12/500. Micro caps: 11/600.
 - Numbers use tabular figures by default.
@@ -48,6 +51,20 @@ first decision that belongs to the user is already at the top.
 - **Chat:** direct conversation instrument. Risky asks should create Work and
   Desk state rather than staying buried in transcript text.
 - **Canvas:** thinking annex, not the lobby.
+
+## Command And Keyboard
+
+Keyboard-first, one Bridge surface (Laws 3 + 5). The Workbench is driven by:
+
+- **Cmd/Ctrl+K — command palette.** The single floating entry point: navigate
+  (Work / Memory / Library / Chat / Automations / Tools / Settings), or compose
+  ("Ask IronClaw: …", prefilled into the command box, never auto-sent). Works
+  from anywhere, including inside a field.
+- **Bare-key shortcuts** (only when focus is not in a text field, so typing is
+  never hijacked): `/` jumps to the command box; `g` then `w/m/l/t` navigates;
+  `?` opens the shortcuts help; `Esc` dismisses a panel; `Cmd/Ctrl+⏎` asks/sends.
+- Floating overlays (palette, shortcuts, approval modal) are the only place a
+  drop shadow is used; docked surfaces separate with 1px borders, not shadow.
 
 ## North-Star Test
 

@@ -5,7 +5,8 @@ import {
   messagesFromTimeline,
   pendingMessagesAfterTimeline,
   buildDurableAttachmentBlock,
-  runReplyLandedInTimeline
+  runReplyLandedInTimeline,
+  toolCardFromActivity
 } from './history-messages.js';
 
 test('runReplyLandedInTimeline: finalized assistant reply for the run counts as complete', () => {
@@ -670,4 +671,22 @@ test('reload chips carry the embedded text for previews, content stays clean', (
   assert.equal(chip.filename, 'acme-invoice.pdf');
   assert.equal(chip.embedded_text, documentText);
   assert.equal(chip.extraction_status, 'extracted_text');
+});
+
+test('toolCardFromActivity surfaces live tool input and stable order metadata', () => {
+  const card = toolCardFromActivity({
+    invocation_id: 'inv-1',
+    capability_id: 'builtin.http',
+    status: 'started',
+    subtitle: 'GET https://example.test',
+    input_summary: '{"url":"https://example.test"}',
+    activity_order: 4,
+    turn_run_id: 'run-1'
+  });
+
+  assert.equal(card.toolName, 'http');
+  assert.equal(card.toolDetail, 'GET https://example.test');
+  assert.equal(card.toolParameters, '{"url":"https://example.test"}');
+  assert.equal(card.activityOrder, 4);
+  assert.equal(card.turnRunId, 'run-1');
 });

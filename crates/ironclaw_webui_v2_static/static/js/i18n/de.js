@@ -5,8 +5,13 @@ registerPack('de', {
   'language.switch': 'Sprache geändert',
 
   'common.unknown': 'Unbekannt',
+  'automations.delivery.loadFailedTitle': 'Lieferstandards nicht verfügbar',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw konnte die Lieferziele vom Gateway nicht bestätigen und nimmt daher keine reine Web-App-Lieferung an und speichert keinen Standard.',
+  'automations.delivery.retry': 'Erneut versuchen',
 
   'nav.chat': 'Chat',
+  'nav.workbench': 'Workbench',
   'nav.workspace': 'Arbeitsbereich',
   'nav.projects': 'Projekte',
   'nav.jobs': 'Jobs',
@@ -240,16 +245,24 @@ registerPack('de', {
 
   'workspace.title': 'Arbeitsbereich',
   'workspace.subtitle': 'Persistente Memory',
+  'workspace.readOnly': 'Schreibgeschützt',
+  'workspace.filterPlaceholder': 'Nach Name filtern...',
+  'workspace.emptyDir': 'Dieser Ordner ist leer.',
   'workspace.refresh': 'Aktualisieren',
   'workspace.refreshing': 'Aktualisieren…',
   'workspace.loading': 'Laden…',
   'workspace.searching': 'Suchen…',
   'workspace.noResults': 'Keine Ergebnisse.',
   'workspace.noFiles': 'Keine Dateien im Arbeitsbereich.',
+  'workspace.noMatches': 'Nichts entspricht dem Filter.',
   'workspace.breadcrumbRoot': 'workspace',
   'workspace.pickFileTitle': 'Workspace‑Datei auswählen',
   'workspace.pickFileDesc':
-    'Wähle ein Memory‑Dokument aus Baum oder Suche, um es anzusehen und zu bearbeiten.',
+    'Wähle eine Datei aus dem Baum, um sie anzusehen oder herunterzuladen. Diese Ansicht ist schreibgeschützt.',
+  'workspace.download': 'Herunterladen',
+  'workspace.binaryPreviewUnavailable':
+    'Keine Inline-Vorschau für diesen Dateityp. Zum Ansehen herunterladen.',
+  'workspace.fileMeta': '{mime} - {size} Bytes',
   'workspace.edit': 'Bearbeiten',
   'workspace.cancel': 'Abbrechen',
   'workspace.save': 'Speichern',
@@ -541,6 +554,9 @@ registerPack('de', {
   'chat.modeAutoReview': 'Auto-Review',
   'chat.runtimeLocal': 'Lokal arbeiten',
   'chat.statusWorking': 'Arbeitet',
+  'chat.deleteFailed': 'Diese Unterhaltung konnte nicht gelöscht werden.',
+  'chat.deleteBusy':
+    'Eine laufende Unterhaltung kann nicht gelöscht werden. Stoppe sie zuerst und versuche es dann erneut.',
 
   // Erweiterungs-Tabs — neue v2-Schluessel
   'extensions.installed': 'Installiert',

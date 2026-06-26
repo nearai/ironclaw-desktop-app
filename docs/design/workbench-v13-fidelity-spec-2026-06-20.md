@@ -1,0 +1,112 @@
+# Workbench v13 Visual Fidelity Spec (Lane L)
+
+Date: 2026-06-20
+Scope: component-by-component delta between the v13 mockup and the current React build, with the REAL data feed each populated region depends on. Read-only analysis.
+
+## Sources
+- v13 mock HTML: `/Users/abhishekvaidyanathan/Desktop/private-workbench-v13.html` (1141 lines, self-contained; line refs `v13:NNN`).
+- Target screenshots: `/tmp/wb-compare-070449/mock-v13-top.png`, `mock-v13-full.png`.
+- Current screenshots: `/tmp/wb-compare-070449/current-dark-full.png`, `current-light-top.png`.
+- Current build: `crates/ironclaw_webui_v2_static/static/js/pages/workbench/` (`workbench-page.js`, `components/*`, `styles/*`, `lib/workbench-state.js`, `lib/workbench-plan.js`).
+
+## Root cause framing (why current looks barren)
+### 2026-06-21 live-wiring update
+The probe snapshot below is historical. The current branch now has a hard-gated
+live wiring probe and the real connector route is available on the staged
+sidecar binary:
+
+- `node scripts/probe-workbench-live-wiring.mjs --json` returns
+  `verdict:"PASS"` with no failed checks or warnings when local NEAR AI and
+  Composio credentials are sourced.
+- NEAR AI Cloud is live: active provider `nearai`, active model
+  `zai-org/GLM-5.1-FP8`, model catalog count `47`.
+- Composio is live: configure status `200`, phase `active`,
+  `/connectors/connected` status `200`, `8` accounts, toolkits
+  `github`, `gmail`, `googlecalendar`, `googledocs`, `googledrive`, `notion`,
+  and `slack`.
+- Read-only connector probes succeed for Gmail, Calendar, Drive, Notion, GitHub,
+  and Slack. The same read route rejects a mutating Gmail send tool with `400`,
+  and the dedicated write route also rejects `GMAIL_SEND_EMAIL` with `400` when
+  send capability is off.
+- The frontend no longer needs the old "Composio is active, therefore assume
+  families" fallback. `workbench-connectors.js` maps only ACTIVE
+  `/connectors/connected` toolkits into Workbench connector families; manual
+  source selection, ambient reads, the source strip, and the sources inspector
+  consume those same live families.
+
+The visual problem that remains is therefore not "no live data path exists."
+The path exists and is tested. Remaining design work should focus on making the
+live populated state feel excellent and making truly empty/disconnected states
+clear without looking broken.
+
+### Original 2026-06-20 snapshot
+The current build is **data-honest**: every rail/triage region renders from real backend feeds and shows the empty state when those feeds are empty. The probe (`node scripts/probe-workbench-live-wiring.mjs --probe-oauth-start --json`) confirms on this machine:
+- `channels.count = 0`, `automations.count = 0`, no saved work items, no attention threads.
+- Composio key not provided (`composio.phase = "discovered"`, `composio_api_key.provided=false`); Gmail/Calendar/Drive/Docs/Notion all `phase:"installed"` with `provided:false` (OAuth not done).
+- Backend itself is healthy: `healthy:true`, providers 200, models 200, active model `zai-org/GLM-5.1-FP8`.
+
+So the v13 richness in the mock comes from a **hardcoded SEED state machine** (`v13:480-492`), not a live feed. The fidelity gap is therefore TWO things, kept separate below:
+1. **Visual/structural regressions** — chrome that v13 had and the current build literally dropped (Memory nav, branding sub-line, theme toggle, "Needs a decision" heading, multi-line trigger context, primary-accent CTA labels, suggestion-chip copy). These are pure visual restores; they do not require new data.
+2. **"Alive vs empty"** — the populated rows. v13's rows are seeded; the current build's rows are real-but-empty. The honest fix is to (a) wire the missing real feeds (Composio family mapping, attention-detail copy) covered by other lanes, and (b) make the empty state itself richer/less barren. No fake seed data.
+
+Design tokens themselves were preserved almost 1:1 — `styles/tokens.js:1-96` matches `v13:21-43` (same `--accent:#1c63d6`, `--rail:#13181f`, `--hold`, `--good`, radii `8/13px`). The barrenness is content, not palette.
+
+---
+
+## Region-by-region fidelity table
+
+| # | Region | v13 target (line ref) | Current build (file:line) | Delta | Classification |
+|---|--------|----------------------|---------------------------|-------|----------------|
+| L1 | **Top bar — theme toggle** | Moon/sun `iconbtn#themeBtn` toggles `data-theme` on `<html>` (`v13:443`, handler `v13:1130`) | No theme toggle anywhere in `WorkbenchTop` (`components/workbench-shell.js:104-140`). Dark mode only reachable via app-global setting. | Toggle button removed; user cannot flip theme from the surface. | regression-restore (visual) |
+| L2 | **Top bar — account label** | `<div class="acct"><span class="av">A</span> Abhi</div>` (`v13:444`) | Present and correct — avatar + `currentUser.displayName` (`workbench-shell.js:130-137`). | Matches. Account chip pulls real `currentUser` (good). | parity |
+| L3 | **Top bar — back/crumb** | Back button + crumb, `in-packet` toggles back arrow (`v13:440-441`) | Back button + crumb present (`workbench-shell.js:109-128`). | Parity for Work/Library; no packet-scoped crumb depth (packets are a separate-lane scene gap). | parity (this lane) |
+| L4 | **Left nav — Memory item** | Three nav items: Work, Library, **Memory** (book/bookmark icon, `data-go="memory:redlines"`, `v13:431-433`) | Only Work + Library (`workbench-shell.js:17-43`). Memory nav entirely removed. | Memory nav item dropped. v13 routes it to a Memory/preference-capture scene (`renderMemory` `v13:1090`). | regression-restore (visual) |
+| L5 | **Left nav — mark/brand glyph** | Teal gradient `.mark` 30x30 (`v13:59`) | Present, identical gradient (`styles/shell.js:19-25`). | Matches. | parity |
+| L6 | **Dock — workspace identity line** | `Workbench` + sub `Abhi · NEAR AI Cloud` (`v13:508`, `renderDock`) | `Workbench` + sub **"Private work, held for review"** (`workbench-shell.js:54-55`). | Sub-line copy changed; "Abhi · NEAR AI Cloud" branding lost. Should reflect the signed-in NEAR AI Cloud account. | regression-restore (visual) |
+| L7 | **Dock — section groups** | Only groups WITH items render (`v13:510` `if(!list.length)continue`); each has a count pill. Sections: Needs approval, Blocked, Working, Ready to review, Scheduled, Recent receipts. | All six groups ALWAYS render; empty groups show a fake "is-done" dot row with `emptyTitle`/`emptyDetail` (`workbench-shell.js:90-96`, groups `lib/workbench-state.js:365-402`). | v13 hides empty groups → dense rail; current shows six "Nothing… 0" placeholder rows → barren rail. The green dot on an empty group reads as a populated item, which is misleading. | regression-restore (visual) + data |
+| L8 | **Dock — item row shape** | dot + title + one-line `sub` detail (`v13:512`). | dot + title + `badge - detail` two-part detail (`workbench-shell.js:83-86`). | Detail format differs ("badge - detail" vs single sub-line) but structurally close. Real rows come from threads/automations/saved-work. | minor visual / parity |
+| L9 | **Hero greeting + sub** | `What do you want handled?` serif/display 26px + sub (`v13:583-584`) | Identical copy + size (`components/workbench-command.js:189-193`, style `styles/command.js:2-9`). | Matches (font is Inter not Newsreader; v13 also falls back to Inter for greet via `--serif` only on `.greet`, see note below). | parity |
+| L10 | **Command well — placeholder** | "Describe the work in plain language. Paste a thread, drop a file, or give a multi-step instruction…" (`v13:585`) | Identical (`workbench-command.js:224`). | Matches. | parity |
+| L11 | **Command well — Auto sources pill** | `Auto sources` select with Email/Slack/Docs/Web/Local/Northwind (`v13:586`) | `Auto sources` select, real source options (`workbench-command.js:14-40`, opts `lib/workbench-plan.js:19-52`). | Matches shape; options are honest (no demo "Northwind"). | parity |
+| L12 | **Command well — mode/effort pill** | v13 has NO mode pill (just scope + attach + clock + Ask). | Current adds a `Auto` mode/effort button between scope and attach (`workbench-command.js:233-242`). Visible as "✦ Auto" in current screenshot. | Current has an EXTRA control v13 lacks. Not a regression; it surfaces real model/effort. Keep, but it widens the bar. | new-wiring (acceptable) |
+| L13 | **Command well — attach + clock buttons** | paperclip + clock icon buttons (`v13:587-588`) | Both present (`workbench-command.js:243-269`). | Matches. | parity |
+| L14 | **Command — "Ask" button (accent)** | `.send` is solid `--accent` blue, label "Ask", arrow icon (`v13:589`, style `v13:113`). Label morphs by intent (Ask/Draft/Research…, `v13:1109`). | `.wb13-send` is accent blue by default (`styles/command.js:126-140`) and label morphs via `commandActionLabel` (`workbench-command.js:142`). BUT in screenshots it renders GREY because `disabled` (`workbench-command.js:274`) is true whenever `startBlocked` (provider check failed → "Could not check NEAR AI Cloud"). | NOT a CSS regression — the button IS accent-styled. It is greyed because the live model check fails in the screenshot env. Visual restore = ensure the provider/model readiness check succeeds (other lane) OR don't hard-disable on a transient providers-query failure; keep accent affordance. | connector-fix (visual symptom) |
+| L15 | **Boundary line** | shield + "Reads and drafts stay private. External actions need your approval." + accent "What's allowed" (`v13:590`) | Identical (`workbench-command.js:284-288`). | Matches. | parity |
+| L16 | **Error/alert banner** | v13 has none on home (clean). | Current shows a full-width amber "Could not check NEAR AI Cloud. Open model settings and try again." banner (`workbench-command.js:300-305`, reason from `hooks/useWorkbenchStart.js:206`). | This banner is the single biggest "feels broken" signal in the screenshot. It is correct behavior when providers query fails, but it dominates the hero. Visual fix = make it less alarming / inline, and resolve the underlying check (other lane). | connector-fix (visual symptom) |
+| L17 | **Suggestion chips — set & copy** | Exactly: "What needs me today?", "Draft the Northwind counter", "Check Slack blockers", "Research TEE vendors", "More" + hidden row (`v13:591-597`) | Set: "What needs me today?", "Catch me up", "Find Slack blockers", "Research TEE vendors", "Prepare investor update", "Turn a file into a memo", "More" (`lib/workbench-plan.js:62-140`, render `workbench-command.js:306-340`). | Chip copy diverged from v13 wording ("Catch me up" vs "Draft the Northwind counter"; "Find Slack blockers" vs "Check Slack blockers"). v13's chips are demo-specific (Northwind); current chips are generic/honest. Visual delta is wording + that current shows 6 primary chips on 2 rows vs v13's 4+More on one row. | visual (intentional honesty; align styling, keep generic copy) |
+| L18 | **Triage heading — "Needs a decision"** | Group heading reads **"Needs a decision · N"** in hold-orange (`v13:562`, `.tgroup.decide .gh` orange `v13:130`) | Heading reads "Needs a decision" (`workbench-page.js:59`) with `is-hold` class only when rows>0 (`workbench-page.js:55`). | Heading text restored correctly. But when empty it falls to the generic empty card, losing the orange treatment + count. | parity when populated / regression when empty |
+| L19 | **"Needs a decision" CARD — context line** | Card = icon + bold title + multi-line copy + **trigger line** ("Dana replied at 8:04 AM asking for a 12% cap and net 60", mail icon) + primary CTA "Open packet"/"Review batch" (`v13:557-565`, `TCOPY`). | Card = icon + title + `row.detail` copy + a `wb13-card-meta` line that is `shield + row.badge` (`workbench-page.js:88-91`). CTA is generic "Open" `Link` (`workbench-page.js:93-100`). | Three deltas: (a) trigger/context line is just the badge, not a rich "who did what when" sentence; (b) CTA label is hardcoded "Open" not contextual "Open packet"/"Review batch"; (c) meta uses shield icon not source icon. The rich context in v13 is seeded; in the real build it must come from `threadAttentionDetails` (`row.detail`/`detail.timestamp`, see `lib/workbench-state.js:71-84`). | regression-restore (visual) + data-feed |
+| L20 | **Triage — Blocked card** | "Can't finish "Check Slack blockers"" + copy + trigger "Slack token expired 7 min ago" + secondary CTA "Reconnect Slack" (`v13:566-570`) | Generic `TriageCard` with `is-danger` icon, `row.title`/`row.detail`, CTA "Open" (`workbench-page.js:74-102`). Real blocked rows come from `sourceRows`/failed automations (`lib/workbench-state.js:38-53`). | Card structure present; loses the specific "Reconnect <source>" CTA wording and the relative-time trigger. Blocked data IS real (source needs-reconnect / failed runs). | regression-restore (visual) |
+| L21 | **Triage — Scheduled card** | "Competitor watch · Fridays 8 AM · next in 2 days" + "Recurring brief…held for approval" + "Open" (`v13:571-574`) | Comes from `automationRows` scheduled group (`lib/workbench-state.js:255-270`). Empty here (0 automations). Generic card shape. | Structure fine; real feed (automations) currently empty so renders empty card. Honest. Restore the "always asks first" sub-copy styling. | data-feed |
+| L22 | **Triage — "Arrived since you last checked"** | Dedicated group: "2 emails need a reply" + "6 other emails handled or safe to ignore" green check line (`v13:575-579`) | **No equivalent group.** Current has needs-approval/blocked/working/needs-review/scheduled/receipts only. | Whole "Arrived / inbox triage" group missing. In v13 it's seeded; a real version needs an email-attention feed (Gmail). Backend gap unless Composio Gmail mapped. | never-built (data-feed gap) |
+| L23 | **Triage — all-clear empty** | When nothing needs you: dashed "Nothing needs you right now. Active work is in the rail…" (`v13:580`, `.allclear` `v13:144`) | Each empty group shows its own dashed `wb13-empty` box with `group.emptyDetail` (`workbench-page.js:66`, style mirrors `.allclear`). Three dashed boxes stack (Needs a decision / Blocked / Scheduled always shown empty, `workbench-page.js:32-35`). | v13 = ONE graceful all-clear line. Current = up to three stacked dashed empty boxes → reads as "broken/unconfigured." Consolidate to a single all-clear when truly empty. | regression-restore (visual) |
+| L24 | **Receipts (rail + triage)** | Recent receipts group with done-dot rows (`v13:514-515`) | `receipts` group from real saved-work receipts + ok automations (`lib/workbench-state.js:175-188, 272-291`). Empty here. | Structure fine, feed real-but-empty. | data-feed |
+| L25 | **Library scene** | Search + filter (All/Receipts/Artifacts/Memory) + rows (`v13:1062-1087`) | `LibraryView` exists (`workbench-page.js:389-394`, component `components/workbench-library.js`). | Present; out of this lane's deep scope. Memory filter relevance ties to L4. | parity (separate review) |
+| L26 | **Memory scene** | Preference-capture scene "Save a preference?" with scope chips (`v13:1090-1105`) | No Memory scene/route in the React build (no Memory nav, see L4). | Entire Memory scene never built into this surface. | never-built |
+| L27 | **Packet / Research / Investor / Monitor scenes** | Full rich scenes (`v13:669-1058`) | Replaced by a single live-runtime `WorkbenchSceneWorkspace` that mirrors the Chat timeline (`components/workbench-scenes.js`). No tabbed packet, redline doc, evidence list. | These are deliberately re-architected to be live-thread-backed, not seeded mock scenes. Out of pure-visual scope; flagged for the packet lane. | re-architected (note) |
+| L28 | **Font — display/serif** | `.greet`/`.pk-head h1` use Newsreader serif (`--serif`, `v13:30,100`). | All `--wb-font-display` = Inter (`styles/tokens.js:4`). | Serif display face dropped; headings are sans. Minor brand-feel delta vs v13's editorial serif. | visual (minor) |
+
+---
+
+## Token comparison (current vs v13) — preserved
+| Token | v13 (`v13:21-43`) | current (`styles/tokens.js`) | Match |
+|-------|-------------------|------------------------------|-------|
+| `--accent` | `#1c63d6` | `#1c63d6` | yes |
+| `--accent-press` | `#1654b8` | `#1654b8` | yes |
+| `--accent-tint` | `#eaf1fd` | `#eaf1fd` | yes |
+| `--hold` / `--hold-text` | `#bd5a2f` / `#974320` | `#bd5a2f` / `#974320` | yes |
+| `--good` / `--good-text` | `#2c8c5e` / `#1d6042` | `#2c8c5e` / `#1d6042` | yes |
+| `--rail` | `#13181f` | `#13181f` | yes |
+| `--rail-accent` | `#6aa6ff` | `#6aa6ff` | yes |
+| radii `--r` / `--r-lg` | `8px` / `13px` | `8px` / `13px` | yes |
+| dark `--accent` | `#5b9bf2` | `#7ab7ff` | drift (current dark accent is lighter) |
+| dark `--canvas` | `#161b22` | `#111821` | drift (current dark canvas darker) |
+The palette is faithful in light mode; dark mode has minor accent/canvas drift but no fidelity-breaking issue.
+
+## Icon availability gap
+Current icon set (`design-system/icons.js`) has: folder, file, chat, clock, mail, flag, shield, spark, pulse, plug, link, list, close, chevron, settings, **moon, sun**, calendar, search, bolt, check. It does **NOT** have v13's `web` (globe), `slack`, or `book` icons. Consequence: source/context lines that v13 draws with globe/slack/book fall back to `flag`/`plug`/`file` in the current build (e.g. `sourceRows` icon = `flag`/`plug`, `lib/workbench-state.js:43`). Restoring the L19/L20 trigger lines with their source-specific glyphs needs 3 new icons OR an accepted glyph substitution. `moon`/`sun` already exist, so the theme toggle (L1) is unblocked.
+
+## What is honestly absent (backend gaps, no fake data)
+- **Email/inbox "Arrived" triage (L22)**: needs a Gmail attention feed. Composio provides Gmail toolkit but the family mapping is not wired (coordinator's G-series gaps; `genericWorkbenchMcpReadiness` emits one generic MCP row, not gmail/calendar/drive families). Until mapped, the honest state is "connect Gmail to see what arrived," NOT a seeded "2 emails need a reply."
+- **Rich "Needs a decision" context (L19)**: the sentence-level trigger needs `threadAttentionDetails` to actually carry `{title, detail, timestamp, icon}`. The plumbing exists (`lib/workbench-state.js:71-84`) but on this machine no attention threads exist, so it shows the generic fallback. Visual restore should render the rich line WHEN the detail exists and degrade gracefully when it doesn't.
+- **Scheduled/Receipts populated (L21/L24)**: real once automations exist (`automations.count=0` now). No fake seed.

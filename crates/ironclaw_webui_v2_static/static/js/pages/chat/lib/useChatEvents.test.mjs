@@ -10,9 +10,14 @@ import {
 } from './history-messages.js';
 import { gateFromProjection } from './gates.js';
 import { upsertRunFailureMessage } from './message-upsert.js';
+import {
+  createToolActivityState,
+  ensureGateToolActivity,
+  upsertToolActivityMessage
+} from './tool-activity-state.js';
 
-function useChatEventsSourceForTest() {
-  const source = readFileSync(new URL('./useChatEvents.js', import.meta.url), 'utf8');
+function sourceForVm(url, replacements = []) {
+  const source = readFileSync(url, 'utf8');
   const lines = [];
   let skippingImport = false;
   for (const line of source.split('\n')) {
@@ -24,9 +29,21 @@ function useChatEventsSourceForTest() {
       skippingImport = !line.trimEnd().endsWith(';');
       continue;
     }
-    lines.push(line.replace('export function useChatEvents', 'function useChatEvents'));
+    lines.push(replacements.reduce((next, [from, to]) => next.replace(from, to), line));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { useChatEvents };`;
+  return lines.join('\n');
+}
+
+function useChatEventsSourceForTest() {
+  const projectionSource = sourceForVm(new URL('./chat-event-projection.js', import.meta.url), [
+    ['export function settleRun', 'function settleRun'],
+    ['export function applyProjectionItems', 'function applyProjectionItems'],
+    ['export function appendRunFailureMessage', 'function appendRunFailureMessage']
+  ]);
+  const eventsSource = sourceForVm(new URL('./useChatEvents.js', import.meta.url), [
+    ['export function useChatEvents', 'function useChatEvents']
+  ]);
+  return `${projectionSource}\n${eventsSource}\nglobalThis.__testExports = { useChatEvents };`;
 }
 
 function createUseChatEventsHarness({
@@ -39,7 +56,10 @@ function createUseChatEventsHarness({
   let isProcessing = false;
   let activeRun = null;
   const activeRunRef = { current: null };
+  const locallyResolvedGatesRef = { current: new Map() };
+  const toolActivityStateRef = { current: createToolActivityState() };
   const completedRuns = [];
+  const settledRuns = [];
   const failedRuns = [];
   const context = {
     Date,
@@ -49,6 +69,8 @@ function createUseChatEventsHarness({
     },
     failureMessageForRunStatus: failureMessageForRunStatusOverride,
     upsertRunFailureMessage,
+    ensureGateToolActivity,
+    upsertToolActivityMessage,
     gateFromEvent,
     globalThis: {},
     isTerminalToolStatus,
@@ -75,6 +97,9 @@ function createUseChatEventsHarness({
       activeRunRef.current = activeRun;
     },
     activeRunRef,
+    locallyResolvedGatesRef,
+    toolActivityStateRef,
+    onRunSettled: (runId, { success }) => settledRuns.push({ runId, success }),
     onRunCompleted: (runId) => completedRuns.push(runId),
     onRunFailed: (failure) => failedRuns.push(failure)
   });
@@ -100,9 +125,14 @@ function createUseChatEventsHarness({
     get completedRuns() {
       return completedRuns;
     },
+    get settledRuns() {
+      return settledRuns;
+    },
     get failedRuns() {
       return failedRuns;
-    }
+    },
+    toolActivityStateRef,
+    locallyResolvedGatesRef
   };
 }
 
@@ -149,7 +179,7 @@ test('useChatEvents: projection activity preserves reasoning/tool chronology', (
     Array.from(harness.messages, (message) => message.role),
     ['thinking', 'tool_activity', 'thinking']
   );
-  assert.equal(harness.messages[1].toolName, 'builtin.http');
+  assert.equal(harness.messages[1].toolName, 'http');
   assert.equal(harness.messages[1].toolStatus, 'running');
   assert.deepEqual(
     Array.from(harness.messages, (message) => message.turnRunId),
@@ -224,6 +254,202 @@ test('useChatEvents: progress clears non-auth gates for the resumed run', () => 
   });
 
   assert.equal(harness.pendingGate, null);
+});
+
+test('useChatEvents: approval gate annotates an existing tool activity', () => {
+  const runId = 'run-gated-existing';
+  const gateRef = 'gate:web-access';
+  const gate = {
+    kind: 'gate',
+    runId,
+    gateRef,
+    toolName: 'web-access.search'
+  };
+  const harness = createUseChatEventsHarness({
+    gateFromEvent: () => gate
+  });
+
+  harness.handleEvent({
+    type: 'capability_activity',
+    frame: {
+      activity: {
+        invocation_id: 'invocation-web-access',
+        turn_run_id: runId,
+        capability_id: 'web-access.search',
+        status: 'started'
+      }
+    }
+  });
+  harness.handleEvent({
+    type: 'gate',
+    frame: {
+      prompt: {
+        turn_run_id: runId,
+        gate_ref: gateRef
+      }
+    }
+  });
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(harness.messages[0].id, 'tool-invocation-web-access');
+  assert.equal(harness.messages[0].toolName, 'search');
+  assert.equal(harness.messages[0].toolStatus, 'running');
+  assert.equal(harness.messages[0].gateRef, gateRef);
+  assert.deepEqual(harness.pendingGate, gate);
+});
+
+test('useChatEvents: approval gate creates activity before invocation metadata arrives', () => {
+  const runId = 'run-gated-synthetic';
+  const gateRef = 'gate:nearai';
+  const gate = {
+    kind: 'gate',
+    runId,
+    gateRef,
+    toolName: 'nearai.web_search'
+  };
+  const harness = createUseChatEventsHarness({
+    gateFromEvent: () => gate
+  });
+
+  harness.handleEvent({
+    type: 'gate',
+    frame: {
+      prompt: {
+        turn_run_id: runId,
+        gate_ref: gateRef
+      }
+    }
+  });
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(harness.messages[0].id, `tool-gate:${runId}:${gateRef}`);
+  assert.equal(harness.messages[0].toolName, 'web_search');
+  assert.equal(harness.messages[0].toolStatus, 'running');
+  assert.equal(harness.messages[0].gateRef, gateRef);
+
+  harness.handleEvent({
+    type: 'capability_activity',
+    frame: {
+      activity: {
+        invocation_id: 'invocation-nearai',
+        turn_run_id: runId,
+        capability_id: 'nearai.web_search',
+        status: 'started'
+      }
+    }
+  });
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(harness.messages[0].id, 'tool-invocation-nearai');
+  assert.equal(harness.messages[0].invocationId, 'invocation-nearai');
+  assert.equal(harness.messages[0].toolName, 'web_search');
+  assert.equal(harness.messages[0].toolStatus, 'running');
+  assert.equal(harness.messages[0].gateRef, gateRef);
+  assert.equal(harness.messages[0].gateActivity, false);
+});
+
+test('useChatEvents: projection approval gate annotates an existing tool activity', () => {
+  const runId = 'run-projected-gated-existing';
+  const gateRef = 'gate:web-access';
+  const harness = createUseChatEventsHarness();
+
+  harness.handleEvent({
+    type: 'projection_update',
+    frame: {
+      state: {
+        items: [
+          { run_status: { run_id: runId, status: 'blocked_approval' } },
+          {
+            capability_activity: {
+              invocation_id: 'invocation-web-access',
+              turn_run_id: runId,
+              capability_id: 'web-access.search',
+              status: 'started'
+            }
+          },
+          {
+            gate: {
+              gate_ref: gateRef,
+              tool_name: 'web-access.search'
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(harness.messages[0].id, 'tool-invocation-web-access');
+  assert.equal(harness.messages[0].toolName, 'search');
+  assert.equal(harness.messages[0].toolStatus, 'running');
+  assert.equal(harness.messages[0].gateRef, gateRef);
+  assert.deepEqual(plain(harness.pendingGate), {
+    kind: 'gate',
+    requestId: gateRef,
+    runId,
+    gateRef,
+    headline: '',
+    body: '',
+    toolName: 'web-access.search',
+    description: '',
+    parameters: '',
+    allowAlways: false
+  });
+});
+
+test('useChatEvents: projection approval gate creates activity before invocation metadata arrives', () => {
+  const runId = 'run-projected-gated-synthetic';
+  const gateRef = 'gate:nearai';
+  const harness = createUseChatEventsHarness();
+
+  harness.handleEvent({
+    type: 'projection_update',
+    frame: {
+      state: {
+        items: [
+          { run_status: { run_id: runId, status: 'blocked_approval' } },
+          {
+            gate: {
+              gate_ref: gateRef,
+              tool_name: 'nearai.web_search'
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(harness.messages[0].id, `tool-gate:${runId}:${gateRef}`);
+  assert.equal(harness.messages[0].toolName, 'web_search');
+  assert.equal(harness.messages[0].toolStatus, 'running');
+  assert.equal(harness.messages[0].gateRef, gateRef);
+
+  harness.handleEvent({
+    type: 'projection_update',
+    frame: {
+      state: {
+        items: [
+          {
+            capability_activity: {
+              invocation_id: 'invocation-nearai',
+              turn_run_id: runId,
+              capability_id: 'nearai.web_search',
+              status: 'started'
+            }
+          }
+        ]
+      }
+    }
+  });
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(harness.messages[0].id, 'tool-invocation-nearai');
+  assert.equal(harness.messages[0].invocationId, 'invocation-nearai');
+  assert.equal(harness.messages[0].toolName, 'web_search');
+  assert.equal(harness.messages[0].toolStatus, 'running');
+  assert.equal(harness.messages[0].gateRef, gateRef);
+  assert.equal(harness.messages[0].gateActivity, false);
 });
 
 test('useChatEvents: cleared non-auth gates are not restored by later projections', () => {

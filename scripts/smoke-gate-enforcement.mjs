@@ -200,6 +200,44 @@ function createGateGateway() {
         return;
       }
 
+      if (url.pathname === '/api/webchat/v2/outbound/preferences' && req.method === 'GET') {
+        sendJson(res, 200, {
+          final_reply_target: null,
+          final_reply_target_status: 'none_configured'
+        });
+        return;
+      }
+
+      if (url.pathname === '/api/webchat/v2/outbound/targets' && req.method === 'GET') {
+        sendJson(res, 200, { targets: [] });
+        return;
+      }
+
+      if (url.pathname === '/api/webchat/v2/traces/credit' && req.method === 'GET') {
+        sendJson(res, 200, {
+          enrolled: false,
+          submissions_total: 0,
+          submissions_submitted: 0,
+          submissions_accepted: 0,
+          final_credit: 0,
+          pending_credit: 0
+        });
+        return;
+      }
+
+      if (url.pathname === '/api/webchat/v2/operator/logs' && req.method === 'GET') {
+        sendJson(res, 200, {
+          logs: {
+            source: 'smoke',
+            entries: [],
+            next_cursor: null,
+            tail_supported: false,
+            follow_supported: false
+          }
+        });
+        return;
+      }
+
       if (url.pathname === '/auth/providers') {
         sendJson(res, 200, { providers: [] });
         return;
@@ -488,7 +526,7 @@ try {
   await page.locator('button[aria-label="Send message"]').last().click();
 
   await page.getByRole('group', { name: 'Approval required' }).waitFor({ timeout: 20_000 });
-  await page.getByText('send_email', { exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByRole('heading', { name: 'send_email' }).waitFor({ timeout: 20_000 });
   await page
     .getByText('Send the generated services agreement to the legal review inbox.', { exact: true })
     .waitFor({ timeout: 20_000 });

@@ -21,8 +21,8 @@ test('workspace tree loading uses the calm non-animated skeleton, not raw loadin
   const src = await source();
   assert.match(src, /v2-skeleton/, 'loading should reuse the shared skeleton primitive');
   assert.match(src, /TreeSkeleton/, 'directory + search loading should share one skeleton');
-  // No raw text-as-loading: the directory expand and search-results loading must
-  // not fall back to bare "workspace.loading"/"workspace.searching" copy.
+  // No raw text-as-loading: the directory expand loading must not fall back to
+  // bare "workspace.loading"/"workspace.searching" copy.
   assert.doesNotMatch(
     src,
     /t\(['"]workspace\.loading['"]\)/,
@@ -37,9 +37,9 @@ test('workspace tree loading uses the calm non-animated skeleton, not raw loadin
 
 test('workspace tree empty/result states keep an honest message and stay on v2 tokens', async () => {
   const src = await source();
-  // Empty + no-results states still explain what is (not) here.
+  // Empty state still explains what is (not) here; filter misses are owned by
+  // the main-pane directory listing.
   assert.match(src, /workspace\.noFiles/);
-  assert.match(src, /workspace\.noResults/);
   // No legacy off-system tokens — these are the inconsistent ad-hoc treatments
   // the dignity pass removed.
   const legacy = [

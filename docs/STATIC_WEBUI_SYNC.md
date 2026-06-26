@@ -53,7 +53,7 @@ browser-only static preview.
 - Reborn source repo:
   `/path/to/ironclaw`
 - Reborn branch to compare:
-  `origin/reborn-integration`
+  `origin/main`
 - Reborn static source:
   `crates/ironclaw_webui_v2_static/static`
 - Desktop packaged copy:
@@ -69,10 +69,10 @@ must either be upstreamed to Reborn first or intentionally reconciled.
 Use a clean Reborn worktree for comparison:
 
 ```bash
-git -C /path/to/ironclaw fetch origin reborn-integration
-git -C /path/to/ironclaw worktree add --detach /tmp/ironclaw-reborn-integration-clean origin/reborn-integration
+git -C /path/to/ironclaw fetch origin main
+git -C /path/to/ironclaw worktree add --detach /tmp/ironclaw-main-clean origin/main
 diff -qr -x main.bundle.js -x tailwind.generated.css -x vendor \
-  /tmp/ironclaw-reborn-integration-clean/crates/ironclaw_webui_v2_static/static \
+  /tmp/ironclaw-main-clean/crates/ironclaw_webui_v2_static/static \
   crates/ironclaw_webui_v2_static/static
 ```
 
@@ -88,15 +88,59 @@ npm run smoke:packaged
 
 ## Current Sync Status
 
-As of `origin/reborn-integration` commit
-`26eac9f31a38788cab5065fc46bae32334bb4a18`, the desktop repo does not have a
-remote `reborn-integration` branch. The adjacent Reborn repo has that branch,
-but its local worktree is dirty and behind the fetched remote.
+As of `origin/main` commit
+`0a4d1cf82f038f996ca0c115c43bea1bfaf60525`, the desktop repo carries a
+productized fork of the Reborn static UI while release CI builds the
+`ironclaw-reborn` sidecar from the live mainline.
 
-Comparison against a clean detached Reborn worktree found 191 non-generated
-static differences, excluding `main.bundle.js`, `tailwind.generated.css`, and
-`vendor/`. This lane is RED until desktop static deltas are upstreamed or
-reconciled file by file.
+The latest reconciled Reborn main changes include the read-only WebChat v2
+filesystem viewer (`/api/webchat/v2/fs/*`) and first-class project/membership
+routes (`/api/webchat/v2/projects*`). Desktop now wires the workspace page to
+the real read-only filesystem routes and the sidecar acceptance gate verifies
+filesystem mounts plus a disposable project create/detail/members round trip.
+The upstream static `projects-api.js` is still intentionally stubbed, so the
+desktop projects page stays a static placeholder until Reborn ships a real
+static project client.
+
+Automations are also reconciled with the Reborn run-history and delivery
+defaults shape: desktop now requests recent runs with `run_limit`, surfaces
+scheduler state, running/failure filters, latest/current run status,
+success-rate summaries, thread links, and the outbound final-reply target
+controls backed by `/api/webchat/v2/outbound/*`. The Reborn empty-state prompt
+launcher, localized run-summary buckets, visible refresh spinner, and badge
+copy semantics are also carried over.
+
+The latest chat/sidebar reconciliation also includes explicit pinned threads,
+per-conversation draft persistence, thread deletion with Reborn busy-error
+copy, lazy-loaded locale packs, live tool/gate activity ordering, operator log
+viewer support, project-file preview/download chips, OAuth auth-gate
+unavailable handling, skill-install validation clearing, the settings search
+surface, the NEAR default-provider activation fix, and the extension
+natural-height/action-state polish. Chat attachments intentionally remain on
+the desktop extraction pipeline: it sends Reborn v2 attachment wire payloads,
+but keeps local OCR/document extraction and durable transcript manifests so
+large PDFs/DOCX/XLSX files are model-readable without raw giant uploads.
+
+Comparison against a clean detached main worktree still shows substantial
+non-generated static differences because desktop has packaged-bootstrap,
+native-save, OCR/document-extraction, model-readiness, and product-design
+guardrails that are not a straight upstream mirror. This lane stays YELLOW
+until those desktop deltas are upstreamed or reconciled file by file.
+
+Known intentional non-ports from Reborn main:
+
+- `lib/onboarding-gate.js`: desktop keeps Chat as the front door and does not
+  redirect first-run users into provider setup before the product shell renders.
+- Browser attachment staging split-outs (`useAttachmentConfig`, `attachments`):
+  desktop uses the stronger local extraction path described above. The shared
+  chip/preview behavior that matters at runtime is ported in desktop-native
+  form, using the native save dialog rather than browser anchor downloads.
+- `project-widgets.js`: upstream `projects-api.js` remains TODO/stubbed, so
+  desktop keeps the Projects route hidden until the static project client is
+  real.
+- Unmounted split components/tests such as `settings-toolbar.js`,
+  `extensions-tabs.js`, and some component-only upstream tests are not runtime
+  gaps in the desktop package.
 
 ## Guardrail
 

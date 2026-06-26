@@ -40,17 +40,17 @@ export function AuthGateShell({
 
   return html`
     <div
-      className="mx-auto w-full max-w-xl rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-gold-soft)_58%,var(--v2-card-bg))]"
+      className="mx-auto w-full max-w-xl rounded-[10px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-gold-soft)_52%,var(--v2-card-bg))] shadow-[var(--v2-card-shadow)]"
     >
       <button
         type="button"
         onClick=${() => setExpanded((v) => !v)}
         aria-expanded=${expanded ? 'true' : 'false'}
         aria-controls=${controlsId}
-        className="flex w-full items-center gap-3 rounded-[16px] border-0 bg-transparent px-4 py-3 text-left"
+        className="flex w-full items-center gap-3 rounded-[10px] border-0 bg-transparent px-4 py-3 text-left"
       >
         <span
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
         >
           <${Icon} name=${icon} className="h-4 w-4" />
         </span>

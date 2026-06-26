@@ -5,6 +5,8 @@ import { defaultRoute } from './routes.js';
 import { GatewayLayout } from '../layout/gateway-layout.js';
 import { LoginPage as LoginView } from '../pages/login/login-page.js';
 import { ChatPage } from '../pages/chat/chat-page.js';
+import { WorkbenchPage } from '../pages/workbench/workbench-page.js';
+import { YouPage } from '../pages/you/you-page.js';
 import { WorkPage } from '../pages/work/work-page.js';
 import { OnboardingPage } from '../pages/onboarding/onboarding-page.js';
 import { WorkspacePage } from '../pages/workspace/workspace-page.js';
@@ -65,7 +67,12 @@ function LoginPage({ auth }) {
 function RequireAuth({ auth, children }) {
   const location = useLocation();
 
-  if (auth.isChecking) {
+  // Only block on the INITIAL check (no token yet). Once authenticated, a
+  // background re-exchange (isChecking flips true again) must NOT swap the tree to
+  // the loading screen — doing so unmounts and remounts EVERY page below, wiping
+  // in-progress state (e.g. a freshly rendered briefing reverts to null). Keep the
+  // app mounted through background re-checks.
+  if (auth.isChecking && !auth.isAuthenticated) {
     return html`<${AuthLoading} />`;
   }
 
@@ -110,6 +117,8 @@ export function App() {
           <${Route} path="overview" element=${html`<${Navigate} to=${defaultRoute} replace />`} />
           <${Route} path="chat" element=${html`<${ChatPage} />`} />
           <${Route} path="chat/:threadId" element=${html`<${ChatPage} />`} />
+          <${Route} path="workbench" element=${html`<${WorkbenchPage} />`} />
+          <${Route} path="you" element=${html`<${YouPage} />`} />
           <${Route} path="work" element=${html`<${WorkPage} />`} />
           <${Route} path="workspace" element=${html`<${WorkspacePage} />`} />
           <${Route} path="workspace/*" element=${html`<${WorkspacePage} />`} />

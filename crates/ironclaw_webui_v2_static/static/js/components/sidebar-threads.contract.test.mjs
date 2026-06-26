@@ -72,3 +72,13 @@ test('SidebarThreads renders loading + error branches, not a false empty state',
     'the loading + error branches must precede the empty-state copy'
   );
 });
+
+test('SidebarThreads uses explicit pinned-thread store instead of active-thread auto pinning', async () => {
+  const src = await readFile(path.join(dir, 'sidebar-threads.js'), 'utf8');
+
+  assert.match(src, /getPinnedIds, subscribePins, togglePin/);
+  assert.match(src, /togglePin\(thread\.id\)/);
+  assert.match(src, /aria-pressed=\$\{isPinned \? 'true' : 'false'\}/);
+  assert.match(src, /pinnedIds\.has\(thread\.id\)/);
+  assert.doesNotMatch(src, /thread\.id === activeThreadId;\s*const hasState/s);
+});

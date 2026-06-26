@@ -12,7 +12,7 @@ jobs:
     permissions:
       contents: write
     env:
-      IRONCLAW_REBORN_REF: reborn-integration
+      IRONCLAW_REBORN_REF: main
     steps:
       - uses: actions/checkout@v4
 
@@ -43,6 +43,13 @@ jobs:
 
       - name: Build Reborn sidecar binaries
         run: bash scripts/build-reborn-sidecars.sh --repo .deps/ironclaw
+
+      - name: Probe Reborn sidecar compatibility
+        run: |
+          set -euo pipefail
+          host="$(rustc -Vv | awk '/host:/ { print $2 }')"
+          node scripts/probe-new-sidecar-acceptance.mjs \
+            "src-tauri/binaries/ironclaw-reborn-${host}"
 
       - name: Prepare universal sidecar binaries
         run: bash scripts/prepare-universal-sidecars.sh

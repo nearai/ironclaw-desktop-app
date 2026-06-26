@@ -23,9 +23,9 @@ const checks = [
     ],
     assertions: [
       {
-        label: 'Inter Variable is the app type foundation',
+        label: 'Geist is the app type foundation',
         file: 'crates/ironclaw_webui_v2_static/static/styles/app.css',
-        includes: ['font-family: "Inter Variable"', 'inter-variable.woff2']
+        includes: ['font-family: "Geist"', 'geist-variable.woff2']
       },
       {
         label: 'chat cold open includes the prepared desk panel',
@@ -35,7 +35,8 @@ const checks = [
           'title="Needs you"',
           'title="Handled"',
           'variant="hero"',
-          'Connect NEAR AI Cloud once'
+          "t('chat.briefNeedsSetupTitle')",
+          'Workspace sources are configured separately in Connections'
         ]
       }
     ]

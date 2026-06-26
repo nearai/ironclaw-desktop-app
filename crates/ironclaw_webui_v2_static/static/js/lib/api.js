@@ -14,7 +14,7 @@
 // envelope mirrors `RebornServicesError`.
 
 const TOKEN_KEY = 'ironclaw_token';
-const V2_BASE = '/api/webchat/v2';
+export const V2_BASE = '/api/webchat/v2';
 const DESKTOP_GATEWAY_ORIGIN_KEY = 'ironclaw:desktop-gateway-origin';
 const DEFAULT_DESKTOP_GATEWAY_ORIGIN = 'http://127.0.0.1:3100';
 
@@ -92,7 +92,7 @@ async function loadTauriFetch() {
   return tauriFetchPromise;
 }
 
-async function gatewayFetch(input, options = {}) {
+export async function gatewayFetch(input, options = {}) {
   const fetchImpl = (await loadTauriFetch()) || fetch;
   return fetchImpl(input, options);
 }
@@ -324,7 +324,7 @@ export function clientActionId() {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function parseErrorBody(response) {
+export async function parseErrorBody(response) {
   const text = await response.text().catch(() => '');
   if (!text) return { text: '', payload: undefined };
   const contentType = response.headers.get('content-type') || '';
@@ -336,6 +336,32 @@ async function parseErrorBody(response) {
   } catch (_) {
     return { text, payload: undefined };
   }
+}
+
+function humanizeErrorToken(token) {
+  return String(token)
+    .replace(/[_-]+/g, ' ')
+    .trim()
+    .replace(/^\w/, (char) => char.toUpperCase());
+}
+
+export function describeApiError({ payload, body, statusText } = {}) {
+  if (payload && typeof payload === 'object') {
+    if (payload.validation_code) {
+      const base = humanizeErrorToken(payload.validation_code);
+      return payload.field ? `${base} (${payload.field})` : base;
+    }
+    const code = payload.kind || payload.error;
+    if (code) {
+      const base = humanizeErrorToken(code);
+      return payload.field ? `${base} (${payload.field})` : base;
+    }
+  }
+  const trimmed = String(body || '').trim();
+  if (trimmed && trimmed.length <= 200 && !trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return trimmed;
+  }
+  return statusText || 'Request failed';
 }
 
 export async function apiFetch(path, options = {}) {
@@ -357,7 +383,7 @@ export async function apiFetch(path, options = {}) {
 
   if (!response.ok) {
     const { text, payload } = await parseErrorBody(response);
-    throw new ApiError(text || response.statusText, {
+    throw new ApiError(describeApiError({ payload, body: text, statusText: response.statusText }), {
       status: response.status,
       statusText: response.statusText,
       body: text,
@@ -388,82 +414,29 @@ export function listThreads({ limit, cursor } = {}) {
   return apiFetch(url.pathname + url.search);
 }
 
-// --- Project filesystem (download / navigation) ---
-
-function projectFilesBase(threadId) {
-  return `${V2_BASE}/threads/${encodeURIComponent(threadId)}/files`;
-}
-
-// List a directory under the thread's project workspace. `path` defaults to the
-// workspace root server-side when omitted.
-export function listProjectFiles({ threadId, path } = {}) {
-  if (!threadId) return Promise.reject(new Error('threadId is required'));
-  const url = new URL(projectFilesBase(threadId), window.location.origin);
-  if (path) url.searchParams.set('path', path);
-  return apiFetch(url.pathname + url.search);
-}
-
-// Metadata for a single project path (used to show a chip's size/icon).
-export function statProjectFile({ threadId, path } = {}) {
-  if (!threadId || !path) {
-    return Promise.reject(new Error('threadId and path are required'));
+export function deleteThread({ threadId } = {}) {
+  if (!threadId) {
+    return Promise.reject(new Error('threadId is required'));
   }
-  const url = new URL(`${projectFilesBase(threadId)}/stat`, window.location.origin);
-  url.searchParams.set('path', path);
-  return apiFetch(url.pathname + url.search);
-}
-
-// Fetch a project file's bytes as a Blob. The content route is bearer-only, so
-// a plain `<a download>` cannot carry the token — callers fetch here and hand
-// the Blob to `lib/save-file.js::saveBlob` to trigger the native save.
-//
-// Routes through the same gateway transport as `apiFetch` (gatewayFetch +
-// gatewayUrl + dynamic credentials) so the request reaches the desktop sidecar
-// origin and the Tauri HTTP shim, not the WebView origin. `apiFetch` itself
-// can't be reused here — it parses JSON/text, and we need the raw Blob.
-export async function fetchProjectFileBlob({ threadId, path } = {}) {
-  if (!threadId || !path) {
-    throw new Error('threadId and path are required');
-  }
-  const token = readStoredToken();
-  const headers = new Headers();
-  headers.set('Accept', 'application/octet-stream');
-  if (token) headers.set('Authorization', `Bearer ${token}`);
-  const url = new URL(`${projectFilesBase(threadId)}/content`, window.location.origin);
-  url.searchParams.set('path', path);
-  const response = await gatewayFetch(gatewayUrl(url.pathname + url.search), {
-    credentials: gatewayOrigin() ? 'omit' : 'same-origin',
-    headers
+  return apiFetch(`${V2_BASE}/threads/${encodeURIComponent(threadId)}`, {
+    method: 'DELETE'
   });
-  if (!response.ok) {
-    const { text, payload } = await parseErrorBody(response);
-    throw new ApiError(text || response.statusText, {
-      status: response.status,
-      statusText: response.statusText,
-      body: text,
-      headers: response.headers,
-      payload
-    });
-  }
-  return response.blob();
-}
-
-// --- Automations ---
-
-export function listAutomations({ limit } = {}) {
-  const params = new URLSearchParams();
-  if (limit != null) params.set('limit', String(limit));
-  const query = params.toString();
-  return apiFetch(`${V2_BASE}/automations${query ? `?${query}` : ''}`);
 }
 
 // --- Messages ---
 
-export function sendMessage({ threadId, content, attachments, clientActionId: clientId }) {
+export function sendMessage({
+  threadId,
+  content,
+  attachments,
+  timezone,
+  clientActionId: clientId
+}) {
   const body = {
     client_action_id: clientId || clientActionId(),
     content: String(content || '')
   };
+  if (timezone) body.timezone = String(timezone);
   const normalizedAttachments = normalizeAttachmentPayloads(attachments);
   if (normalizedAttachments.length > 0) {
     body.attachments = normalizedAttachments;
@@ -475,6 +448,10 @@ export function sendMessage({ threadId, content, attachments, clientActionId: cl
 }
 
 export function normalizeAttachmentPayloads(attachments) {
+  // The gateway's send-message body wants `data_base64` (WebUiInboundAttachment);
+  // emitting `base64` is rejected with HTTP 422 "missing field data_base64".
+  // Accept either input key (the composer carries `base64`, smokes carry
+  // `data_base64`) but always serialize the gateway's field name.
   return (attachments || [])
     .map((attachment) => ({
       filename: String(attachment?.filename || attachment?.name || 'attachment').replace(
@@ -482,9 +459,9 @@ export function normalizeAttachmentPayloads(attachments) {
         ' '
       ),
       mime_type: String(attachment?.mime_type || 'application/octet-stream').replace(/\r?\n/g, ' '),
-      base64: String(attachment?.base64 || attachment?.data_base64 || '').replace(/\s+/g, '')
+      data_base64: String(attachment?.data_base64 || attachment?.base64 || '').replace(/\s+/g, '')
     }))
-    .filter((attachment) => attachment.base64 && attachment.filename);
+    .filter((attachment) => attachment.data_base64 && attachment.filename);
 }
 
 // --- Timeline ---
@@ -618,6 +595,123 @@ export function setupExtension(extensionName, { action, payload } = {}) {
   return apiFetch(`${V2_BASE}/extensions/${encodeURIComponent(extensionName)}/setup`, {
     method: 'POST',
     body: JSON.stringify(body)
+  });
+}
+
+// --- Connectors (read-only MCP data via the in-gateway connector route) ---
+//
+// The sidecar holds the Composio credential and proxies READ-ONLY tool calls
+// (FETCH/LIST/GET/SEARCH) to Composio; the key never reaches the browser. These
+// power deterministic, always-on Workbench surfaces (connected sources, inbox,
+// calendar) without an LLM agent run. Writes are NOT available here — they stay
+// on the approval-gated agent path.
+
+export function connectorsConnected({ signal } = {}) {
+  return apiFetch(`${V2_BASE}/connectors/connected`, { signal });
+}
+
+const CONNECTOR_READ_VERBS = new Set(['FETCH', 'LIST', 'GET', 'SEARCH', 'FIND', 'READ']);
+const CONNECTOR_WRITE_VERBS = new Set([
+  'ADD',
+  'ARCHIVE',
+  'CANCEL',
+  'CREATE',
+  'DELETE',
+  'DRAFT',
+  'FORWARD',
+  'INSERT',
+  'LABEL',
+  'MODIFY',
+  'MOVE',
+  'PATCH',
+  'POST',
+  'PUT',
+  'REMOVE',
+  'REPLY',
+  'SEND',
+  'SET',
+  'TRASH',
+  'UPDATE',
+  'WATCH',
+  'WRITE'
+]);
+
+function connectorToolSegments(tool) {
+  const normalized = String(tool || '')
+    .trim()
+    .toUpperCase();
+  if (!/^[A-Z0-9_]+$/.test(normalized)) return [];
+  const segments = normalized.split('_');
+  if (segments.length < 2 || segments.some((segment) => !segment)) return [];
+  return segments;
+}
+
+function isReadOnlyConnectorTool(tool) {
+  const segments = connectorToolSegments(tool);
+  if (!segments.length) return false;
+  if (segments.some((segment) => CONNECTOR_WRITE_VERBS.has(segment))) return false;
+  return segments.some((segment) => CONNECTOR_READ_VERBS.has(segment));
+}
+
+export async function connectorRead({ toolkit, tool, arguments: args, signal } = {}) {
+  const normalizedToolkit = String(toolkit || '').trim();
+  const normalizedTool = String(tool || '').trim();
+  if (!normalizedToolkit) {
+    throw new Error('Connector read requires a toolkit.');
+  }
+  if (!isReadOnlyConnectorTool(normalizedTool)) {
+    throw new Error(
+      'Connector read only supports read-only FETCH, LIST, GET, SEARCH, FIND, or READ tools.'
+    );
+  }
+  return apiFetch(`${V2_BASE}/connectors/read`, {
+    method: 'POST',
+    signal,
+    body: JSON.stringify({
+      toolkit: normalizedToolkit,
+      tool: normalizedTool,
+      arguments: args || {}
+    })
+  });
+}
+
+// The client-side WRITE allowlist. This mirrors the gateway's explicit write
+// allowlist so the browser never even attempts an unsupported write; the gateway
+// is the authority (it additionally gates the SEND tools behind a server-side
+// capability). Draft-creation is always offered; send tools are listed so the
+// UI can surface them only when the gateway reports the send capability on.
+export const CONNECTOR_DRAFT_TOOLS = Object.freeze(['GMAIL_CREATE_EMAIL_DRAFT']);
+export const CONNECTOR_SEND_TOOLS = Object.freeze([
+  'GMAIL_SEND_EMAIL',
+  'GMAIL_SEND_DRAFT',
+  'GMAIL_REPLY_TO_THREAD'
+]);
+
+function isWriteAllowedTool(tool) {
+  return CONNECTOR_DRAFT_TOOLS.includes(tool) || CONNECTOR_SEND_TOOLS.includes(tool);
+}
+
+// Execute a single GATED write connector tool (e.g. create a Gmail draft). The
+// gateway enforces the authoritative allowlist + send capability and resolves
+// the provider key server-side; this client guard is a fast-fail mirror so the
+// UI cannot issue an off-allowlist write.
+export async function connectorWrite({ toolkit, tool, arguments: args, signal } = {}) {
+  const normalizedToolkit = String(toolkit || '').trim();
+  const normalizedTool = String(tool || '').trim();
+  if (!normalizedToolkit) {
+    throw new Error('Connector write requires a toolkit.');
+  }
+  if (!isWriteAllowedTool(normalizedTool)) {
+    throw new Error('Connector write only supports the gated draft/send allowlist.');
+  }
+  return apiFetch(`${V2_BASE}/connectors/write`, {
+    method: 'POST',
+    signal,
+    body: JSON.stringify({
+      toolkit: normalizedToolkit,
+      tool: normalizedTool,
+      arguments: args || {}
+    })
   });
 }
 

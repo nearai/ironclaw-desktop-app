@@ -28,6 +28,11 @@ import {
   removePending,
   replacePending
 } from '../lib/pending-messages.js';
+import {
+  createToolActivityState,
+  failGateToolActivity,
+  resetToolActivityState
+} from '../lib/tool-activity-state.js';
 import { useHistory } from './useHistory.js';
 import { useSSE } from './useSSE.js';
 
@@ -69,6 +74,17 @@ function threadNeedsSidebarRefresh(threadId) {
 
 function submitResponseResumedTurnGate(response) {
   return response?.continuation?.type === 'turn_gate_resume';
+}
+
+function resolveGateOutcome(response) {
+  if (response?.outcome) return response.outcome;
+  const status = String(response?.status || '').toLowerCase();
+  if (status === 'queued' || status === 'running') return 'resumed';
+  if (status === 'cancelled' || response?.already_terminal === true) {
+    return 'cancelled';
+  }
+  if (response?.already_terminal === false) return 'resumed';
+  return null;
 }
 
 function isPendingOAuthGate(gate) {
@@ -136,6 +152,12 @@ export function useChat(threadId) {
     activeRunRef.current = value;
     setActiveRunState(value);
   }, []);
+  // Keep the ref aligned with committed state. Event handlers update the ref
+  // synchronously through setActiveRun; this effect also covers raw state-setter
+  // paths such as the guarded thread-switch reset below.
+  React.useEffect(() => {
+    activeRunRef.current = activeRun;
+  }, [activeRun]);
   const [channelConnectAction, setChannelConnectAction] = React.useState(null);
 
   const getPendingMessages = React.useCallback(() => {
@@ -165,24 +187,31 @@ export function useChat(threadId) {
 
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [pendingGate, setPendingGate] = React.useState(null);
+  const [stateThreadId, setStateThreadId] = React.useState(threadId);
+  const toolActivityStateRef = React.useRef(createToolActivityState());
+  const locallyResolvedGatesRef = React.useRef(new Map());
   const authTokenSubmitRef = React.useRef({
     gateKey: null,
     credentialRef: null,
     inFlight: false
   });
 
-  // Per-thread transient state must not leak across thread switches.
-  // Without this reset, clicking "+ New" while the previous thread is
-  // still processing renders the TypingIndicator on the empty new
-  // thread. The SSE subscription for the new thread will set these
-  // back to non-default values if that thread actually has an active
-  // run / gate. `cooldownUntil` is intentionally not reset — it's a
-  // rate-limit timer that applies across threads.
-  React.useEffect(() => {
+  // Per-thread transient state must not leak across thread switches. This runs
+  // during render, guarded by state, so React immediately retries with clean
+  // transient values before any consumer can pair a new threadId with the
+  // previous thread's gate/run. Keep this side-effect free: use plain state
+  // setters only, not ref writes.
+  if (stateThreadId !== threadId) {
+    setStateThreadId(threadId);
     setIsProcessing(false);
     setPendingGate(null);
-    setActiveRun(null);
+    setActiveRunState(null);
     setChannelConnectAction(null);
+  }
+
+  React.useEffect(() => {
+    resetToolActivityState(toolActivityStateRef);
+    locallyResolvedGatesRef.current.clear();
   }, [threadId]);
 
   const cooldownSeconds = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
@@ -251,6 +280,8 @@ export function useChat(threadId) {
     setPendingGate,
     setActiveRun,
     activeRunRef,
+    locallyResolvedGatesRef,
+    toolActivityStateRef,
     // Reborn's projection bridge does not yet emit `Text` items for
     // assistant replies, so the SSE stream only delivers `run_status`.
     // On terminal success, refetch the timeline so the assistant
@@ -259,8 +290,9 @@ export function useChat(threadId) {
     // pendingMessagesAfterTimeline, which clears exactly the confirmed
     // ones. A blanket wipe would durably delete a second in-flight turn
     // whose projection hasn't landed yet.
-    onRunCompleted: () => {
-      loadHistory();
+    onRunSettled: (_runId, { success }) => {
+      if (success) setPendingMessages([]);
+      loadHistory(undefined, { preserveClientOnly: true });
     },
     onRunFailed: (failure) => {
       const recovery = resolveExtensionRecoveryAction(connectorRecoveryText(failure));
@@ -370,14 +402,19 @@ export function useChat(threadId) {
   // hook can route to `/chat/<id>` after the first send.
   const send = React.useCallback(
     async (content, opts = {}) => {
-      const connectable = await resolveConnectAction(content);
+      // The "connect a channel" sugar is a CHAT affordance (the user types
+      // "connect gmail"). A caller running a deliberate, structured request — e.g.
+      // the Workbench Ask, whose draft scaffold names Gmail/Calendar/Slack — must opt
+      // out, or that text is misread as a connect command and `send` short-circuits
+      // here, returning no thread id and the run never starts.
+      const connectable = opts.skipConnectDetection ? null : await resolveConnectAction(content);
       if (connectable) {
         setChannelConnectAction(connectable);
         return { channel_connect_action: connectable };
       }
       setChannelConnectAction(null);
 
-      const { threadId: targetThreadId, images = [], attachments = [] } = opts;
+      const { threadId: targetThreadId, images = [], attachments = [], timezone } = opts;
       const serializedAttachments = serializeComposerAttachments([...images, ...attachments]);
       const optimisticAttachments = [
         ...images.map((img) => ({
@@ -387,13 +424,12 @@ export function useChat(threadId) {
         })),
         ...composerAttachmentsForOptimisticBubble(attachments)
       ];
-      // Reborn's timeline projection echoes `content` but NOT the first-class
-      // `attachments` field, and the sidecar never feeds attachment bytes to
-      // the model either. The durable block therefore carries BOTH the chip
-      // metadata (parsed back on reload, stripped from view) and the text
-      // content itself for text payloads — the only channel the model can
-      // actually read. contentBytes keeps the embed inside the backend's
-      // 64 KiB content ceiling.
+      // Reborn main persists first-class attachment refs, but older sidecars
+      // and some timeline echoes still rely on `content` for reload-stable
+      // chips and model-readable extracted text. The durable block therefore
+      // remains the compatibility path while bytes also ride the attachment
+      // field when available. contentBytes keeps the embed inside the
+      // backend's 64 KiB content ceiling.
       const durableAttachmentBlock = buildDurableAttachmentBlock(serializedAttachments, {
         contentBytes: new TextEncoder().encode(content).length
       });
@@ -447,9 +483,9 @@ export function useChat(threadId) {
         const response = await sendMessage({
           threadId: sendThreadId,
           content: contentForReborn,
-          // The model reads the document through the inlined durable block in
-          // `content` (the only channel the sidecar feeds to it); the wire drops
-          // the bytes the gateway cannot land yet. See attachmentsForWire.
+          timezone,
+          // Mainline Reborn lands attachment payloads; the durable text block
+          // stays as the backward-compatible model/readback path.
           attachments: attachmentsForWire(serializedAttachments)
         });
         // Refresh the sidebar only while the cached entry is missing
@@ -477,7 +513,12 @@ export function useChat(threadId) {
             prev.map((m) => (m.id === optimisticId ? { ...m, timelineMessageId } : m))
           );
         }
-        return response;
+        // Always surface the thread id to callers. The /messages response does not
+        // reliably echo thread_id at the top level, but the caller (Workbench start,
+        // chat.js navigation) needs it to attach the run — so merge in the thread we
+        // actually sent to. Without this the Workbench Ask throws "runtime did not
+        // return a thread id" even though the thread was created and the message landed.
+        return { ...(response || {}), thread_id: response?.thread_id || sendThreadId };
       } catch (err) {
         if (err.status === 429) {
           setCooldownUntil(Date.now() + retryAfterMs(err));
@@ -518,8 +559,9 @@ export function useChat(threadId) {
       // submit a duplicate approve/deny for the same sacred gate.
       if (gateResolveInFlightRef.current) return;
       gateResolveInFlightRef.current = true;
+      let response;
       try {
-        await resolveGateRequest({
+        response = await resolveGateRequest({
           threadId,
           runId,
           gateRef,
@@ -542,15 +584,28 @@ export function useChat(threadId) {
         return;
       }
       gateResolveInFlightRef.current = false;
-      const shouldContinueProcessing =
-        resolution === 'approved' || resolution === 'credential_provided';
-      setPendingGate(null);
-      setIsProcessing(shouldContinueProcessing);
-      if (!shouldContinueProcessing) {
-        setActiveRun(null);
+      const outcome = resolveGateOutcome(response);
+      locallyResolvedGatesRef.current.set(`${runId}\n${gateRef}`, {
+        resolution,
+        outcome
+      });
+      if (resolution === 'denied' && outcome === 'resumed') {
+        failGateToolActivity(setMessages, pendingGate, toolActivityStateRef);
       }
+      setPendingGate(null);
+      if (outcome === 'resumed') {
+        setIsProcessing(true);
+        setActiveRun({
+          runId: response?.run_id || runId,
+          threadId: response?.thread_id || threadId,
+          status: response?.status || 'queued'
+        });
+        return;
+      }
+      setIsProcessing(false);
+      setActiveRun(null);
     },
-    [pendingGate, threadId]
+    [pendingGate, setActiveRun, setMessages, threadId]
   );
 
   const submitAuthToken = React.useCallback(
@@ -704,18 +759,12 @@ export function useChat(threadId) {
   };
 }
 
-// The Reborn byte-landing path (#4644, mid-merge as of 2026-06-14) cannot yet
-// accept attachment bytes: under the DevOnly composition the host-side
-// attachment_landing builds a read-only MountView, so any send carrying
-// data_base64 fails the whole turn with HTTP 500 ("permission denied for
-// write_file on scoped /workspace/attachments/..."). The model never reads
-// attachment bytes regardless — its only channel is the inlined durable text
-// block, which buildDurableAttachmentBlock decodes from the same base64 into
-// `content`. So until the landing endpoint is real we ship NO bytes on the wire:
-// keep the chip metadata, drop data_base64, and the api layer then omits the
-// now-empty attachments field. Flip this to true (and update
-// useChat-send.test.mjs) the sprint the gateway can land bytes.
-const GATEWAY_LANDS_ATTACHMENT_BYTES = false;
+// Latest Reborn main lands first-class WebChat attachments into the project
+// workspace, persists AttachmentRefs on the transcript, and exposes a readback
+// route for previews/downloads. Keep the durable text block for backward
+// compatibility with older sidecars and for reload chip metadata, but send the
+// bytes too so mainline sidecars can own the native attachment path.
+const GATEWAY_LANDS_ATTACHMENT_BYTES = true;
 
 function attachmentsForWire(serialized) {
   if (GATEWAY_LANDS_ATTACHMENT_BYTES) return serialized || [];

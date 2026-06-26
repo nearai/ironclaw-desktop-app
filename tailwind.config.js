@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 //
 // Color tokens are aligned with the IronClaw web UI v2 design system
-// (crates/ironclaw_webui_v2_static, reborn-integration branch) so the
+// (crates/ironclaw_webui_v2_static, nearai/ironclaw main) so the
 // desktop client and the IronClaw browser UI share an accent palette.
 //
 // Dark-mode-only — light tokens intentionally omitted per project policy.

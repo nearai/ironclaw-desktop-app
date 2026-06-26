@@ -6,6 +6,10 @@ import {
   readStoredToken,
   storeToken
 } from '../lib/api.js';
+import { setAuthScope } from '../lib/auth-scope.js';
+import { scopeFromBearerToken } from '../lib/session-scope.js';
+import { clearAllPins } from '../lib/pin-store.js';
+import { clearAllDrafts } from '../pages/chat/lib/draft-store.js';
 
 // The Reborn host validates bearer tokens via OIDC; the SPA simply
 // carries whatever token the user supplies (via `?token=` URL param,
@@ -118,8 +122,19 @@ function consumeLoginErrorFromUrl() {
   return LOGIN_ERROR_MESSAGES[code] || 'Could not complete sign-in. Please try again.';
 }
 
+function setTokenScope(token) {
+  const scope = scopeFromBearerToken(token);
+  setAuthScope(scope);
+}
+
+function consumeInitialToken() {
+  const initialToken = consumeTokenFromUrl() || readStoredToken();
+  setTokenScope(initialToken);
+  return initialToken;
+}
+
 export function useAuthSession() {
-  const [token, setToken] = React.useState(() => consumeTokenFromUrl() || readStoredToken());
+  const [token, setToken] = React.useState(consumeInitialToken);
   const [error, setError] = React.useState(() => consumeLoginErrorFromUrl());
   const [loginTicket] = React.useState(() => consumeLoginTicketFromUrl());
   const [isExchanging, setIsExchanging] = React.useState(() =>
@@ -136,6 +151,7 @@ export function useAuthSession() {
       .then((nextToken) => {
         if (cancelled) return;
         storeToken(nextToken);
+        setTokenScope(nextToken);
         setToken(nextToken);
         setError('');
         setIsExchanging(false);
@@ -153,6 +169,7 @@ export function useAuthSession() {
 
   const signIn = React.useCallback((nextToken) => {
     storeToken(nextToken);
+    setTokenScope(nextToken);
     setToken(nextToken);
     setError('');
     queryClient.clear();
@@ -166,9 +183,12 @@ export function useAuthSession() {
     // visually signed out and can re-authenticate.
     logoutRequest().catch(() => {});
     storeToken('');
+    setAuthScope(null);
     setToken('');
     setError('');
     queryClient.clear();
+    clearAllPins();
+    clearAllDrafts();
   }, []);
 
   return {

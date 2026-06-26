@@ -134,6 +134,17 @@ pub async fn spawn(
         ("AGENT_NAME".into(), "ironclaw".into()),
         ("GATEWAY_ENABLED".into(), "true".into()),
         ("CLI_ENABLED".into(), "false".into()),
+        // Let the agent loop call configured connectors directly (capability
+        // connected-sources.read) instead of looping on extension install. This
+        // enables the read-only connected-sources extension at boot; it needs no
+        // credential at boot (the Composio key resolves host-side at invoke) and
+        // never exposes writes — sends/mutations stay on the gated write route.
+        ("IRONCLAW_AGENT_CONNECTORS_ENABLED".into(), "1".into()),
+        // Run the native scheduled-trigger poller while the app is open, so
+        // automations fire on cadence (Phase 5). The poller is off by default in
+        // the serve path; enable it explicitly here. Firing is gated/scoped the
+        // same as builtin.trigger_create — this only starts the scheduler loop.
+        ("IRONCLAW_TRIGGER_POLLER_ENABLED".into(), "1".into()),
     ];
     // One-click Google/Gmail OAuth. The old IRONCLAW_OAUTH_EXCHANGE_URL /
     // CALLBACK_URL relay vars were removed: the Reborn binary never reads

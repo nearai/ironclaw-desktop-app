@@ -27,7 +27,13 @@ const paths = {
 
   file: html`<path d="M6.5 3.5h7.2L18 7.8v12.7H6.5v-17Z" /><path d="M13.7 3.5V8H18" />`,
 
+  book: html`<path d="M5 4.5h9a2 2 0 0 1 2 2v13H7a2 2 0 0 0-2 2V4.5Z" /><path
+      d="M5 19.5a2 2 0 0 1 2-2h9"
+    /><path d="M9 8.5h4M9 11.5h4" />`,
+
   flag: html`<path d="M6.5 21V4.5" /><path d="M6.5 5h10.7l-1.4 4 1.4 4H6.5" />`,
+
+  pin: html`<path d="M9 3.5h6l-1 5 3 3.5H7l3-3.5-1-5Z" /><path d="M12 15.5V21" />`,
 
   folder: html`<path
     d="M3.5 7h6.2l1.9 2h8.9v9.2a2.3 2.3 0 0 1-2.3 2.3H5.8a2.3 2.3 0 0 1-2.3-2.3V7Z"
@@ -36,6 +42,10 @@ const paths = {
   layers: html`<path d="m12 3.7 8.5 4.2-8.5 4.4-8.5-4.4L12 3.7Z" /><path
       d="m5.2 11.2 6.8 3.5 6.8-3.5"
     /><path d="m5.2 14.8 6.8 3.5 6.8-3.5" />`,
+
+  link: html`<path d="M9.6 14.4 14.4 9.6" /><path
+      d="M10.8 6.5 12 5.3a4.1 4.1 0 0 1 5.8 5.8l-1.2 1.2"
+    /><path d="M13.2 17.5 12 18.7a4.1 4.1 0 0 1-5.8-5.8l1.2-1.2" />`,
 
   list: html`<path d="M8.5 6.5h11M8.5 12h11M8.5 17.5h11" /><path
       d="M4.5 6.5h.1M4.5 12h.1M4.5 17.5h.1"
@@ -48,6 +58,8 @@ const paths = {
   logout: html`<path d="M10 17 15 12l-5-5" /><path d="M15 12H3.5" /><path
       d="M14.5 4.5H19a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-4.5"
     />`,
+
+  mail: html`<path d="M4.5 6.5h15v11h-15v-11Z" /><path d="m5.2 7.2 6.8 5.5 6.8-5.5" />`,
 
   moon: html`<path d="M20.2 14.7A7.7 7.7 0 0 1 9.3 3.8 8.4 8.4 0 1 0 20.2 14.7Z" />`,
 
@@ -71,6 +83,8 @@ const paths = {
 
   spark: html`<path d="M12 3.5 14 10l6.5 2-6.5 2-2 6.5-2-6.5-6.5-2 6.5-2 2-6.5Z" />`,
 
+  split: html`<path d="M4.5 5.5h6v13h-6v-13Z" /><path d="M13.5 5.5h6v13h-6v-13Z" />`,
+
   sun: html`<path d="M12 7.6a4.4 4.4 0 1 1 0 8.8 4.4 4.4 0 0 1 0-8.8Z" /><path
       d="M12 2.8v2.2M12 19v2.2M4.9 4.9l1.6 1.6M17.5 17.5l1.6 1.6M2.8 12H5M19 12h2.2M4.9 19.1l1.6-1.6M17.5 6.5l1.6-1.6"
     />`,
@@ -92,6 +106,8 @@ const paths = {
     />`,
 
   chevron: html`<path d="m6 9 6 6 6-6" />`,
+  chevronDown: html`<path d="m6 9 6 6 6-6" />`,
+  chevronUp: html`<path d="m6 15 6-6 6 6" />`,
 
   more: html`<path d="M12 5.6h.01M12 12h.01M12 18.4h.01" />`,
 

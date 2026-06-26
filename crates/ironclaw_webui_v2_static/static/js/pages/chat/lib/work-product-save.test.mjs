@@ -4,7 +4,12 @@ import test from 'node:test';
 import {
   currentThreadId,
   dossierFromMessages,
+  fetchSavedWorkSnapshot,
+  mergeSavedWorkSnapshots,
+  normalizeSavedWorkSnapshotResponse,
   openSavedWorkProduct,
+  readSavedWorkSnapshot,
+  savedWorkServerReadSupported,
   saveAssistantResponseToWork,
   saveGeneratedFileArtifactToWork,
   workArtifactHref
@@ -75,6 +80,114 @@ function sequenceIds() {
   let index = 0;
   return (prefix) => `${prefix}-${(index += 1)}`;
 }
+
+test('readSavedWorkSnapshot returns local source metadata with filtered saved items', () => {
+  const storage = memoryStorage({
+    'ironclaw-work-items': JSON.stringify([{ id: 'work-1' }, null, 'bad', { id: 'work-2' }])
+  });
+
+  const snapshot = readSavedWorkSnapshot(storage);
+
+  assert.equal(snapshot.source, 'local-browser');
+  assert.equal(snapshot.status, 'local-only');
+  assert.equal(snapshot.statusLabel, 'On this device');
+  assert.deepEqual(
+    snapshot.items.map((item) => item.id),
+    ['work-1', 'work-2']
+  );
+});
+
+test('readSavedWorkSnapshot distinguishes unavailable and corrupt local storage', () => {
+  assert.deepEqual(readSavedWorkSnapshot(null).items, []);
+  assert.equal(readSavedWorkSnapshot(null).status, 'unavailable');
+
+  const corrupt = readSavedWorkSnapshot(memoryStorage({ 'ironclaw-work-items': '{not json' }));
+  assert.equal(corrupt.status, 'corrupt');
+  assert.equal(corrupt.items.length, 0);
+});
+
+test('normalizeSavedWorkSnapshotResponse maps future backend work payloads', () => {
+  const snapshot = normalizeSavedWorkSnapshotResponse({
+    work_items: [
+      {
+        work_id: 'server-work-1',
+        name: 'Server renewal package',
+        artifacts: [
+          {
+            artifact_id: 'server-artifact-1',
+            name: 'Renewal memo',
+            content: '# Renewal memo',
+            content_format: 'markdown'
+          }
+        ],
+        open_approvals: [{ title: 'Approve send' }],
+        follow_ups: [{ title: 'Check Friday' }]
+      },
+      { work_id: '', title: 'bad' },
+      null
+    ]
+  });
+
+  assert.equal(snapshot.source, 'server');
+  assert.equal(snapshot.statusLabel, 'Server-backed');
+  assert.equal(snapshot.items.length, 1);
+  assert.equal(snapshot.items[0].id, 'server-work-1');
+  assert.equal(snapshot.items[0].title, 'Server renewal package');
+  assert.equal(snapshot.items[0].artifacts[0].id, 'server-artifact-1');
+  assert.equal(snapshot.items[0].openApprovals[0].title, 'Approve send');
+  assert.equal(snapshot.items[0].followUps[0].title, 'Check Friday');
+});
+
+test('fetchSavedWorkSnapshot targets the future v2 Work endpoint', async () => {
+  const calls = [];
+  const signal = new AbortController().signal;
+  const snapshot = await fetchSavedWorkSnapshot({
+    signal,
+    fetcher: async (path, options) => {
+      calls.push({ path, options });
+      return { items: [{ id: 'server-work', artifacts: [] }] };
+    }
+  });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].path, '/api/webchat/v2/work');
+  assert.equal(calls[0].options.signal, signal);
+  assert.equal(snapshot.items[0].id, 'server-work');
+});
+
+test('mergeSavedWorkSnapshots keeps local-only artifacts without duplicating server rows', () => {
+  const server = normalizeSavedWorkSnapshotResponse({
+    items: [
+      { id: 'server-work', artifacts: [] },
+      { id: 'shared-work', artifacts: [] }
+    ]
+  });
+  const local = {
+    source: 'local-browser',
+    items: [
+      { id: 'shared-work', title: 'Duplicate local row' },
+      { id: 'local-work', title: 'Local only' }
+    ]
+  };
+
+  const merged = mergeSavedWorkSnapshots(server, local);
+
+  assert.equal(merged.source, 'server-plus-local');
+  assert.equal(merged.statusLabel, 'Server + this desktop');
+  assert.deepEqual(
+    merged.items.map((item) => item.id),
+    ['server-work', 'shared-work', 'local-work']
+  );
+});
+
+test('savedWorkServerReadSupported is explicit and quiet by default', () => {
+  assert.equal(savedWorkServerReadSupported(null), false);
+  assert.equal(savedWorkServerReadSupported({ capabilities: { saved_work_read: true } }), true);
+  assert.equal(savedWorkServerReadSupported({ capabilities: { work_read: 'enabled' } }), true);
+  assert.equal(savedWorkServerReadSupported({ features: { saved_work_read: 'available' } }), true);
+  assert.equal(savedWorkServerReadSupported({ work: { read: true } }), true);
+  assert.equal(savedWorkServerReadSupported({ capabilities: { saved_work_read: false } }), false);
+});
 
 test('saveAssistantResponseToWork persists a reloadable Work item with a ready artifact', () => {
   const storage = memoryStorage();

@@ -20,7 +20,9 @@ test('the i18n provider sets document direction (not just lang) on switch + moun
     path.join(path.dirname(fileURLToPath(import.meta.url)), 'i18n.js'),
     'utf8'
   );
-  // dir is applied both in setLang and the mount effect, derived from directionFor.
+  // Lazy locale packs commit through React state; the mount/change effect applies
+  // document lang + dir for the committed language.
   const matches = src.match(/document\.documentElement\.dir = directionFor\(/g) || [];
-  assert.ok(matches.length >= 2, 'documentElement.dir must be set in setLang and the mount effect');
+  assert.equal(matches.length, 1);
+  assert.match(src, /setLangState\(next\);[\s\S]*?setPack\(loaded\);/);
 });

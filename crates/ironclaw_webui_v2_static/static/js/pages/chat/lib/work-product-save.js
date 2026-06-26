@@ -1,4 +1,5 @@
 import { appScopedPath } from '../../../lib/app-path.js';
+import { V2_BASE, apiFetch } from '../../../lib/api.js';
 import {
   generatedFileKindLabel,
   normalizeGeneratedFileArtifact
@@ -7,6 +8,41 @@ import {
 export const WORK_ITEMS_KEY = 'ironclaw-work-items';
 const MAX_WORK_ITEMS = 500;
 const MAX_RECEIPTS = 20;
+const SAVED_WORK_LOCAL_SOURCE = Object.freeze({
+  source: 'local-browser',
+  status: 'local-only',
+  label: 'This desktop',
+  statusLabel: 'On this device',
+  detail: 'Briefings and documents you export are kept here, on this device. Nothing is sent.'
+});
+const SAVED_WORK_UNAVAILABLE_SOURCE = Object.freeze({
+  source: 'local-browser',
+  status: 'unavailable',
+  label: 'Storage unavailable',
+  statusLabel: 'Unavailable',
+  detail: 'Saved Work storage is not available in this browser.'
+});
+const SAVED_WORK_CORRUPT_SOURCE = Object.freeze({
+  source: 'local-browser',
+  status: 'corrupt',
+  label: 'Storage unreadable',
+  statusLabel: 'Needs recovery',
+  detail: 'Saved Work storage could not be read in this browser.'
+});
+const SAVED_WORK_SERVER_SOURCE = Object.freeze({
+  source: 'server',
+  status: 'synced',
+  label: 'Server Work',
+  statusLabel: 'Server-backed',
+  detail: 'Showing saved Work from the IronClaw backend.'
+});
+const SAVED_WORK_MIXED_SOURCE = Object.freeze({
+  source: 'server-plus-local',
+  status: 'synced-plus-local',
+  label: 'Server + this desktop',
+  statusLabel: 'Server + this desktop',
+  detail: 'Showing backend Work plus artifacts saved only on this desktop profile.'
+});
 
 // Derive a saved item's dossier provenance from the thread's rendered messages:
 // the original ask (first user turn) and the receipts of what the agent actually
@@ -206,13 +242,117 @@ export function workArtifactHref(workId, artifactId) {
 }
 
 export function readSavedWorkItems(storage = defaultStorage()) {
-  if (!storage) return [];
+  return readSavedWorkSnapshot(storage).items;
+}
+
+export function readSavedWorkSnapshot(storage = defaultStorage()) {
+  if (!storage) {
+    return savedWorkSnapshot([], SAVED_WORK_UNAVAILABLE_SOURCE);
+  }
   try {
     const parsed = JSON.parse(storage.getItem(WORK_ITEMS_KEY) || '[]');
-    return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === 'object') : [];
+    const items = Array.isArray(parsed)
+      ? parsed.filter((item) => item && typeof item === 'object')
+      : [];
+    return savedWorkSnapshot(items, SAVED_WORK_LOCAL_SOURCE);
   } catch {
-    return [];
+    return savedWorkSnapshot([], SAVED_WORK_CORRUPT_SOURCE);
   }
+}
+
+export async function fetchSavedWorkSnapshot({ fetcher = apiFetch, signal } = {}) {
+  const response = await fetcher(`${V2_BASE}/work`, { signal });
+  return normalizeSavedWorkSnapshotResponse(response);
+}
+
+export function normalizeSavedWorkSnapshotResponse(response) {
+  const rawItems =
+    arrayValue(response?.items) ||
+    arrayValue(response?.work_items) ||
+    arrayValue(response?.work) ||
+    arrayValue(response?.data?.items) ||
+    arrayValue(response);
+  const items = rawItems.map(normalizeSavedWorkItem).filter(Boolean);
+  return savedWorkSnapshot(items, SAVED_WORK_SERVER_SOURCE);
+}
+
+export function mergeSavedWorkSnapshots(serverSnapshot, localSnapshot) {
+  if (!isServerSavedWorkSnapshot(serverSnapshot)) {
+    return localSnapshot || savedWorkSnapshot([], SAVED_WORK_UNAVAILABLE_SOURCE);
+  }
+  const serverItems = arrayValue(serverSnapshot.items) || [];
+  const localItems = arrayValue(localSnapshot?.items) || [];
+  if (!localItems.length) return serverSnapshot;
+
+  const seen = new Set(serverItems.map(savedWorkItemKey).filter(Boolean));
+  const localOnly = localItems.filter((item) => {
+    const key = savedWorkItemKey(item);
+    if (!key) return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  if (!localOnly.length) return serverSnapshot;
+  return savedWorkSnapshot([...serverItems, ...localOnly], SAVED_WORK_MIXED_SOURCE);
+}
+
+export function savedWorkServerReadSupported(gatewayStatus) {
+  const value =
+    gatewayStatus?.capabilities?.saved_work_read ??
+    gatewayStatus?.capabilities?.work_read ??
+    gatewayStatus?.features?.saved_work_read ??
+    gatewayStatus?.features?.work_read ??
+    gatewayStatus?.work?.read ??
+    gatewayStatus?.work?.saved_work_read;
+  return value === true || value === 'true' || value === 'available' || value === 'enabled';
+}
+
+function savedWorkSnapshot(items, sourceInfo) {
+  return {
+    ...sourceInfo,
+    items
+  };
+}
+
+function arrayValue(value) {
+  return Array.isArray(value) ? value : null;
+}
+
+function normalizeSavedWorkItem(item) {
+  if (!item || typeof item !== 'object') return null;
+  const id = safeText(item.id || item.work_id || item.item_id, '');
+  if (!id) return null;
+  return {
+    ...item,
+    id,
+    title: safeText(item.title || item.name, 'Untitled work'),
+    artifacts: arrayValue(item.artifacts)?.map(normalizeSavedArtifact).filter(Boolean) || [],
+    links: arrayValue(item.links) || [],
+    dossier: arrayValue(item.dossier) || [],
+    receipts: arrayValue(item.receipts) || [],
+    openApprovals: arrayValue(item.openApprovals || item.open_approvals) || [],
+    watches: arrayValue(item.watches) || [],
+    followUps: arrayValue(item.followUps || item.follow_ups) || []
+  };
+}
+
+function normalizeSavedArtifact(artifact) {
+  if (!artifact || typeof artifact !== 'object') return null;
+  const id = safeText(artifact.id || artifact.artifact_id, '');
+  if (!id) return null;
+  return {
+    ...artifact,
+    id,
+    title: safeText(artifact.title || artifact.name || artifact.filename, 'Saved artifact')
+  };
+}
+
+function savedWorkItemKey(item) {
+  return safeText(item?.id || item?.work_id || item?.item_id, '');
+}
+
+function isServerSavedWorkSnapshot(snapshot) {
+  return snapshot?.source === 'server' && Array.isArray(snapshot.items);
 }
 
 function safeText(value, fallback) {

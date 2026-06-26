@@ -136,8 +136,8 @@ async function buildContactSheet(browser, surfaces) {
           <meta charset="utf-8" />
           <style>
             @font-face {
-              font-family: "Inter Variable";
-              src: local("Inter Variable"), local("Inter");
+              font-family: "Geist";
+              src: url("../crates/ironclaw_webui_v2_static/static/fonts/geist-variable.woff2") format("woff2-variations"), local("Geist");
               font-weight: 100 900;
             }
             * { box-sizing: border-box; }
@@ -146,7 +146,7 @@ async function buildContactSheet(browser, surfaces) {
               padding: 32px;
               background: #090a0c;
               color: #f6f3ed;
-              font-family: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+              font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             }
             header {
               display: flex;

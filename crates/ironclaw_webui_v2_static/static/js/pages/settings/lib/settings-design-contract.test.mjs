@@ -87,6 +87,14 @@ test('settings controls meet the 44px mobile touch target', async () => {
   assert.match(providerSource, /h-11 w-11[^"]*md:h-7 md:w-7/);
 });
 
+test('normal desktop users can open inference settings for NEAR AI Cloud setup', async () => {
+  const settingsPageSource = await readFile(path.join(settingsRoot, 'settings-page.js'), 'utf8');
+
+  assert.match(settingsPageSource, /const defaultTab = 'inference'/);
+  assert.match(settingsPageSource, /const isOperatorTab = \(id\) => id === 'users'/);
+  assert.doesNotMatch(settingsPageSource, /id === 'users' \|\| id === 'inference'/);
+});
+
 // De-jargon: the language list shows human-readable names, not config dumps.
 // English names render in the proportional UI font; only the locale CODE keeps
 // mono (it is a genuine identifier).

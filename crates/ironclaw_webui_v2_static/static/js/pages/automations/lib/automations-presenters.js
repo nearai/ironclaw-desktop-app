@@ -10,10 +10,8 @@ const WEEKDAYS = [
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // State is agent attribution, not a live-success signal. An enabled schedule is
-// agent-owned work waiting to run, so it earns the gold tone (DESIGN.md: gold is
-// the agent's hand) rather than the success green + breathing dot, which would
-// read identically to a completed run and imply the automation is succeeding or
-// running right now. Only a genuinely completed run keeps the success tone.
+// agent-owned work waiting to run, so it earns the gold tone rather than
+// success green, which would imply the automation is succeeding right now.
 const STATE_PRESENTATION = {
   active: { label: 'Active', tone: 'gold' },
   scheduled: { label: 'Scheduled', tone: 'gold' },
@@ -26,44 +24,53 @@ const STATE_PRESENTATION = {
 
 const LAST_STATUS_PRESENTATION = {
   ok: { label: 'Done', tone: 'success' },
-  error: { label: 'Error', tone: 'danger' }
+  error: { label: 'Error', tone: 'danger' },
+  running: { label: 'Running', tone: 'info' }
 };
+
+const RUN_STATUS_PRESENTATION = {
+  ok: { label: 'Done', tone: 'success' },
+  error: { label: 'Failed', tone: 'danger' },
+  running: { label: 'Running', tone: 'info' },
+  unknown: { label: 'Unknown', tone: 'muted' }
+};
+
+export const AUTOMATION_FILTERS = [
+  { value: 'all', labelKey: 'automations.filter.all', predicate: null },
+  { value: 'active', labelKey: 'automations.filter.active', predicate: isBrowserActive },
+  {
+    value: 'running',
+    labelKey: 'automations.filter.running',
+    predicate: (automation) => automation.has_running_run
+  },
+  {
+    value: 'failures',
+    labelKey: 'automations.filter.failures',
+    predicate: (automation) => automation.has_failed_runs
+  },
+  { value: 'paused', labelKey: 'automations.filter.paused', predicate: isBrowserPaused }
+];
 
 export function normalizeAutomations(response) {
   const automations = Array.isArray(response?.automations) ? response.automations : [];
   return automations
     .filter((automation) => automation?.source?.type === 'schedule')
-    .map((automation) => ({
-      ...automation,
-      display_name: automation.name || 'Untitled automation',
-      schedule_label: scheduleLabel(automation.source?.cron),
-      state_label: stateLabel(automation.state),
-      state_tone: stateTone(automation.state),
-      next_run_timestamp: parseTimestamp(automation.next_run_at),
-      next_run_label: formatAutomationDate(automation.next_run_at, 'Not scheduled'),
-      last_run_label: formatAutomationDate(automation.last_run_at, 'No runs yet'),
-      last_status_label: lastStatusLabel(automation.last_status),
-      last_status_tone: lastStatusTone(automation.last_status),
-      created_label: formatAutomationDate(automation.created_at, 'Unknown')
-    }))
+    .map(normalizeAutomation)
     .sort(compareAutomations);
 }
 
 export function filterAutomations(automations, filter) {
-  if (filter === 'active') {
-    return automations.filter((automation) => isBrowserActive(automation));
-  }
-  if (filter === 'paused') {
-    return automations.filter((automation) => isBrowserPaused(automation));
-  }
-  return automations;
+  const strategy = AUTOMATION_FILTERS.find((item) => item.value === filter)?.predicate;
+  return strategy ? automations.filter(strategy) : automations;
 }
 
 export function automationSummary(automations) {
   const active = automations.filter((automation) => isBrowserActive(automation)).length;
+  const running = automations.filter((automation) => automation.has_running_run).length;
+  const failures = automations.filter((automation) => automation.has_failed_runs).length;
   const paused = automations.filter((automation) => isBrowserPaused(automation)).length;
   const next = automations
-    .filter((automation) => nextRunTimestamp(automation) !== null)
+    .filter((automation) => isBrowserActive(automation) && nextRunTimestamp(automation) !== null)
     .sort(
       (a, b) =>
         (a.next_run_timestamp ?? Number.MAX_SAFE_INTEGER) -
@@ -72,27 +79,162 @@ export function automationSummary(automations) {
   return {
     scheduled: automations.length,
     active,
+    running,
+    failures,
     paused,
     nextRun: next?.next_run_label || null
   };
 }
 
-export function scheduleLabel(cron) {
+function normalizeAutomation(automation) {
+  const recentRuns = normalizeRuns(automation.recent_runs);
+  const latestRun = recentRuns[0] || null;
+  const currentRun = recentRuns.find((run) => run.status === 'running') || null;
+  const lastCompletedRun =
+    recentRuns.find((run) => run.status === 'ok' || run.status === 'error') || null;
+  const lastStatus = lastCompletedRun?.status || automation.last_status;
+  const lastRunAt = lastCompletedRun?.completed_at || automation.last_run_at || null;
+
+  return {
+    ...automation,
+    display_name: automation.name || 'Untitled automation',
+    schedule_timezone: automation.source?.timezone || 'UTC',
+    schedule_label: scheduleLabel(automation.source?.cron, automation.source?.timezone),
+    state_label: stateLabel(automation.state),
+    state_tone: stateTone(automation.state),
+    next_run_timestamp: parseTimestamp(automation.next_run_at),
+    next_run_label: formatAutomationDate(automation.next_run_at, 'Not scheduled'),
+    last_run_label: formatAutomationDate(lastRunAt, 'No runs yet'),
+    last_status_label: lastStatusLabel(lastStatus),
+    last_status_tone: lastStatusTone(lastStatus),
+    created_label: formatAutomationDate(automation.created_at, 'Unknown'),
+    recent_runs: recentRuns,
+    latest_run: latestRun,
+    current_run: currentRun,
+    has_running_run: recentRuns.some((run) => run.status === 'running'),
+    has_failed_runs: recentRuns.some((run) => run.status === 'error'),
+    success_rate_label: successRateLabel(recentRuns)
+  };
+}
+
+function normalizeRuns(runs) {
+  if (!Array.isArray(runs)) return [];
+  return runs
+    .map((run) => {
+      const status = normalizeRunStatus(run?.status);
+      const timestampSource =
+        run?.fired_at || run?.fire_slot || run?.submitted_at || run?.completed_at || null;
+      const timestamp = parseTimestamp(timestampSource);
+      return {
+        ...run,
+        status,
+        status_label: runStatusLabel(status),
+        status_tone: runStatusTone(status),
+        timestamp,
+        timestamp_source: timestampSource,
+        fired_label: formatAutomationDate(timestampSource, 'Unscheduled'),
+        submitted_label: formatAutomationDate(run?.submitted_at, 'Not submitted'),
+        completed_label: formatAutomationDate(run?.completed_at, 'Not completed'),
+        chat_path: run?.thread_id ? `/chat/${encodeURIComponent(run.thread_id)}` : null
+      };
+    })
+    .sort((a, b) => (b.timestamp ?? 0) - (a.timestamp ?? 0));
+}
+
+function normalizeRunStatus(status) {
+  if (status === 'ok' || status === 'error' || status === 'running') return status;
+  return 'unknown';
+}
+
+export function summarizeRuns(runs) {
+  const list = Array.isArray(runs) ? runs : [];
+  const counts = { total: list.length, ok: 0, error: 0, running: 0, unknown: 0 };
+  for (const run of list) {
+    counts[normalizeRunStatus(run?.status)] += 1;
+  }
+  return counts;
+}
+
+export function runStatusBreakdown(runs) {
+  const counts = summarizeRuns(runs);
+  return [
+    { key: 'ok', tone: 'success', count: counts.ok },
+    { key: 'error', tone: 'danger', count: counts.error },
+    { key: 'running', tone: 'info', count: counts.running },
+    { key: 'unknown', tone: 'muted', count: counts.unknown }
+  ].filter((part) => part.count > 0);
+}
+
+export function runSummaryView(runs, t) {
+  const counts = summarizeRuns(runs);
+  const chips = runStatusBreakdown(runs).map((part) => ({
+    ...part,
+    text: translateAutomation(
+      t,
+      `automations.runs.${part.key}`,
+      { count: part.count },
+      `${part.count} ${runPluralLabel(part.key, part.count)}`
+    )
+  }));
+  return {
+    total: counts.total,
+    totalText: translateAutomation(
+      t,
+      'automations.runs.total',
+      { count: counts.total },
+      `${counts.total} ${counts.total === 1 ? 'run' : 'runs'}`
+    ),
+    chips
+  };
+}
+
+function translateAutomation(t, key, params, fallback) {
+  return typeof t === 'function' ? t(key, params) : fallback;
+}
+
+function runPluralLabel(key, count) {
+  if (key === 'ok') return count === 1 ? 'done' : 'done';
+  if (key === 'error') return count === 1 ? 'failed' : 'failed';
+  if (key === 'running') return count === 1 ? 'running' : 'running';
+  return count === 1 ? 'unknown' : 'unknown';
+}
+
+function successRateLabel(runs) {
+  const terminalRuns = runs.filter((run) => run.status === 'ok' || run.status === 'error');
+  if (!terminalRuns.length) return 'No completed runs';
+  const ok = terminalRuns.filter((run) => run.status === 'ok').length;
+  return `${Math.round((ok / terminalRuns.length) * 100)}% successful`;
+}
+
+export function scheduleLabel(cron, timezone) {
   if (!cron || typeof cron !== 'string') return 'Custom schedule';
   const parts = cronFields(cron);
   if (!parts) return 'Custom schedule';
 
   const { minute, hour, dayOfMonth, month, dayOfWeek, year } = parts;
+  const everyDate = year === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*';
+
+  if (everyDate && hour === '*') {
+    if (minute === '*') return 'Every minute';
+    const step = minuteStep(minute);
+    if (step === 1) return 'Every minute';
+    if (step) return `Every ${step} minutes`;
+    if (isSingleNumber(minute, 0, 59)) {
+      return `Hourly at :${String(Number(minute)).padStart(2, '0')}`;
+    }
+  }
+
   const time = formatCronTime(hour, minute);
   if (!time) return 'Custom schedule';
+  const tzSuffix = timezone ? ` (${timezone})` : '';
 
-  if (year === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
-    return `Every day at ${time}`;
+  if (everyDate) {
+    return `Every day at ${time}${tzSuffix}`;
   }
   const normalizedDayOfWeek = normalizeDayOfWeek(dayOfWeek);
 
   if (year === '*' && dayOfMonth === '*' && month === '*' && normalizedDayOfWeek === '1-5') {
-    return `Weekdays at ${time}`;
+    return `Weekdays at ${time}${tzSuffix}`;
   }
   if (
     year === '*' &&
@@ -100,10 +242,10 @@ export function scheduleLabel(cron) {
     month === '*' &&
     isSingleNumber(normalizedDayOfWeek, 0, 7)
   ) {
-    return `${WEEKDAYS[Number(normalizedDayOfWeek) % 7]} at ${time}`;
+    return `${WEEKDAYS[Number(normalizedDayOfWeek) % 7]} at ${time}${tzSuffix}`;
   }
   if (year === '*' && isSingleNumber(dayOfMonth, 1, 31) && month === '*' && dayOfWeek === '*') {
-    return `${ordinal(Number(dayOfMonth))} day of each month at ${time}`;
+    return `${ordinal(Number(dayOfMonth))} day of each month at ${time}${tzSuffix}`;
   }
   if (
     isSingleNumber(dayOfMonth, 1, 31) &&
@@ -112,7 +254,9 @@ export function scheduleLabel(cron) {
     (year === '*' || isSingleNumber(year, 1970, 9999))
   ) {
     const date = `${MONTHS[Number(month) - 1]} ${Number(dayOfMonth)}`;
-    return year === '*' ? `${date} at ${time}` : `${date}, ${year} at ${time}`;
+    return year === '*'
+      ? `${date} at ${time}${tzSuffix}`
+      : `${date}, ${year} at ${time}${tzSuffix}`;
   }
 
   return 'Custom schedule';
@@ -144,6 +288,14 @@ export function lastStatusLabel(status) {
 
 export function lastStatusTone(status) {
   return LAST_STATUS_PRESENTATION[status]?.tone || 'muted';
+}
+
+export function runStatusLabel(status) {
+  return RUN_STATUS_PRESENTATION[normalizeRunStatus(status)]?.label || 'Unknown';
+}
+
+export function runStatusTone(status) {
+  return RUN_STATUS_PRESENTATION[normalizeRunStatus(status)]?.tone || 'muted';
 }
 
 function compareAutomations(a, b) {
@@ -210,6 +362,13 @@ function isSingleNumber(value, min, max) {
   return num >= min && num <= max;
 }
 
+function minuteStep(value) {
+  const match = /^\*\/(\d+)$/.exec(value);
+  if (!match) return null;
+  const step = Number(match[1]);
+  return step >= 1 && step <= 59 ? step : null;
+}
+
 function normalizeDayOfWeek(value) {
   const upper = String(value || '').toUpperCase();
   const aliases = {
@@ -226,10 +385,10 @@ function normalizeDayOfWeek(value) {
 }
 
 function ordinal(value) {
+  const mod10 = value % 10;
   const mod100 = value % 100;
-  if (mod100 >= 11 && mod100 <= 13) return `${value}th`;
-  if (value % 10 === 1) return `${value}st`;
-  if (value % 10 === 2) return `${value}nd`;
-  if (value % 10 === 3) return `${value}rd`;
+  if (mod10 === 1 && mod100 !== 11) return `${value}st`;
+  if (mod10 === 2 && mod100 !== 12) return `${value}nd`;
+  if (mod10 === 3 && mod100 !== 13) return `${value}rd`;
   return `${value}th`;
 }

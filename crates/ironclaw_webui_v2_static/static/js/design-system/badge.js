@@ -37,8 +37,8 @@ const toneClasses = {
 };
 
 const sizeClasses = {
-  sm: 'h-6 gap-1.5 rounded-full px-2 text-[0.625rem] tracking-[0.12em]',
-  md: 'h-7 gap-2 rounded-full px-2.5 text-[0.6875rem] tracking-[0.12em]'
+  sm: 'h-6 gap-1.5 rounded-[6px] px-2 text-[0.625rem] tracking-[0.08em]',
+  md: 'h-7 gap-2 rounded-[6px] px-2.5 text-[0.6875rem] tracking-[0.08em]'
 };
 
 export function Badge({ tone = 'muted', label, dot = true, size = 'md', className = '' }) {
@@ -46,7 +46,9 @@ export function Badge({ tone = 'muted', label, dot = true, size = 'md', classNam
   return html`
     <span
       className=${cn(
-        'inline-flex items-center border font-mono uppercase',
+        // CJK and other space-free scripts may wrap between any two glyphs.
+        // Keep translated chip labels on one line inside the fixed-height pill.
+        'inline-flex shrink-0 items-center whitespace-nowrap border font-mono uppercase',
         sizeClasses[size] ?? sizeClasses.md,
         toneClasses[tone] ?? toneClasses.muted,
         className

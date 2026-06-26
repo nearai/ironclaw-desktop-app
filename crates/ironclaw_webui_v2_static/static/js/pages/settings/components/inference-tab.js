@@ -74,7 +74,7 @@ export function InferenceTab({
           <h3
             className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
           >
-            Connect NEAR AI Cloud
+            Connect model access
           </h3>
           <p className="mt-1 text-sm text-[var(--v2-text-muted)]">
             Sign in to start. IronClaw opens your browser to authorize, then connects automatically,
@@ -111,7 +111,7 @@ export function InferenceTab({
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <div
-              className="rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
+              className="rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
             >
               <div className="text-xs text-[var(--v2-text-muted)]">${t('inference.backend')}</div>
               <div className="mt-1 flex items-center gap-2">
@@ -125,7 +125,7 @@ export function InferenceTab({
               </div>
             </div>
             <div
-              className="rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
+              className="rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
             >
               <div className="text-xs text-[var(--v2-text-muted)]">${t('inference.model')}</div>
               <div className="mt-1 text-base font-semibold text-[var(--v2-text-strong)]">
@@ -171,13 +171,13 @@ function SettingsSkeleton() {
         <${Skeleton} className="mb-4 h-3 w-24" />
         <div className="grid gap-4 sm:grid-cols-2">
           <div
-            className="rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
+            className="rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
           >
             <${Skeleton} className="h-3 w-16" />
             <${Skeleton} className="mt-2 h-6 w-28" />
           </div>
           <div
-            className="rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
+            className="rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
           >
             <${Skeleton} className="h-3 w-16" />
             <${Skeleton} className="mt-2 h-6 w-40" />

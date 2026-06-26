@@ -1,0 +1,76 @@
+{
+  "chiefOfStaffPrompts": [
+    {
+      "id": "research-growth",
+      "domainLabel": "Research/Growth",
+      "prompt": "Research expansion signals across strategic accounts and draft a growth plan with risks and next steps."
+    },
+    {
+      "id": "finance",
+      "domainLabel": "Finance",
+      "prompt": "Prepare the cash runway bridge from the finance notes and flag decisions needed before the board update."
+    },
+    {
+      "id": "legal",
+      "domainLabel": "Legal",
+      "prompt": "Review the vendor agreement comments and summarize the positions, open risks, and approval questions."
+    },
+    {
+      "id": "operations",
+      "domainLabel": "Operations",
+      "prompt": "Build the launch readiness checklist from messages, owners, and unresolved operational blockers."
+    },
+    {
+      "id": "engineering",
+      "domainLabel": "Engineering",
+      "prompt": "Summarize the incident follow-up from the engineering thread and produce the owner/action list."
+    },
+    {
+      "id": "people",
+      "domainLabel": "People",
+      "prompt": "Prepare tomorrow's interview brief with candidate context, scorecard notes, and open follow-ups."
+    },
+    {
+      "id": "sales-customer",
+      "domainLabel": "Sales/Customer",
+      "prompt": "Draft renewal follow-ups for the customer escalations and separate what needs approval before sending."
+    },
+    {
+      "id": "marketing-security",
+      "domainLabel": "Marketing/Security",
+      "prompt": "Compare competitor launch claims with security questionnaire evidence and brief me on gaps."
+    }
+  ],
+  "functionPickerLabels": [
+    "Finance",
+    "Legal",
+    "Operations",
+    "Engineering",
+    "People",
+    "Sales",
+    "Customer",
+    "Marketing",
+    "Security",
+    "Compliance",
+    "Research",
+    "Growth"
+  ],
+  "bannedVisibleCopy": [
+    "Choose workflow",
+    "Function picker",
+    "Pick a department",
+    "Select a function",
+    "Inferred domain",
+    "Legal workbench",
+    "Finance workbench",
+    "Abhi",
+    "Prompt engineering",
+    "Trust ledger",
+    "Custody record",
+    "Task custody",
+    "Self-learning loop detected",
+    "Sources connected",
+    "GPT 5.5",
+    "Claude Opus 4.7"
+  ]
+}

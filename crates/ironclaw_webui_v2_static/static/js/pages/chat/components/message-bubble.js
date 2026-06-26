@@ -36,14 +36,14 @@ import {
    User turns stay in a restrained blue bubble; plain assistant prose stays
    borderless and document-like; generated work gets the gold artifact panel. */
 const ROLE_STYLES = {
-  user: 'ml-auto rounded-[18px] border border-signal/25 bg-signal/10 px-4 py-3 text-iron-100',
-  assistant: 'mr-auto text-iron-100',
+  user: 'ml-auto rounded-[18px] border border-signal/25 bg-signal/10 px-4 py-3 text-[var(--v2-text-strong)]',
+  assistant: 'mr-auto text-[var(--v2-text-strong)]',
   assistantWorkProduct:
-    'mr-auto w-full max-w-full rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_26%,var(--v2-panel-border))] bg-[var(--v2-card-bg)] px-5 py-4 text-iron-100 shadow-[var(--v2-card-shadow)]',
+    'mr-auto w-full max-w-full rounded-[10px] border border-[color-mix(in_srgb,var(--v2-gold)_26%,var(--v2-panel-border))] bg-[var(--v2-card-bg)] px-5 py-4 text-[var(--v2-text-strong)] shadow-[var(--v2-card-shadow)]',
   system:
-    'mx-auto rounded-[18px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3 text-center text-[var(--v2-text-muted)]',
+    'mx-auto rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3 text-center text-[var(--v2-text-muted)]',
   error:
-    'mx-auto rounded-[18px] border border-[color-mix(in_srgb,var(--v2-danger-text)_32%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-center text-[var(--v2-danger-text)]'
+    'mx-auto rounded-[10px] border border-[color-mix(in_srgb,var(--v2-danger-text)_32%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-center text-[var(--v2-danger-text)]'
 };
 const COMPACT_ATTACHMENT_LIMIT = 3;
 
@@ -141,7 +141,7 @@ function attachmentStackSummary(attachments = []) {
 
 function attachmentStackClass(compact = false) {
   return compact
-    ? 'mt-2 flex flex-col gap-1.5 rounded-[14px] border border-signal/20 bg-white/5 p-2'
+    ? 'mt-2 flex flex-col gap-1.5 rounded-[14px] border border-[color-mix(in_srgb,var(--v2-accent)_24%,var(--v2-panel-border))] bg-[var(--v2-surface-soft)] p-2'
     : 'mt-2 flex flex-col gap-1.5';
 }
 
@@ -213,7 +213,7 @@ function ThinkingDisclosure({ content }) {
         type="button"
         onClick=${() => setOpen((v) => !v)}
         aria-expanded=${open ? 'true' : 'false'}
-        className="v2-button inline-flex items-center gap-1.5 border-0 bg-transparent px-1 py-1 text-xs font-medium text-iron-400 hover:text-iron-200"
+        className="v2-button inline-flex items-center gap-1.5 border-0 bg-transparent px-1 py-1 text-xs font-medium text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]"
       >
         <${Icon} name="spark" className="h-3.5 w-3.5" />
         <span>${open ? 'Hide reasoning' : 'Reasoning'}</span>
@@ -221,7 +221,9 @@ function ThinkingDisclosure({ content }) {
       </button>
       ${open &&
       html`
-        <div className="mt-1 border-l-2 border-white/10 pl-3 text-iron-300">
+        <div
+          className="mt-1 border-l-2 border-[var(--v2-panel-border)] pl-3 text-[var(--v2-text-muted)]"
+        >
           <${MarkdownRenderer} content=${content} className="text-[13px]" />
         </div>
       `}
@@ -291,17 +293,19 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
               ? html`<img
                   key=${i}
                   src=${img.data_url}
-                  className="max-h-64 rounded-lg border border-iron-700 object-cover"
+                  className="max-h-64 rounded-[8px] border border-[var(--v2-panel-border)] object-cover"
                   alt="Generated result"
                 />`
               : html`
                   <div
                     key=${i}
-                    className="rounded-lg border border-iron-700 bg-iron-900/70 px-4 py-3 text-sm text-iron-200"
+                    className="rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3 text-sm text-[var(--v2-text)]"
                   >
                     <div>Generated image unavailable in history payload</div>
                     ${img.path &&
-                    html`<div className="mt-1 font-mono text-xs text-iron-300">${img.path}</div>`}
+                    html`<div className="mt-1 font-mono text-xs text-[var(--v2-text-muted)]">
+                      ${img.path}
+                    </div>`}
                   </div>
                 `
           )}
@@ -343,7 +347,7 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
                 html`<img
                   key=${`${preview.src}-${i}`}
                   src=${preview.src}
-                  className="h-24 max-w-[min(12rem,48vw)] rounded-[14px] border border-signal/25 bg-iron-950 object-cover shadow-[0_12px_32px_rgba(0,0,0,0.22)]"
+                  className="h-24 max-w-[min(12rem,48vw)] rounded-[10px] border border-[color-mix(in_srgb,var(--v2-accent)_25%,var(--v2-panel-border))] bg-[var(--v2-surface-soft)] object-cover shadow-[var(--v2-shadow-md)]"
                   alt=${preview.alt}
                   title=${preview.filename || preview.alt}
                   loading="lazy"
@@ -389,11 +393,15 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
               ${compactAttachments &&
               html`
                 <div className="flex flex-wrap items-center gap-2 px-1 pb-1 text-xs">
-                  <span className="inline-flex items-center gap-1.5 font-medium text-iron-100">
-                    <${Icon} name="file" className="h-3.5 w-3.5 text-signal" />
+                  <span
+                    className="inline-flex items-center gap-1.5 font-medium text-[var(--v2-text-strong)]"
+                  >
+                    <${Icon} name="file" className="h-3.5 w-3.5 text-[var(--v2-accent-text)]" />
                     ${fileAttachments.length} files attached
                   </span>
-                  <span className="text-iron-400">${attachmentStackSummary(fileAttachments)}</span>
+                  <span className="text-[var(--v2-text-muted)]"
+                    >${attachmentStackSummary(fileAttachments)}</span
+                  >
                 </div>
               `}
               ${visibleAttachments.map((att, i) => {
@@ -404,23 +412,28 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
                     type="button"
                     onClick=${() => setAttachmentPreview(att)}
                     aria-label=${`Preview ${att.filename || 'attachment'}`}
-                    className="flex min-w-0 items-center gap-2 rounded-[10px] border border-iron-700 bg-iron-900/50 px-3 py-2 text-left text-xs hover:border-signal/40"
+                    className="flex min-w-0 items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-left text-xs hover:border-[color-mix(in_srgb,var(--v2-accent)_40%,var(--v2-panel-border))]"
                   >
-                    <${Icon} name="file" className="h-3.5 w-3.5 text-signal" />
+                    <${Icon} name="file" className="h-3.5 w-3.5 text-[var(--v2-accent-text)]" />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-iron-100"
+                      <span className="block truncate text-[var(--v2-text-strong)]"
                         >${att.filename || 'attachment'}</span
                       >
-                      <span className="block truncate text-[11px] text-iron-400"
+                      <span className="block truncate text-[11px] text-[var(--v2-text-muted)]"
                         >${evidenceLabel}</span
                       >
                     </span>
-                    <span className="shrink-0 text-right text-[11px] text-iron-300">
+                    <span className="shrink-0 text-right text-[11px] text-[var(--v2-text-muted)]">
                       <span className="block">${att.mime_type || 'file'}</span>
                       ${att.size_label && html`<span className="block">${att.size_label}</span>`}
                     </span>
-                    <span className="shrink-0 text-[11px] font-medium text-signal">Preview</span>
-                    <${Icon} name="chevron" className="h-3 w-3 shrink-0 -rotate-90 text-iron-300" />
+                    <span className="shrink-0 text-[11px] font-medium text-[var(--v2-accent-text)]"
+                      >Preview</span
+                    >
+                    <${Icon}
+                      name="chevron"
+                      className="h-3 w-3 shrink-0 -rotate-90 text-[var(--v2-text-muted)]"
+                    />
                   </button>
                 `;
               })}
@@ -430,7 +443,7 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
                 <button
                   type="button"
                   onClick=${() => setAttachmentsExpanded(true)}
-                  className="v2-button mt-0.5 inline-flex w-full items-center justify-center gap-1 rounded-[10px] border border-signal/25 bg-signal/10 px-3 py-2 text-xs font-medium text-signal hover:bg-signal/15"
+                  className="v2-button mt-0.5 inline-flex w-full items-center justify-center gap-1 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-accent)_28%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] px-3 py-2 text-xs font-medium text-[var(--v2-accent-text)] hover:bg-[color-mix(in_srgb,var(--v2-accent)_16%,transparent)]"
                   aria-label=${`Show ${hiddenAttachmentCount} more attached files`}
                   data-testid="attachment-stack-expand"
                 >
@@ -444,7 +457,7 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
                 <button
                   type="button"
                   onClick=${() => setAttachmentsExpanded(false)}
-                  className="v2-button mt-0.5 inline-flex w-full items-center justify-center gap-1 rounded-[10px] border border-iron-700 bg-transparent px-3 py-2 text-xs font-medium text-iron-300 hover:text-iron-100"
+                  className="v2-button mt-0.5 inline-flex w-full items-center justify-center gap-1 rounded-[8px] border border-[var(--v2-panel-border)] bg-transparent px-3 py-2 text-xs font-medium text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]"
                   aria-label="Show fewer attached files"
                   data-testid="attachment-stack-collapse"
                 >
@@ -481,7 +494,7 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
                 type="button"
                 onClick=${copy}
                 aria-label="Copy message"
-                className="v2-button inline-flex items-center gap-1 rounded-md border-0 bg-transparent px-1.5 py-1 text-[11px] hover:text-iron-100"
+                className="v2-button inline-flex items-center gap-1 rounded-[6px] border-0 bg-transparent px-1.5 py-1 text-[11px] hover:text-[var(--v2-text-strong)]"
               >
                 <${Icon} name=${copied ? 'check' : 'copy'} className="h-3.5 w-3.5" />
                 ${copied ? 'Copied' : 'Copy'}
@@ -503,7 +516,9 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
               </button>
             `}
             ${timeLabel &&
-            html`<span className="font-mono text-[10px] text-iron-400">${timeLabel}</span>`}
+            html`<span className="font-mono text-[10px] text-[var(--v2-text-muted)]"
+              >${timeLabel}</span
+            >`}
           </div>
         `}
       </div>
@@ -518,7 +533,7 @@ function GeneratedWorkProductHeader({ title, content, messages, copied, onCopy }
       data-testid="assistant-artifact-chip"
     >
       <span
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
         aria-hidden="true"
       >
         <${Icon} name="file" className="h-4 w-4" />
@@ -609,11 +624,11 @@ function GeneratedFileArtifactCard({ artifact, onPreview }) {
 
   return html`
     <div
-      className="flex min-w-0 flex-wrap items-center gap-3 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-3 py-3 text-sm"
+      className="flex min-w-0 flex-wrap items-center gap-3 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-3 py-3 text-sm"
       data-testid="generated-file-artifact-chip"
     >
       <span
-        className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-[color-mix(in_srgb,var(--v2-gold)_18%,transparent)] text-[var(--v2-gold-text)]"
+        className="grid h-10 w-10 shrink-0 place-items-center rounded-[8px] bg-[color-mix(in_srgb,var(--v2-gold)_18%,transparent)] text-[var(--v2-gold-text)]"
         aria-hidden="true"
       >
         <${Icon} name="file" className="h-4 w-4" />
@@ -789,7 +804,7 @@ function AssistantExportActions({
         `}
       >
         <div
-          className="mb-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-iron-400"
+          className="mb-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-muted)]"
         >
           Download work product
         </div>
@@ -800,19 +815,22 @@ function AssistantExportActions({
                 key=${option.id}
                 type="button"
                 onClick=${() => runExport(option)}
-                className="flex w-full min-w-0 items-center gap-2 rounded-[8px] px-2 py-2 text-left text-sm text-iron-100 hover:bg-white/5"
+                className="flex w-full min-w-0 items-center gap-2 rounded-[7px] px-2 py-2 text-left text-sm text-[var(--v2-text-strong)] hover:bg-[var(--v2-surface-soft)]"
               >
                 <${Icon}
                   name=${option.id.includes('thread') ? 'chat' : 'file'}
-                  className="h-4 w-4 shrink-0 text-signal"
+                  className="h-4 w-4 shrink-0 text-[var(--v2-accent-text)]"
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">${option.label}</span>
-                  <span className="block truncate text-xs text-iron-400"
+                  <span className="block truncate text-xs text-[var(--v2-text-muted)]"
                     >${option.description}</span
                   >
                 </span>
-                <${Icon} name="download" className="h-3.5 w-3.5 shrink-0 text-iron-400" />
+                <${Icon}
+                  name="download"
+                  className="h-3.5 w-3.5 shrink-0 text-[var(--v2-text-muted)]"
+                />
               </button>
             `
           )}
@@ -828,7 +846,7 @@ function messageActionRowClass(role, isUser) {
       ? 'opacity-100'
       : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100';
   return [
-    'flex max-w-full flex-wrap items-center gap-1.5 px-1 text-iron-400',
+    'flex max-w-full flex-wrap items-center gap-1.5 px-1 text-[var(--v2-text-muted)]',
     visibility,
     isUser ? 'justify-end' : 'justify-start'
   ].join(' ');
@@ -836,10 +854,10 @@ function messageActionRowClass(role, isUser) {
 
 function actionClass(tone = 'default') {
   return [
-    'v2-button inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px]',
+    'v2-button inline-flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[11px]',
     tone === 'primary'
-      ? 'border border-signal/35 bg-signal/10 text-signal hover:bg-signal/15'
-      : 'border-0 bg-transparent hover:text-iron-100'
+      ? 'border border-[color-mix(in_srgb,var(--v2-accent)_35%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)] hover:bg-[color-mix(in_srgb,var(--v2-accent)_16%,transparent)]'
+      : 'border-0 bg-transparent hover:text-[var(--v2-text-strong)]'
   ].join(' ');
 }
 

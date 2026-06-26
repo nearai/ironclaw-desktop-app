@@ -338,7 +338,7 @@ export function OnboardingPage() {
           <div
             className="mb-4 inline-flex h-7 items-center rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-[11px] font-semibold text-[var(--v2-text-muted)]"
           >
-            NEAR AI Cloud native
+            First-run setup
           </div>
           <h1
             className="max-w-[16ch] text-[32px] font-semibold leading-[1.06] text-[var(--v2-text-strong)] sm:text-[40px]"
@@ -470,8 +470,7 @@ export function OnboardingPage() {
           <${ProviderLoginStatus} login=${login} />
 
           <div className="px-1 text-sm leading-6 text-[var(--v2-text-muted)]">
-            ${t('onboarding.moreInSettings')}${' '}
-            <span className="font-medium text-[var(--v2-text-strong)]"> ${t('nav.settings')} </span>
+            ${t('onboarding.moreInSettings')}
           </div>
 
           <div className="grid gap-3 lg:hidden">

@@ -30,9 +30,9 @@ const BASE =
 
 const SIZES = {
   sm: 'h-8 rounded-[6px] px-3 text-xs',
-  md: 'min-h-[40px] rounded-[8px] px-3.5 text-[13px] md:min-h-[44px] md:px-4 md:text-sm',
-  lg: 'min-h-[48px] rounded-[10px] px-5 text-sm',
-  icon: 'h-[40px] w-[40px] rounded-[8px] md:h-[44px] md:w-[44px]',
+  md: 'min-h-[44px] rounded-[7px] px-3.5 text-[13px] md:px-4 md:text-sm',
+  lg: 'min-h-[44px] rounded-[8px] px-5 text-sm',
+  icon: 'h-11 w-11 rounded-[7px]',
   'icon-sm': 'h-8 w-8 rounded-[6px]'
 };
 
@@ -40,7 +40,7 @@ const SIZES = {
 
 const VARIANTS = {
   primary:
-    'border border-transparent bg-[var(--v2-accent-btn)] text-white ' +
+    'border border-transparent bg-[var(--v2-accent-btn)] text-white v2-force-white ' +
     'hover:bg-[color-mix(in_srgb,var(--v2-accent-btn)_88%,#000)] ' +
     'active:bg-[color-mix(in_srgb,var(--v2-accent-btn)_88%,#000)]',
 
@@ -52,7 +52,7 @@ const VARIANTS = {
     'active:bg-[color-mix(in_srgb,var(--v2-accent)_16%,transparent)]',
 
   secondary:
-    'border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-strong)] ' +
+    'border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] text-[var(--v2-text-strong)] ' +
     'hover:bg-[var(--v2-surface-muted)] ' +
     'hover:border-[color-mix(in_srgb,var(--v2-accent)_30%,var(--v2-panel-border))]',
 

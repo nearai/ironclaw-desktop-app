@@ -1,0 +1,1 @@
+function f(...o){let n=[];for(let e of o)if(e){if(typeof e=="string")n.push(e);else if(Array.isArray(e)){let t=f(...e);t&&n.push(t)}else if(typeof e=="object")for(let[t,i]of Object.entries(e))i&&n.push(t)}return n.join(" ")}export{f as a};

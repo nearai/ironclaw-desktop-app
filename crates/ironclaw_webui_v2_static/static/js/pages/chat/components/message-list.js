@@ -90,7 +90,7 @@ export function MessageList({
               <button
                 onClick=${onLoadMore}
                 disabled=${isLoading}
-                className="v2-button rounded-md border border-white/10 px-3 py-1.5 text-xs text-iron-300 hover:border-signal/35 hover:text-white disabled:opacity-50"
+                className="v2-button rounded-[7px] border border-[var(--v2-panel-border)] px-3 py-1.5 text-xs text-[var(--v2-text-muted)] hover:border-[color-mix(in_srgb,var(--v2-accent)_35%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)] disabled:opacity-50"
               >
                 ${isLoading ? t('chat.history.loading') : t('chat.history.loadOlder')}
               </button>

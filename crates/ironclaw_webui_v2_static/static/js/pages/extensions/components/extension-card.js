@@ -17,13 +17,13 @@ import {
    live in an overflow menu so the resting card stays calm. */
 
 const CARD =
-  'flex h-full flex-col rounded-[14px] border border-[var(--v2-panel-border)] ' +
+  'flex self-start flex-col rounded-[14px] border border-[var(--v2-panel-border)] ' +
   'bg-[var(--v2-card-bg)] p-4 shadow-[var(--v2-shadow-sm)] ' +
   'transition-colors hover:border-[color-mix(in_srgb,var(--v2-accent)_22%,var(--v2-panel-border))]';
 const META =
   'mt-1.5 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-[var(--v2-text-faint)]';
-const DESC = 'mt-2 line-clamp-2 text-xs leading-5 text-[var(--v2-text-muted)]';
-const FOOTER = 'mt-auto flex items-center gap-2 border-t border-[var(--v2-panel-border)] pt-3';
+const DESC = 'mt-2 line-clamp-2 min-h-[2.5rem] text-xs leading-5 text-[var(--v2-text-muted)]';
+const FOOTER = 'mt-3 flex items-center gap-2 border-t border-[var(--v2-panel-border)] pt-3';
 const DISCLOSURE =
   'v2-button -my-2 inline-flex min-h-[44px] items-center gap-1.5 border-0 bg-transparent py-2 pr-2 ' +
   'font-mono text-[11px] text-[var(--v2-text-faint)] hover:text-[var(--v2-accent-text)]';

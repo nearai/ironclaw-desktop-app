@@ -5,8 +5,13 @@ registerPack('ja', {
   'language.switch': '言語を変更しました',
 
   'common.unknown': '不明',
+  'automations.delivery.loadFailedTitle': 'Delivery defaults unavailable',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw could not confirm delivery targets from the gateway, so it will not assume web-only delivery or save a default.',
+  'automations.delivery.retry': 'Retry',
 
   'nav.chat': 'チャット',
+  'nav.workbench': 'Workbench',
   'nav.workspace': 'ワークスペース',
   'nav.projects': 'プロジェクト',
   'nav.jobs': 'ジョブ',
@@ -240,15 +245,24 @@ registerPack('ja', {
 
   'workspace.title': 'ワークスペース',
   'workspace.subtitle': '永続メモリ',
+  'workspace.readOnly': '読み取り専用',
+  'workspace.filterPlaceholder': '名前で絞り込み...',
+  'workspace.emptyDir': 'このフォルダーは空です。',
   'workspace.refresh': '更新',
   'workspace.refreshing': '更新中',
   'workspace.loading': '読み込み中...',
   'workspace.searching': '検索中...',
   'workspace.noResults': '結果がありません。',
   'workspace.noFiles': 'ワークスペースにファイルがありません。',
+  'workspace.noMatches': 'フィルターに一致する項目がありません。',
   'workspace.breadcrumbRoot': 'workspace',
   'workspace.pickFileTitle': 'ワークスペースのファイルを選択',
-  'workspace.pickFileDesc': 'ツリーまたは検索結果からメモリ文書を選択して閲覧・編集します。',
+  'workspace.pickFileDesc':
+    'ツリーからファイルを選んでプレビューまたはダウンロードします。このビューアーは読み取り専用です。',
+  'workspace.download': 'ダウンロード',
+  'workspace.binaryPreviewUnavailable':
+    'このファイル形式のインラインプレビューはありません。内容を表示するにはダウンロードしてください。',
+  'workspace.fileMeta': '{mime} - {size} バイト',
   'workspace.edit': '編集',
   'workspace.cancel': 'キャンセル',
   'workspace.save': '保存',
@@ -535,6 +549,8 @@ registerPack('ja', {
   'chat.modeAutoReview': '自動レビュー',
   'chat.runtimeLocal': 'ローカルで作業',
   'chat.statusWorking': '作業中',
+  'chat.deleteFailed': 'この会話を削除できませんでした。',
+  'chat.deleteBusy': '実行中の会話は削除できません。先に停止してから、もう一度お試しください。',
 
   // Extensions tabs — new v2 keys
   'extensions.installed': 'インストール済み',

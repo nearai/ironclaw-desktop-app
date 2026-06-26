@@ -106,7 +106,7 @@ function configureMermaid(mermaid) {
       primaryBorderColor: readToken('--v2-accent', '#0091fd'),
       lineColor: readToken('--v2-text-muted', '#5d6b7c'),
       textColor: readToken('--v2-text', '#263241'),
-      fontFamily: 'Inter Variable, Inter, sans-serif'
+      fontFamily: 'Geist, "Geist Variable", sans-serif'
     }
   });
   mermaidConfiguredTheme = themeKey;

@@ -39,18 +39,18 @@ const VARIANTS = {
 /* ─── Radius ──────────────────────────────────────────────────────── */
 
 const RADII = {
-  sm: 'rounded-[8px]',
-  md: 'rounded-[12px]',
-  lg: 'rounded-[16px]'
+  sm: 'rounded-[6px]',
+  md: 'rounded-[8px]',
+  lg: 'rounded-[10px]'
 };
 
 /* ─── Padding ─────────────────────────────────────────────────────── */
 
 const PADDINGS = {
   none: '',
-  sm: 'p-4',
-  md: 'p-5',
-  lg: 'p-5 md:p-7'
+  sm: 'p-3.5',
+  md: 'p-4',
+  lg: 'p-5 md:p-6'
 };
 
 /* ─── Card ────────────────────────────────────────────────────────── */
@@ -85,7 +85,7 @@ export function CardHeader({ children, className = '', divider = false }) {
   return html`
     <div
       className=${cn(
-        'px-5 py-4 md:px-7 md:py-5',
+        'px-4 py-3.5 md:px-6 md:py-4',
         divider && 'border-b border-[var(--v2-panel-border)]',
         className
       )}
@@ -98,7 +98,7 @@ export function CardHeader({ children, className = '', divider = false }) {
 /* ─── CardBody ────────────────────────────────────────────────────── */
 
 export function CardBody({ children, className = '' }) {
-  return html` <div className=${cn('px-5 py-4 md:px-7 md:py-5', className)}>${children}</div> `;
+  return html` <div className=${cn('px-4 py-3.5 md:px-6 md:py-4', className)}>${children}</div> `;
 }
 
 /* ─── CardFooter ──────────────────────────────────────────────────── */
@@ -107,7 +107,7 @@ export function CardFooter({ children, className = '', divider = true }) {
   return html`
     <div
       className=${cn(
-        'px-5 py-4 md:px-7 md:py-5',
+        'px-4 py-3.5 md:px-6 md:py-4',
         divider && 'border-t border-[var(--v2-panel-border)]',
         className
       )}
@@ -124,7 +124,7 @@ export function CardLabel({ children, className = '' }) {
   return html`
     <div
       className=${cn(
-        'font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-[var(--v2-text-faint)]',
+        'font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]',
         className
       )}
     >

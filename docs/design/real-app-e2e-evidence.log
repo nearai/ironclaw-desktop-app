@@ -1,0 +1,112 @@
+
+> ironclaw-desktop@0.4.158 tauri
+> node scripts/tauri-cli.mjs dev
+
+     Running BeforeDevCommand (`npm run dev:webui-static`)
+
+> ironclaw-desktop@0.4.158 dev:webui-static
+> node scripts/serve-webui-static.mjs
+
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+Rebuilding...
+        Warn Waiting for your frontend dev server to start on http://localhost:1420/index.html...
+
+Done in 1307ms.
+Prepared IronClaw WebUI v2 static root at /Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/crates/ironclaw_webui_v2_static/static
+Serving IronClaw WebUI v2 static app at http://127.0.0.1:1420/
+     Running DevCommand (`cargo  run --no-default-features --color always --`)
+        Info Watching /Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/src-tauri for changes...
+[1m[92m   Compiling[0m tauri v2.11.2
+[1m[92m   Compiling[0m tauri-macros v2.6.2
+[1m[92m   Compiling[0m ironclaw-desktop v0.4.158 (/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/src-tauri)
+[1m[96m    Building[0m [======================>  ] 466/486: tauri-macros, ironclaw-desk…[1m[96m    Building[0m [=======================> ] 467/486: tauri-macros, ironclaw-desk…[1m[96m    Building[0m [=======================> ] 468/486: tauri-macros, tauri(build)  [1m[96m    Building[0m [=======================> ] 469/486: tauri(build)                [K[1m[92m   Compiling[0m tauri-plugin-fs v2.5.1
+[1m[92m   Compiling[0m tauri-plugin-shell v2.3.5
+[1m[92m   Compiling[0m tauri-plugin-notification v2.3.3
+[1m[92m   Compiling[0m tauri-plugin-updater v2.10.1
+[1m[96m    Building[0m [=======================> ] 470/486: tauri-plugin-shell(build), …[K[1m[92m   Compiling[0m tauri-plugin-http v2.5.9
+[1m[92m   Compiling[0m tauri-plugin-dialog v2.7.1
+[1m[96m    Building[0m [=======================> ] 471/486: tauri-plugin-dialog(build),…[1m[96m    Building[0m [=======================> ] 472/486: tauri-plugin-dialog(build),…[1m[96m    Building[0m [=======================> ] 473/486: tauri-plugin-dialog(build),…[1m[96m    Building[0m [=======================> ] 474/486: tauri-plugin-dialog(build),…[1m[96m    Building[0m [=======================> ] 475/486: tauri-plugin-dialog(build),…[1m[96m    Building[0m [=======================> ] 476/486: tauri, ironclaw-desktop(bui…[1m[96m    Building[0m [=======================> ] 477/486: tauri                       [1m[96m    Building[0m [=======================> ] 477/486: tauri-plugin-shell, tauri-p…[1m[96m    Building[0m [=======================> ] 478/486: tauri-plugin-shell, tauri-p…[1m[96m    Building[0m [=======================> ] 479/486: tauri-plugin-shell, tauri-p…[1m[96m    Building[0m [=======================> ] 480/486: tauri-plugin-shell, tauri-p…[1m[96m    Building[0m [=======================> ] 481/486: tauri-plugin-shell, tauri-p…[1m[96m    Building[0m [=======================> ] 482/486: tauri-plugin-http, tauri-pl…[1m[96m    Building[0m [=======================> ] 483/486: tauri-plugin-http           [1m[96m    Building[0m [=======================> ] 484/486: ironclaw-desktop            [1m[96m    Building[0m [=======================> ] 485/486: ironclaw-desktop(bin)       [K[1m[92m    Finished[0m `dev` profile [unoptimized + debuginfo] target(s) in 24.81s
+[1m[92m     Running[0m `target/debug/ironclaw-desktop`
+[2026-06-21T19:00:31Z INFO  ironclaw_desktop_lib] IronClaw Desktop v0.4.158 starting
+[2026-06-21T19:00:31Z INFO  ironclaw_tray] Tray icon registered (id=ironclaw-main)
+[2026-06-21T19:00:31Z INFO  ironclaw_keychain] read service=com.openclaw.ironclaw-desktop account=llm-nearai:default
+[2026-06-21T19:00:33Z WARN  ironclaw_keychain] READ TIMEOUT [llm-nearai:default] after 2s — keychain ACL prompt likely hung; trying file fallback
+[2026-06-21T19:00:33Z INFO  ironclaw_keychain] read service=com.openclaw.ironclaw-desktop account=local-gateway-token
+[2026-06-21T19:00:35Z WARN  ironclaw_keychain] READ TIMEOUT [local-gateway-token] after 2s — keychain ACL prompt likely hung; trying file fallback
+[2026-06-21T19:00:35Z INFO  ironclaw_keychain] file fallback path [local-gateway-token]: /Users/abhishekvaidyanathan/Library/Application Support/com.openclaw.ironclaw-desktop/tokens/local-gateway-token.token
+[2026-06-21T19:00:35Z INFO  ironclaw_keychain] file fallback read OK [local-gateway-token] len=36
+[2026-06-21T19:00:35Z WARN  ironclaw_sidecar] NEAR.AI Cloud selected without a desktop credential; booting gateway unauthenticated (Settings / provider store supplies the key)
+[2026-06-21T19:00:35Z INFO  ironclaw_sidecar] Sidecar spawned on port 3000, waiting for /api/health
+[2026-06-21T19:00:35Z INFO  ironclaw_keychain] read service=com.openclaw.ironclaw-desktop account=local-gateway-token
+[2026-06-21T19:00:37Z WARN  ironclaw_sidecar] 2026-06-21T19:00:37.511795Z  INFO ironclaw_llm::registry: Loaded user provider definitions count=0 path=/Users/abhishekvaidyanathan/.ironclaw/reborn/providers.json
+[2026-06-21T19:00:37Z WARN  ironclaw_keychain] READ TIMEOUT [local-gateway-token] after 2s — keychain ACL prompt likely hung; trying file fallback
+[2026-06-21T19:00:37Z INFO  ironclaw_keychain] file fallback path [local-gateway-token]: /Users/abhishekvaidyanathan/Library/Application Support/com.openclaw.ironclaw-desktop/tokens/local-gateway-token.token
+[2026-06-21T19:00:37Z INFO  ironclaw_keychain] file fallback read OK [local-gateway-token] len=36
+[2026-06-21T19:00:37Z WARN  ironclaw_sidecar] 2026-06-21T19:00:37.948028Z  INFO ironclaw_llm::session: Loaded session from /Users/abhishekvaidyanathan/.ironclaw/session.json (created: 2026-05-21 19:53:05.819674 UTC)
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/gateway/status
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/extensions
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/extensions/registry
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/channels/connectable
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/automations?limit=50&run_limit=5
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/llm/providers
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/connectors/connected
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/gateway/status
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/threads
+[2026-06-21T19:00:38Z WARN  ironclaw_gateway] gateway_http_fetch send failed url=http://127.0.0.1:3000/api/webchat/v2/automations?limit=50&run_limit=5: error sending request for url (http://127.0.0.1:3000/api/webchat/v2/automations?limit=50&run_limit=5)
+[2026-06-21T19:00:38Z WARN  ironclaw_gateway] gateway_http_fetch send failed url=http://127.0.0.1:3000/api/webchat/v2/llm/providers: error sending request for url (http://127.0.0.1:3000/api/webchat/v2/llm/providers)
+[2026-06-21T19:00:38Z WARN  ironclaw_gateway] gateway_http_fetch send failed url=http://127.0.0.1:3000/api/webchat/v2/extensions: error sending request for url (http://127.0.0.1:3000/api/webchat/v2/extensions)
+[2026-06-21T19:00:38Z WARN  ironclaw_gateway] gateway_http_fetch send failed url=http://127.0.0.1:3000/api/gateway/status: error sending request for url (http://127.0.0.1:3000/api/gateway/status)
+[2026-06-21T19:00:38Z WARN  ironclaw_gateway] gateway_http_fetch send failed url=http://127.0.0.1:3000/api/webchat/v2/extensions/registry: error sending request for url (http://127.0.0.1:3000/api/webchat/v2/extensions/registry)
+[2026-06-21T19:00:38Z WARN  ironclaw_gateway] gateway_http_fetch send failed url=http://127.0.0.1:3000/api/webchat/v2/connectors/connected: error sending request for url (http://127.0.0.1:3000/api/webchat/v2/connectors/connected)
+[2026-06-21T19:00:38Z WARN  ironclaw_gateway] gateway_http_fetch send failed url=http://127.0.0.1:3000/api/webchat/v2/threads: error sending request for url (http://127.0.0.1:3000/api/webchat/v2/threads)
+[2026-06-21T19:00:38Z WARN  ironclaw_gateway] gateway_http_fetch send failed url=http://127.0.0.1:3000/api/webchat/v2/channels/connectable: error sending request for url (http://127.0.0.1:3000/api/webchat/v2/channels/connectable)
+[2026-06-21T19:00:38Z WARN  ironclaw_gateway] gateway_http_fetch send failed url=http://127.0.0.1:3000/api/gateway/status: error sending request for url (http://127.0.0.1:3000/api/gateway/status)
+[2026-06-21T19:00:38Z WARN  ironclaw_sidecar] ironclaw-reborn: WebChat v2 listener
+[2026-06-21T19:00:38Z WARN  ironclaw_sidecar]   binary    : ironclaw-reborn
+[2026-06-21T19:00:38Z WARN  ironclaw_sidecar]   version   : 0.1.0
+[2026-06-21T19:00:38Z WARN  ironclaw_sidecar]   listen    : http://127.0.0.1:3000
+[2026-06-21T19:00:38Z WARN  ironclaw_sidecar]   auth      : env-bearer (token $IRONCLAW_REBORN_WEBUI_TOKEN, user $IRONCLAW_REBORN_WEBUI_USER_ID)
+[2026-06-21T19:00:38Z WARN  ironclaw_sidecar]   cors      : fail-closed (no allowed origins configured)
+[2026-06-21T19:00:38Z WARN  ironclaw_sidecar]   readiness : RebornReadiness { profile: LocalDev, state: DevOnly, facades: RebornFacadeReadiness { host_runtime: true, turn_coordinator: true, product_auth: true }, workers: RebornWorkerReadiness { turn_runner: true, trigger_poller: true }, diagnostics: [RebornReadinessDiagnostic { profile: LocalDev, component: CompositionProfile, reason: DevOnlyProfile, status: Blocking, blocks_production: true }] }
+[2026-06-21T19:00:38Z WARN  ironclaw_sidecar] 
+[2026-06-21T19:00:38Z WARN  ironclaw_sidecar] 2026-06-21T19:00:38.253254Z  INFO ironclaw_reborn_webui_ingress: WebChat v2 listener bound target="ironclaw::reborn::webui_ingress" bound=127.0.0.1:3000
+[2026-06-21T19:00:38Z INFO  ironclaw_sidecar] Sidecar healthy on port 3000
+[2026-06-21T19:00:38Z INFO  ironclaw_sidecar] auto-started Reborn WebUI sidecar on port 3000
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/extensions
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/extensions/registry
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/channels/connectable
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/channels/connectable
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/extensions/registry
+[2026-06-21T19:00:38Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/extensions
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/automations?limit=50&run_limit=5
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/llm/providers
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/connectors/connected
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/webchat/v2/threads
+[2026-06-21T19:00:39Z WARN  ironclaw_sidecar] 2026-06-21T19:00:39.022817Z  INFO ironclaw_llm::registry: Loaded user provider definitions count=0 path=/Users/abhishekvaidyanathan/.ironclaw/reborn/providers.json
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/automations?limit=50&run_limit=5
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/llm/providers
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch start method=POST url=http://127.0.0.1:3000/api/webchat/v2/llm/list-models
+[2026-06-21T19:00:39Z WARN  ironclaw_sidecar] 2026-06-21T19:00:39.045051Z  INFO ironclaw_llm::registry: Loaded user provider definitions count=0 path=/Users/abhishekvaidyanathan/.ironclaw/reborn/providers.json
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/threads
+[2026-06-21T19:00:39Z WARN  ironclaw_sidecar] 2026-06-21T19:00:39.304961Z  INFO ironclaw_llm::session: Loaded session from /Users/abhishekvaidyanathan/.ironclaw/session.json (created: 2026-05-21 19:53:05.819674 UTC)
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/connectors/connected
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch start method=POST url=http://127.0.0.1:3000/api/webchat/v2/connectors/read
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch start method=POST url=http://127.0.0.1:3000/api/webchat/v2/connectors/read
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch start method=POST url=http://127.0.0.1:3000/api/webchat/v2/connectors/read
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch start method=POST url=http://127.0.0.1:3000/api/webchat/v2/connectors/read
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch start method=POST url=http://127.0.0.1:3000/api/webchat/v2/connectors/read
+[2026-06-21T19:00:39Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/llm/list-models
+[2026-06-21T19:00:40Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/connectors/read
+[2026-06-21T19:00:40Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/connectors/read
+[2026-06-21T19:00:40Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/connectors/read
+[2026-06-21T19:00:40Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/connectors/read
+[2026-06-21T19:00:42Z INFO  ironclaw_gateway] gateway_http_fetch done status=200 url=http://127.0.0.1:3000/api/webchat/v2/connectors/read
+[2026-06-21T19:01:08Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/gateway/status
+[2026-06-21T19:01:08Z INFO  ironclaw_gateway] gateway_http_fetch done status=404 url=http://127.0.0.1:3000/api/gateway/status
+[2026-06-21T19:01:38Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/gateway/status
+[2026-06-21T19:01:38Z INFO  ironclaw_gateway] gateway_http_fetch done status=404 url=http://127.0.0.1:3000/api/gateway/status
+[2026-06-21T19:02:08Z INFO  ironclaw_gateway] gateway_http_fetch start method=GET url=http://127.0.0.1:3000/api/gateway/status
+[2026-06-21T19:02:08Z INFO  ironclaw_gateway] gateway_http_fetch done status=404 url=http://127.0.0.1:3000/api/gateway/status
