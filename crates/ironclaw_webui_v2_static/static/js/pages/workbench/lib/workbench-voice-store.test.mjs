@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
   readVoiceSamples,
   recordVoiceSample,
+  recordEditedVoiceSample,
   effectiveVoiceDirective
 } from './workbench-voice-store.js';
 
@@ -72,4 +73,22 @@ test('effectiveVoiceDirective leads with learned samples, falls back, undefined 
   );
   const d2 = effectiveVoiceDirective(fb);
   assert.ok(d2.indexOf('learned sample') < d2.indexOf('configured fallback example'));
+});
+
+test('recordEditedVoiceSample only learns from text the user actually edited', () => {
+  globalThis.localStorage = new MemStore();
+  const suggestion =
+    'the generic ai draft that was offered to the user verbatim, untouched and bland';
+  // Committed unchanged → NOT learned (would teach the model its own voice).
+  recordEditedVoiceSample(suggestion, suggestion);
+  assert.deepEqual(readVoiceSamples(), []);
+  // Edited → learned.
+  const edited = 'no — push the cap to 8% and hold signature until i see the redline, not before';
+  recordEditedVoiceSample(edited, suggestion);
+  assert.deepEqual(readVoiceSamples(), [edited]);
+  // Written from scratch (no suggestion) → learned.
+  const scratch =
+    'lets move the kyc gate ahead of launch, the regulatory exposure is the gating item here';
+  recordEditedVoiceSample(scratch, '');
+  assert.equal(readVoiceSamples()[0], scratch);
 });

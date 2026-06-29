@@ -76,6 +76,17 @@ export function recordVoiceSample(text) {
   return next;
 }
 
+// Record a committed reply ONLY if the user actually edited it. If they committed the AI
+// suggestion verbatim, recording it would teach the model its own generic voice — a
+// self-reinforcing degradation, the exact failure this store exists to prevent. `suggestion`
+// is the AI draft the field was seeded with (empty when the user wrote from scratch). Returns
+// the (unchanged or updated) samples.
+export function recordEditedVoiceSample(committed, suggestion) {
+  const c = normalize(committed);
+  if (c && c === normalize(suggestion)) return readVoiceSamples();
+  return recordVoiceSample(committed);
+}
+
 // Build the voice directive for the draft turn from the learned samples plus the
 // configured fallback examples (learned lead). Returns undefined when there is nothing
 // to anchor on, so buildSuggestedReplyPrompt keeps its generic default. `fallback` is the

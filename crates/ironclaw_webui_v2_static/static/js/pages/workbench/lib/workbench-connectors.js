@@ -276,8 +276,13 @@ export function selectTriageInbox(
     const email = String(message.fromEmail || '').toLowerCase();
     const tier = norm[email];
     if (tier === 'ignore') return false;
+    // Thread-aware dismiss: a thread is filed by its threadId (see onDismissDecision), so
+    // dismissing the collapsed card drops EVERY message in the thread — otherwise the thread
+    // would reappear represented by an older, not-individually-dismissed message. The legacy
+    // per-messageId key is still honored for non-threaded mail + older dismissals.
     const key = String(message.messageId || message.id || '');
-    if (key && dismissed[key]) return false;
+    const tkey = message.threadId ? `thread:${message.threadId}` : '';
+    if ((key && dismissed[key]) || (tkey && dismissed[tkey])) return false;
     // Learned auto-file: a sender repeatedly dismissed as sender-level noise.
     // An explicit VIP/Respond/FYI correction (any non-ignore tier) overrides it.
     if (!tier && learned.has(email)) return false;

@@ -41,7 +41,7 @@ import { fetchWorkbenchFeed, workbenchFeedReadSupported } from './lib/workbench-
 import { buildWorkbenchStateRail } from './lib/workbench-state.js';
 import { readTierOverrides } from './lib/workbench-profile-overrides.js';
 import { readDismissals, dismissRow, learnedIgnoreSenders } from './lib/workbench-dismissals.js';
-import { recordVoiceSample, effectiveVoiceDirective } from './lib/workbench-voice-store.js';
+import { recordEditedVoiceSample, effectiveVoiceDirective } from './lib/workbench-voice-store.js';
 import { selectTriageInbox, answeredThreadIndex } from './lib/workbench-connectors.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
@@ -926,34 +926,37 @@ export function WorkbenchPage() {
     setDraftGenerating(false);
     setDraftSuggestion('');
   }, []);
-  const submitDraft = React.useCallback(async (fields) => {
-    setDraftBusy(true);
-    setDraftResult(null);
-    try {
-      const response = await connectorWrite({
-        toolkit: 'gmail',
-        tool: 'GMAIL_CREATE_EMAIL_DRAFT',
-        arguments: draftWriteArguments(fields)
-      });
-      const ok = Boolean(response) && response.successful !== false;
-      // Learn from the reply the user actually drafted, so the next "Draft in my voice"
-      // sounds more like them (the captured body feeds effectiveVoiceDirective).
-      if (ok) recordVoiceSample(fields?.body);
-      setDraftResult({
-        ok,
-        draftId: ok ? createdDraftId(response) : '',
-        error: ok ? '' : String(response?.error || 'The draft was not created.')
-      });
-    } catch (err) {
-      setDraftResult({
-        ok: false,
-        draftId: '',
-        error: String(err?.message || 'Could not create the draft.')
-      });
-    } finally {
-      setDraftBusy(false);
-    }
-  }, []);
+  const submitDraft = React.useCallback(
+    async (fields) => {
+      setDraftBusy(true);
+      setDraftResult(null);
+      try {
+        const response = await connectorWrite({
+          toolkit: 'gmail',
+          tool: 'GMAIL_CREATE_EMAIL_DRAFT',
+          arguments: draftWriteArguments(fields)
+        });
+        const ok = Boolean(response) && response.successful !== false;
+        // Learn ONLY from an edited draft (not an unedited AI suggestion), so the next
+        // "Draft in my voice" sounds more like the user (feeds effectiveVoiceDirective).
+        if (ok) recordEditedVoiceSample(fields?.body, draftSuggestion);
+        setDraftResult({
+          ok,
+          draftId: ok ? createdDraftId(response) : '',
+          error: ok ? '' : String(response?.error || 'The draft was not created.')
+        });
+      } catch (err) {
+        setDraftResult({
+          ok: false,
+          draftId: '',
+          error: String(err?.message || 'Could not create the draft.')
+        });
+      } finally {
+        setDraftBusy(false);
+      }
+    },
+    [draftSuggestion]
+  );
 
   // --- Slack respond-in-place (mirror of the email draft flow) ---
   const openSlackReply = React.useCallback((item) => {
@@ -988,19 +991,22 @@ export function WorkbenchPage() {
         if (slackReplyTokenRef.current === token) setSlackReplyGenerating(false);
       });
   }, [slackReplyContext]);
-  const copySlackReply = React.useCallback(async (text) => {
-    const value = String(text || '').trim();
-    if (!value) return false;
-    try {
-      await navigator.clipboard.writeText(value);
-      // Learn from what the user actually sends: the copied reply becomes a voice sample
-      // so the next "Draft in my voice" sounds more like them.
-      recordVoiceSample(value);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }, []);
+  const copySlackReply = React.useCallback(
+    async (text) => {
+      const value = String(text || '').trim();
+      if (!value) return false;
+      try {
+        await navigator.clipboard.writeText(value);
+        // Learn ONLY from text the user actually edited (not an unedited AI draft) so the next
+        // "Draft in my voice" sounds more like them.
+        recordEditedVoiceSample(value, slackReplySuggestion);
+        return true;
+      } catch (_) {
+        return false;
+      }
+    },
+    [slackReplySuggestion]
+  );
   // Posting to Slack is an outbound SEND, so it is gated exactly like Gmail sends:
   // the compose passes sendEnabled=false, so this never fires today (the Post button
   // is hidden). It is wired so the deferred "enable sends" checkpoint turns it on
@@ -1024,7 +1030,7 @@ export function WorkbenchPage() {
           arguments: args
         });
         const ok = Boolean(response) && response.successful !== false;
-        if (ok) recordVoiceSample(value);
+        if (ok) recordEditedVoiceSample(value, slackReplySuggestion);
         setSlackReplyResult({
           ok,
           error: ok ? '' : String(response?.error || 'The reply was not posted.')
@@ -1038,7 +1044,7 @@ export function WorkbenchPage() {
         setSlackReplyPosting(false);
       }
     },
-    [slackReplyContext]
+    [slackReplyContext, slackReplySuggestion]
   );
   const closeSlackReply = React.useCallback(() => {
     slackReplyTokenRef.current += 1;
@@ -1204,8 +1210,13 @@ export function WorkbenchPage() {
   const [dismissals, setDismissals] = React.useState(() => readDismissals());
   const onDismissDecision = React.useCallback((message, reason) => {
     if (!message) return;
-    const key = String(message.messageId || message.id || '');
-    if (!key) return;
+    // Key by threadId so dismissing a collapsed multi-message thread files the WHOLE thread,
+    // not just the newest message (which would let an older message resurface it on refetch).
+    // Non-threaded mail keeps the per-message key.
+    const key = message.threadId
+      ? `thread:${String(message.threadId)}`
+      : String(message.messageId || message.id || '');
+    if (!key || key === 'thread:') return;
     setDismissals(dismissRow(key, { reason, sender: message.fromEmail || message.sender || '' }));
   }, []);
   // Slack dismiss mirrors the email path: file the item away with a reason through the
@@ -1214,7 +1225,11 @@ export function WorkbenchPage() {
   const onDismissSlack = React.useCallback((item, reason) => {
     const key = slackDismissKey(item);
     if (!key) return;
-    setDismissals(dismissRow(key, { reason, sender: item.whoId || item.who || '' }));
+    // sender stays empty: there is no Slack sender-learning loop, and learnedIgnoreSenders /
+    // the "You" page iterate ALL dismissals by `sender` regardless of the slack: key namespace,
+    // so a Slack who/whoId here would pollute the email-sender learning UI. The namespaced key
+    // still suppresses the item; it just doesn't feed mail-sender learning.
+    setDismissals(dismissRow(key, { reason, sender: '' }));
   }, []);
   // Triage-worthy inbox = what may be surfaced on the Workbench (Needs-a-decision,
   // Arrived). Drops bulk/newsletters/notes (e.g. gemini-notes meeting summaries),
@@ -1445,8 +1460,8 @@ export function WorkbenchPage() {
       calendarEvents: connectorCalendar.events,
       railGroups,
       slackBlockers: slackBlockers.rows,
-      slackAwaiting: slackDeep.awaiting,
-      slackWeighIn: slackDeep.weighIn,
+      slackAwaiting: slackAwaitingVisible,
+      slackWeighIn: slackWeighInVisible,
       githubNotifications: connectorGithub.notifications,
       driveFiles: connectorDrive.files,
       notionPages: connectorNotion.pages,
@@ -1498,8 +1513,8 @@ export function WorkbenchPage() {
     railGroups,
     slackBlockers.rows,
     slackBlockers.enabled,
-    slackDeep.awaiting,
-    slackDeep.weighIn,
+    slackAwaitingVisible,
+    slackWeighInVisible,
     connectorGithub.notifications,
     connectorDrive.files,
     connectorNotion.pages,

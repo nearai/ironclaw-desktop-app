@@ -20,12 +20,18 @@ export function buildSuggestedReplyPrompt({ sender, subject, body, channel, voic
     .trim()
     .slice(0, 1200);
   if (text) ctx.push(`Message: ${text}`);
-  return [
-    `You are drafting a reply on my behalf. Write a concise reply in my voice (${v}).`,
-    `Reply directly to the message. No greeting line or signature unless natural. Output ONLY the reply text — no preamble, no surrounding quotes, no labels.`,
-    '',
-    ctx.join('\n')
-  ].join('\n');
+  // A short style descriptor goes inline; a multi-line directive (learned voice samples)
+  // gets its own labeled block so the bulleted examples don't sit inside a parenthetical.
+  const multiline = v.includes('\n');
+  const lines = [
+    multiline
+      ? `You are drafting a reply on my behalf. Write a concise reply in my voice.`
+      : `You are drafting a reply on my behalf. Write a concise reply in my voice (${v}).`,
+    `Reply directly to the message. No greeting line or signature unless natural. Output ONLY the reply text — no preamble, no surrounding quotes, no labels.`
+  ];
+  if (multiline) lines.push('', `MY VOICE:`, v);
+  lines.push('', ctx.join('\n'));
+  return lines.join('\n');
 }
 
 // Strip the wrappers a model sometimes adds around the reply (code fences, a

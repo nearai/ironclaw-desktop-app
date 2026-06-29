@@ -813,3 +813,34 @@ test('selectTriageInbox collapses one email thread to a single newest-message ca
   assert.equal(t2.messageId, 'd');
   assert.ok(!('threadCount' in t2));
 });
+
+test('selectTriageInbox: dismissing a collapsed thread by threadId keeps the WHOLE thread filed', () => {
+  const messages = [
+    {
+      messageId: 'a',
+      id: 'a',
+      threadId: 'T9',
+      fromEmail: 'x@x.com',
+      subject: 'Re: deal',
+      timestamp: '1782770000000',
+      unread: true
+    },
+    {
+      messageId: 'b',
+      id: 'b',
+      threadId: 'T9',
+      fromEmail: 'y@x.com',
+      subject: 'Re: deal',
+      timestamp: '1782773000000', // newest = representative
+      unread: true
+    }
+  ];
+  const collapsed = selectTriageInbox(messages, {});
+  assert.equal(collapsed.length, 1);
+  assert.equal(collapsed[0].messageId, 'b');
+  // onDismissDecision files a thread under `thread:<threadId>`. The whole thread must stay
+  // gone — not reappear represented by the older message a (the HIGH regression the
+  // adversarial review caught).
+  const dismissals = { 'thread:T9': { reason: 'Already handled', sender: '', ts: 1 } };
+  assert.equal(selectTriageInbox(messages, { dismissals }).length, 0);
+});
