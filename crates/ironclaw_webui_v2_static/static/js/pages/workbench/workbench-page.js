@@ -65,6 +65,13 @@ const WorkbenchBrief = React.lazy(() =>
   import('./components/workbench-brief.js').then((m) => ({ default: m.WorkbenchBrief }))
 );
 import { WorkbenchSlackBlockers } from './components/workbench-slack-blockers.js';
+import { WorkbenchNotionNew } from './components/workbench-notion-new.js';
+import {
+  selectNewNotionPages,
+  readNotionSeen,
+  notionSeenAfterViewing,
+  writeNotionSeen
+} from './lib/workbench-notion-new.js';
 import {
   WorkbenchSlackReplies,
   WorkbenchSlackCompose
@@ -319,6 +326,19 @@ function HomeView(props) {
 
   const groups = Array.isArray(props.groups) ? props.groups : [];
   const decisionMessages = Array.isArray(props.decisionMessages) ? props.decisionMessages : [];
+  // Proactive "New in Notion": surface pages created/edited recently that the user has
+  // not yet reviewed (e.g. a new Project Passport), diffed against a localStorage seen-map.
+  const notionPages = Array.isArray(props.notionPages) ? props.notionPages : [];
+  const [notionSeen, setNotionSeen] = React.useState(() => readNotionSeen());
+  const newNotionPages = React.useMemo(
+    () => selectNewNotionPages(notionPages, notionSeen, { nowMs: Date.now() }),
+    [notionPages, notionSeen]
+  );
+  const markNotionReviewed = React.useCallback(() => {
+    const next = notionSeenAfterViewing(notionPages, notionSeen);
+    writeNotionSeen(next);
+    setNotionSeen(next);
+  }, [notionPages, notionSeen]);
   const slackBlockerRows = props.slackBlockers?.rows?.length || 0;
   const slackAwaitingRows = Array.isArray(props.slackAwaiting) ? props.slackAwaiting.length : 0;
   const countCtx = {
@@ -375,6 +395,13 @@ function HomeView(props) {
             isLoading=${props.connectorsLoading}
             onConnect=${props.onConnectSources}
           />
+          ${centerFilter === 'all'
+            ? html`<${WorkbenchNotionNew}
+                pages=${newNotionPages}
+                onOpen=${props.onOpenMessage}
+                onReviewed=${markNotionReviewed}
+              />`
+            : null}
           ${showSkeleton ? html`<${WorkbenchTriageSkeleton} />` : null}
           ${showTriageHeader
             ? html`
@@ -1606,6 +1633,7 @@ export function WorkbenchPage() {
                     onConnectSources=${() => setShowSources(true)}
                     gmailReady=${connectedAccounts.gmailReady}
                     decisionMessages=${triageInbox}
+                    notionPages=${connectorNotion.pages}
                     slackAwaiting=${slackDeep.awaiting}
                     onSlackReply=${openSlackReply}
                     calendarReady=${connectedAccounts.calendarReady}

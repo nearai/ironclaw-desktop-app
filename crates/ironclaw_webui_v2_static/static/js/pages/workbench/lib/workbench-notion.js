@@ -57,7 +57,11 @@ export function normalizeNotionPages(result, { limit = 6 } = {}) {
       id: String(page.id || url || rawTitle),
       title: rawTitle,
       url,
-      when: formatInboxWhen(page.last_edited_time)
+      when: formatInboxWhen(page.last_edited_time),
+      // Raw ISO timestamps power the "new since last seen" diff (createdTime lets us
+      // distinguish a freshly-created page from an edit of an old one).
+      createdTime: typeof page.created_time === 'string' ? page.created_time : '',
+      lastEditedTime: typeof page.last_edited_time === 'string' ? page.last_edited_time : ''
     });
     if (rows.length >= limit) break;
   }

@@ -640,6 +640,88 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   color: var(--wb-ink-2);
 }
 .wb13-status-pill.is-done { background: var(--wb-good-tint); color: var(--wb-good-text); }
+/* Proactive "New in Notion" home band */
+.wb13-notionnew {
+  margin-bottom: 16px;
+}
+.wb13-notionnew-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+.wb13-notionnew-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--wb-muted);
+}
+.wb13-notionnew-title svg {
+  width: 14px;
+  height: 14px;
+}
+.wb13-notionnew-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--wb-accent-soft);
+  color: var(--wb-accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+.wb13-notionnew-clear {
+  border: 0;
+  background: none;
+  color: var(--wb-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.wb13-notionnew-clear:hover {
+  color: var(--wb-ink);
+  background: var(--wb-surface);
+}
+.wb13-notionnew-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--wb-line);
+  border-radius: var(--wb-r-lg);
+  background: var(--wb-canvas);
+  padding: 10px 12px;
+  margin-bottom: 7px;
+  cursor: pointer;
+  font: inherit;
+}
+.wb13-notionnew-card:hover {
+  border-color: var(--wb-muted);
+}
+.wb13-notionnew-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--wb-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb13-notionnew-when {
+  font-size: 12px;
+  color: var(--wb-muted);
+  flex: none;
+}
 .wb13-card-meta {
   display: flex;
   align-items: center;
