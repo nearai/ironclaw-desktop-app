@@ -563,6 +563,82 @@ test('scoreSlackRelevance: a high-engagement celebration weigh-in is dropped (so
   assert.equal(r.drop, true, 'vitality alone cannot rescue social chatter');
 });
 
+test('scoreSlackRelevance: a busy ANNOUNCEMENT thread (anniversary) is dropped, not "worth weighing in"', () => {
+  // The live noise the operator flagged: a 4-year-anniversary post in #general with many
+  // congratulatory repliers. High distinct count must NOT force-keep it.
+  const r = scoreSlackRelevance(
+    {
+      who: 'UHR',
+      channelId: 'CGEN',
+      thread_ts: 'tann',
+      raw: "This Saturday marks <@UDAVI>'s 4-year anniversary at NEAR. Over the last four years…",
+      text: "This Saturday marks Davi's 4-year anniversary at NEAR. Over the last four years…",
+      ts: tsAgo(2),
+      reply_count: 9,
+      reply_users: ['UA', 'UB', 'UC', 'UD', 'UE']
+    },
+    { selfUserId: 'UME', kind: 'weighin', footprint: buildFootprint([], {}) }
+  );
+  assert.equal(r.isSocial, true, 'announcement language marks it social');
+  assert.equal(r.drop, true, 'a busy congratulatory thread is not a decision to weigh in on');
+});
+
+test('scoreSlackRelevance: a "Hi team, we heard…" broadcast announcement is dropped', () => {
+  const r = scoreSlackRelevance(
+    {
+      who: 'UBRAND',
+      channelId: 'CGEN',
+      thread_ts: 'tbr',
+      raw: 'Hi team, We heard your camera called for a brand refresh. The new look ships Monday.',
+      text: 'Hi team, We heard your camera called for a brand refresh. The new look ships Monday.',
+      ts: tsAgo(1),
+      reply_count: 6,
+      reply_users: ['UA', 'UB', 'UC', 'UD']
+    },
+    { selfUserId: 'UME', kind: 'weighin', footprint: buildFootprint([], {}) }
+  );
+  assert.equal(r.isSocial, true, 'broadcast opener + "we heard" marks it an announcement');
+  assert.equal(r.drop, true);
+});
+
+test('scoreSlackRelevance: an announcement that ASKS for a decision is NOT dampened (guard holds)', () => {
+  const r = scoreSlackRelevance(
+    {
+      who: 'UBOSS',
+      channelId: 'CGEN',
+      thread_ts: 'tdec',
+      raw: 'Hi team — proud to share the new brand. One open question: do we approve the Monday launch?',
+      text: 'Hi team — proud to share the new brand. One open question: do we approve the Monday launch?',
+      ts: tsAgo(1),
+      reply_count: 4,
+      reply_users: ['UBOSS', 'UA', 'UB']
+    },
+    { selfUserId: 'UME', kind: 'weighin', footprint: STRONG_FP }
+  );
+  assert.equal(r.isSocial, false, 'a decision ask overrides the announcement opener');
+  assert.equal(r.drop, false);
+});
+
+test('scoreSlackRelevance: a real multi-person DISCUSSION with no announcement language is still kept', () => {
+  // Regression guard: the noise fix must not bury genuine debate that lacks a decision
+  // keyword (mirrors the "restructuring the org" case the product deliberately surfaces).
+  const r = scoreSlackRelevance(
+    {
+      who: 'UCOFOUNDER',
+      channelId: 'CX',
+      thread_ts: 'tdisc',
+      raw: 'leaning toward consolidating the two vendor contracts into one master agreement',
+      text: 'leaning toward consolidating the two vendor contracts into one master agreement',
+      ts: tsAgo(4),
+      reply_count: 7,
+      reply_users: ['UCOFOUNDER', 'UA', 'UB', 'UC']
+    },
+    { selfUserId: 'UME', kind: 'weighin', footprint: buildFootprint([], {}) }
+  );
+  assert.equal(r.isSocial, false);
+  assert.equal(r.drop, false, '>=3 distinct repliers on a substantive discussion is still kept');
+});
+
 test('scoreSlackRelevance: a 2-reply stranger thread with no ask is dropped (the core noise case)', () => {
   const r = scoreSlackRelevance(
     {

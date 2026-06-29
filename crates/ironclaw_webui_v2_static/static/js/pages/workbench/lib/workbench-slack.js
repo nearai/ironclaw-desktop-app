@@ -352,6 +352,13 @@ const DEADLINE_RE =
   /\b(eod|eow|cob|by (today|tomorrow|mon|tue|wed|thu|fri|tonight|noon)|deadline|due (today|tomorrow|by)|time[- ]sensitive)\b/i;
 const SOCIAL_RE =
   /\b(congrat\w*|welcome|happy (birthday|friday)|kudos|shout[- ]?out|excited to|thrilled to|offsite|lunch|coffee|good morning|on (pto|vacation)|no updates|same as yesterday)\b|[🎉🥳🙌🎂]/u;
+// One-to-many ANNOUNCEMENTS / celebrations — a broadcast to the room, not a discussion
+// you weigh in on (anniversaries, "Hi team, we heard…", launch/brand announcements,
+// "proud/happy to share"). Case-insensitive (real Slack text is mixed case) and only
+// consulted under the same address===0 && !hasAsk && urg===0 guard as SOCIAL_RE, so a
+// broadcast that actually asks for a decision or flags a blocker is never dampened.
+const ANNOUNCEMENT_RE =
+  /\b(anniversary|icymi|please join (me|us)|proud to (share|announce)|happy to (share|announce)|we (heard|wanted to share|are excited)|excited to (share|announce))\b|^\s*(hi|hey|hello)\s+(team|all|everyone|folks)\b/i;
 
 const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
@@ -516,8 +523,13 @@ export function scoreSlackRelevance(row, ctx = {}) {
   // body + social dampener. Fires only on un-addressed chatter with NO ask AND NO
   // urgency/decision/blocker signal — so "excited to report the sev1 outage" or
   // "congrats, but we're blocked on sign-off" is NOT mistaken for celebration noise.
+  // Covers both peer celebration (SOCIAL_RE) and one-to-many announcements
+  // (ANNOUNCEMENT_RE: anniversaries, "Hi team, we heard…", launch/brand posts) — a busy
+  // congratulatory thread is not "worth weighing in", but a real decision discussion
+  // (no announcement language) still is.
   let body = prior + REL.vitality * vitality + earned;
-  const isSocial = address === 0 && !hasAsk && urg === 0 && SOCIAL_RE.test(text);
+  const isSocial =
+    address === 0 && !hasAsk && urg === 0 && (SOCIAL_RE.test(text) || ANNOUNCEMENT_RE.test(text));
   if (isSocial) body *= REL.socialDampen;
 
   // A genuine multi-person discussion (>=3 distinct repliers, not social chatter) is
