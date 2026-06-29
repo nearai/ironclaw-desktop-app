@@ -164,7 +164,8 @@ export function buildNeedsYouPrompt(bundle, profile = {}) {
     : `Write the way I would dash off a quick, decisive Slack reply.`;
   return [
     briefHeader(bundle, profile),
-    `Output ONLY one JSON object (no prose, no code fence): {needsYou:[{id,source:"Email"|"Slack",sender,channel:"the Slack channel for a Slack item, else empty",badges:["Decision"|"FYI"|"time-sensitive"],context:"2-4 sentences naming the parties, the decision on the table, the current positions, and why it sits on ME specifically",suggestedReply:"a ready reply in MY voice, or empty string if no reply is owed",replyHref,bestWindow}]} — one per needsReply item; echo id+channel+replyHref; never invent a sender or link.`,
+    `You are my chief of staff. JUDGE each candidate and KEEP ONLY the ones that genuinely need ME to reply or decide. DROP everything else — announcements, broadcasts, FYIs, newsletters, automated notifications, social or celebratory posts, "thanks"/acknowledgements, links shared for awareness, and anything where no reply or decision is actually owed by me. A message being addressed to a group or mentioning me in passing is NOT enough — there must be a real ask or decision on me. Returning an EMPTY needsYou array is correct and expected when nothing truly needs me; do NOT manufacture priorities or pad the list.`,
+    `Output ONLY one JSON object (no prose, no code fence): {needsYou:[{id,source:"Email"|"Slack",sender,channel:"the Slack channel for a Slack item, else empty",badges:["Decision"|"FYI"|"time-sensitive"],context:"2-4 sentences naming the parties, the decision on the table, the current positions, and why it sits on ME specifically",suggestedReply:"a ready reply in MY voice, or empty string if no reply is owed",replyHref,bestWindow}]} — include an object ONLY for the items you KEEP; echo id+channel+replyHref from the candidate; never invent a sender or link.`,
     `The suggestedReply must be in MY voice: all-lowercase, first-person, decisive, a specific position not a hedge. ${voiceLine}`,
     ``,
     `CONTEXT:`,
@@ -243,7 +244,8 @@ export function buildWorthWeighingInPrompt(bundle, candidates, profile = {}) {
   }));
   return [
     briefHeader(bundle, profile),
-    `These are active Slack decisions I was NOT tagged on. Output ONLY one JSON object (no prose, no code fence): {worthWeighingIn:[{id,title,channel,whyYours:"why this decision sits in MY domain and on me",take:"my pressure-test position — the risk to flag or the move to make, in my voice",confidence:0-100,link}]} — one per candidate; echo id+link; never invent an item.`,
+    `These are active Slack threads I was NOT tagged on. MOST ARE NOISE. KEEP an item ONLY if it is a genuine decision forming on MY critical path — legal, regulatory, strategic, or commercial-risk — where my input would materially change the outcome. DROP everything else: announcements, social or celebratory posts, anniversaries, shared links, livestreams, product chatter, banter, hype, and general FYIs. When in doubt, DROP. Returning an EMPTY worthWeighingIn array is the correct, expected answer when nothing genuinely warrants my weigh-in — never manufacture or pad.`,
+    `Output ONLY one JSON object (no prose, no code fence): {worthWeighingIn:[{id,title,channel,whyYours:"why this decision sits in MY domain and on me",take:"my pressure-test position — the risk to flag or the move to make, in my voice",confidence:0-100,link}]} — include an object ONLY for the items you KEEP; echo id+link from the candidate; never invent an item.`,
     ``,
     `CONTEXT:`,
     JSON.stringify({ profile: bundle.profile, candidates: rows })
@@ -360,7 +362,23 @@ export function parseBriefJson(raw) {
   // through when the model supplies one; the orchestrator derives one otherwise.
   const intro = clip(parsed.intro, 400);
 
-  if (!needsYou.length && !worthWeighingIn.length && !thisWeek.length && !bestTimes.length) {
+  // An EMPTY result is VALID when the model returned the expected shape — "nothing needs you"
+  // is the correct ruthless answer (bias to silence), NOT a parse failure. Treating it as a
+  // failure was the bug that made the home fall back to deterministic noise even after the
+  // model judged everything out. Reject only when the object has NO recognized key at all (a
+  // partial stream, or unrelated text the lastIndexOf('}') happened to capture).
+  const hasRecognizedKey =
+    'needsYou' in parsed ||
+    'worthWeighingIn' in parsed ||
+    'thisWeek' in parsed ||
+    'bestTimes' in parsed;
+  if (
+    !hasRecognizedKey &&
+    !needsYou.length &&
+    !worthWeighingIn.length &&
+    !thisWeek.length &&
+    !bestTimes.length
+  ) {
     return null;
   }
   return { summary, intro, needsYou, worthWeighingIn, thisWeek, bestTimes };
@@ -491,8 +509,11 @@ export async function synthesizeBriefing({ briefing, profile, deps, onPartial } 
     if (typeof onPartial === 'function') {
       needsYouTurn
         .then((turn) => {
-          const needsYou = (turn && turn.needsYou) || [];
-          if (needsYou.length || candidates.length) onPartial(assemble(needsYou, candidates));
+          // Emit the judged needsYou the moment turn A lands, with an EMPTY radar (the
+          // worth-weighing-in candidates are unjudged noise until turn B's judge returns —
+          // never flash them). Render even when needsYou is empty: an honest "nothing needs
+          // you" beats leaving the deterministic noise on screen.
+          if (turn) onPartial(assemble(turn.needsYou || [], []));
         })
         .catch(() => {});
     }
@@ -501,17 +522,18 @@ export async function synthesizeBriefing({ briefing, profile, deps, onPartial } 
     const aTurn = aSettled.status === 'fulfilled' ? aSettled.value : null;
     const bTurn = bSettled.status === 'fulfilled' ? bSettled.value : null;
     const needsYou = (aTurn && aTurn.needsYou) || [];
-    // Prefer the LLM-enriched radar; fall back to the deterministic candidates so a
-    // non-converging turn B degrades silently (no take/confidence, but real items).
-    const enrichedRadar =
-      bTurn && Array.isArray(bTurn.worthWeighingIn) && bTurn.worthWeighingIn.length
-        ? bTurn.worthWeighingIn
-        : candidates;
+    // Bias to silence: the worth-weighing-in candidates are UNJUDGED noise. Show ONLY what the
+    // judge turn explicitly kept; if it failed or didn't run, show NOTHING. An empty section is
+    // honest; a list of unjudged chatter is exactly the failure mode we're fixing.
+    const judgedRadar = bTurn && Array.isArray(bTurn.worthWeighingIn) ? bTurn.worthWeighingIn : [];
 
-    if (!needsYou.length && !enrichedRadar.length) {
+    // Render the judged brief whenever a judging turn actually ran — even if it judged
+    // everything out (an honest "nothing needs you"). Only fall back to the deterministic brief
+    // when BOTH turns failed to return, so a total LLM failure never strands a blank rich brief.
+    if (!aTurn && !bTurn) {
       return null;
     }
-    return assemble(needsYou, enrichedRadar);
+    return assemble(needsYou, judgedRadar);
   } catch (_) {
     return null;
   }

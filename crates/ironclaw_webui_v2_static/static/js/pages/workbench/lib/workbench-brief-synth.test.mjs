@@ -305,17 +305,20 @@ test('parseBriefJson extracts JSON from a fenced/prose reply and normalizes ever
   assert.equal(out.bestTimes[0].person, 'David');
 });
 
-test('parseBriefJson returns null on non-JSON or an entirely-empty briefing (caller falls back)', () => {
+test('parseBriefJson: garbage -> null, but a well-formed EMPTY briefing is a valid result (bias to silence)', () => {
   assert.equal(parseBriefJson('I could not build a briefing.'), null);
   assert.equal(parseBriefJson(''), null);
   assert.equal(parseBriefJson('{ not valid json'), null);
-  assert.equal(
-    parseBriefJson(
-      JSON.stringify({ needsYou: [], worthWeighingIn: [], thisWeek: [], bestTimes: [] })
-    ),
-    null,
-    'all-empty arrays -> null so the deterministic briefing shows instead'
+  assert.equal(parseBriefJson('{}'), null, 'no recognized keys -> null (partial stream / garbage)');
+  // The model judging everything out ("nothing needs you") is a VALID, expected answer — it
+  // must NOT be discarded as a parse failure. Discarding it was the bug that left the home
+  // showing deterministic noise even after the model correctly returned an empty result.
+  const empty = parseBriefJson(
+    JSON.stringify({ needsYou: [], worthWeighingIn: [], thisWeek: [], bestTimes: [] })
   );
+  assert.ok(empty, 'a well-formed empty briefing is a valid result, not null');
+  assert.deepEqual(empty.needsYou, []);
+  assert.deepEqual(empty.worthWeighingIn, []);
 });
 
 const NEEDS_YOU_JSON = JSON.stringify({
@@ -415,7 +418,7 @@ test('synthesizeBriefing runs needsYou + radar turns IN PARALLEL and merges both
   );
 });
 
-test('synthesizeBriefing falls back to the deterministic radar when turn B yields nothing (no regression)', async () => {
+test('synthesizeBriefing biases to silence: turn B yielding nothing leaves worthWeighingIn EMPTY (not unjudged candidates)', async () => {
   const sent = [];
   const briefing = {
     ...SAMPLE_BRIEFING,
@@ -428,11 +431,13 @@ test('synthesizeBriefing falls back to the deterministic radar when turn B yield
       }
     ]
   };
-  // radarJson omitted -> radar turn returns '{}' (no worthWeighingIn) -> fall back.
+  // radarJson omitted -> the radar JUDGE turn returns '{}' (no worthWeighingIn). The
+  // candidates are UNJUDGED noise, so they must NOT be surfaced — an empty section is honest.
+  // (Previously this fell back to the raw candidates, which is the noise-on-the-home failure
+  // mode the ruthless judgment fixes.)
   const out = await synthesizeBriefing({ briefing, profile: PROFILE, deps: twoTurnDeps(sent) });
-  assert.ok(out, 'still returns a brief (deterministic radar)');
-  assert.match(out.worthWeighingIn[0].whyYours, /custody/, 'deterministic radar survived');
-  assert.equal(out.worthWeighingIn[0].myTake, '', 'no fabricated take on fallback');
+  assert.ok(out, 'still returns a brief (the needsYou turn ran)');
+  assert.deepEqual(out.worthWeighingIn, [], 'unjudged candidates are dropped, not surfaced');
   assert.equal(sent.length, 2, 'both turns still attempted');
 });
 
