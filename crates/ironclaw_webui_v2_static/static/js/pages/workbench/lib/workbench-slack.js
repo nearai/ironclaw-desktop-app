@@ -398,13 +398,17 @@ export function classifySlackRow(row, { selfUserId, kind = 'channel' } = {}) {
   if (!self || !row) return null;
   const authoredBySelf = row.who === self;
   if (authoredBySelf) return null;
-  // A hit from the critical (fraud/legal) search always surfaces — the query was the filter.
-  if (row.critical) return 'awaiting';
   const mentionsSelf = String(row.raw || '').includes(`<@${self}>`);
+  const inThread = (row.reply_users || []).includes(self);
+  // "Directed at you" = a DM/group DM, an @-mention, or your own thread.
+  const directed = kind === 'im' || kind === 'mpim' || mentionsSelf || inThread;
+  // A critical (fraud/legal) hit always SURFACES, but it only leads as an owed reply when it's
+  // actually directed at you. A fraud/legal keyword in a channel you're not party to is worth
+  // weighing in — not an owed reply at the top of the list (which would bury real owed replies).
+  if (row.critical) return directed ? 'awaiting' : 'weighin';
   if (mentionsSelf) return 'awaiting';
   // 1:1 DMs and group DMs are direct conversations — a message there is for you.
   if (kind === 'im' || kind === 'mpim') return 'awaiting';
-  const inThread = (row.reply_users || []).includes(self);
   if (!inThread && Number(row.reply_count || 0) >= 2) return 'weighin';
   return null;
 }
@@ -476,6 +480,12 @@ const LEGAL_RE =
 // line in a group DM must surface to the top, not sink. Kept separate for clarity + testing.
 const FRAUD_RE =
   /\b(misappropriat\w+|embezzl\w+|fraud\w*|launder\w+|stolen|theft|misconduct|conflict of interest|insider|whistleblow\w*|bribe\w*|kickback|pretence of|funds (were|are|being) (stolen|missing|misused|misappropriated))\b/i;
+// The HIGH-PRECISION subset that earns the lead-floor (always rank to the top). Fraud +
+// regulators + active litigation are rarely casual; broad contract vocab (msa/nda/renewal/
+// charter/breach in LEGAL_RE) is NOT here — it gets the rank boost but must not floor a casual
+// DM ("did you renew parking?", "the charter flight") above a genuine owed reply.
+const REGULATORY_LEAD_RE =
+  /\b(s\.?e\.?c\.?|doj|ftc|finra|subpoena|injunction|litigation|lawsuit|cease[- ]?and[- ]?desist|whistleblow\w*)\b|\b(outside|general)\s+counsel\b/i;
 
 const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
@@ -627,6 +637,10 @@ export function scoreSlackRelevance(row, ctx = {}) {
   // earned lexical signals (family-capped, bounded nudges)
   const hasAsk = ASK_RE.test(text);
   const isLegal = LEGAL_RE.test(text) || FRAUD_RE.test(text);
+  // Only genuine high-stakes — a dedicated critical-search hit, actual fraud language, or
+  // regulators/litigation — earns the lead-floor below. Broad contract vocab (isLegal) only
+  // boosts urgency; it must not floor casual chatter to the top of "needs you now".
+  const leadStakes = Boolean(row.critical) || FRAUD_RE.test(text) || REGULATORY_LEAD_RE.test(text);
   let urg = 0;
   if (DECISION_RE.test(text)) urg += REL.decision;
   if (BLOCKER_RE.test(text)) urg += REL.blocker;
@@ -661,11 +675,13 @@ export function scoreSlackRelevance(row, ctx = {}) {
   } else if (substantive) {
     score = Math.max(score, DROP_THRESHOLD + 0.2 * clamp01(vitality - VITALITY_FLOOR));
   }
-  // Legal/regulatory/fraud substance floors ABOVE the plain-awaiting band, so a "funds being
+  // High-stakes substance floors ABOVE the plain-awaiting band, so a fresh "funds being
   // misappropriated" line LEADS its conversation (and the section) instead of being masked by
-  // the await floor and out-tied on recency by a later trivial reply. This is what makes the
-  // highest-stakes message win the per-conversation dedupe + rank to the top.
-  if (isLegal || row.critical) score = Math.max(score, 0.92);
+  // the await floor. Multiplied by recency DECAY so a *fresh* fraud/regulatory hit leads, but a
+  // stale lexical match (a pasted contract clause, a resolved 2-year-old thread) decays out of
+  // the lead instead of burying today's real owed replies. (The critical search is all-time by
+  // necessity — Composio drops `after:` from a 5-OR-term query — so decay is the staleness guard.)
+  if (leadStakes) score = Math.max(score, 0.92 * decay);
 
   let drop = false;
   let reason = 'kept';
@@ -689,6 +705,7 @@ export function scoreSlackRelevance(row, ctx = {}) {
     drop,
     reason,
     address,
+    lead: leadStakes,
     prior: Number(prior.toFixed(4)),
     vitality: Number(vitality.toFixed(4)),
     earned: Number(earned.toFixed(4)),
@@ -744,10 +761,14 @@ export function buildSlackSignals(
     emailDomainMap = {},
     userDomain = '',
     awaitingLimit = 6,
-    weighInLimit = 6
+    weighInLimit = 6,
+    footprintHistories = null
   } = {}
 ) {
-  const footprint = buildFootprint(histories, { selfUserId });
+  // Footprint = the user's behavioural reach, derived from CHANNEL history only. Search/DM
+  // rows are excluded (passed via footprintHistories) so a frequent DM partner doesn't inflate
+  // peerScore and distort unrelated channel weigh-in ranking.
+  const footprint = buildFootprint(footprintHistories || histories, { selfUserId });
   const awaitingRows = [];
   const weighInRows = [];
   for (const rows of histories || []) {
@@ -772,14 +793,21 @@ export function buildSlackSignals(
     }
     // Awaiting: collapse to the highest-scored message PER conversation, so a single chatty
     // DM/thread can't fill the section — the list stays diverse across who actually needs you.
+    // EXCEPTION: high-stakes (fraud/regulatory/critical) items are never deduped away — two
+    // distinct fraud items in one group DM must both surface (never-miss beats de-clutter).
     if (kind === 'awaiting') {
       const bestPerConv = new Map();
+      const leadItems = [];
       for (const s of kept) {
+        if (s.rel.lead) {
+          leadItems.push(s);
+          continue;
+        }
         const cid = String(s.row.channelId || s.row.id);
         const prev = bestPerConv.get(cid);
         if (!prev || s.rel.score > prev.rel.score) bestPerConv.set(cid, s);
       }
-      kept = [...bestPerConv.values()];
+      kept = [...leadItems, ...bestPerConv.values()];
     }
     return kept
       .sort((a, b) => b.rel.score - a.rel.score || Number(b.row.ts || 0) - Number(a.row.ts || 0))
@@ -857,7 +885,9 @@ export async function fetchSlackDeep({
     userMap: buildSlackUserMap(usersResult),
     botIds: buildSlackBotIdSet(usersResult),
     emailDomainMap: buildSlackEmailDomainMap(usersResult),
-    userDomain: String(email || '').split('@')[1] || ''
+    userDomain: String(email || '').split('@')[1] || '',
+    // Footprint from CHANNEL history only — DM/search rows must not inflate peer affinity.
+    footprintHistories: histories
   });
   return { ...signals, selfResolved: true };
 }

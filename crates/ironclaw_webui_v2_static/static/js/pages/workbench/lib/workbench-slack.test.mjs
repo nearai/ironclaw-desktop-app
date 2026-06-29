@@ -536,11 +536,133 @@ test('fetchSlackDeep: a group-DM (recency) AND a channel fraud hit with no @-men
   const out = await fetchSlackDeep({ read, email: 'me@near.org' });
   assert.equal(out.selfResolved, true);
   assert.match(recencyQueries[0], /^after:\d{4}-\d{2}-\d{2}$/, 'recency search is date-scoped');
-  const texts = out.awaiting.map((i) => i.text).join(' | ');
-  assert.match(texts, /vote on the contract terms/, 'group-DM message surfaced (recency)');
-  assert.match(texts, /misappropriated from the treasury/, 'channel fraud hit surfaced (critical)');
-  const fraud = out.awaiting.find((i) => /misappropriated/.test(i.text));
-  assert.equal(fraud.channel, 'finance', 'critical channel hit shows its channel');
+  const awaitingTexts = out.awaiting.map((i) => i.text).join(' | ');
+  const weighInTexts = out.weighIn.map((i) => i.text).join(' | ');
+  // directed group-DM message → awaiting (an owed reply)
+  assert.match(awaitingTexts, /vote on the contract terms/, 'directed group-DM message → awaiting');
+  // a fraud keyword in a channel you're NOT party to surfaces as weigh-in, never as a top owed
+  // reply (so it can't bury today's real owed replies — the adversarial-review fix)
+  assert.match(
+    weighInTexts,
+    /misappropriated from the treasury/,
+    'non-directed channel fraud hit → weigh-in, not awaiting'
+  );
+  assert.doesNotMatch(
+    awaitingTexts,
+    /from the treasury/,
+    'non-directed critical does NOT lead awaiting'
+  );
+});
+
+test('scoreSlackRelevance: a STALE critical hit decays out of the lead; a FRESH owed @-reply outranks it', () => {
+  // Adversarial-review regression: an all-time critical search can return an ancient lexical
+  // match (a pasted contract clause). It must NOT floor to the top over today's real owed reply.
+  const stale = scoreSlackRelevance(
+    {
+      who: 'ULEGAL',
+      channelId: 'CARCHIVE',
+      raw: 'Section 12.3: in the event of fraud or misappropriation, the company may…',
+      text: 'Section 12.3: in the event of fraud or misappropriation, the company may…',
+      ts: tsAgo(24 * 400), // ~400 days old
+      critical: true
+    },
+    { selfUserId: 'UME', kind: 'awaiting', footprint: buildFootprint([], {}) }
+  );
+  const freshReply = scoreSlackRelevance(
+    {
+      who: 'UDEV',
+      raw: 'hey <@UME> can you approve the deploy?',
+      text: 'hey can you approve the deploy?',
+      ts: tsAgo(2)
+    },
+    { selfUserId: 'UME', kind: 'awaiting', footprint: buildFootprint([], {}) }
+  );
+  assert.ok(
+    freshReply.score > stale.score,
+    `fresh owed reply (${freshReply.score}) must outrank a 400-day-old fraud-keyword paste (${stale.score})`
+  );
+  // and a FRESH critical hit still leads (the original miss must still surface at the top)
+  const freshCritical = scoreSlackRelevance(
+    {
+      who: 'UCFO',
+      channelId: 'CMPDM',
+      raw: 'funds being sent to a personal wallet under the pretence of a vote',
+      text: 'funds being sent to a personal wallet under the pretence of a vote',
+      ts: tsAgo(1),
+      critical: true
+    },
+    { selfUserId: 'UME', kind: 'awaiting', footprint: buildFootprint([], {}) }
+  );
+  assert.ok(
+    freshCritical.score >= 0.9,
+    `a fresh fraud hit still leads (got ${freshCritical.score})`
+  );
+});
+
+test('scoreSlackRelevance: broad contract vocab does NOT lead; only fraud/regulatory earns the lead-floor', () => {
+  // Adversarial-review #3: a casual DM containing a broad LEGAL_RE word ("charter") must not
+  // floor to the top over a genuine high-stakes message.
+  const casual = scoreSlackRelevance(
+    {
+      who: 'UFRIEND',
+      channelId: 'D1',
+      raw: 'btw is the charter flight still at 3?',
+      text: 'btw is the charter flight still at 3?',
+      ts: tsAgo(1)
+    },
+    { selfUserId: 'UME', kind: 'awaiting', footprint: buildFootprint([], {}) }
+  );
+  assert.equal(casual.lead, false, 'a broad contract word does not earn the lead-floor');
+  const regulatory = scoreSlackRelevance(
+    {
+      who: 'UCOUNSEL',
+      channelId: 'D2',
+      raw: 'the SEC sent a subpoena — we have to respond this week',
+      text: 'the SEC sent a subpoena — we have to respond this week',
+      ts: tsAgo(1)
+    },
+    { selfUserId: 'UME', kind: 'awaiting', footprint: buildFootprint([], {}) }
+  );
+  assert.equal(regulatory.lead, true, 'fraud/regulatory earns the lead-floor');
+  assert.ok(regulatory.score > casual.score, 'regulatory leads above casual contract-word chatter');
+});
+
+test('buildSlackSignals: two distinct high-stakes items in ONE group DM both survive dedupe', () => {
+  // Adversarial-review #4: per-conversation dedupe must not silently drop a second distinct
+  // fraud item from the same conversation (never-miss beats de-clutter).
+  const now = Math.floor(Date.now() / 1000);
+  const histories = [
+    [
+      {
+        id: 'a',
+        channelId: 'CMPDM',
+        channel: 'Group DM · x',
+        kind: 'mpim',
+        critical: true,
+        who: 'UA',
+        raw: 'funds were misappropriated from the treasury',
+        text: 'funds were misappropriated from the treasury',
+        ts: String(now - 100),
+        reply_count: 0,
+        reply_users: []
+      },
+      {
+        id: 'b',
+        channelId: 'CMPDM',
+        channel: 'Group DM · x',
+        kind: 'mpim',
+        critical: true,
+        who: 'UB',
+        raw: 'and there may be a related subpoena coming',
+        text: 'and there may be a related subpoena coming',
+        ts: String(now - 50),
+        reply_count: 0,
+        reply_users: []
+      }
+    ]
+  ];
+  const out = buildSlackSignals(histories, { selfUserId: 'UME', domain: 'near' });
+  assert.equal(out.awaiting.length, 2, 'both distinct high-stakes items in the same DM survive');
 });
 
 test('buildSlackSignals merges channels into awaiting/weighin, resolves names, links, sorts, caps', () => {
