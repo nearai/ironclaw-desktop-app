@@ -5237,8 +5237,12 @@ ${me}`;if(O.current.gateKey!==xe&&(O.current={gateKey:xe,credentialRef:null,inFl
   --wb-ink: rgba(0, 0, 0, 0.95);
   --wb-ink-2: rgba(39, 39, 39, 0.8);
   /* muted/faint darkened to meet WCAG-AA (4.5:1) for normal text on canvas + surface \u2014 at the
-     old values muted was 4.35 and faint 2.75 (unreadable metadata). A subtle tier remains. */
-  --wb-muted: rgba(39, 39, 39, 0.68);
+     old values muted was 4.35 and faint 2.75 (unreadable metadata). faint sits at the AA floor
+     (0.66) and CANNOT drop on the light bg without failing AA (unlike dark mode, where the alpha
+     is over a dark surface, so the gap there is wider at 0.56/0.48). To separate the secondary
+     (muted) from the tertiary (faint) tier without regressing AA, the secondary tier is pushed
+     darker \u2014 0.72 vs 0.66 \u2014 staying clear of ink-2 (0.80). */
+  --wb-muted: rgba(39, 39, 39, 0.72);
   --wb-faint: rgba(39, 39, 39, 0.66);
   --wb-line: rgba(0, 0, 0, 0.08);
   --wb-line-2: #f1f2f1;
