@@ -563,80 +563,77 @@ test('scoreSlackRelevance: a high-engagement celebration weigh-in is dropped (so
   assert.equal(r.drop, true, 'vitality alone cannot rescue social chatter');
 });
 
-test('scoreSlackRelevance: a busy ANNOUNCEMENT thread (anniversary) is dropped, not "worth weighing in"', () => {
-  // The live noise the operator flagged: a 4-year-anniversary post in #general with many
-  // congratulatory repliers. High distinct count must NOT force-keep it.
+// ---- Legal/regulatory substance is NEVER dropped (adversarial-review regression) -----
+// An adversarial review proved that a lexical "drop announcements" filter false-drops
+// real legal threads, because legal posts share the IDENTICAL broadcast forms ("Hi team",
+// "we heard", "anniversary", "ICYMI", "please join") as brand/celebration noise. The
+// approach was reverted in favour of a POSITIVE legal-relevance boost: these exact
+// messages must now surface (kept, never social), even from outside the footprint window.
+const LEGAL_FALSE_DROP_CASES = [
+  'Hi team, we heard from outside counsel that the SEC has questions about the token launch. We are pausing while we assess.',
+  'On the vendor MSA: we heard back, they are pushing hard on the uncapped indemnity. Thinking we hold the line on the liability cap.',
+  'Please join us to align on the cap-table changes before we file the amended charter.',
+  'ICYMI: the DOJ second request response is due and we are realigning the privilege log.'
+];
+for (const text of LEGAL_FALSE_DROP_CASES) {
+  test(`scoreSlackRelevance: legal substance surfaces (never dropped): "${text.slice(0, 32)}…"`, () => {
+    const r = scoreSlackRelevance(
+      {
+        who: 'UCOUNSEL',
+        channelId: 'CGEN',
+        thread_ts: 'tlegal',
+        raw: text,
+        text,
+        ts: tsAgo(3),
+        reply_count: 3,
+        reply_users: ['UA', 'UB', 'UC']
+      },
+      { selfUserId: 'UME', kind: 'weighin', footprint: buildFootprint([], {}) }
+    );
+    assert.equal(r.isSocial, false, 'legal substance is never treated as social/announcement');
+    assert.equal(r.drop, false, 'a CLO must see this');
+    assert.ok(r.score >= 0.34, `clears the bar (got ${r.score})`);
+  });
+}
+
+test('scoreSlackRelevance: a QUIET legal thread (one reply, no footprint) still surfaces', () => {
+  // The worst case the review flagged: the contract-anniversary auto-renewal. Few replies,
+  // no footprint — the >=3-replier force-keep does NOT apply, so the legal signal alone must
+  // carry it. (A social anniversary with no legal substance correctly does NOT get this.)
   const r = scoreSlackRelevance(
     {
-      who: 'UHR',
-      channelId: 'CGEN',
-      thread_ts: 'tann',
-      raw: "This Saturday marks <@UDAVI>'s 4-year anniversary at NEAR. Over the last four years…",
-      text: "This Saturday marks Davi's 4-year anniversary at NEAR. Over the last four years…",
-      ts: tsAgo(2),
-      reply_count: 9,
-      reply_users: ['UA', 'UB', 'UC', 'UD', 'UE']
+      who: 'UCOUNSEL',
+      channelId: 'CLEGAL',
+      thread_ts: 'tren',
+      raw: 'The MSA hits its 3-year anniversary next month, which auto-renews unless we send notice.',
+      text: 'The MSA hits its 3-year anniversary next month, which auto-renews unless we send notice.',
+      ts: tsAgo(6),
+      reply_count: 1,
+      reply_users: ['UA']
     },
     { selfUserId: 'UME', kind: 'weighin', footprint: buildFootprint([], {}) }
   );
-  assert.equal(r.isSocial, true, 'announcement language marks it social');
-  assert.equal(r.drop, true, 'a busy congratulatory thread is not a decision to weigh in on');
+  assert.equal(r.drop, false, 'a quiet contract auto-renewal is not buried');
+  assert.ok(r.score >= 0.34);
 });
 
-test('scoreSlackRelevance: a "Hi team, we heard…" broadcast announcement is dropped', () => {
+test('scoreSlackRelevance: the legal boost does NOT rescue a pure social celebration', () => {
+  // Guard: adding the legal signal must not weaken social-noise dropping for non-legal text.
   const r = scoreSlackRelevance(
     {
-      who: 'UBRAND',
+      who: 'USTRANGER',
       channelId: 'CGEN',
-      thread_ts: 'tbr',
-      raw: 'Hi team, We heard your camera called for a brand refresh. The new look ships Monday.',
-      text: 'Hi team, We heard your camera called for a brand refresh. The new look ships Monday.',
-      ts: tsAgo(1),
-      reply_count: 6,
+      thread_ts: 'tsoc',
+      raw: 'congrats team, thrilled to share we shipped! 🎉',
+      text: 'congrats team, thrilled to share we shipped! 🎉',
+      ts: tsAgo(0.5),
+      reply_count: 8,
       reply_users: ['UA', 'UB', 'UC', 'UD']
     },
     { selfUserId: 'UME', kind: 'weighin', footprint: buildFootprint([], {}) }
   );
-  assert.equal(r.isSocial, true, 'broadcast opener + "we heard" marks it an announcement');
-  assert.equal(r.drop, true);
-});
-
-test('scoreSlackRelevance: an announcement that ASKS for a decision is NOT dampened (guard holds)', () => {
-  const r = scoreSlackRelevance(
-    {
-      who: 'UBOSS',
-      channelId: 'CGEN',
-      thread_ts: 'tdec',
-      raw: 'Hi team — proud to share the new brand. One open question: do we approve the Monday launch?',
-      text: 'Hi team — proud to share the new brand. One open question: do we approve the Monday launch?',
-      ts: tsAgo(1),
-      reply_count: 4,
-      reply_users: ['UBOSS', 'UA', 'UB']
-    },
-    { selfUserId: 'UME', kind: 'weighin', footprint: STRONG_FP }
-  );
-  assert.equal(r.isSocial, false, 'a decision ask overrides the announcement opener');
-  assert.equal(r.drop, false);
-});
-
-test('scoreSlackRelevance: a real multi-person DISCUSSION with no announcement language is still kept', () => {
-  // Regression guard: the noise fix must not bury genuine debate that lacks a decision
-  // keyword (mirrors the "restructuring the org" case the product deliberately surfaces).
-  const r = scoreSlackRelevance(
-    {
-      who: 'UCOFOUNDER',
-      channelId: 'CX',
-      thread_ts: 'tdisc',
-      raw: 'leaning toward consolidating the two vendor contracts into one master agreement',
-      text: 'leaning toward consolidating the two vendor contracts into one master agreement',
-      ts: tsAgo(4),
-      reply_count: 7,
-      reply_users: ['UCOFOUNDER', 'UA', 'UB', 'UC']
-    },
-    { selfUserId: 'UME', kind: 'weighin', footprint: buildFootprint([], {}) }
-  );
-  assert.equal(r.isSocial, false);
-  assert.equal(r.drop, false, '>=3 distinct repliers on a substantive discussion is still kept');
+  assert.equal(r.isSocial, true);
+  assert.equal(r.drop, true, 'a pure celebration with no legal substance is still dropped');
 });
 
 test('scoreSlackRelevance: a 2-reply stranger thread with no ask is dropped (the core noise case)', () => {

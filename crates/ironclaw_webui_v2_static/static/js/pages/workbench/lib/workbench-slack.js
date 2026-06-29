@@ -329,7 +329,8 @@ const REL = {
   decision: 0.22,
   blocker: 0.2,
   deadline: 0.14,
-  urgencyFamilyCap: 0.4, // decision+blocker+deadline can't exceed this
+  legal: 0.22, // legal/regulatory/contract substance a CLO must weigh in on
+  urgencyFamilyCap: 0.4, // decision+blocker+deadline+legal can't exceed this
   targetNamed: 0.1, // an ask that names someone other than self
   targetBroadcast: 0.04,
   socialDampen: 0.4 // multiplier on un-addressed social/celebration chatter
@@ -352,13 +353,23 @@ const DEADLINE_RE =
   /\b(eod|eow|cob|by (today|tomorrow|mon|tue|wed|thu|fri|tonight|noon)|deadline|due (today|tomorrow|by)|time[- ]sensitive)\b/i;
 const SOCIAL_RE =
   /\b(congrat\w*|welcome|happy (birthday|friday)|kudos|shout[- ]?out|excited to|thrilled to|offsite|lunch|coffee|good morning|on (pto|vacation)|no updates|same as yesterday)\b|[🎉🥳🙌🎂]/u;
-// One-to-many ANNOUNCEMENTS / celebrations — a broadcast to the room, not a discussion
-// you weigh in on (anniversaries, "Hi team, we heard…", launch/brand announcements,
-// "proud/happy to share"). Case-insensitive (real Slack text is mixed case) and only
-// consulted under the same address===0 && !hasAsk && urg===0 guard as SOCIAL_RE, so a
-// broadcast that actually asks for a decision or flags a blocker is never dampened.
-const ANNOUNCEMENT_RE =
-  /\b(anniversary|icymi|please join (me|us)|proud to (share|announce)|happy to (share|announce)|we (heard|wanted to share|are excited)|excited to (share|announce))\b|^\s*(hi|hey|hello)\s+(team|all|everyone|folks)\b/i;
+// Legal / regulatory / contract / governance substance — a CLO must weigh in on these
+// however casually they're phrased. This is a POSITIVE relevance signal (folded into the
+// urgency family), NEVER a drop: such a thread ranks higher and is protected from the
+// social/celebration dampener.
+//
+// Why not a "drop announcements" filter? An adversarial review proved a lexical
+// announcement/celebration filter false-drops exactly these — "Hi team, we heard from
+// counsel the SEC has questions…", "the MSA's 3-year anniversary auto-renews unless we
+// give notice", "Please join us to align on the cap-table before we file the charter",
+// "ICYMI: the DOJ second request is due" — because legal posts share the *identical*
+// broadcast forms ("Hi team", "we heard", "anniversary", "icymi", "please join") as brand
+// and celebration noise. Form cannot separate them; only substance can. For a CLO a
+// false-drop here is catastrophic and a false-kept brand post is trivial, so we boost the
+// substantive signal instead of lexically filtering the noise. (Semantic de-noising of the
+// default-home weigh-in is the LLM radar's job — buildWorthWeighingInPrompt.)
+const LEGAL_RE =
+  /\b(s\.?e\.?c\.?|doj|ftc|finra|sox|regulat\w+|subpoena|injunction|litigation|lawsuit|settlement|indemnit\w+|liabilit\w+|breach|msa|nda|sow|term sheet|addendum|amendment|countersign\w*|auto[- ]?renew\w*|renewal|cap[- ]?table|cease[- ]?and[- ]?desist|charter|bylaws|tos|terms of service|privilege\w*|gdpr|data[- ]processing|dealbreaker)\b|\b(outside|general)\s+counsel\b/i;
 
 const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
@@ -509,10 +520,12 @@ export function scoreSlackRelevance(row, ctx = {}) {
 
   // earned lexical signals (family-capped, bounded nudges)
   const hasAsk = ASK_RE.test(text);
+  const isLegal = LEGAL_RE.test(text);
   let urg = 0;
   if (DECISION_RE.test(text)) urg += REL.decision;
   if (BLOCKER_RE.test(text)) urg += REL.blocker;
   if (DEADLINE_RE.test(text)) urg += REL.deadline;
+  if (isLegal) urg += REL.legal;
   urg = Math.min(urg, REL.urgencyFamilyCap);
   let earned = (hasAsk ? REL.ask : 0) + urg;
   if (hasAsk) {
@@ -521,22 +534,19 @@ export function scoreSlackRelevance(row, ctx = {}) {
   }
 
   // body + social dampener. Fires only on un-addressed chatter with NO ask AND NO
-  // urgency/decision/blocker signal — so "excited to report the sev1 outage" or
-  // "congrats, but we're blocked on sign-off" is NOT mistaken for celebration noise.
-  // Covers both peer celebration (SOCIAL_RE) and one-to-many announcements
-  // (ANNOUNCEMENT_RE: anniversaries, "Hi team, we heard…", launch/brand posts) — a busy
-  // congratulatory thread is not "worth weighing in", but a real decision discussion
-  // (no announcement language) still is.
+  // urgency/decision/blocker/legal signal — so "excited to report the sev1 outage" or
+  // "congrats, but we're blocked on sign-off" is NOT mistaken for celebration noise. Any
+  // legal/regulatory substance sets urg>0 above, so it can never be dampened here.
   let body = prior + REL.vitality * vitality + earned;
-  const isSocial =
-    address === 0 && !hasAsk && urg === 0 && (SOCIAL_RE.test(text) || ANNOUNCEMENT_RE.test(text));
+  const isSocial = address === 0 && !hasAsk && urg === 0 && SOCIAL_RE.test(text);
   if (isSocial) body *= REL.socialDampen;
 
-  // A genuine multi-person discussion (>=3 distinct repliers, not social chatter) is
-  // worth surfacing even from someone outside the recent footprint window — otherwise
-  // a busy thread among real colleagues you simply haven't posted in gets buried. Let
-  // vitality carry it over the bar so it ranks sensibly, not just survives.
-  const substantive = kind === 'weighin' && distinct >= 3 && !isSocial;
+  // A genuine multi-person discussion (>=3 distinct repliers) OR any legal/regulatory
+  // substance is worth surfacing even from outside the recent footprint window —
+  // otherwise a busy thread among colleagues you haven't posted in, or a quiet-but-
+  // critical legal thread, gets buried. Legal qualifies regardless of vitality (a
+  // CLO must see "counsel says the SEC has questions" even if only one person replied).
+  const substantive = kind === 'weighin' && !isSocial && (distinct >= 3 || isLegal);
 
   let score = Math.min(1, (0.4 + 0.6 * address) * body * decay);
   if (kind === 'awaiting') {
@@ -549,11 +559,12 @@ export function scoreSlackRelevance(row, ctx = {}) {
   let drop = false;
   let reason = 'kept';
   if (kind === 'weighin') {
-    if (haveReplyUsers && vitality < VITALITY_FLOOR) {
+    if (substantive) {
+      // kept: real multi-person discussion OR legal/regulatory substance (checked first
+      // so a quiet legal thread is never dropped by the low-vitality guard below)
+    } else if (haveReplyUsers && vitality < VITALITY_FLOOR) {
       drop = true;
       reason = 'low-vitality';
-    } else if (substantive) {
-      // kept: real multi-person discussion
     } else if (score < DROP_THRESHOLD) {
       drop = true;
       reason = 'below-threshold';
