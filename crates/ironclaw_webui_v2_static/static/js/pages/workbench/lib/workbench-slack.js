@@ -15,6 +15,18 @@
 // form reliably returns matches.
 export const SLACK_BLOCKER_QUERY = 'blocked OR blocker OR stuck OR waiting OR unblock';
 
+// High-stakes legal/financial-misconduct terms. The deep read runs these as dedicated passes
+// so a fraud/misappropriation/subpoena message ALWAYS surfaces, regardless of how recent it is
+// or which channel/DM it's in — the recency feed alone missed exactly this.
+// CRITICAL constraint: Composio's SLACK_SEARCH_MESSAGES silently returns ZERO for a query with
+// 6+ OR-terms (verified — same limit the blocker query hit). So each query is capped at FIVE
+// terms; multiple queries run in parallel to cover the vocabulary. Space=AND in Slack search,
+// so terms are OR-joined; no quoted phrases (they returned zero through Composio).
+export const SLACK_CRITICAL_QUERIES = Object.freeze([
+  'misappropriation OR misappropriated OR embezzlement OR fraud OR stolen',
+  'subpoena OR lawsuit OR injunction OR whistleblower OR litigation'
+]);
+
 // Leading boundary only, so the stem matches block/blocked/blocker/blockers/
 // blocking and unblock/unblocked alike.
 const BLOCKER_INTENT = /\b(block|stuck|unblock)/i;
@@ -249,6 +261,87 @@ export function normalizeSlackChannelList(result, { limit = 8 } = {}) {
   return rows;
 }
 
+// Readable label for a conversation a search match came from. A 1:1 DM has no name → a
+// generic "Direct message" (the author carries the who); a group DM's name is the raw
+// "mpdm-a.b--c.d--self-1" slug → the other members' first names; a channel keeps its name.
+export function cleanConversationName(channel, kind, selfHint = '') {
+  const ch = channel && typeof channel === 'object' ? channel : {};
+  if (kind === 'im') return 'Direct message';
+  if (kind === 'mpim') {
+    const slug = String(ch.name || '')
+      .replace(/^mpdm-/, '')
+      .replace(/-\d+$/, '');
+    const hint = String(selfHint || '').toLowerCase();
+    const names = slug
+      .split('--')
+      .map((p) => p.split('.')[0].trim())
+      .filter(Boolean)
+      .filter((p) => !hint || !hint.includes(p.toLowerCase()));
+    const show = names.slice(0, 3).join(', ');
+    return show ? `Group DM · ${show}` : 'Group DM';
+  }
+  return String(ch.name || '').trim();
+}
+
+// Recency feed: SLACK_SEARCH_MESSAGES with `after:<date>` + sort=timestamp returns the most
+// recent messages across EVERY conversation the user can see — channels, 1:1 DMs (im), AND
+// group DMs (mpim) — in one call. This is what gives the deep read DM/group-DM coverage at
+// all (the per-channel history fan-out only covers member CHANNELS), and catches @-mentions
+// in channels outside the read cap. Keeps: any non-self message in a DM/group DM (direct —
+// it's for you), and channel messages that @-mention you. Everything else is left to the
+// channel history read (which has the thread context the weigh-in classifier needs). Rows
+// are tagged with `kind` so the classifier treats a DM message as awaiting. [] on malformed.
+// `critical:true` is for the dedicated high-stakes query (fraud / legal / financial
+// misconduct). In that mode the QUERY itself is the relevance gate, so EVERY non-self match
+// is kept — including channel messages with no @-mention — and tagged `critical` so it always
+// classifies as awaiting and is never dropped. (A fraud alert in a channel you're in, with no
+// @you and no replies, must still surface — that asymmetry is the whole point.) Otherwise
+// (recency feed) keep only DMs/group-DMs + channel @-mentions; plain channel chatter is left
+// to the channel history read.
+export function normalizeSlackRecentSearch(result, { selfUserId = '', critical = false } = {}) {
+  if (!result || result.successful === false) return [];
+  const self = String(selfUserId || '').trim();
+  const data = slackData(result);
+  const matches = data?.messages?.matches;
+  if (!Array.isArray(matches)) return [];
+  const rows = [];
+  for (const m of matches) {
+    if (!m || typeof m !== 'object') continue;
+    const ch = m.channel && typeof m.channel === 'object' ? m.channel : {};
+    const channelId = String(ch.id || '').trim();
+    const who = String(m.user || '').trim();
+    if (!channelId || !who) continue;
+    if (self && who === self) continue; // your own message — you don't owe yourself a reply
+    const raw = String(m.text || '');
+    const text = cleanSlackText(raw);
+    if (!text) continue;
+    const isIm = Boolean(ch.is_im);
+    const isMpim = Boolean(ch.is_mpim);
+    const mentionsSelf = self && raw.includes(`<@${self}>`);
+    if (!critical && !isIm && !isMpim && !mentionsSelf) continue; // chatter → channel read handles it
+    const kind = isIm ? 'im' : isMpim ? 'mpim' : 'channel';
+    const ts = String(m.ts || '');
+    rows.push({
+      id: ts || `${channelId}:${text.slice(0, 24)}`,
+      channelId,
+      channel: cleanConversationName(ch, kind, self),
+      kind,
+      critical: Boolean(critical),
+      who,
+      raw,
+      text,
+      ts,
+      when: formatSlackWhen(ts),
+      thread_ts: String(m.thread_ts || ''),
+      reply_count: Number(m.reply_count || 0),
+      reply_users: Array.isArray(m.reply_users) ? m.reply_users.map(String) : [],
+      permalink:
+        typeof m.permalink === 'string' && /^https?:\/\//i.test(m.permalink) ? m.permalink : ''
+    });
+  }
+  return rows;
+}
+
 // Deep link to a specific Slack message. '' when any part is missing — never
 // fabricates a link (the briefing then offers copy-only).
 export function slackArchiveLink(domain, channelId, ts) {
@@ -277,6 +370,7 @@ export function normalizeSlackHistory(result, { channelId = '', channelName = ''
       id: ts || `${channelId}:${text.slice(0, 24)}`,
       channelId: String(channelId),
       channel: String(channelName),
+      kind: 'channel',
       who: String(message.user || '').trim(),
       raw,
       text,
@@ -291,20 +385,27 @@ export function normalizeSlackHistory(result, { channelId = '', channelName = ''
 }
 
 // Classify a history row for the signed-in user. 'awaiting' | 'weighin' | null.
-//  awaiting  — someone @-mentioned you and it is not your own message: you owe a reply.
-//  weighin   — an active thread (>=2 replies) you neither started, were tagged in, nor
-//              joined: a decision forming without you.
+//  awaiting  — someone @-mentioned you, OR it's a message in your 1:1 DM or group DM and
+//              not your own: it's directed at you, you likely owe a reply / must see it.
+//  weighin   — an active CHANNEL thread (>=2 replies) you neither started, were tagged in,
+//              nor joined: a decision forming without you.
+// `kind` is the conversation type ('channel' | 'im' | 'mpim'). A DM/group-DM is inherently
+// direct, so a non-self message there is awaiting even without an explicit @-mention — this
+// is what stops a fraud/legal message in a group DM from being silently missed.
 // Biased to safety: only positive evidence flags an item; everything else is null.
-export function classifySlackRow(row, { selfUserId } = {}) {
+export function classifySlackRow(row, { selfUserId, kind = 'channel' } = {}) {
   const self = String(selfUserId || '').trim();
   if (!self || !row) return null;
   const authoredBySelf = row.who === self;
+  if (authoredBySelf) return null;
+  // A hit from the critical (fraud/legal) search always surfaces — the query was the filter.
+  if (row.critical) return 'awaiting';
   const mentionsSelf = String(row.raw || '').includes(`<@${self}>`);
-  if (mentionsSelf && !authoredBySelf) return 'awaiting';
+  if (mentionsSelf) return 'awaiting';
+  // 1:1 DMs and group DMs are direct conversations — a message there is for you.
+  if (kind === 'im' || kind === 'mpim') return 'awaiting';
   const inThread = (row.reply_users || []).includes(self);
-  if (!mentionsSelf && !authoredBySelf && !inThread && Number(row.reply_count || 0) >= 2) {
-    return 'weighin';
-  }
+  if (!inThread && Number(row.reply_count || 0) >= 2) return 'weighin';
   return null;
 }
 
@@ -370,6 +471,11 @@ const SOCIAL_RE =
 // default-home weigh-in is the LLM radar's job — buildWorthWeighingInPrompt.)
 const LEGAL_RE =
   /\b(s\.?e\.?c\.?|doj|ftc|finra|sox|regulat\w+|subpoena|injunction|litigation|lawsuit|settlement|indemnit\w+|liabilit\w+|breach|msa|nda|sow|term sheet|addendum|amendment|countersign\w*|auto[- ]?renew\w*|renewal|cap[- ]?table|cease[- ]?and[- ]?desist|charter|bylaws|tos|terms of service|privilege\w*|gdpr|data[- ]processing|dealbreaker)\b|\b(outside|general)\s+counsel\b/i;
+// Financial misconduct / fraud — the single highest-stakes class for a CLO. Folded into the
+// same positive urgency boost as LEGAL_RE (never a drop): a "funds were misappropriated"
+// line in a group DM must surface to the top, not sink. Kept separate for clarity + testing.
+const FRAUD_RE =
+  /\b(misappropriat\w+|embezzl\w+|fraud\w*|launder\w+|stolen|theft|misconduct|conflict of interest|insider|whistleblow\w*|bribe\w*|kickback|pretence of|funds (were|are|being) (stolen|missing|misused|misappropriated))\b/i;
 
 const clamp01 = (n) => (n < 0 ? 0 : n > 1 ? 1 : n);
 
@@ -520,7 +626,7 @@ export function scoreSlackRelevance(row, ctx = {}) {
 
   // earned lexical signals (family-capped, bounded nudges)
   const hasAsk = ASK_RE.test(text);
-  const isLegal = LEGAL_RE.test(text);
+  const isLegal = LEGAL_RE.test(text) || FRAUD_RE.test(text);
   let urg = 0;
   if (DECISION_RE.test(text)) urg += REL.decision;
   if (BLOCKER_RE.test(text)) urg += REL.blocker;
@@ -555,6 +661,11 @@ export function scoreSlackRelevance(row, ctx = {}) {
   } else if (substantive) {
     score = Math.max(score, DROP_THRESHOLD + 0.2 * clamp01(vitality - VITALITY_FLOOR));
   }
+  // Legal/regulatory/fraud substance floors ABOVE the plain-awaiting band, so a "funds being
+  // misappropriated" line LEADS its conversation (and the section) instead of being masked by
+  // the await floor and out-tied on recency by a later trivial reply. This is what makes the
+  // highest-stakes message win the per-conversation dedupe + rank to the top.
+  if (isLegal || row.critical) score = Math.max(score, 0.92);
 
   let drop = false;
   let reason = 'kept';
@@ -612,7 +723,9 @@ function toSlackItem(row, domain, userMap, score) {
     // ts. Carried through so a gated Slack reply lands in the right place, not the channel root.
     thread_ts: row.thread_ts || row.ts,
     score,
-    replyHref: slackArchiveLink(domain, row.channelId, row.thread_ts || row.ts)
+    // Prefer a real permalink (search matches carry one, esp. for DMs where the archive-link
+    // shape is less reliable); else synthesize the archive deep link.
+    replyHref: row.permalink || slackArchiveLink(domain, row.channelId, row.thread_ts || row.ts)
   };
 }
 
@@ -639,9 +752,9 @@ export function buildSlackSignals(
   const weighInRows = [];
   for (const rows of histories || []) {
     for (const row of rows || []) {
-      const kind = classifySlackRow(row, { selfUserId });
-      if (kind === 'awaiting') awaitingRows.push(row);
-      else if (kind === 'weighin') weighInRows.push(row);
+      const cls = classifySlackRow(row, { selfUserId, kind: row.kind || 'channel' });
+      if (cls === 'awaiting') awaitingRows.push(row);
+      else if (cls === 'weighin') weighInRows.push(row);
     }
   }
   const ctxBase = { selfUserId, footprint, botIds, emailDomainMap, userDomain };
@@ -656,6 +769,17 @@ export function buildSlackSignals(
         .filter((s) => s.rel.reason !== 'hard-noise')
         .sort((a, b) => b.rel.score - a.rel.score)[0];
       if (best) kept = [best];
+    }
+    // Awaiting: collapse to the highest-scored message PER conversation, so a single chatty
+    // DM/thread can't fill the section — the list stays diverse across who actually needs you.
+    if (kind === 'awaiting') {
+      const bestPerConv = new Map();
+      for (const s of kept) {
+        const cid = String(s.row.channelId || s.row.id);
+        const prev = bestPerConv.get(cid);
+        if (!prev || s.rel.score > prev.rel.score) bestPerConv.set(cid, s);
+      }
+      kept = [...bestPerConv.values()];
     }
     return kept
       .sort((a, b) => b.rel.score - a.rel.score || Number(b.row.ts || 0) - Number(a.row.ts || 0))
@@ -673,15 +797,38 @@ export function buildSlackSignals(
 // identity FIRST and bails to the honest-empty degrade the instant the signed-in
 // user cannot be matched — so a missing scope or wrong workspace never fabricates a
 // classification. Returns { awaiting, weighIn, selfResolved }.
-export async function fetchSlackDeep({ read, email, channelLimit = 8 } = {}) {
+export async function fetchSlackDeep({
+  read,
+  email,
+  channelLimit = 10,
+  windowDays = 4,
+  recentCount = 80
+} = {}) {
   const empty = { awaiting: [], weighIn: [], selfResolved: false };
   if (typeof read !== 'function') return empty;
-  const [lookupResult, usersResult, channelsResult, teamResult] = await Promise.all([
-    email ? read('SLACK_FIND_USER_BY_EMAIL_ADDRESS', { email }) : null,
-    read('SLACK_LIST_ALL_USERS', { limit: 200 }),
-    read('SLACK_LIST_ALL_CHANNELS', { limit: 200 }),
-    read('SLACK_FETCH_TEAM_INFO', {})
-  ]);
+  // Recency window for the cross-conversation search (covers DMs/group-DMs the per-channel
+  // history fan-out can't reach). Date-only `after:` is what Slack search accepts.
+  const since = new Date(Date.now() - Math.max(1, windowDays) * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  const [lookupResult, usersResult, channelsResult, teamResult, recentResult, ...criticalResults] =
+    await Promise.all([
+      email ? read('SLACK_FIND_USER_BY_EMAIL_ADDRESS', { email }) : null,
+      read('SLACK_LIST_ALL_USERS', { limit: 200 }),
+      read('SLACK_LIST_ALL_CHANNELS', { limit: 200 }),
+      read('SLACK_FETCH_TEAM_INFO', {}),
+      read('SLACK_SEARCH_MESSAGES', {
+        query: `after:${since}`,
+        count: recentCount,
+        sort: 'timestamp'
+      }),
+      // High-stakes safety net: a fraud/legal hit must surface even if it's older than the
+      // recency window or buried beyond the recency count cap. One read per ≤5-term query
+      // (Composio's search returns zero for 6+ OR-terms).
+      ...SLACK_CRITICAL_QUERIES.map((query) =>
+        read('SLACK_SEARCH_MESSAGES', { query, count: 12, sort: 'timestamp' })
+      )
+    ]);
   // Identity by direct email→id lookup first (workspace-size independent); fall back to
   // scanning the (truncated) member list only when the lookup is unavailable. Without
   // this, a >200-member org never resolves the signed-in user and the read goes empty.
@@ -697,7 +844,14 @@ export async function fetchSlackDeep({ read, email, channelLimit = 8 } = {}) {
       )
     )
   );
-  const signals = buildSlackSignals(histories, {
+  // The recency feed adds DMs + group DMs (+ channel @-mentions outside the read cap); the
+  // critical feed guarantees fraud/legal hits surface from anywhere, any age — together the
+  // coverage that made an urgent group-DM (funds misappropriation) invisible before.
+  const recentRows = normalizeSlackRecentSearch(recentResult, { selfUserId: self.userId });
+  const criticalRows = criticalResults.flatMap((res) =>
+    normalizeSlackRecentSearch(res, { selfUserId: self.userId, critical: true })
+  );
+  const signals = buildSlackSignals([...histories, recentRows, criticalRows], {
     selfUserId: self.userId,
     domain: slackTeamDomain(teamResult),
     userMap: buildSlackUserMap(usersResult),

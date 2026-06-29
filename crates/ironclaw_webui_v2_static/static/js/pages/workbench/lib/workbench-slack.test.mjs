@@ -11,9 +11,11 @@ import {
   fetchSlackDeep,
   isBotAuthor,
   isSlackBlockerIntent,
+  cleanConversationName,
   normalizeSlackBlockers,
   normalizeSlackChannelList,
   normalizeSlackHistory,
+  normalizeSlackRecentSearch,
   resolveSlackSelf,
   resolveSlackSelfFromLookup,
   scoreSlackRelevance,
@@ -358,6 +360,187 @@ test('classifySlackRow: @mention of me = awaiting; absent active thread = weighi
     classifySlackRow({ who: 'UCARLA', raw: 'ping <@UME>', reply_count: 0 }, { selfUserId: '' }),
     null
   );
+});
+
+test('classifySlackRow: a non-self message in a DM or group DM is awaiting, even with no @-mention', () => {
+  const self = { selfUserId: 'UME' };
+  // 1:1 DM from someone else → directed at you
+  assert.equal(
+    classifySlackRow(
+      { who: 'UCARLA', raw: 'can we sync on the term sheet', reply_count: 0 },
+      { ...self, kind: 'im' }
+    ),
+    'awaiting'
+  );
+  // group DM broadcast (@channel, no <@UME>) → still for you
+  assert.equal(
+    classifySlackRow(
+      { who: 'UCARLA', raw: 'Hi <!channel>, funds were misappropriated', reply_count: 0 },
+      { ...self, kind: 'mpim' }
+    ),
+    'awaiting'
+  );
+  // your own DM message → not awaiting (you already replied)
+  assert.equal(
+    classifySlackRow({ who: 'UME', raw: 'on it', reply_count: 0 }, { ...self, kind: 'im' }),
+    null
+  );
+  // the SAME quiet message in a CHANNEL (not a DM) is NOT awaiting — channels need a mention/thread
+  assert.equal(
+    classifySlackRow(
+      { who: 'UCARLA', raw: 'can we sync', reply_count: 0 },
+      { ...self, kind: 'channel' }
+    ),
+    null
+  );
+});
+
+test('cleanConversationName: DM, group DM (drops self), and channel render readably', () => {
+  assert.equal(cleanConversationName({ is_im: true, id: 'D1' }, 'im'), 'Direct message');
+  assert.equal(
+    cleanConversationName(
+      { is_mpim: true, name: 'mpdm-bianca.guimaraes--david.norris--abhishek.vaidyanathan-1' },
+      'mpim',
+      'U0 abhishek'
+    ),
+    'Group DM · bianca, david'
+  );
+  assert.equal(cleanConversationName({ name: 'legal' }, 'channel'), 'legal');
+});
+
+test('normalizeSlackRecentSearch: keeps DMs/group-DMs + channel @-mentions, drops self + plain channel chatter', () => {
+  const result = {
+    successful: true,
+    data: {
+      data: {
+        messages: {
+          matches: [
+            // group DM — kept (direct), tagged mpim
+            {
+              user: 'UCARLA',
+              ts: '1781279600.1',
+              text: 'pretence of funds being misappropriated',
+              channel: { id: 'C9', name: 'mpdm-carla--abhishek.vaidyanathan-1', is_mpim: true },
+              permalink: 'https://x.slack.com/archives/C9/p1'
+            },
+            // 1:1 DM — kept (direct), tagged im
+            {
+              user: 'UDANA',
+              ts: '1781279500.1',
+              text: 'quick q on the MSA',
+              channel: { id: 'D1', is_im: true }
+            },
+            // channel @-mention of me — kept
+            {
+              user: 'UBOB',
+              ts: '1781279400.1',
+              text: 'hey <@UME> please review',
+              channel: { id: 'C1', name: 'legal' }
+            },
+            // plain channel chatter (no mention) — dropped (channel read handles it)
+            {
+              user: 'UBOB',
+              ts: '1781279300.1',
+              text: 'shipping the feature',
+              channel: { id: 'C1', name: 'legal' }
+            },
+            // my own message — dropped
+            { user: 'UME', ts: '1781279200.1', text: 'thanks', channel: { id: 'D1', is_im: true } }
+          ]
+        }
+      }
+    }
+  };
+  const rows = normalizeSlackRecentSearch(result, { selfUserId: 'UME' });
+  assert.equal(
+    rows.length,
+    3,
+    'group DM + 1:1 DM + channel @-mention kept; chatter + self dropped'
+  );
+  const byId = Object.fromEntries(rows.map((r) => [r.channelId, r]));
+  assert.equal(byId.C9.kind, 'mpim');
+  assert.equal(byId.D1.kind, 'im');
+  assert.equal(byId.C1.kind, 'channel');
+  assert.equal(byId.C9.permalink, 'https://x.slack.com/archives/C9/p1');
+  assert.deepEqual(normalizeSlackRecentSearch({ successful: false }, { selfUserId: 'UME' }), []);
+});
+
+test('fetchSlackDeep: a group-DM (recency) AND a channel fraud hit with no @-mention (critical) both surface', async () => {
+  // The exact failures the operator hit: (a) an urgent message in a GROUP DM, which the
+  // per-channel history fan-out (member CHANNELS only) can't reach — covered by the recency
+  // search; and (b) a fraud message in a channel with NO @-mention and NO replies, which the
+  // recency feed + normal classifier would skip — covered by the dedicated critical search.
+  const recencyQueries = [];
+  const read = async (tool, args) => {
+    if (tool === 'SLACK_FIND_USER_BY_EMAIL_ADDRESS')
+      return { successful: true, data: { user: { id: 'UME', profile: { display_name: 'Abhi' } } } };
+    if (tool === 'SLACK_LIST_ALL_USERS')
+      return {
+        successful: true,
+        data: { data: { members: [{ id: 'UME', profile: { email: 'me@near.org' } }] } }
+      };
+    if (tool === 'SLACK_LIST_ALL_CHANNELS')
+      return {
+        successful: true,
+        data: { channels: [{ id: 'C1', name: 'legal', is_member: true }] }
+      };
+    if (tool === 'SLACK_FETCH_TEAM_INFO')
+      return { successful: true, data: { team: { domain: 'near-foundation' } } };
+    if (tool === 'SLACK_FETCH_CONVERSATION_HISTORY')
+      return { successful: true, data: { messages: [] } }; // channel quiet — the miss happens here
+    if (tool === 'SLACK_SEARCH_MESSAGES') {
+      const q = String(args.query || '');
+      if (q.startsWith('after:')) {
+        recencyQueries.push(q);
+        return {
+          successful: true,
+          data: {
+            messages: {
+              matches: [
+                {
+                  user: 'UKONRAD',
+                  ts: '1781279600.5',
+                  text: 'the issue here is a vote on the contract terms',
+                  channel: {
+                    id: 'CMPDM',
+                    name: 'mpdm-konrad.merino--abhishek.vaidyanathan-1',
+                    is_mpim: true
+                  },
+                  permalink: 'https://near-foundation.slack.com/archives/CMPDM/p1'
+                }
+              ]
+            }
+          }
+        };
+      }
+      // the critical (fraud/legal) query: a channel message, NO @UME, NO replies
+      return {
+        successful: true,
+        data: {
+          messages: {
+            matches: [
+              {
+                user: 'UFINANCE',
+                ts: '1781279500.9',
+                text: 'flagging that funds appear to have been misappropriated from the treasury',
+                channel: { id: 'CFIN', name: 'finance', is_im: false, is_mpim: false },
+                permalink: 'https://near-foundation.slack.com/archives/CFIN/p9'
+              }
+            ]
+          }
+        }
+      };
+    }
+    return null;
+  };
+  const out = await fetchSlackDeep({ read, email: 'me@near.org' });
+  assert.equal(out.selfResolved, true);
+  assert.match(recencyQueries[0], /^after:\d{4}-\d{2}-\d{2}$/, 'recency search is date-scoped');
+  const texts = out.awaiting.map((i) => i.text).join(' | ');
+  assert.match(texts, /vote on the contract terms/, 'group-DM message surfaced (recency)');
+  assert.match(texts, /misappropriated from the treasury/, 'channel fraud hit surfaced (critical)');
+  const fraud = out.awaiting.find((i) => /misappropriated/.test(i.text));
+  assert.equal(fraud.channel, 'finance', 'critical channel hit shows its channel');
 });
 
 test('buildSlackSignals merges channels into awaiting/weighin, resolves names, links, sorts, caps', () => {
