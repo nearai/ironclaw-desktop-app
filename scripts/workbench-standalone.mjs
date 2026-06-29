@@ -143,8 +143,11 @@ const req = async (m, p, b) => {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Wait for the gateway core to answer (its /llm/providers). Used on first boot
-// AND after a supervisor respawn.
-async function waitForGatewayReady(tries = 60) {
+// AND after a supervisor respawn. 120 tries × 500ms = 60s: the gateway now
+// auto-activates the bundled web-access extension at boot (materializes its assets),
+// which can push first-boot readiness past the old 30s ceiling — giving up early
+// then killed a gateway that was about to come up.
+async function waitForGatewayReady(tries = 240) {
   for (let i = 0; i < tries; i++) {
     if ((await req('GET', `${B}/llm/providers`)).s === 200) return true;
     await sleep(500);
