@@ -1,4 +1,17 @@
 export const WORKBENCH_COMMAND_STYLE = `.wb13-command { padding-top: 16px; }
+/* A visible focal anchor for the column — the well opened with no heading, so the placeholder
+   carried all the framing and the eye had nowhere to land. One quiet display question, no sub
+   (the boundary line + placeholder carry the rest). */
+.wb13-command-head { margin: 2px 0 15px; }
+.wb13-command-head h1 {
+  margin: 0;
+  font-family: var(--wb-font-display);
+  font-size: 24px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--wb-ink);
+}
 .wb13-sr-only {
   position: absolute;
   width: 1px;

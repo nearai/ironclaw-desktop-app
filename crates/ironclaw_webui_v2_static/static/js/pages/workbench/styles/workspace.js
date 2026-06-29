@@ -544,6 +544,14 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   padding: 14px 16px;
 }
 .wb13-card:hover { border-color: var(--wb-muted); }
+/* The single most actionable band — "Needs a decision" — out-ranks the flat reply/FYI cards
+   through depth (a warm border + a subtle shadow), not a side stripe. Its gold status pill
+   stays on the canvas fill, so the elevation reads without muddying the pill. */
+.wb13-card.is-decision {
+  border-color: var(--wb-hold-line);
+  box-shadow: var(--wb-shadow);
+}
+.wb13-card.is-decision:hover { border-color: var(--wb-hold); }
 .wb13-skel-card { pointer-events: none; }
 .wb13-skel-card .wb13-card-main { flex: 1; min-width: 0; }
 .wb13-skel-head { height: 16px; width: 110px; border-radius: 6px; margin: 2px 0 12px; }

@@ -186,7 +186,9 @@ export function WorkbenchCommandSurface({
 
   return html`
     <div className="wb13-command">
-      <h1 className="wb13-sr-only">Ask IronClaw</h1>
+      <div className="wb13-command-head">
+        <h1>What do you want handled?</h1>
+      </div>
       <div
         className=${cn('wb13-well', dragOver && 'is-dragover')}
         onDrop=${onDrop}

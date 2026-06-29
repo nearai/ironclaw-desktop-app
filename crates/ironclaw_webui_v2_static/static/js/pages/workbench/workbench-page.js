@@ -267,7 +267,7 @@ function triageCtaLabel(row, tone) {
 function TriageCard({ row, tone, pillCls = 'is-reply', pillLabel = '' }) {
   const ctaLabel = triageCtaLabel(row, tone);
   return html`
-    <div className="wb13-card wb13-card-readable">
+    <div className=${cn('wb13-card wb13-card-readable', tone === 'hold' && 'is-decision')}>
       <div className="wb13-card-main">
         <div className="wb13-card-status">
           <span className=${cn('wb13-status-pill', pillCls)}>${pillLabel}</span>
@@ -406,13 +406,6 @@ function HomeView(props) {
             isLoading=${props.connectorsLoading}
             onConnect=${props.onConnectSources}
           />
-          ${centerFilter === 'all'
-            ? html`<${WorkbenchNotionNew}
-                pages=${newNotionPages}
-                onOpen=${props.onOpenMessage}
-                onReviewed=${markNotionReviewed}
-              />`
-            : null}
           ${showSkeleton ? html`<${WorkbenchTriageSkeleton} />` : null}
           ${showTriageHeader
             ? html`
@@ -509,6 +502,19 @@ function HomeView(props) {
                   Show all
                 </button>
               </div>`
+            : null}
+          ${
+            /* FYI cluster — below everything actionable. "New in Notion" is recent-activity
+                context, not work that needs the user; it sits beneath the Triage cockpit and
+                the owed replies so the column answers "what needs me?" first (DESIGN.md Law 1),
+                then "what changed?". */ ''
+          }
+          ${centerFilter === 'all'
+            ? html`<${WorkbenchNotionNew}
+                pages=${newNotionPages}
+                onOpen=${props.onOpenMessage}
+                onReviewed=${markNotionReviewed}
+              />`
             : null}
           ${centerFilter === 'all' && hasReviewableSavedWork
             ? html`<${WorkPacketPreview}
