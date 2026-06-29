@@ -78,9 +78,10 @@ Make the DEFAULT home proactively surface what matters, not on-demand only.
 - [x] **Notion new-creation surfacing (v1)** — SHIPPED + live-verified (commit a399f56). "New in
   Notion" home band: pages created/edited within 7d not yet reviewed, Created/Updated pills, opens
   in-app reader, "Mark reviewed" diffs a localStorage seen-map; honest-empty. lib + 6 unit tests.
-- [ ] **Notion content gist (v2, next ladder level)**: for each new page, read content
-  (NOTION_FETCH_BLOCK_CONTENTS — now fixed) and show a 1–2 line gist (first blocks, or a batched LLM
-  summary) so the band says WHAT the new Passport is, not just that it exists.
+- [x] **Notion content gist (v2)** — SHIPPED + verified (commit fa81ac0). Each band card reads
+  NOTION_FETCH_BLOCK_CONTENTS and shows a 1-line gist of what the page is (pure notionGist, 3 unit
+  tests, honest-empty + quiet "Reading…"). Live: per-card read fires; standalone stub pages return
+  0 blocks → honest-empty (correct); populates for content-bearing pages.
 - [x] **Slack matters-surfacing on the default home** — SHIPPED + verified (commit 6e3ab5e).
   "Worth weighing in" now surfaces on the DEFAULT home alongside "awaiting your reply" (was
   briefing-only), ranked by FootprintGatedRelevance, honest-empty. Generalized WorkbenchSlackReplies
@@ -106,3 +107,4 @@ Make the DEFAULT home proactively surface what matters, not on-demand only.
   tests + a 7-level LADDER. Loop iter 1: P1a "New in Notion" surfacing SHIPPED + live-verified
   (a399f56, pushed 16dce35); L1 boot/load + L4-Notion green. Next: P1a content gist OR P1b Slack-on-home.
 - 2026-06-28: Loop iter 2: P1b Slack 'worth weighing in' on the default home SHIPPED + verified (6e3ab5e, pushed bc3766c). L4-Slack green (a11y 144). Next: P2 conversation history OR Notion content gist OR P3 UX craft.
+- 2026-06-28: Loop iter 3: P1a v2 Notion content gist SHIPPED + verified (fa81ac0, pushed 94cb5a2; static 954, a11y 144). Proactive vision fully done (Notion surfacing+gist, Slack awaiting+weigh-in). Next: P2 conversation history (enables L7 reopen) OR P3 UX craft.
