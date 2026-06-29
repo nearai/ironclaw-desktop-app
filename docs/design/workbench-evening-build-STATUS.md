@@ -97,6 +97,9 @@ Make the DEFAULT home proactively surface what matters, not on-demand only.
   distinguishable. 4 unit tests; live: an Ask shows its exact question in History.
 
 ### P3 — UX/UI craft pass (#8)
+- [x] **Pass 1 — calm home headers** (commit e777fe3): aligned the proactive bands to one quiet
+  sentence-case label (dropped the uppercase eyebrow tell + accent-pill count); Triage stays the
+  single focal heading. Light+dark verified. Next passes below.
 - [ ] Spacing/hierarchy/states across the shell + cockpit using the installed craft skills
   (interface-design, make-interfaces-feel-better, baseline-ui). One focal point per view; quiet rail;
   consistent card rhythm; loading/empty/error dignity.
@@ -113,3 +116,4 @@ Make the DEFAULT home proactively surface what matters, not on-demand only.
 - 2026-06-28: Loop iter 3: P1a v2 Notion content gist SHIPPED + verified (fa81ac0, pushed 94cb5a2; static 954, a11y 144). Proactive vision fully done (Notion surfacing+gist, Slack awaiting+weigh-in). Next: P2 conversation history (enables L7 reopen) OR P3 UX craft.
 - 2026-06-29: Loop iter 4: P2 conversation history + reopen SHIPPED + verified (9e1390d, pushed fe456d2; static 954, a11y 145; ladder L7 green live). Next: thread-title follow-up OR P3 UX craft pass.
 - 2026-06-29: Loop iter 5: cleaner History thread titles SHIPPED + verified (4a4d825, pushed 2706d16; static 958, a11y 145). P1+P2 fully done (vision + history + titles). Next: P3 UX craft pass (interface-design / make-interfaces-feel-better).
+- 2026-06-29: Loop iter 6: P3 UX pass 1 (calm consistent home headers) SHIPPED + verified light+dark (e777fe3, pushed f6d49b2; static 958, a11y 145, design DT green). Next: more UX passes (rail quiet, card rhythm, empty/error dignity) or other follow-ups.
