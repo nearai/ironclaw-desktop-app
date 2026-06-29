@@ -41,6 +41,7 @@ import { fetchWorkbenchFeed, workbenchFeedReadSupported } from './lib/workbench-
 import { buildWorkbenchStateRail } from './lib/workbench-state.js';
 import { readTierOverrides } from './lib/workbench-profile-overrides.js';
 import { readDismissals, dismissRow, learnedIgnoreSenders } from './lib/workbench-dismissals.js';
+import { recordVoiceSample, effectiveVoiceDirective } from './lib/workbench-voice-store.js';
 import { selectTriageInbox, answeredThreadIndex } from './lib/workbench-connectors.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
@@ -907,6 +908,7 @@ export function WorkbenchPage() {
     }
     generateSuggestedReply({
       message,
+      voice: effectiveVoiceDirective(WORKBENCH_PROFILE.voiceSample),
       deps: { createThread, sendMessage, fetchTimeline, timezone }
     })
       .then((reply) => {
@@ -934,6 +936,9 @@ export function WorkbenchPage() {
         arguments: draftWriteArguments(fields)
       });
       const ok = Boolean(response) && response.successful !== false;
+      // Learn from the reply the user actually drafted, so the next "Draft in my voice"
+      // sounds more like them (the captured body feeds effectiveVoiceDirective).
+      if (ok) recordVoiceSample(fields?.body);
       setDraftResult({
         ok,
         draftId: ok ? createdDraftId(response) : '',
@@ -973,6 +978,7 @@ export function WorkbenchPage() {
     }
     generateSuggestedReply({
       message: { sender: item.who, channel: item.channel, messageText: item.text },
+      voice: effectiveVoiceDirective(WORKBENCH_PROFILE.voiceSample),
       deps: { createThread, sendMessage, fetchTimeline, timezone }
     })
       .then((reply) => {
@@ -987,6 +993,9 @@ export function WorkbenchPage() {
     if (!value) return false;
     try {
       await navigator.clipboard.writeText(value);
+      // Learn from what the user actually sends: the copied reply becomes a voice sample
+      // so the next "Draft in my voice" sounds more like them.
+      recordVoiceSample(value);
       return true;
     } catch (_) {
       return false;
@@ -1015,6 +1024,7 @@ export function WorkbenchPage() {
           arguments: args
         });
         const ok = Boolean(response) && response.successful !== false;
+        if (ok) recordVoiceSample(value);
         setSlackReplyResult({
           ok,
           error: ok ? '' : String(response?.error || 'The reply was not posted.')
