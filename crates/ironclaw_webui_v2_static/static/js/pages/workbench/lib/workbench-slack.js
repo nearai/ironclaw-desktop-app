@@ -406,11 +406,38 @@ export function classifySlackRow(row, { selfUserId, kind = 'channel' } = {}) {
   // actually directed at you. A fraud/legal keyword in a channel you're not party to is worth
   // weighing in — not an owed reply at the top of the list (which would bury real owed replies).
   if (row.critical) return directed ? 'awaiting' : 'weighin';
-  if (mentionsSelf) return 'awaiting';
-  // 1:1 DMs and group DMs are direct conversations — a message there is for you.
+  // Reply-state gate (re-implements the skill's replystate.mjs `last_message_user===self`
+  // signal): an @-mention you've already answered IN-THREAD is handled — don't re-nag.
+  if (mentionsSelf) return inThread ? null : 'awaiting';
+  // 1:1 DMs and group DMs are direct conversations — a message there is for you (the
+  // "you posted after" handled-gate for DMs is applied centrally in buildSlackSignals).
   if (kind === 'im' || kind === 'mpim') return 'awaiting';
   if (!inThread && Number(row.reply_count || 0) >= 2) return 'weighin';
   return null;
+}
+
+// The running user's latest message ts PER conversation, read off a SLACK_SEARCH_MESSAGES
+// recency result. This is the reply-state signal the daily-briefing skill's collector derives
+// from each thread (replystate.mjs: user_messages_after_ask / last_message_user===self): if you
+// posted in a conversation AFTER an ask, you've handled it. Biased to silence — used downstream
+// to DROP an awaiting candidate older than your last message in the same conversation. {} when
+// no self id or malformed payload. Map(channelId -> max self ts as Number).
+export function slackSelfLatestByConv(result, selfUserId) {
+  const self = String(selfUserId || '').trim();
+  const map = new Map();
+  if (!self || !result || result.successful === false) return map;
+  const data = slackData(result);
+  const matches = data?.messages?.matches;
+  if (!Array.isArray(matches)) return map;
+  for (const m of matches) {
+    if (!m || typeof m !== 'object') continue;
+    if (String(m.user || '').trim() !== self) continue;
+    const ch = m.channel && typeof m.channel === 'object' ? m.channel : {};
+    const cid = String(ch.id || '').trim();
+    const ts = Number(m.ts || 0);
+    if (cid && Number.isFinite(ts) && ts > (map.get(cid) || 0)) map.set(cid, ts);
+  }
+  return map;
 }
 
 // ---- Relevance ranking: FootprintGatedRelevance (FGR) ---------------------------
@@ -762,20 +789,28 @@ export function buildSlackSignals(
     userDomain = '',
     awaitingLimit = 6,
     weighInLimit = 6,
-    footprintHistories = null
+    footprintHistories = null,
+    selfLatestByConv = null
   } = {}
 ) {
   // Footprint = the user's behavioural reach, derived from CHANNEL history only. Search/DM
   // rows are excluded (passed via footprintHistories) so a frequent DM partner doesn't inflate
   // peerScore and distort unrelated channel weigh-in ranking.
   const footprint = buildFootprint(footprintHistories || histories, { selfUserId });
+  // Reply-state gate (skill replystate.mjs): you posted in this conversation AFTER the candidate
+  // => you've handled it => it is no longer "awaiting your reply". Biased to silence.
+  const selfLatest = selfLatestByConv instanceof Map ? selfLatestByConv : new Map();
+  const handledBySelfAfter = (row) =>
+    (selfLatest.get(String(row.channelId || '')) || 0) > Number(row.ts || 0);
   const awaitingRows = [];
   const weighInRows = [];
   for (const rows of histories || []) {
     for (const row of rows || []) {
       const cls = classifySlackRow(row, { selfUserId, kind: row.kind || 'channel' });
-      if (cls === 'awaiting') awaitingRows.push(row);
-      else if (cls === 'weighin') weighInRows.push(row);
+      if (cls === 'awaiting') {
+        if (handledBySelfAfter(row)) continue; // already handled — don't re-nag
+        awaitingRows.push(row);
+      } else if (cls === 'weighin') weighInRows.push(row);
     }
   }
   const ctxBase = { selfUserId, footprint, botIds, emailDomainMap, userDomain };
@@ -879,6 +914,11 @@ export async function fetchSlackDeep({
   const criticalRows = criticalResults.flatMap((res) =>
     normalizeSlackRecentSearch(res, { selfUserId: self.userId, critical: true })
   );
+  // Reply-state signal: the running user's latest message ts per conversation, read off the
+  // recency feed (which still carries the user's OWN messages). buildSlackSignals drops any
+  // awaiting candidate older than this — i.e. one the user already responded to — so the brief
+  // never re-nags a closed loop (the daily-briefing skill's replystate.mjs gate).
+  const selfLatestByConv = slackSelfLatestByConv(recentResult, self.userId);
   const signals = buildSlackSignals([...histories, recentRows, criticalRows], {
     selfUserId: self.userId,
     domain: slackTeamDomain(teamResult),
@@ -887,7 +927,8 @@ export async function fetchSlackDeep({
     emailDomainMap: buildSlackEmailDomainMap(usersResult),
     userDomain: String(email || '').split('@')[1] || '',
     // Footprint from CHANNEL history only — DM/search rows must not inflate peer affinity.
-    footprintHistories: histories
+    footprintHistories: histories,
+    selfLatestByConv
   });
   return { ...signals, selfResolved: true };
 }

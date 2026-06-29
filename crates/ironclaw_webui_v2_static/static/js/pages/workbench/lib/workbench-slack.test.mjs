@@ -20,6 +20,7 @@ import {
   resolveSlackSelfFromLookup,
   scoreSlackRelevance,
   slackDisplayName,
+  slackSelfLatestByConv,
   SLACK_BLOCKER_QUERY,
   slackArchiveLink,
   slackTeamDomain,
@@ -227,6 +228,84 @@ test('slackDisplayName: resolved name wins; an unresolved raw id renders as a re
   assert.equal(slackDisplayName('W123456', {}), 'a teammate');
   assert.equal(slackDisplayName('', {}), 'a teammate');
   assert.equal(slackDisplayName('cameron', {}), 'cameron', 'a non-id username passes through');
+});
+
+// ---- Reply-state gate (replicates the daily-briefing skill's replystate.mjs) -------------
+test('classifySlackRow: an @-mention you already answered IN-THREAD is handled (not awaiting)', () => {
+  const self = { selfUserId: 'UME', kind: 'channel' };
+  // mentioned, you have NOT replied in-thread -> still awaiting
+  assert.equal(
+    classifySlackRow({ who: 'UCARLA', raw: 'ping <@UME> thoughts?', reply_users: [] }, self),
+    'awaiting'
+  );
+  // mentioned, but you ARE in the thread repliers -> you replied -> handled -> null
+  assert.equal(
+    classifySlackRow({ who: 'UCARLA', raw: 'ping <@UME> thoughts?', reply_users: ['UME'] }, self),
+    null
+  );
+});
+
+test('slackSelfLatestByConv: extracts the running user latest ts per conversation', () => {
+  const result = {
+    successful: true,
+    data: {
+      data: {
+        messages: {
+          matches: [
+            { user: 'UME', ts: '100.0', channel: { id: 'C1' } },
+            { user: 'UME', ts: '250.0', channel: { id: 'C1' } }, // later in C1
+            { user: 'UCARLA', ts: '999.0', channel: { id: 'C1' } }, // not self → ignored
+            { user: 'UME', ts: '50.0', channel: { id: 'C2' } }
+          ]
+        }
+      }
+    }
+  };
+  const map = slackSelfLatestByConv(result, 'UME');
+  assert.equal(map.get('C1'), 250);
+  assert.equal(map.get('C2'), 50);
+  assert.equal(slackSelfLatestByConv(result, '').size, 0, 'no self id → empty');
+});
+
+test('buildSlackSignals: drops an awaiting item the user already answered after (reply-state gate)', () => {
+  // Two DM messages from a teammate; the user posted (selfLatestByConv) AFTER the first one but
+  // before the second. The first is handled (drop); the second is still owed (keep).
+  const histories = [
+    [
+      {
+        id: 'old',
+        channelId: 'D1',
+        channel: 'Direct message',
+        kind: 'im',
+        who: 'UCARLA',
+        raw: 'early question',
+        text: 'early question',
+        ts: '100',
+        reply_count: 0,
+        reply_users: []
+      },
+      {
+        id: 'new',
+        channelId: 'D1',
+        channel: 'Direct message',
+        kind: 'im',
+        who: 'UCARLA',
+        raw: 'later question',
+        text: 'later question',
+        ts: '300',
+        reply_count: 0,
+        reply_users: []
+      }
+    ]
+  ];
+  const out = buildSlackSignals(histories, {
+    selfUserId: 'UME',
+    domain: 'near',
+    selfLatestByConv: new Map([['D1', 200]]) // you last posted at ts 200
+  });
+  const texts = out.awaiting.map((i) => i.text);
+  assert.ok(!texts.includes('early question'), 'message you already answered after is dropped');
+  assert.ok(texts.includes('later question'), 'the message after your last reply is still owed');
 });
 
 test('buildSlackUserMap maps user ids to display names', () => {

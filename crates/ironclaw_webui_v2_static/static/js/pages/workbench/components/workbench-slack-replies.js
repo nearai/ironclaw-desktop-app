@@ -46,13 +46,13 @@ function SlackReplyCard({ item, onReply }) {
         >
           Draft reply
         </button>
-        ${safeHttpUrl(item.permalink)
+        ${safeHttpUrl(item.replyHref || item.permalink)
           ? html`<a
               className="wb13-button is-sm"
-              href=${safeHttpUrl(item.permalink)}
+              href=${safeHttpUrl(item.replyHref || item.permalink)}
               target="_blank"
               rel="noopener noreferrer"
-              >Open thread</a
+              >Open in Slack</a
             >`
           : null}
       </div>
