@@ -94,6 +94,12 @@ const MemoryView = React.lazy(() =>
 const HistoryView = React.lazy(() =>
   import('./components/workbench-history.js').then((m) => ({ default: m.HistoryView }))
 );
+// The conversation surface is its own view, not an inline strip on the home — asking in
+// Work (or reopening from History) opens it here. Lazy so the run/SSE machinery stays out
+// of the cold-start bundle.
+const ChatView = React.lazy(() =>
+  import('./components/workbench-chat-view.js').then((m) => ({ default: m.ChatView }))
+);
 // Calendar is a secondary view — lazy-load it so its time-grid styles + layout
 // logic stay out of the cold-start bundle. React.lazy wants a default export, so
 // map the named CalendarView onto `.default`.
@@ -106,7 +112,6 @@ const JarvisView = React.lazy(() =>
   import('./components/workbench-jarvis.js').then((m) => ({ default: m.JarvisView }))
 );
 import { WorkPacketPreview } from './components/workbench-packet.js';
-import { WorkbenchSceneWorkspace } from './components/workbench-scenes.js';
 import { WorkbenchDock, WorkbenchNav, WorkbenchTop } from './components/workbench-shell.js';
 import { WorkbenchCommandPalette } from './components/workbench-command-palette.js';
 import { WorkbenchShortcuts } from './components/workbench-shortcuts.js';
@@ -394,7 +399,7 @@ function HomeView(props) {
   return html`
     <main className="wb13-main">
       <div className="wb13-page">
-        <div className=${cn('wb13-wrap', props.startedWork && 'is-wide')}>
+        <div className="wb13-wrap">
           <${WorkbenchCommandSurface} ...${props.commandProps} />
           <${WorkbenchColdStart}
             families=${props.connectorFamilies}
@@ -483,9 +488,6 @@ function HomeView(props) {
                 title="Slack · worth weighing in"
                 testid="workbench-slack-weighin"
               />`
-            : null}
-          ${centerFilter === 'all'
-            ? html`<${WorkbenchSceneWorkspace} work=${props.startedWork} />`
             : null}
           ${visible('decisions', 'blocked')
             ? html`<${TriageSection}
@@ -615,9 +617,9 @@ export function WorkbenchPage() {
   const [savedWorkSnapshot, setSavedWorkSnapshot] = React.useState(() => readSavedWorkSnapshot());
   const [packageTab, setPackageTab] = React.useState('overview');
   const [startedWork, setStartedWork] = React.useState(null);
-  // Reopen a past conversation (from the History view) into the run surface. The surface is
-  // a pure function of threadId; title:'' skips the clean-question swap so the real timeline
-  // renders as-is. Then route back to the home where the run surface lives.
+  // Reopen a past conversation (from the History view) into the Chat surface. The surface
+  // is a pure function of threadId; title:'' skips the clean-question swap so the real
+  // timeline renders as-is. Route to the dedicated Chat view, not the home.
   const reopenThread = React.useCallback((thread) => {
     if (!thread || !thread.id) return;
     setStartedWork({
@@ -627,14 +629,16 @@ export function WorkbenchPage() {
       preferences: null,
       startedAt: thread.updated_at || ''
     });
-    setView('home');
+    setView('chat');
   }, []);
   // Starting a Workbench Ask: remember the clean brief as the thread's local title so the
   // History view shows what the conversation was about (the gateway titles it "Workbench
-  // request" from the prompt scaffold). Then mount the run surface.
+  // request" from the prompt scaffold), then open the conversation on the dedicated Chat
+  // surface so it's a real focused conversation, not a cramped strip under triage.
   const handleStartedWork = React.useCallback((work) => {
     if (work && work.threadId && work.title) recordThreadTitle(work.threadId, work.title);
     setStartedWork(work);
+    setView('chat');
   }, []);
   // The deterministic briefing result, when the user asked a catch-up question
   // the Workbench can answer from connector data already in hand (no agent).
@@ -695,7 +699,7 @@ export function WorkbenchPage() {
       }
       if (gPending) {
         gPending = false;
-        const target = { w: 'home', m: 'memory', l: 'library' }[event.key];
+        const target = { w: 'home', c: 'chat', m: 'memory', l: 'library' }[event.key];
         if (target) {
           event.preventDefault();
           setView(target);
@@ -720,6 +724,13 @@ export function WorkbenchPage() {
         icon: 'layers',
         keywords: 'home triage queue',
         run: () => setView('home')
+      },
+      {
+        id: 'nav-chat',
+        label: 'Go to Chat',
+        icon: 'chat',
+        keywords: 'conversation ask ironclaw thread',
+        run: () => setView('chat')
       },
       {
         id: 'nav-memory',
@@ -1659,38 +1670,50 @@ export function WorkbenchPage() {
                     >
                       <${HistoryView} onReopen=${reopenThread} />
                     </${React.Suspense}>`
-                  : html`<${HomeView}
-                      commandProps=${commandProps}
-                      startedWork=${startedWork}
-                      briefing=${briefing}
-                      onDismissBriefing=${dismissBriefing}
-                      onBriefDraftReply=${onBriefDraftReply}
-                      slackBlockersActive=${slackBlockersActive}
-                      slackBlockers=${slackBlockers}
-                      onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
-                      onOpenMessage=${openMessage}
-                      groups=${railGroups}
-                      savedItems=${savedItems}
-                      packageTab=${packageTab}
-                      onPackageTab=${setPackageTab}
-                      connectorFamilies=${connectedAccounts.families}
-                      connectorsLoading=${connectedAccounts.isLoading}
-                      homeLoading=${connectedAccounts.gmailReady &&
-                      (connectorInbox.isLoading || connectorInbox.isFetching)}
-                      onConnectSources=${() => setShowSources(true)}
-                      gmailReady=${connectedAccounts.gmailReady}
-                      decisionMessages=${triageInbox}
-                      notionPages=${connectorNotion.pages}
-                      slackAwaiting=${slackDeep.awaiting}
-                      slackWeighIn=${slackDeep.weighIn}
-                      onSlackReply=${openSlackReply}
-                      calendarReady=${connectedAccounts.calendarReady}
-                      calendarEvents=${connectorCalendar.events}
-                      calendarError=${connectorCalendar.isError}
-                      onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
-                      onDraftMessage=${openDraftReply}
-                      onDismissDecision=${onDismissDecision}
-                    />`}
+                  : view === 'chat'
+                    ? html`<${React.Suspense}
+                        fallback=${html`<main className="wb13-main">
+                          <div className="wb13-page">
+                            <div className="wb13-wrap">
+                              <div className="wb13-head"><h1>Chat</h1></div>
+                            </div>
+                          </div>
+                        </main>`}
+                      >
+                        <${ChatView} work=${startedWork} onView=${setView} />
+                      </${React.Suspense}>`
+                    : html`<${HomeView}
+                        commandProps=${commandProps}
+                        startedWork=${startedWork}
+                        briefing=${briefing}
+                        onDismissBriefing=${dismissBriefing}
+                        onBriefDraftReply=${onBriefDraftReply}
+                        slackBlockersActive=${slackBlockersActive}
+                        slackBlockers=${slackBlockers}
+                        onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
+                        onOpenMessage=${openMessage}
+                        groups=${railGroups}
+                        savedItems=${savedItems}
+                        packageTab=${packageTab}
+                        onPackageTab=${setPackageTab}
+                        connectorFamilies=${connectedAccounts.families}
+                        connectorsLoading=${connectedAccounts.isLoading}
+                        homeLoading=${connectedAccounts.gmailReady &&
+                        (connectorInbox.isLoading || connectorInbox.isFetching)}
+                        onConnectSources=${() => setShowSources(true)}
+                        gmailReady=${connectedAccounts.gmailReady}
+                        decisionMessages=${triageInbox}
+                        notionPages=${connectorNotion.pages}
+                        slackAwaiting=${slackDeep.awaiting}
+                        slackWeighIn=${slackDeep.weighIn}
+                        onSlackReply=${openSlackReply}
+                        calendarReady=${connectedAccounts.calendarReady}
+                        calendarEvents=${connectorCalendar.events}
+                        calendarError=${connectorCalendar.isError}
+                        onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
+                        onDraftMessage=${openDraftReply}
+                        onDismissDecision=${onDismissDecision}
+                      />`}
         ${showSources
           ? html`<${WorkbenchSourcesInspector}
               sourceReadiness=${sourceReadiness}

@@ -33,6 +33,14 @@ export function WorkbenchNav({ view, onView, onSettings }) {
       </button>
       <button
         type="button"
+        className=${view === 'chat' ? 'is-active' : ''}
+        aria-current=${view === 'chat' ? 'page' : undefined}
+        onClick=${() => onView('chat')}
+      >
+        <${Icon} name="chat" />Chat
+      </button>
+      <button
+        type="button"
         className=${view === 'library' ? 'is-active' : ''}
         aria-current=${view === 'library' ? 'page' : undefined}
         onClick=${() => onView('library')}
@@ -284,13 +292,19 @@ export function WorkbenchTop({ view, currentUser, dockOpen, onHome, onToggleDock
         <${Icon} name="list" />
       </button>
       <div className="wb13-crumb">
-        ${view === 'library'
-          ? html`<span>Work</span><span>/</span><strong>Library</strong>`
-          : view === 'memory'
-            ? html`<span>Work</span><span>/</span><strong>Memory</strong>`
-            : view === 'calendar'
-              ? html`<span>Work</span><span>/</span><strong>Calendar</strong>`
-              : html`<strong>Work</strong>`}
+        ${view === 'chat'
+          ? html`<span>Work</span><span>/</span><strong>Chat</strong>`
+          : view === 'library'
+            ? html`<span>Work</span><span>/</span><strong>Library</strong>`
+            : view === 'memory'
+              ? html`<span>Work</span><span>/</span><strong>Memory</strong>`
+              : view === 'calendar'
+                ? html`<span>Work</span><span>/</span><strong>Calendar</strong>`
+                : view === 'history'
+                  ? html`<span>Work</span><span>/</span><strong>History</strong>`
+                  : view === 'projects'
+                    ? html`<span>Work</span><span>/</span><strong>Projects</strong>`
+                    : html`<strong>Work</strong>`}
       </div>
       <div className="wb13-spacer"></div>
       <div className="wb13-account">

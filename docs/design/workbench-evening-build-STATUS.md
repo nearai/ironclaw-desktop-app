@@ -84,11 +84,16 @@ Root causes (verified live against the standalone):
 ### PB — Chat UX: dedicated surface, not an inline bar  [HIGH]
 The conversation renders inline below the home (a cramped strip). The operator wants chat to open
 as its OWN surface — a "Chat" nav view, linked to History — so asking opens a focused conversation.
-- [ ] Move WorkbenchSceneWorkspace out of HomeView into a dedicated `view==='chat'` surface (full
-  width, focused). Ask (handleStartedWork) → setView('chat'); History reopen → setView('chat');
-  add a "Chat" nav entry; keep the home a clean triage/proactive surface (no inline conversation).
-  Keep the gated-write posture + markdown + composer. Update tests (the inline-scene assertions move
-  to the chat view). Live-verify light+dark: Ask opens the Chat surface, History reopens into it.
+- [x] **DONE (2026-06-29).** New `ChatView` (`components/workbench-chat-view.js`) renders the run
+  surface full-width on its own `view==='chat'`; removed the inline WorkbenchSceneWorkspace from
+  HomeView (+ the startedWork is-wide tie). Ask (handleStartedWork) → setView('chat'); History
+  reopen → setView('chat'); added a "Chat" nav entry (chat icon, after Work), a "Go to Chat" palette
+  command, the g→c nav chord, and the Work/Chat breadcrumb. Honest empty state when nothing's open
+  (CTAs to Work / History). Gated-write posture + markdown + composer unchanged. Tests: reframed the
+  History-reopen spec to assert the Chat surface + 2 new specs (Ask opens Chat not inline; empty
+  state). FULL gate green (961 unit / 147 a11y / DT-1..6 / smoke / bundle). LIVE-VERIFIED light+dark:
+  no inline scene on home, Chat nav becomes current on Ask, brief input gone, bundleLoads===1
+  (docs/design/evidence/chat-surface-{light,dark}.png, chat-empty-state.png).
 
 ## Ranked plan (highest value first — the vision leads)
 

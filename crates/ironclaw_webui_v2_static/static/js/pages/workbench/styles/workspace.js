@@ -868,6 +868,12 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   font-size: 13.5px;
   line-height: 1.5;
 }
+.wb13-allclear-cta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
 .wb13-alert {
   display: flex;
   align-items: center;

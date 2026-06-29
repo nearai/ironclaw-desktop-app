@@ -1608,11 +1608,50 @@ test('static workbench: History lists past conversations and reopens one into th
   await expect(list).toBeVisible();
   await expect(list).toContainText('What is a SAFE note?');
 
-  // Reopen the past conversation — it routes back into the run surface on the home (the
-  // surface is a pure function of threadId), with no hand-off to the desktop chat.
+  // Reopen the past conversation — it routes into the dedicated Chat surface (the surface
+  // is a pure function of threadId), with no hand-off to the desktop chat. The Chat nav
+  // entry becomes current, and the home command surface is no longer on screen.
   await page.getByTestId('workbench-history-row').first().click();
   await expect(page).toHaveURL(/\/v2\/workbench$/);
   await expect(page.getByTestId('workbench-scene-workspace')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Chat' })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByTestId('workbench-brief-input')).toHaveCount(0);
+});
+
+test('static workbench: Ask opens the conversation on the dedicated Chat surface, not inline on the home', async ({
+  page
+}) => {
+  const sentMessages: Array<{ path: string; body: Record<string, unknown> }> = [];
+  await installWorkbenchMocks(page, { sentMessages });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  // Home is the triage cockpit; the Chat nav exists but is not yet current.
+  await expect(page.getByTestId('workbench-brief-input')).toBeVisible();
+  const chatNav = page.getByRole('button', { name: 'Chat' });
+  await expect(chatNav).toBeVisible();
+  await expect(chatNav).not.toHaveAttribute('aria-current', 'page');
+
+  await page.getByTestId('workbench-brief-input').fill('What is a SAFE note?');
+  await page.getByTestId('workbench-send-button').click();
+  await expect.poll(() => sentMessages.length).toBe(1);
+
+  // The conversation opens on its OWN Chat surface (nav current) with the composer — and
+  // the home command surface is gone (no longer a cramped strip jammed under triage).
+  await expect(chatNav).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByTestId('workbench-scene-workspace')).toContainText('What is a SAFE note?');
+  await expect(page.getByTestId('workbench-run-composer')).toBeVisible();
+  await expect(page.getByTestId('workbench-brief-input')).toHaveCount(0);
+});
+
+test('static workbench: the Chat nav shows an honest empty state when no conversation is open', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {});
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page.getByRole('button', { name: 'Chat' }).click();
+  await expect(page.getByTestId('workbench-chat-empty')).toBeVisible();
+  await expect(page.getByTestId('workbench-scene-workspace')).toHaveCount(0);
 });
 
 test('static workbench: Projects (jarvis) view renders commitments + projects from the summary', async ({
@@ -2299,6 +2338,7 @@ test('static workbench: catch-up briefing includes Slack blocker context from a 
   // team domain). All are reads — asserting membership proves no write ever leaks.
   const SLACK_READ_ONLY_TOOLS = [
     'SLACK_SEARCH_MESSAGES',
+    'SLACK_FIND_USER_BY_EMAIL_ADDRESS',
     'SLACK_LIST_ALL_USERS',
     'SLACK_LIST_ALL_CHANNELS',
     'SLACK_FETCH_TEAM_INFO',
@@ -2571,6 +2611,7 @@ test('static workbench: Slack blocker chip runs a read-only Slack search without
         entry.toolkit === 'slack' &&
         [
           'SLACK_SEARCH_MESSAGES',
+          'SLACK_FIND_USER_BY_EMAIL_ADDRESS',
           'SLACK_LIST_ALL_USERS',
           'SLACK_LIST_ALL_CHANNELS',
           'SLACK_FETCH_TEAM_INFO',
@@ -2660,6 +2701,7 @@ test('static workbench: catch-up replaces the standalone Slack blocker panel wit
         entry.toolkit === 'slack' &&
         [
           'SLACK_SEARCH_MESSAGES',
+          'SLACK_FIND_USER_BY_EMAIL_ADDRESS',
           'SLACK_LIST_ALL_USERS',
           'SLACK_LIST_ALL_CHANNELS',
           'SLACK_FETCH_TEAM_INFO',
