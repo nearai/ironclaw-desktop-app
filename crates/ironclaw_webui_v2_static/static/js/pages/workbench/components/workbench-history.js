@@ -1,6 +1,7 @@
 import { Icon } from '../../../design-system/icons.js';
 import { html } from '../../../lib/html.js';
 import { useThreads } from '../../chat/hooks/useThreads.js';
+import { readThreadTitles, threadDisplayTitle } from '../lib/workbench-thread-titles.js';
 
 // Compact relative time for a thread's last activity. Honest-empty on an unparseable time.
 function threadWhen(iso) {
@@ -35,6 +36,8 @@ function threadMeta(thread) {
 export function HistoryView({ onReopen }) {
   const { threads, isLoading, isError, refetch } = useThreads();
   const rows = Array.isArray(threads) ? threads : [];
+  // Prefer the clean brief we remembered locally over the gateway's scaffold-derived title.
+  const titles = readThreadTitles();
   return html`
     <main className="wb13-main">
       <div className="wb13-page">
@@ -65,7 +68,7 @@ export function HistoryView({ onReopen }) {
                         >
                           <div className="wb13-card-main">
                             <div className="wb13-card-title">
-                              ${thread.title || 'Untitled conversation'}
+                              ${threadDisplayTitle(thread, titles)}
                             </div>
                             ${threadMeta(thread)
                               ? html`<div className="wb13-card-copy">${threadMeta(thread)}</div>`

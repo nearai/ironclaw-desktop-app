@@ -72,6 +72,7 @@ import {
   notionSeenAfterViewing,
   writeNotionSeen
 } from './lib/workbench-notion-new.js';
+import { recordThreadTitle } from './lib/workbench-thread-titles.js';
 import {
   WorkbenchSlackReplies,
   WorkbenchSlackCompose
@@ -628,6 +629,13 @@ export function WorkbenchPage() {
     });
     setView('home');
   }, []);
+  // Starting a Workbench Ask: remember the clean brief as the thread's local title so the
+  // History view shows what the conversation was about (the gateway titles it "Workbench
+  // request" from the prompt scaffold). Then mount the run surface.
+  const handleStartedWork = React.useCallback((work) => {
+    if (work && work.threadId && work.title) recordThreadTitle(work.threadId, work.title);
+    setStartedWork(work);
+  }, []);
   // The deterministic briefing result, when the user asked a catch-up question
   // the Workbench can answer from connector data already in hand (no agent).
   const [briefing, setBriefing] = React.useState(null);
@@ -1095,7 +1103,7 @@ export function WorkbenchPage() {
     connectorFamilies: connectedAccounts.families,
     liveSourceData,
     cadence,
-    onStartedWork: setStartedWork
+    onStartedWork: handleStartedWork
   });
 
   React.useEffect(() => {
