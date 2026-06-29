@@ -777,6 +777,18 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   cursor: pointer;
 }
 .wb13-card-open:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 3px; border-radius: 8px; }
+/* Visible keyboard focus across the interactive Workbench surfaces — it was nearly absent, so
+   keyboard users could not see where focus was. Token-based ring; only shows on keyboard focus
+   (:focus-visible), so it never adds noise for mouse users. */
+.wb13-button:focus-visible,
+.wb13-chip:focus-visible,
+.wb13-card:focus-visible,
+.wb13-notionnew-card:focus-visible,
+.wb13-notionnew-clear:focus-visible,
+.wb13-dock-item:focus-visible {
+  outline: 2px solid var(--wb-accent);
+  outline-offset: 2px;
+}
 .wb13-button {
   display: inline-flex;
   align-items: center;
