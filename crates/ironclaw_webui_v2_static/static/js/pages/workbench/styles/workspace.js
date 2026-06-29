@@ -592,6 +592,16 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
 .wb13-card-main { min-width: 0; flex: 1; }
 .wb13-card-title { color: var(--wb-ink); font-size: 14.5px; font-weight: 600; }
 .wb13-card-copy { margin-top: 2px; color: var(--wb-muted); font-size: 13px; line-height: 1.5; }
+.wb13-card-thread-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  color: var(--wb-faint);
+  font-size: 12px;
+  font-weight: 600;
+}
+.wb13-card-thread-count svg { width: 12px; height: 12px; }
 .wb13-card-status {
   display: flex;
   align-items: center;

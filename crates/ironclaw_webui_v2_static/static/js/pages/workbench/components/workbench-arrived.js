@@ -83,6 +83,11 @@ function DecisionCard({ message, onOpenMessage, onDraftMessage, onDismiss }) {
             ${metaLine ? html`<span className="wb13-card-when">${metaLine}</span>` : null}
           </div>
           <div className="wb13-card-title">${message.subject}</div>
+          ${message.threadCount > 1
+            ? html`<div className="wb13-card-thread-count">
+                <${Icon} name="chat" /> ${message.threadCount} messages in this thread
+              </div>`
+            : null}
           ${message.preview ? html`<div className="wb13-card-copy">${message.preview}</div>` : null}
         </div>
       </button>

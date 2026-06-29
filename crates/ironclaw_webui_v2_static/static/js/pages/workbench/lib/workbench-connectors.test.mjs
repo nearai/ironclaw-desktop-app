@@ -757,3 +757,59 @@ test('normalizeCalendarEvents honours the limit and never fabricates a link', ()
   // A non-http link is rejected, not surfaced as a clickable row.
   assert.ok(!('link' in rows[0]));
 });
+
+test('selectTriageInbox collapses one email thread to a single newest-message card', () => {
+  // Three inbound messages in ONE thread (T1) + one in another (T2). The operator
+  // was seeing the thread as three near-identical "Re: ..." cards.
+  const messages = [
+    {
+      messageId: 'a',
+      id: 'a',
+      threadId: 'T1',
+      fromEmail: 'carla@x.com',
+      subject: 'Re: Founding Member Status',
+      timestamp: '1782770000000',
+      unread: false
+    },
+    {
+      messageId: 'b',
+      id: 'b',
+      threadId: 'T1',
+      fromEmail: 'chris@x.com',
+      subject: 'Re: Founding Member Status',
+      timestamp: '1782773000000', // newest in the thread
+      unread: true
+    },
+    {
+      messageId: 'c',
+      id: 'c',
+      threadId: 'T1',
+      fromEmail: 'carla@x.com',
+      subject: 'Re: Founding Member Status',
+      timestamp: '1782772000000',
+      unread: false
+    },
+    {
+      messageId: 'd',
+      id: 'd',
+      threadId: 'T2',
+      fromEmail: 'lluis@x.com',
+      subject: 'General Assembly',
+      timestamp: '1782771500000',
+      unread: true
+    }
+  ];
+  const out = selectTriageInbox(messages, {});
+  // One card per thread, not per message.
+  assert.equal(out.length, 2);
+  const t1 = out.find((m) => m.threadId === 'T1');
+  // Representative is the NEWEST message in the thread (b), carries the count, and is
+  // marked unread because at least one message in the thread is unread.
+  assert.equal(t1.messageId, 'b');
+  assert.equal(t1.threadCount, 3);
+  assert.equal(t1.unread, true);
+  // The single-message thread is untouched (no threadCount key).
+  const t2 = out.find((m) => m.threadId === 'T2');
+  assert.equal(t2.messageId, 'd');
+  assert.ok(!('threadCount' in t2));
+});

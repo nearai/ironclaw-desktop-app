@@ -269,7 +269,7 @@ export function selectTriageInbox(
   const dismissed = dismissals && typeof dismissals === 'object' ? dismissals : {};
   const learned = learnedIgnore instanceof Set ? learnedIgnore : new Set();
   const answered = sentThreadIndex instanceof Map ? sentThreadIndex : new Map();
-  return list.filter((message) => {
+  const filtered = list.filter((message) => {
     if (!message || message.isBulk) return false;
     // Calendar invite updates/cancellations/RSVP replies are not action items.
     if (isCalendarInviteNoise(message)) return false;
@@ -285,6 +285,39 @@ export function selectTriageInbox(
     // message dated after this inbound). Positive evidence only.
     if (isAnsweredThread(message, answered)) return false;
     return true;
+  });
+  return collapseByThread(filtered);
+}
+
+// One thread = one card. A multi-reply email thread otherwise surfaces as N
+// near-identical cards ("Re: <same subject>" from each participant) — exactly the
+// "there is no email threading, a bunch of emails are repeated" complaint. Group
+// the surviving rows by threadId (falling back to the row's own id when Gmail
+// omits a threadId, so a thread-less message stays distinct), keep the NEWEST
+// message as the representative, and carry threadCount + a thread-wide unread flag
+// so the card can show "+N earlier" and the unread filter still surfaces the thread
+// whenever ANY message in it is unread. Preserves first-seen order. Pure.
+export function collapseByThread(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const byThread = new Map();
+  const order = [];
+  for (const row of list) {
+    const tkey = asString(row?.threadId) || asString(row?.id);
+    const existing = byThread.get(tkey);
+    if (!existing) {
+      byThread.set(tkey, { latest: row, count: 1, unread: Boolean(row?.unread) });
+      order.push(tkey);
+      continue;
+    }
+    existing.count += 1;
+    existing.unread = existing.unread || Boolean(row?.unread);
+    if (toEpochMs(row?.timestamp) > toEpochMs(existing.latest?.timestamp)) {
+      existing.latest = row;
+    }
+  }
+  return order.map((tkey) => {
+    const { latest, count, unread } = byThread.get(tkey);
+    return count > 1 ? { ...latest, threadCount: count, unread } : latest;
   });
 }
 
