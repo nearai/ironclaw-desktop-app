@@ -11,8 +11,10 @@ export const WORKBENCH_TOKENS_STYLE = `
   --wb-canvas: #ffffff;
   --wb-ink: rgba(0, 0, 0, 0.95);
   --wb-ink-2: rgba(39, 39, 39, 0.8);
-  --wb-muted: rgba(39, 39, 39, 0.62);
-  --wb-faint: rgba(39, 39, 39, 0.46);
+  /* muted/faint darkened to meet WCAG-AA (4.5:1) for normal text on canvas + surface — at the
+     old values muted was 4.35 and faint 2.75 (unreadable metadata). A subtle tier remains. */
+  --wb-muted: rgba(39, 39, 39, 0.68);
+  --wb-faint: rgba(39, 39, 39, 0.66);
   --wb-line: rgba(0, 0, 0, 0.08);
   --wb-line-2: #f1f2f1;
   --wb-hair: rgba(0, 0, 0, 0.05);
@@ -66,7 +68,8 @@ export const WORKBENCH_TOKENS_STYLE = `
   --wb-ink: rgba(255, 255, 255, 0.92);
   --wb-ink-2: rgba(255, 255, 255, 0.72);
   --wb-muted: rgba(255, 255, 255, 0.56);
-  --wb-faint: rgba(255, 255, 255, 0.4);
+  /* faint lifted to meet WCAG-AA (4.5:1) on the dark canvas — was 0.4 (3.84). */
+  --wb-faint: rgba(255, 255, 255, 0.48);
   --wb-line: rgba(255, 255, 255, 0.11);
   --wb-line-2: #191b1d;
   --wb-hair: rgba(255, 255, 255, 0.07);
