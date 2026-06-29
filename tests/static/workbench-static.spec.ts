@@ -1432,7 +1432,7 @@ test('static workbench: active connector readiness unblocks manual source choice
   expect(String(sentMessages[0].body.content)).not.toContain('Notion ready');
 });
 
-test('static workbench: Slack awaiting renders on the home with a zero-write respond-in-place compose', async ({
+test('static workbench: Slack awaiting renders on the home with a gated respond-in-place post', async ({
   page
 }) => {
   // Recent ts so the FGR recency decay keeps the @-mention above the awaiting floor.
@@ -1498,13 +1498,21 @@ test('static workbench: Slack awaiting renders on the home with a zero-write res
   await expect(compose).toBeVisible();
   await expect(compose).toContainText('review the launch plan');
 
-  // Posting straight to Slack is gated OFF, so there is no Post button — Copy is the
-  // primary action and nothing is ever written.
-  await expect(page.getByTestId('workbench-slack-post')).toHaveCount(0);
+  // Gated posting is ON: Copy stays available AND a Post button is present. Posting goes
+  // through the gated connector write to SLACK_SENDS_A_MESSAGE, targeting the channel ID
+  // (C1, not the #name) and the thread ts — the user reviews the channel + text first.
   await expect(page.getByTestId('workbench-slack-copy')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(compose).toHaveCount(0);
-  expect(connectorWriteRequests.length).toBe(0);
+  const post = page.getByTestId('workbench-slack-post');
+  await expect(post).toBeVisible();
+  await compose.getByRole('textbox').fill('On it — reviewing the launch plan now.');
+  await post.click();
+  await expect.poll(() => connectorWriteRequests.length).toBe(1);
+  const wrote = connectorWriteRequests[0] as Record<string, any>;
+  expect(wrote.tool).toBe('SLACK_SENDS_A_MESSAGE');
+  expect(wrote.toolkit).toBe('slack');
+  expect(wrote.arguments.channel).toBe('C1');
+  expect(String(wrote.arguments.thread_ts)).toBe(nowTs);
+  expect(String(wrote.arguments.text)).toContain('reviewing the launch plan');
 });
 
 test('static workbench: Projects (jarvis) view renders commitments + projects from the summary', async ({

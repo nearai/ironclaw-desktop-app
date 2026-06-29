@@ -910,8 +910,10 @@ export function WorkbenchPage() {
       setSlackReplyPosting(true);
       setSlackReplyResult(null);
       try {
-        const args = { channel: item.channel || '', text: value };
-        if (item.threadTs || item.ts) args.thread_ts = String(item.threadTs || item.ts);
+        // Target the channel ID (Slack send wants the id, not the #name) and reply in
+        // the thread when there is one, falling back to the parent ts.
+        const args = { channel: item.channelId || item.channel || '', text: value };
+        if (item.thread_ts || item.ts) args.thread_ts = String(item.thread_ts || item.ts);
         const response = await connectorWrite({
           toolkit: 'slack',
           tool: 'SLACK_SENDS_A_MESSAGE',
@@ -1676,7 +1678,12 @@ export function WorkbenchPage() {
         />
         <${WorkbenchSlackCompose}
           context=${slackReplyContext}
-          sendEnabled=${false}
+          ${
+            '' /* Gated Slack posting is ON (operator-authorized). Each post still goes
+             through the per-message approval in WorkbenchSlackCompose, and the gateway
+             remains the authority for SLACK_SENDS_A_MESSAGE. Email sends stay OFF. */
+          }
+          sendEnabled=${true}
           generating=${slackReplyGenerating}
           suggestion=${slackReplySuggestion}
           posting=${slackReplyPosting}

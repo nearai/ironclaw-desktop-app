@@ -684,7 +684,10 @@ export const CONNECTOR_DRAFT_TOOLS = Object.freeze(['GMAIL_CREATE_EMAIL_DRAFT'])
 export const CONNECTOR_SEND_TOOLS = Object.freeze([
   'GMAIL_SEND_EMAIL',
   'GMAIL_SEND_DRAFT',
-  'GMAIL_REPLY_TO_THREAD'
+  'GMAIL_REPLY_TO_THREAD',
+  // Slack reply-in-place: a SEND (never a DRAFT), so it is gated like the Gmail sends —
+  // the gateway is still the authority and resolves it behind a per-message approval.
+  'SLACK_SENDS_A_MESSAGE'
 ]);
 
 function isWriteAllowedTool(tool) {

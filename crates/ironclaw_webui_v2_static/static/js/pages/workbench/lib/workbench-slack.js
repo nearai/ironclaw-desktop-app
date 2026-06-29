@@ -554,6 +554,9 @@ function toSlackItem(row, domain, userMap, score) {
     text: row.text,
     when: row.when,
     ts: row.ts,
+    // Reply IN the thread when there is one, else as a top-level message on the parent
+    // ts. Carried through so a gated Slack reply lands in the right place, not the channel root.
+    thread_ts: row.thread_ts || row.ts,
     score,
     replyHref: slackArchiveLink(domain, row.channelId, row.thread_ts || row.ts)
   };
