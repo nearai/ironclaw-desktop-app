@@ -4,6 +4,44 @@ Operator: Abhishek (CLO, NEAR AI). Works by triage — wants what needs his atte
 **surfaced proactively**, hates noise, legal/strategy focus. The product bar: a prepared
 chief-of-staff desk, not a chatbot.
 
+## ☀️ MORNING BRIEF — 2026-06-29
+Branch `workbench-overnight-20260620` @ `83b88b3`, clean + pushed. Review live:
+`http://127.0.0.1:17641/workbench#token=workbench-standalone`.
+
+**Shipped + verified this session (your 3 steering complaints, all fixed):**
+1. **Slack now surfaces current activity** (`9c90bb0`). Root cause: identity resolution scanned
+   only the first 200 workspace members; in the >1000-member Enterprise Grid you weren't on that
+   page, so the whole deep read silently went empty. Fixed via direct email→Slack-id lookup.
+   Live: 0 → real awaiting + worth-weighing-in cards; unresolved authors read "a teammate".
+2. **Chat is its own surface** (`7580c0b`) — "Chat" nav entry, linked to History; no more inline
+   strip under triage. Ask + History-reopen open the dedicated conversation view.
+3. **Rail "Slack" group shows current activity** (`59d37d6` + integration lock `fad3de7`) — was a
+   relevance-ranked keyword search (the "4 blockers frozen at 10 days"); now the live deep read.
+4. **Slack relevance now biases toward what a CLO must see** (`1fd56ef` → corrected `83b88b3`): a
+   first attempt to lexically drop announcement/celebration noise was caught by adversarial review
+   as **false-dropping real legal threads** (SEC inquiry, MSA indemnity, contract auto-renewal —
+   legal posts share the same broadcast forms as noise). Reverted; replaced with a **positive
+   LEGAL_RE boost** that force-surfaces legal/regulatory/contract substance and can never drop it.
+
+Every commit passed the full gate (≈968 unit / 148 a11y / DT design / smoke / bundle) + was
+live-verified in a real browser. Two adversarial reviews run (4 + 11 agents); the second caught the
+trust-destroying regression above — worth the cost.
+
+**Needs your call (held — not built unsolicited):**
+- **Semantic weigh-in de-noising.** The anniversary/brand-refresh noise on the default home is
+  back (the safe trade-off above). The right fix is routing the home weigh-in through the LLM radar
+  (`buildWorthWeighingInPrompt`) which can tell celebration from substance — but that's an LLM turn
+  on home load (latency/cost). Greenlight if you want it.
+- **Link-share / FYI noise** ("kyle shit talking NEAR", livestream FYIs) — drop these from
+  weigh-in, or keep as competitive intel? Your call.
+- **Web search** — root-caused + fix proven, deferred on a 153s boot-perf regression (needs an
+  async gateway-activation fix). Still human-gated.
+- **First real Slack send** — the reply path is open-thread / copy / draft (zero-write); enabling a
+  real outbound send is a deliberate human checkpoint.
+
+**No clearly-valuable SAFE autonomous work remained after the above** — the loop is holding at a
+calm cadence rather than churning. Tell me which held item to take and I'll run it.
+
 ## GOAL (primary directive)
 Ensure **successively more difficult product tests and functionality continue to work** — every
 evening. The loop is build → test harder → fix red → raise the bar. Don't just add features; prove
