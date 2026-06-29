@@ -89,9 +89,12 @@ Make the DEFAULT home proactively surface what matters, not on-demand only.
   weigh-in survives ranking). Live: honest-empty in the standalone (no Slack identity match).
 
 ### P2 — Conversation history (#6)
-- [ ] A real conversations surface: list past threads (reuse useThreads/listThreads), reopen one
-  into WorkbenchSceneWorkspace (pure fn of threadId). New `components/workbench-history.js` + nav
-  entry + reopen handler; optionally invalidate ['threads'] on onStartedWork so a finished Ask shows.
+- [x] **Conversation history + reopen** — SHIPPED + verified (commit 9e1390d; ladder L7). "History"
+  nav view lists past threads (useThreads) and reopens one into the run surface (pure fn of threadId),
+  honest loading/error/empty. Deterministic L7 test + live (Ask → History → reopen mounts scene).
+- [ ] **FOLLOW-UP: cleaner thread titles** — threads list as "Workbench request" (gateway derives
+  the title from the scaffold's first line). Set a clean title from the brief at create time (or
+  derive one in history) so rows are distinguishable.
 
 ### P3 — UX/UI craft pass (#8)
 - [ ] Spacing/hierarchy/states across the shell + cockpit using the installed craft skills
@@ -108,3 +111,4 @@ Make the DEFAULT home proactively surface what matters, not on-demand only.
   (a399f56, pushed 16dce35); L1 boot/load + L4-Notion green. Next: P1a content gist OR P1b Slack-on-home.
 - 2026-06-28: Loop iter 2: P1b Slack 'worth weighing in' on the default home SHIPPED + verified (6e3ab5e, pushed bc3766c). L4-Slack green (a11y 144). Next: P2 conversation history OR Notion content gist OR P3 UX craft.
 - 2026-06-28: Loop iter 3: P1a v2 Notion content gist SHIPPED + verified (fa81ac0, pushed 94cb5a2; static 954, a11y 144). Proactive vision fully done (Notion surfacing+gist, Slack awaiting+weigh-in). Next: P2 conversation history (enables L7 reopen) OR P3 UX craft.
+- 2026-06-29: Loop iter 4: P2 conversation history + reopen SHIPPED + verified (9e1390d, pushed fe456d2; static 954, a11y 145; ladder L7 green live). Next: thread-title follow-up OR P3 UX craft pass.
