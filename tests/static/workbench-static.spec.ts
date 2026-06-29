@@ -1492,6 +1492,13 @@ test('static workbench: Slack awaiting renders on the home with a gated respond-
   await expect(slack).toContainText('launch');
   await expect(slack).toContainText('review the launch plan');
 
+  // Regression lock: the card exposes a WORKING "Open in Slack" link. This previously read
+  // item.permalink — which deep-read items never set (they carry replyHref) — so the link
+  // silently never rendered and the message could not be opened/responded to from the browser.
+  const openInSlack = slack.getByRole('link', { name: 'Open in Slack' }).first();
+  await expect(openInSlack).toBeVisible();
+  await expect(openInSlack).toHaveAttribute('href', /nearteam\.slack\.com\/archives\/C1\//);
+
   // Open the respond-in-place compose for the thread.
   await page.getByTestId('workbench-slack-reply').first().click();
   const compose = page.getByTestId('workbench-slack-compose');
