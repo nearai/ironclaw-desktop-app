@@ -111,7 +111,10 @@ function startGateway() {
       // (the one-time first-boot configure below does not run again), so wait for
       // it to come up and reconfigure — otherwise connectors stay dark after a crash.
       (async () => {
-        if (await waitForGatewayReady()) await configureComposio();
+        if (await waitForGatewayReady()) {
+          await configureComposio();
+          await activateWebAccess();
+        }
       })();
     }, backoff);
   });
@@ -165,6 +168,23 @@ async function configureComposio() {
   console.log(`[wb] connectors/connected -> ${conn.s}  [${accounts}]`);
 }
 
+// Activate the bundled, keyless, Exa-backed `web-access` extension so the Workbench
+// "Web" source actually has a web_search tool behind it. The gateway ships the
+// extension but only auto-activates connected-sources + nearai on boot, so without
+// this the "Web" source is a label with no tool. Like Composio config, the gateway
+// does not persist activation across respawns, so run it after every (re)spawn.
+async function activateWebAccess() {
+  // package_ref must be a LifecyclePackageRef struct ({kind,id}), not a string; both
+  // install and activate take it. After this the agent's `web_search` tool is
+  // registered. NOTE: in the local standalone the tool currently hangs at execution
+  // (the gateway binary's web-access/Exa runtime is not fully wired for local dev) —
+  // activation is correct here so it works the moment the gateway side lands.
+  const ref = { package_ref: { kind: 'extension', id: 'web-access' } };
+  const inst = await req('POST', `${B}/extensions/install`, ref);
+  const act = await req('POST', `${B}/extensions/web-access/activate`, ref);
+  console.log(`[wb] web-access install -> ${inst.s}, activate -> ${act.s}`);
+}
+
 let web = null;
 function shutdown() {
   shuttingDown = true;
@@ -189,6 +209,13 @@ startGateway();
   }
   console.log('[wb] gateway ready (/llm/providers 200)');
   await configureComposio();
+  await activateWebAccess();
+  if (!process.env.JARVIS_API_KEY) {
+    console.warn(
+      '[wb] JARVIS_API_KEY is not set — the Workbench jarvis surface will show "not connected". ' +
+        'Launch with JARVIS_API_KEY=… to connect it (endpoint defaults to staging).'
+    );
+  }
 
   web = spawn(process.execPath, [path.join(REPO, 'scripts', 'serve-webui-static.mjs')], {
     cwd: REPO,
