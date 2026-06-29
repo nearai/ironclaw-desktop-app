@@ -5384,6 +5384,9 @@ ${ue}`;if(O.current.gateKey!==he&&(O.current={gateKey:he,credentialRef:null,inFl
   --wb-accent-press: #0078d1;
   --wb-accent-tint: #ebf6ff;
   --wb-accent-soft: #f4faff;
+  /* Darker accent for small text ON accent-soft (the is-reply pill): the bright accent is only
+     3.09:1 on the near-white soft tint; this hits AA (4.9:1). */
+  --wb-accent-ink: #0a6fc2;
   --wb-hold: #c77a1e;
   --wb-hold-text: #9a5b12;
   --wb-hold-tint: #fdf1e3;
@@ -5439,6 +5442,8 @@ ${ue}`;if(O.current.gateKey!==he&&(O.current={gateKey:he,credentialRef:null,inFl
   --wb-accent-press: #339dff;
   --wb-accent-tint: rgba(0, 145, 253, 0.14);
   --wb-accent-soft: rgba(0, 145, 253, 0.08);
+  /* Brighter accent for small text on the dark accent-soft (the is-reply pill): 5.9:1. */
+  --wb-accent-ink: #339dff;
   --wb-hold: #d07a4f;
   --wb-hold-text: #f0ad83;
   --wb-hold-tint: rgba(208, 122, 79, 0.16);
@@ -6923,7 +6928,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   white-space: nowrap;
 }
 .wb13-status-pill svg { width: 12px; height: 12px; }
-.wb13-status-pill.is-reply { background: var(--wb-accent-soft); color: var(--wb-accent); }
+.wb13-status-pill.is-reply { background: var(--wb-accent-soft); color: var(--wb-accent-ink); }
 .wb13-status-pill.is-decision { background: var(--wb-hold-tint); color: var(--wb-hold-text); }
 .wb13-status-pill.is-blocked {
   background: color-mix(in srgb, var(--wb-danger) 13%, transparent);
