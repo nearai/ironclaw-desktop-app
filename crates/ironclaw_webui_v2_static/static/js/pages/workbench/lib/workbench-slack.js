@@ -405,7 +405,10 @@ export function classifySlackRow(row, { selfUserId, kind = 'channel' } = {}) {
   // A critical (fraud/legal) hit always SURFACES, but it only leads as an owed reply when it's
   // actually directed at you. A fraud/legal keyword in a channel you're not party to is worth
   // weighing in — not an owed reply at the top of the list (which would bury real owed replies).
-  if (row.critical) return directed ? 'awaiting' : 'weighin';
+  // A critical (fraud/legal) hit surfaces unless you've ALREADY replied IN its thread (the one
+  // strong, thread-scoped handled signal we can read deterministically); a conversation-level
+  // "you posted later" signal must NEVER silence a fraud item (adversarial-review fix).
+  if (row.critical) return inThread ? null : directed ? 'awaiting' : 'weighin';
   // Reply-state gate (re-implements the skill's replystate.mjs `last_message_user===self`
   // signal): an @-mention you've already answered IN-THREAD is handled — don't re-nag.
   if (mentionsSelf) return inThread ? null : 'awaiting';
@@ -797,11 +800,19 @@ export function buildSlackSignals(
   // rows are excluded (passed via footprintHistories) so a frequent DM partner doesn't inflate
   // peerScore and distort unrelated channel weigh-in ranking.
   const footprint = buildFootprint(footprintHistories || histories, { selfUserId });
-  // Reply-state gate (skill replystate.mjs): you posted in this conversation AFTER the candidate
-  // => you've handled it => it is no longer "awaiting your reply". Biased to silence.
+  // Reply-state gate (skill replystate.mjs), NARROWED to avoid over-drop (adversarial review):
+  // a later self-post only proves the ask was answered in a 1:1 DM (im) — a 2-person thread, so
+  // posting after IS a reply. Group DMs + channels are multi-topic: a later unrelated post there
+  // does NOT mean the ask was handled, so they rely on the thread-scoped reply_users check in
+  // classifySlackRow, not this conversation-level signal. Critical (fraud/legal) items are never
+  // silenced here. A missing/invalid candidate ts can't be compared → never drop.
   const selfLatest = selfLatestByConv instanceof Map ? selfLatestByConv : new Map();
-  const handledBySelfAfter = (row) =>
-    (selfLatest.get(String(row.channelId || '')) || 0) > Number(row.ts || 0);
+  const handledBySelfAfter = (row) => {
+    if (!row || row.critical || (row.kind || 'channel') !== 'im') return false;
+    const ts = Number(row.ts);
+    if (!Number.isFinite(ts) || ts <= 0) return false;
+    return (selfLatest.get(String(row.channelId || '')) || 0) > ts;
+  };
   const awaitingRows = [];
   const weighInRows = [];
   for (const rows of histories || []) {

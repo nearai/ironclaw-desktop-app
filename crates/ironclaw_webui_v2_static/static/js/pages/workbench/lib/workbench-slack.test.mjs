@@ -308,6 +308,86 @@ test('buildSlackSignals: drops an awaiting item the user already answered after 
   assert.ok(texts.includes('later question'), 'the message after your last reply is still owed');
 });
 
+test('reply-state gate does NOT over-drop: channel @-mention survives unrelated later channel activity', () => {
+  // Adversarial-review HIGH: a #channel @-mention you never answered must NOT be silenced just
+  // because you later posted something unrelated in that channel. Only a 1:1 DM earns the
+  // conversation-level "posted after" signal; channels rely on thread-scoped reply_users.
+  const histories = [
+    [
+      {
+        id: 'ask',
+        channelId: 'CENG',
+        channel: 'eng',
+        kind: 'channel',
+        who: 'UBOSS',
+        raw: 'hey <@UME> can you sign off on the release?',
+        text: 'can you sign off on the release?',
+        ts: '500',
+        reply_count: 0,
+        reply_users: []
+      }
+    ]
+  ];
+  const out = buildSlackSignals(histories, {
+    selfUserId: 'UME',
+    domain: 'near',
+    selfLatestByConv: new Map([['CENG', 600]]) // you posted later in #eng (unrelated)
+  });
+  assert.ok(
+    out.awaiting.some((i) => /sign off on the release/.test(i.text)),
+    'an unanswered channel @-mention is NOT silenced by unrelated later channel traffic'
+  );
+});
+
+test('reply-state gate NEVER silences a critical item on conversation-level activity', () => {
+  // Adversarial-review: a fraud/legal item must not vanish because you posted later in the DM.
+  const histories = [
+    [
+      {
+        id: 'fraud',
+        channelId: 'CMPDM',
+        channel: 'Group DM',
+        kind: 'mpim',
+        critical: true,
+        who: 'UA',
+        raw: 'someone is misappropriating client funds',
+        text: 'someone is misappropriating client funds',
+        ts: '100',
+        reply_count: 0,
+        reply_users: []
+      }
+    ]
+  ];
+  const out = buildSlackSignals(histories, {
+    selfUserId: 'UME',
+    domain: 'near',
+    selfLatestByConv: new Map([['CMPDM', 999]]) // you posted later — must NOT silence the fraud item
+  });
+  assert.ok(
+    out.awaiting.some((i) => /misappropriating client funds/.test(i.text)),
+    'a critical item survives later conversation activity (never-miss)'
+  );
+});
+
+test('classifySlackRow: a critical item you already replied to IN-THREAD is handled (cleared)', () => {
+  const base = {
+    who: 'UA',
+    raw: 'funds misappropriated',
+    text: 'funds misappropriated',
+    critical: true
+  };
+  assert.equal(
+    classifySlackRow({ ...base, reply_users: [] }, { selfUserId: 'UME', kind: 'mpim' }),
+    'awaiting',
+    'unanswered critical item surfaces'
+  );
+  assert.equal(
+    classifySlackRow({ ...base, reply_users: ['UME'] }, { selfUserId: 'UME', kind: 'mpim' }),
+    null,
+    'critical item you replied to in-thread is cleared'
+  );
+});
+
 test('buildSlackUserMap maps user ids to display names', () => {
   const map = buildSlackUserMap(USERS_RESULT);
   assert.equal(map.UCARLA, 'Carla', 'display_name preferred');
