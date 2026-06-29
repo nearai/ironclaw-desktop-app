@@ -279,26 +279,42 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   letter-spacing: 0.02em;
   color: var(--wb-faint);
 }
-.wb13-runtime-preview .wb13-run-text {
-  max-height: none;
-  overflow: visible;
+/* The live conversation surface (ChatView -> ConversationThread -> .wb13-chat-thread).
+   The run-text tier was previously scoped to .wb13-runtime-preview, which is rendered
+   nowhere, so the real messages fell back to a default 16px <p> with 1em block margins —
+   the most important content on the surface silently lost its tier. Re-scope to the live
+   thread, the actual container. */
+.wb13-chat-thread .wb13-run-text {
   margin: 0;
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--wb-ink-2);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.wb13-runtime-preview .wb13-run-text.is-meta {
+/* The question is plain text (preserve its line breaks); the assistant body is rendered
+   markdown (block elements) and must NOT be pre-wrapped — only tame its outer margins so
+   the bubble sits flush. */
+.wb13-chat-thread .wb13-run-row.is-user .wb13-run-text { white-space: pre-wrap; }
+.wb13-chat-thread .wb13-run-row.is-assistant .wb13-run-text > :first-child { margin-top: 0; }
+.wb13-chat-thread .wb13-run-row.is-assistant .wb13-run-text > :last-child { margin-bottom: 0; }
+.wb13-chat-thread .wb13-run-text.is-meta {
   color: var(--wb-muted);
   font-size: 12.5px;
+  white-space: pre-wrap;
 }
-.wb13-runtime-preview .wb13-run-text.is-result {
+.wb13-chat-thread .wb13-run-text.is-result {
   color: var(--wb-muted);
   font-size: 12.5px;
   border-left: 2px solid var(--wb-line);
   padding-left: 8px;
+  white-space: pre-wrap;
 }
+/* A dedicated chat surface reads at a comfortable measure and flows full-length in the
+   scrolling main area. The 340px cap on .wb13-run is meant for a compact inline preview;
+   on this surface it would letterbox the transcript into a tiny inner scrollbox with empty
+   page below — the opposite of a dignified conversation. */
+.wb13-chat-thread { max-width: 760px; margin: 0 auto; padding-top: 6px; }
+.wb13-chat-thread .wb13-run { max-height: none; overflow: visible; gap: 4px; }
 .wb13-run-tool {
   display: flex;
   align-items: center;
@@ -874,6 +890,42 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   gap: 8px;
   margin-top: 14px;
 }
+/* Dedicated chat-surface empty state: a centered, dignified invitation rather than the
+   generic dashed all-clear box stranded top-left in an otherwise blank surface. */
+.wb13-chat-empty {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 14px;
+  max-width: 460px;
+  margin: 13vh auto 0;
+}
+.wb13-chat-empty-mark {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border-radius: var(--wb-r-lg);
+  background: var(--wb-accent-soft);
+  color: var(--wb-accent);
+}
+.wb13-chat-empty-mark svg { width: 24px; height: 24px; }
+.wb13-chat-empty h1 {
+  margin: 0;
+  font-family: var(--wb-font-display);
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--wb-ink);
+}
+.wb13-chat-empty p {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--wb-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.wb13-chat-empty-cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
 .wb13-alert {
   display: flex;
   align-items: center;

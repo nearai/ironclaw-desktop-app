@@ -5382,9 +5382,17 @@ ${me}`;if(O.current.gateKey!==xe&&(O.current={gateKey:xe,credentialRef:null,inFl
   color: var(--wb-rail-muted);
   text-decoration: none;
 }
+/* Hover + active lift to readable ink; the active view is marked by the accent ::before bar
+   and an accent icon. The old shared 'color:#fff' rendered white-on-white on the light rail
+   (--wb-rail is #ffffff), so the active + every hovered nav item vanished in light mode. Ink
+   label keeps the 10px text AA in BOTH themes; the icon (a graphical object, 3:1 bar) carries
+   the accent cue. */
 .wb13-nav button:hover,
 .wb13-nav a:hover,
-.wb13-nav button.is-active { color: #fff; }
+.wb13-nav button.is-active,
+.wb13-nav a.is-active { color: var(--wb-rail-ink); }
+.wb13-nav button.is-active svg,
+.wb13-nav a.is-active svg { color: var(--wb-rail-accent); }
 .wb13-nav button.is-active::before {
   content: "";
   position: absolute;
@@ -6439,26 +6447,42 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   letter-spacing: 0.02em;
   color: var(--wb-faint);
 }
-.wb13-runtime-preview .wb13-run-text {
-  max-height: none;
-  overflow: visible;
+/* The live conversation surface (ChatView -> ConversationThread -> .wb13-chat-thread).
+   The run-text tier was previously scoped to .wb13-runtime-preview, which is rendered
+   nowhere, so the real messages fell back to a default 16px <p> with 1em block margins \u2014
+   the most important content on the surface silently lost its tier. Re-scope to the live
+   thread, the actual container. */
+.wb13-chat-thread .wb13-run-text {
   margin: 0;
-  font-size: 13.5px;
-  line-height: 1.55;
+  font-size: 14px;
+  line-height: 1.6;
   color: var(--wb-ink-2);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.wb13-runtime-preview .wb13-run-text.is-meta {
+/* The question is plain text (preserve its line breaks); the assistant body is rendered
+   markdown (block elements) and must NOT be pre-wrapped \u2014 only tame its outer margins so
+   the bubble sits flush. */
+.wb13-chat-thread .wb13-run-row.is-user .wb13-run-text { white-space: pre-wrap; }
+.wb13-chat-thread .wb13-run-row.is-assistant .wb13-run-text > :first-child { margin-top: 0; }
+.wb13-chat-thread .wb13-run-row.is-assistant .wb13-run-text > :last-child { margin-bottom: 0; }
+.wb13-chat-thread .wb13-run-text.is-meta {
   color: var(--wb-muted);
   font-size: 12.5px;
+  white-space: pre-wrap;
 }
-.wb13-runtime-preview .wb13-run-text.is-result {
+.wb13-chat-thread .wb13-run-text.is-result {
   color: var(--wb-muted);
   font-size: 12.5px;
   border-left: 2px solid var(--wb-line);
   padding-left: 8px;
+  white-space: pre-wrap;
 }
+/* A dedicated chat surface reads at a comfortable measure and flows full-length in the
+   scrolling main area. The 340px cap on .wb13-run is meant for a compact inline preview;
+   on this surface it would letterbox the transcript into a tiny inner scrollbox with empty
+   page below \u2014 the opposite of a dignified conversation. */
+.wb13-chat-thread { max-width: 760px; margin: 0 auto; padding-top: 6px; }
+.wb13-chat-thread .wb13-run { max-height: none; overflow: visible; gap: 4px; }
 .wb13-run-tool {
   display: flex;
   align-items: center;
@@ -7034,6 +7058,42 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   gap: 8px;
   margin-top: 14px;
 }
+/* Dedicated chat-surface empty state: a centered, dignified invitation rather than the
+   generic dashed all-clear box stranded top-left in an otherwise blank surface. */
+.wb13-chat-empty {
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  gap: 14px;
+  max-width: 460px;
+  margin: 13vh auto 0;
+}
+.wb13-chat-empty-mark {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  border-radius: var(--wb-r-lg);
+  background: var(--wb-accent-soft);
+  color: var(--wb-accent);
+}
+.wb13-chat-empty-mark svg { width: 24px; height: 24px; }
+.wb13-chat-empty h1 {
+  margin: 0;
+  font-family: var(--wb-font-display);
+  font-size: 23px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  color: var(--wb-ink);
+}
+.wb13-chat-empty p {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--wb-muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+.wb13-chat-empty-cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
 .wb13-alert {
   display: flex;
   align-items: center;
@@ -8564,7 +8624,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   .wb13-email-head { grid-template-columns: 1fr; }
   .wb13-pk-head h1 { font-size: 19px; }
 }
-`;var O3=[S3,C3,A3,T3,R3,E3,D3,M3,L3].join("");var FP=f.default.lazy(()=>import("./chunks/workbench-brief-2JUJT5N6.js").then(e=>({default:e.WorkbenchBrief}))),qP=f.default.lazy(()=>import("./chunks/workbench-library-PA47NC6E.js").then(e=>({default:e.LibraryView}))),KP=f.default.lazy(()=>import("./chunks/workbench-memory-KJUIH2IM.js").then(e=>({default:e.MemoryView}))),GP=f.default.lazy(()=>import("./chunks/workbench-history-3TPT37BE.js").then(e=>({default:e.HistoryView}))),HP=f.default.lazy(()=>import("./chunks/workbench-chat-view-GT4ZM3HP.js").then(e=>({default:e.ChatView}))),WP=f.default.lazy(()=>import("./chunks/workbench-calendar-SMO6AJHG.js").then(e=>({default:e.CalendarView}))),VP=f.default.lazy(()=>import("./chunks/workbench-jarvis-REB3IX4Z.js").then(e=>({default:e.JarvisView}))),B3=new Set(["needs-reply","upcoming","github","notion","drive"]),j3=Object.freeze({name:"Abhishek Vaidyanathan",title:"Chief Legal Officer",email:"abby.vaidyanathan@gmail.com",channels:["#x-intents","#t-agentmarket","#x-nearai-compliance","#kyc_status","#wallet_status"],voiceSample:["fine to match the NF terms, but i'm not signing uncapped liability on directorship services \u2014 make the liability cap mutual and carve out gross negligence / wilful misconduct on the indemnities. if they won't move, note the residual exposure and we accept it consciously. hold signature until i've seen the final clause.","devhub grant terms don't cover this \u2014 external BD with full crm access needs at minimum an NDA with a non-solicit over anything in the NF pipeline. don't grant access until that's signed."]});function QP({groups:e,hasDecisions:t=!1,statusFilter:a=null,loading:n=!1}){let r=e.filter(c=>c.rows.length>0&&!B3.has(c.id)&&(!a||a.includes(c.id)));if(!r.length&&n||!r.length&&a||!r.length&&t)return null;if(!r.length)return l`
+`;var O3=[S3,C3,A3,T3,R3,E3,D3,M3,L3].join("");var FP=f.default.lazy(()=>import("./chunks/workbench-brief-2JUJT5N6.js").then(e=>({default:e.WorkbenchBrief}))),qP=f.default.lazy(()=>import("./chunks/workbench-library-PA47NC6E.js").then(e=>({default:e.LibraryView}))),KP=f.default.lazy(()=>import("./chunks/workbench-memory-KJUIH2IM.js").then(e=>({default:e.MemoryView}))),GP=f.default.lazy(()=>import("./chunks/workbench-history-3TPT37BE.js").then(e=>({default:e.HistoryView}))),HP=f.default.lazy(()=>import("./chunks/workbench-chat-view-2WURFOM6.js").then(e=>({default:e.ChatView}))),WP=f.default.lazy(()=>import("./chunks/workbench-calendar-SMO6AJHG.js").then(e=>({default:e.CalendarView}))),VP=f.default.lazy(()=>import("./chunks/workbench-jarvis-REB3IX4Z.js").then(e=>({default:e.JarvisView}))),B3=new Set(["needs-reply","upcoming","github","notion","drive"]),j3=Object.freeze({name:"Abhishek Vaidyanathan",title:"Chief Legal Officer",email:"abby.vaidyanathan@gmail.com",channels:["#x-intents","#t-agentmarket","#x-nearai-compliance","#kyc_status","#wallet_status"],voiceSample:["fine to match the NF terms, but i'm not signing uncapped liability on directorship services \u2014 make the liability cap mutual and carve out gross negligence / wilful misconduct on the indemnities. if they won't move, note the residual exposure and we accept it consciously. hold signature until i've seen the final clause.","devhub grant terms don't cover this \u2014 external BD with full crm access needs at minimum an NDA with a non-solicit over anything in the NF pipeline. don't grant access until that's signed."]});function QP({groups:e,hasDecisions:t=!1,statusFilter:a=null,loading:n=!1}){let r=e.filter(c=>c.rows.length>0&&!B3.has(c.id)&&(!a||a.includes(c.id)));if(!r.length&&n||!r.length&&a||!r.length&&t)return null;if(!r.length)return l`
       <div className="wb13-section" data-testid="workbench-triage">
         <div className="wb13-group">
           <div className="wb13-group-title">Needs a decision<span></span></div>

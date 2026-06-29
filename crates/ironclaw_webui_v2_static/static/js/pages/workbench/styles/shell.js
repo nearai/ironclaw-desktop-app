@@ -42,9 +42,17 @@ export const WORKBENCH_SHELL_STYLE = `.wb13-shell {
   color: var(--wb-rail-muted);
   text-decoration: none;
 }
+/* Hover + active lift to readable ink; the active view is marked by the accent ::before bar
+   and an accent icon. The old shared 'color:#fff' rendered white-on-white on the light rail
+   (--wb-rail is #ffffff), so the active + every hovered nav item vanished in light mode. Ink
+   label keeps the 10px text AA in BOTH themes; the icon (a graphical object, 3:1 bar) carries
+   the accent cue. */
 .wb13-nav button:hover,
 .wb13-nav a:hover,
-.wb13-nav button.is-active { color: #fff; }
+.wb13-nav button.is-active,
+.wb13-nav a.is-active { color: var(--wb-rail-ink); }
+.wb13-nav button.is-active svg,
+.wb13-nav a.is-active svg { color: var(--wb-rail-accent); }
 .wb13-nav button.is-active::before {
   content: "";
   position: absolute;

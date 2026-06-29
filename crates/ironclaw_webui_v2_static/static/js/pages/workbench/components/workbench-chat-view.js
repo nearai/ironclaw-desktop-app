@@ -18,11 +18,16 @@ export function ChatView({ work, onView }) {
           ${hasWork
             ? html`<${WorkbenchSceneWorkspace} work=${work} />`
             : html`
-                <div className="wb13-head"><h1>Chat</h1></div>
-                <div className="wb13-allclear" data-testid="workbench-chat-empty">
-                  No conversation open yet. Ask IronClaw anything from the Work tab — it opens here
-                  as a full conversation, and everything you ask is saved to History.
-                  <div className="wb13-allclear-cta">
+                <div className="wb13-chat-empty" data-testid="workbench-chat-empty">
+                  <div className="wb13-chat-empty-mark" aria-hidden="true">
+                    <${Icon} name="chat" />
+                  </div>
+                  <h1>Start a conversation</h1>
+                  <p>
+                    Ask IronClaw anything from the Work tab — it opens here as a full conversation,
+                    and everything you ask is saved to History.
+                  </p>
+                  <div className="wb13-chat-empty-cta">
                     <button
                       type="button"
                       className="wb13-button is-sm is-primary"
