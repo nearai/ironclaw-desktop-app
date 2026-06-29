@@ -81,10 +81,11 @@ Make the DEFAULT home proactively surface what matters, not on-demand only.
 - [ ] **Notion content gist (v2, next ladder level)**: for each new page, read content
   (NOTION_FETCH_BLOCK_CONTENTS — now fixed) and show a 1–2 line gist (first blocks, or a batched LLM
   summary) so the band says WHAT the new Passport is, not just that it exists.
-- [ ] **Slack matters-surfacing on the default home**: surface the decisions-forming / @-mentions /
-  key threads that need the operator — promote the deep-read "worth weighing in" + "awaiting reply"
-  onto the default home (today they only appear after "Catch me up"). Rank by the existing
-  FootprintGatedRelevance; keep it quiet/curated, not a feed.
+- [x] **Slack matters-surfacing on the default home** — SHIPPED + verified (commit 6e3ab5e).
+  "Worth weighing in" now surfaces on the DEFAULT home alongside "awaiting your reply" (was
+  briefing-only), ranked by FootprintGatedRelevance, honest-empty. Generalized WorkbenchSlackReplies
+  (title/testid) + deterministic L4-Slack test (a paired @-mention gives FGR footprint so the
+  weigh-in survives ranking). Live: honest-empty in the standalone (no Slack identity match).
 
 ### P2 — Conversation history (#6)
 - [ ] A real conversations surface: list past threads (reuse useThreads/listThreads), reopen one
@@ -104,3 +105,4 @@ Make the DEFAULT home proactively surface what matters, not on-demand only.
   feat/web-access-autoactivate; old fast binary kept). GOAL reframed to successively-harder product
   tests + a 7-level LADDER. Loop iter 1: P1a "New in Notion" surfacing SHIPPED + live-verified
   (a399f56, pushed 16dce35); L1 boot/load + L4-Notion green. Next: P1a content gist OR P1b Slack-on-home.
+- 2026-06-28: Loop iter 2: P1b Slack 'worth weighing in' on the default home SHIPPED + verified (6e3ab5e, pushed bc3766c). L4-Slack green (a11y 144). Next: P2 conversation history OR Notion content gist OR P3 UX craft.
