@@ -63,6 +63,14 @@ export function WorkbenchNav({ view, onView, onSettings }) {
       >
         <${Icon} name="check" />Projects
       </button>
+      <button
+        type="button"
+        className=${view === 'history' ? 'is-active' : ''}
+        aria-current=${view === 'history' ? 'page' : undefined}
+        onClick=${() => onView('history')}
+      >
+        <${Icon} name="pulse" />History
+      </button>
       <div className="wb13-spacer"></div>
       <button
         type="button"

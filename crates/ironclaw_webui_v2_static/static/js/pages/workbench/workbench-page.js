@@ -88,6 +88,11 @@ const LibraryView = React.lazy(() =>
 const MemoryView = React.lazy(() =>
   import('./components/workbench-memory.js').then((m) => ({ default: m.MemoryView }))
 );
+// Conversation history is a secondary nav view (not cold-start), so lazy-load it like the
+// others to keep its thread-list query out of the cold-start bundle.
+const HistoryView = React.lazy(() =>
+  import('./components/workbench-history.js').then((m) => ({ default: m.HistoryView }))
+);
 // Calendar is a secondary view — lazy-load it so its time-grid styles + layout
 // logic stay out of the cold-start bundle. React.lazy wants a default export, so
 // map the named CalendarView onto `.default`.
@@ -609,6 +614,20 @@ export function WorkbenchPage() {
   const [savedWorkSnapshot, setSavedWorkSnapshot] = React.useState(() => readSavedWorkSnapshot());
   const [packageTab, setPackageTab] = React.useState('overview');
   const [startedWork, setStartedWork] = React.useState(null);
+  // Reopen a past conversation (from the History view) into the run surface. The surface is
+  // a pure function of threadId; title:'' skips the clean-question swap so the real timeline
+  // renders as-is. Then route back to the home where the run surface lives.
+  const reopenThread = React.useCallback((thread) => {
+    if (!thread || !thread.id) return;
+    setStartedWork({
+      threadId: String(thread.id),
+      title: '',
+      scene: null,
+      preferences: null,
+      startedAt: thread.updated_at || ''
+    });
+    setView('home');
+  }, []);
   // The deterministic briefing result, when the user asked a catch-up question
   // the Workbench can answer from connector data already in hand (no agent).
   const [briefing, setBriefing] = React.useState(null);
@@ -1620,38 +1639,50 @@ export function WorkbenchPage() {
                   >
                     <${JarvisView} />
                   </${React.Suspense}>`
-                : html`<${HomeView}
-                    commandProps=${commandProps}
-                    startedWork=${startedWork}
-                    briefing=${briefing}
-                    onDismissBriefing=${dismissBriefing}
-                    onBriefDraftReply=${onBriefDraftReply}
-                    slackBlockersActive=${slackBlockersActive}
-                    slackBlockers=${slackBlockers}
-                    onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
-                    onOpenMessage=${openMessage}
-                    groups=${railGroups}
-                    savedItems=${savedItems}
-                    packageTab=${packageTab}
-                    onPackageTab=${setPackageTab}
-                    connectorFamilies=${connectedAccounts.families}
-                    connectorsLoading=${connectedAccounts.isLoading}
-                    homeLoading=${connectedAccounts.gmailReady &&
-                    (connectorInbox.isLoading || connectorInbox.isFetching)}
-                    onConnectSources=${() => setShowSources(true)}
-                    gmailReady=${connectedAccounts.gmailReady}
-                    decisionMessages=${triageInbox}
-                    notionPages=${connectorNotion.pages}
-                    slackAwaiting=${slackDeep.awaiting}
-                    slackWeighIn=${slackDeep.weighIn}
-                    onSlackReply=${openSlackReply}
-                    calendarReady=${connectedAccounts.calendarReady}
-                    calendarEvents=${connectorCalendar.events}
-                    calendarError=${connectorCalendar.isError}
-                    onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
-                    onDraftMessage=${openDraftReply}
-                    onDismissDecision=${onDismissDecision}
-                  />`}
+                : view === 'history'
+                  ? html`<${React.Suspense}
+                      fallback=${html`<main className="wb13-main">
+                        <div className="wb13-page">
+                          <div className="wb13-wrap">
+                            <div className="wb13-head"><h1>Conversations</h1></div>
+                          </div>
+                        </div>
+                      </main>`}
+                    >
+                      <${HistoryView} onReopen=${reopenThread} />
+                    </${React.Suspense}>`
+                  : html`<${HomeView}
+                      commandProps=${commandProps}
+                      startedWork=${startedWork}
+                      briefing=${briefing}
+                      onDismissBriefing=${dismissBriefing}
+                      onBriefDraftReply=${onBriefDraftReply}
+                      slackBlockersActive=${slackBlockersActive}
+                      slackBlockers=${slackBlockers}
+                      onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
+                      onOpenMessage=${openMessage}
+                      groups=${railGroups}
+                      savedItems=${savedItems}
+                      packageTab=${packageTab}
+                      onPackageTab=${setPackageTab}
+                      connectorFamilies=${connectedAccounts.families}
+                      connectorsLoading=${connectedAccounts.isLoading}
+                      homeLoading=${connectedAccounts.gmailReady &&
+                      (connectorInbox.isLoading || connectorInbox.isFetching)}
+                      onConnectSources=${() => setShowSources(true)}
+                      gmailReady=${connectedAccounts.gmailReady}
+                      decisionMessages=${triageInbox}
+                      notionPages=${connectorNotion.pages}
+                      slackAwaiting=${slackDeep.awaiting}
+                      slackWeighIn=${slackDeep.weighIn}
+                      onSlackReply=${openSlackReply}
+                      calendarReady=${connectedAccounts.calendarReady}
+                      calendarEvents=${connectorCalendar.events}
+                      calendarError=${connectorCalendar.isError}
+                      onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
+                      onDraftMessage=${openDraftReply}
+                      onDismissDecision=${onDismissDecision}
+                    />`}
         ${showSources
           ? html`<${WorkbenchSourcesInspector}
               sourceReadiness=${sourceReadiness}

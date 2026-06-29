@@ -1588,6 +1588,33 @@ test('static workbench: Slack worth-weighing-in surfaces on the default home', a
   await expect(weighin).toContainText('cut the Q3 compliance scope');
 });
 
+test('static workbench: History lists past conversations and reopens one into the run surface', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    threads: [
+      {
+        thread_id: 'thread-workbench-runtime',
+        title: 'What is a SAFE note?',
+        turn_count: 2,
+        updated_at: new Date().toISOString()
+      }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page.getByRole('button', { name: 'History' }).click();
+  const list = page.getByTestId('workbench-history-list');
+  await expect(list).toBeVisible();
+  await expect(list).toContainText('What is a SAFE note?');
+
+  // Reopen the past conversation — it routes back into the run surface on the home (the
+  // surface is a pure function of threadId), with no hand-off to the desktop chat.
+  await page.getByTestId('workbench-history-row').first().click();
+  await expect(page).toHaveURL(/\/v2\/workbench$/);
+  await expect(page.getByTestId('workbench-scene-workspace')).toBeVisible();
+});
+
 test('static workbench: Projects (jarvis) view renders commitments + projects from the summary', async ({
   page
 }) => {
