@@ -75,10 +75,12 @@ grant / network policy → dispatch parked at "Running" forever.
 
 ### P1 — Proactive intelligence (THE vision: "surface what I should care about")
 Make the DEFAULT home proactively surface what matters, not on-demand only.
-- [ ] **Notion new-creation digest**: detect newly-created/updated Notion pages (e.g. Project
-  Passports) since last seen; summarize each in 1–2 lines on the home ("New: Project Passport —
-  IronClaw Desktop, created by …; gist: …"). Source: NOTION_SEARCH_NOTION_PAGE (sort by created/edited),
-  diff vs a seen-set (localStorage), LLM one-line summary. Honest empty when nothing new.
+- [x] **Notion new-creation surfacing (v1)** — SHIPPED + live-verified (commit a399f56). "New in
+  Notion" home band: pages created/edited within 7d not yet reviewed, Created/Updated pills, opens
+  in-app reader, "Mark reviewed" diffs a localStorage seen-map; honest-empty. lib + 6 unit tests.
+- [ ] **Notion content gist (v2, next ladder level)**: for each new page, read content
+  (NOTION_FETCH_BLOCK_CONTENTS — now fixed) and show a 1–2 line gist (first blocks, or a batched LLM
+  summary) so the band says WHAT the new Passport is, not just that it exists.
 - [ ] **Slack matters-surfacing on the default home**: surface the decisions-forming / @-mentions /
   key threads that need the operator — promote the deep-read "worth weighing in" + "awaiting reply"
   onto the default home (today they only appear after "Catch me up"). Rank by the existing
@@ -98,3 +100,7 @@ Make the DEFAULT home proactively surface what matters, not on-demand only.
 - 2026-06-28: Plan created. P0 gateway build in flight (web-access auto-activate). Prior this session:
   markdown replies, Notion body text, stale-read refetch, jarvis connect, gated Slack reply — all
   shipped + pushed (eb35969).
+- 2026-06-28: P0 web search root-caused + fix proven but boot-perf-blocked (gateway branch
+  feat/web-access-autoactivate; old fast binary kept). GOAL reframed to successively-harder product
+  tests + a 7-level LADDER. Loop iter 1: P1a "New in Notion" surfacing SHIPPED + live-verified
+  (a399f56, pushed 16dce35); L1 boot/load + L4-Notion green. Next: P1a content gist OR P1b Slack-on-home.
