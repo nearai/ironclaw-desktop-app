@@ -1588,6 +1588,95 @@ test('static workbench: Slack worth-weighing-in surfaces on the default home', a
   await expect(weighin).toContainText('cut the Q3 compliance scope');
 });
 
+test('static workbench: the rail Slack group shows CURRENT deep-read activity, never the stale keyword search', async ({
+  page
+}) => {
+  // Regression lock for the "4 blockers frozen at 10 days" bug: the rail must feed from the
+  // deep read (current activity), and ignore the relevance-ranked keyword SLACK_SEARCH even
+  // when it returns rows. The keyword search is retained only for the on-demand chip + briefing.
+  const nowTs = (Date.now() / 1000).toFixed(4);
+  const olderTs = (Date.now() / 1000 - 90).toFixed(4);
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [
+      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
+      { toolkit: 'slack', status: 'ACTIVE', user_id: 'pg-test' }
+    ],
+    connectorReads: {
+      gmail: { successful: true, data: { messages: [] } },
+      SLACK_LIST_ALL_USERS: {
+        successful: true,
+        data: {
+          members: [
+            {
+              id: 'USELF',
+              name: 'self',
+              real_name: 'Abby',
+              profile: { email: 'abby.vaidyanathan@gmail.com', display_name: 'Abby' }
+            },
+            {
+              id: 'UCAM',
+              name: 'cameron',
+              real_name: 'Cameron',
+              profile: { email: 'cam@near.org', display_name: 'cameron' }
+            }
+          ]
+        }
+      },
+      SLACK_LIST_ALL_CHANNELS: {
+        successful: true,
+        data: { channels: [{ id: 'C1', name: 'launch', is_member: true, is_archived: false }] }
+      },
+      SLACK_FETCH_CONVERSATION_HISTORY: {
+        successful: true,
+        data: {
+          messages: [
+            {
+              user: 'UCAM',
+              text: 'Proposing we cut the Q3 compliance scope — need a decision by Friday',
+              ts: olderTs,
+              reply_count: 3,
+              reply_users: ['UCAM', 'UDANA']
+            }
+          ]
+        }
+      },
+      SLACK_FETCH_TEAM_INFO: { successful: true, data: { team: { domain: 'nearteam' } } },
+      // The eager keyword search returns a relevance-ranked OLD blocker — it must NOT win the rail.
+      SLACK_SEARCH_MESSAGES: {
+        successful: true,
+        data: {
+          messages: {
+            matches: [
+              {
+                iid: 'stale-1',
+                username: 'someone',
+                channel: { id: 'C9', name: 'old' },
+                ts: olderTs,
+                text: 'STALEKEYWORD launch copy blocked on pricing approval from forever ago',
+                permalink: 'https://nearteam.slack.com/archives/C9/p1'
+              }
+            ]
+          }
+        }
+      }
+    }
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  // wait for the eager deep read to resolve so slackActivity is populated
+  await expect(page.getByTestId('workbench-slack-weighin')).toContainText(
+    'cut the Q3 compliance scope'
+  );
+
+  // At desktop width the rail dock is a persistent column (its toggle is display:none).
+  const dock = page.locator('#workbench-active-work-dock');
+  await expect(dock).toBeVisible();
+  // The rail Slack group shows the CURRENT decision thread...
+  await expect(dock).toContainText('cut the Q3 compliance scope');
+  // ...and never the stale keyword-search result, even though it returned a row.
+  await expect(dock).not.toContainText('STALEKEYWORD');
+});
+
 test('static workbench: History lists past conversations and reopens one into the run surface', async ({
   page
 }) => {
