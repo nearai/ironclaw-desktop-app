@@ -663,7 +663,7 @@ test('tier corrections match the sender email case-insensitively', () => {
   assert.equal(reply.rows[0].replyRank, 2, 'respond outranks IMPORTANT (1)');
 });
 
-test('workbench rail surfaces Slack blockers as their own group, recency-preserving', () => {
+test('workbench rail falls back to the keyword blocker search when no deep-read activity', () => {
   const rail = buildWorkbenchStateRail({
     slackBlockers: [
       {
@@ -696,13 +696,63 @@ test('workbench rail surfaces Slack blockers as their own group, recency-preserv
   assert.equal(slack.rows[0].badge, '#gtm', 'channel becomes the badge');
   assert.equal(
     slack.rows[0].detail,
-    'From @cameron',
+    'From cameron',
     'detail drops the channel — the badge carries it'
   );
   assert.equal(
     slack.rows[0].href,
     'https://near-foundation.slack.com/archives/C1/p1',
     'permalink opens the message'
+  );
+});
+
+test('workbench rail prefers CURRENT deep-read Slack activity over the stale keyword search', () => {
+  const rail = buildWorkbenchStateRail({
+    // deep-read items carry replyHref + an already-resolved display name (or "a teammate")
+    slackActivity: [
+      {
+        id: 'a1',
+        who: 'Illia',
+        channel: 'general',
+        text: 'Can you weigh in on the validator agreement today?',
+        replyHref: 'https://near-foundation.slack.com/archives/C9/p9'
+      },
+      {
+        id: 'a2',
+        who: 'a teammate',
+        channel: 'c-ecosystem-chat',
+        text: 'NEAR integration credits — your call?',
+        replyHref: 'https://near-foundation.slack.com/archives/C8/p8'
+      }
+    ],
+    // the stale keyword search is present but must be IGNORED when activity exists
+    slackBlockers: [
+      {
+        id: 'old',
+        who: 'cameron',
+        channel: 'gtm',
+        text: 'Launch copy is blocked on pricing approval (from 10 days ago)',
+        permalink: 'https://near-foundation.slack.com/archives/C1/p1'
+      }
+    ]
+  });
+  const slack = rail.find((group) => group.id === 'slack');
+  assert.equal(slack.total, 2, 'deep-read activity feeds the rail, not the keyword search');
+  assert.deepEqual(
+    slack.rows.map((r) => r.id),
+    ['slack-a1', 'slack-a2'],
+    'ranking order preserved'
+  );
+  assert.equal(slack.rows[0].detail, 'From Illia', 'resolved name, no @ prefix');
+  assert.equal(slack.rows[1].detail, 'From a teammate', 'unresolved author reads cleanly');
+  assert.equal(
+    slack.rows[0].href,
+    'https://near-foundation.slack.com/archives/C9/p9',
+    'replyHref opens the thread'
+  );
+  assert.ok(
+    !slack.rows.some((r) => /blocked on pricing/.test(r.title)),
+    'the stale keyword blocker is not shown when current activity exists'
   );
 });
 
@@ -742,13 +792,13 @@ test('workbench rail collapses identical GitHub notifications (no more 4x CI-fai
   );
 });
 
-test('workbench Slack group degrades to an honest empty state with no blockers', () => {
-  const rail = buildWorkbenchStateRail({ slackBlockers: [] });
+test('workbench Slack group degrades to an honest empty state with no activity', () => {
+  const rail = buildWorkbenchStateRail({ slackActivity: [], slackBlockers: [] });
   const slack = rail.find((group) => group.id === 'slack');
   assert.ok(slack, 'group still present');
   assert.equal(slack.total, 0);
   assert.deepEqual(slack.rows, []);
-  assert.equal(slack.emptyTitle, 'No Slack blockers.');
+  assert.equal(slack.emptyTitle, 'Slack is quiet.');
 });
 
 test('workbench Slack rows truncate long messages and never fabricate a row', () => {

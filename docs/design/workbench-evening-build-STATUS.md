@@ -77,9 +77,16 @@ Root causes (verified live against the standalone):
   (961 unit / 142 a11y / DT-1..6 / smoke / bundle <401). LIVE-VERIFIED in a real browser: identity
   resolves → 1 awaiting + 5 worth-weighing-in cards render where there were zero, bundleLoads===1,
   "a teammate" confirmed on screen (docs/design/evidence/slack-deepread-live.png).
-- [ ] REMAINING: the RAIL's stale keyword-blocker group (separate surface, SLACK_SEARCH relevance-
-  ranked) still looks frozen — fold it into the recency deep-read or drop it. Reply path is
-  Open-thread + Copy/Draft (zero-write); first real Slack SEND stays a human checkpoint.
+- [x] **FIXED (2026-06-29).** The rail "Slack blockers" group now feeds from the CURRENT deep-read
+  activity (slackActivity = awaiting + worth-weighing-in) instead of the relevance-ranked keyword
+  search; relabeled "Slack" with an honest empty state. `connectorSlackRows` is source-agnostic
+  (replyHref|permalink) and drops the "@" prefix (deep-read `who` is a resolved name / "a teammate").
+  Keyword SLACK_SEARCH is kept only as the fallback + for the on-demand "Find Slack blockers" chip +
+  the catch-up briefing (those 3 specs still green). FULL gate green (962 unit / 147 a11y / DT-1..6 /
+  smoke / bundle). LIVE-VERIFIED: rail "Slack" group shows current items (Privy/#c-ecosystem-chat,
+  brand-refresh/#general, Illia/#general, #n-berries), zero stale keyword text, bundleLoads===1
+  (docs/design/evidence/rail-slack-current.png). Reply path stays Open-thread/Copy/Draft (zero-write);
+  first real Slack SEND remains a human checkpoint.
 
 ### PB — Chat UX: dedicated surface, not an inline bar  [HIGH]
 The conversation renders inline below the home (a cramped strip). The operator wants chat to open

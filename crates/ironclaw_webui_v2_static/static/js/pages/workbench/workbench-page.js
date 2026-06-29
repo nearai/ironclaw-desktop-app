@@ -1214,6 +1214,9 @@ export function WorkbenchPage() {
         sourceReadiness,
         inbox: { messages: triageInbox },
         calendar: { events: connectorCalendar.events },
+        // CURRENT Slack activity (eager deep read) feeds the rail; the keyword blocker
+        // search is only the fallback when the deep read is empty (identity unresolved).
+        slackActivity: [...slackDeep.awaiting, ...slackDeep.weighIn],
         slackBlockers: slackBlockers.rows,
         githubNotifications: connectorGithub.notifications,
         notionPages: connectorNotion.pages,
@@ -1228,6 +1231,8 @@ export function WorkbenchPage() {
       workbenchFeedQuery.data,
       connectorCalendar.events,
       triageInbox,
+      slackDeep.awaiting,
+      slackDeep.weighIn,
       slackBlockers.rows,
       connectorGithub.notifications,
       connectorNotion.pages,
