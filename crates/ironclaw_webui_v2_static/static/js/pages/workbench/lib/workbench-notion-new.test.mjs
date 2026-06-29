@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { selectNewNotionPages, notionSeenAfterViewing } from './workbench-notion-new.js';
+import {
+  selectNewNotionPages,
+  notionSeenAfterViewing,
+  notionGist
+} from './workbench-notion-new.js';
 
 const now = Date.parse('2026-06-28T20:00:00Z');
 const isoAgoMin = (min) => new Date(now - min * 60000).toISOString();
@@ -65,4 +69,34 @@ test('selectNewNotionPages: tags created vs updated', () => {
 test('selectNewNotionPages: honest-empty on no pages / missing timestamps', () => {
   assert.deepEqual(selectNewNotionPages([], {}, { nowMs: now }), []);
   assert.deepEqual(selectNewNotionPages([{ id: 'x', title: 'x' }], {}, { nowMs: now }), []);
+});
+
+test('notionGist: joins the first non-empty blocks, skips dividers + blanks', () => {
+  const g = notionGist([
+    { kind: 'divider', text: '' },
+    { kind: 'para', text: '   ' },
+    { kind: 'heading', text: 'Project Passport: IronClaw Desktop' },
+    { kind: 'para', text: 'A Tauri desktop client for the IronClaw agent.' },
+    { kind: 'para', text: 'Third block is ignored.' }
+  ]);
+  assert.ok(g.startsWith('Project Passport: IronClaw Desktop — A Tauri desktop client'));
+  assert.ok(!g.includes('Third block'));
+});
+
+test('notionGist: honest-empty when there is no readable body', () => {
+  assert.equal(notionGist([]), '');
+  assert.equal(
+    notionGist([
+      { kind: 'divider', text: '' },
+      { kind: 'para', text: '  ' }
+    ]),
+    ''
+  );
+  assert.equal(notionGist(null), '');
+});
+
+test('notionGist: truncates to maxChars with an ellipsis', () => {
+  const g = notionGist([{ kind: 'para', text: 'x'.repeat(300) }], { maxChars: 40 });
+  assert.ok(g.length <= 40);
+  assert.ok(g.endsWith('…'));
 });

@@ -55,6 +55,24 @@ export function notionSeenAfterViewing(pages, seen = {}) {
   return next;
 }
 
+// Build a 1-line gist from a page's flattened content blocks (from
+// normalizeNotionPageContent): the first couple of non-empty, non-divider blocks joined
+// and truncated. Pure so it is testable; honest-empty ('') when there is no readable body.
+export function notionGist(blocks, { maxChars = 160, maxBlocks = 2 } = {}) {
+  const parts = [];
+  for (const block of Array.isArray(blocks) ? blocks : []) {
+    if (!block || block.kind === 'divider') continue;
+    const text = String(block.text || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) continue;
+    parts.push(text);
+    if (parts.length >= maxBlocks || parts.join(' — ').length >= maxChars) break;
+  }
+  const gist = parts.join(' — ').trim();
+  return gist.length > maxChars ? `${gist.slice(0, maxChars - 1).trimEnd()}…` : gist;
+}
+
 export function readNotionSeen() {
   try {
     const raw = globalThis.localStorage?.getItem(SEEN_KEY);

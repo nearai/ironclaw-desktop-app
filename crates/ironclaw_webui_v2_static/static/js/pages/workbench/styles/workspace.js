@@ -692,7 +692,7 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
 }
 .wb13-notionnew-card {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   width: 100%;
   text-align: left;
@@ -721,6 +721,31 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   font-size: 12px;
   color: var(--wb-muted);
   flex: none;
+}
+.wb13-notionnew-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wb13-notionnew-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wb13-notionnew-gist {
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--wb-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+.wb13-notionnew-gist.is-loading {
+  color: var(--wb-faint);
 }
 .wb13-card-meta {
   display: flex;
