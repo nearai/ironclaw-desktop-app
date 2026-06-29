@@ -629,7 +629,7 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   white-space: nowrap;
 }
 .wb13-status-pill svg { width: 12px; height: 12px; }
-.wb13-status-pill.is-reply { background: var(--wb-accent-soft); color: var(--wb-accent); }
+.wb13-status-pill.is-reply { background: var(--wb-accent-soft); color: var(--wb-accent-ink); }
 .wb13-status-pill.is-decision { background: var(--wb-hold-tint); color: var(--wb-hold-text); }
 .wb13-status-pill.is-blocked {
   background: color-mix(in srgb, var(--wb-danger) 13%, transparent);
