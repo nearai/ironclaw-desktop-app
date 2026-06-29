@@ -60,13 +60,22 @@ function SlackReplyCard({ item, onReply }) {
   `;
 }
 
-export function WorkbenchSlackReplies({ items, onReply }) {
+// Renders a curated Slack section (deep-read rows) on the home. Reused for both
+// "awaiting your reply" (you owe a reply) and "worth weighing in" (a decision is
+// forming you may want to weigh in on) — same row shape + compose action, different
+// title/testid. Honest-empty: renders nothing when the list is empty.
+export function WorkbenchSlackReplies({
+  items,
+  onReply,
+  title = 'Slack · awaiting your reply',
+  testid = 'workbench-slack-replies'
+}) {
   const list = Array.isArray(items) ? items : [];
   if (!list.length) return null;
   return html`
-    <div className="wb13-section wb13-list" data-testid="workbench-slack-replies">
+    <div className="wb13-section wb13-list" data-testid=${testid}>
       <div className="wb13-section-label">
-        <${Icon} name="chat" /> Slack · awaiting your reply
+        <${Icon} name="chat" /> ${title}
         <span className="wb13-section-count">${list.length}</span>
       </div>
       ${list.map(

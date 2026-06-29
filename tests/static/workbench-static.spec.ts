@@ -1515,6 +1515,79 @@ test('static workbench: Slack awaiting renders on the home with a gated respond-
   expect(String(wrote.arguments.text)).toContain('reviewing the launch plan');
 });
 
+test('static workbench: Slack worth-weighing-in surfaces on the default home', async ({ page }) => {
+  const nowTs = (Date.now() / 1000).toFixed(4);
+  const olderTs = (Date.now() / 1000 - 90).toFixed(4);
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [
+      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
+      { toolkit: 'slack', status: 'ACTIVE', user_id: 'pg-test' }
+    ],
+    connectorReads: {
+      gmail: { successful: true, data: { messages: [] } },
+      SLACK_LIST_ALL_USERS: {
+        successful: true,
+        data: {
+          members: [
+            {
+              id: 'USELF',
+              name: 'self',
+              real_name: 'Abby',
+              profile: { email: 'abby.vaidyanathan@gmail.com', display_name: 'Abby' }
+            },
+            {
+              id: 'UCAM',
+              name: 'cameron',
+              real_name: 'Cameron',
+              profile: { email: 'cam@near.org', display_name: 'cameron' }
+            },
+            {
+              id: 'UDANA',
+              name: 'dana',
+              real_name: 'Dana',
+              profile: { email: 'dana@near.org', display_name: 'dana' }
+            }
+          ]
+        }
+      },
+      SLACK_LIST_ALL_CHANNELS: {
+        successful: true,
+        data: { channels: [{ id: 'C1', name: 'launch', is_member: true, is_archived: false }] }
+      },
+      SLACK_FETCH_CONVERSATION_HISTORY: {
+        successful: true,
+        data: {
+          messages: [
+            // An @-mention gives cameron real footprint so the weigh-in item below
+            // survives FootprintGatedRelevance ranking.
+            {
+              user: 'UCAM',
+              text: 'hey <@USELF> quick question on the launch',
+              ts: nowTs,
+              reply_count: 0
+            },
+            // A decision forming without you: not yours, not @-mentioning you, active thread.
+            {
+              user: 'UCAM',
+              text: 'Proposing we cut the Q3 compliance scope — need a decision by Friday',
+              ts: olderTs,
+              reply_count: 3,
+              reply_users: ['UCAM', 'UDANA']
+            }
+          ]
+        }
+      },
+      SLACK_FETCH_TEAM_INFO: { successful: true, data: { team: { domain: 'nearteam' } } }
+    }
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  // The DEFAULT home (no "Catch me up") proactively surfaces "worth weighing in".
+  const weighin = page.getByTestId('workbench-slack-weighin');
+  await expect(weighin).toContainText('worth weighing in');
+  await expect(weighin).toContainText('cut the Q3 compliance scope');
+});
+
 test('static workbench: Projects (jarvis) view renders commitments + projects from the summary', async ({
   page
 }) => {

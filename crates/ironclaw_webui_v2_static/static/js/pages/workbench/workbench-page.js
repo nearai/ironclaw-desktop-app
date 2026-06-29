@@ -470,6 +470,14 @@ function HomeView(props) {
                 onReply=${props.onSlackReply}
               />`
             : null}
+          ${visible('replies')
+            ? html`<${WorkbenchSlackReplies}
+                items=${props.slackWeighIn}
+                onReply=${props.onSlackReply}
+                title="Slack · worth weighing in"
+                testid="workbench-slack-weighin"
+              />`
+            : null}
           ${centerFilter === 'all'
             ? html`<${WorkbenchSceneWorkspace} work=${props.startedWork} />`
             : null}
@@ -1635,6 +1643,7 @@ export function WorkbenchPage() {
                     decisionMessages=${triageInbox}
                     notionPages=${connectorNotion.pages}
                     slackAwaiting=${slackDeep.awaiting}
+                    slackWeighIn=${slackDeep.weighIn}
                     onSlackReply=${openSlackReply}
                     calendarReady=${connectedAccounts.calendarReady}
                     calendarEvents=${connectorCalendar.events}
