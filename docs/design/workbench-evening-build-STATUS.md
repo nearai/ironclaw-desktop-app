@@ -53,6 +53,43 @@ connectors + real LLM), and keep the whole ladder green as new work lands.
 - Use Workflows for substantial chunks + adversarial review (near-ai-code-review / codex-fanout).
 - Gated-write posture holds; outbound sends per-message approved. Slack send before a PR needs the review gate.
 
+## ⚠️ USER STEERING 2026-06-29 (TOP PRIORITY — above everything below)
+Operator feedback after using it: Slack still doesn't work, and the chat UX is wrong. These
+SUPERSEDE the P3 UX micro-polish. Diagnosed live:
+
+### PA — Slack actually works (see current activity + respond)  [HIGHEST]
+Root causes (verified live against the standalone):
+1. The rail "Slack blockers" is `SLACK_SEARCH_MESSAGES` (keyword: blocked/stuck/waiting) — Slack
+   returns RELEVANCE-ranked matches, so it shows the same old messages (May 20 / Jun 7 / Jun 24)
+   and looks frozen "at 10 days ago". It is not current activity.
+2. The proactive deep read (awaiting / worth-weighing-in) matches the user's email against
+   SLACK_LIST_ALL_USERS to detect @-mentions — but that call returns **0 members** live (Composio
+   Slack connection lacks users-read scope / not paginating). No identity → awaiting+weigh-in are
+   ALWAYS empty → nothing surfaces on the home → nothing to respond to.
+- [x] **FIXED (2026-06-29).** The real root cause was not "0 members" (that was a probe parse
+  error) — SLACK_LIST_ALL_USERS returns 200, but identity resolution scanned only that first page;
+  in the >1000-member near-foundation Enterprise Grid the signed-in user is not on it, so
+  `resolveSlackSelf` returned null and the WHOLE deep read silently degraded to empty. Fix = resolve
+  identity DIRECTLY via SLACK_FIND_USER_BY_EMAIL_ADDRESS (users.lookupByEmail; workspace-size
+  independent — verified returns U04MWJDB7EK), member-scan as fallback. Also: unresolved author ids
+  (per-id user-info tool is unavailable on this connection; org too large to paginate) now render
+  "a teammate", never a raw U0…/W0…/B0… id. Lib + regression tests (33 green); FULL gate green
+  (961 unit / 142 a11y / DT-1..6 / smoke / bundle <401). LIVE-VERIFIED in a real browser: identity
+  resolves → 1 awaiting + 5 worth-weighing-in cards render where there were zero, bundleLoads===1,
+  "a teammate" confirmed on screen (docs/design/evidence/slack-deepread-live.png).
+- [ ] REMAINING: the RAIL's stale keyword-blocker group (separate surface, SLACK_SEARCH relevance-
+  ranked) still looks frozen — fold it into the recency deep-read or drop it. Reply path is
+  Open-thread + Copy/Draft (zero-write); first real Slack SEND stays a human checkpoint.
+
+### PB — Chat UX: dedicated surface, not an inline bar  [HIGH]
+The conversation renders inline below the home (a cramped strip). The operator wants chat to open
+as its OWN surface — a "Chat" nav view, linked to History — so asking opens a focused conversation.
+- [ ] Move WorkbenchSceneWorkspace out of HomeView into a dedicated `view==='chat'` surface (full
+  width, focused). Ask (handleStartedWork) → setView('chat'); History reopen → setView('chat');
+  add a "Chat" nav entry; keep the home a clean triage/proactive surface (no inline conversation).
+  Keep the gated-write posture + markdown + composer. Update tests (the inline-scene assertions move
+  to the chat view). Live-verify light+dark: Ask opens the Chat surface, History reopens into it.
+
 ## Ranked plan (highest value first — the vision leads)
 
 ### P0 — Web search (ROOT-CAUSED + fix PROVEN; blocked on boot-perf — deferred)

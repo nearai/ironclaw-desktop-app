@@ -15,7 +15,9 @@ import {
   normalizeSlackChannelList,
   normalizeSlackHistory,
   resolveSlackSelf,
+  resolveSlackSelfFromLookup,
   scoreSlackRelevance,
+  slackDisplayName,
   SLACK_BLOCKER_QUERY,
   slackArchiveLink,
   slackTeamDomain,
@@ -193,6 +195,36 @@ test('resolveSlackSelf matches the signed-in user by email (case-insensitive), n
   assert.equal(resolveSlackSelf(USERS_RESULT, 'nobody@near.org'), null, 'unknown email -> null');
   assert.equal(resolveSlackSelf(USERS_RESULT, ''), null, 'empty email -> null (never guesses)');
   assert.equal(resolveSlackSelf({ successful: false }, 'me@near.org'), null);
+});
+
+test('resolveSlackSelfFromLookup reads SLACK_FIND_USER_BY_EMAIL_ADDRESS (single + double wrap)', () => {
+  // The shape verified live: data.user with id + profile.
+  assert.deepEqual(
+    resolveSlackSelfFromLookup({
+      successful: true,
+      data: { ok: true, user: { id: 'U04MWJDB7EK', profile: { display_name: 'Abhi' } } }
+    }),
+    { userId: 'U04MWJDB7EK', userName: 'Abhi' }
+  );
+  // double-wrapped (data.data.user) resolves too
+  assert.deepEqual(
+    resolveSlackSelfFromLookup({
+      successful: true,
+      data: { data: { user: { id: 'U1', real_name: 'Real' } } }
+    }),
+    { userId: 'U1', userName: 'Real' }
+  );
+  assert.equal(resolveSlackSelfFromLookup(null), null);
+  assert.equal(resolveSlackSelfFromLookup({ successful: false }), null);
+  assert.equal(resolveSlackSelfFromLookup({ successful: true, data: { ok: false } }), null);
+});
+
+test('slackDisplayName: resolved name wins; an unresolved raw id renders as a readable label', () => {
+  assert.equal(slackDisplayName('UCARLA', { UCARLA: 'Carla' }), 'Carla');
+  assert.equal(slackDisplayName('U082BCSSF6H', {}), 'a teammate', 'raw Slack id is never shown');
+  assert.equal(slackDisplayName('W123456', {}), 'a teammate');
+  assert.equal(slackDisplayName('', {}), 'a teammate');
+  assert.equal(slackDisplayName('cameron', {}), 'cameron', 'a non-id username passes through');
 });
 
 test('buildSlackUserMap maps user ids to display names', () => {
@@ -697,6 +729,51 @@ test('fetchSlackDeep orchestrates identity → channels → history → classifi
   assert.equal(out.awaiting[0].who, 'Carla');
   assert.match(out.awaiting[0].replyHref, /near-foundation\.slack\.com\/archives\/C1\//);
   assert.ok(calls.includes('SLACK_FETCH_CONVERSATION_HISTORY'), 'fanned out to channel history');
+});
+
+test('fetchSlackDeep resolves identity via email lookup when the user is NOT in the truncated member list (the enterprise bug)', async () => {
+  // The signed-in user is absent from SLACK_LIST_ALL_USERS (org > the 200-row page),
+  // exactly the live near-foundation case. The email lookup must still resolve identity
+  // so the read does NOT silently go empty.
+  const calls = [];
+  const read = async (tool, args) => {
+    calls.push(tool);
+    if (tool === 'SLACK_FIND_USER_BY_EMAIL_ADDRESS') {
+      assert.equal(args.email, 'me@near.org');
+      return {
+        successful: true,
+        data: { ok: true, user: { id: 'UME', profile: { display_name: 'Abhi' } } }
+      };
+    }
+    if (tool === 'SLACK_LIST_ALL_USERS') {
+      // 200-row page that does NOT contain UME
+      return {
+        successful: true,
+        data: { data: { members: [{ id: 'UCARLA', profile: { email: 'carla@near.org' } }] } }
+      };
+    }
+    if (tool === 'SLACK_LIST_ALL_CHANNELS') {
+      return {
+        successful: true,
+        data: { channels: [{ id: 'C1', name: 'legal', is_member: true, is_archived: false }] }
+      };
+    }
+    if (tool === 'SLACK_FETCH_TEAM_INFO')
+      return { successful: true, data: { team: { domain: 'near-foundation' } } };
+    if (tool === 'SLACK_FETCH_CONVERSATION_HISTORY') {
+      return {
+        successful: true,
+        data: {
+          messages: [{ user: 'UCARLA', ts: '1781279600.1', text: 'Hey <@UME>, Cavenwell terms?' }]
+        }
+      };
+    }
+    return null;
+  };
+  const out = await fetchSlackDeep({ read, email: 'me@near.org', channelLimit: 8 });
+  assert.equal(out.selfResolved, true, 'lookup resolved identity despite truncated member list');
+  assert.equal(out.awaiting.length, 1, 'the @-mention surfaces');
+  assert.ok(calls.includes('SLACK_FIND_USER_BY_EMAIL_ADDRESS'));
 });
 
 test('fetchSlackDeep degrades to empty when identity is unresolved or reader missing', async () => {

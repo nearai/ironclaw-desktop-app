@@ -159,7 +159,7 @@ function slackData(result) {
   const outer = result.data || result;
   if (outer && typeof outer === 'object' && outer.data && typeof outer.data === 'object') {
     const inner = outer.data;
-    if (inner.members || inner.channels || inner.messages || inner.team) return inner;
+    if (inner.members || inner.channels || inner.messages || inner.team || inner.user) return inner;
   }
   return outer;
 }
@@ -187,6 +187,25 @@ export function resolveSlackSelf(result, email) {
     }
   }
   return null;
+}
+
+// Resolve the signed-in user DIRECTLY via SLACK_FIND_USER_BY_EMAIL_ADDRESS
+// (Slack's users.lookupByEmail). This is workspace-size independent: the email→id
+// resolves even in an Enterprise Grid where the signed-in user is not on the first
+// page of SLACK_LIST_ALL_USERS. That truncation was the bug — the member-scan never
+// found the user in a >200-member org, so every deep read silently degraded to empty.
+// Returns { userId, userName } or null; the caller falls back to the member-scan.
+export function resolveSlackSelfFromLookup(result) {
+  const data = slackData(result);
+  const user = data && typeof data === 'object' ? data.user : null;
+  if (!user || typeof user !== 'object') return null;
+  const userId = String(user.id || '').trim();
+  if (!userId) return null;
+  const profile = user.profile || {};
+  return {
+    userId,
+    userName: String(profile.display_name || user.real_name || user.name || '').trim()
+  };
 }
 
 // id -> display name map from SLACK_LIST_ALL_USERS, so a U0… author renders as a
@@ -544,13 +563,25 @@ export function scoreSlackRelevance(row, ctx = {}) {
   };
 }
 
+// Resolve an author id to a display name. In a >200-member org most authors are not on
+// the SLACK_LIST_ALL_USERS page we fetched, and Slack's per-id user-info tool is
+// unavailable on this connection — so when a name can't be resolved, render a readable
+// label, never a raw U0…/W0…/B0… Slack id (which reads as broken).
+export function slackDisplayName(id, userMap = {}) {
+  const mapped = userMap[id];
+  if (mapped) return mapped;
+  const raw = String(id || '').trim();
+  if (!raw || /^[UWB][A-Z0-9]{6,}$/.test(raw)) return 'a teammate';
+  return raw;
+}
+
 function toSlackItem(row, domain, userMap, score) {
   return {
     id: row.id,
     channel: row.channel,
     channelId: row.channelId,
     whoId: row.who,
-    who: userMap[row.who] || row.who,
+    who: slackDisplayName(row.who, userMap),
     text: row.text,
     when: row.when,
     ts: row.ts,
@@ -622,12 +653,16 @@ export function buildSlackSignals(
 export async function fetchSlackDeep({ read, email, channelLimit = 8 } = {}) {
   const empty = { awaiting: [], weighIn: [], selfResolved: false };
   if (typeof read !== 'function') return empty;
-  const [usersResult, channelsResult, teamResult] = await Promise.all([
+  const [lookupResult, usersResult, channelsResult, teamResult] = await Promise.all([
+    email ? read('SLACK_FIND_USER_BY_EMAIL_ADDRESS', { email }) : null,
     read('SLACK_LIST_ALL_USERS', { limit: 200 }),
     read('SLACK_LIST_ALL_CHANNELS', { limit: 200 }),
     read('SLACK_FETCH_TEAM_INFO', {})
   ]);
-  const self = resolveSlackSelf(usersResult, email);
+  // Identity by direct email→id lookup first (workspace-size independent); fall back to
+  // scanning the (truncated) member list only when the lookup is unavailable. Without
+  // this, a >200-member org never resolves the signed-in user and the read goes empty.
+  const self = resolveSlackSelfFromLookup(lookupResult) || resolveSlackSelf(usersResult, email);
   if (!self || !self.userId) return empty;
   const channels = normalizeSlackChannelList(channelsResult, { limit: channelLimit });
   const histories = await Promise.all(
