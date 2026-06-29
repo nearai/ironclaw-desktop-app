@@ -1,6 +1,7 @@
 import { Icon } from '../../../design-system/icons.js';
 import { html } from '../../../lib/html.js';
 import { cn } from '../../../utils/cn.js';
+import { MarkdownRenderer } from '../../chat/components/markdown-renderer.js';
 
 // Workbench-native run timeline: renders the REAL ordered run on the Workbench
 // itself — the prompt, each tool step, and the assistant output — instead of
@@ -61,7 +62,7 @@ function RunAssistantRow({ message }) {
       <span className="wb13-run-marker" aria-hidden="true"><${Icon} name="pulse" /></span>
       <div className="wb13-run-body">
         <div className="wb13-run-role">IronClaw</div>
-        <p className="wb13-run-text">${cleanText(message.content)}</p>
+        <${MarkdownRenderer} content=${cleanText(message.content)} className="wb13-run-text" />
       </div>
     </li>
   `;

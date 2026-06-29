@@ -97,6 +97,10 @@ export function useConnectorInbox({ enabled = true, maxResults = 6 } = {}) {
     queryKey: ['workbench-connector-inbox', maxResults],
     enabled: Boolean(enabled),
     staleTime: 60_000,
+    // The inbox is the primary "new mail surfaces" surface — poll it on a calm cadence
+    // (foreground only) so genuinely new threads appear without a manual reload.
+    refetchInterval: 180_000,
+    refetchIntervalInBackground: false,
     retry: 1,
     throwOnError: false,
     queryFn: ({ signal }) =>

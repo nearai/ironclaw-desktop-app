@@ -12,7 +12,8 @@ test('normalizeNotionPageContent flattens NOTION_FETCH_BLOCK_CONTENTS into rende
   const result = {
     successful: true,
     data: {
-      block_child_data: {
+      // Real Composio envelope: Notion action payloads are wrapped under response_data.
+      response_data: {
         results: [
           {
             type: 'heading_2',
@@ -50,6 +51,28 @@ test('normalizeNotionPageContent flattens NOTION_FETCH_BLOCK_CONTENTS into rende
   );
   assert.equal(out.blocks[0].level, 2, 'heading level preserved');
   assert.equal(out.blocks[3].checked, true, 'to_do checked flag preserved');
+});
+
+test('normalizeNotionPageContent accepts the response_data.children key and legacy fallbacks', () => {
+  const block = (text) => ({ type: 'paragraph', paragraph: { rich_text: [{ plain_text: text }] } });
+  // Notion's native children key under response_data
+  const childrenShape = normalizeNotionPageContent({
+    successful: true,
+    data: { response_data: { children: [block('from children')] } }
+  });
+  assert.deepEqual(
+    childrenShape.blocks.map((b) => b.text),
+    ['from children']
+  );
+  // Legacy block_child_data shape still parses (defensive fallback)
+  const legacyShape = normalizeNotionPageContent({
+    successful: true,
+    data: { block_child_data: { results: [block('from legacy')] } }
+  });
+  assert.deepEqual(
+    legacyShape.blocks.map((b) => b.text),
+    ['from legacy']
+  );
 });
 
 test('normalizeNotionPageContent is honest on failed/empty reads', () => {

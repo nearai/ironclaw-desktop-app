@@ -82,9 +82,19 @@ export function normalizeNotionPageContent(result) {
     };
   }
   const data = result.data || result;
+  // Composio wraps Notion action payloads under `data.response_data` (the working
+  // recents/search path reads response_data.results). The read path previously looked
+  // for `block_child_data.results` / `data.results`, which the real
+  // NOTION_FETCH_BLOCK_CONTENTS payload never has — so every opened page flattened to
+  // zero blocks and rendered the honest "no readable content" empty state. Prefer
+  // response_data, accept Notion's native `children` key, keep the legacy keys as
+  // defensive fallbacks.
+  const inner = (data && data.response_data) || data || {};
   const results =
+    (Array.isArray(inner.results) && inner.results) ||
+    (Array.isArray(inner.children) && inner.children) ||
+    (Array.isArray(data && data.results) && data.results) ||
     (data && data.block_child_data && data.block_child_data.results) ||
-    (data && data.results) ||
     [];
   if (!Array.isArray(results)) return { ok: true, error: '', blocks: [] };
   const blocks = [];
