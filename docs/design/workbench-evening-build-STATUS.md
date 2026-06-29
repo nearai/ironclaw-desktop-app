@@ -4,6 +4,41 @@ Operator: Abhishek (CLO, NEAR AI). Works by triage — wants what needs his atte
 **surfaced proactively**, hates noise, legal/strategy focus. The product bar: a prepared
 chief-of-staff desk, not a chatbot.
 
+## GOAL (primary directive)
+Ensure **successively more difficult product tests and functionality continue to work** — every
+evening. The loop is build → test harder → fix red → raise the bar. Don't just add features; prove
+they hold under progressively harder, real end-to-end scenarios against the LIVE standalone (real
+connectors + real LLM), and keep the whole ladder green as new work lands.
+
+### Per-iteration protocol
+1. **Regression first**: re-run the current LADDER (live, in a real browser via a throwaway
+   `_verify.mjs` vs http://127.0.0.1:17641/workbench#token=workbench-standalone). Any red → FIX it
+   before new work. Record pass/fail + evidence (screenshot to docs/design/evidence/ladder/).
+2. **Advance**: take the next highest-value build item (the vision: proactive Notion/Slack), ship it
+   full-gate-green + live-verified, commit, push.
+3. **Raise the bar**: add the next-harder LADDER level that exercises what you just built; make it
+   pass. Persist durable deterministic coverage in the gate (tests/static specs) where the scenario
+   can be mocked; keep the live end-to-end runs as the escalating smoke ladder.
+4. Log results + the new ladder level in this file. Never end on a question; if blocked, log BLOCKED
+   and advance a different item.
+
+### Product test LADDER (escalating; keep all green, extend upward)
+- **L1 Boot/load** — home renders, loadCount===1, no console errors; connectors read (gmail/notion/slack).
+- **L2 Ask conversation** — a plain question returns a CLEAN inline reply (markdown rendered, no raw
+  `##`); a follow-up in the same thread works; no `/chat` navigation, no connect-command misfire.
+- **L3 Triage** — decision cards render; "Draft reply" opens a gated draft; calendar-invite noise is
+  filtered out of "needs a reply"; dismiss works.
+- **L4 Proactive (the vision)** — Notion newly-created pages (Project Passports) are summarized on the
+  home; Slack "awaiting reply"/"worth weighing in" surface on the DEFAULT home; "Catch me up" briefing
+  produces both Slack sections + needs-you.
+- **L5 Multi-step task** — a multi-tool Ask plans, calls tools, and returns a real answer; the run
+  timeline shows tool steps; conversation continuity across 2+ follow-ups holds.
+- **L6 Cross-tool chain** — e.g. "summarize the latest Project Passport and draft a Slack note about
+  it" chains Notion read → summarize → gated Slack draft (no ungated send).
+- **L7 Resilience** — a connector error renders an honest state (not a hang/blank); stale data
+  refreshes on focus; a past conversation can be reopened (#6).
+- (extend L8+ as features land — gated email send round-trip, scheduled/recurring proactive digest, etc.)
+
 ## Operating rules (every item)
 - Branch: `workbench-overnight-20260620` in `~/Documents/Playground/ironclaw-desktop-app-main`.
 - Full gate green BEFORE commit: `npm run prepare:webui-static` + `test:static` + `test:a11y-static`
