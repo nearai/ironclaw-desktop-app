@@ -506,8 +506,8 @@ function HomeView(props) {
           ${
             /* FYI cluster — below everything actionable. "New in Notion" is recent-activity
                 context, not work that needs the user; it sits beneath the Triage cockpit and
-                the owed replies so the column answers "what needs me?" first (DESIGN.md Law 1),
-                then "what changed?". */ ''
+                the owed replies so the column answers "what needs me?" first, then "what
+                changed?". */ ''
           }
           ${centerFilter === 'all'
             ? html`<${WorkbenchNotionNew}

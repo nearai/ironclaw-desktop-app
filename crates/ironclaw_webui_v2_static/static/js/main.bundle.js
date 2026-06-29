@@ -5236,12 +5236,10 @@ ${me}`;if(O.current.gateKey!==xe&&(O.current={gateKey:xe,credentialRef:null,inFl
   --wb-canvas: #ffffff;
   --wb-ink: rgba(0, 0, 0, 0.95);
   --wb-ink-2: rgba(39, 39, 39, 0.8);
-  /* muted/faint darkened to meet WCAG-AA (4.5:1) for normal text on canvas + surface \u2014 at the
-     old values muted was 4.35 and faint 2.75 (unreadable metadata). faint sits at the AA floor
-     (0.66) and CANNOT drop on the light bg without failing AA (unlike dark mode, where the alpha
-     is over a dark surface, so the gap there is wider at 0.56/0.48). To separate the secondary
-     (muted) from the tertiary (faint) tier without regressing AA, the secondary tier is pushed
-     darker \u2014 0.72 vs 0.66 \u2014 staying clear of ink-2 (0.80). */
+  /* faint sits at the AA floor (0.66) for metadata text on the light bg and cannot drop without
+     failing AA \u2014 unlike dark mode, where the alpha is over a dark surface so the tier gap is
+     wider (0.56/0.48). muted clears AA at both 0.68 and 0.72; it is set to 0.72 purely to
+     separate the secondary tier from the tertiary (faint), staying clear of ink-2 (0.80). */
   --wb-muted: rgba(39, 39, 39, 0.72);
   --wb-faint: rgba(39, 39, 39, 0.66);
   --wb-line: rgba(0, 0, 0, 0.08);
@@ -6362,42 +6360,6 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
 .wb13-runtime-state.is-warning svg {
   color: var(--wb-warn-text);
 }
-.wb13-runtime-preview {
-  display: grid;
-  gap: 10px;
-  margin-top: 13px;
-  border: 1px solid var(--wb-line);
-  border-radius: 10px;
-  background: var(--wb-surface);
-  padding: 13px;
-}
-.wb13-runtime-preview-head {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--wb-gold-text);
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0;
-}
-.wb13-runtime-preview-head svg {
-  width: 15px;
-  height: 15px;
-}
-.wb13-runtime-preview p {
-  max-height: 260px;
-  overflow: auto;
-  margin: 0;
-  color: var(--wb-ink-2);
-  font-size: 13.5px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.wb13-runtime-preview .wb13-button {
-  justify-self: flex-start;
-}
 .wb13-run-live {
   margin-left: auto;
   color: var(--wb-gold-text);
@@ -6415,8 +6377,6 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   padding: 0;
   display: grid;
   gap: 0;
-  max-height: 340px;
-  overflow: auto;
 }
 .wb13-run-row {
   display: grid;
@@ -6496,12 +6456,11 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   padding-left: 8px;
   white-space: pre-wrap;
 }
-/* A dedicated chat surface reads at a comfortable measure and flows full-length in the
-   scrolling main area. The 340px cap on .wb13-run is meant for a compact inline preview;
-   on this surface it would letterbox the transcript into a tiny inner scrollbox with empty
-   page below \u2014 the opposite of a dignified conversation. */
+/* The dedicated chat surface reads at a comfortable measure and flows full-length in the
+   scrolling main area \u2014 a dignified conversation, not a transcript boxed into a tiny inner
+   scrollbox. (The old .wb13-run 340px cap, removed above, served no other surface.) */
 .wb13-chat-thread { max-width: 760px; margin: 0 auto; padding-top: 6px; }
-.wb13-chat-thread .wb13-run { max-height: none; overflow: visible; gap: 4px; }
+.wb13-chat-thread .wb13-run { gap: 4px; }
 .wb13-run-tool {
   display: flex;
   align-items: center;

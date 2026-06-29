@@ -175,42 +175,6 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
 .wb13-runtime-state.is-warning svg {
   color: var(--wb-warn-text);
 }
-.wb13-runtime-preview {
-  display: grid;
-  gap: 10px;
-  margin-top: 13px;
-  border: 1px solid var(--wb-line);
-  border-radius: 10px;
-  background: var(--wb-surface);
-  padding: 13px;
-}
-.wb13-runtime-preview-head {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--wb-gold-text);
-  font-size: 12px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0;
-}
-.wb13-runtime-preview-head svg {
-  width: 15px;
-  height: 15px;
-}
-.wb13-runtime-preview p {
-  max-height: 260px;
-  overflow: auto;
-  margin: 0;
-  color: var(--wb-ink-2);
-  font-size: 13.5px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.wb13-runtime-preview .wb13-button {
-  justify-self: flex-start;
-}
 .wb13-run-live {
   margin-left: auto;
   color: var(--wb-gold-text);
@@ -228,8 +192,6 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   padding: 0;
   display: grid;
   gap: 0;
-  max-height: 340px;
-  overflow: auto;
 }
 .wb13-run-row {
   display: grid;
@@ -309,12 +271,11 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   padding-left: 8px;
   white-space: pre-wrap;
 }
-/* A dedicated chat surface reads at a comfortable measure and flows full-length in the
-   scrolling main area. The 340px cap on .wb13-run is meant for a compact inline preview;
-   on this surface it would letterbox the transcript into a tiny inner scrollbox with empty
-   page below — the opposite of a dignified conversation. */
+/* The dedicated chat surface reads at a comfortable measure and flows full-length in the
+   scrolling main area — a dignified conversation, not a transcript boxed into a tiny inner
+   scrollbox. (The old .wb13-run 340px cap, removed above, served no other surface.) */
 .wb13-chat-thread { max-width: 760px; margin: 0 auto; padding-top: 6px; }
-.wb13-chat-thread .wb13-run { max-height: none; overflow: visible; gap: 4px; }
+.wb13-chat-thread .wb13-run { gap: 4px; }
 .wb13-run-tool {
   display: flex;
   align-items: center;
