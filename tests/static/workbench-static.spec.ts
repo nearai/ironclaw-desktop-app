@@ -1499,6 +1499,14 @@ test('static workbench: Slack awaiting renders on the home with a gated respond-
   await expect(openInSlack).toBeVisible();
   await expect(openInSlack).toHaveAttribute('href', /nearteam\.slack\.com\/archives\/C1\//);
 
+  // The card can be dismissed — the Slack equivalent of the email "Not for me". Slack items
+  // were previously undismissable (only Draft reply / Open in Slack). Clicking it reveals the
+  // same reason picker the email decision cards use; Cancel here so the reply flow below still
+  // has its card (the full dismiss-removes-the-card flow is live-verified).
+  await slack.getByTestId('workbench-slack-dismiss').first().click();
+  await expect(page.getByTestId('workbench-slack-dismiss-reasons').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel' }).first().click();
+
   // Open the respond-in-place compose for the thread.
   await page.getByTestId('workbench-slack-reply').first().click();
   const compose = page.getByTestId('workbench-slack-compose');

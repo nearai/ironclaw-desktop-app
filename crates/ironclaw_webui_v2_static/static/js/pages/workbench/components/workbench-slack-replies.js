@@ -1,6 +1,7 @@
 import { Icon } from '../../../design-system/icons.js';
 import { React, html } from '../../../lib/html.js';
 import { cn } from '../../../utils/cn.js';
+import { DISMISS_REASONS } from '../lib/workbench-dismissals.js';
 import { useDialogFocus } from '../hooks/useDialogFocus.js';
 
 // "Slack · awaiting your reply" — the deep Slack read (slackDeep.awaiting) rendered
@@ -24,7 +25,9 @@ function slackMeta(item) {
     .join(' · ');
 }
 
-function SlackReplyCard({ item, onReply }) {
+function SlackReplyCard({ item, onReply, onDismiss }) {
+  const [picking, setPicking] = React.useState(false);
+  const canDismiss = typeof onDismiss === 'function';
   return html`
     <div className="wb13-card wb13-card-readable">
       <div className="wb13-card-main">
@@ -55,7 +58,47 @@ function SlackReplyCard({ item, onReply }) {
               >Open in Slack</a
             >`
           : null}
+        ${canDismiss
+          ? html`<button
+              type="button"
+              className="wb13-button is-ghost is-sm"
+              data-testid="workbench-slack-dismiss"
+              aria-expanded=${picking}
+              title="File this away — and tell IronClaw why, so it learns."
+              onClick=${() => setPicking((value) => !value)}
+            >
+              Not for me
+            </button>`
+          : null}
       </div>
+      ${canDismiss && picking
+        ? html`<div className="wb13-card-dismiss" data-testid="workbench-slack-dismiss-reasons">
+            <span className="wb13-card-dismiss-label">Why? IronClaw learns from this.</span>
+            <div className="wb13-card-dismiss-reasons">
+              ${DISMISS_REASONS.map(
+                (reason) =>
+                  html`<button
+                    key=${reason}
+                    type="button"
+                    className="wb13-button is-sm"
+                    onClick=${() => {
+                      setPicking(false);
+                      onDismiss(item, reason);
+                    }}
+                  >
+                    ${reason}
+                  </button>`
+              )}
+              <button
+                type="button"
+                className="wb13-button is-ghost is-sm"
+                onClick=${() => setPicking(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>`
+        : null}
     </div>
   `;
 }
@@ -67,6 +110,7 @@ function SlackReplyCard({ item, onReply }) {
 export function WorkbenchSlackReplies({
   items,
   onReply,
+  onDismiss,
   title = 'Slack · awaiting your reply',
   testid = 'workbench-slack-replies'
 }) {
@@ -79,7 +123,13 @@ export function WorkbenchSlackReplies({
         <span className="wb13-section-count">${list.length}</span>
       </div>
       ${list.map(
-        (item) => html`<${SlackReplyCard} key=${item.id} item=${item} onReply=${onReply} />`
+        (item) =>
+          html`<${SlackReplyCard}
+            key=${item.id}
+            item=${item}
+            onReply=${onReply}
+            onDismiss=${onDismiss}
+          />`
       )}
     </div>
   `;

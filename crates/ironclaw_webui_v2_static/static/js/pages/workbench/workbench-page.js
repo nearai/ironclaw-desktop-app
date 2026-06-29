@@ -166,6 +166,20 @@ const WORKBENCH_PROFILE = Object.freeze({
   ]
 });
 
+// Stable dismissal key for a Slack item, namespaced so a Slack ts can never collide
+// with a Gmail messageId in the shared dismissals store. Prefers the row id (a ts),
+// falling back to channel:ts.
+function slackDismissKey(item) {
+  if (!item) return '';
+  const base = item.id || (item.channelId && item.ts ? `${item.channelId}:${item.ts}` : '');
+  return base ? `slack:${base}` : '';
+}
+
+function isSlackDismissed(dismissals, item) {
+  const key = slackDismissKey(item);
+  return Boolean(key && dismissals && dismissals[key]);
+}
+
 function TriageSection({ groups, hasDecisions = false, statusFilter = null, loading = false }) {
   const populatedGroups = groups.filter(
     (group) =>
@@ -472,12 +486,14 @@ function HomeView(props) {
             ? html`<${WorkbenchSlackReplies}
                 items=${props.slackAwaiting}
                 onReply=${props.onSlackReply}
+                onDismiss=${props.onSlackDismiss}
               />`
             : null}
           ${visible('replies')
             ? html`<${WorkbenchSlackReplies}
                 items=${props.slackWeighIn}
                 onReply=${props.onSlackReply}
+                onDismiss=${props.onSlackDismiss}
                 title="Slack · worth weighing in"
                 testid="workbench-slack-weighin"
               />`
@@ -1182,6 +1198,14 @@ export function WorkbenchPage() {
     if (!key) return;
     setDismissals(dismissRow(key, { reason, sender: message.fromEmail || message.sender || '' }));
   }, []);
+  // Slack dismiss mirrors the email path: file the item away with a reason through the
+  // SAME dismissals store (namespaced key), so dismissed Slack items stay gone across
+  // refetches just like dismissed emails. The filtered arrays below enforce it.
+  const onDismissSlack = React.useCallback((item, reason) => {
+    const key = slackDismissKey(item);
+    if (!key) return;
+    setDismissals(dismissRow(key, { reason, sender: item.whoId || item.who || '' }));
+  }, []);
   // Triage-worthy inbox = what may be surfaced on the Workbench (Needs-a-decision,
   // Arrived). Drops bulk/newsletters/notes (e.g. gemini-notes meeting summaries),
   // ignore-corrected senders, and rows the user dismissed — mirroring the rail's
@@ -1206,6 +1230,16 @@ export function WorkbenchPage() {
       }),
     [connectorInbox.messages, tierOverrides, dismissals, learnedIgnore, sentThreadIndex]
   );
+  // Slack awaiting/weigh-in with dismissed items removed — the Slack equivalent of
+  // selectTriageInbox's dismissed-key drop, so a Slack "Not for me" actually sticks.
+  const slackAwaitingVisible = React.useMemo(
+    () => slackDeep.awaiting.filter((item) => !isSlackDismissed(dismissals, item)),
+    [slackDeep.awaiting, dismissals]
+  );
+  const slackWeighInVisible = React.useMemo(
+    () => slackDeep.weighIn.filter((item) => !isSlackDismissed(dismissals, item)),
+    [slackDeep.weighIn, dismissals]
+  );
   const railGroups = React.useMemo(
     () =>
       buildWorkbenchStateRail({
@@ -1222,7 +1256,7 @@ export function WorkbenchPage() {
         calendar: { events: connectorCalendar.events },
         // CURRENT Slack activity (eager deep read) feeds the rail; the keyword blocker
         // search is only the fallback when the deep read is empty (identity unresolved).
-        slackActivity: [...slackDeep.awaiting, ...slackDeep.weighIn],
+        slackActivity: [...slackAwaitingVisible, ...slackWeighInVisible],
         slackBlockers: slackBlockers.rows,
         githubNotifications: connectorGithub.notifications,
         notionPages: connectorNotion.pages,
@@ -1237,8 +1271,8 @@ export function WorkbenchPage() {
       workbenchFeedQuery.data,
       connectorCalendar.events,
       triageInbox,
-      slackDeep.awaiting,
-      slackDeep.weighIn,
+      slackAwaitingVisible,
+      slackWeighInVisible,
       slackBlockers.rows,
       connectorGithub.notifications,
       connectorNotion.pages,
@@ -1715,9 +1749,10 @@ export function WorkbenchPage() {
                         gmailReady=${connectedAccounts.gmailReady}
                         decisionMessages=${triageInbox}
                         notionPages=${connectorNotion.pages}
-                        slackAwaiting=${slackDeep.awaiting}
-                        slackWeighIn=${slackDeep.weighIn}
+                        slackAwaiting=${slackAwaitingVisible}
+                        slackWeighIn=${slackWeighInVisible}
                         onSlackReply=${openSlackReply}
+                        onSlackDismiss=${onDismissSlack}
                         calendarReady=${connectedAccounts.calendarReady}
                         calendarEvents=${connectorCalendar.events}
                         calendarError=${connectorCalendar.isError}
