@@ -88,6 +88,12 @@ connectors + real LLM), and keep the whole ladder green as new work lands.
   HTTP/1.1 `--no-verify`. NEVER commit secrets (COMPOSIO/JARVIS/EXA keys are env-only).
 - Standalone boot: `COMPOSIO_API_KEY=… JARVIS_API_KEY=… NEARAI_MODEL=z-ai/glm-5.2 node scripts/workbench-standalone.mjs`
   (detached via nohup so it survives turns).
+- **Restart CLEANLY (gotcha, 2026-06-29):** the standalone spawns the gateway (`ironclaw-reborn …
+  serve --port 17640`) as a child. Killing ONLY the webui pid orphans the gateway, which keeps
+  holding 17640 → the next boot can't bind it → crash-loop → 20-restart cap → gives up (webui dies
+  too). Always kill BOTH + free both ports before relaunch:
+  `pkill -9 -f "ironclaw-reborn-aarch64-apple-darwin serve"; pkill -9 -f "scripts/workbench-standalone.mjs";`
+  `lsof -ti tcp:17640 tcp:17641 | xargs -r kill -9` — then wait for both free, then nohup-launch.
 - Use Workflows for substantial chunks + adversarial review (near-ai-code-review / codex-fanout).
 - Gated-write posture holds; outbound sends per-message approved. Slack send before a PR needs the review gate.
 
