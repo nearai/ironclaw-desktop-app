@@ -6941,32 +6941,27 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   justify-content: space-between;
   margin-bottom: 9px;
 }
+/* Sentence-case quiet label to match the Slack section label (was an uppercase tracked
+   eyebrow \u2014 a noisy, inconsistent treatment); keeps the proactive bands reading as one calm
+   column with Triage as the single focal heading below. */
 .wb13-notionnew-title {
   display: inline-flex;
   align-items: center;
   gap: 7px;
   font-size: 12px;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
   color: var(--wb-muted);
 }
 .wb13-notionnew-title svg {
   width: 14px;
   height: 14px;
 }
+/* Quiet inline count (was an accent pill) to match the Slack section count \u2014 the home
+   surfaces, it does not shout. */
 .wb13-notionnew-count {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--wb-accent-soft);
-  color: var(--wb-accent);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--wb-faint);
 }
 .wb13-notionnew-clear {
   border: 0;
