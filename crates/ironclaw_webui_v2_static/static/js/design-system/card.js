@@ -18,6 +18,10 @@
  *   <CardBody>     — main content area
  *   <CardFooter>   — bottom section, optional top divider
  *   <CardLabel>    — mono-caps eyebrow label
+ *
+ * Header/Body/Footer take a padding="none" | "md" (default) prop. Default
+ * "md" keeps the standard section gutter; pair padding="none" with a
+ * padding="none" Card to control gutters manually and avoid double-padding.
  */
 import { html } from '../lib/html.js';
 import { cn } from '../utils/cn.js';
@@ -53,6 +57,16 @@ const PADDINGS = {
   lg: 'p-5 md:p-7'
 };
 
+/* ─── Section padding ─────────────────────────────────────────────────
+   Gutters for CardHeader/CardBody/CardFooter. A `padding='none'` Card with
+   `padding='none'` sub-components renders a single, manually-controlled
+   gutter instead of double-padding. */
+
+const SECTION_PADDINGS = {
+  none: '',
+  md: 'px-5 py-4 md:px-7 md:py-5'
+};
+
 /* ─── Card ────────────────────────────────────────────────────────── */
 
 export function Card({
@@ -81,11 +95,11 @@ export function Card({
 
 /* ─── CardHeader ──────────────────────────────────────────────────── */
 
-export function CardHeader({ children, className = '', divider = false }) {
+export function CardHeader({ children, className = '', divider = false, padding = 'md' }) {
   return html`
     <div
       className=${cn(
-        'px-5 py-4 md:px-7 md:py-5',
+        SECTION_PADDINGS[padding] ?? SECTION_PADDINGS.md,
         divider && 'border-b border-[var(--v2-panel-border)]',
         className
       )}
@@ -97,17 +111,21 @@ export function CardHeader({ children, className = '', divider = false }) {
 
 /* ─── CardBody ────────────────────────────────────────────────────── */
 
-export function CardBody({ children, className = '' }) {
-  return html` <div className=${cn('px-5 py-4 md:px-7 md:py-5', className)}>${children}</div> `;
+export function CardBody({ children, className = '', padding = 'md' }) {
+  return html`
+    <div className=${cn(SECTION_PADDINGS[padding] ?? SECTION_PADDINGS.md, className)}>
+      ${children}
+    </div>
+  `;
 }
 
 /* ─── CardFooter ──────────────────────────────────────────────────── */
 
-export function CardFooter({ children, className = '', divider = true }) {
+export function CardFooter({ children, className = '', divider = true, padding = 'md' }) {
   return html`
     <div
       className=${cn(
-        'px-5 py-4 md:px-7 md:py-5',
+        SECTION_PADDINGS[padding] ?? SECTION_PADDINGS.md,
         divider && 'border-t border-[var(--v2-panel-border)]',
         className
       )}
