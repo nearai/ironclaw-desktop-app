@@ -1,7 +1,7 @@
 # Overnight Build Report — IronClaw Desktop (2026-06-29 → 30)
 
 **Status: GREEN — all phases complete.**
-**Branch:** `overnight/desktop-build-20260629` (off `chore/retire-svelte`) · **25 commits** · **pushed? NO** (local only, by design — push is your call).
+**Branch:** `overnight/desktop-build-20260629` (off `chore/retire-svelte`) · **26 commits** · **pushed? NO** (local only, by design — push is your call).
 
 ## Goal
 Get IronClaw Desktop building/running well, drain the verified work queue, then overhaul the design with the full UX/UI skill set — autonomously, overnight, no intervention.
@@ -45,8 +45,8 @@ Critique + rationale: `docs/reviews/design-craft-pass-2026-06-30.md`. Before/aft
 - Before/after design screenshots: `output/design-before/*.png` vs `output/design-capture/*.png`.
 - Reports under `docs/reviews/`: `overnight-2026-06-29-brief.md` (ground truth), `elite-audit-reverify-2026-06-29.md` (work queue), `design-craft-pass-2026-06-30.md` (design).
 
-## Known issue (not a regression)
-- `tests/static/keyboard-static.spec.ts:196` ("model selector … keeps setup reachable") is **flaky under full-suite parallel load** — it intermittently sees 2 case-insensitive "NEAR AI Cloud" heading matches on /settings/inference during the route transition. Passes 4/4 in isolation and on a clean full a11y run (currently 66/0). Pre-existing (the only design diffs near it are font-size class changes that cannot add a heading). **Harden before relying on the pre-push gate** (scope the `getByRole('heading')` locator or wait for the popover to detach).
+## Known issue — RESOLVED
+- `tests/static/keyboard-static.spec.ts` ("model selector … keeps setup reachable") was flaky under full-suite parallel load (its keyboard-nav tail raced under 6-worker CPU contention — a `toHaveURL` timeout and a transient 2-match on the "NEAR AI Cloud" heading). **Fixed** (commit `0729b0d`): wait for the reopened popover's link to be actionable + click it, wait for the popover to detach, take the first heading match. **Verified 4/4 clean full a11y runs (66/0).** No other flakiness observed.
 
 ## Human decisions needed (deferred — I did NOT decide these)
 - **i18n translations (#19, #34, #67):** command-palette, `connection.paused`, onboarding gateway-status — English wiring + baseline ratchet are in; the non-English translation *content* needs a human/translator.
@@ -63,9 +63,9 @@ git -c http.version=HTTP/1.1 -c http.postBuffer=524288000 push -u origin overnig
 (`origin` = abbyshekit fork. Do **not** push `nearai/main`.)
 
 ## Next agent should start here
-1. Harden the flaky `keyboard-static.spec.ts:196` locator (above).
-2. Run the formal pre-PR review gate; address findings.
-3. Make the human-gated calls (translations, wire-vs-delete, signing).
+1. Run the formal pre-PR review gate (thermo + near-ai-code-review); address findings.
+2. Make the human-gated calls (translations, wire-vs-delete, signing).
+3. Push to `origin` (command above) and open the PR.
 
 ## Do not touch
 - The global `transition: none !important` motion policy (app.css) — it's intentional.
