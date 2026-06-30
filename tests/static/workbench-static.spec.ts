@@ -4196,3 +4196,63 @@ test('static workbench: Review cell reveals the model reasoning on click (and is
     'No reasoning given'
   );
 });
+
+test('static workbench: Review supports a custom column — add it, it fills on run, then remove it', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [{ toolkit: 'googledrive', status: 'ACTIVE', user_id: 'pg-test' }],
+    sentMessages: [],
+    connectorReads: {
+      GOOGLEDRIVE_LIST_FILES: {
+        successful: true,
+        data: {
+          files: [{ id: 'f1', name: 'Acme NDA', mimeType: 'application/vnd.google-apps.document' }]
+        }
+      },
+      GOOGLEDOCS_GET_DOCUMENT_BY_ID: {
+        successful: true,
+        data: {
+          body: {
+            content: [
+              {
+                paragraph: {
+                  elements: [{ textRun: { content: 'Indemnity is capped at $2M (Section 8).' } }]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    // index 5 = the one custom column appended after the five built-ins (0-4)
+    reviewModelLines: [
+      { column_index: 0, summary: 'Acme & Beta', flag: 'green' },
+      { column_index: 5, summary: '$2M cap', flag: 'yellow', reasoning: 'Section 8' }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByTestId('workbench-nav-review').click();
+
+  // Add control is disabled until both fields are filled.
+  const addBtn = page.getByTestId('workbench-review-add-column');
+  await expect(addBtn).toBeDisabled();
+  await page.getByTestId('workbench-review-add-label').fill('Indemnity cap');
+  await page.getByTestId('workbench-review-add-prompt').fill('What is the indemnity cap?');
+  await expect(addBtn).toBeEnabled();
+  await addBtn.click();
+  const cols = page.getByTestId('workbench-review-cols');
+  await expect(cols).toContainText('Indemnity cap');
+
+  // It becomes a grid column and fills from the run (at its own index, not a built-in's).
+  await page.getByTestId('workbench-review-doc').first().check();
+  const grid = page.getByTestId('workbench-review-grid');
+  await expect(grid.getByRole('columnheader', { name: 'Indemnity cap' })).toBeVisible();
+  await page.getByTestId('workbench-review-run').click();
+  await expect(grid.getByText('$2M cap')).toBeVisible({ timeout: 15000 });
+
+  // Removing the custom column drops it from the chips and the grid.
+  await cols.getByTestId('workbench-review-col-remove').click();
+  await expect(cols).not.toContainText('Indemnity cap');
+  await expect(grid.getByRole('columnheader', { name: 'Indemnity cap' })).toHaveCount(0);
+});

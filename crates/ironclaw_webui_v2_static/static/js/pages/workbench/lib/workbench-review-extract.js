@@ -7,7 +7,11 @@ import { REVIEW_FLAGS } from './workbench-review-columns.js';
 // output and this parses it.
 //
 // Hardened against the cardinal failure for a CLO tool — a fabricated or falsely-reassuring
-// cell (a confident green where the truth is red/grey). The slice-3b caller MUST:
+// cell (a confident green where the truth is red/grey). The threat model is the DOCUMENT as
+// adversary: a contract body that tries to inject/echo cell lines is fenced and never learns the
+// random per-run token, so its forged JSON is dropped. (Custom-column prompts are authored by the
+// user running the review and live in the trusted instruction region — that user can bias their own
+// grid, which is by design, not a token-scheme bypass.) The slice-3b caller MUST:
 //   - mint a fresh per-run token (crypto.randomUUID()) and pass it to BOTH functions;
 //   - on a CLEAN stream end, append a trailing "\n" to the accumulated buffer before parsing
 //     (so a complete final line is kept); on ABORT/error, mark the doc's cells error, not done.

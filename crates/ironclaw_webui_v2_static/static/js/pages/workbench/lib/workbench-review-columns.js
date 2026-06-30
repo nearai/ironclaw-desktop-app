@@ -47,3 +47,49 @@ export const REVIEW_COLUMNS = Object.freeze([
 export function reviewColumnById(id) {
   return REVIEW_COLUMNS.find((column) => column.id === String(id)) || null;
 }
+
+export const CUSTOM_COLUMN_LABEL_MAX = 40;
+export const CUSTOM_COLUMN_PROMPT_MAX = 280;
+
+// Build a user-defined column from a label + extraction prompt. Returns null when either is
+// blank so the caller can keep the Add control disabled. The id is namespaced `custom-<seq>` so
+// it can NEVER collide with a built-in column id (the parser keys cells by id and maps by index,
+// so a collision would mis-attribute a finding). Label/prompt are trimmed and length-capped.
+// Non-string inputs (other than null/undefined) are rejected rather than coerced, so a misuse
+// can't smuggle "[object Object]" or a number in as a column label.
+export function makeCustomColumn(label, prompt, seq) {
+  if (label != null && typeof label !== 'string') return null;
+  if (prompt != null && typeof prompt !== 'string') return null;
+  const cleanLabel = String(label == null ? '' : label)
+    .trim()
+    .slice(0, CUSTOM_COLUMN_LABEL_MAX);
+  const cleanPrompt = String(prompt == null ? '' : prompt)
+    .trim()
+    .slice(0, CUSTOM_COLUMN_PROMPT_MAX);
+  if (!cleanLabel || !cleanPrompt) return null;
+  const n = Number.isInteger(seq) && seq > 0 ? seq : 1;
+  return {
+    id: `custom-${n}`,
+    label: cleanLabel,
+    type: 'custom',
+    prompt: cleanPrompt,
+    custom: true
+  };
+}
+
+// The full column set for a run: the built-ins followed by the user's custom columns, in order.
+// One array is the single source of truth for BOTH the prompt (column index) and the parser, so
+// index mapping stays consistent. Invalid/duplicate-id custom entries are dropped defensively.
+export function effectiveColumns(custom) {
+  const list = Array.isArray(custom) ? custom : [];
+  const seen = new Set(REVIEW_COLUMNS.map((c) => c.id));
+  const extra = [];
+  for (const c of list) {
+    if (!c || typeof c !== 'object') continue;
+    const id = String(c.id || '');
+    if (!id || seen.has(id) || !c.label || !c.prompt) continue;
+    seen.add(id);
+    extra.push(c);
+  }
+  return [...REVIEW_COLUMNS, ...extra];
+}

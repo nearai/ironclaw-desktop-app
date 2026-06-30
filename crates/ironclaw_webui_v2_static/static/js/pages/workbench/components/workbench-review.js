@@ -1,7 +1,12 @@
 import { Icon } from '../../../design-system/icons.js';
 import { React, html } from '../../../lib/html.js';
 import { connectorRead, createThread, sendMessage, fetchTimeline } from '../../../lib/api.js';
-import { REVIEW_COLUMNS } from '../lib/workbench-review-columns.js';
+import {
+  makeCustomColumn,
+  effectiveColumns,
+  CUSTOM_COLUMN_LABEL_MAX,
+  CUSTOM_COLUMN_PROMPT_MAX
+} from '../lib/workbench-review-columns.js';
 import { runReview } from '../lib/workbench-review-run.js';
 import { makeReviewExtractor, runReviewChatTurn } from '../lib/workbench-review-extract-doc.js';
 import { ReviewGrid } from './workbench-review-grid.js';
@@ -75,6 +80,64 @@ const REVIEW_STYLE = `
   .wb13-review-pick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .wb13-review-runbar { display: flex; align-items: center; gap: 12px; }
   .wb13-review-hint { font-size: 13px; color: var(--wb-muted); max-width: 560px; }
+  .wb13-review-cols {
+    max-width: 560px;
+    border: 1px solid var(--wb-line);
+    border-radius: 14px;
+    background: var(--wb-surface);
+    padding: 14px 16px;
+  }
+  .wb13-review-cols-head {
+    font-weight: 600;
+    font-size: 10.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--wb-muted);
+    margin-bottom: 10px;
+  }
+  .wb13-review-col-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .wb13-review-col-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 6px 5px 11px;
+    border: 1px solid var(--wb-line);
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--wb-ink-2);
+    background: var(--wb-surface-2, transparent);
+  }
+  .wb13-review-col-chip button {
+    display: inline-flex;
+    width: 18px;
+    height: 18px;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--wb-muted);
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .wb13-review-col-chip button:hover { color: var(--wb-danger); }
+  .wb13-review-col-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .wb13-review-col-add input {
+    flex: 1;
+    min-width: 130px;
+    padding: 8px 10px;
+    border: 1px solid var(--wb-line);
+    border-radius: 9px;
+    background: var(--wb-input, var(--wb-surface));
+    color: var(--wb-ink);
+    font-size: 13px;
+  }
+  .wb13-review-col-add input.is-prompt { flex: 2; min-width: 180px; }
+  .wb13-review-col-add input:focus-visible {
+    outline: 2px solid var(--wb-accent, var(--wb-ink));
+    outline-offset: 1px;
+  }
 `;
 
 function ReviewEmpty({ subline }) {
@@ -110,6 +173,32 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
   const [selected, setSelected] = React.useState(() => new Set());
   const [cells, setCells] = React.useState({});
   const [running, setRunning] = React.useState(false);
+  const [customColumns, setCustomColumns] = React.useState([]);
+  const [seq, setSeq] = React.useState(1);
+  const [newLabel, setNewLabel] = React.useState('');
+  const [newPrompt, setNewPrompt] = React.useState('');
+  const columns = effectiveColumns(customColumns);
+  const draftColumn = makeCustomColumn(newLabel, newPrompt, seq);
+  const addColumn = () => {
+    if (!draftColumn) return;
+    setCustomColumns((prev) => [...prev, draftColumn]);
+    setSeq((n) => n + 1);
+    setNewLabel('');
+    setNewPrompt('');
+  };
+  const removeColumn = (id) => {
+    setCustomColumns((prev) => prev.filter((c) => c.id !== id));
+    // Prune any filled cells for the removed column so stale results aren't retained in memory
+    // (ids are never reused, so this can't affect another column — purely housekeeping).
+    setCells((prev) => {
+      const next = {};
+      for (const docId of Object.keys(prev)) {
+        const { [id]: _removed, ...rest } = prev[docId] || {};
+        next[docId] = rest;
+      }
+      return next;
+    });
+  };
   const toggle = (id) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -129,14 +218,17 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
       `tok-${Date.now()}`;
     const runTurn = (prompt) =>
       runReviewChatTurn(prompt, { createThread, sendMessage, fetchTimeline, timezone: TZ });
-    const extractDoc = makeReviewExtractor({ connectorRead, runTurn });
+    // Snapshot the effective columns for THIS run so the prompt (column index) and the parser use
+    // the identical array — a mid-run add/remove can't desync the index→column mapping.
+    const runColumns = effectiveColumns(customColumns);
+    const extractDoc = makeReviewExtractor({ connectorRead, runTurn, columns: runColumns });
     try {
-      await runReview(selectedDocs, REVIEW_COLUMNS, {
+      await runReview(selectedDocs, runColumns, {
         extractDoc,
         token,
         concurrency: 3,
         onUpdate: (id, update) =>
-          setCells((prev) => ({ ...prev, [id]: statusCells(update, REVIEW_COLUMNS) }))
+          setCells((prev) => ({ ...prev, [id]: statusCells(update, runColumns) }))
       });
     } finally {
       setRunning(false);
@@ -177,6 +269,56 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
             `
           )}
         </div>
+        <div className="wb13-review-cols" data-testid="workbench-review-cols">
+          <div className="wb13-review-cols-head">Columns · ${columns.length}</div>
+          <div className="wb13-review-col-chips">
+            ${columns.map(
+              (col) => html`
+                <span className="wb13-review-col-chip" key=${col.id}>
+                  ${col.label}
+                  ${col.custom
+                    ? html`<button
+                        type="button"
+                        data-testid="workbench-review-col-remove"
+                        aria-label=${`Remove ${col.label} column`}
+                        onClick=${() => removeColumn(col.id)}
+                      >
+                        ×
+                      </button>`
+                    : null}
+                </span>
+              `
+            )}
+          </div>
+          <div className="wb13-review-col-add">
+            <input
+              data-testid="workbench-review-add-label"
+              aria-label="New column name"
+              placeholder="Column name (e.g. Indemnity cap)"
+              maxlength=${CUSTOM_COLUMN_LABEL_MAX}
+              value=${newLabel}
+              onInput=${(e) => setNewLabel(e.target.value)}
+            />
+            <input
+              className="is-prompt"
+              data-testid="workbench-review-add-prompt"
+              aria-label="What to pull from each document"
+              placeholder="What should IronClaw pull from each document?"
+              maxlength=${CUSTOM_COLUMN_PROMPT_MAX}
+              value=${newPrompt}
+              onInput=${(e) => setNewPrompt(e.target.value)}
+            />
+            <button
+              type="button"
+              className="wb13-button is-sm"
+              data-testid="workbench-review-add-column"
+              disabled=${!draftColumn}
+              onClick=${addColumn}
+            >
+              Add column
+            </button>
+          </div>
+        </div>
         <div className="wb13-review-runbar">
           <button
             type="button"
@@ -194,11 +336,7 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
             : null}
         </div>
         ${selectedDocs.length
-          ? html`<${ReviewGrid}
-              columns=${REVIEW_COLUMNS}
-              documents=${selectedDocs}
-              cells=${cells}
-            />`
+          ? html`<${ReviewGrid} columns=${columns} documents=${selectedDocs} cells=${cells} />`
           : html`<div className="wb13-review-hint" data-testid="workbench-review-hint">
               Pick documents above to build the review grid — the columns (parties, governing law,
               term, termination, change of control) fill once you run the review.
