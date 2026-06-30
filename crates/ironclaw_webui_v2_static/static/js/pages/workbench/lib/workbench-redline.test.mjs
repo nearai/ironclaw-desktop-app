@@ -7,7 +7,9 @@ import {
   splitClauses,
   redlineClauses,
   resolvedText,
-  buildRedlineHtml
+  buildRedlineHtml,
+  clauseDegraded,
+  MAX_DIFF_TOKENS
 } from './workbench-redline.js';
 
 // The two reconstruction invariants every diff must satisfy:
@@ -234,4 +236,19 @@ test('buildRedlineHtml escapes user document text — no markup injection into t
 test('buildRedlineHtml is tolerant of empty/junk clauses', () => {
   assert.match(buildRedlineHtml([], {}), /<body><h1>Redline<\/h1>/);
   assert.match(buildRedlineHtml(null), /<!doctype html>/);
+});
+
+test('clauseDegraded flags only a modified clause too large for the exact word diff', () => {
+  const big = `word ${'x '.repeat(MAX_DIFF_TOKENS)}`; // well over the token cap on its own
+  const degraded = { kind: 'modified', before: big, after: `${big} more` };
+  assert.equal(clauseDegraded(degraded), true);
+  // a normal modification is not degraded
+  assert.equal(
+    clauseDegraded({ kind: 'modified', before: 'two years', after: 'three years' }),
+    false
+  );
+  // non-modified clauses never count (they don't run the word diff)
+  assert.equal(clauseDegraded({ kind: 'added', before: '', after: big }), false);
+  assert.equal(clauseDegraded({ kind: 'removed', before: big, after: '' }), false);
+  assert.equal(clauseDegraded(null), false);
 });

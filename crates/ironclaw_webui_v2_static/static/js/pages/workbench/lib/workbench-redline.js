@@ -271,3 +271,11 @@ del{color:#c0392b;text-decoration:line-through}
 ${rows}
 </body></html>`;
 }
+
+// True when a modified clause is too large for the exact word diff and was shown as a whole-block
+// replacement (diffWords degrades past MAX_DIFF_TOKENS). Keyed on the token count, NOT the segment
+// shape, so a small full rewrite (legitimately one delete + one insert) is not a false positive.
+export function clauseDegraded(clause) {
+  if (!clause || clause.kind !== 'modified') return false;
+  return tokenize(clause.before).length + tokenize(clause.after).length > MAX_DIFF_TOKENS;
+}

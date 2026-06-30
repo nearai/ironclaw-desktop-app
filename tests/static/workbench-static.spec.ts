@@ -4356,12 +4356,29 @@ test('static workbench: the Redline view shows tracked changes per clause (inser
   // The Fee clause is unchanged — no fabricated edits there.
   await expect(page.getByTestId('workbench-redline-summary')).toContainText('changed');
 
+  // A normal-sized edit is diffed word-by-word — no "too large" note.
+  await expect(page.getByTestId('workbench-redline-degraded')).toHaveCount(0);
+
   // Download the redline as a local HTML artifact (a download, not a send/export).
   const [download] = await Promise.all([
     page.waitForEvent('download'),
     page.getByTestId('workbench-redline-download').click()
   ]);
   expect(download.suggestedFilename()).toBe('redline.html');
+});
+
+test('static workbench: Redline warns honestly when a clause is too large to diff word-by-word', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {});
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByTestId('workbench-nav-redline').click();
+  // One clause (no newline), mostly shared so it pairs as a MODIFIED clause, but well over the
+  // word-diff token cap so it degrades to a whole-block replacement — which must be disclosed.
+  const shared = 'shared '.repeat(2100);
+  await page.getByTestId('workbench-redline-original').fill(`${shared}alpha`);
+  await page.getByTestId('workbench-redline-revised').fill(`${shared}beta`);
+  await expect(page.getByTestId('workbench-redline-degraded')).toBeVisible();
 });
 
 test('static workbench: Redline accept/reject toggles a clause decision and updates the resolved count', async ({

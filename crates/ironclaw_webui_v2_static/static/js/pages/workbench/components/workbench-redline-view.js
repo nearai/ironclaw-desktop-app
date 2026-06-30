@@ -1,5 +1,10 @@
 import { React, html } from '../../../lib/html.js';
-import { redlineClauses, resolvedText, buildRedlineHtml } from '../lib/workbench-redline.js';
+import {
+  redlineClauses,
+  resolvedText,
+  buildRedlineHtml,
+  clauseDegraded
+} from '../lib/workbench-redline.js';
 
 // Tracked-changes redline (legal #2, slices D2–D3). Paste an original and a revised version;
 // redlineClauses aligns them clause-by-clause and this renders the word-level diff — insertions
@@ -30,6 +35,17 @@ const REDLINE_STYLE = `
   }
   .wb13-rl-pane textarea:focus-visible { outline: 2px solid var(--wb-accent, var(--wb-ink)); outline-offset: 1px; }
   .wb13-rl-summary { font-size: 13px; color: var(--wb-muted); margin-bottom: 12px; max-width: 920px; }
+  .wb13-rl-degraded {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--wb-warn-text, var(--wb-muted));
+    max-width: 920px;
+    margin: -4px 0 12px;
+    padding: 9px 12px;
+    border: 1px solid var(--wb-warn-line, var(--wb-line));
+    border-radius: 10px;
+    background: var(--wb-warn-soft, transparent);
+  }
   .wb13-rl-list { display: flex; flex-direction: column; gap: 8px; max-width: 920px; }
   .wb13-rl-clause {
     border: 1px solid var(--wb-line);
@@ -108,6 +124,7 @@ export function RedlineView({ initialOriginal = '', initialRevised = '' }) {
   const [decisions, setDecisions] = React.useState({});
   const [copied, setCopied] = React.useState(false);
   const changedCount = clauses.filter((c) => c.changed).length;
+  const anyDegraded = clauses.some(clauseDegraded);
   const hasInput = Boolean(original.trim() || revised.trim());
   const decisionFor = (id) => (decisions[id] === 'reject' ? 'reject' : 'accept');
   const setDecision = (id, value) => {
@@ -181,6 +198,12 @@ export function RedlineView({ initialOriginal = '', initialRevised = '' }) {
                     ? `${changedCount} ${changedCount === 1 ? 'clause' : 'clauses'} changed of ${clauses.length}`
                     : 'No changes — the two versions match.'}
                 </div>
+                ${anyDegraded
+                  ? html`<div className="wb13-rl-degraded" data-testid="workbench-redline-degraded">
+                      One or more clauses were too large to compare word-by-word and are shown as a
+                      full replacement.
+                    </div>`
+                  : null}
                 <div className="wb13-rl-list" data-testid="workbench-redline-list">
                   ${clauses.map((clause) => {
                     const decision = decisionFor(clause.id);
