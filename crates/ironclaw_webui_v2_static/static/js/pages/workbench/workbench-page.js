@@ -339,10 +339,15 @@ function WorkbenchTriageSkeleton() {
 // count + has-content predicates live in the lib so they're unit-tested against the
 // blank-center failure modes.
 const TRIAGE_HEAD_STYLE = `
-.wb13-triage-head { display:flex; align-items:baseline; gap:10px; margin: 20px 0 0; }
+.wb13-triage-head { display:flex; align-items:center; gap:12px; margin: 20px 0 8px; flex-wrap:wrap; }
 .wb13-triage-head h2 { font-size:19px; font-weight:650; letter-spacing:-0.01em; margin:0; color:var(--wb-ink); }
 .wb13-triage-head .count { font-size:13px; color:var(--wb-muted); }
-.wb13-triage-pills { display:flex; flex-wrap:wrap; gap:7px; margin: 10px 0 2px; }
+.wb13-triage-head .wb13-triage-spacer { flex:1 1 auto; min-width:8px; }
+/* Segmented filter control (Direction B comp): recessed surface-2 box, active = accent fill. */
+.wb13-triage-pills { display:inline-flex; gap:2px; background:var(--wb-line-2); border-radius:9px; padding:3px; margin:0; flex-wrap:wrap; }
+.wb13-triage-pills .wb13-chip { border:0; background:none; color:var(--wb-muted); border-radius:7px; padding:6px 11px; font-weight:600; font-size:12px; line-height:1; cursor:pointer; white-space:nowrap; transition:color .12s ease, background .12s ease; }
+.wb13-triage-pills .wb13-chip:hover:not(.is-active) { color:var(--wb-ink); }
+.wb13-triage-pills .wb13-chip.is-active { background:var(--wb-accent); color:#fff; }
 .wb13-triage-empty { margin: 12px 0; color: var(--wb-faint); font-size: 13px; display:flex; gap:8px; align-items:center; }
 /* Grouped triage: tone-tinted group headers + icon-tile cards. */
 .wb13-triage-groups { display:flex; flex-direction:column; }
@@ -470,21 +475,22 @@ function HomeView(props) {
                   <span className="count" data-testid="workbench-triage-count"
                     >${needYou} need you${handled ? ` · ${handled} handled` : ''}</span
                   >
-                </div>
-                <div className="wb13-triage-pills" role="group" aria-label="Triage filter">
-                  ${CENTER_FILTERS.map(
-                    (f) =>
-                      html`<button
-                        key=${f.id}
-                        type="button"
-                        aria-pressed=${centerFilter === f.id}
-                        data-testid=${`workbench-triage-pill-${f.id}`}
-                        className=${cn('wb13-chip', centerFilter === f.id && 'is-active')}
-                        onClick=${() => setCenterFilter(f.id)}
-                      >
-                        ${f.label}
-                      </button>`
-                  )}
+                  <span className="wb13-triage-spacer"></span>
+                  <div className="wb13-triage-pills" role="group" aria-label="Triage filter">
+                    ${CENTER_FILTERS.map(
+                      (f) =>
+                        html`<button
+                          key=${f.id}
+                          type="button"
+                          aria-pressed=${centerFilter === f.id}
+                          data-testid=${`workbench-triage-pill-${f.id}`}
+                          className=${cn('wb13-chip', centerFilter === f.id && 'is-active')}
+                          onClick=${() => setCenterFilter(f.id)}
+                        >
+                          ${f.label}
+                        </button>`
+                    )}
+                  </div>
                 </div>
               `
             : null}
