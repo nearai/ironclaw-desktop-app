@@ -1974,12 +1974,8 @@ ${t.text}</pre
       className="v2-page-entrance flex min-h-0 flex-1 flex-col overflow-y-auto px-6"
       data-testid="chat-front-door"
     >
-      <div className="mx-auto my-auto flex w-full max-w-[720px] flex-col py-12">
-        <h1
-          className="text-[28px] font-semibold leading-[1.15] tracking-[-0.01em] text-[var(--v2-text-strong)]"
-        >
-          ${d(NO())}
-        </h1>
+      <div className="mx-auto mt-[12vh] flex w-full max-w-[720px] flex-col pb-12">
+        <h1 className="v2-text-display">${d(NO())}</h1>
         <p className="mt-2 text-[15px] leading-relaxed text-[var(--v2-text-muted)]">
           ${d("chat.heroDesc")}
         </p>
@@ -2001,7 +1997,7 @@ ${t.text}</pre
 
         ${w&&l`
           <div
-            className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_30%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
+            className="mt-4 rounded-[var(--v2-radius-card)] border border-[color-mix(in_srgb,var(--v2-warning-text)_30%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
           >
             <div className="text-sm font-medium text-[var(--v2-text-strong)]">
               ${d("chat.briefNeedsSetupTitle")}
@@ -2011,7 +2007,7 @@ ${t.text}</pre
             </div>
             <${$e}
               to="/settings/inference"
-              className="mt-3 inline-flex min-h-[40px] items-center rounded-[8px] bg-[var(--v2-accent-btn)] px-4 text-sm font-medium text-white v2-force-white"
+              className="mt-3 inline-flex min-h-[40px] items-center rounded-[var(--v2-radius-control)] bg-[var(--v2-accent-btn)] px-4 text-sm font-medium text-white v2-force-white"
             >
               Open setup
             <//>
