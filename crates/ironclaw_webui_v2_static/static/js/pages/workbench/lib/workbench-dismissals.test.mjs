@@ -7,6 +7,7 @@ import {
   dismissalSignalsBySender,
   isDismissed,
   learnedIgnoreSenders,
+  learnedSenderSummary,
   restoreRow
 } from './workbench-dismissals.js';
 
@@ -80,4 +81,47 @@ test('dismissalSignalsBySender aggregates counts + distinct reasons (the learn l
   assert.deepEqual(signals['gemini-notes@google.com'].reasons, ['Just context', 'Not relevant']);
   assert.equal(signals['dana@northwind.com'].count, 1);
   assert.ok(!('' in signals), 'sender-less dismissals are ignored');
+});
+
+test('learnedSenderSummary surfaces ONLY auto-muted senders, with count + reasons, busiest first', () => {
+  const dismissals = {
+    a1: { reason: 'Not relevant', sender: 'noisy@bot.com', ts: 1 },
+    a2: { reason: 'Just context', sender: 'noisy@bot.com', ts: 2 },
+    a3: { reason: 'Not for me', sender: 'noisy@bot.com', ts: 3 },
+    b1: { reason: 'Not relevant', sender: 'weekly@news.com', ts: 4 },
+    b2: { reason: 'Not relevant', sender: 'weekly@news.com', ts: 5 },
+    // below threshold (only 1 sender-level dismissal) — must NOT appear
+    c1: { reason: 'Not relevant', sender: 'once@x.com', ts: 6 },
+    // 'Already handled' is NOT a sender-level reason — must NOT count toward learning
+    d1: { reason: 'Already handled', sender: 'real@person.com', ts: 7 },
+    d2: { reason: 'Already handled', sender: 'real@person.com', ts: 8 }
+  };
+  const summary = learnedSenderSummary(dismissals);
+  assert.deepEqual(
+    summary.map((s) => s.sender),
+    ['noisy@bot.com', 'weekly@news.com'],
+    'only senders past the threshold, busiest first; once@ and real@ excluded'
+  );
+  assert.equal(summary[0].count, 3);
+  assert.deepEqual(summary[0].reasons, ['Not relevant', 'Just context', 'Not for me']);
+  assert.equal(summary[1].count, 2);
+});
+
+test('learnedSenderSummary is empty until the threshold is crossed (honest empty)', () => {
+  assert.deepEqual(learnedSenderSummary({}), []);
+  assert.deepEqual(
+    learnedSenderSummary({ a: { reason: 'Not relevant', sender: 'x@y.com', ts: 1 } }),
+    [],
+    'a single dismissal has not learned anything yet'
+  );
+});
+
+test('learnedSenderSummary: a restored sender drops out (Restore undoes the learning)', () => {
+  const dismissals = {
+    a1: { reason: 'Not relevant', sender: 'noisy@bot.com', ts: 1 },
+    a2: { reason: 'Not relevant', sender: 'noisy@bot.com', ts: 2 }
+  };
+  assert.equal(learnedSenderSummary(dismissals).length, 1);
+  // simulate clearSenderDismissals having dropped that sender's rows
+  assert.deepEqual(learnedSenderSummary({}), []);
 });

@@ -135,6 +135,24 @@ export function learnedIgnoreSenders(dismissals, { minCount = 2 } = {}) {
   return learned;
 }
 
+// What the system has actually LEARNED from the user's dismissals, made visible: one row per
+// auto-muted sender (the learnedIgnoreSenders set) with how many times the user filed them and
+// the reasons given, newest-signal-count first. This is display-only transparency over learning
+// that ALREADY happens — it adds no new suppression. Pairs with clearSenderDismissals (Restore).
+// Pure; returns [] when nothing has crossed the threshold yet.
+export function learnedSenderSummary(dismissals, { minCount = 2 } = {}) {
+  const learned = learnedIgnoreSenders(dismissals, { minCount });
+  if (!learned.size) return [];
+  const signals = dismissalSignalsBySender(dismissals);
+  return [...learned]
+    .map((sender) => ({
+      sender,
+      count: (signals[sender] && signals[sender].count) || 0,
+      reasons: (signals[sender] && signals[sender].reasons) || []
+    }))
+    .sort((a, b) => b.count - a.count || a.sender.localeCompare(b.sender));
+}
+
 // Undo the learning for one sender: drop all of that sender's dismissals so they
 // surface again (and fall below the learned-ignore threshold). Returns the next map.
 export function clearSenderDismissals(sender) {

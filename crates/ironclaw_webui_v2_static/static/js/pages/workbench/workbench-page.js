@@ -44,7 +44,12 @@ import {
   railDismissKey
 } from './lib/workbench-state.js';
 import { readTierOverrides } from './lib/workbench-profile-overrides.js';
-import { readDismissals, dismissRow, learnedIgnoreSenders } from './lib/workbench-dismissals.js';
+import {
+  readDismissals,
+  dismissRow,
+  learnedIgnoreSenders,
+  clearSenderDismissals
+} from './lib/workbench-dismissals.js';
 import { recordEditedVoiceSample, effectiveVoiceDirective } from './lib/workbench-voice-store.js';
 import { readMemoryPrefs } from './lib/workbench-memory-store.js';
 import { selectTriageInbox, answeredThreadIndex } from './lib/workbench-connectors.js';
@@ -1465,6 +1470,13 @@ export function WorkbenchPage() {
     if (key === 'rail:|') return;
     setDismissals(dismissRow(key, { reason: 'dismissed-rail', sender: '' }));
   }, []);
+  // Restore a learned-muted sender from the Memory surface: drop that sender's dismissals so
+  // they fall below the learned-ignore threshold and surface again. Updates the shared
+  // dismissals state so triage re-computes immediately (no reload).
+  const onClearSender = React.useCallback((sender) => {
+    if (!sender) return;
+    setDismissals(clearSenderDismissals(sender));
+  }, []);
 
   // Answer a catch-up intent instantly from connector data already loaded —
   // unread inbox, upcoming calendar, Slack blocker search rows, and the
@@ -1891,7 +1903,7 @@ export function WorkbenchPage() {
                 </div>
               </main>`}
             >
-              <${MemoryView} />
+              <${MemoryView} dismissals=${dismissals} onClearSender=${onClearSender} />
             </${React.Suspense}>`
               : view === 'calendar'
                 ? html`<${React.Suspense}
