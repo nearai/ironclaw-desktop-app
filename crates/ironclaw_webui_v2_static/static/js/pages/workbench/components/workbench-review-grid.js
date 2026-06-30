@@ -132,9 +132,11 @@ export function ReviewGrid({ columns = [], documents = [], cells = {} }) {
                           ><span className="wb13-rev-summary">${cell.summary}</span>`
                       : cell && cell.status === 'error'
                         ? html`<span className="wb13-rev-pending">couldn't read</span>`
-                        : html`<span className="wb13-rev-pending" aria-label="not run yet"
-                            >—</span
-                          >`;
+                        : cell && cell.status === 'running'
+                          ? html`<span className="wb13-rev-pending" aria-label="reviewing">…</span>`
+                          : html`<span className="wb13-rev-pending" aria-label="not run yet"
+                              >—</span
+                            >`;
                   return html`<td key=${column.id} className="wb13-rev-cell">${body}</td>`;
                 })}
               </tr>

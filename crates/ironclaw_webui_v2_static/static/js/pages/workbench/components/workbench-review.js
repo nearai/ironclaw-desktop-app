@@ -1,17 +1,28 @@
 import { Icon } from '../../../design-system/icons.js';
 import { React, html } from '../../../lib/html.js';
+import { connectorRead, createThread, sendMessage, fetchTimeline } from '../../../lib/api.js';
 import { REVIEW_COLUMNS } from '../lib/workbench-review-columns.js';
+import { runReview } from '../lib/workbench-review-run.js';
+import { makeReviewExtractor, runReviewChatTurn } from '../lib/workbench-review-extract-doc.js';
 import { ReviewGrid } from './workbench-review-grid.js';
 
 // Tabular Review — review a set of documents across named columns, each cell a
 // {summary, flag, reasoning} the user can scan at a glance. Pattern REIMPLEMENTED from the
-// legal-OSS research (docs/design/legal-oss-build-plan.md); the canonical Mike implementation
-// is AGPL, so nothing is copied — only the shape (rows = documents, columns = extraction
-// prompts, cell = summary + risk flag).
+// legal-OSS research; the canonical Mike implementation is AGPL, so nothing is copied — only the
+// shape (rows = documents, columns = extraction prompts, cell = summary + risk flag).
 //
-// SLICE 2b: the document picker (Google Drive via the existing connector read) + the grid
-// skeleton. Selecting documents builds rows; every cell is PENDING — NO LLM yet. Slice 3 runs
-// the per-document extraction and fills the cells.
+// SLICE 3b-ii: live. Pick Google Drive documents → "Run review" → for each document the body is
+// read and ONE chat turn extracts the columns (concurrency-capped, per-doc error isolation,
+// hardened parser). READ-ONLY — no writes. Cells are produced only by the model output through
+// the token-gated parser, so nothing here can fabricate a finding.
+const TZ = (() => {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+  } catch {
+    return '';
+  }
+})();
+
 const REVIEW_STYLE = `
   .wb13-review-empty {
     display: flex;
@@ -62,6 +73,7 @@ const REVIEW_STYLE = `
   .wb13-review-pick-row + .wb13-review-pick-row { border-top: 1px solid var(--wb-line); }
   .wb13-review-pick-row input { width: 16px; height: 16px; flex: none; }
   .wb13-review-pick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wb13-review-runbar { display: flex; align-items: center; gap: 12px; }
   .wb13-review-hint { font-size: 13px; color: var(--wb-muted); max-width: 560px; }
 `;
 
@@ -82,9 +94,22 @@ function ReviewEmpty({ subline }) {
   `;
 }
 
+// Map a runReview onUpdate into the per-document cell map the grid renders. 'done' uses the
+// real parsed cells (answered columns only — others stay pending); 'running'/'error' mark every
+// column so the grid reflects the document-level state.
+function statusCells(update, columns) {
+  if (update.status === 'done') return update.cells || {};
+  const status = update.status === 'error' ? 'error' : 'running';
+  const out = {};
+  for (const column of columns) out[column.id] = { status };
+  return out;
+}
+
 export function ReviewView({ files = [], driveReady = false, driveLoading = false }) {
   const docs = Array.isArray(files) ? files : [];
   const [selected, setSelected] = React.useState(() => new Set());
+  const [cells, setCells] = React.useState({});
+  const [running, setRunning] = React.useState(false);
   const toggle = (id) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -95,6 +120,28 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
   const selectedDocs = docs
     .filter((file) => selected.has(file.id))
     .map((file) => ({ id: file.id, name: file.name }));
+
+  const onRun = async () => {
+    if (!selectedDocs.length || running) return;
+    setRunning(true);
+    const token =
+      (typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID()) ||
+      `tok-${Date.now()}`;
+    const runTurn = (prompt) =>
+      runReviewChatTurn(prompt, { createThread, sendMessage, fetchTimeline, timezone: TZ });
+    const extractDoc = makeReviewExtractor({ connectorRead, runTurn });
+    try {
+      await runReview(selectedDocs, REVIEW_COLUMNS, {
+        extractDoc,
+        token,
+        concurrency: 3,
+        onUpdate: (id, update) =>
+          setCells((prev) => ({ ...prev, [id]: statusCells(update, REVIEW_COLUMNS) }))
+      });
+    } finally {
+      setRunning(false);
+    }
+  };
 
   let body;
   if (!driveReady) {
@@ -130,11 +177,31 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
             `
           )}
         </div>
+        <div className="wb13-review-runbar">
+          <button
+            type="button"
+            className="wb13-button is-primary is-sm"
+            data-testid="workbench-review-run"
+            disabled=${!selectedDocs.length || running}
+            onClick=${onRun}
+          >
+            ${running ? 'Reviewing…' : 'Run review'}
+          </button>
+          ${running
+            ? html`<span className="wb13-review-hint"
+                >Reading each document and pulling the columns…</span
+              >`
+            : null}
+        </div>
         ${selectedDocs.length
-          ? html`<${ReviewGrid} columns=${REVIEW_COLUMNS} documents=${selectedDocs} cells=${{}} />`
+          ? html`<${ReviewGrid}
+              columns=${REVIEW_COLUMNS}
+              documents=${selectedDocs}
+              cells=${cells}
+            />`
           : html`<div className="wb13-review-hint" data-testid="workbench-review-hint">
               Pick documents above to build the review grid — the columns (parties, governing law,
-              term, termination, change of control) fill once extraction runs.
+              term, termination, change of control) fill once you run the review.
             </div>`}
       </div>
     `;

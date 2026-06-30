@@ -4093,3 +4093,36 @@ test('static workbench: Review lists Drive documents and builds a pending grid o
   await expect(grid).toContainText('Acme NDA.pdf');
   await expect(grid.locator('.wb13-rev-pending').first()).toBeVisible();
 });
+
+test('static workbench: Review run surfaces an honest error for an unreadable document (never a fabricated cell)', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [{ toolkit: 'googledrive', status: 'ACTIVE', user_id: 'pg-test' }],
+    connectorReads: {
+      GOOGLEDRIVE_LIST_FILES: {
+        successful: true,
+        data: { files: [{ id: 'f1', name: 'Scanned NDA.pdf', mimeType: 'application/pdf' }] }
+      },
+      // a non-Google-Doc body read fails → the extractor must surface an honest error, not a guess
+      GOOGLEDOCS_GET_DOCUMENT_BY_ID: { successful: false, error: 'not a google doc' }
+    }
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByTestId('workbench-nav-review').click();
+
+  // Run is disabled until a document is selected.
+  const run = page.getByTestId('workbench-review-run');
+  await expect(run).toBeDisabled();
+  await page.getByTestId('workbench-review-doc').first().check();
+  await expect(run).toBeEnabled();
+
+  await run.click();
+  // The unreadable document's cells report the honest error; nothing is fabricated, and the
+  // button returns to enabled once the run settles.
+  const grid = page.getByTestId('workbench-review-grid');
+  await expect(grid.getByText("couldn't read").first()).toBeVisible();
+  // no risk-flag dot landed in any cell (the legend dots live outside <td>) — nothing fabricated
+  await expect(grid.locator('td .wb13-rev-flag')).toHaveCount(0);
+  await expect(run).toBeEnabled();
+});
