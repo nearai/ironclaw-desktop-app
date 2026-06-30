@@ -126,6 +126,7 @@ registerPack('en', {
   'chat.previewOmitted': 'Too large to embed — the model received the file name only.',
   'chat.previewUnavailable': 'No preview available for this file.',
   'chat.previewSave': 'Save file',
+  'chat.previewSaving': 'Saving…',
   'googleOauth.title': 'Google sign-in',
   'googleOauth.desc':
     'Add a Google OAuth client ID so Gmail and Calendar can connect through your browser. This gateway does not provide hosted Google OAuth yet, so the desktop app needs your own public Desktop app client ID.',

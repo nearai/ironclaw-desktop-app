@@ -107,7 +107,15 @@ function WorkExportActions({ item, artifact }) {
   const run = async (label, action) => {
     setBusy(label);
     try {
-      await action();
+      // saveBlob (and every download helper that routes through it) returns
+      // null when the user cancels the native save dialog. Honor that: clear
+      // busy and bail before the success toast so we never claim a save the
+      // user dismissed. Copy actions return undefined and keep their toast.
+      const result = await action();
+      if (result === null) {
+        setBusy('');
+        return;
+      }
       toast(`${label} ready`, { tone: 'success' });
     } catch {
       toast(`Could not ${label.toLowerCase()}`, { tone: 'error' });

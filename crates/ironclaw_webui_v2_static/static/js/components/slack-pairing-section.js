@@ -52,8 +52,14 @@ export function SlackPairingSection({ action }) {
       </div>
 
       ${redeemMutation.isSuccess &&
+      redeemMutation.data?.success !== false &&
       html`<p className="text-xs text-[var(--v2-positive-text)]">
         ${redeemMutation.data?.message || copy.successMessage}
+      </p>`}
+      ${redeemMutation.isSuccess &&
+      redeemMutation.data?.success === false &&
+      html`<p className="text-xs text-[var(--v2-danger-text)]">
+        ${redeemMutation.data?.message || copy.errorMessage}
       </p>`}
       ${redeemMutation.isError &&
       html`<p className="text-xs text-[var(--v2-danger-text)]">

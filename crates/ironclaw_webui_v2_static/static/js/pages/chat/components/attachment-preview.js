@@ -115,12 +115,34 @@ function PdfPagesPreview({ sourceFile }) {
  */
 export function AttachmentPreviewModal({ open, onClose, attachment }) {
   const t = useT();
+  const [saving, setSaving] = React.useState(false);
   if (!open || !attachment) return null;
 
   const text = attachment.extractedText || attachment.embedded_text || '';
   const canRenderPdfPages =
     attachment.sourceFile && isPdfAttachment({ ...attachment, filename: attachment.filename });
   const banner = statusBanner(attachment, t);
+
+  // Guard the native save dialog: without a busy flag a double-click spawns two
+  // dialogs. Mirrors GeneratedFileArtifactCard's try/catch + finally.
+  const saveAttachment = async () => {
+    setSaving(true);
+    try {
+      // Prefer the ORIGINAL file when we still hold it; otherwise save the
+      // extracted text the model received.
+      const name = attachment.filename || 'attachment';
+      const blob = attachment.sourceFile
+        ? attachment.sourceFile
+        : new Blob([text], { type: 'text/plain' });
+      const suggested = attachment.sourceFile ? name : `${name}.txt`;
+      const saved = await saveBlob(blob, suggested);
+      if (saved) toast(`Saved ${String(saved).split('/').pop()}`, { tone: 'success' });
+    } catch {
+      toast('Could not save file', { tone: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return html`
     <${Modal}
@@ -138,20 +160,11 @@ export function AttachmentPreviewModal({ open, onClose, attachment }) {
           ${(attachment.sourceFile || text) &&
           html`<button
             type="button"
-            onClick=${async () => {
-              // Prefer the ORIGINAL file when we still hold it; otherwise
-              // save the extracted text the model received.
-              const name = attachment.filename || 'attachment';
-              const blob = attachment.sourceFile
-                ? attachment.sourceFile
-                : new Blob([text], { type: 'text/plain' });
-              const suggested = attachment.sourceFile ? name : `${name}.txt`;
-              const saved = await saveBlob(blob, suggested);
-              if (saved) toast(`Saved ${String(saved).split('/').pop()}`, { tone: 'success' });
-            }}
-            className=${`${text ? '' : 'ml-auto '}shrink-0 rounded-[6px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-2 py-1 text-[var(--v2-text)] hover:bg-[var(--v2-surface-muted)]`}
+            disabled=${saving}
+            onClick=${saveAttachment}
+            className=${`${text ? '' : 'ml-auto '}shrink-0 rounded-[6px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-2 py-1 text-[var(--v2-text)] hover:bg-[var(--v2-surface-muted)] disabled:opacity-60`}
           >
-            ${t('chat.previewSave')}
+            ${saving ? t('chat.previewSaving') : t('chat.previewSave')}
           </button>`}
         </div>
         ${banner &&

@@ -40,3 +40,39 @@ test('redeemSlackPairingCode posts Slack codes to the Reborn pairing endpoint', 
     code: 'A1B2C3'
   });
 });
+
+test('redeemSlackPairingCode reports failure when a 2xx body carries no pairing proof', async () => {
+  globalThis.sessionStorage = {
+    getItem: () => 'token-1',
+    setItem: () => {},
+    removeItem: () => {}
+  };
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ success: false, message: 'No pending pairing for that code.' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    });
+
+  const response = await redeemSlackPairingCode('Z9Y8X7');
+
+  assert.equal(response.success, false);
+  assert.equal(response.message, 'No pending pairing for that code.');
+});
+
+test('redeemSlackPairingCode is honest about an empty 2xx (no proof, no message)', async () => {
+  globalThis.sessionStorage = {
+    getItem: () => 'token-1',
+    setItem: () => {},
+    removeItem: () => {}
+  };
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ provider: 'slack' }), {
+      status: 200,
+      headers: { 'content-type': 'application/json' }
+    });
+
+  const response = await redeemSlackPairingCode('Q1W2E3');
+
+  assert.equal(response.success, false);
+  assert.equal(response.message, 'Slack pairing failed.');
+});

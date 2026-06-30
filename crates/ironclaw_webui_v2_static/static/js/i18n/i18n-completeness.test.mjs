@@ -124,6 +124,7 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'chat.previewRenderFailed',
   'chat.previewRenderingPages',
   'chat.previewSave',
+  'chat.previewSaving',
   'chat.previewTitle',
   'chat.previewTruncated',
   'chat.previewUnavailable',
@@ -346,7 +347,7 @@ test('every advertised language has a registered pack', () => {
 
 test('i18n baseline is sorted, unique, and references real English keys', () => {
   const englishKeys = Object.keys(packs.en || {}).sort();
-  assert.equal(englishKeys.length, 807);
+  assert.equal(englishKeys.length, 808);
   assert.deepEqual(BASELINE_MISSING_KEYS, sortedUnique(BASELINE_MISSING_KEYS));
 
   const unknownBaselineKeys = BASELINE_MISSING_KEYS.filter((key) => !packs.en?.[key]);

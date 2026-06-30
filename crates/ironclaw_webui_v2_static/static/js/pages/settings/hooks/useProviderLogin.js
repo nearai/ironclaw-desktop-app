@@ -211,7 +211,9 @@ export function useProviderLogin({ onSuccess } = {}) {
       });
       await finishActive();
     } catch (_err) {
-      setNearaiError(t('onboarding.nearaiFailed'));
+      // Surface the real backend failure (mirrors the GitHub/Google branch)
+      // instead of always collapsing to the generic 'sign-in failed' copy.
+      setNearaiError(String(_err?.message || _err) || t('onboarding.nearaiFailed'));
     } finally {
       setNearaiBusy(false);
     }
