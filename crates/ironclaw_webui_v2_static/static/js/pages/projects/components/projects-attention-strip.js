@@ -19,9 +19,7 @@ export function ProjectsAttentionStrip({ items, onOpenItem }) {
       <div
         className="border-b border-[color-mix(in_srgb,var(--v2-warning-text)_18%,var(--v2-panel-border))] px-5 py-4 sm:px-6"
       >
-        <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-copper">
-          Needs attention
-        </div>
+        <div className="text-[11px] text-copper">Needs attention</div>
         <p className="mt-2 max-w-[70ch] text-sm leading-6 text-iron-200">
           Gates and recent failures across your project workspace.
         </p>
@@ -37,20 +35,14 @@ export function ProjectsAttentionStrip({ items, onOpenItem }) {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-white">${item.project_name}</div>
-                  <div
-                    className="mt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
+                  <div className="mt-1 text-[11px] text-iron-300">
                     ${item.thread_id ? `Thread ${String(item.thread_id).slice(0, 8)}` : 'Project'}
                   </div>
                 </div>
                 <${StatusPill} tone=${attentionTone(item)} label=${attentionLabel(item)} />
               </div>
               <p className="mt-3 text-sm leading-6 text-iron-200">${item.message}</p>
-              <div
-                className="mt-4 text-xs uppercase tracking-[0.16em] text-signal group-hover:text-white"
-              >
-                Open workspace
-              </div>
+              <div className="mt-4 text-xs text-signal group-hover:text-white">Open workspace</div>
             </button>
           `
         )}

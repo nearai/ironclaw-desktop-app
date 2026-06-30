@@ -11,9 +11,7 @@ import {
 function MetaItem({ label, value }) {
   return html`
     <div className="border-t border-white/10 py-4">
-      <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300">
-        ${label}
-      </div>
+      <div className="text-[11px] text-iron-300">${label}</div>
       <div className="mt-2 text-sm leading-6 text-white">${value || 'Not available'}</div>
     </div>
   `;
@@ -32,9 +30,7 @@ export function JobOverviewTab({ job }) {
       <${Panel} className="p-5 sm:p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              Execution context
-            </div>
+            <div className="text-[11px] text-iron-300">Execution context</div>
             <h3 className="mt-2 text-xl font-semibold text-white">
               Timing, state, and runtime shape
             </h3>
@@ -54,9 +50,7 @@ export function JobOverviewTab({ job }) {
 
       <div className="space-y-5">
         <${Panel} className="p-5 sm:p-6">
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            Description
-          </div>
+          <div className="text-[11px] text-iron-300">Description</div>
           <h3 className="mt-2 text-xl font-semibold text-white">Mission brief</h3>
           ${job.description
             ? html`<${MarkdownRenderer}
@@ -71,9 +65,7 @@ export function JobOverviewTab({ job }) {
         ${transitions.length
           ? html`
               <${Panel} className="p-5 sm:p-6">
-                <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                  Transitions
-                </div>
+                <div className="text-[11px] text-iron-300">Transitions</div>
                 <h3 className="mt-2 text-xl font-semibold text-white">State timeline</h3>
                 <div className="mt-3">
                   <${FlowList} items=${transitions} />

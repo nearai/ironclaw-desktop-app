@@ -91,9 +91,7 @@ export function SlackChannelPicker({ action }) {
     <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h4 className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${copy.title}
-          </h4>
+          <h4 className="text-[11px] text-signal">${copy.title}</h4>
           <p className="mt-2 text-xs leading-5 text-iron-300">${copy.instructions}</p>
         </div>
         ${channelsQuery.data?.team_id &&

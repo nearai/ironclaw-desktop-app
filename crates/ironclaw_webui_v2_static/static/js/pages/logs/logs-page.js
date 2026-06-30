@@ -48,7 +48,7 @@ function LogEntry({ entry }) {
         ].join(' ')}
       >
         <span className="text-[var(--v2-text-muted)] tabular-nums">${ts}</span>
-        <span className=${['font-semibold uppercase', levelColor].join(' ')}> ${entry.level} </span>
+        <span className=${['font-semibold', levelColor].join(' ')}> ${entry.level} </span>
         <span className="truncate text-[var(--v2-text-muted)]">${entry.target}</span>
         <span
           data-testid="logs-entry-message"
@@ -109,7 +109,7 @@ function ScopeChip({ label, value, scopeKey }) {
       className="inline-flex max-w-full items-center gap-1 rounded-[6px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-2 py-1 font-mono text-[11px] text-[var(--v2-text-muted)]"
       title=${`${label}: ${value}`}
     >
-      <span className="uppercase tracking-[0.08em]">${label}</span>
+      <span>${label}</span>
       <span className="max-w-[18rem] truncate text-[var(--v2-text)]">${value}</span>
     </span>
   `;

@@ -21,11 +21,7 @@ function MetaItem({ label, value, tone }) {
     <div
       className="min-w-0 rounded-xl border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-3"
     >
-      <div
-        className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--v2-text-muted)]"
-      >
-        ${label}
-      </div>
+      <div className="text-[11px] font-semibold text-[var(--v2-text-muted)]">${label}</div>
       <div
         className=${cn(
           'mt-2 min-w-0 break-words text-sm text-[var(--v2-text-strong)]',
@@ -66,9 +62,7 @@ export function AutomationDetailPanel({ automation }) {
             >
               ${automation.display_name}
             </h3>
-            <div
-              className="mt-2 truncate font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--v2-text-muted)]"
-            >
+            <div className="mt-2 truncate font-mono text-[11px] text-[var(--v2-text-muted)]">
               ${automation.automation_id}
             </div>
           </div>

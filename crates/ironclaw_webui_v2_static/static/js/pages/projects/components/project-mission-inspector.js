@@ -7,9 +7,7 @@ import { formatProjectDate, missionTone } from '../lib/projects-presenters.js';
 function MetaCard({ label, value }) {
   return html`
     <div className="rounded-2xl border border-white/8 bg-iron-950/60 p-3">
-      <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-        ${label}
-      </div>
+      <div className="text-[10px] text-iron-300">${label}</div>
       <div className="mt-2 text-sm leading-6 text-white">${value}</div>
     </div>
   `;
@@ -67,9 +65,7 @@ export function ProjectMissionInspector({
       <${Panel} className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              Mission dossier
-            </div>
+            <div className="text-[11px] text-iron-300">Mission dossier</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
               ${mission.name}
             </h2>
@@ -99,9 +95,7 @@ export function ProjectMissionInspector({
       <//>
 
       <${Panel} className="p-4 sm:p-5">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-          Mission brief
-        </div>
+        <div className="text-[11px] text-iron-300">Mission brief</div>
         <div className="mt-4 text-sm leading-6 text-iron-200">
           <${MarkdownRenderer} content=${mission.goal || 'No mission goal set.'} />
         </div>
@@ -110,9 +104,7 @@ export function ProjectMissionInspector({
       ${mission.current_focus
         ? html`
             <${Panel} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Current focus
-              </div>
+              <div className="text-[11px] text-iron-300">Current focus</div>
               <div className="mt-4 text-sm leading-6 text-iron-200">
                 <${MarkdownRenderer} content=${mission.current_focus} />
               </div>
@@ -122,9 +114,7 @@ export function ProjectMissionInspector({
       ${mission.success_criteria
         ? html`
             <${Panel} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Success criteria
-              </div>
+              <div className="text-[11px] text-iron-300">Success criteria</div>
               <div className="mt-4 text-sm leading-6 text-iron-200">
                 <${MarkdownRenderer} content=${mission.success_criteria} />
               </div>
@@ -134,9 +124,7 @@ export function ProjectMissionInspector({
       ${mission.approach_history?.length
         ? html`
             <${Panel} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Approach history
-              </div>
+              <div className="text-[11px] text-iron-300">Approach history</div>
               <div className="mt-4 space-y-3">
                 ${mission.approach_history.map(
                   (entry, index) => html`
@@ -144,9 +132,7 @@ export function ProjectMissionInspector({
                       key=${index}
                       className="rounded-2xl border border-white/8 bg-iron-950/60 p-4"
                     >
-                      <div className="mb-3 text-xs uppercase tracking-[0.16em] text-iron-400">
-                        Run ${index + 1}
-                      </div>
+                      <div className="mb-3 text-xs text-iron-400">Run ${index + 1}</div>
                       <${MarkdownRenderer} content=${entry} />
                     </div>
                   `
@@ -158,9 +144,7 @@ export function ProjectMissionInspector({
       ${mission.threads?.length
         ? html`
             <${Panel} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Spawned threads
-              </div>
+              <div className="text-[11px] text-iron-300">Spawned threads</div>
               <div className="mt-4 space-y-3">
                 ${mission.threads.map(
                   (thread) => html`

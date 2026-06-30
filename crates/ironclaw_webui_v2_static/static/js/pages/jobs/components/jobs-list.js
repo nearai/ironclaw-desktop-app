@@ -52,9 +52,7 @@ export function JobsList({
       <${Panel} className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              ${t('jobs.list.explorer')}
-            </div>
+            <div className="text-[11px] text-iron-300">${t('jobs.list.explorer')}</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-iron-100">
               ${t('jobs.list.queueTitle')}
             </h2>
@@ -62,9 +60,7 @@ export function JobsList({
               ${t('jobs.list.queueDesc')}
             </p>
           </div>
-          <div
-            className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-          >
+          <div className="flex items-center gap-2 text-[11px] text-iron-300">
             <span>${t('jobs.list.visible', { count: jobs.length })}</span>
             <span>/</span>
             <span
@@ -118,9 +114,7 @@ export function JobsList({
                       label=${stateLabel(job.state)}
                     />
                   </div>
-                  <div
-                    className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-iron-300">
                     <span>${truncateJobId(job.id)}</span>
                     <span>${t('jobs.list.created', { value: formatJobDate(job.created_at) })}</span>
                     ${job.started_at &&

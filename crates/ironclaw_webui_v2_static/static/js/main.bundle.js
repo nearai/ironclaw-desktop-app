@@ -427,9 +427,7 @@ Error generating stack: `+a.message+`
       className="hidden h-full min-w-0 max-w-[360px] shrink border-l border-[var(--v2-panel-border)] px-2 py-2 xl:flex xl:flex-col"
       aria-label=${n("chat.conversations")}
     >
-      <div
-        className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--v2-text-faint)]"
-      >
+      <div className="mb-1 px-1 text-[11px] font-semibold text-[var(--v2-text-faint)]">
         ${n("chat.conversations")}
       </div>
       <div className="flex min-h-0 gap-1 overflow-x-auto [scrollbar-width:thin]">
@@ -919,7 +917,7 @@ Error generating stack: `+a.message+`
     </div>
   `}var hL={google:"Google",github:"GitHub",apple:"Apple"};function xL(e,t){return`/auth/login/${encodeURIComponent(e)}?redirect_after=${encodeURIComponent(t)}`}function Yk({providers:e,redirectAfter:t}){let a=D();return e.length?l`
     <div className="mt-6 space-y-3">
-      <div className="flex items-center gap-3 text-[11px] uppercase text-[var(--v2-text-faint)]">
+      <div className="flex items-center gap-3 text-[11px] text-[var(--v2-text-faint)]">
         <span className="h-px flex-1 bg-[var(--v2-panel-border)]"></span>
         <span>${a("login.oauthDivider")}</span>
         <span className="h-px flex-1 bg-[var(--v2-panel-border)]"></span>
@@ -964,9 +962,7 @@ Error generating stack: `+a.message+`
         className="w-full max-w-md p-6 shadow-none sm:p-8"
       >
         <div className="mb-8">
-          <p
-            className="mb-3 font-mono text-xs uppercase tracking-[0.2em] text-[var(--v2-accent-text)]"
-          >
+          <p className="mb-3 text-xs font-semibold text-[var(--v2-accent-text)]">
             ${r("login.tagline")}
           </p>
           <h1
@@ -2126,9 +2122,7 @@ ${t.text}</pre
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div
-            className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-          >
+          <div className="text-[12px] font-semibold text-[var(--v2-text-faint)]">
             Source boundary
           </div>
           <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
@@ -9409,7 +9403,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
 .wb13-you-patterns { margin: 0; padding-left: 18px; color: var(--v2-text); }
 .wb13-you-patterns li { margin: 4px 0; font-size: 14px; line-height: 1.5; }
 .wb13-you-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--v2-hairline, var(--v2-panel-border)); }
-.wb13-you-badge { flex: none; font: 600 11px/1 var(--v2-font, inherit); letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 6px; padding: 4px 7px; }
+.wb13-you-badge { flex: none; font: 600 11px/1 var(--v2-font, inherit); border: 1px solid currentColor; border-radius: 6px; padding: 4px 7px; }
 .wb13-you-rowmain { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .wb13-you-email { color: var(--v2-text-strong); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 .wb13-you-meta { color: var(--v2-text-muted); font-size: 12.5px; }
@@ -10442,9 +10436,7 @@ ${t.content}</pre
         ${a.map(n=>l`
             <div key=${n.key} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                  ${n.label}
-                </div>
+                <div className="text-[11px] text-iron-300">${n.label}</div>
                 <${K} tone=${fU[n.key]} label=${n.key} />
               </div>
               <div className="mt-4 text-3xl font-semibold tracking-tight text-white">
@@ -10462,9 +10454,7 @@ ${t.content}</pre
       <div
         className="border-b border-[color-mix(in_srgb,var(--v2-warning-text)_18%,var(--v2-panel-border))] px-5 py-4 sm:px-6"
       >
-        <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-copper">
-          Needs attention
-        </div>
+        <div className="text-[11px] text-copper">Needs attention</div>
         <p className="mt-2 max-w-[70ch] text-sm leading-6 text-iron-200">
           Gates and recent failures across your project workspace.
         </p>
@@ -10479,20 +10469,14 @@ ${t.content}</pre
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-sm font-semibold text-white">${a.project_name}</div>
-                  <div
-                    className="mt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
+                  <div className="mt-1 text-[11px] text-iron-300">
                     ${a.thread_id?`Thread ${String(a.thread_id).slice(0,8)}`:"Project"}
                   </div>
                 </div>
                 <${K} tone=${vU(a)} label=${bU(a)} />
               </div>
               <p className="mt-3 text-sm leading-6 text-iron-200">${a.message}</p>
-              <div
-                className="mt-4 text-xs uppercase tracking-[0.16em] text-signal group-hover:text-white"
-              >
-                Open workspace
-              </div>
+              <div className="mt-4 text-xs text-signal group-hover:text-white">Open workspace</div>
             </button>
           `)}
       </div>
@@ -10530,9 +10514,7 @@ ${t.content}</pre
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-iron-700 bg-iron-950/55 p-3">
-          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-            ${a("projects.card.runtime")}
-          </div>
+          <div className="text-[10px] text-iron-300">${a("projects.card.runtime")}</div>
           <div className="mt-2 text-sm text-iron-100">
             ${na(e.active_missions||0,"mission")}
           </div>
@@ -10541,9 +10523,7 @@ ${t.content}</pre
           </div>
         </div>
         <div className="rounded-2xl border border-iron-700 bg-iron-950/55 p-3">
-          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-            ${a("projects.card.risk")}
-          </div>
+          <div className="text-[10px] text-iron-300">${a("projects.card.risk")}</div>
           <div className="mt-2 text-sm text-iron-100">
             ${na(e.pending_gates||0,"gate")}
           </div>
@@ -10558,7 +10538,7 @@ ${t.content}</pre
           <div>
             ${a("projects.card.spendToday",{value:ao(e.cost_today_usd||0)})}
           </div>
-          <div className="mt-1 text-xs uppercase tracking-[0.16em] text-iron-400">
+          <div className="mt-1 text-xs text-iron-400">
             ${As(e.last_activity)}
           </div>
         </div>
@@ -10571,9 +10551,7 @@ ${t.content}</pre
     <${G} className="overflow-hidden p-5 sm:p-6">
       <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
-          <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-signal">
-            ${a("projects.general.label")}
-          </div>
+          <div className="text-[11px] text-signal">${a("projects.general.label")}</div>
           <h2 className="mt-3 font-serif text-4xl font-semibold tracking-[-0.04em] text-iron-100">
             ${a("projects.general.title")}
           </h2>
@@ -10608,9 +10586,7 @@ ${t.content}</pre
       <${G} className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              ${s("projects.explorer")}
-            </div>
+            <div className="text-[11px] text-iron-300">${s("projects.explorer")}</div>
             <h2 className="mt-2 font-serif text-3xl font-semibold tracking-[-0.04em] text-iron-100">
               ${s("projects.scoped.title")}
             </h2>
@@ -10661,14 +10637,12 @@ ${t.content}</pre
     <${G} className="p-4 sm:p-5">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            Missions
-          </div>
+          <div className="text-[11px] text-iron-300">Missions</div>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
             Project execution plan
           </h2>
         </div>
-        <div className="text-right text-xs uppercase tracking-[0.16em] text-iron-400">
+        <div className="text-right text-xs text-iron-400">
           <div>${n.active} active / ${n.paused} paused</div>
           <div className="mt-1">${n.completed} completed / ${n.failed} failed</div>
         </div>
@@ -10692,9 +10666,7 @@ ${t.content}</pre
                     </div>
                     <${K} tone=${Vc(r.status)} label=${r.status} />
                   </div>
-                  <div
-                    className="mt-4 flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-400"
-                  >
+                  <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-iron-400">
                     <span>${r.cadence_description||r.cadence_type||"manual"}</span>
                     <span>${r.thread_count} threads</span>
                     <span>Updated ${Ja(r.updated_at)}</span>
@@ -10713,9 +10685,7 @@ ${t.content}</pre
   `}function tA({threads:e,selectedThreadId:t,onSelectThread:a}){let n=[...e].sort((r,o)=>new Date(o.updated_at||o.created_at)-new Date(r.updated_at||r.created_at));return l`
     <${G} className="p-4 sm:p-5">
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-          Activity
-        </div>
+        <div className="text-[11px] text-iron-300">Activity</div>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
           Recent project runs
         </h2>
@@ -10733,18 +10703,14 @@ ${t.content}</pre
                       <div className="truncate text-base font-semibold text-white">
                         ${o.title}
                       </div>
-                      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-iron-400">
-                        ${o.subtitle}
-                      </div>
+                      <div className="mt-1 text-xs text-iron-400">${o.subtitle}</div>
                       ${o.brief?l`<p className="mt-3 line-clamp-2 text-sm leading-6 text-iron-300">
                             ${o.brief}
                           </p>`:null}
                     </div>
                     <${K} tone=${cp(r.state)} label=${r.state} />
                   </div>
-                  <div
-                    className="mt-4 flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-400"
-                  >
+                  <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-iron-400">
                     <span>${r.step_count||0} steps</span>
                     <span>${r.total_tokens||0} tokens</span>
                     <span
@@ -10764,9 +10730,7 @@ ${t.content}</pre
     <//>
   `}function mp({label:e,value:t}){return l`
     <div className="rounded-2xl border border-white/8 bg-iron-950/60 p-3">
-      <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-        ${e}
-      </div>
+      <div className="text-[10px] text-iron-300">${e}</div>
       <div className="mt-2 text-sm leading-6 text-white">${t}</div>
     </div>
   `}function aA({mission:e,onFire:t,onPause:a,onResume:n,onOpenThread:r,isBusy:o}){let i=[];return e.status==="Active"?(i.push(l`<${E} key="fire" onClick=${()=>t(e.id)} disabled=${o}
@@ -10792,9 +10756,7 @@ ${t.content}</pre
       <${G} className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              Mission dossier
-            </div>
+            <div className="text-[11px] text-iron-300">Mission dossier</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
               ${e.name}
             </h2>
@@ -10822,9 +10784,7 @@ ${t.content}</pre
       <//>
 
       <${G} className="p-4 sm:p-5">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-          Mission brief
-        </div>
+        <div className="text-[11px] text-iron-300">Mission brief</div>
         <div className="mt-4 text-sm leading-6 text-iron-200">
           <${We} content=${e.goal||"No mission goal set."} />
         </div>
@@ -10832,9 +10792,7 @@ ${t.content}</pre
 
       ${e.current_focus?l`
             <${G} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Current focus
-              </div>
+              <div className="text-[11px] text-iron-300">Current focus</div>
               <div className="mt-4 text-sm leading-6 text-iron-200">
                 <${We} content=${e.current_focus} />
               </div>
@@ -10842,9 +10800,7 @@ ${t.content}</pre
           `:null}
       ${e.success_criteria?l`
             <${G} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Success criteria
-              </div>
+              <div className="text-[11px] text-iron-300">Success criteria</div>
               <div className="mt-4 text-sm leading-6 text-iron-200">
                 <${We} content=${e.success_criteria} />
               </div>
@@ -10852,18 +10808,14 @@ ${t.content}</pre
           `:null}
       ${e.approach_history?.length?l`
             <${G} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Approach history
-              </div>
+              <div className="text-[11px] text-iron-300">Approach history</div>
               <div className="mt-4 space-y-3">
                 ${e.approach_history.map((s,c)=>l`
                     <div
                       key=${c}
                       className="rounded-2xl border border-white/8 bg-iron-950/60 p-4"
                     >
-                      <div className="mb-3 text-xs uppercase tracking-[0.16em] text-iron-400">
-                        Run ${c+1}
-                      </div>
+                      <div className="mb-3 text-xs text-iron-400">Run ${c+1}</div>
                       <${We} content=${s} />
                     </div>
                   `)}
@@ -10872,9 +10824,7 @@ ${t.content}</pre
           `:null}
       ${e.threads?.length?l`
             <${G} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Spawned threads
-              </div>
+              <div className="text-[11px] text-iron-300">Spawned threads</div>
               <div className="mt-4 space-y-3">
                 ${e.threads.map(s=>l`
                     <button
@@ -10899,9 +10849,7 @@ ${t.content}</pre
     </div>
   `}function Rs({label:e,value:t}){return l`
     <div className="rounded-2xl border border-white/8 bg-iron-950/60 p-3">
-      <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-        ${e}
-      </div>
+      <div className="text-[10px] text-iron-300">${e}</div>
       <div className="mt-2 text-sm leading-6 text-white">${t}</div>
     </div>
   `}function nA({thread:e}){let t=dp(e);return l`
@@ -10909,9 +10857,7 @@ ${t.content}</pre
       <${G} className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              ${t.subtitle}
-            </div>
+            <div className="text-[11px] text-iron-300">${t.subtitle}</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
               ${t.title}
             </h2>
@@ -10921,9 +10867,7 @@ ${t.content}</pre
 
         ${t.brief?l`
               <div className="mt-4 rounded-2xl border border-mint/15 bg-mint/10 p-4">
-                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-mint">
-                  Mission brief
-                </div>
+                <div className="text-[10px] text-mint">Mission brief</div>
                 <div className="mt-3 text-sm leading-6 text-iron-100">
                   <${We} content=${t.brief} />
                 </div>
@@ -10947,18 +10891,14 @@ ${t.content}</pre
       <//>
 
       <${G} className="p-4 sm:p-5">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-          Timeline
-        </div>
+        <div className="text-[11px] text-iron-300">Timeline</div>
         <div className="mt-4 space-y-3">
           ${e.messages?.length?e.messages.map((a,n)=>l`
                   <article
                     key=${n}
                     className="rounded-2xl border border-white/8 bg-iron-950/60 p-4"
                   >
-                    <div className="text-xs uppercase tracking-[0.16em] text-iron-400">
-                      ${a.role||"System"}
-                    </div>
+                    <div className="text-xs text-iron-400">${a.role||"System"}</div>
                     <div className="mt-3 text-sm leading-6 text-iron-100">
                       <${We} content=${QC(a)} />
                     </div>
@@ -10978,9 +10918,7 @@ ${t.content}</pre
       <${G} className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              Project snapshot
-            </div>
+            <div className="text-[11px] text-iron-300">Project snapshot</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
               ${e.name}
             </h2>
@@ -11012,9 +10950,7 @@ ${t.content}</pre
 
       ${e.goals?.length?l`
             <${G} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Goals
-              </div>
+              <div className="text-[11px] text-iron-300">Goals</div>
               <div className="mt-4 space-y-2 text-sm leading-6 text-iron-200">
                 ${e.goals.map((o,i)=>l`<div
                       key=${i}
@@ -11027,9 +10963,7 @@ ${t.content}</pre
           `:null}
       ${e.metrics?.length?l`
             <${G} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Metrics
-              </div>
+              <div className="text-[11px] text-iron-300">Metrics</div>
               <div className="mt-4 space-y-3">
                 ${e.metrics.map((o,i)=>l`
                     <div
@@ -11039,9 +10973,7 @@ ${t.content}</pre
                       <div className="text-sm font-semibold text-white">${o.name}</div>
                       <div className="mt-2 text-sm text-iron-200">${YC(o)}</div>
                       ${o.updated_at&&l`
-                        <div
-                          className="mt-2 font-mono text-[10px] uppercase tracking-[0.16em] text-iron-400"
-                        >
+                        <div className="mt-2 text-[10px] text-iron-400">
                           Updated ${Ja(o.updated_at)}
                         </div>
                       `}
@@ -11054,9 +10986,7 @@ ${t.content}</pre
   `}function rA({project:e,overview:t,missions:a,threads:n,inspector:r,isLoading:o,error:i,onClear:s,onOpenThread:c,onFireMission:d,onPauseMission:u,onResumeMission:m,isBusy:f}){return l`
     <aside className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-          Inspector
-        </div>
+        <div className="text-[11px] text-iron-300">Inspector</div>
         ${r?.type&&l`<${E} variant="ghost" className="h-8 px-3 text-xs" onClick=${s}
           >Clear focus<//
         >`}
@@ -11091,9 +11021,7 @@ ${t.content}</pre
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0 max-w-3xl">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-signal">
-                  Project workspace
-                </div>
+                <div className="text-[11px] text-signal">Project workspace</div>
                 <${K}
                   tone=${Ts(t?.health)}
                   label=${t?.health||"steady"}
@@ -11133,33 +11061,25 @@ ${t.content}</pre
 
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-                Created
-              </div>
+              <div className="text-[10px] text-iron-300">Created</div>
               <div className="mt-2 text-sm leading-6 text-white">
                 ${Ja(e.created_at)}
               </div>
             </div>
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-                Pending gates
-              </div>
+              <div className="text-[10px] text-iron-300">Pending gates</div>
               <div className="mt-2 text-sm leading-6 text-white">
                 ${t?.pending_gates||0}
               </div>
             </div>
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-                Failures 24h
-              </div>
+              <div className="text-[10px] text-iron-300">Failures 24h</div>
               <div className="mt-2 text-sm leading-6 text-white">
                 ${t?.failures_24h||0}
               </div>
             </div>
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-                Total missions
-              </div>
+              <div className="text-[10px] text-iron-300">Total missions</div>
               <div className="mt-2 text-sm leading-6 text-white">
                 ${t?.total_missions||a.length}
               </div>
@@ -11274,9 +11194,7 @@ ${t.content}</pre
     </div>
   `}function Yc(e,t={}){return e?new Date(e).toLocaleString([],{month:"short",day:"numeric",hour:"2-digit",minute:"2-digit",...t}):"Not scheduled"}function Xc(e){return e==="Active"?"signal":e==="Paused"?"warning":e==="Completed"?"success":e==="Failed"?"danger":"muted"}function iA(e=[]){return e.reduce((t,a)=>(t.total+=1,a.status==="Active"?t.active+=1:a.status==="Paused"?t.paused+=1:a.status==="Completed"?t.completed+=1:a.status==="Failed"&&(t.failed+=1),t.threads+=Number(a.thread_count||a.threads?.length||0),t),{total:0,active:0,paused:0,completed:0,failed:0,threads:0})}function sA(e=[]){let t={Active:0,Paused:1,Failed:2,Completed:3};return[...e].sort((a,n)=>{let r=(t[a.status]??4)-(t[n.status]??4);return r!==0?r:new Date(n.updated_at||0).getTime()-new Date(a.updated_at||0).getTime()})}function pp({label:e,value:t}){return l`
     <div className="rounded-xl border border-white/8 bg-iron-950/60 p-3">
-      <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-        ${e}
-      </div>
+      <div className="text-[10px] text-iron-300">${e}</div>
       <div className="mt-2 text-sm leading-6 text-white">${t}</div>
     </div>
   `}function yU({mission:e,isBusy:t,onFire:a,onPause:n,onResume:r}){let o=D();return e.status==="Active"?l`
@@ -11309,9 +11227,7 @@ ${t.content}</pre
       <${G} className="p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              ${d("missions.dossier")}
-            </div>
+            <div className="text-[11px] text-iron-300">${d("missions.dossier")}</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
               ${e.name}
             </h2>
@@ -11359,9 +11275,7 @@ ${t.content}</pre
       <//>
 
       <${G} className="p-4 sm:p-5">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-          ${d("missions.brief")}
-        </div>
+        <div className="text-[11px] text-iron-300">${d("missions.brief")}</div>
         <div className="mt-4 text-sm leading-6 text-iron-200">
           <${We} content=${e.goal||d("missions.noGoal")} />
         </div>
@@ -11369,9 +11283,7 @@ ${t.content}</pre
 
       ${e.current_focus&&l`
         <${G} className="p-4 sm:p-5">
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            ${d("missions.currentFocus")}
-          </div>
+          <div className="text-[11px] text-iron-300">${d("missions.currentFocus")}</div>
           <div className="mt-4 text-sm leading-6 text-iron-200">
             <${We} content=${e.current_focus} />
           </div>
@@ -11379,9 +11291,7 @@ ${t.content}</pre
       `}
       ${e.success_criteria&&l`
         <${G} className="p-4 sm:p-5">
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            ${d("missions.successCriteria")}
-          </div>
+          <div className="text-[11px] text-iron-300">${d("missions.successCriteria")}</div>
           <div className="mt-4 text-sm leading-6 text-iron-200">
             <${We} content=${e.success_criteria} />
           </div>
@@ -11389,9 +11299,7 @@ ${t.content}</pre
       `}
       ${e.threads?.length?l`
             <${G} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                ${d("missions.spawnedThreads")}
-              </div>
+              <div className="text-[11px] text-iron-300">${d("missions.spawnedThreads")}</div>
               <div className="mt-4 space-y-3">
                 ${e.threads.map(u=>l`
                     <button
@@ -11447,9 +11355,7 @@ ${t.content}</pre
               ${e.goal||r("missions.noGoal")}
             </p>
           </div>
-          <div
-            className="shrink-0 text-right font-mono text-[11px] uppercase tracking-[0.14em] text-iron-400"
-          >
+          <div className="shrink-0 text-right text-[11px] text-iron-400">
             <div>${e.cadence_description||e.cadence_type||"manual"}</div>
             <div className="mt-1">
               ${r("missions.threadCount",{count:e.thread_count||0})}
@@ -11461,7 +11367,7 @@ ${t.content}</pre
       <div
         className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-iron-700 pt-3"
       >
-        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-iron-400">
+        <span className="text-[11px] text-iron-400">
           ${r("missions.updated",{value:Yc(e.updated_at)})}
         </span>
         <${E}
@@ -11476,9 +11382,7 @@ ${t.content}</pre
     <${G} className="p-4 sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            ${f("missions.title")}
-          </div>
+          <div className="text-[11px] text-iron-300">${f("missions.title")}</div>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-iron-100">
             ${f("missions.subtitle")}
           </h1>
@@ -11538,9 +11442,7 @@ ${t.content}</pre
         ${a.map(n=>l`
             <div key=${n.key} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                  ${n.label}
-                </div>
+                <div className="text-[11px] text-iron-300">${n.label}</div>
                 <${K} tone=${n.tone} label=${n.key} />
               </div>
               <div className="mt-4 text-3xl font-semibold tracking-tight text-white">
@@ -11639,16 +11541,12 @@ ${kA(t==="tool_use"?a.input:a.output||a.error||a)}</pre
       </details>
     `:t==="message"?l`
       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-        <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300">
-          ${a.role||"assistant"}
-        </div>
+        <div className="text-[11px] text-iron-300">${a.role||"assistant"}</div>
         <div className="mt-2 text-sm leading-6 text-iron-100">${a.content||""}</div>
       </div>
     `:l`
     <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-      <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300">
-        ${t.replace(/_/g," ")}
-      </div>
+      <div className="text-[11px] text-iron-300">${t.replace(/_/g," ")}</div>
       <div className="mt-2 text-sm leading-6 text-iron-100">
         ${a.message||a.status||kA(a)}
       </div>
@@ -11657,9 +11555,7 @@ ${kA(t==="tool_use"?a.input:a.output||a.error||a)}</pre
     <${G} className="p-5 sm:p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            Event stream
-          </div>
+          <div className="text-[11px] text-iron-300">Event stream</div>
           <h3 className="mt-2 text-xl font-semibold text-white">Job activity</h3>
           <p className="mt-2 text-sm leading-6 text-iron-300">
             Persisted events are refreshed automatically so you can follow tool calls, prompts, and
@@ -11692,9 +11588,7 @@ ${kA(t==="tool_use"?a.input:a.output||a.error||a)}</pre
       >
         ${m.length?m.map(v=>l`
                 <div key=${v.id||`${v.event_type}-${v.created_at}`}>
-                  <div
-                    className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
+                  <div className="mb-2 text-[11px] text-iron-300">
                     ${Ea(v.created_at)}
                   </div>
                   <${AU} event=${v} />
@@ -11745,9 +11639,7 @@ ${kA(t==="tool_use"?a.input:a.output||a.error||a)}</pre
               </h2>
               <${K} tone=${Es(e.state)} label=${no(e.state)} />
             </div>
-            <div
-              className="mt-3 flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-            >
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-iron-300">
               <span>${Zo(e.id)}</span>
               <span>created ${Ea(e.created_at)}</span>
               ${oh(e)&&l`<span>${oh(e)}</span>`}
@@ -11820,9 +11712,7 @@ ${kA(t==="tool_use"?a.input:a.output||a.error||a)}</pre
     <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
       <${G} className="min-h-[440px] p-4">
         <div className="border-b border-white/10 px-2 pb-3">
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            Workspace tree
-          </div>
+          <div className="text-[11px] text-iron-300">Workspace tree</div>
           <p className="mt-2 text-sm leading-6 text-iron-300">
             Browse the sandbox output and inspect generated files inline.
           </p>
@@ -11852,9 +11742,7 @@ ${kA(t==="tool_use"?a.input:a.output||a.error||a)}</pre
 
       <${G} className="min-h-[440px] p-5 sm:p-6">
         <div className="border-b border-white/10 pb-3">
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            File preview
-          </div>
+          <div className="text-[11px] text-iron-300">File preview</div>
           <p className="mt-2 break-all text-sm leading-6 text-iron-300">
             ${n?.path||a||"Select a file from the tree to inspect its contents."}
           </p>
@@ -11885,9 +11773,7 @@ ${n.content}</pre
       />
     `}function Ds({label:e,value:t}){return l`
     <div className="border-t border-white/10 py-4">
-      <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300">
-        ${e}
-      </div>
+      <div className="text-[11px] text-iron-300">${e}</div>
       <div className="mt-2 text-sm leading-6 text-white">${t||"Not available"}</div>
     </div>
   `}function AA({job:e}){let t=(e.transitions||[]).map(a=>({title:`${no(a.from)} -> ${no(a.to)}`,description:[Ea(a.timestamp),a.reason].filter(Boolean).join(" / ")}));return l`
@@ -11895,9 +11781,7 @@ ${n.content}</pre
       <${G} className="p-5 sm:p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              Execution context
-            </div>
+            <div className="text-[11px] text-iron-300">Execution context</div>
             <h3 className="mt-2 text-xl font-semibold text-white">
               Timing, state, and runtime shape
             </h3>
@@ -11917,9 +11801,7 @@ ${n.content}</pre
 
       <div className="space-y-5">
         <${G} className="p-5 sm:p-6">
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            Description
-          </div>
+          <div className="text-[11px] text-iron-300">Description</div>
           <h3 className="mt-2 text-xl font-semibold text-white">Mission brief</h3>
           ${e.description?l`<${We}
                 content=${e.description}
@@ -11931,9 +11813,7 @@ ${n.content}</pre
 
         ${t.length?l`
               <${G} className="p-5 sm:p-6">
-                <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                  Transitions
-                </div>
+                <div className="text-[11px] text-iron-300">Transitions</div>
                 <h3 className="mt-2 text-xl font-semibold text-white">State timeline</h3>
                 <div className="mt-3">
                   <${NC} items=${t} />
@@ -11957,9 +11837,7 @@ ${n.content}</pre
       <${G} className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              ${m("jobs.list.explorer")}
-            </div>
+            <div className="text-[11px] text-iron-300">${m("jobs.list.explorer")}</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-iron-100">
               ${m("jobs.list.queueTitle")}
             </h2>
@@ -11967,9 +11845,7 @@ ${n.content}</pre
               ${m("jobs.list.queueDesc")}
             </p>
           </div>
-          <div
-            className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-          >
+          <div className="flex items-center gap-2 text-[11px] text-iron-300">
             <span>${m("jobs.list.visible",{count:e.length})}</span>
             <span>/</span>
             <span
@@ -12014,9 +11890,7 @@ ${n.content}</pre
                       label=${no(v.state)}
                     />
                   </div>
-                  <div
-                    className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
+                  <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-iron-300">
                     <span>${Zo(v.id)}</span>
                     <span>${m("jobs.list.created",{value:Ea(v.created_at)})}</span>
                     ${v.started_at&&l`<span
@@ -12171,7 +12045,7 @@ ${n.content}</pre
           <div key=${t.id} className="rounded-xl border border-iron-700 bg-iron-950/40 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <${K} tone=${RU(t.status)} label=${t.status} />
-              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-iron-400">
+              <span className="text-[11px] text-iron-400">
                 ${ro(t.started_at)}
               </span>
             </div>
@@ -12185,9 +12059,7 @@ ${n.content}</pre
       </div>
     `}function oo({label:e,value:t}){return l`
     <div className="rounded-xl border border-iron-700 bg-iron-950/50 p-3">
-      <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-iron-400">
-        ${e}
-      </div>
+      <div className="text-[10px] text-iron-400">${e}</div>
       <div className="mt-2 min-w-0 break-words text-sm text-iron-100">${t||"\u2014"}</div>
     </div>
   `}function VA({title:e,value:t}){return l`
@@ -12291,9 +12163,7 @@ ${JSON.stringify(t||{},null,2)}</pre
           <p className="mt-2 line-clamp-2 text-sm leading-6 text-iron-300">
             ${e.description||e.trigger_summary||"No description"}
           </p>
-          <div
-            className="mt-3 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-          >
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-iron-300">
             <span>${e.trigger_type}</span>
             <span>${e.action_type}</span>
             <span>runs ${e.run_count||0}</span>
@@ -12340,9 +12210,7 @@ ${JSON.stringify(t||{},null,2)}</pre
       <${G} className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              ${f("routines.explorer")}
-            </div>
+            <div className="text-[11px] text-iron-300">${f("routines.explorer")}</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-iron-100">
               ${f("routines.title")}
             </h2>
@@ -12350,9 +12218,7 @@ ${JSON.stringify(t||{},null,2)}</pre
               ${f("routines.description")}
             </p>
           </div>
-          <div
-            className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-          >
+          <div className="flex items-center gap-2 text-[11px] text-iron-300">
             <span>${e.length} visible</span>
             <span>/</span>
             <span>${m?"refreshing":"live"}</span>
@@ -12494,9 +12360,7 @@ ${JSON.stringify(t||{},null,2)}</pre
       <div className="flex flex-col gap-5">
         <!-- ── Header ──────────────────────────────────────────────── -->
         <div className="flex flex-col gap-1">
-          <div
-            className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--v2-text-muted)]"
-          >
+          <div className="text-[12px] font-semibold text-[var(--v2-text-muted)]">
             ${t("automations.delivery.eyebrow")}
           </div>
           <h2
@@ -12549,9 +12413,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         <!-- ── Current default row (only when a target is configured) ── -->
         ${!u&&N&&l`
           <div>
-            <span
-              className="mb-1.5 block font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-[var(--v2-text-faint)]"
-            >
+            <span className="mb-1.5 block text-[12px] font-semibold text-[var(--v2-text-faint)]">
               ${t("automations.delivery.currentDefault")}
             </span>
             <div
@@ -12569,9 +12431,7 @@ ${JSON.stringify(t||{},null,2)}</pre
 
         <!-- ── Radio option rows ────────────────────────────────────── -->
         ${!u&&l`<div>
-          <span
-            className="mb-1.5 block font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-[var(--v2-text-faint)]"
-          >
+          <span className="mb-1.5 block text-[12px] font-semibold text-[var(--v2-text-faint)]">
             ${C}
           </span>
           <div
@@ -12770,11 +12630,7 @@ ${JSON.stringify(t||{},null,2)}</pre
     <div
       className="min-w-0 rounded-xl border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-3"
     >
-      <div
-        className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--v2-text-muted)]"
-      >
-        ${e}
-      </div>
+      <div className="text-[11px] font-semibold text-[var(--v2-text-muted)]">${e}</div>
       <div
         className=${P("mt-2 min-w-0 break-words text-sm text-[var(--v2-text-strong)]",FU[a])}
       >
@@ -12799,9 +12655,7 @@ ${JSON.stringify(t||{},null,2)}</pre
             >
               ${e.display_name}
             </h3>
-            <div
-              className="mt-2 truncate font-mono text-[11px] uppercase tracking-[0.12em] text-[var(--v2-text-muted)]"
-            >
+            <div className="mt-2 truncate font-mono text-[11px] text-[var(--v2-text-muted)]">
               ${e.automation_id}
             </div>
           </div>
@@ -12889,9 +12743,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         </p>
 
         <div className="mt-6">
-          <div
-            className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--v2-text-muted)]"
-          >
+          <div className="text-[12px] font-semibold text-[var(--v2-text-muted)]">
             ${e("automations.empty.examplesTitle")}
           </div>
           <ul className="mt-3 space-y-2">
@@ -13136,9 +12988,7 @@ ${JSON.stringify(t||{},null,2)}</pre
     <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <h4 className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${u.title}
-          </h4>
+          <h4 className="text-[11px] text-signal">${u.title}</h4>
           <p className="mt-2 text-xs leading-5 text-iron-300">${u.instructions}</p>
         </div>
         ${m.data?.team_id&&l`<span
@@ -14246,11 +14096,7 @@ ${JSON.stringify(t||{},null,2)}</pre
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-2xl">
-          <p
-            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
-          >
-            Source readiness
-          </p>
+          <p className="text-xs font-semibold text-[var(--v2-accent-text)]">Source readiness</p>
           <h3 className="mt-2 text-xl font-semibold text-[var(--v2-text-strong)]">
             ${r?"Fix blocked sources first.":"Sources stay quiet until needed."}
           </h3>
@@ -14292,11 +14138,7 @@ ${JSON.stringify(t||{},null,2)}</pre
               ${e.statusLabel}
             </span>
           </div>
-          <p
-            className="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--v2-text-faint)]"
-          >
-            ${e.category}
-          </p>
+          <p className="mt-1 text-[11px] text-[var(--v2-text-faint)]">${e.category}</p>
         </div>
       </div>
 
@@ -15867,15 +15709,23 @@ ${JSON.stringify(t||{},null,2)}</pre
       </div>
     `;else if(n.isError)o=l`
       <div
-        className="mt-4 rounded-xl border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]"
+        className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]"
       >
         ${t("traceCommons.loadFailed")}
       </div>
     `;else if(!a||!a.enrolled&&!(a.submissions_total>0))o=l`
       <div
-        className="mt-4 rounded-xl border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-6 text-center text-sm text-[var(--v2-text-muted)]"
+        className="mt-4 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-5 py-6"
       >
-        ${t("traceCommons.emptyState")}
+        <div className="text-[15px] font-medium text-[var(--v2-text-strong)]">
+          ${t("traceCommons.emptyTitle")}
+        </div>
+        <p className="mt-1.5 text-sm leading-6 text-[var(--v2-text-muted)]">
+          ${t("traceCommons.emptyValueProp")}
+        </p>
+        <p className="mt-3 text-xs leading-5 text-[var(--v2-text-faint)]">
+          ${t("traceCommons.emptyHow")}
+        </p>
       </div>
     `;else{let i=a.recent_explanations||[],s=a.holds||[];o=l`
       <div className="mt-4">
@@ -15914,9 +15764,7 @@ ${JSON.stringify(t||{},null,2)}</pre
       </div>
       ${i.length>0&&l`
         <div className="mt-5">
-          <h4
-            className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-          >
+          <h4 className="mb-2 text-[13px] font-medium text-[var(--v2-text-muted)]">
             ${t("traceCommons.recentExplanations")}
           </h4>
           <ul className="ml-4 list-disc space-y-1 text-xs text-[var(--v2-text-muted)]">
@@ -15926,9 +15774,7 @@ ${JSON.stringify(t||{},null,2)}</pre
       `}
       ${s.length>0&&l`
         <div className="mt-5">
-          <h4
-            className="mb-1 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-          >
+          <h4 className="mb-1 text-[13px] font-medium text-[var(--v2-text-muted)]">
             ${t("traceCommons.heldTitle")}
           </h4>
           <p className="mb-2 text-xs leading-5 text-[var(--v2-text-muted)]">
@@ -15938,7 +15784,7 @@ ${JSON.stringify(t||{},null,2)}</pre
             ${s.map(c=>l`
                 <li
                   key=${c.submission_id}
-                  className="flex items-start justify-between gap-3 rounded-xl border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2"
+                  className="flex items-start justify-between gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2"
                 >
                   <div className="min-w-0">
                     <div className="text-xs text-[var(--v2-text-strong)]">${c.reason}</div>
@@ -15948,14 +15794,16 @@ ${JSON.stringify(t||{},null,2)}</pre
                       ${c.submission_id}
                     </div>
                   </div>
-                  <button
+                  <${E}
+                    variant="primary"
+                    size="md"
                     type="button"
+                    className="shrink-0"
                     onClick=${()=>r.mutate(c.submission_id)}
                     disabled=${r.isPending}
-                    className="shrink-0 rounded-lg border border-[var(--v2-accent-soft)] px-2.5 py-1 text-xs font-medium text-[var(--v2-accent-text)] transition-colors hover:bg-[var(--v2-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     ${r.isPending?t("traceCommons.authorizing"):t("traceCommons.authorize")}
-                  </button>
+                  <//>
                 </li>
               `)}
           </ul>
@@ -15963,12 +15811,10 @@ ${JSON.stringify(t||{},null,2)}</pre
       `}
     `}return l`
     <${Qe} padding="md">
-      <h3
-        className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-      >
+      <h3 className="text-[15px] font-medium text-[var(--v2-text-strong)]">
         ${t("traceCommons.title")}
       </h3>
-      <p className="text-sm leading-6 text-[var(--v2-text-muted)]">
+      <p className="mt-2 text-sm leading-6 text-[var(--v2-text-muted)]">
         ${t("traceCommons.description")}
       </p>
 
@@ -16175,29 +16021,13 @@ ${JSON.stringify(t||{},null,2)}</pre
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-white/10 text-left">
-            <th
-              className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-            >
-              ${a("admin.dashboard.name")}
-            </th>
-            <th
-              className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-            >
-              ${a("admin.dashboard.role")}
-            </th>
-            <th
-              className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-            >
-              ${a("admin.dashboard.status")}
-            </th>
-            <th
-              className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-            >
+            <th className="pb-3 pr-4 text-[11px] text-iron-300">${a("admin.dashboard.name")}</th>
+            <th className="pb-3 pr-4 text-[11px] text-iron-300">${a("admin.dashboard.role")}</th>
+            <th className="pb-3 pr-4 text-[11px] text-iron-300">${a("admin.dashboard.status")}</th>
+            <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
               ${a("admin.dashboard.jobs")}
             </th>
-            <th className="pb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300">
-              ${a("admin.dashboard.lastActive")}
-            </th>
+            <th className="pb-3 text-[11px] text-iron-300">${a("admin.dashboard.lastActive")}</th>
           </tr>
         </thead>
         <tbody>
@@ -16241,9 +16071,7 @@ ${JSON.stringify(t||{},null,2)}</pre
     <div className="space-y-5">
       ${s!=="todo"&&l`<${G} className="p-5 sm:p-6">
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${a("admin.dashboard.systemOverview")}
-          </h3>
+          <h3 className="text-[11px] text-signal">${a("admin.dashboard.systemOverview")}</h3>
           ${i.uptime_seconds!=null&&l`
             <span className="font-mono text-xs text-iron-300"
               >${a("admin.dashboard.uptime",{value:HR(i.uptime_seconds)})}</span
@@ -16274,9 +16102,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         </div>
       <//>`}
       ${s!=="todo"&&l`<${G} className="p-5 sm:p-6">
-        <h3 className="mb-5 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-          ${a("admin.dashboard.usage30d")}
-        </h3>
+        <h3 className="mb-5 text-[11px] text-signal">${a("admin.dashboard.usage30d")}</h3>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <${vt}
             label=${a("admin.dashboard.totalJobs")}
@@ -16303,9 +16129,7 @@ ${JSON.stringify(t||{},null,2)}</pre
 
       <${G} className="p-5 sm:p-6">
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${a("admin.dashboard.recentUsers")}
-          </h3>
+          <h3 className="text-[11px] text-signal">${a("admin.dashboard.recentUsers")}</h3>
           <button
             onClick=${()=>t("users")}
             className="text-xs text-signal hover:underline"
@@ -16334,9 +16158,7 @@ ${JSON.stringify(t||{},null,2)}</pre
     <div className="space-y-5">
       <${G} className="p-5 sm:p-6">
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${t("admin.usage.overview")}
-          </h3>
+          <h3 className="text-[11px] text-signal">${t("admin.usage.overview")}</h3>
           <div className="flex gap-1">
             ${zF.map(u=>l`
                 <button
@@ -16378,41 +16200,21 @@ ${JSON.stringify(t||{},null,2)}</pre
 
       ${i.length>0&&l`
         <${G} className="p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${t("admin.usage.perUser")}
-          </h3>
+          <h3 className="mb-4 text-[11px] text-signal">${t("admin.usage.perUser")}</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-left">
-                  <th
-                    className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t("admin.usage.user")}
-                  </th>
-                  <th
-                    className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t("admin.usage.calls")}
-                  </th>
-                  <th
-                    className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                  >
+                  <th className="pb-3 pr-4 text-[11px] text-iron-300">${t("admin.usage.user")}</th>
+                  <th className="pb-3 pr-4 text-[11px] text-iron-300">${t("admin.usage.calls")}</th>
+                  <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                     ${t("admin.usage.input")}
                   </th>
-                  <th
-                    className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                  >
+                  <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                     ${t("admin.usage.output")}
                   </th>
-                  <th
-                    className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t("admin.usage.cost")}
-                  </th>
-                  <th
-                    className="hidden pb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 md:table-cell"
-                  />
+                  <th className="pb-3 pr-4 text-[11px] text-iron-300">${t("admin.usage.cost")}</th>
+                  <th className="hidden pb-3 text-[11px] text-iron-300 md:table-cell" />
                 </tr>
               </thead>
               <tbody>
@@ -16454,38 +16256,20 @@ ${JSON.stringify(t||{},null,2)}</pre
       `}
       ${s.length>0&&l`
         <${G} className="p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${t("admin.usage.perModel")}
-          </h3>
+          <h3 className="mb-4 text-[11px] text-signal">${t("admin.usage.perModel")}</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-left">
-                  <th
-                    className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t("admin.usage.model")}
-                  </th>
-                  <th
-                    className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t("admin.usage.calls")}
-                  </th>
-                  <th
-                    className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                  >
+                  <th className="pb-3 pr-4 text-[11px] text-iron-300">${t("admin.usage.model")}</th>
+                  <th className="pb-3 pr-4 text-[11px] text-iron-300">${t("admin.usage.calls")}</th>
+                  <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                     ${t("admin.usage.input")}
                   </th>
-                  <th
-                    className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                  >
+                  <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                     ${t("admin.usage.output")}
                   </th>
-                  <th
-                    className="pb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t("admin.usage.cost")}
-                  </th>
+                  <th className="pb-3 text-[11px] text-iron-300">${t("admin.usage.cost")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -16601,9 +16385,7 @@ ${JSON.stringify(t||{},null,2)}</pre
 
       <div className="grid gap-5 lg:grid-cols-2">
         <${G} className="p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${a("admin.user.profile")}
-          </h3>
+          <h3 className="mb-4 text-[11px] text-signal">${a("admin.user.profile")}</h3>
           <${co} label=${a("admin.user.id")}>
             <span className="font-mono text-xs">${w.id}</span>
           <//>
@@ -16620,9 +16402,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         <//>
 
         <${G} className="p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${a("admin.user.summary")}
-          </h3>
+          <h3 className="mb-4 text-[11px] text-signal">${a("admin.user.summary")}</h3>
           <${co} label=${a("admin.user.jobs")}>${w.job_count??0}<//>
           <${co} label=${a("admin.user.totalCost")}>${dn(w.total_cost)}<//>
           <${co} label=${a("admin.user.lastActive")}
@@ -16632,9 +16412,7 @@ ${JSON.stringify(t||{},null,2)}</pre
       </div>
 
       <${G} className="p-5 sm:p-6">
-        <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-          ${a("admin.user.roleManagement")}
-        </h3>
+        <h3 className="mb-4 text-[11px] text-signal">${a("admin.user.roleManagement")}</h3>
         <div className="flex items-end gap-3">
           <div>
             <label className="mb-1 block text-xs text-iron-300"
@@ -16656,39 +16434,25 @@ ${JSON.stringify(t||{},null,2)}</pre
       <//>
 
       <${G} className="p-5 sm:p-6">
-        <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-          ${a("admin.user.usage30Days")}
-        </h3>
+        <h3 className="mb-4 text-[11px] text-signal">${a("admin.user.usage30Days")}</h3>
         ${b.length===0?l`<p className="py-4 text-sm text-iron-300">${a("admin.user.noUsage")}</p>`:l`
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-white/10 text-left">
-                      <th
-                        className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                      >
+                      <th className="pb-3 pr-4 text-[11px] text-iron-300">
                         ${a("admin.usage.model")}
                       </th>
-                      <th
-                        className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                      >
+                      <th className="pb-3 pr-4 text-[11px] text-iron-300">
                         ${a("admin.usage.calls")}
                       </th>
-                      <th
-                        className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                      >
+                      <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                         ${a("admin.usage.input")}
                       </th>
-                      <th
-                        className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                      >
+                      <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                         ${a("admin.usage.output")}
                       </th>
-                      <th
-                        className="pb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                      >
-                        ${a("admin.usage.cost")}
-                      </th>
+                      <th className="pb-3 text-[11px] text-iron-300">${a("admin.usage.cost")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -16777,9 +16541,7 @@ ${JSON.stringify(t||{},null,2)}</pre
     </div>
   `}function KF({onCreate:e,isCreating:t,error:a}){let n=D(),[r,o]=p.default.useState(""),[i,s]=p.default.useState(""),[c,d]=p.default.useState("member"),[u,m]=p.default.useState(!1),f=async v=>{v.preventDefault(),r.trim()&&(await e({display_name:r.trim(),email:i.trim()||void 0,role:c}),o(""),s(""),m(!1))};return u?l`
     <${G} className="p-5 sm:p-6">
-      <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-        ${n("admin.users.createUser")}
-      </h3>
+      <h3 className="mb-4 text-[11px] text-signal">${n("admin.users.createUser")}</h3>
       <form onSubmit=${f} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
@@ -16949,7 +16711,7 @@ ${JSON.stringify(t||{},null,2)}</pre
 
       <${G} className="p-5 sm:p-6">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
+          <h3 className="text-[11px] text-signal">
             ${a("admin.users.title",{count:C.length,total:n.length})}
           </h3>
           <div className="flex items-center gap-2">
@@ -17018,7 +16780,7 @@ ${JSON.stringify(t||{},null,2)}</pre
         className=${["grid cursor-pointer select-none gap-x-3 border-b border-[color-mix(in_srgb,var(--v2-panel-border)_58%,transparent)] px-4 py-1.5 font-mono text-xs hover:bg-[var(--v2-surface-muted)]","grid-cols-[5rem_2.5rem_minmax(6rem,10rem)_1fr] md:grid-cols-[7rem_3rem_minmax(10rem,18rem)_1fr]"].join(" ")}
       >
         <span className="text-[var(--v2-text-muted)] tabular-nums">${r}</span>
-        <span className=${["font-semibold uppercase",o].join(" ")}> ${e.level} </span>
+        <span className=${["font-semibold",o].join(" ")}> ${e.level} </span>
         <span className="truncate text-[var(--v2-text-muted)]">${e.target}</span>
         <span
           data-testid="logs-entry-message"
@@ -17064,7 +16826,7 @@ ${JSON.stringify(t||{},null,2)}</pre
       className="inline-flex max-w-full items-center gap-1 rounded-[6px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-2 py-1 font-mono text-[11px] text-[var(--v2-text-muted)]"
       title=${`${e}: ${t}`}
     >
-      <span className="uppercase tracking-[0.08em]">${e}</span>
+      <span>${e}</span>
       <span className="max-w-[18rem] truncate text-[var(--v2-text)]">${t}</span>
     </span>
   `}function lE(){let e=D(),{entries:t,totalCount:a,paused:n,togglePause:r,clearEntries:o,levelFilter:i,setLevelFilter:s,targetFilter:c,setTargetFilter:d,autoScroll:u,setAutoScroll:m,serverLevel:f,changeServerLevel:v,scope:h,isLoading:y,error:w,isUnsupported:b}=oE(),[g,x]=p.default.useState(null),$=p.default.useRef(null),k=p.default.useRef(!0);p.default.useEffect(()=>{u&&k.current&&$.current&&($.current.scrollTop=0)},[t,u]);let _=p.default.useCallback(R=>{k.current=R.currentTarget.scrollTop<=48},[]),N=t.length>0,C=h?.active||[],M=w?.message||w?.statusText||"Request failed",T=e(b?"logs.unsupported":"logs.empty");return l`
@@ -17301,7 +17063,7 @@ ${o}
 
 `,"chat.suggestion2":"Draft from notes","chat.suggestion2Desc":"Turn rough notes into a clean email, memo, or update.","chat.suggestion2Prompt":"Turn these notes into a clear, concise email I can send as-is: ","chat.suggestion3":"Analyze a spreadsheet","chat.suggestion3Desc":"Paste rows or describe the data \u2014 get totals, outliers, and trends.","chat.suggestion3Prompt":`Analyze this data for me. Report totals, the biggest outliers, and any trend worth knowing:
 
-`,"chat.placeholder":"Message IronClaw...","chat.heroPlaceholder":"Hand IronClaw a document, note, or task\u2026","chat.followUpPlaceholder":"Ask for follow-up changes","chat.send":"Send message","chat.addToMessage":"Add to message","chat.addMenuTitle":"Add context","chat.attachFiles":"Attach files","chat.attachFilesDesc":"PDF, Word, Excel, images, notes, or source files.","chat.attachFilesHint":"Paste or drop files here too.","chat.removeImage":"Remove image","chat.removeAttachment":"Remove attachment","chat.attachmentExtracting":"Reading file\u2026","chat.attachmentExtracted":"Model will read text ({chars} chars)","chat.attachmentNoText":"Not sent: no readable text","chat.attachmentMetadataOnly":"File attached; content not readable","onboarding.signInGithub":"Sign in with GitHub","chat.previewTitle":"Attachment","chat.previewModelNote":"This is what the model received","chat.previewTruncated":"Truncated to fit the message limit \u2014 the model received this portion.","chat.previewOmitted":"Too large to embed \u2014 the model received the file name only.","chat.previewUnavailable":"No preview available for this file.","chat.previewSave":"Save file","chat.previewSaving":"Saving\u2026","googleOauth.title":"Google sign-in","googleOauth.desc":"Add a Google OAuth client ID so Gmail and Calendar can connect through your browser. This gateway does not provide hosted Google OAuth yet, so the desktop app needs your own public Desktop app client ID.","googleOauth.placeholder":"xxxxxxxx.apps.googleusercontent.com","googleOauth.apply":"Apply & restart engine","googleOauth.getClientId":"Get a client ID","googleOauth.hint":'Create a "Desktop app" client and enable Gmail/Calendar scopes on its consent screen.',"googleOauth.saving":"Saving\u2026","googleOauth.restarting":"Restarting the engine\u2026","googleOauth.applied":"Applied \u2014 Google connects now open your browser.","authGate.googleHint":"Prefer your browser? Add a Google client ID under Settings -> AI setup -> Google sign-in.","chat.previewRenderingPages":"Rendering pages {done}/{total}\u2026","chat.previewRenderFailed":"Could not render pages \u2014 showing nothing instead of guessing.","chat.previewMorePages":"Showing the first {shown} of {total} pages.","common.dismiss":"Dismiss","chat.modelPopoverTitle":"Model","chat.modelPopoverProvider":"Model source","chat.modelPopoverActive":"Active","chat.modelPopoverAvailable":"Available models","chat.modelPopoverNoProvider":"NEAR AI Cloud is not connected","chat.modelPopoverEmpty":"NEAR AI Cloud did not return a model list.","chat.modelPopoverError":"Could not load NEAR AI Cloud models.","chat.modelPopoverManualDesc":"Only use this when NEAR AI support gives you a model ID.","chat.modelPopoverManualLabel":"NEAR AI model ID","chat.modelPopoverManualPlaceholder":"Enter a NEAR AI model id","chat.modelPopoverManualToggle":"Use a model ID","chat.modelPopoverManage":"Manage NEAR AI Cloud in Settings","chat.modelPopoverNeedsSetupDesc":"Connect NEAR AI Cloud before choosing or applying a model.","chat.modeAutoReview":"Auto-review","chat.runtimeLocal":"Work locally","chat.statusWorking":"Working","chat.deleteFailed":"Couldn't delete this conversation.","chat.deleteBusy":"Can't delete a conversation while it's still running. Stop it first, then try again.","chat.jumpToLatest":"Jump to latest","chat.dropToAttach":"Drop files to attach","chat.find.placeholder":"Find in conversation","chat.find.previous":"Previous match","chat.find.next":"Next match","chat.find.earlier":"Search earlier messages","shortcuts.title":"Keyboard shortcuts","shortcuts.palette":"Command palette","shortcuts.send":"Send message","shortcuts.newline":"New line","shortcuts.help":"Show this help","shortcuts.close":"Close","chat.conversations":"Conversations","chat.searchThreads":"Search conversations","chat.threads":"{count} threads","chat.newThread":"New","chat.creating":"Creating","chat.selectConversation":"Select conversation","chat.noConversations":"No conversations yet. Start a thread from the composer suggestions.","chat.turns":"{count} turns","connection.connected":"Connected","connection.reconnecting":"Reconnecting...","connection.disconnected":"Disconnected","connection.connecting":"Connecting...","connection.paused":"Paused while tab is hidden","approval.title":"Approval required","approval.agentContext":"IronClaw is asking to act","approval.approve":"Approve","approval.deny":"Deny","approval.approveAndAlways":"Approve & always allow","approval.alwaysAllowToolLabel":"Always allow {tool} without asking","approval.alwaysUnavailable":"Always allow is unavailable for this kind of action. IronClaw must ask each time.","approval.thisTool":"this tool","approval.nothingSentYet":"Nothing has been sent yet.","approval.actionLabel":"Action","approval.destinationLabel":"Destination","approval.touchesLabel":"Touches","approval.whatLeavesMachineLabel":"What leaves the machine","approval.notSpecified":"Not specified by the tool.","approval.parametersLabel":"Parameters","approval.rawParametersLabel":"Raw parameters","approval.shortcutHint":"Cmd/Ctrl+Enter approve / Esc deny","tool.tabDetails":"Details","tool.tabParameters":"Parameters","tool.tabResult":"Result","tool.tabError":"Error","tool.noDetail":"No additional detail.","tool.runFile":"read {n} file","tool.runFiles":"read {n} files","tool.runSearch":"searched {n} time","tool.runSearches":"searched {n} times","tool.runCommand":"ran {n} command","tool.runCommands":"ran {n} commands","tool.runOther":"used {n} tool","tool.runOthers":"used {n} tools","tool.exitOk":"succeeded","tool.exitError":"failed","tool.exitRunning":"running\u2026","tool.riskRead":"reads","tool.riskWrite":"writes files","tool.riskDelete":"deletes","tool.riskSend":"sends externally","tool.riskTrade":"moves money","tool.riskPublish":"publishes","tool.riskExport":"exports","tool.riskExec":"runs commands","tool.riskNetwork":"uses network","tool.riskUnknown":"unrecognized action \u2014 review parameters","authGate.title":"Authentication required","authGate.tokenLabel":"Access token","authGate.tokenPlaceholder":"Paste access token","authGate.tokenRequired":"A token is required.","authGate.submit":"Use token","authGate.submitting":"Checking...","authGate.cancel":"Cancel","authGate.oauthTitle":"Authorization required","authGate.openAuthorization":"Open {provider} authorization","authGate.reopenAuthorization":"Re-open {provider} authorization","authGate.oauthWaiting":"Waiting for authorization to complete\u2026 You can close the popup tab once you\u2019ve approved access.","authGate.expiresAt":"Expires","authGate.oauthExpired":"Authorization expired \u2014 re-open to try again.","authGate.oauthLinkUnavailable":"Authorization link unavailable. IronClaw could not get a valid sign-in URL from the provider.","authGate.oauthProviderFallback":"the provider","authGate.pillAuthorize":"Authorize","authGate.pillEnterToken":"Enter token","authGate.serviceUnavailable":"Service unavailable","authGate.unsupportedChallenge":"Open settings to complete this authentication step.","authGate.submitFailed":"Could not save the token.","authGate.resolveFailedAfterTokenSaved":"Token saved. Could not resume the blocked run; retry to resume it.","error.gatewayConnection":"Unable to connect to the gateway","error.saveFailed":"Save failed: {message}","error.loadFailed":"Failed to load {what}: {message}","extensions.installed":"My apps","extensions.channels":"Messaging","extensions.mcp":"Knowledge","extensions.registry":"Browse","settings.inference":"AI setup","settings.agent":"Agent","settings.channels":"Channels","settings.networking":"Networking","settings.tools":"Tools","settings.skills":"Skills","settings.traceCommons":"Trace Commons","settings.users":"Users","settings.language":"Language","traceCommons.title":"Trace Commons credits","traceCommons.description":"Review local contribution credit from shared traces and authorize any held submissions.","traceCommons.emptyState":"No Trace Commons submissions yet.","traceCommons.loadFailed":"Could not load Trace Commons credits.","traceCommons.enrollment":"Enrollment","traceCommons.enrolled":"Enrolled","traceCommons.notEnrolled":"Not enrolled","traceCommons.pendingCredit":"Pending credit","traceCommons.pendingCreditDesc":"Earned but not yet finalized","traceCommons.finalCredit":"Final credit","traceCommons.finalCreditDesc":"Confirmed credit","traceCommons.delayedLedger":"Delayed ledger","traceCommons.delayedLedgerDesc":"Can still change after review","traceCommons.submissions":"Submissions","traceCommons.submissionsValue":"{submitted} submitted, {accepted} accepted of {total} total","traceCommons.heldTitle":"Held for review","traceCommons.heldDescription":"Held because of higher privacy risk; review and authorize to submit.","traceCommons.authorize":"Authorize","traceCommons.authorizing":"Authorizing...","traceCommons.cardAccepted":"Accepted {accepted} / {submitted}","traceCommons.cardHeld":"{count} held for review","traceCommons.lastSubmission":"Last submission","traceCommons.lastSync":"Last credit sync","traceCommons.lastSyncDesc":"Local view as of last sync","traceCommons.never":"never","traceCommons.recentExplanations":"Recent credit explanations","traceCommons.note":"Credits are calculated server-side. Local values may change after scoring or privacy review.","settings.back":"Back","settings.searchPlaceholder":"Search settings...","settings.clearSearch":"Clear search","settings.noMatchingSettings":'No settings match "{query}"',"settings.notWritable":"Editing not available on this gateway yet","settings.notWritableDesc":"This gateway cannot save changes to these settings yet, so the controls are hidden rather than shown as editable. They will return once the gateway can persist them.","settings.manageJson":"Settings JSON","settings.export":"Export","settings.import":"Import","settings.importing":"Importing...","settings.exportSuccess":"Settings exported","settings.importSuccess":"Settings imported","settings.importInvalid":"Selected file must contain a settings object","settings.importFailed":"Import failed: {message}","settings.restartRequired":"Some changes require a restart to take effect.","settings.restartNow":"Restart now","settings.restartStarting":"Restarting...","restart.title":"Restart IronClaw","restart.description":"Restart the gateway process to apply pending changes.","restart.warning":"Running tasks may be interrupted while the gateway restarts.","restart.cancel":"Cancel","restart.confirm":"Confirm restart","restart.progressTitle":"Restarting IronClaw","tee.title":"TEE Attestation","tee.verified":"Verified runtime attestation available","tee.imageDigest":"Image digest","tee.tlsFingerprint":"TLS certificate fingerprint","tee.reportData":"Report data","tee.vmConfig":"VM config","tee.loading":"Loading attestation report...","tee.loadFailed":"Could not load attestation report","tee.copyReport":"Copy report","tee.copied":"Copied","llm.active":"Active","llm.addProvider":"Add provider","llm.adapter":"Adapter","llm.apiKey":"API key","llm.apiKeyPlaceholder":"Leave blank to keep the stored key","llm.baseUrl":"Base URL","llm.baseUrlRequired":"Base URL is required.","llm.builtin":"Built-in","llm.configure":"Configure","llm.configureProvider":"Configure {name}","llm.configureToUse":"Configure this provider before activating it.","llm.confirmDelete":'Delete provider "{id}"?',"llm.deleteTitle":"Delete provider","llm.deleteConfirm":"Delete","llm.defaultModel":"Default model","llm.editProvider":"Edit provider","llm.fetchModels":"Fetch models","llm.fetchingModels":"Fetching...","llm.fieldsRequired":"Display name and provider ID are required.","llm.idTaken":'Provider ID "{id}" is already used.',"llm.invalidId":"Use lowercase letters, numbers, hyphens, or underscores.","llm.model":"Model","llm.modelRequired":"A model is required.","llm.modelsFetched":"{count} models found.","llm.modelsFetchFailed":"No models were returned.","llm.newProvider":"New provider","llm.none":"None","llm.notConfigured":"Not configured","llm.providerActivated":"Switched to {name}.","llm.providerAdded":'Added provider "{name}".',"llm.providerConfigured":"Configured {name}.","llm.providerDeleted":"Provider deleted.","llm.providerId":"Provider ID","llm.providerName":"Display name","llm.providerUpdated":'Updated provider "{name}".',"llm.providers":"NEAR AI Cloud","llm.providersDesc":"IronClaw routes model access through NEAR AI Cloud. No third-party API keys are required for normal use.","onboarding.title":"Set up IronClaw Desktop","onboarding.subtitle":"A private workbench for connected tools: ask across workspace sources, prepare work, and approve external actions before they run.","onboarding.setUp":"Set up","onboarding.signIn":"Sign in","onboarding.nearWallet":"NEAR Wallet","onboarding.ready":"Ready","onboarding.moreInSettings":"After sign-in, open Connections for Slack, docs, email, and research tools. Model details stay in Settings.","onboarding.providerNearai":"NEAR AI","onboarding.providerNearaiDesc":"Hosted model access through IronClaw.","onboarding.nearaiWaiting":"Finish signing in to NEAR AI in your browser\u2026","onboarding.nearaiWaitingDesktop":"Finish signing in to NEAR AI in the sign-in window\u2026","onboarding.nearaiTimeout":"NEAR AI sign-in timed out. Please try again.","onboarding.nearaiFailed":"NEAR AI sign-in failed. Please try again.","onboarding.resumingSession":"Found an existing NEAR AI session \u2014 connecting\u2026","onboarding.continue":"Sign in with GitHub","onboarding.continueGoogle":"Use Google","onboarding.continueWallet":"Use NEAR Wallet","onboarding.providerNearaiDescDesktop":"Sign in once; IronClaw routes models through NEAR AI Cloud.","onboarding.accessLabel":"First step","onboarding.accessTitle":"Connect model access","onboarding.firstRun":"Required","onboarding.promiseModelsTitle":"Model access comes first","onboarding.promiseModelsBody":"Sign in to NEAR AI Cloud so chat can run. Workspace sources are added separately.","onboarding.promiseApprovalsTitle":"External actions wait for approval","onboarding.promiseApprovalsBody":"Sending, posting, editing, or changing external data pauses until you approve the exact action.","onboarding.promiseFilesTitle":"Sources stay attached to the work","onboarding.promiseFilesBody":"Attached files, connector results, generated drafts, and artifacts remain reviewable in the thread.","llm.testConnection":"Test connection","llm.testing":"Testing...","llm.use":"Use","llm.pickModel":"Choose a model\u2026","llm.applyModel":"Apply","llm.applying":"Applying\u2026","llm.groupActive":"Active","llm.groupReady":"Available","llm.groupSetup":"Needs setup","llm.expandDetails":"Show details","llm.collapseDetails":"Hide details","llm.missingApiKey":"Sign in or use NEAR API key","llm.gatewayUnavailable":"Gateway unavailable","llm.missingBaseUrl":"Missing base URL","llm.addApiKey":"Add API key","llm.useNearApiKey":"Use NEAR API key","settings.group.embeddings":"Embeddings","settings.group.sampling":"Sampling","settings.field.embeddingsEnabled":"Enable embeddings","settings.field.embeddingsEnabledDesc":"Semantic search over workspace memory","settings.field.embeddingsProvider":"Provider","settings.field.embeddingsProviderDesc":"Embedding model provider","settings.field.embeddingsModel":"Model","settings.field.embeddingsModelDesc":"Embedding model identifier","settings.field.temperature":"Temperature","settings.field.temperatureDesc":"Default sampling temperature (0.0\u20132.0)","settings.group.core":"Core","settings.group.heartbeat":"Heartbeat","settings.group.sandbox":"Sandbox","settings.group.routines":"Routines","settings.group.safety":"Safety","settings.group.skills":"Skills","settings.group.search":"Search","settings.field.agentName":"Agent name","settings.field.agentNameDesc":"Display name for the assistant","settings.field.maxParallelJobs":"Max parallel jobs","settings.field.maxParallelJobsDesc":"Concurrent background job limit","settings.field.jobTimeout":"Job timeout","settings.field.jobTimeoutDesc":"Seconds before a job is marked stuck","settings.field.maxToolIterations":"Max tool iterations","settings.field.maxToolIterationsDesc":"Tool call limit per turn","settings.field.planning":"Planning","settings.field.planningDesc":"Enable multi-step planning before execution","settings.field.autoApproveTools":"Auto-approve tools","settings.field.autoApproveToolsDesc":"Skip approval for all tool calls","settings.field.timezone":"Timezone","settings.field.timezoneDesc":"IANA timezone for scheduled work","settings.field.sessionIdleTimeout":"Session idle timeout","settings.field.sessionIdleTimeoutDesc":"Seconds of inactivity before session ends","settings.field.stuckThreshold":"Stuck threshold","settings.field.stuckThresholdDesc":"Seconds before a job is considered stuck","settings.field.maxRepairAttempts":"Max repair attempts","settings.field.maxRepairAttemptsDesc":"Retry limit for stuck job recovery","settings.field.dailyCostLimit":"Daily cost limit (cents)","settings.field.dailyCostLimitDesc":"Maximum spend per day in cents","settings.field.actionsPerHour":"Actions per hour limit","settings.field.actionsPerHourDesc":"Hourly action rate cap","settings.field.allowLocalTools":"Allow local tools","settings.field.allowLocalToolsDesc":"Enable filesystem and shell access","settings.field.heartbeatEnabled":"Enable heartbeat","settings.field.heartbeatEnabledDesc":"Periodic proactive execution","settings.field.heartbeatInterval":"Interval","settings.field.heartbeatIntervalDesc":"Seconds between heartbeat runs","settings.field.heartbeatNotifyChannel":"Notify channel","settings.field.heartbeatNotifyChannelDesc":"Channel to send heartbeat notifications","settings.field.heartbeatNotifyUser":"Notify user","settings.field.heartbeatNotifyUserDesc":"User ID to notify on findings","settings.field.quietHoursStart":"Quiet hours start","settings.field.quietHoursStartDesc":"Hour (0\u201323) to begin suppression","settings.field.quietHoursEnd":"Quiet hours end","settings.field.quietHoursEndDesc":"Hour (0\u201323) to end suppression","settings.field.heartbeatTimezone":"Timezone","settings.field.heartbeatTimezoneDesc":"IANA timezone for quiet hours","settings.field.sandboxEnabled":"Enable sandbox","settings.field.sandboxEnabledDesc":"Docker-based tool execution","settings.field.sandboxPolicy":"Policy","settings.field.sandboxPolicyDesc":"Container filesystem access level","settings.field.sandboxTimeout":"Timeout","settings.field.sandboxTimeoutDesc":"Container execution time limit","settings.field.sandboxMemoryLimit":"Memory limit (MB)","settings.field.sandboxMemoryLimitDesc":"Container memory ceiling","settings.field.sandboxImage":"Docker image","settings.field.sandboxImageDesc":"Container image for sandbox runs","settings.field.routinesMaxConcurrent":"Max concurrent","settings.field.routinesMaxConcurrentDesc":"Parallel routine execution limit","settings.field.routinesDefaultCooldown":"Default cooldown","settings.field.routinesDefaultCooldownDesc":"Seconds between routine runs","settings.field.safetyMaxOutput":"Max output length","settings.field.safetyMaxOutputDesc":"Character limit on tool output","settings.field.safetyInjectionCheck":"Injection detection","settings.field.safetyInjectionCheckDesc":"Scan tool outputs for prompt injection","settings.field.skillsMaxActive":"Max active skills","settings.field.skillsMaxActiveDesc":"Concurrent skill attachment limit","settings.field.skillsMaxContextTokens":"Max context tokens","settings.field.skillsMaxContextTokensDesc":"Token budget for injected skill prompts","settings.field.fusionStrategy":"Fusion strategy","settings.field.fusionStrategyDesc":"Result merging method for hybrid search","settings.group.gateway":"Gateway","settings.group.tunnel":"Tunnel","settings.field.gatewayHost":"Host","settings.field.gatewayHostDesc":"Gateway bind address","settings.field.gatewayPort":"Port","settings.field.gatewayPortDesc":"Gateway listen port","settings.field.tunnelProvider":"Provider","settings.field.tunnelProviderDesc":"Public tunnel service","settings.field.tunnelPublicUrl":"Public URL","settings.field.tunnelPublicUrlDesc":"Static tunnel endpoint","channels.builtIn":"Built-in channels","channels.messaging":"Messaging channels","channels.mcpServers":"MCP servers","channels.webGateway":"Web Gateway","channels.webGatewayDesc":"Browser-based chat with SSE streaming","channels.httpWebhook":"HTTP Webhook","channels.httpWebhookDesc":"Inbound webhook endpoint for external integrations","channels.cli":"CLI","channels.cliDesc":"Terminal interface with TUI or simple REPL","channels.repl":"REPL","channels.replDesc":"Minimal read-eval-print loop for testing","channels.statusOn":"on","channels.statusOff":"off","channels.ready":"ready","channels.authNeeded":"auth needed","channels.pairing":"pairing","channels.setup":"setup","channels.active":"active","channels.inactive":"inactive","channels.available":"available","channels.slackAccessTitle":"Slack team agents","channels.slackAccessInstructions":"Map Slack channels to the team agents that should answer there.","channels.slackAccessAdd":"Add","channels.slackAccessLoading":"Loading Slack channels...","channels.slackAccessEmpty":"No Slack channels allowed yet.","channels.slackAccessAllow":"Remove {channelId}","channels.slackAccessAutoSubject":"Auto-generated team subject","channels.slackAccessNoSubjects":"No team agents available","channels.slackAccessSave":"Save channels","channels.slackAccessSaving":"Saving...","channels.slackAccessSuccess":"Slack channels saved.","channels.slackAccessError":"Slack channel update failed.","tools.permissions":"Tool permissions","tools.alwaysAllow":"Always allow","tools.askEachTime":"Ask each time","tools.disabled":"Disabled","tools.default":"default","tools.saved":"saved","tools.permissionFor":"Permission for {name}","tools.filterPlaceholder":"Filter tools\u2026","tools.noMatch":"No tools match the filter.","tools.failedLoad":"Failed to load tools: {message}","skills.installed":"Installed skills","skills.noInstalled":"No skills installed","skills.noInstalledDesc":"Skills extend the agent with domain-specific instructions. Import a SKILL.md bundle or place SKILL.md files in your workspace.","skills.failedLoad":"Failed to load skills: {message}","skills.import":"Import skill","skills.importDesc":"Install from an HTTPS SKILL.md URL or paste SKILL.md content directly.","skills.name":"Skill name","skills.namePlaceholder":"skill-name","skills.url":"HTTPS URL","skills.urlHint":"Use a direct HTTPS link to SKILL.md or a supported skill bundle.","skills.urlPlaceholder":"https://example.com/SKILL.md","skills.content":"SKILL.md content","skills.contentHint":"Use this instead of URL when importing local or copied skill content.","skills.contentPlaceholder":"---\\nname: example\\ndescription: ...\\n---\\n","skills.install":"Import","skills.installing":"Importing...","skills.installFailed":"Import failed.","skills.installedSuccess":'Imported skill "{name}"',"skills.nameRequired":"Skill name is required.","skills.importSourceRequired":"Provide an HTTPS URL or SKILL.md content.","skills.httpsRequired":"URL must use HTTPS.","skills.remove":"Remove","skills.confirmRemove":'Remove skill "{name}"?',"skills.removeTitle":"Remove skill","skills.removeConfirm":"Remove","skills.removeFailed":"Remove failed.","skills.removed":'Removed skill "{name}"',"skills.activatesOn":"Activates on","skills.imported":"imported","users.title":"Users ({count})","users.addUser":"Add user","users.newUser":"New user","users.displayName":"Display name","users.email":"Email","users.role":"Role","users.member":"Member","users.admin":"Admin","users.createUser":"Create user","users.creating":"Creating\u2026","users.cancel":"Cancel","users.adminRequired":"Admin access required","users.adminRequiredDesc":"User management is only available to accounts with admin privileges.","users.failedLoad":"Failed to load users: {message}","users.noUsers":"No users registered.","workspace.title":"Workspace","workspace.subtitle":"Memory, files & attachments","workspace.readOnly":"Read-only","workspace.filterPlaceholder":"Filter by name...","workspace.emptyDir":"This folder is empty.","workspace.refresh":"Refresh","workspace.refreshing":"Refreshing","workspace.loading":"Loading...","workspace.searching":"Searching...","workspace.noResults":"No results.","workspace.noFiles":"No files here.","workspace.noMatches":"Nothing matches that filter.","workspace.breadcrumbRoot":"workspace","workspace.pickFileTitle":"Pick a file","workspace.pickFileDesc":"Choose a file from the tree to preview or download it. This viewer is read-only.","workspace.download":"Download","workspace.binaryPreviewUnavailable":"No inline preview for this file type. Download it to view the contents.","workspace.fileMeta":"{mime} - {size} bytes","workspace.edit":"Edit","workspace.cancel":"Cancel","workspace.save":"Save","workspace.saving":"Saving","workspace.parent":"Parent: {path}","workspace.searchPlaceholder":"Search memory...","workspace.unableOpenDirectory":"Unable to open directory","workspace.unableSaveFile":"Unable to save file","workspace.savedPath":"Saved {path}","jobs.allJobs":"All jobs","jobs.refresh":"Refresh","jobs.refreshing":"Refreshing","jobs.unavailable":"Job unavailable","jobs.unavailableDesc":"This job no longer exists or is outside your access scope.","jobs.returnToJobs":"Return to jobs","jobs.dismiss":"Dismiss","jobs.list.explorer":"Explorer","jobs.list.queueTitle":"Job queue","jobs.list.queueDesc":"Search by title or ID, jump into a run, and stop active work without leaving the page.","jobs.list.visible":"{count} visible","jobs.list.state.live":"live","jobs.list.state.refreshing":"refreshing","jobs.list.searchPlaceholder":"Search job title or UUID","jobs.list.empty.noMatchTitle":"No jobs match the current filters","jobs.list.empty.noMatchDesc":"Try a broader search term or reset the state filter to see the rest of the queue.","jobs.list.empty.noJobsTitle":"No jobs yet","jobs.list.empty.noJobsDesc":"Background work, sandbox runs, and recovery requests will appear here once the gateway starts creating jobs.","jobs.list.filter.all":"All states","jobs.list.filter.pending":"Pending","jobs.list.filter.inProgress":"In progress","jobs.list.filter.completed":"Completed","jobs.list.filter.failed":"Failed","jobs.list.filter.stuck":"Stuck","jobs.list.untitled":"Untitled job","jobs.list.created":"created {value}","jobs.list.started":"started {value}","jobs.action.cancel":"Cancel","jobs.action.open":"Open","jobs.detail.backToAll":"Back to all jobs","jobs.detail.tabs.overview":"Overview","jobs.detail.tabs.activity":"Activity","jobs.detail.tabs.files":"Files","missions.allMissions":"All missions","missions.refresh":"Refresh","missions.refreshing":"Refreshing","missions.title":"Missions","missions.subtitle":"Execution loops","missions.summary":"{missions} missions across {projects} project workspaces.","missions.searchPlaceholder":"Search missions","missions.filter.status":"Status","missions.filter.project":"Project","missions.filter.allStatuses":"All statuses","missions.filter.allProjects":"All projects","missions.status.active":"Active","missions.status.paused":"Paused","missions.status.failed":"Failed","missions.status.completed":"Completed","missions.noGoal":"No mission goal set.","missions.threadCount":"{count} threads","missions.updated":"Updated {value}","missions.emptyTitle":"No missions match","missions.emptyDesc":"Adjust the search or filters to find a mission loop.","missions.unavailable":"Mission unavailable","missions.unavailableDesc":"This mission no longer exists or is outside your access scope.","missions.dossier":"Mission dossier","missions.meta.cadence":"Cadence","missions.meta.manual":"manual","missions.meta.threadsToday":"Threads today","missions.meta.unlimited":"unlimited","missions.meta.nextFire":"Next fire","missions.meta.updated":"Updated","missions.action.fireNow":"Fire now","missions.action.pause":"Pause","missions.action.resume":"Resume","missions.action.runOnce":"Run once","missions.action.runAgain":"Run again","missions.brief":"Brief","missions.currentFocus":"Current focus","missions.successCriteria":"Success criteria","missions.spawnedThreads":"Spawned threads","missions.summary.totalMissions":"Total missions","missions.summary.active":"Active","missions.summary.paused":"Paused","missions.summary.spawnedThreads":"Spawned threads","missions.summary.completedFailed":"{completed} completed / {failed} failed","missions.summary.acrossProjects":"Across every project workspace","automations.eyebrow":"Scheduled work","automations.title":"Scheduled","automations.description":"Recurring work IronClaw runs on a schedule. IronClaw sets these up during a conversation, so ask in chat to create one.","automations.filterLabel":"Automation status filter","automations.filter.all":"All","automations.filter.active":"Active","automations.filter.running":"Running","automations.filter.failures":"Needs review","automations.filter.paused":"Paused","automations.refresh":"Refresh automations","automations.refreshing":"Refreshing automations","automations.error.loadFailed":"Unable to load automations","automations.schedulerOff.title":"Scheduler is off","automations.schedulerOff.description":"Saved schedules are visible, but this gateway is not currently firing recurring runs.","automations.summary.scheduled":"Scheduled","automations.summary.scheduledDetail":"Scheduled automations visible to this agent.","automations.summary.active":"Active","automations.summary.activeDetail":"Enabled schedules waiting for their next run.","automations.summary.running":"Running","automations.summary.runningDetail":"Schedules with a run currently in progress.","automations.summary.failures":"Needs review","automations.summary.failuresDetail":"Schedules with a failed recent run.","automations.summary.paused":"Paused","automations.summary.pausedDetail":"Schedules currently not expected to run.","automations.summary.nextRun":"Next run","automations.summary.none":"None","automations.summary.nextRunDetail":"Soonest scheduled run in this list.","automations.summary.filterAction":"Show {label}","automations.status.running":"Running","automations.status.needsReview":"Needs review","automations.empty.matchingTitle":"No matching automations","automations.empty.matchingDescription":"Try a different status filter.","automations.empty.noneTitle":"No scheduled automations yet.","automations.empty.noneDescription":"This agent has no scheduled work to show.","automations.empty.onboardingTitle":"No automations yet","automations.empty.onboardingDescription":"Automations are created by chatting with your agent. Ask it to do something on a schedule and it'll set up a recurring automation for you.","automations.empty.examplesTitle":"Try asking your agent","automations.empty.example1":"Check the nearai/ironclaw repo every 10 minutes and summarize new issues, PRs, and commits.","automations.empty.example2":"Every weekday at 9am, send me a summary of my unread email.","automations.empty.example3":"Remind me to review open pull requests every afternoon at 3pm.","automations.empty.startInChat":"Start in chat","automations.empty.copyPrompt":"Copy prompt","automations.empty.copied":"Copied","automations.table.name":"Name","automations.table.schedule":"Schedule","automations.table.nextRun":"Next run","automations.table.lastRun":"Last run","automations.table.recentRuns":"Recent runs","automations.table.status":"Status","automations.table.noRuns":"No runs","automations.runs.total":"Recent runs: {count}","automations.runs.ok":"OK: {count}","automations.runs.error":"Failed: {count}","automations.runs.running":"Running: {count}","automations.runs.unknown":"Unknown: {count}","automations.runs.showingOf":"Showing {shown} of {total} runs","automations.detail.emptyTitle":"Select an automation","automations.detail.emptyDescription":"Pick a scheduled automation to inspect its recent runs.","automations.detail.schedule":"Schedule","automations.detail.successRate":"Success rate","automations.detail.lastCompleted":"Last completed","automations.detail.currentRun":"Current run","automations.detail.noCurrentRun":"No current run","automations.detail.recentRuns":"Recent runs","automations.detail.noRuns":"No recent runs yet.","automations.detail.thread":"Thread","automations.detail.noThread":"No thread yet","automations.detail.run":"Run","automations.detail.openRun":"Open chat","automations.delivery.eyebrow":"Delivery defaults","automations.delivery.title":"Where triggered results are sent","automations.delivery.explainer":"Choose the default place for final replies from triggered automations.","automations.delivery.currentDefault":"Current default","automations.delivery.changeTarget":"Change target","automations.delivery.availableTargets":"Available targets","automations.delivery.none":"None","automations.delivery.webOption":"Web app only (no external delivery)","automations.delivery.webOptionDesc":"Keep replies inside the IronClaw web app until another target is selected.","automations.delivery.unpairedNotice":"Slack DM \u2014 not available","automations.delivery.unpairedDesc":"Pair Slack before scheduled replies can be delivered there.","automations.delivery.loadFailedTitle":"Delivery defaults unavailable","automations.delivery.loadFailedDesc":"IronClaw could not confirm delivery targets from the gateway, so it will not assume web-only delivery or save a default.","automations.delivery.retry":"Retry","automations.delivery.save":"Save","automations.delivery.clear":"Clear","automations.delivery.saved":"Saved","automations.delivery.saveFailed":"Could not save delivery defaults.","automations.delivery.footnote":"External replies still respect approval gates; reply with {command} when a gate asks.","automations.delivery.pill.ready":"Ready","automations.delivery.pill.unavailable":"Unavailable","automations.delivery.pill.notSet":"Not set","automations.delivery.pill.notPaired":"Not paired","automations.delivery.pill.fallback":"Fallback","routines.explorer":"Tasks","routines.title":"Routines","routines.description":"Search saved routines, inspect their schedule or trigger, and run or pause them from this page.","ext.installed":"My apps","ext.channels":"Messaging","ext.mcp":"Knowledge","ext.registry":"Browse","ext.registry.searchPlaceholder":"Search sources...","ext.registry.emptyTitle":"No apps available yet","ext.registry.emptyDesc":"IronClaw cannot reach the app catalog, or every available app is already connected.","ext.registry.availableTitle":"Available sources","ext.registry.noMatch":"No sources match the filter.","chat.history.loading":"Loading...","chat.history.loadOlder":"Load older messages","projects.allProjects":"All projects","projects.returnToProjects":"Return to projects","projects.unavailable":"Project unavailable","projects.unavailableDesc":"This project no longer exists or is outside your access scope.","projects.refresh":"Refresh","projects.refreshing":"Refreshing","projects.newProject":"New project","projects.preparingChat":"Preparing chat...","projects.createFromChat":"Create from chat","projects.startProject":"Start a project","projects.searchPlaceholder":"Search projects","projects.creationDraft":"Create a new project for me. I want to set up an autonomous workspace for: ","projects.chatAutoFail":"Unable to prepare chat automatically. Opening chat anyway.","projects.openWorkspace":"Open workspace","projects.openGeneralWorkspace":"Open general workspace","projects.noDescription":"No project description yet. The workspace is still being shaped by active missions and thread history.","projects.general.label":"General workspace","projects.general.title":"Default project control room","projects.general.desc":"Shared context, ad hoc work, and the catch-all runtime path for threads that are not yet promoted into a named project.","projects.scoped.title":"Scoped projects","projects.scoped.desc":"Browse durable workspaces, inspect missions, review recent activity, and jump into the project that needs you now.","projects.scoped.onlyGeneralTitle":"Only the general workspace is active","projects.scoped.onlyGeneralDesc":"Create a named project when work deserves its own missions, files, widgets, and long-running context.","projects.empty.noMatchTitle":"No projects match the current search","projects.empty.noMatchDesc":"Try a broader search term or clear the filter to return to the full workspace map.","projects.empty.noneTitle":"No projects yet","projects.empty.noneDesc":"Projects appear once the assistant creates durable workspaces. You can start from chat and ask IronClaw to spin up a scoped project for ongoing work.","projects.card.runtime":"Runtime","projects.card.risk":"Risk","projects.card.threadsToday":"{count} today","projects.card.failures24h":"{count} in 24h","projects.card.spendToday":"{value} spend today","projects.explorer":"Explorer","lang.title":"Language","lang.description":"Choose the display language for the interface.","lang.current":"Current language","inference.provider":"AI runtime","inference.backend":"Model access","inference.model":"Active model","inference.active":"active","inference.none":"\u2014","pairing.title":"Pairing","pairing.instructions":"Enter the code from the channel to finish pairing.","pairing.placeholder":"Enter pairing code\u2026","pairing.approve":"Approve","pairing.success":"Pairing complete.","pairing.error":"Pairing failed.","pairing.none":"No pending pairing requests.","pairing.slackTitle":"Slack account connection","pairing.slackInstructions":"Message the Slack app, then enter the code here.","pairing.slackPlaceholder":"Enter Slack pairing code\u2026","pairing.connect":"Connect","pairing.slackSuccess":"Slack account connected.","pairing.slackError":"Invalid or expired Slack pairing code.","admin.tab.dashboard":"Dashboard","admin.tab.users":"Users","admin.tab.usage":"Usage","admin.dashboard.systemOverview":"System overview","admin.dashboard.uptime":"Uptime: {value}","admin.dashboard.totalUsers":"Total users","admin.dashboard.activeUsers":"Active users","admin.dashboard.suspended":"Suspended","admin.dashboard.admins":"Admins","admin.dashboard.usage30d":"30-day usage","admin.dashboard.totalJobs":"Total jobs","admin.dashboard.activeJobs":"Active jobs","admin.dashboard.llmCalls":"LLM calls","admin.dashboard.totalCost":"Total cost","admin.dashboard.recentUsers":"Recent users","admin.dashboard.viewAll":"View all","admin.dashboard.noUsers":"No users yet.","admin.dashboard.name":"Name","admin.dashboard.role":"Role","admin.dashboard.status":"Status","admin.dashboard.jobs":"Jobs","admin.dashboard.lastActive":"Last active","admin.users.user":"user","admin.users.userFallback":"user","admin.users.title":"Users ({count} / {total})","admin.users.searchPlaceholder":"Search\u2026","admin.users.noMatch":"No users match the current filters.","admin.users.filter.all":"All","admin.users.filter.active":"Active","admin.users.filter.suspended":"Suspended","admin.users.filter.admins":"Admins","admin.users.newUser":"New user","admin.users.createUser":"Create user","admin.users.creating":"Creating\u2026","admin.users.cancel":"Cancel","admin.users.displayName":"Display name","admin.users.displayNamePlaceholder":"Jane Doe","admin.users.email":"Email","admin.users.emailPlaceholder":"jane@example.com","admin.users.role":"Role","admin.users.member":"Member","admin.users.admin":"Admin","admin.users.suspend":"Suspend","admin.users.activate":"Activate","admin.users.promote":"Promote","admin.users.demote":"Demote","admin.users.token":"Token","admin.users.jobsCount":"{count} jobs","admin.users.suspendTitle":"Suspend user","admin.users.suspendDesc":"This will prevent the user from authenticating. Continue?","admin.users.tokenNamePrompt":"Token name for {name}:","admin.users.tokenCreated":"Token created","admin.users.tokenCreatedDesc":"Copy this now \u2014 it will not be shown again.","admin.users.copy":"Copy","admin.users.copied":"Copied","admin.users.backToUsers":"Back to users","admin.users.createToken":"Create token","admin.users.delete":"Delete","admin.users.deleteUserTitle":"Delete user","admin.users.deleteUserDesc":'Are you sure you want to delete "{name}"? This action cannot be undone.',"admin.user.profile":"Profile","admin.user.summary":"Summary","admin.user.id":"ID","admin.user.email":"Email","admin.user.created":"Created","admin.user.lastLogin":"Last login","admin.user.createdBy":"Created by","admin.user.notSet":"Not set","admin.user.jobs":"Jobs","admin.user.totalCost":"Total cost","admin.user.lastActive":"Last active","admin.user.roleManagement":"Role management","admin.user.currentRole":"Current role","admin.user.saveRole":"Save role","admin.user.usage30Days":"Usage (last 30 days)","admin.user.noUsage":"No usage data.","admin.usage.overview":"Usage overview","admin.usage.noData":"No usage data for this period.","admin.usage.totalCalls":"Total calls","admin.usage.inputTokens":"Input tokens","admin.usage.outputTokens":"Output tokens","admin.usage.totalCost":"Total cost","admin.usage.perUser":"Per-user breakdown","admin.usage.perModel":"Per-model breakdown","admin.usage.user":"User","admin.usage.model":"Model","admin.usage.calls":"Calls","admin.usage.input":"Input","admin.usage.output":"Output","admin.usage.cost":"Cost","logs.levelAll":"All levels","logs.level.trace":"TRACE","logs.level.debug":"DEBUG","logs.level.info":"INFO","logs.level.warn":"WARN","logs.level.error":"ERROR","logs.filterTarget":"Filter by target\u2026","logs.autoScroll":"Auto-scroll","logs.pause":"Pause","logs.resume":"Resume","logs.clear":"Clear","logs.confirmClear":"Clear all log entries?","logs.scoped":"Scoped logs","logs.scope.thread":"Thread","logs.scope.run":"Run","logs.scope.turn":"Turn","logs.scope.toolCall":"Tool call","logs.scope.tool":"Tool","logs.scope.source":"Source","logs.clearScope":"Clear scope","logs.serverLevel":"Server level:","logs.entryCount":"{count} entries","logs.pausedBadge":"\u25CF paused","logs.unsupported":"This gateway doesn't expose activity logs yet.","logs.empty":"IronClaw isn't streaming activity to this view yet. Your work, approvals, and receipts stay in Chat."});async function kq(){kh(),yE();try{await ox()}catch(e){console.warn("[ironclaw] locale pack load failed; falling back to English",e)}try{let e=await dd();e?.token&&Pn(e.token)}catch(e){console.warn("[ironclaw] desktop bootstrap failed; falling back to browser auth",e)}(0,wE.createRoot)(document.getElementById("v2-root")).render(l`
+`,"chat.placeholder":"Message IronClaw...","chat.heroPlaceholder":"Hand IronClaw a document, note, or task\u2026","chat.followUpPlaceholder":"Ask for follow-up changes","chat.send":"Send message","chat.addToMessage":"Add to message","chat.addMenuTitle":"Add context","chat.attachFiles":"Attach files","chat.attachFilesDesc":"PDF, Word, Excel, images, notes, or source files.","chat.attachFilesHint":"Paste or drop files here too.","chat.removeImage":"Remove image","chat.removeAttachment":"Remove attachment","chat.attachmentExtracting":"Reading file\u2026","chat.attachmentExtracted":"Model will read text ({chars} chars)","chat.attachmentNoText":"Not sent: no readable text","chat.attachmentMetadataOnly":"File attached; content not readable","onboarding.signInGithub":"Sign in with GitHub","chat.previewTitle":"Attachment","chat.previewModelNote":"This is what the model received","chat.previewTruncated":"Truncated to fit the message limit \u2014 the model received this portion.","chat.previewOmitted":"Too large to embed \u2014 the model received the file name only.","chat.previewUnavailable":"No preview available for this file.","chat.previewSave":"Save file","chat.previewSaving":"Saving\u2026","googleOauth.title":"Google sign-in","googleOauth.desc":"Add a Google OAuth client ID so Gmail and Calendar can connect through your browser. This gateway does not provide hosted Google OAuth yet, so the desktop app needs your own public Desktop app client ID.","googleOauth.placeholder":"xxxxxxxx.apps.googleusercontent.com","googleOauth.apply":"Apply & restart engine","googleOauth.getClientId":"Get a client ID","googleOauth.hint":'Create a "Desktop app" client and enable Gmail/Calendar scopes on its consent screen.',"googleOauth.saving":"Saving\u2026","googleOauth.restarting":"Restarting the engine\u2026","googleOauth.applied":"Applied \u2014 Google connects now open your browser.","authGate.googleHint":"Prefer your browser? Add a Google client ID under Settings -> AI setup -> Google sign-in.","chat.previewRenderingPages":"Rendering pages {done}/{total}\u2026","chat.previewRenderFailed":"Could not render pages \u2014 showing nothing instead of guessing.","chat.previewMorePages":"Showing the first {shown} of {total} pages.","common.dismiss":"Dismiss","chat.modelPopoverTitle":"Model","chat.modelPopoverProvider":"Model source","chat.modelPopoverActive":"Active","chat.modelPopoverAvailable":"Available models","chat.modelPopoverNoProvider":"NEAR AI Cloud is not connected","chat.modelPopoverEmpty":"NEAR AI Cloud did not return a model list.","chat.modelPopoverError":"Could not load NEAR AI Cloud models.","chat.modelPopoverManualDesc":"Only use this when NEAR AI support gives you a model ID.","chat.modelPopoverManualLabel":"NEAR AI model ID","chat.modelPopoverManualPlaceholder":"Enter a NEAR AI model id","chat.modelPopoverManualToggle":"Use a model ID","chat.modelPopoverManage":"Manage NEAR AI Cloud in Settings","chat.modelPopoverNeedsSetupDesc":"Connect NEAR AI Cloud before choosing or applying a model.","chat.modeAutoReview":"Auto-review","chat.runtimeLocal":"Work locally","chat.statusWorking":"Working","chat.deleteFailed":"Couldn't delete this conversation.","chat.deleteBusy":"Can't delete a conversation while it's still running. Stop it first, then try again.","chat.jumpToLatest":"Jump to latest","chat.dropToAttach":"Drop files to attach","chat.find.placeholder":"Find in conversation","chat.find.previous":"Previous match","chat.find.next":"Next match","chat.find.earlier":"Search earlier messages","shortcuts.title":"Keyboard shortcuts","shortcuts.palette":"Command palette","shortcuts.send":"Send message","shortcuts.newline":"New line","shortcuts.help":"Show this help","shortcuts.close":"Close","chat.conversations":"Conversations","chat.searchThreads":"Search conversations","chat.threads":"{count} threads","chat.newThread":"New","chat.creating":"Creating","chat.selectConversation":"Select conversation","chat.noConversations":"No conversations yet. Start a thread from the composer suggestions.","chat.turns":"{count} turns","connection.connected":"Connected","connection.reconnecting":"Reconnecting...","connection.disconnected":"Disconnected","connection.connecting":"Connecting...","connection.paused":"Paused while tab is hidden","approval.title":"Approval required","approval.agentContext":"IronClaw is asking to act","approval.approve":"Approve","approval.deny":"Deny","approval.approveAndAlways":"Approve & always allow","approval.alwaysAllowToolLabel":"Always allow {tool} without asking","approval.alwaysUnavailable":"Always allow is unavailable for this kind of action. IronClaw must ask each time.","approval.thisTool":"this tool","approval.nothingSentYet":"Nothing has been sent yet.","approval.actionLabel":"Action","approval.destinationLabel":"Destination","approval.touchesLabel":"Touches","approval.whatLeavesMachineLabel":"What leaves the machine","approval.notSpecified":"Not specified by the tool.","approval.parametersLabel":"Parameters","approval.rawParametersLabel":"Raw parameters","approval.shortcutHint":"Cmd/Ctrl+Enter approve / Esc deny","tool.tabDetails":"Details","tool.tabParameters":"Parameters","tool.tabResult":"Result","tool.tabError":"Error","tool.noDetail":"No additional detail.","tool.runFile":"read {n} file","tool.runFiles":"read {n} files","tool.runSearch":"searched {n} time","tool.runSearches":"searched {n} times","tool.runCommand":"ran {n} command","tool.runCommands":"ran {n} commands","tool.runOther":"used {n} tool","tool.runOthers":"used {n} tools","tool.exitOk":"succeeded","tool.exitError":"failed","tool.exitRunning":"running\u2026","tool.riskRead":"reads","tool.riskWrite":"writes files","tool.riskDelete":"deletes","tool.riskSend":"sends externally","tool.riskTrade":"moves money","tool.riskPublish":"publishes","tool.riskExport":"exports","tool.riskExec":"runs commands","tool.riskNetwork":"uses network","tool.riskUnknown":"unrecognized action \u2014 review parameters","authGate.title":"Authentication required","authGate.tokenLabel":"Access token","authGate.tokenPlaceholder":"Paste access token","authGate.tokenRequired":"A token is required.","authGate.submit":"Use token","authGate.submitting":"Checking...","authGate.cancel":"Cancel","authGate.oauthTitle":"Authorization required","authGate.openAuthorization":"Open {provider} authorization","authGate.reopenAuthorization":"Re-open {provider} authorization","authGate.oauthWaiting":"Waiting for authorization to complete\u2026 You can close the popup tab once you\u2019ve approved access.","authGate.expiresAt":"Expires","authGate.oauthExpired":"Authorization expired \u2014 re-open to try again.","authGate.oauthLinkUnavailable":"Authorization link unavailable. IronClaw could not get a valid sign-in URL from the provider.","authGate.oauthProviderFallback":"the provider","authGate.pillAuthorize":"Authorize","authGate.pillEnterToken":"Enter token","authGate.serviceUnavailable":"Service unavailable","authGate.unsupportedChallenge":"Open settings to complete this authentication step.","authGate.submitFailed":"Could not save the token.","authGate.resolveFailedAfterTokenSaved":"Token saved. Could not resume the blocked run; retry to resume it.","error.gatewayConnection":"Unable to connect to the gateway","error.saveFailed":"Save failed: {message}","error.loadFailed":"Failed to load {what}: {message}","extensions.installed":"My apps","extensions.channels":"Messaging","extensions.mcp":"Knowledge","extensions.registry":"Browse","settings.inference":"AI setup","settings.agent":"Agent","settings.channels":"Channels","settings.networking":"Networking","settings.tools":"Tools","settings.skills":"Skills","settings.traceCommons":"Trace Commons","settings.users":"Users","settings.language":"Language","traceCommons.title":"Trace Commons credits","traceCommons.description":"Review local contribution credit from shared traces and authorize any held submissions.","traceCommons.emptyState":"No Trace Commons submissions yet.","traceCommons.emptyTitle":"Earn credit by contributing traces","traceCommons.emptyValueProp":"IronClaw can earn you contribution credit by sharing anonymized traces of its work with Trace Commons.","traceCommons.emptyHow":"Enrollment happens automatically once IronClaw captures and submits its first eligible trace. There is nothing to set up here \u2014 credit will appear on this page after your first submission syncs.","traceCommons.loadFailed":"Could not load Trace Commons credits.","traceCommons.enrollment":"Enrollment","traceCommons.enrolled":"Enrolled","traceCommons.notEnrolled":"Not enrolled","traceCommons.pendingCredit":"Pending credit","traceCommons.pendingCreditDesc":"Earned but not yet finalized","traceCommons.finalCredit":"Final credit","traceCommons.finalCreditDesc":"Confirmed credit","traceCommons.delayedLedger":"Delayed ledger","traceCommons.delayedLedgerDesc":"Can still change after review","traceCommons.submissions":"Submissions","traceCommons.submissionsValue":"{submitted} submitted, {accepted} accepted of {total} total","traceCommons.heldTitle":"Held for review","traceCommons.heldDescription":"Held because of higher privacy risk; review and authorize to submit.","traceCommons.authorize":"Authorize","traceCommons.authorizing":"Authorizing...","traceCommons.cardAccepted":"Accepted {accepted} / {submitted}","traceCommons.cardHeld":"{count} held for review","traceCommons.lastSubmission":"Last submission","traceCommons.lastSync":"Last credit sync","traceCommons.lastSyncDesc":"Local view as of last sync","traceCommons.never":"never","traceCommons.recentExplanations":"Recent credit explanations","traceCommons.note":"Credits are calculated server-side. Local values may change after scoring or privacy review.","settings.back":"Back","settings.searchPlaceholder":"Search settings...","settings.clearSearch":"Clear search","settings.noMatchingSettings":'No settings match "{query}"',"settings.notWritable":"Editing not available on this gateway yet","settings.notWritableDesc":"This gateway cannot save changes to these settings yet, so the controls are hidden rather than shown as editable. They will return once the gateway can persist them.","settings.manageJson":"Settings JSON","settings.export":"Export","settings.import":"Import","settings.importing":"Importing...","settings.exportSuccess":"Settings exported","settings.importSuccess":"Settings imported","settings.importInvalid":"Selected file must contain a settings object","settings.importFailed":"Import failed: {message}","settings.restartRequired":"Some changes require a restart to take effect.","settings.restartNow":"Restart now","settings.restartStarting":"Restarting...","restart.title":"Restart IronClaw","restart.description":"Restart the gateway process to apply pending changes.","restart.warning":"Running tasks may be interrupted while the gateway restarts.","restart.cancel":"Cancel","restart.confirm":"Confirm restart","restart.progressTitle":"Restarting IronClaw","tee.title":"TEE Attestation","tee.verified":"Verified runtime attestation available","tee.imageDigest":"Image digest","tee.tlsFingerprint":"TLS certificate fingerprint","tee.reportData":"Report data","tee.vmConfig":"VM config","tee.loading":"Loading attestation report...","tee.loadFailed":"Could not load attestation report","tee.copyReport":"Copy report","tee.copied":"Copied","llm.active":"Active","llm.addProvider":"Add provider","llm.adapter":"Adapter","llm.apiKey":"API key","llm.apiKeyPlaceholder":"Leave blank to keep the stored key","llm.baseUrl":"Base URL","llm.baseUrlRequired":"Base URL is required.","llm.builtin":"Built-in","llm.configure":"Configure","llm.configureProvider":"Configure {name}","llm.configureToUse":"Configure this provider before activating it.","llm.confirmDelete":'Delete provider "{id}"?',"llm.deleteTitle":"Delete provider","llm.deleteConfirm":"Delete","llm.defaultModel":"Default model","llm.editProvider":"Edit provider","llm.fetchModels":"Fetch models","llm.fetchingModels":"Fetching...","llm.fieldsRequired":"Display name and provider ID are required.","llm.idTaken":'Provider ID "{id}" is already used.',"llm.invalidId":"Use lowercase letters, numbers, hyphens, or underscores.","llm.model":"Model","llm.modelRequired":"A model is required.","llm.modelsFetched":"{count} models found.","llm.modelsFetchFailed":"No models were returned.","llm.newProvider":"New provider","llm.none":"None","llm.notConfigured":"Not configured","llm.providerActivated":"Switched to {name}.","llm.providerAdded":'Added provider "{name}".',"llm.providerConfigured":"Configured {name}.","llm.providerDeleted":"Provider deleted.","llm.providerId":"Provider ID","llm.providerName":"Display name","llm.providerUpdated":'Updated provider "{name}".',"llm.providers":"NEAR AI Cloud","llm.providersDesc":"IronClaw routes model access through NEAR AI Cloud. No third-party API keys are required for normal use.","onboarding.title":"Set up IronClaw Desktop","onboarding.subtitle":"A private workbench for connected tools: ask across workspace sources, prepare work, and approve external actions before they run.","onboarding.setUp":"Set up","onboarding.signIn":"Sign in","onboarding.nearWallet":"NEAR Wallet","onboarding.ready":"Ready","onboarding.moreInSettings":"After sign-in, open Connections for Slack, docs, email, and research tools. Model details stay in Settings.","onboarding.providerNearai":"NEAR AI","onboarding.providerNearaiDesc":"Hosted model access through IronClaw.","onboarding.nearaiWaiting":"Finish signing in to NEAR AI in your browser\u2026","onboarding.nearaiWaitingDesktop":"Finish signing in to NEAR AI in the sign-in window\u2026","onboarding.nearaiTimeout":"NEAR AI sign-in timed out. Please try again.","onboarding.nearaiFailed":"NEAR AI sign-in failed. Please try again.","onboarding.resumingSession":"Found an existing NEAR AI session \u2014 connecting\u2026","onboarding.continue":"Sign in with GitHub","onboarding.continueGoogle":"Use Google","onboarding.continueWallet":"Use NEAR Wallet","onboarding.providerNearaiDescDesktop":"Sign in once; IronClaw routes models through NEAR AI Cloud.","onboarding.accessLabel":"First step","onboarding.accessTitle":"Connect model access","onboarding.firstRun":"Required","onboarding.promiseModelsTitle":"Model access comes first","onboarding.promiseModelsBody":"Sign in to NEAR AI Cloud so chat can run. Workspace sources are added separately.","onboarding.promiseApprovalsTitle":"External actions wait for approval","onboarding.promiseApprovalsBody":"Sending, posting, editing, or changing external data pauses until you approve the exact action.","onboarding.promiseFilesTitle":"Sources stay attached to the work","onboarding.promiseFilesBody":"Attached files, connector results, generated drafts, and artifacts remain reviewable in the thread.","llm.testConnection":"Test connection","llm.testing":"Testing...","llm.use":"Use","llm.pickModel":"Choose a model\u2026","llm.applyModel":"Apply","llm.applying":"Applying\u2026","llm.groupActive":"Active","llm.groupReady":"Available","llm.groupSetup":"Needs setup","llm.expandDetails":"Show details","llm.collapseDetails":"Hide details","llm.missingApiKey":"Sign in or use NEAR API key","llm.gatewayUnavailable":"Gateway unavailable","llm.missingBaseUrl":"Missing base URL","llm.addApiKey":"Add API key","llm.useNearApiKey":"Use NEAR API key","settings.group.embeddings":"Embeddings","settings.group.sampling":"Sampling","settings.field.embeddingsEnabled":"Enable embeddings","settings.field.embeddingsEnabledDesc":"Semantic search over workspace memory","settings.field.embeddingsProvider":"Provider","settings.field.embeddingsProviderDesc":"Embedding model provider","settings.field.embeddingsModel":"Model","settings.field.embeddingsModelDesc":"Embedding model identifier","settings.field.temperature":"Temperature","settings.field.temperatureDesc":"Default sampling temperature (0.0\u20132.0)","settings.group.core":"Core","settings.group.heartbeat":"Heartbeat","settings.group.sandbox":"Sandbox","settings.group.routines":"Routines","settings.group.safety":"Safety","settings.group.skills":"Skills","settings.group.search":"Search","settings.field.agentName":"Agent name","settings.field.agentNameDesc":"Display name for the assistant","settings.field.maxParallelJobs":"Max parallel jobs","settings.field.maxParallelJobsDesc":"Concurrent background job limit","settings.field.jobTimeout":"Job timeout","settings.field.jobTimeoutDesc":"Seconds before a job is marked stuck","settings.field.maxToolIterations":"Max tool iterations","settings.field.maxToolIterationsDesc":"Tool call limit per turn","settings.field.planning":"Planning","settings.field.planningDesc":"Enable multi-step planning before execution","settings.field.autoApproveTools":"Auto-approve tools","settings.field.autoApproveToolsDesc":"Skip approval for all tool calls","settings.field.timezone":"Timezone","settings.field.timezoneDesc":"IANA timezone for scheduled work","settings.field.sessionIdleTimeout":"Session idle timeout","settings.field.sessionIdleTimeoutDesc":"Seconds of inactivity before session ends","settings.field.stuckThreshold":"Stuck threshold","settings.field.stuckThresholdDesc":"Seconds before a job is considered stuck","settings.field.maxRepairAttempts":"Max repair attempts","settings.field.maxRepairAttemptsDesc":"Retry limit for stuck job recovery","settings.field.dailyCostLimit":"Daily cost limit (cents)","settings.field.dailyCostLimitDesc":"Maximum spend per day in cents","settings.field.actionsPerHour":"Actions per hour limit","settings.field.actionsPerHourDesc":"Hourly action rate cap","settings.field.allowLocalTools":"Allow local tools","settings.field.allowLocalToolsDesc":"Enable filesystem and shell access","settings.field.heartbeatEnabled":"Enable heartbeat","settings.field.heartbeatEnabledDesc":"Periodic proactive execution","settings.field.heartbeatInterval":"Interval","settings.field.heartbeatIntervalDesc":"Seconds between heartbeat runs","settings.field.heartbeatNotifyChannel":"Notify channel","settings.field.heartbeatNotifyChannelDesc":"Channel to send heartbeat notifications","settings.field.heartbeatNotifyUser":"Notify user","settings.field.heartbeatNotifyUserDesc":"User ID to notify on findings","settings.field.quietHoursStart":"Quiet hours start","settings.field.quietHoursStartDesc":"Hour (0\u201323) to begin suppression","settings.field.quietHoursEnd":"Quiet hours end","settings.field.quietHoursEndDesc":"Hour (0\u201323) to end suppression","settings.field.heartbeatTimezone":"Timezone","settings.field.heartbeatTimezoneDesc":"IANA timezone for quiet hours","settings.field.sandboxEnabled":"Enable sandbox","settings.field.sandboxEnabledDesc":"Docker-based tool execution","settings.field.sandboxPolicy":"Policy","settings.field.sandboxPolicyDesc":"Container filesystem access level","settings.field.sandboxTimeout":"Timeout","settings.field.sandboxTimeoutDesc":"Container execution time limit","settings.field.sandboxMemoryLimit":"Memory limit (MB)","settings.field.sandboxMemoryLimitDesc":"Container memory ceiling","settings.field.sandboxImage":"Docker image","settings.field.sandboxImageDesc":"Container image for sandbox runs","settings.field.routinesMaxConcurrent":"Max concurrent","settings.field.routinesMaxConcurrentDesc":"Parallel routine execution limit","settings.field.routinesDefaultCooldown":"Default cooldown","settings.field.routinesDefaultCooldownDesc":"Seconds between routine runs","settings.field.safetyMaxOutput":"Max output length","settings.field.safetyMaxOutputDesc":"Character limit on tool output","settings.field.safetyInjectionCheck":"Injection detection","settings.field.safetyInjectionCheckDesc":"Scan tool outputs for prompt injection","settings.field.skillsMaxActive":"Max active skills","settings.field.skillsMaxActiveDesc":"Concurrent skill attachment limit","settings.field.skillsMaxContextTokens":"Max context tokens","settings.field.skillsMaxContextTokensDesc":"Token budget for injected skill prompts","settings.field.fusionStrategy":"Fusion strategy","settings.field.fusionStrategyDesc":"Result merging method for hybrid search","settings.group.gateway":"Gateway","settings.group.tunnel":"Tunnel","settings.field.gatewayHost":"Host","settings.field.gatewayHostDesc":"Gateway bind address","settings.field.gatewayPort":"Port","settings.field.gatewayPortDesc":"Gateway listen port","settings.field.tunnelProvider":"Provider","settings.field.tunnelProviderDesc":"Public tunnel service","settings.field.tunnelPublicUrl":"Public URL","settings.field.tunnelPublicUrlDesc":"Static tunnel endpoint","channels.builtIn":"Built-in channels","channels.messaging":"Messaging channels","channels.mcpServers":"MCP servers","channels.webGateway":"Web Gateway","channels.webGatewayDesc":"Browser-based chat with SSE streaming","channels.httpWebhook":"HTTP Webhook","channels.httpWebhookDesc":"Inbound webhook endpoint for external integrations","channels.cli":"CLI","channels.cliDesc":"Terminal interface with TUI or simple REPL","channels.repl":"REPL","channels.replDesc":"Minimal read-eval-print loop for testing","channels.statusOn":"on","channels.statusOff":"off","channels.ready":"ready","channels.authNeeded":"auth needed","channels.pairing":"pairing","channels.setup":"setup","channels.active":"active","channels.inactive":"inactive","channels.available":"available","channels.slackAccessTitle":"Slack team agents","channels.slackAccessInstructions":"Map Slack channels to the team agents that should answer there.","channels.slackAccessAdd":"Add","channels.slackAccessLoading":"Loading Slack channels...","channels.slackAccessEmpty":"No Slack channels allowed yet.","channels.slackAccessAllow":"Remove {channelId}","channels.slackAccessAutoSubject":"Auto-generated team subject","channels.slackAccessNoSubjects":"No team agents available","channels.slackAccessSave":"Save channels","channels.slackAccessSaving":"Saving...","channels.slackAccessSuccess":"Slack channels saved.","channels.slackAccessError":"Slack channel update failed.","tools.permissions":"Tool permissions","tools.alwaysAllow":"Always allow","tools.askEachTime":"Ask each time","tools.disabled":"Disabled","tools.default":"default","tools.saved":"saved","tools.permissionFor":"Permission for {name}","tools.filterPlaceholder":"Filter tools\u2026","tools.noMatch":"No tools match the filter.","tools.failedLoad":"Failed to load tools: {message}","skills.installed":"Installed skills","skills.noInstalled":"No skills installed","skills.noInstalledDesc":"Skills extend the agent with domain-specific instructions. Import a SKILL.md bundle or place SKILL.md files in your workspace.","skills.failedLoad":"Failed to load skills: {message}","skills.import":"Import skill","skills.importDesc":"Install from an HTTPS SKILL.md URL or paste SKILL.md content directly.","skills.name":"Skill name","skills.namePlaceholder":"skill-name","skills.url":"HTTPS URL","skills.urlHint":"Use a direct HTTPS link to SKILL.md or a supported skill bundle.","skills.urlPlaceholder":"https://example.com/SKILL.md","skills.content":"SKILL.md content","skills.contentHint":"Use this instead of URL when importing local or copied skill content.","skills.contentPlaceholder":"---\\nname: example\\ndescription: ...\\n---\\n","skills.install":"Import","skills.installing":"Importing...","skills.installFailed":"Import failed.","skills.installedSuccess":'Imported skill "{name}"',"skills.nameRequired":"Skill name is required.","skills.importSourceRequired":"Provide an HTTPS URL or SKILL.md content.","skills.httpsRequired":"URL must use HTTPS.","skills.remove":"Remove","skills.confirmRemove":'Remove skill "{name}"?',"skills.removeTitle":"Remove skill","skills.removeConfirm":"Remove","skills.removeFailed":"Remove failed.","skills.removed":'Removed skill "{name}"',"skills.activatesOn":"Activates on","skills.imported":"imported","users.title":"Users ({count})","users.addUser":"Add user","users.newUser":"New user","users.displayName":"Display name","users.email":"Email","users.role":"Role","users.member":"Member","users.admin":"Admin","users.createUser":"Create user","users.creating":"Creating\u2026","users.cancel":"Cancel","users.adminRequired":"Admin access required","users.adminRequiredDesc":"User management is only available to accounts with admin privileges.","users.failedLoad":"Failed to load users: {message}","users.noUsers":"No users registered.","workspace.title":"Workspace","workspace.subtitle":"Memory, files & attachments","workspace.readOnly":"Read-only","workspace.filterPlaceholder":"Filter by name...","workspace.emptyDir":"This folder is empty.","workspace.refresh":"Refresh","workspace.refreshing":"Refreshing","workspace.loading":"Loading...","workspace.searching":"Searching...","workspace.noResults":"No results.","workspace.noFiles":"No files here.","workspace.noMatches":"Nothing matches that filter.","workspace.breadcrumbRoot":"workspace","workspace.pickFileTitle":"Pick a file","workspace.pickFileDesc":"Choose a file from the tree to preview or download it. This viewer is read-only.","workspace.download":"Download","workspace.binaryPreviewUnavailable":"No inline preview for this file type. Download it to view the contents.","workspace.fileMeta":"{mime} - {size} bytes","workspace.edit":"Edit","workspace.cancel":"Cancel","workspace.save":"Save","workspace.saving":"Saving","workspace.parent":"Parent: {path}","workspace.searchPlaceholder":"Search memory...","workspace.unableOpenDirectory":"Unable to open directory","workspace.unableSaveFile":"Unable to save file","workspace.savedPath":"Saved {path}","jobs.allJobs":"All jobs","jobs.refresh":"Refresh","jobs.refreshing":"Refreshing","jobs.unavailable":"Job unavailable","jobs.unavailableDesc":"This job no longer exists or is outside your access scope.","jobs.returnToJobs":"Return to jobs","jobs.dismiss":"Dismiss","jobs.list.explorer":"Explorer","jobs.list.queueTitle":"Job queue","jobs.list.queueDesc":"Search by title or ID, jump into a run, and stop active work without leaving the page.","jobs.list.visible":"{count} visible","jobs.list.state.live":"live","jobs.list.state.refreshing":"refreshing","jobs.list.searchPlaceholder":"Search job title or UUID","jobs.list.empty.noMatchTitle":"No jobs match the current filters","jobs.list.empty.noMatchDesc":"Try a broader search term or reset the state filter to see the rest of the queue.","jobs.list.empty.noJobsTitle":"No jobs yet","jobs.list.empty.noJobsDesc":"Background work, sandbox runs, and recovery requests will appear here once the gateway starts creating jobs.","jobs.list.filter.all":"All states","jobs.list.filter.pending":"Pending","jobs.list.filter.inProgress":"In progress","jobs.list.filter.completed":"Completed","jobs.list.filter.failed":"Failed","jobs.list.filter.stuck":"Stuck","jobs.list.untitled":"Untitled job","jobs.list.created":"created {value}","jobs.list.started":"started {value}","jobs.action.cancel":"Cancel","jobs.action.open":"Open","jobs.detail.backToAll":"Back to all jobs","jobs.detail.tabs.overview":"Overview","jobs.detail.tabs.activity":"Activity","jobs.detail.tabs.files":"Files","missions.allMissions":"All missions","missions.refresh":"Refresh","missions.refreshing":"Refreshing","missions.title":"Missions","missions.subtitle":"Execution loops","missions.summary":"{missions} missions across {projects} project workspaces.","missions.searchPlaceholder":"Search missions","missions.filter.status":"Status","missions.filter.project":"Project","missions.filter.allStatuses":"All statuses","missions.filter.allProjects":"All projects","missions.status.active":"Active","missions.status.paused":"Paused","missions.status.failed":"Failed","missions.status.completed":"Completed","missions.noGoal":"No mission goal set.","missions.threadCount":"{count} threads","missions.updated":"Updated {value}","missions.emptyTitle":"No missions match","missions.emptyDesc":"Adjust the search or filters to find a mission loop.","missions.unavailable":"Mission unavailable","missions.unavailableDesc":"This mission no longer exists or is outside your access scope.","missions.dossier":"Mission dossier","missions.meta.cadence":"Cadence","missions.meta.manual":"manual","missions.meta.threadsToday":"Threads today","missions.meta.unlimited":"unlimited","missions.meta.nextFire":"Next fire","missions.meta.updated":"Updated","missions.action.fireNow":"Fire now","missions.action.pause":"Pause","missions.action.resume":"Resume","missions.action.runOnce":"Run once","missions.action.runAgain":"Run again","missions.brief":"Brief","missions.currentFocus":"Current focus","missions.successCriteria":"Success criteria","missions.spawnedThreads":"Spawned threads","missions.summary.totalMissions":"Total missions","missions.summary.active":"Active","missions.summary.paused":"Paused","missions.summary.spawnedThreads":"Spawned threads","missions.summary.completedFailed":"{completed} completed / {failed} failed","missions.summary.acrossProjects":"Across every project workspace","automations.eyebrow":"Scheduled work","automations.title":"Scheduled","automations.description":"Recurring work IronClaw runs on a schedule. IronClaw sets these up during a conversation, so ask in chat to create one.","automations.filterLabel":"Automation status filter","automations.filter.all":"All","automations.filter.active":"Active","automations.filter.running":"Running","automations.filter.failures":"Needs review","automations.filter.paused":"Paused","automations.refresh":"Refresh automations","automations.refreshing":"Refreshing automations","automations.error.loadFailed":"Unable to load automations","automations.schedulerOff.title":"Scheduler is off","automations.schedulerOff.description":"Saved schedules are visible, but this gateway is not currently firing recurring runs.","automations.summary.scheduled":"Scheduled","automations.summary.scheduledDetail":"Scheduled automations visible to this agent.","automations.summary.active":"Active","automations.summary.activeDetail":"Enabled schedules waiting for their next run.","automations.summary.running":"Running","automations.summary.runningDetail":"Schedules with a run currently in progress.","automations.summary.failures":"Needs review","automations.summary.failuresDetail":"Schedules with a failed recent run.","automations.summary.paused":"Paused","automations.summary.pausedDetail":"Schedules currently not expected to run.","automations.summary.nextRun":"Next run","automations.summary.none":"None","automations.summary.nextRunDetail":"Soonest scheduled run in this list.","automations.summary.filterAction":"Show {label}","automations.status.running":"Running","automations.status.needsReview":"Needs review","automations.empty.matchingTitle":"No matching automations","automations.empty.matchingDescription":"Try a different status filter.","automations.empty.noneTitle":"No scheduled automations yet.","automations.empty.noneDescription":"This agent has no scheduled work to show.","automations.empty.onboardingTitle":"No automations yet","automations.empty.onboardingDescription":"Automations are created by chatting with your agent. Ask it to do something on a schedule and it'll set up a recurring automation for you.","automations.empty.examplesTitle":"Try asking your agent","automations.empty.example1":"Check the nearai/ironclaw repo every 10 minutes and summarize new issues, PRs, and commits.","automations.empty.example2":"Every weekday at 9am, send me a summary of my unread email.","automations.empty.example3":"Remind me to review open pull requests every afternoon at 3pm.","automations.empty.startInChat":"Start in chat","automations.empty.copyPrompt":"Copy prompt","automations.empty.copied":"Copied","automations.table.name":"Name","automations.table.schedule":"Schedule","automations.table.nextRun":"Next run","automations.table.lastRun":"Last run","automations.table.recentRuns":"Recent runs","automations.table.status":"Status","automations.table.noRuns":"No runs","automations.runs.total":"Recent runs: {count}","automations.runs.ok":"OK: {count}","automations.runs.error":"Failed: {count}","automations.runs.running":"Running: {count}","automations.runs.unknown":"Unknown: {count}","automations.runs.showingOf":"Showing {shown} of {total} runs","automations.detail.emptyTitle":"Select an automation","automations.detail.emptyDescription":"Pick a scheduled automation to inspect its recent runs.","automations.detail.schedule":"Schedule","automations.detail.successRate":"Success rate","automations.detail.lastCompleted":"Last completed","automations.detail.currentRun":"Current run","automations.detail.noCurrentRun":"No current run","automations.detail.recentRuns":"Recent runs","automations.detail.noRuns":"No recent runs yet.","automations.detail.thread":"Thread","automations.detail.noThread":"No thread yet","automations.detail.run":"Run","automations.detail.openRun":"Open chat","automations.delivery.eyebrow":"Delivery defaults","automations.delivery.title":"Where triggered results are sent","automations.delivery.explainer":"Choose the default place for final replies from triggered automations.","automations.delivery.currentDefault":"Current default","automations.delivery.changeTarget":"Change target","automations.delivery.availableTargets":"Available targets","automations.delivery.none":"None","automations.delivery.webOption":"Web app only (no external delivery)","automations.delivery.webOptionDesc":"Keep replies inside the IronClaw web app until another target is selected.","automations.delivery.unpairedNotice":"Slack DM \u2014 not available","automations.delivery.unpairedDesc":"Pair Slack before scheduled replies can be delivered there.","automations.delivery.loadFailedTitle":"Delivery defaults unavailable","automations.delivery.loadFailedDesc":"IronClaw could not confirm delivery targets from the gateway, so it will not assume web-only delivery or save a default.","automations.delivery.retry":"Retry","automations.delivery.save":"Save","automations.delivery.clear":"Clear","automations.delivery.saved":"Saved","automations.delivery.saveFailed":"Could not save delivery defaults.","automations.delivery.footnote":"External replies still respect approval gates; reply with {command} when a gate asks.","automations.delivery.pill.ready":"Ready","automations.delivery.pill.unavailable":"Unavailable","automations.delivery.pill.notSet":"Not set","automations.delivery.pill.notPaired":"Not paired","automations.delivery.pill.fallback":"Fallback","routines.explorer":"Tasks","routines.title":"Routines","routines.description":"Search saved routines, inspect their schedule or trigger, and run or pause them from this page.","ext.installed":"My apps","ext.channels":"Messaging","ext.mcp":"Knowledge","ext.registry":"Browse","ext.registry.searchPlaceholder":"Search sources...","ext.registry.emptyTitle":"No apps available yet","ext.registry.emptyDesc":"IronClaw cannot reach the app catalog, or every available app is already connected.","ext.registry.availableTitle":"Available sources","ext.registry.noMatch":"No sources match the filter.","chat.history.loading":"Loading...","chat.history.loadOlder":"Load older messages","projects.allProjects":"All projects","projects.returnToProjects":"Return to projects","projects.unavailable":"Project unavailable","projects.unavailableDesc":"This project no longer exists or is outside your access scope.","projects.refresh":"Refresh","projects.refreshing":"Refreshing","projects.newProject":"New project","projects.preparingChat":"Preparing chat...","projects.createFromChat":"Create from chat","projects.startProject":"Start a project","projects.searchPlaceholder":"Search projects","projects.creationDraft":"Create a new project for me. I want to set up an autonomous workspace for: ","projects.chatAutoFail":"Unable to prepare chat automatically. Opening chat anyway.","projects.openWorkspace":"Open workspace","projects.openGeneralWorkspace":"Open general workspace","projects.noDescription":"No project description yet. The workspace is still being shaped by active missions and thread history.","projects.general.label":"General workspace","projects.general.title":"Default project control room","projects.general.desc":"Shared context, ad hoc work, and the catch-all runtime path for threads that are not yet promoted into a named project.","projects.scoped.title":"Scoped projects","projects.scoped.desc":"Browse durable workspaces, inspect missions, review recent activity, and jump into the project that needs you now.","projects.scoped.onlyGeneralTitle":"Only the general workspace is active","projects.scoped.onlyGeneralDesc":"Create a named project when work deserves its own missions, files, widgets, and long-running context.","projects.empty.noMatchTitle":"No projects match the current search","projects.empty.noMatchDesc":"Try a broader search term or clear the filter to return to the full workspace map.","projects.empty.noneTitle":"No projects yet","projects.empty.noneDesc":"Projects appear once the assistant creates durable workspaces. You can start from chat and ask IronClaw to spin up a scoped project for ongoing work.","projects.card.runtime":"Runtime","projects.card.risk":"Risk","projects.card.threadsToday":"{count} today","projects.card.failures24h":"{count} in 24h","projects.card.spendToday":"{value} spend today","projects.explorer":"Explorer","lang.title":"Language","lang.description":"Choose the display language for the interface.","lang.current":"Current language","inference.provider":"AI runtime","inference.backend":"Model access","inference.model":"Active model","inference.active":"active","inference.none":"\u2014","pairing.title":"Pairing","pairing.instructions":"Enter the code from the channel to finish pairing.","pairing.placeholder":"Enter pairing code\u2026","pairing.approve":"Approve","pairing.success":"Pairing complete.","pairing.error":"Pairing failed.","pairing.none":"No pending pairing requests.","pairing.slackTitle":"Slack account connection","pairing.slackInstructions":"Message the Slack app, then enter the code here.","pairing.slackPlaceholder":"Enter Slack pairing code\u2026","pairing.connect":"Connect","pairing.slackSuccess":"Slack account connected.","pairing.slackError":"Invalid or expired Slack pairing code.","admin.tab.dashboard":"Dashboard","admin.tab.users":"Users","admin.tab.usage":"Usage","admin.dashboard.systemOverview":"System overview","admin.dashboard.uptime":"Uptime: {value}","admin.dashboard.totalUsers":"Total users","admin.dashboard.activeUsers":"Active users","admin.dashboard.suspended":"Suspended","admin.dashboard.admins":"Admins","admin.dashboard.usage30d":"30-day usage","admin.dashboard.totalJobs":"Total jobs","admin.dashboard.activeJobs":"Active jobs","admin.dashboard.llmCalls":"LLM calls","admin.dashboard.totalCost":"Total cost","admin.dashboard.recentUsers":"Recent users","admin.dashboard.viewAll":"View all","admin.dashboard.noUsers":"No users yet.","admin.dashboard.name":"Name","admin.dashboard.role":"Role","admin.dashboard.status":"Status","admin.dashboard.jobs":"Jobs","admin.dashboard.lastActive":"Last active","admin.users.user":"user","admin.users.userFallback":"user","admin.users.title":"Users ({count} / {total})","admin.users.searchPlaceholder":"Search\u2026","admin.users.noMatch":"No users match the current filters.","admin.users.filter.all":"All","admin.users.filter.active":"Active","admin.users.filter.suspended":"Suspended","admin.users.filter.admins":"Admins","admin.users.newUser":"New user","admin.users.createUser":"Create user","admin.users.creating":"Creating\u2026","admin.users.cancel":"Cancel","admin.users.displayName":"Display name","admin.users.displayNamePlaceholder":"Jane Doe","admin.users.email":"Email","admin.users.emailPlaceholder":"jane@example.com","admin.users.role":"Role","admin.users.member":"Member","admin.users.admin":"Admin","admin.users.suspend":"Suspend","admin.users.activate":"Activate","admin.users.promote":"Promote","admin.users.demote":"Demote","admin.users.token":"Token","admin.users.jobsCount":"{count} jobs","admin.users.suspendTitle":"Suspend user","admin.users.suspendDesc":"This will prevent the user from authenticating. Continue?","admin.users.tokenNamePrompt":"Token name for {name}:","admin.users.tokenCreated":"Token created","admin.users.tokenCreatedDesc":"Copy this now \u2014 it will not be shown again.","admin.users.copy":"Copy","admin.users.copied":"Copied","admin.users.backToUsers":"Back to users","admin.users.createToken":"Create token","admin.users.delete":"Delete","admin.users.deleteUserTitle":"Delete user","admin.users.deleteUserDesc":'Are you sure you want to delete "{name}"? This action cannot be undone.',"admin.user.profile":"Profile","admin.user.summary":"Summary","admin.user.id":"ID","admin.user.email":"Email","admin.user.created":"Created","admin.user.lastLogin":"Last login","admin.user.createdBy":"Created by","admin.user.notSet":"Not set","admin.user.jobs":"Jobs","admin.user.totalCost":"Total cost","admin.user.lastActive":"Last active","admin.user.roleManagement":"Role management","admin.user.currentRole":"Current role","admin.user.saveRole":"Save role","admin.user.usage30Days":"Usage (last 30 days)","admin.user.noUsage":"No usage data.","admin.usage.overview":"Usage overview","admin.usage.noData":"No usage data for this period.","admin.usage.totalCalls":"Total calls","admin.usage.inputTokens":"Input tokens","admin.usage.outputTokens":"Output tokens","admin.usage.totalCost":"Total cost","admin.usage.perUser":"Per-user breakdown","admin.usage.perModel":"Per-model breakdown","admin.usage.user":"User","admin.usage.model":"Model","admin.usage.calls":"Calls","admin.usage.input":"Input","admin.usage.output":"Output","admin.usage.cost":"Cost","logs.levelAll":"All levels","logs.level.trace":"TRACE","logs.level.debug":"DEBUG","logs.level.info":"INFO","logs.level.warn":"WARN","logs.level.error":"ERROR","logs.filterTarget":"Filter by target\u2026","logs.autoScroll":"Auto-scroll","logs.pause":"Pause","logs.resume":"Resume","logs.clear":"Clear","logs.confirmClear":"Clear all log entries?","logs.scoped":"Scoped logs","logs.scope.thread":"Thread","logs.scope.run":"Run","logs.scope.turn":"Turn","logs.scope.toolCall":"Tool call","logs.scope.tool":"Tool","logs.scope.source":"Source","logs.clearScope":"Clear scope","logs.serverLevel":"Server level:","logs.entryCount":"{count} entries","logs.pausedBadge":"\u25CF paused","logs.unsupported":"This gateway doesn't expose activity logs yet.","logs.empty":"IronClaw isn't streaming activity to this view yet. Your work, approvals, and receipts stay in Chat."});async function kq(){kh(),yE();try{await ox()}catch(e){console.warn("[ironclaw] locale pack load failed; falling back to English",e)}try{let e=await dd();e?.token&&Pn(e.token)}catch(e){console.warn("[ironclaw] desktop bootstrap failed; falling back to browser auth",e)}(0,wE.createRoot)(document.getElementById("v2-root")).render(l`
     <${ix}>
       <${Fh} client=${an}>
         <${uE} />

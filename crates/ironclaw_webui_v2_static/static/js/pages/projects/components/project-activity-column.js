@@ -14,9 +14,7 @@ export function ProjectActivityColumn({ threads, selectedThreadId, onSelectThrea
   return html`
     <${Panel} className="p-4 sm:p-5">
       <div>
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-          Activity
-        </div>
+        <div className="text-[11px] text-iron-300">Activity</div>
         <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
           Recent project runs
         </h2>
@@ -42,9 +40,7 @@ export function ProjectActivityColumn({ threads, selectedThreadId, onSelectThrea
                       <div className="truncate text-base font-semibold text-white">
                         ${presentation.title}
                       </div>
-                      <div className="mt-1 text-xs uppercase tracking-[0.16em] text-iron-400">
-                        ${presentation.subtitle}
-                      </div>
+                      <div className="mt-1 text-xs text-iron-400">${presentation.subtitle}</div>
                       ${presentation.brief
                         ? html`<p className="mt-3 line-clamp-2 text-sm leading-6 text-iron-300">
                             ${presentation.brief}
@@ -53,9 +49,7 @@ export function ProjectActivityColumn({ threads, selectedThreadId, onSelectThrea
                     </div>
                     <${StatusPill} tone=${threadTone(thread.state)} label=${thread.state} />
                   </div>
-                  <div
-                    className="mt-4 flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-400"
-                  >
+                  <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-iron-400">
                     <span>${thread.step_count || 0} steps</span>
                     <span>${thread.total_tokens || 0} tokens</span>
                     <span

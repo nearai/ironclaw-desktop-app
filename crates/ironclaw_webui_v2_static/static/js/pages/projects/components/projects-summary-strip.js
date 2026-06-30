@@ -45,9 +45,7 @@ export function ProjectsSummaryStrip({ overview }) {
           (card) => html`
             <div key=${card.key} className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                  ${card.label}
-                </div>
+                <div className="text-[11px] text-iron-300">${card.label}</div>
                 <${StatusPill} tone=${metricTone[card.key]} label=${card.key} />
               </div>
               <div className="mt-4 text-3xl font-semibold tracking-tight text-white">

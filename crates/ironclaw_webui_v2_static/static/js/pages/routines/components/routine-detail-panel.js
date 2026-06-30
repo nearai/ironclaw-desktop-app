@@ -13,9 +13,7 @@ import { RoutineRecentRuns } from './routine-recent-runs.js';
 function MetaItem({ label, value }) {
   return html`
     <div className="rounded-xl border border-iron-700 bg-iron-950/50 p-3">
-      <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-iron-400">
-        ${label}
-      </div>
+      <div className="text-[10px] text-iron-400">${label}</div>
       <div className="mt-2 min-w-0 break-words text-sm text-iron-100">${value || '—'}</div>
     </div>
   `;

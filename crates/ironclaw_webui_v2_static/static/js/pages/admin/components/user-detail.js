@@ -155,9 +155,7 @@ export function UserDetail({ userId, onBack }) {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <${Panel} className="p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${t('admin.user.profile')}
-          </h3>
+          <h3 className="mb-4 text-[11px] text-signal">${t('admin.user.profile')}</h3>
           <${DetailRow} label=${t('admin.user.id')}>
             <span className="font-mono text-xs">${user.id}</span>
           <//>
@@ -175,9 +173,7 @@ export function UserDetail({ userId, onBack }) {
         <//>
 
         <${Panel} className="p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${t('admin.user.summary')}
-          </h3>
+          <h3 className="mb-4 text-[11px] text-signal">${t('admin.user.summary')}</h3>
           <${DetailRow} label=${t('admin.user.jobs')}>${user.job_count ?? 0}<//>
           <${DetailRow} label=${t('admin.user.totalCost')}>${formatCost(user.total_cost)}<//>
           <${DetailRow} label=${t('admin.user.lastActive')}
@@ -187,9 +183,7 @@ export function UserDetail({ userId, onBack }) {
       </div>
 
       <${Panel} className="p-5 sm:p-6">
-        <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-          ${t('admin.user.roleManagement')}
-        </h3>
+        <h3 className="mb-4 text-[11px] text-signal">${t('admin.user.roleManagement')}</h3>
         <div className="flex items-end gap-3">
           <div>
             <label className="mb-1 block text-xs text-iron-300"
@@ -211,9 +205,7 @@ export function UserDetail({ userId, onBack }) {
       <//>
 
       <${Panel} className="p-5 sm:p-6">
-        <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-          ${t('admin.user.usage30Days')}
-        </h3>
+        <h3 className="mb-4 text-[11px] text-signal">${t('admin.user.usage30Days')}</h3>
         ${usageEntries.length === 0
           ? html`<p className="py-4 text-sm text-iron-300">${t('admin.user.noUsage')}</p>`
           : html`
@@ -221,31 +213,19 @@ export function UserDetail({ userId, onBack }) {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-white/10 text-left">
-                      <th
-                        className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                      >
+                      <th className="pb-3 pr-4 text-[11px] text-iron-300">
                         ${t('admin.usage.model')}
                       </th>
-                      <th
-                        className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                      >
+                      <th className="pb-3 pr-4 text-[11px] text-iron-300">
                         ${t('admin.usage.calls')}
                       </th>
-                      <th
-                        className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                      >
+                      <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                         ${t('admin.usage.input')}
                       </th>
-                      <th
-                        className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                      >
+                      <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                         ${t('admin.usage.output')}
                       </th>
-                      <th
-                        className="pb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                      >
-                        ${t('admin.usage.cost')}
-                      </th>
+                      <th className="pb-3 text-[11px] text-iron-300">${t('admin.usage.cost')}</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -297,6 +297,11 @@ registerPack('en', {
   'traceCommons.description':
     'Review local contribution credit from shared traces and authorize any held submissions.',
   'traceCommons.emptyState': 'No Trace Commons submissions yet.',
+  'traceCommons.emptyTitle': 'Earn credit by contributing traces',
+  'traceCommons.emptyValueProp':
+    'IronClaw can earn you contribution credit by sharing anonymized traces of its work with Trace Commons.',
+  'traceCommons.emptyHow':
+    'Enrollment happens automatically once IronClaw captures and submits its first eligible trace. There is nothing to set up here — credit will appear on this page after your first submission syncs.',
   'traceCommons.loadFailed': 'Could not load Trace Commons credits.',
   'traceCommons.enrollment': 'Enrollment',
   'traceCommons.enrolled': 'Enrolled',

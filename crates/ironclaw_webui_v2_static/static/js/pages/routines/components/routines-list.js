@@ -50,9 +50,7 @@ export function RoutinesList({
       <${Panel} className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              ${t('routines.explorer')}
-            </div>
+            <div className="text-[11px] text-iron-300">${t('routines.explorer')}</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-iron-100">
               ${t('routines.title')}
             </h2>
@@ -60,9 +58,7 @@ export function RoutinesList({
               ${t('routines.description')}
             </p>
           </div>
-          <div
-            className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-          >
+          <div className="flex items-center gap-2 text-[11px] text-iron-300">
             <span>${routines.length} visible</span>
             <span>/</span>
             <span>${isRefreshing ? 'refreshing' : 'live'}</span>

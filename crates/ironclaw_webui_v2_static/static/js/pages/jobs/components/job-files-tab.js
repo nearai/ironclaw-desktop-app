@@ -76,9 +76,7 @@ export function JobFilesTab({
     <div className="grid gap-5 xl:grid-cols-[320px_minmax(0,1fr)]">
       <${Panel} className="min-h-[440px] p-4">
         <div className="border-b border-white/10 px-2 pb-3">
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            Workspace tree
-          </div>
+          <div className="text-[11px] text-iron-300">Workspace tree</div>
           <p className="mt-2 text-sm leading-6 text-iron-300">
             Browse the sandbox output and inspect generated files inline.
           </p>
@@ -115,9 +113,7 @@ export function JobFilesTab({
 
       <${Panel} className="min-h-[440px] p-5 sm:p-6">
         <div className="border-b border-white/10 pb-3">
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            File preview
-          </div>
+          <div className="text-[11px] text-iron-300">File preview</div>
           <p className="mt-2 break-all text-sm leading-6 text-iron-300">
             ${selectedFile?.path ||
             selectedPath ||

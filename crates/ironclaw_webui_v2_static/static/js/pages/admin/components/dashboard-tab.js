@@ -31,29 +31,13 @@ function RecentUsersTable({ users, onSelectUser }) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-white/10 text-left">
-            <th
-              className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-            >
-              ${t('admin.dashboard.name')}
-            </th>
-            <th
-              className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-            >
-              ${t('admin.dashboard.role')}
-            </th>
-            <th
-              className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-            >
-              ${t('admin.dashboard.status')}
-            </th>
-            <th
-              className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-            >
+            <th className="pb-3 pr-4 text-[11px] text-iron-300">${t('admin.dashboard.name')}</th>
+            <th className="pb-3 pr-4 text-[11px] text-iron-300">${t('admin.dashboard.role')}</th>
+            <th className="pb-3 pr-4 text-[11px] text-iron-300">${t('admin.dashboard.status')}</th>
+            <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
               ${t('admin.dashboard.jobs')}
             </th>
-            <th className="pb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300">
-              ${t('admin.dashboard.lastActive')}
-            </th>
+            <th className="pb-3 text-[11px] text-iron-300">${t('admin.dashboard.lastActive')}</th>
           </tr>
         </thead>
         <tbody>
@@ -127,9 +111,7 @@ export function DashboardTab({ onSelectUser, onNavigateTab }) {
       ${status !== 'todo' &&
       html`<${Panel} className="p-5 sm:p-6">
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${t('admin.dashboard.systemOverview')}
-          </h3>
+          <h3 className="text-[11px] text-signal">${t('admin.dashboard.systemOverview')}</h3>
           ${summary.uptime_seconds != null &&
           html`
             <span className="font-mono text-xs text-iron-300"
@@ -162,9 +144,7 @@ export function DashboardTab({ onSelectUser, onNavigateTab }) {
       <//>`}
       ${status !== 'todo' &&
       html`<${Panel} className="p-5 sm:p-6">
-        <h3 className="mb-5 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-          ${t('admin.dashboard.usage30d')}
-        </h3>
+        <h3 className="mb-5 text-[11px] text-signal">${t('admin.dashboard.usage30d')}</h3>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <${StatCard}
             label=${t('admin.dashboard.totalJobs')}
@@ -191,9 +171,7 @@ export function DashboardTab({ onSelectUser, onNavigateTab }) {
 
       <${Panel} className="p-5 sm:p-6">
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${t('admin.dashboard.recentUsers')}
-          </h3>
+          <h3 className="text-[11px] text-signal">${t('admin.dashboard.recentUsers')}</h3>
           <button
             onClick=${() => onNavigateTab('users')}
             className="text-xs text-signal hover:underline"

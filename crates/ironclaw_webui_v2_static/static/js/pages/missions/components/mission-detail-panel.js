@@ -8,9 +8,7 @@ import { formatMissionDate, missionTone } from '../lib/missions-presenters.js';
 function MetaCard({ label, value }) {
   return html`
     <div className="rounded-xl border border-white/8 bg-iron-950/60 p-3">
-      <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-        ${label}
-      </div>
+      <div className="text-[10px] text-iron-300">${label}</div>
       <div className="mt-2 text-sm leading-6 text-white">${value}</div>
     </div>
   `;
@@ -81,9 +79,7 @@ export function MissionDetailPanel({
       <${Panel} className="p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              ${t('missions.dossier')}
-            </div>
+            <div className="text-[11px] text-iron-300">${t('missions.dossier')}</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
               ${mission.name}
             </h2>
@@ -134,9 +130,7 @@ export function MissionDetailPanel({
       <//>
 
       <${Panel} className="p-4 sm:p-5">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-          ${t('missions.brief')}
-        </div>
+        <div className="text-[11px] text-iron-300">${t('missions.brief')}</div>
         <div className="mt-4 text-sm leading-6 text-iron-200">
           <${MarkdownRenderer} content=${mission.goal || t('missions.noGoal')} />
         </div>
@@ -145,9 +139,7 @@ export function MissionDetailPanel({
       ${mission.current_focus &&
       html`
         <${Panel} className="p-4 sm:p-5">
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            ${t('missions.currentFocus')}
-          </div>
+          <div className="text-[11px] text-iron-300">${t('missions.currentFocus')}</div>
           <div className="mt-4 text-sm leading-6 text-iron-200">
             <${MarkdownRenderer} content=${mission.current_focus} />
           </div>
@@ -156,9 +148,7 @@ export function MissionDetailPanel({
       ${mission.success_criteria &&
       html`
         <${Panel} className="p-4 sm:p-5">
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            ${t('missions.successCriteria')}
-          </div>
+          <div className="text-[11px] text-iron-300">${t('missions.successCriteria')}</div>
           <div className="mt-4 text-sm leading-6 text-iron-200">
             <${MarkdownRenderer} content=${mission.success_criteria} />
           </div>
@@ -167,9 +157,7 @@ export function MissionDetailPanel({
       ${mission.threads?.length
         ? html`
             <${Panel} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                ${t('missions.spawnedThreads')}
-              </div>
+              <div className="text-[11px] text-iron-300">${t('missions.spawnedThreads')}</div>
               <div className="mt-4 space-y-3">
                 ${mission.threads.map(
                   (thread) => html`

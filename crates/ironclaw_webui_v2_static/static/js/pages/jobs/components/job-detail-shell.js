@@ -36,9 +36,7 @@ export function JobDetailShell({
               </h2>
               <${StatusPill} tone=${statusToneForState(job.state)} label=${stateLabel(job.state)} />
             </div>
-            <div
-              className="mt-3 flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-            >
+            <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-iron-300">
               <span>${truncateJobId(job.id)}</span>
               <span>created ${formatJobDate(job.created_at)}</span>
               ${jobSecondaryMeta(job) && html`<span>${jobSecondaryMeta(job)}</span>`}

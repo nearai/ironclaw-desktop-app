@@ -42,9 +42,7 @@ ${prettyJson(type === 'tool_use' ? data.input : data.output || data.error || dat
   if (type === 'message') {
     return html`
       <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-        <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300">
-          ${data.role || 'assistant'}
-        </div>
+        <div className="text-[11px] text-iron-300">${data.role || 'assistant'}</div>
         <div className="mt-2 text-sm leading-6 text-iron-100">${data.content || ''}</div>
       </div>
     `;
@@ -52,9 +50,7 @@ ${prettyJson(type === 'tool_use' ? data.input : data.output || data.error || dat
 
   return html`
     <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
-      <div className="font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300">
-        ${type.replace(/_/g, ' ')}
-      </div>
+      <div className="text-[11px] text-iron-300">${type.replace(/_/g, ' ')}</div>
       <div className="mt-2 text-sm leading-6 text-iron-100">
         ${data.message || data.status || prettyJson(data)}
       </div>
@@ -97,9 +93,7 @@ export function JobActivityTab({ job, events, onSendPrompt, isSendingPrompt }) {
     <${Panel} className="p-5 sm:p-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            Event stream
-          </div>
+          <div className="text-[11px] text-iron-300">Event stream</div>
           <h3 className="mt-2 text-xl font-semibold text-white">Job activity</h3>
           <p className="mt-2 text-sm leading-6 text-iron-300">
             Persisted events are refreshed automatically so you can follow tool calls, prompts, and
@@ -137,9 +131,7 @@ export function JobActivityTab({ job, events, onSendPrompt, isSendingPrompt }) {
           ? filteredEvents.map(
               (event) => html`
                 <div key=${event.id || `${event.event_type}-${event.created_at}`}>
-                  <div
-                    className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
+                  <div className="mb-2 text-[11px] text-iron-300">
                     ${formatJobDate(event.created_at)}
                   </div>
                   <${EventCard} event=${event} />

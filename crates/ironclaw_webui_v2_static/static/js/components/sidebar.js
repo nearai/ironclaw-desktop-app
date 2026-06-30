@@ -21,9 +21,7 @@ function RecentThreadStrip({ threads, activeThreadId, onSelect }) {
       className="hidden h-full min-w-0 max-w-[360px] shrink border-l border-[var(--v2-panel-border)] px-2 py-2 xl:flex xl:flex-col"
       aria-label=${t('chat.conversations')}
     >
-      <div
-        className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--v2-text-faint)]"
-      >
+      <div className="mb-1 px-1 text-[11px] font-semibold text-[var(--v2-text-faint)]">
         ${t('chat.conversations')}
       </div>
       <div className="flex min-h-0 gap-1 overflow-x-auto [scrollbar-width:thin]">

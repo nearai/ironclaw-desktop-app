@@ -227,11 +227,7 @@ function SourceReadinessPanel({ items = [], isBusy = false, onConnect, onManualS
     >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-2xl">
-          <p
-            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
-          >
-            Source readiness
-          </p>
+          <p className="text-xs font-semibold text-[var(--v2-accent-text)]">Source readiness</p>
           <h3 className="mt-2 text-xl font-semibold text-[var(--v2-text-strong)]">
             ${hasActionNeeded ? 'Fix blocked sources first.' : 'Sources stay quiet until needed.'}
           </h3>
@@ -296,11 +292,7 @@ function SourceReadinessCard({ item, isBusy, onConnect, onManualSetup }) {
               ${item.statusLabel}
             </span>
           </div>
-          <p
-            className="mt-1 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--v2-text-faint)]"
-          >
-            ${item.category}
-          </p>
+          <p className="mt-1 text-[11px] text-[var(--v2-text-faint)]">${item.category}</p>
         </div>
       </div>
 

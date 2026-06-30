@@ -49,9 +49,7 @@ function ProjectCard({ project, onOpen, t }) {
 
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <div className="rounded-2xl border border-iron-700 bg-iron-950/55 p-3">
-          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-            ${t('projects.card.runtime')}
-          </div>
+          <div className="text-[10px] text-iron-300">${t('projects.card.runtime')}</div>
           <div className="mt-2 text-sm text-iron-100">
             ${compactCount(project.active_missions || 0, 'mission')}
           </div>
@@ -62,9 +60,7 @@ function ProjectCard({ project, onOpen, t }) {
           </div>
         </div>
         <div className="rounded-2xl border border-iron-700 bg-iron-950/55 p-3">
-          <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-            ${t('projects.card.risk')}
-          </div>
+          <div className="text-[10px] text-iron-300">${t('projects.card.risk')}</div>
           <div className="mt-2 text-sm text-iron-100">
             ${compactCount(project.pending_gates || 0, 'gate')}
           </div>
@@ -81,7 +77,7 @@ function ProjectCard({ project, onOpen, t }) {
           <div>
             ${t('projects.card.spendToday', { value: formatCurrency(project.cost_today_usd || 0) })}
           </div>
-          <div className="mt-1 text-xs uppercase tracking-[0.16em] text-iron-400">
+          <div className="mt-1 text-xs text-iron-400">
             ${formatProjectRelativeTime(project.last_activity)}
           </div>
         </div>
@@ -98,9 +94,7 @@ function GeneralProjectCard({ project, onOpen, t }) {
     <${Panel} className="overflow-hidden p-5 sm:p-6">
       <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
-          <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-signal">
-            ${t('projects.general.label')}
-          </div>
+          <div className="text-[11px] text-signal">${t('projects.general.label')}</div>
           <h2 className="mt-3 font-serif text-4xl font-semibold tracking-[-0.04em] text-iron-100">
             ${t('projects.general.title')}
           </h2>
@@ -167,9 +161,7 @@ export function ProjectsGrid({
       <${Panel} className="p-4 sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              ${t('projects.explorer')}
-            </div>
+            <div className="text-[11px] text-iron-300">${t('projects.explorer')}</div>
             <h2 className="mt-2 font-serif text-3xl font-semibold tracking-[-0.04em] text-iron-100">
               ${t('projects.scoped.title')}
             </h2>

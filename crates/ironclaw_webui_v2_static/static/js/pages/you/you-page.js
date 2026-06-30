@@ -49,7 +49,7 @@ const YOU_STYLE = `
 .wb13-you-patterns { margin: 0; padding-left: 18px; color: var(--v2-text); }
 .wb13-you-patterns li { margin: 4px 0; font-size: 14px; line-height: 1.5; }
 .wb13-you-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--v2-hairline, var(--v2-panel-border)); }
-.wb13-you-badge { flex: none; font: 600 11px/1 var(--v2-font, inherit); letter-spacing: 0.04em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 6px; padding: 4px 7px; }
+.wb13-you-badge { flex: none; font: 600 11px/1 var(--v2-font, inherit); border: 1px solid currentColor; border-radius: 6px; padding: 4px 7px; }
 .wb13-you-rowmain { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
 .wb13-you-email { color: var(--v2-text-strong); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 .wb13-you-meta { color: var(--v2-text-muted); font-size: 12.5px; }

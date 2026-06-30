@@ -111,56 +111,56 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --v2-canvas: var(--bg-canvas, #090b10);
-  --v2-canvas-strong: #0c0f15;
-  --v2-surface: var(--bg-surface, #11151c);
-  --v2-surface-soft: var(--bg-surface-subtle, #171c24);
-  --v2-surface-muted: #202735;
+  --v2-canvas: var(--bg-canvas, #1a1714);
+  --v2-canvas-strong: #161310;
+  --v2-surface: var(--bg-surface, #211d18);
+  --v2-surface-soft: var(--bg-surface-subtle, #2a2520);
+  --v2-surface-muted: #332d27;
 
-  /* Card tokens in dark: hairline navy border, no decorative shadow. */
-  --v2-card-bg: #11151c;
-  --v2-card-border: rgba(206, 220, 255, 0.1);
+  /* Card tokens in dark: warm hairline border, no decorative shadow. */
+  --v2-card-bg: #211d18;
+  --v2-card-border: rgba(236, 224, 208, 0.1);
   --v2-card-shadow: var(--v2-shadow-sm);
 
-  --v2-panel-border: rgba(206, 220, 255, 0.115);
+  --v2-panel-border: rgba(236, 224, 208, 0.115);
 
-  --v2-rail: #0d1117;
-  --v2-input-bg: #0d1117;
+  --v2-rail: #161310;
+  --v2-input-bg: #161310;
 
-  --v2-text: #d5dde8;
-  --v2-text-strong: var(--text-primary, #f4f8ff);
-  --v2-text-muted: var(--text-secondary, #a5b0bf);
-  --v2-text-faint: var(--text-tertiary, #8d99aa);
+  --v2-text: #ece6dd;
+  --v2-text-strong: var(--text-primary, #f7f3ec);
+  --v2-text-muted: var(--text-secondary, #b3a99c);
+  --v2-text-faint: var(--text-tertiary, #9b9082);
   --v2-text-base: var(--v2-text);
   --v2-text-subtle: var(--v2-text-faint);
-  --v2-inverse: var(--text-inverse, #0a0f1c);
-  --v2-ink: var(--accent-primary, #0091fd);
+  --v2-inverse: var(--text-inverse, #1a1714);
+  --v2-ink: var(--accent-primary, #6ca0f2);
 
-  --v2-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.26);
-  --v2-shadow-md: 0 18px 48px -32px rgba(0, 0, 0, 0.72);
+  --v2-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --v2-shadow-md: 0 18px 48px -32px rgba(0, 0, 0, 0.78);
 
   --v2-select-chevron: url('data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2712%27%20height%3D%2712%27%20viewBox%3D%270%200%2012%2012%27%20fill%3D%27none%27%20stroke%3D%27%23ffffff%27%20stroke-opacity%3D%270.55%27%20stroke-width%3D%271.8%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M2.5%204.5%206%208l3.5-3.5%27/%3E%3C/svg%3E');
 
-  /* The user's hand: v13/v12 signal blue */
-  --v2-accent: #5b9bf2;
-  --v2-accent-strong: #4a86db;
-  --v2-accent-soft: rgba(91, 155, 242, 0.16);
-  --v2-accent-text: #93bbf8;
-  --v2-accent-btn: #2257b5;
+  /* The user's hand: signal blue, lifted slightly for the warm charcoal canvas */
+  --v2-accent: #6ca0f2;
+  --v2-accent-strong: #5b8fe2;
+  --v2-accent-soft: rgba(108, 160, 242, 0.18);
+  --v2-accent-text: #9bbef9;
+  --v2-accent-btn: #2f63c0;
 
   /* The agent's hand: clay — generated work, proposals */
   --v2-gold: #e0875c;
   --v2-gold-soft: rgba(224, 135, 92, 0.16);
   --v2-gold-text: #ec9e76;
 
-  --v2-positive-soft: rgba(32, 210, 154, 0.13);
-  --v2-positive-text: var(--text-positive, #20d29a);
-  --v2-warning-soft: rgba(245, 193, 91, 0.14);
-  --v2-warning-text: var(--accent-warning, #f5c15b);
-  --v2-danger-soft: rgba(255, 100, 128, 0.13);
-  --v2-danger-text: var(--text-danger, #ff6480);
-  --v2-info-soft: rgba(0, 145, 253, 0.15);
-  --v2-info-text: var(--accent-primary-soft, #5fb8ff);
+  --v2-positive-soft: rgba(45, 210, 158, 0.15);
+  --v2-positive-text: var(--text-positive, #3bd9a6);
+  --v2-warning-soft: rgba(240, 192, 105, 0.15);
+  --v2-warning-text: var(--accent-warning, #f0c069);
+  --v2-danger-soft: rgba(255, 110, 135, 0.15);
+  --v2-danger-text: var(--text-danger, #ff7a92);
+  --v2-info-soft: rgba(60, 170, 255, 0.16);
+  --v2-info-text: var(--accent-primary-soft, #74bdff);
 }
 
 :root[data-theme="light"] {

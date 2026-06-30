@@ -9,14 +9,12 @@ export function ProjectMissionsColumn({ missions, selectedMissionId, onSelectMis
     <${Panel} className="p-4 sm:p-5">
       <div className="flex items-end justify-between gap-4">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            Missions
-          </div>
+          <div className="text-[11px] text-iron-300">Missions</div>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
             Project execution plan
           </h2>
         </div>
-        <div className="text-right text-xs uppercase tracking-[0.16em] text-iron-400">
+        <div className="text-right text-xs text-iron-400">
           <div>${counts.active} active / ${counts.paused} paused</div>
           <div className="mt-1">${counts.completed} completed / ${counts.failed} failed</div>
         </div>
@@ -47,9 +45,7 @@ export function ProjectMissionsColumn({ missions, selectedMissionId, onSelectMis
                     </div>
                     <${StatusPill} tone=${missionTone(mission.status)} label=${mission.status} />
                   </div>
-                  <div
-                    className="mt-4 flex flex-wrap gap-x-4 gap-y-2 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-400"
-                  >
+                  <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-[11px] text-iron-400">
                     <span>${mission.cadence_description || mission.cadence_type || 'manual'}</span>
                     <span>${mission.thread_count} threads</span>
                     <span>Updated ${formatProjectDate(mission.updated_at)}</span>

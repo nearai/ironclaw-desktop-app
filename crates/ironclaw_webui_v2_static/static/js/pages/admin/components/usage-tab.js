@@ -55,9 +55,7 @@ export function UsageTab({ onSelectUser }) {
     <div className="space-y-5">
       <${Panel} className="p-5 sm:p-6">
         <div className="mb-5 flex items-center justify-between">
-          <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${t('admin.usage.overview')}
-          </h3>
+          <h3 className="text-[11px] text-signal">${t('admin.usage.overview')}</h3>
           <div className="flex gap-1">
             ${PERIODS.map(
               (p) => html`
@@ -109,41 +107,21 @@ export function UsageTab({ onSelectUser }) {
       ${byUser.length > 0 &&
       html`
         <${Panel} className="p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${t('admin.usage.perUser')}
-          </h3>
+          <h3 className="mb-4 text-[11px] text-signal">${t('admin.usage.perUser')}</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-left">
-                  <th
-                    className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t('admin.usage.user')}
-                  </th>
-                  <th
-                    className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t('admin.usage.calls')}
-                  </th>
-                  <th
-                    className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                  >
+                  <th className="pb-3 pr-4 text-[11px] text-iron-300">${t('admin.usage.user')}</th>
+                  <th className="pb-3 pr-4 text-[11px] text-iron-300">${t('admin.usage.calls')}</th>
+                  <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                     ${t('admin.usage.input')}
                   </th>
-                  <th
-                    className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                  >
+                  <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                     ${t('admin.usage.output')}
                   </th>
-                  <th
-                    className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t('admin.usage.cost')}
-                  </th>
-                  <th
-                    className="hidden pb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 md:table-cell"
-                  />
+                  <th className="pb-3 pr-4 text-[11px] text-iron-300">${t('admin.usage.cost')}</th>
+                  <th className="hidden pb-3 text-[11px] text-iron-300 md:table-cell" />
                 </tr>
               </thead>
               <tbody>
@@ -188,38 +166,20 @@ export function UsageTab({ onSelectUser }) {
       ${byModel.length > 0 &&
       html`
         <${Panel} className="p-5 sm:p-6">
-          <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-            ${t('admin.usage.perModel')}
-          </h3>
+          <h3 className="mb-4 text-[11px] text-signal">${t('admin.usage.perModel')}</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-left">
-                  <th
-                    className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t('admin.usage.model')}
-                  </th>
-                  <th
-                    className="pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t('admin.usage.calls')}
-                  </th>
-                  <th
-                    className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                  >
+                  <th className="pb-3 pr-4 text-[11px] text-iron-300">${t('admin.usage.model')}</th>
+                  <th className="pb-3 pr-4 text-[11px] text-iron-300">${t('admin.usage.calls')}</th>
+                  <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                     ${t('admin.usage.input')}
                   </th>
-                  <th
-                    className="hidden pb-3 pr-4 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300 sm:table-cell"
-                  >
+                  <th className="hidden pb-3 pr-4 text-[11px] text-iron-300 sm:table-cell">
                     ${t('admin.usage.output')}
                   </th>
-                  <th
-                    className="pb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-                  >
-                    ${t('admin.usage.cost')}
-                  </th>
+                  <th className="pb-3 text-[11px] text-iron-300">${t('admin.usage.cost')}</th>
                 </tr>
               </thead>
               <tbody>

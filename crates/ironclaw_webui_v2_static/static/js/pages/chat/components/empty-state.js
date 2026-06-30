@@ -390,9 +390,7 @@ function SourceBoundaryStrip() {
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <div
-            className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-          >
+          <div className="text-[12px] font-semibold text-[var(--v2-text-faint)]">
             Source boundary
           </div>
           <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">

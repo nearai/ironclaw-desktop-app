@@ -32,9 +32,7 @@ export function ProjectWorkspaceShell({
           <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
             <div className="min-w-0 max-w-3xl">
               <div className="flex flex-wrap items-center gap-3">
-                <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-signal">
-                  Project workspace
-                </div>
+                <div className="text-[11px] text-signal">Project workspace</div>
                 <${StatusPill}
                   tone=${healthTone(overview?.health)}
                   label=${overview?.health || 'steady'}
@@ -75,33 +73,25 @@ export function ProjectWorkspaceShell({
 
           <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-                Created
-              </div>
+              <div className="text-[10px] text-iron-300">Created</div>
               <div className="mt-2 text-sm leading-6 text-white">
                 ${formatProjectDate(project.created_at)}
               </div>
             </div>
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-                Pending gates
-              </div>
+              <div className="text-[10px] text-iron-300">Pending gates</div>
               <div className="mt-2 text-sm leading-6 text-white">
                 ${overview?.pending_gates || 0}
               </div>
             </div>
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-                Failures 24h
-              </div>
+              <div className="text-[10px] text-iron-300">Failures 24h</div>
               <div className="mt-2 text-sm leading-6 text-white">
                 ${overview?.failures_24h || 0}
               </div>
             </div>
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-4">
-              <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
-                Total missions
-              </div>
+              <div className="text-[10px] text-iron-300">Total missions</div>
               <div className="mt-2 text-sm leading-6 text-white">
                 ${overview?.total_missions || missions.length}
               </div>

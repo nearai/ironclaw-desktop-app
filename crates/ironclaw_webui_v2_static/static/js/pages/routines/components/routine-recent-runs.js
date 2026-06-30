@@ -24,7 +24,7 @@ export function RoutineRecentRuns({ runs }) {
           <div key=${run.id} className="rounded-xl border border-iron-700 bg-iron-950/40 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <${StatusPill} tone=${runTone(run.status)} label=${run.status} />
-              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-iron-400">
+              <span className="text-[11px] text-iron-400">
                 ${formatRoutineDate(run.started_at)}
               </span>
             </div>

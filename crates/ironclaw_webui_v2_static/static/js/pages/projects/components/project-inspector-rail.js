@@ -19,9 +19,7 @@ function ProjectSnapshot({ project, missions, threads, overview }) {
       <${Panel} className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-              Project snapshot
-            </div>
+            <div className="text-[11px] text-iron-300">Project snapshot</div>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-white">
               ${project.name}
             </h2>
@@ -54,9 +52,7 @@ function ProjectSnapshot({ project, missions, threads, overview }) {
       ${project.goals?.length
         ? html`
             <${Panel} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Goals
-              </div>
+              <div className="text-[11px] text-iron-300">Goals</div>
               <div className="mt-4 space-y-2 text-sm leading-6 text-iron-200">
                 ${project.goals.map(
                   (goal, index) =>
@@ -74,9 +70,7 @@ function ProjectSnapshot({ project, missions, threads, overview }) {
       ${project.metrics?.length
         ? html`
             <${Panel} className="p-4 sm:p-5">
-              <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-                Metrics
-              </div>
+              <div className="text-[11px] text-iron-300">Metrics</div>
               <div className="mt-4 space-y-3">
                 ${project.metrics.map(
                   (metric, index) => html`
@@ -88,9 +82,7 @@ function ProjectSnapshot({ project, missions, threads, overview }) {
                       <div className="mt-2 text-sm text-iron-200">${formatMetricValue(metric)}</div>
                       ${metric.updated_at &&
                       html`
-                        <div
-                          className="mt-2 font-mono text-[10px] uppercase tracking-[0.16em] text-iron-400"
-                        >
+                        <div className="mt-2 text-[10px] text-iron-400">
                           Updated ${formatProjectDate(metric.updated_at)}
                         </div>
                       `}
@@ -123,9 +115,7 @@ export function ProjectInspectorRail({
   return html`
     <aside className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-          Inspector
-        </div>
+        <div className="text-[11px] text-iron-300">Inspector</div>
         ${inspector?.type &&
         html`<${Button} variant="ghost" className="h-8 px-3 text-xs" onClick=${onClear}
           >Clear focus<//

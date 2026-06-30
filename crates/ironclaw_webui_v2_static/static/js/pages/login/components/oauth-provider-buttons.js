@@ -22,7 +22,7 @@ export function OAuthProviderButtons({ providers, redirectAfter }) {
 
   return html`
     <div className="mt-6 space-y-3">
-      <div className="flex items-center gap-3 text-[11px] uppercase text-[var(--v2-text-faint)]">
+      <div className="flex items-center gap-3 text-[11px] text-[var(--v2-text-faint)]">
         <span className="h-px flex-1 bg-[var(--v2-panel-border)]"></span>
         <span>${t('login.oauthDivider')}</span>
         <span className="h-px flex-1 bg-[var(--v2-panel-border)]"></span>

@@ -60,9 +60,7 @@ function MissionRow({ mission, selectedMissionId, onSelectMission, onOpenProject
               ${mission.goal || t('missions.noGoal')}
             </p>
           </div>
-          <div
-            className="shrink-0 text-right font-mono text-[11px] uppercase tracking-[0.14em] text-iron-400"
-          >
+          <div className="shrink-0 text-right text-[11px] text-iron-400">
             <div>${mission.cadence_description || mission.cadence_type || 'manual'}</div>
             <div className="mt-1">
               ${t('missions.threadCount', { count: mission.thread_count || 0 })}
@@ -74,7 +72,7 @@ function MissionRow({ mission, selectedMissionId, onSelectMission, onOpenProject
       <div
         className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-iron-700 pt-3"
       >
-        <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-iron-400">
+        <span className="text-[11px] text-iron-400">
           ${t('missions.updated', { value: formatMissionDate(mission.updated_at) })}
         </span>
         <${Button}
@@ -111,9 +109,7 @@ export function MissionsList({
     <${Panel} className="p-4 sm:p-5">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="font-mono text-[11px] uppercase tracking-[0.16em] text-iron-300">
-            ${t('missions.title')}
-          </div>
+          <div className="text-[11px] text-iron-300">${t('missions.title')}</div>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight text-iron-100">
             ${t('missions.subtitle')}
           </h1>

@@ -42,9 +42,7 @@ export function RoutineRow({
           <p className="mt-2 line-clamp-2 text-sm leading-6 text-iron-300">
             ${routine.description || routine.trigger_summary || 'No description'}
           </p>
-          <div
-            className="mt-3 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px] uppercase tracking-[0.14em] text-iron-300"
-          >
+          <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-iron-300">
             <span>${routine.trigger_type}</span>
             <span>${routine.action_type}</span>
             <span>runs ${routine.run_count || 0}</span>

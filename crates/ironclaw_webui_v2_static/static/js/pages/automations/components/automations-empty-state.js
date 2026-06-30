@@ -69,9 +69,7 @@ export function AutomationsEmptyState() {
         </p>
 
         <div className="mt-6">
-          <div
-            className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--v2-text-muted)]"
-          >
+          <div className="text-[12px] font-semibold text-[var(--v2-text-muted)]">
             ${t('automations.empty.examplesTitle')}
           </div>
           <ul className="mt-3 space-y-2">

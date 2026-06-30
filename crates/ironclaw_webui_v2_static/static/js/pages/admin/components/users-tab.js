@@ -90,9 +90,7 @@ function CreateUserForm({ onCreate, isCreating, error }) {
 
   return html`
     <${Panel} className="p-5 sm:p-6">
-      <h3 className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-        ${t('admin.users.createUser')}
-      </h3>
+      <h3 className="mb-4 text-[11px] text-signal">${t('admin.users.createUser')}</h3>
       <form onSubmit=${handleSubmit} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
@@ -348,7 +346,7 @@ export function AdminUsersTab({ selectedUserId, onSelectUser }) {
 
       <${Panel} className="p-5 sm:p-6">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
+          <h3 className="text-[11px] text-signal">
             ${t('admin.users.title', { count: filtered.length, total: users.length })}
           </h3>
           <div className="flex items-center gap-2">

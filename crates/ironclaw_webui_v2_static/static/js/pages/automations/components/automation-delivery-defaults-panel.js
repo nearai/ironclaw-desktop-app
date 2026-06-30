@@ -139,9 +139,7 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
       <div className="flex flex-col gap-5">
         <!-- ── Header ──────────────────────────────────────────────── -->
         <div className="flex flex-col gap-1">
-          <div
-            className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--v2-text-muted)]"
-          >
+          <div className="text-[12px] font-semibold text-[var(--v2-text-muted)]">
             ${t('automations.delivery.eyebrow')}
           </div>
           <h2
@@ -197,9 +195,7 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
         hasCurrentTarget &&
         html`
           <div>
-            <span
-              className="mb-1.5 block font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-[var(--v2-text-faint)]"
-            >
+            <span className="mb-1.5 block text-[12px] font-semibold text-[var(--v2-text-faint)]">
               ${t('automations.delivery.currentDefault')}
             </span>
             <div
@@ -218,9 +214,7 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
         <!-- ── Radio option rows ────────────────────────────────────── -->
         ${!hasLoadError &&
         html`<div>
-          <span
-            className="mb-1.5 block font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-[var(--v2-text-faint)]"
-          >
+          <span className="mb-1.5 block text-[12px] font-semibold text-[var(--v2-text-faint)]">
             ${radioSectionLabel}
           </span>
           <div
