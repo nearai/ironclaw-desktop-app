@@ -12,10 +12,10 @@ import { makeReviewExtractor, runReviewChatTurn } from '../lib/workbench-review-
 import { GOOGLE_DOC_MIME } from '../lib/workbench-drive.js';
 import { ReviewGrid } from './workbench-review-grid.js';
 
-// Tabular Review reads native Google Docs today (the read-only connector path is
+// Tabular Review extracts cleanly from native Google Docs today (the read-only connector path is
 // GOOGLEDOCS_GET_DOCUMENT_BY_ID; PDFs/.docx blobs need server-side text extraction, not yet wired).
-// So the picker marks non-Doc files as not-yet-reviewable up front instead of letting a reviewer
-// select them and get a wall of "couldn't read".
+// Any file is selectable — the reviewer stays in control — but non-Docs are honestly marked
+// "extraction coming" and their cells read "couldn't read" until that server-side path lands.
 const isReviewableFile = (file) => file && file.mimeType === GOOGLE_DOC_MIME;
 
 // Tabular Review — review a set of documents across named columns, each cell a
@@ -240,9 +240,13 @@ export function ReviewView({
       return next;
     });
   const reviewableDocs = docs.filter(isReviewableFile);
+  // Any selected file goes into the run — you're in control. Native Google Docs extract today;
+  // PDFs/.docx surface an honest "couldn't read" per cell until server-side extraction lands.
   const selectedDocs = docs
-    .filter((file) => selected.has(file.id) && isReviewableFile(file))
+    .filter((file) => selected.has(file.id))
     .map((file) => ({ id: file.id, name: file.name }));
+  const selectedNonDocs =
+    selectedDocs.length - docs.filter((f) => selected.has(f.id) && isReviewableFile(f)).length;
 
   const onRun = async () => {
     if (!selectedDocs.length || running) return;
@@ -312,30 +316,41 @@ export function ReviewView({
           ${docs.map((file) => {
             const reviewable = isReviewableFile(file);
             return html`
-              <label
-                className=${`wb13-review-pick-row${reviewable ? '' : ' is-unavailable'}`}
-                key=${file.id}
-              >
+              <label className="wb13-review-pick-row" key=${file.id}>
                 <input
                   type="checkbox"
                   data-testid="workbench-review-doc"
                   checked=${selected.has(file.id)}
-                  disabled=${!reviewable}
-                  onChange=${() => reviewable && toggle(file.id)}
+                  onChange=${() => toggle(file.id)}
                 />
                 <span className="wb13-review-pick-name" title=${file.name}>${file.name}</span>
                 ${reviewable
                   ? null
-                  : html`<span className="wb13-review-pick-tag">Google Docs only</span>`}
+                  : html`<span
+                      className="wb13-review-pick-tag"
+                      title="PDF/Word need server-side text extraction (coming)"
+                      >extraction coming</span
+                    >`}
               </label>
             `;
           })}
           ${docs.length && !reviewableDocs.length
             ? html`<div className="wb13-review-pick-note" data-testid="workbench-review-no-docs">
-                Tabular Review reads Google Docs today. None of these Drive files are Google Docs
-                yet.
+                Heads up: these are PDF/Word files. Review extracts cleanly from Google Docs today —
+                you can still run it on these, but their cells will read "couldn't read" until
+                server-side text extraction lands.
               </div>`
-            : null}
+            : selectedNonDocs > 0
+              ? html`<div
+                  className="wb13-review-pick-note"
+                  data-testid="workbench-review-nondoc-note"
+                >
+                  ${selectedNonDocs} selected
+                  ${selectedNonDocs === 1 ? 'file is a PDF/Word file' : 'files are PDF/Word'} —
+                  ${selectedNonDocs === 1 ? 'its cells' : 'their cells'} will read "couldn't read"
+                  until server-side extraction lands.
+                </div>`
+              : null}
         </div>
         <div className="wb13-review-cols" data-testid="workbench-review-cols">
           <div className="wb13-review-cols-head">Columns · ${columns.length}</div>

@@ -4080,10 +4080,11 @@ test('static workbench: Review lists Drive documents and builds a pending grid o
   await expect(picker).toContainText('Acme NDA');
   await expect(picker).toContainText('Northwind MSA.docx');
 
-  // The non-Google-Doc (.docx) is shown but not selectable yet — honest about the current limit.
+  // The non-Google-Doc (.docx) is selectable (you're in control) but honestly marked as needing
+  // extraction that's still coming.
   const checks = page.getByTestId('workbench-review-doc');
-  await expect(checks.nth(1)).toBeDisabled();
-  await expect(picker).toContainText('Google Docs only');
+  await expect(checks.nth(1)).toBeEnabled();
+  await expect(picker).toContainText('extraction coming');
 
   // No grid until a document is chosen.
   await expect(page.getByTestId('workbench-review-grid')).toHaveCount(0);
@@ -4270,7 +4271,7 @@ test('static workbench: Review supports a custom column — add it, it fills on 
   await expect(grid.getByRole('columnheader', { name: 'Indemnity cap' })).toHaveCount(0);
 });
 
-test('static workbench: Review is honest when no Drive file is a Google Doc (none selectable, clear note)', async ({
+test('static workbench: Review is honest when no Drive file is a Google Doc (selectable, with an extraction-coming note)', async ({
   page
 }) => {
   await installWorkbenchMocks(page, {
@@ -4292,12 +4293,14 @@ test('static workbench: Review is honest when no Drive file is a Google Doc (non
 
   const picker = page.getByTestId('workbench-review-picker');
   await expect(picker).toContainText('Scanned NDA.pdf'); // still listed honestly
+  // An honest note that these need extraction — but you're NOT locked out.
   await expect(page.getByTestId('workbench-review-no-docs')).toBeVisible();
-  // every row is disabled and nothing can be selected, so Run never enables
   const checks = page.getByTestId('workbench-review-doc');
-  await expect(checks.nth(0)).toBeDisabled();
-  await expect(checks.nth(1)).toBeDisabled();
+  await expect(checks.nth(0)).toBeEnabled();
+  // selecting one enables Run (you're in control; its cells will honestly read "couldn't read")
   await expect(page.getByTestId('workbench-review-run')).toBeDisabled();
+  await checks.nth(0).check();
+  await expect(page.getByTestId('workbench-review-run')).toBeEnabled();
 });
 
 test('static workbench: an expired Slack connection shows an honest Reconnect Slack card', async ({
