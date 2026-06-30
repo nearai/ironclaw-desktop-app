@@ -3,6 +3,7 @@ import { useT } from '../../../lib/i18n.js';
 import { Icon } from '../../../design-system/icons.js';
 
 const SHORTCUTS = [
+  { keys: ['⌘', 'K'], descKey: 'shortcuts.palette' },
   { keys: ['Enter'], descKey: 'shortcuts.send' },
   { keys: ['Shift', 'Enter'], descKey: 'shortcuts.newline' },
   { keys: ['?'], descKey: 'shortcuts.help' },

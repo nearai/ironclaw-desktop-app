@@ -31,13 +31,34 @@ export function MessageList({
   const t = useT();
   const containerRef = React.useRef(null);
   const shouldScrollRef = React.useRef(true);
+  // Set just before requesting an older page so the post-insert layout effect can
+  // restore the read position instead of letting the prepend jump the viewport.
+  const prependAnchorRef = React.useRef(null);
   const [atBottom, setAtBottom] = React.useState(true);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const el = containerRef.current;
-    if (!el || !shouldScrollRef.current) return;
+    if (!el) return;
+    // An older page was just prepended: keep the previously-read content under the
+    // user's eyes by adding the height the prepend introduced. This takes
+    // precedence over autoscroll, which only ever fires when already near bottom.
+    const anchor = prependAnchorRef.current;
+    if (anchor != null) {
+      prependAnchorRef.current = null;
+      el.scrollTop += el.scrollHeight - anchor;
+      return;
+    }
+    if (!shouldScrollRef.current) return;
     el.scrollTop = el.scrollHeight;
   }, [messages]);
+
+  const requestLoadMore = React.useCallback(() => {
+    const el = containerRef.current;
+    // Capture the scroll height before the older page lands so the layout effect
+    // can offset scrollTop by exactly the height the prepend added.
+    if (el) prependAnchorRef.current = el.scrollHeight;
+    onLoadMore?.();
+  }, [onLoadMore]);
 
   const onScroll = React.useCallback(() => {
     const el = containerRef.current;
@@ -48,9 +69,9 @@ export function MessageList({
     setAtBottom(distance < threshold);
 
     if (hasMore && el.scrollTop < threshold && onLoadMore && !isLoading) {
-      onLoadMore();
+      requestLoadMore();
     }
-  }, [hasMore, onLoadMore, isLoading]);
+  }, [hasMore, onLoadMore, isLoading, requestLoadMore]);
 
   const jumpToBottom = React.useCallback(() => {
     const el = containerRef.current;
@@ -88,7 +109,7 @@ export function MessageList({
           html`
             <div className="text-center">
               <button
-                onClick=${onLoadMore}
+                onClick=${requestLoadMore}
                 disabled=${isLoading}
                 className="v2-button rounded-md border border-white/10 px-3 py-1.5 text-xs text-iron-300 hover:border-signal/35 hover:text-white disabled:opacity-50"
               >

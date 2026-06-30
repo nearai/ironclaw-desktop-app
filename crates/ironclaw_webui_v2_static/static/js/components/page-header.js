@@ -8,6 +8,15 @@ import { TeeShield } from './tee-shield.js';
 
 const DOCS_URL = 'https://docs.ironclaw.com';
 
+// The ⌘K palette is owned by GatewayLayout's global keydown handler. Re-dispatch
+// the same shortcut so the header trigger and the keyboard both toggle one source
+// of truth, with no extra prop threading or duplicate palette state.
+function openCommandPalette() {
+  window.dispatchEvent(
+    new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true, cancelable: true })
+  );
+}
+
 export function PageHeader({ threadsState, onToggleSidebar }) {
   const t = useT();
   const location = useLocation();
@@ -79,6 +88,19 @@ export function PageHeader({ threadsState, onToggleSidebar }) {
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
         <${TeeShield} />
+        <button
+          type="button"
+          onClick=${openCommandPalette}
+          className="hidden h-11 items-center gap-1.5 rounded-[8px] px-2.5 text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] sm:inline-flex"
+          title=${t('nav.commandPalette')}
+          aria-label=${t('nav.commandPalette')}
+        >
+          <${Icon} name="search" className="h-4 w-4" />
+          <kbd
+            className="rounded-[4px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-1.5 py-0.5 font-mono text-[10px] font-medium text-[var(--v2-text-faint)]"
+            >⌘K</kbd
+          >
+        </button>
         <${NavLink}
           to="/logs"
           className=${({ isActive }) =>

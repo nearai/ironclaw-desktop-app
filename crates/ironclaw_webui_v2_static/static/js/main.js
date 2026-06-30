@@ -7,21 +7,23 @@ import { I18nProvider } from './lib/i18n.js';
 import { bootstrapDesktopSession, storeToken } from './lib/api.js';
 import { maybeRunPackagedWebviewSmoke } from './lib/packaged-smoke.js';
 import { installZoomControls } from './lib/zoom.js';
+// Only English is eager-loaded into cold boot. The other ten packs (~340KB) are
+// fetched on demand by setLang() / loadLanguagePack() in lib/i18n.js when the
+// user actually switches — or once on boot if a non-English language is detected.
 import './i18n/en.js';
-import './i18n/es.js';
-import './i18n/fr.js';
-import './i18n/de.js';
-import './i18n/pt-BR.js';
-import './i18n/ja.js';
-import './i18n/ar.js';
-import './i18n/hi.js';
-import './i18n/uk.js';
-import './i18n/zh-CN.js';
-import './i18n/ko.js';
+import { ensureDetectedLanguagePack } from './lib/i18n.js';
 
 async function boot() {
   maybeRunPackagedWebviewSmoke();
   installZoomControls();
+
+  // If the saved/detected language is not English, load that pack before first
+  // paint so the UI never flashes English then re-renders translated.
+  try {
+    await ensureDetectedLanguagePack();
+  } catch (err) {
+    console.warn('[ironclaw] locale pack load failed; falling back to English', err);
+  }
 
   try {
     const desktopSession = await bootstrapDesktopSession();

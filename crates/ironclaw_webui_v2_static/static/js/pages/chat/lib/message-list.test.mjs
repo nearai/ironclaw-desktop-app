@@ -18,6 +18,7 @@ function createMessageListContext() {
     React: {
       useCallback: (fn) => fn,
       useEffect: () => {},
+      useLayoutEffect: () => {},
       useMemo: (fn) => fn(),
       useRef: (initial) => ({ current: initial }),
       useState: (initial) => [initial, () => {}]

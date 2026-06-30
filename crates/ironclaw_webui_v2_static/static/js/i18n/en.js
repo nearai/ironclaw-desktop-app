@@ -28,6 +28,7 @@ registerPack('en', {
   'nav.admin': 'Admin',
   'nav.logs': 'Logs',
   'nav.docs': 'Documentation',
+  'nav.commandPalette': 'Command palette',
   'nav.sectionWork': 'Assistant',
   'nav.sectionSystem': 'Manage',
 
@@ -94,17 +95,16 @@ registerPack('en', {
   'chat.emptyDesc':
     'Send a message, attach files, or ask IronClaw to draft, summarize, reconcile, or follow up.',
   'chat.suggestion1': 'Summarize a document',
-  'chat.suggestion1Desc':
-    'Drop in a PDF, Word, or Excel file — get the key points and action items.',
+  'chat.suggestion1Desc': 'Paste or describe what you have — get the key points and action items.',
   'chat.suggestion1Prompt':
-    'Summarize the attached document. Lead with the three points that matter most, then list action items with owners if named.',
+    'Summarize this for me. Lead with the three points that matter most, then list action items with owners if named:\n\n',
   'chat.suggestion2': 'Draft from notes',
   'chat.suggestion2Desc': 'Turn rough notes into a clean email, memo, or update.',
   'chat.suggestion2Prompt': 'Turn these notes into a clear, concise email I can send as-is: ',
   'chat.suggestion3': 'Analyze a spreadsheet',
-  'chat.suggestion3Desc': 'Attach an XLSX or CSV — get totals, outliers, and trends.',
+  'chat.suggestion3Desc': 'Paste rows or describe the data — get totals, outliers, and trends.',
   'chat.suggestion3Prompt':
-    'Analyze the attached spreadsheet. Report totals, the biggest outliers, and any trend worth knowing.',
+    'Analyze this data for me. Report totals, the biggest outliers, and any trend worth knowing:\n\n',
 
   // Chat — input
   'chat.placeholder': 'Message IronClaw...',
@@ -170,6 +170,7 @@ registerPack('en', {
   'chat.find.next': 'Next match',
   'chat.find.earlier': 'Search earlier messages',
   'shortcuts.title': 'Keyboard shortcuts',
+  'shortcuts.palette': 'Command palette',
   'shortcuts.send': 'Send message',
   'shortcuts.newline': 'New line',
   'shortcuts.help': 'Show this help',

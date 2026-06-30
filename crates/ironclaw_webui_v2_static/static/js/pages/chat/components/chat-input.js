@@ -788,6 +788,7 @@ export function ChatInput({
               align="end"
               side="top"
               ariaLabel="Chat model settings"
+              className="!max-w-none w-[min(28rem,calc(100vw-2rem))]"
               trigger=${html`
                 <button
                   type="button"

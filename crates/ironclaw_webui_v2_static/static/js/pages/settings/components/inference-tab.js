@@ -8,6 +8,7 @@ import { ProviderManagement } from './provider-management.js';
 import { GoogleOauthCard } from './google-oauth-card.js';
 import { SettingsGroup } from './settings-field.js';
 import { SettingsSearchEmpty } from './settings-search-empty.js';
+import { SettingsNotWritable } from './settings-not-writable.js';
 import { modelExecutionReadiness } from '../../../lib/model-readiness.js';
 import { useProviderLogin } from '../hooks/useProviderLogin.js';
 import { ProviderLoginStatus } from './provider-login-status.js';
@@ -63,6 +64,13 @@ export function InferenceTab({
   }
 
   if (!showProviderSummary && !showProviderManagement && sections.length === 0) {
+    // The field cards are gated off when the settings backend cannot persist
+    // (settingsWritable === false). If nothing else is showing either, fall back to
+    // the honest "not writable" panel instead of a bare search-empty — mirrors the
+    // Agent/Networking tabs so the surface never goes silently blank.
+    if (!settingsWritable) {
+      return html`<${SettingsNotWritable} />`;
+    }
     return html`<${SettingsSearchEmpty} query=${searchQuery} />`;
   }
 
