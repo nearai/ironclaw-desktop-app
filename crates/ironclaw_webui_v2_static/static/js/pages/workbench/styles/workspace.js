@@ -905,6 +905,21 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
   line-height: 1.55;
 }
 .wb13-chat-empty-cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
+/* The calm placeholder while the model judges what needs you — shown instead of the
+   deterministic (unjudged) brief, so the home never flashes noise before the judged result. */
+.wb13-brief-reviewing {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  padding: 15px 18px;
+  border: 1px solid var(--wb-line);
+  border-radius: var(--wb-r-lg);
+  background: var(--wb-canvas);
+  color: var(--wb-muted);
+  font-size: 13.5px;
+  box-shadow: var(--wb-shadow);
+}
 .wb13-alert {
   display: flex;
   align-items: center;

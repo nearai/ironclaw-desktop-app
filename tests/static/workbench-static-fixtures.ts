@@ -23,6 +23,14 @@ type LocalDocumentFixture = {
 };
 
 type WorkbenchMockOptions = {
+  // Auto-run the LLM-judged briefing on home load. OFF by default in tests so the home stays a
+  // deterministic, reproducible composition; opt in per-spec with { autoBrief: true } (the
+  // synthesis is mocked via timelineMessages). Production has no flag → auto-brief is on.
+  autoBrief?: boolean;
+  // Make the briefing synthesis fail FAST (createThread returns no id → the synthesis turn
+  // bails immediately) so the deterministic-fallback path is testable without waiting out the
+  // full poll. Used by the "synthesis fails → deterministic brief" spec.
+  briefSynthUnavailable?: boolean;
   sentMessages?: Array<{ path: string; body: Record<string, unknown> }>;
   activeModelSelections?: Array<Record<string, unknown>>;
   activeModelError?: string;
@@ -309,6 +317,16 @@ export async function seedLocalDocumentWork(page: Page) {
 }
 
 export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOptions = {}) {
+  // The default home auto-runs the LLM-judged brief in production. In tests that would be an
+  // LLM turn with non-deterministic timing, so it is gated OFF here unless a spec opts in with
+  // { autoBrief: true } (which also mocks the synthesis via timelineMessages). This preserves
+  // every existing spec's deterministic home composition.
+  if (!options.autoBrief) {
+    await page.addInitScript(() => {
+      (window as unknown as { __WB_TEST_NO_AUTO_BRIEF__?: boolean }).__WB_TEST_NO_AUTO_BRIEF__ =
+        true;
+    });
+  }
   let activeLlm = { ...llmProviders.active };
   await page.route(/\/(api|auth)\//, async (route: Route) => {
     const url = new URL(route.request().url());
@@ -399,6 +417,11 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
       return json(route, { feed: options.workbenchFeedItems || [] });
     }
     if (path === '/api/webchat/v2/threads' && method === 'POST') {
+      if (options.briefSynthUnavailable) {
+        // No thread id → runSynthesisTurn bails immediately → synthesis resolves null fast →
+        // the deterministic brief renders (the failure fallback) without a long poll.
+        return json(route, { thread: {} });
+      }
       return json(route, {
         thread: {
           id: 'thread-workbench-runtime',

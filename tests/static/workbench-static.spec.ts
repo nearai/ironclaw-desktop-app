@@ -3018,6 +3018,10 @@ test('static workbench: a briefing whose synthesis returns no JSON falls back to
   page
 }) => {
   await installWorkbenchMocks(page, {
+    // Synthesis fails fast (createThread returns no id) so the deterministic-fallback path
+    // renders promptly instead of polling out the full window (the reviewing placeholder shows
+    // only while the turn is in flight; on failure it falls back to the deterministic brief).
+    briefSynthUnavailable: true,
     connectorAccounts: [
       { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
       { toolkit: 'slack', status: 'ACTIVE', user_id: 'pg-test' }
@@ -3101,6 +3105,107 @@ test('static workbench: a briefing whose synthesis returns no JSON falls back to
   await expect(briefing).toContainText('Renewal terms for Q3');
   await page.waitForTimeout(2500);
   await expect(page.getByTestId('workbench-brief')).toHaveCount(0);
+});
+
+test('static workbench: the DEFAULT home auto-runs the LLM-judged brief and suppresses the deterministic sections', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    autoBrief: true,
+    connectorAccounts: [
+      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
+      { toolkit: 'slack', status: 'ACTIVE', user_id: 'pg-test' }
+    ],
+    connectorReads: {
+      gmail: {
+        successful: true,
+        data: {
+          messages: [
+            {
+              messageId: 'm1',
+              threadId: 't1',
+              sender: 'Dana Lee <dana@customer.example>',
+              subject: 'Renewal terms for Q3',
+              snippet: 'net 60',
+              labelIds: ['UNREAD', 'INBOX']
+            }
+          ]
+        }
+      }
+    },
+    // The judged synthesis result: ONE genuine owed reply, nothing worth weighing in.
+    timelineMessages: [
+      {
+        kind: 'assistant',
+        content: JSON.stringify({
+          needsYou: [
+            {
+              id: 'm1',
+              source: 'Email',
+              sender: 'Dana Lee',
+              badges: ['Decision'],
+              context: 'Renewal terms for Q3 need your sign-off before the quote goes out.',
+              suggestedReply: 'net 45 and an 8% cap work — sending the redline now.',
+              replyHref: ''
+            }
+          ],
+          worthWeighingIn: []
+        })
+      }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  // No "catch me up" click: the judged brief renders on its own.
+  const brief = page.getByTestId('workbench-brief');
+  await expect(brief).toBeVisible({ timeout: 15000 });
+  await expect(brief).toContainText('Renewal terms for Q3');
+  // The raw deterministic sections are suppressed — the judged brief is authoritative, so the
+  // home shows the judged result, not a second noisier copy below it.
+  await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-slack-replies')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-slack-weighin')).toHaveCount(0);
+});
+
+test('static workbench: the AUTO-judged home shows an honest empty state when nothing needs you', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    autoBrief: true,
+    connectorAccounts: [
+      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
+      { toolkit: 'slack', status: 'ACTIVE', user_id: 'pg-test' }
+    ],
+    connectorReads: {
+      gmail: {
+        successful: true,
+        data: {
+          messages: [
+            {
+              // A normal (non-bulk) email so it reaches the synthesis — which then JUDGES that
+              // no reply is actually owed and returns empty (an FYI, not an ask).
+              messageId: 'm9',
+              threadId: 't9',
+              sender: 'Carla Bertoncelli <carla@near.foundation>',
+              subject: 'FYI — notes from the working session',
+              snippet: 'sharing for visibility, no action needed',
+              labelIds: ['UNREAD', 'INBOX']
+            }
+          ]
+        }
+      }
+    },
+    // The model judged everything out — the honest, expected answer for an FYI/announcement.
+    timelineMessages: [
+      { kind: 'assistant', content: JSON.stringify({ needsYou: [], worthWeighingIn: [] }) }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  const brief = page.getByTestId('workbench-brief');
+  await expect(brief).toBeVisible({ timeout: 15000 });
+  await expect(brief).toContainText(/nothing needs you|all clear/i);
+  // No manufactured priorities: the deterministic noise is suppressed, not shown below.
+  await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-slack-weighin')).toHaveCount(0);
 });
 
 test('static workbench: real unread mail renders as v13 Needs you cards', async ({ page }) => {

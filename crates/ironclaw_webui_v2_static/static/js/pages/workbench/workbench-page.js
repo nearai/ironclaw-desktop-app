@@ -407,6 +407,11 @@ function HomeView(props) {
 
   // visible(...filters): a section shows in 'all', plus the filters it's tagged with.
   const visible = (...filters) => centerFilter === 'all' || filters.includes(centerFilter);
+  // When a briefing is present or being synthesized, IT is the authoritative "what needs you"
+  // view (the model judged the same email/Slack signals and dropped the noise). Suppress the
+  // raw deterministic decision + Slack sections so the home shows the judged result, not a
+  // second, noisier copy below it.
+  const briefingActive = Boolean(props.briefing) || Boolean(props.briefingPending);
   const triageStatusFilter = triageStatusFilterFor(centerFilter);
   const filterHasContent = centerFilterHasContent(centerFilter, countCtx);
   const activeLabel = CENTER_FILTERS.find((f) => f.id === centerFilter)?.label || '';
@@ -450,21 +455,27 @@ function HomeView(props) {
                 </div>
               `
             : null}
-          ${centerFilter === 'all' && props.briefing?.kind === 'rich'
-            ? html`<${React.Suspense} fallback=${null}>
-                <${WorkbenchBrief}
-                  briefing=${props.briefing}
-                  onDraftReply=${props.onBriefDraftReply}
-                  onDismiss=${props.onDismissBriefing}
-                />
-              </${React.Suspense}>`
-            : centerFilter === 'all'
-              ? html`<${WorkbenchBriefing}
-                  briefing=${props.briefing}
-                  onOpenMessage=${props.onOpenMessage}
-                  onDismiss=${props.onDismissBriefing}
-                />`
-              : null}
+          ${centerFilter === 'all' &&
+          (props.briefing?.kind === 'reviewing' || (props.briefingPending && !props.briefing))
+            ? html`<div className="wb13-brief-reviewing" data-testid="workbench-brief-reviewing">
+                <span className="wb13-typing" aria-hidden="true"><i></i><i></i><i></i></span>
+                <span>Reviewing what needs you…</span>
+              </div>`
+            : centerFilter === 'all' && props.briefing?.kind === 'rich'
+              ? html`<${React.Suspense} fallback=${null}>
+                  <${WorkbenchBrief}
+                    briefing=${props.briefing}
+                    onDraftReply=${props.onBriefDraftReply}
+                    onDismiss=${props.onDismissBriefing}
+                  />
+                </${React.Suspense}>`
+              : centerFilter === 'all' && props.briefing
+                ? html`<${WorkbenchBriefing}
+                    briefing=${props.briefing}
+                    onOpenMessage=${props.onOpenMessage}
+                    onDismiss=${props.onDismissBriefing}
+                  />`
+                : null}
           ${visible('blocked')
             ? html`<${WorkbenchSlackBlockers}
                 active=${props.slackBlockersActive}
@@ -474,7 +485,7 @@ function HomeView(props) {
                 onDismiss=${props.onDismissSlackBlockers}
               />`
             : null}
-          ${visible('replies')
+          ${visible('replies') && !briefingActive
             ? html`<${WorkbenchDecisions}
                 gmailReady=${props.gmailReady}
                 messages=${props.decisionMessages}
@@ -483,14 +494,14 @@ function HomeView(props) {
                 onDismiss=${props.onDismissDecision}
               />`
             : null}
-          ${visible('replies')
+          ${visible('replies') && !briefingActive
             ? html`<${WorkbenchSlackReplies}
                 items=${props.slackAwaiting}
                 onReply=${props.onSlackReply}
                 onDismiss=${props.onSlackDismiss}
               />`
             : null}
-          ${visible('replies')
+          ${visible('replies') && !briefingActive
             ? html`<${WorkbenchSlackReplies}
                 items=${props.slackWeighIn}
                 onReply=${props.onSlackReply}
@@ -1476,7 +1487,10 @@ export function WorkbenchPage() {
       sentThreadIndex,
       now: new Date()
     });
-    setBriefing(det);
+    // Show a calm "reviewing" placeholder while the model judges — NOT the deterministic brief,
+    // whose unjudged needsYou/weighIn are the noise we're removing. The det is carried (same
+    // object) so it's the instant fallback if synthesis fails (see the .then/.catch below).
+    setBriefing({ ...det, kind: 'reviewing' });
     setBrief('');
     // Upgrade to the RICH briefing via a tool-free synthesis turn (no tool calls →
     // does not hit the long multi-tool wedge). On success, swap in the five-section
@@ -1504,9 +1518,14 @@ export function WorkbenchPage() {
         })
       )
       .then((rich) => {
-        if (rich && briefingTokenRef.current === token) setBriefing({ ...rich, kind: 'rich' });
+        if (briefingTokenRef.current !== token) return;
+        // Rich judged result when it lands; on synthesis failure fall back to the deterministic
+        // brief (drop the 'reviewing' marker so it renders — better than a stuck placeholder).
+        setBriefing(rich ? { ...rich, kind: 'rich' } : det);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (briefingTokenRef.current === token) setBriefing(det);
+      });
   }, [
     connectorInbox.messages,
     connectorCalendar.events,
@@ -1534,6 +1553,21 @@ export function WorkbenchPage() {
     if (!briefingPending || briefingReadsPending) return;
     runBriefing();
   }, [briefingPending, briefingReadsPending, runBriefing]);
+  // Auto-run the LLM-judged briefing ONCE per page session, the moment the eager reads settle,
+  // so the DEFAULT home is the model's judged "what needs you" (or an honest "nothing does") —
+  // not the deterministic noise. Latched (never re-fires); never overrides a manual brief or one
+  // the user dismissed. Setting briefingPending hands off to the effect above. Gated off in the
+  // static test harness (window.__WB_TEST_NO_AUTO_BRIEF__) so specs keep a deterministic home.
+  const autoBriefedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (autoBriefedRef.current) return;
+    if (typeof window !== 'undefined' && window.__WB_TEST_NO_AUTO_BRIEF__) return;
+    if (view !== 'home' || !canBrief) return;
+    if (briefing || briefingPending || briefingReadsPending) return;
+    autoBriefedRef.current = true;
+    setBriefingSlackActive(true);
+    setBriefingPending(true);
+  }, [view, canBrief, briefing, briefingPending, briefingReadsPending]);
 
   const dismissBriefing = React.useCallback(() => {
     setBriefingPending(false);
@@ -1756,6 +1790,7 @@ export function WorkbenchPage() {
                         commandProps=${commandProps}
                         startedWork=${startedWork}
                         briefing=${briefing}
+                        briefingPending=${briefingPending}
                         onDismissBriefing=${dismissBriefing}
                         onBriefDraftReply=${onBriefDraftReply}
                         slackBlockersActive=${slackBlockersActive}
