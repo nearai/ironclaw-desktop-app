@@ -227,10 +227,19 @@ test('static keyboard: model selector opens, closes, and keeps setup reachable',
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
+  // Reopen the model popover (keyboard) and follow its "Manage in Settings"
+  // link. Wait for the popover + link to be actionable before driving them so
+  // the navigation can't race under full-suite CPU contention.
   await page.getByRole('button', { name: 'Chat model settings' }).press('Enter');
-  await page.getByRole('link', { name: 'Manage NEAR AI Cloud in Settings' }).press('Enter');
+  const manageLink = page.getByRole('link', { name: 'Manage NEAR AI Cloud in Settings' });
+  await expect(manageLink).toBeVisible();
+  await manageLink.click();
   await expect(page).toHaveURL(/\/v2\/settings\/inference/);
-  await expect(page.getByRole('heading', { name: 'NEAR AI Cloud' })).toBeVisible();
+  // Wait for the model popover to fully detach before asserting the settings
+  // heading: its own "NEAR AI Cloud" line can otherwise briefly co-exist with
+  // the page heading mid-navigation and trip strict mode under full-suite load.
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'NEAR AI Cloud' }).first()).toBeVisible();
 });
 
 test('static keyboard: command palette navigates without exposing hidden surfaces', async ({
