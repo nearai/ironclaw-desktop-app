@@ -142,11 +142,6 @@ export function AuthOauthCard({ gate, onCancel }) {
         ${t('authGate.oauthLinkUnavailable')}
       </p>`}
       ${hasHttpsAuthorizationUrl &&
-      expired &&
-      html`<p className="mt-2 text-xs text-[var(--v2-warning-text)]">
-        ${t('authGate.oauthExpired')}
-      </p>`}
-      ${hasHttpsAuthorizationUrl &&
       !expired &&
       opened &&
       html` <p className="mt-2 text-xs text-iron-300">${t('authGate.oauthWaiting')}</p> `}

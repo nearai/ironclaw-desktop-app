@@ -57,7 +57,12 @@ export function MessageList({
     // Capture the scroll height before the older page lands so the layout effect
     // can offset scrollTop by exactly the height the prepend added.
     if (el) prependAnchorRef.current = el.scrollHeight;
-    onLoadMore?.();
+    // If the page never lands (fetch rejects, or it dedupes to the same message
+    // array so the layout effect never re-runs), clear the anchor — otherwise a
+    // later bottom-append would consume the stale offset and suppress autoscroll.
+    Promise.resolve(onLoadMore?.()).catch(() => {
+      prependAnchorRef.current = null;
+    });
   }, [onLoadMore]);
 
   const onScroll = React.useCallback(() => {
