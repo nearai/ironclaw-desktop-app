@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router';
 import { React, html } from '../../../lib/html.js';
 import { MarkdownRenderer } from './markdown-renderer.js';
 import { ToolActivity } from './tool-activity.js';
@@ -243,6 +244,9 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
     timestamp
   } = message;
   const isUser = role === 'user';
+  // Client-side route change after a save, so opening a saved work product never
+  // tears down the SPA with a full document load (work-product-save fallback).
+  const navigate = useNavigate();
   const [copied, setCopied] = React.useState(false);
   const [attachmentsExpanded, setAttachmentsExpanded] = React.useState(false);
   // Hook order: declared with the other hooks, before every role-based
@@ -360,12 +364,14 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
             title=${titleFromMarkdown(displayContent) || 'Generated document'}
             content=${content || ''}
             messages=${messages}
+            navigate=${navigate}
             copied=${copied}
             onCopy=${copy}
           />`}
           ${hasGeneratedFiles &&
           html`<${GeneratedFileArtifactStack}
             artifacts=${generatedFileArtifacts}
+            navigate=${navigate}
             onPreview=${(artifact) =>
               setGeneratedFilePreview(generatedFilePreviewAttachment(artifact))}
           />`}
@@ -487,7 +493,11 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
                 ${copied ? 'Copied' : 'Copy'}
               </button>
               ${role === 'assistant' &&
-              html`<${AssistantExportActions} content=${content || ''} messages=${messages} />`}
+              html`<${AssistantExportActions}
+                content=${content || ''}
+                messages=${messages}
+                navigate=${navigate}
+              />`}
             `}
             ${status === 'error' &&
             onRetry &&
@@ -511,7 +521,7 @@ export function MessageBubble({ message, messages = [], onRetry, threadId }) {
   `;
 }
 
-function GeneratedWorkProductHeader({ title, content, messages, copied, onCopy }) {
+function GeneratedWorkProductHeader({ title, content, messages, navigate, copied, onCopy }) {
   return html`
     <div
       className="mb-4 flex flex-wrap items-center gap-3 border-b border-[var(--v2-panel-border)] pb-3"
@@ -549,6 +559,7 @@ function GeneratedWorkProductHeader({ title, content, messages, copied, onCopy }
         <${AssistantExportActions}
           content=${content}
           messages=${messages}
+          navigate=${navigate}
           subjectLabel="generated document"
           popoverSide="bottom"
         />
@@ -557,7 +568,7 @@ function GeneratedWorkProductHeader({ title, content, messages, copied, onCopy }
   `;
 }
 
-function GeneratedFileArtifactStack({ artifacts, onPreview }) {
+function GeneratedFileArtifactStack({ artifacts, navigate, onPreview }) {
   if (!artifacts?.length) return null;
   return html`
     <div className="mb-3 grid gap-2" data-testid="generated-file-artifacts">
@@ -566,6 +577,7 @@ function GeneratedFileArtifactStack({ artifacts, onPreview }) {
           html`<${GeneratedFileArtifactCard}
             key=${artifact.id || artifact.filename}
             artifact=${artifact}
+            navigate=${navigate}
             onPreview=${onPreview}
           />`
       )}
@@ -573,7 +585,7 @@ function GeneratedFileArtifactStack({ artifacts, onPreview }) {
   `;
 }
 
-function GeneratedFileArtifactCard({ artifact, onPreview }) {
+function GeneratedFileArtifactCard({ artifact, navigate, onPreview }) {
   const [busy, setBusy] = React.useState('');
   const kind = generatedFileKindLabel(artifact);
   const filename = artifact.filename || artifact.title || 'generated-output';
@@ -605,7 +617,7 @@ function GeneratedFileArtifactCard({ artifact, onPreview }) {
         return;
       }
       toast('Saved to Work', { tone: 'success' });
-      openSavedWorkProduct(saved);
+      openSavedWorkProduct(saved, { navigate });
     } catch {
       toast('Could not save work product', { tone: 'error' });
     }
@@ -672,6 +684,7 @@ function GeneratedFileArtifactCard({ artifact, onPreview }) {
 function AssistantExportActions({
   content,
   messages,
+  navigate,
   subjectLabel = 'assistant response',
   popoverSide = 'top'
 }) {
@@ -763,7 +776,7 @@ function AssistantExportActions({
     <span ref=${rootRef} className="contents">
       <button
         type="button"
-        onClick=${() => saveToWork(title, content, messages)}
+        onClick=${() => saveToWork(title, content, messages, navigate)}
         className=${actionClass('primary')}
         aria-label=${`Save ${subject} to Work`}
       >
@@ -847,7 +860,7 @@ function actionClass(tone = 'default') {
   ].join(' ');
 }
 
-function saveToWork(title, content, messages = []) {
+function saveToWork(title, content, messages = [], navigate) {
   try {
     const saved = saveAssistantResponseToWork({ title, content, messages });
     if (!saved) {
@@ -859,7 +872,7 @@ function saveToWork(title, content, messages = []) {
       return;
     }
     toast('Saved to Work', { tone: 'success' });
-    openSavedWorkProduct(saved);
+    openSavedWorkProduct(saved, { navigate });
   } catch {
     toast('Could not save work product', { tone: 'error' });
   }

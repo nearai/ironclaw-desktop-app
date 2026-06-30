@@ -95,6 +95,34 @@ function EmptyWorkState({ missing }) {
   `;
 }
 
+// Article-pane state for a broken deep link: the sidebar stays visible (so the
+// user can pick a real item) while the reader honestly reports the dead link
+// instead of substituting an unrelated saved artifact.
+function NotFoundArticle() {
+  return html`
+    <div
+      className="flex min-h-[60vh] flex-col items-center justify-center px-6 py-10 text-center"
+      data-testid="saved-work-not-found"
+    >
+      <div
+        className="grid h-12 w-12 place-items-center rounded-[14px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+      >
+        <${Icon} name="file" className="h-5 w-5" />
+      </div>
+      <h1 className="mt-5 text-2xl font-semibold text-[var(--v2-text-strong)]">
+        Saved work not found
+      </h1>
+      <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
+        That saved artifact is no longer in this desktop profile. Pick another item from the list,
+        or head back to chat.
+      </p>
+      <div className="mt-6">
+        <${Button} as=${Link} to="/chat" variant="primary">Back to chat<//>
+      </div>
+    </div>
+  `;
+}
+
 function WorkExportActions({ item, artifact }) {
   const [busy, setBusy] = React.useState('');
   const content = artifactTextContent(artifact);
@@ -321,27 +349,38 @@ export function WorkPage() {
 
   const requestedItemId = params.get('item') || '';
   const requestedArtifactId = params.get('artifact') || '';
-  const selectedItem =
+  const requestedItem =
     items.find((item) => item?.id === requestedItemId) || (!requestedItemId ? items[0] : null);
-  const selectedArtifact = findArtifact(selectedItem, requestedArtifactId);
+  const requestedArtifact = findArtifact(requestedItem, requestedArtifactId);
   // "missing" = a deep link pointed at something that no longer resolves: an
   // item id with no matching item, or an artifact id with no matching artifact.
-  // Either way we show the "not found" state instead of substituting a doc.
+  // We never substitute a different doc into the reader; instead the article
+  // pane shows an honest "not found" notice while the sidebar stays visible so
+  // the user is not stranded on a dead page.
   const missing = Boolean(
-    (requestedItemId && !selectedItem) || (requestedArtifactId && !selectedArtifact)
+    (requestedItemId && !requestedItem) || (requestedArtifactId && !requestedArtifact)
   );
 
-  if (!items.length || missing || !selectedItem || !selectedArtifact) {
-    return html`<${EmptyWorkState} missing=${missing} />`;
+  // With no saved work at all there is nothing to frame, so keep the full-bleed
+  // empty state. Once items exist, always render the two-pane layout (sidebar +
+  // article) — a broken deep link only changes what the article pane shows.
+  if (!items.length) {
+    return html`<${EmptyWorkState} missing=${false} />`;
   }
 
-  const content = artifactTextContent(selectedArtifact);
-  const linkedThread = safeList(selectedItem.links).find((link) => link?.kind === 'thread');
-  const provenance = safeList(selectedArtifact.provenance).join(', ') || 'chat';
+  // When the deep link resolves, read that item/artifact; when it does not,
+  // anchor the sidebar selection on the first item but render the not-found
+  // notice in the article pane rather than its content.
+  const selectedItem = missing ? null : requestedItem;
+  const selectedArtifact = missing ? null : requestedArtifact;
+
+  const content = selectedArtifact ? artifactTextContent(selectedArtifact) : '';
+  const linkedThread = safeList(selectedItem?.links).find((link) => link?.kind === 'thread');
+  const provenance = safeList(selectedArtifact?.provenance).join(', ') || 'chat';
   // Dossier provenance captured at save time (work-product-save.dossierFromMessages):
   // the original ask + the receipts of what the agent actually did.
-  const askEntry = safeList(selectedItem.dossier).find((entry) => entry?.kind === 'ask');
-  const receipts = safeList(selectedItem.receipts);
+  const askEntry = safeList(selectedItem?.dossier).find((entry) => entry?.kind === 'ask');
+  const receipts = safeList(selectedItem?.receipts);
 
   // Filter by title, then page: show the first N and let the user expand the
   // rest so saved work past the 30th item is always reachable (search finds it
@@ -407,7 +446,7 @@ export function WorkPage() {
               ${visibleItems.map((item) => {
                 const artifact = firstReadyArtifact(item);
                 const href = artifact ? workArtifactHref(item.id, artifact.id) : '/work';
-                const active = item.id === selectedItem.id;
+                const active = item.id === selectedItem?.id;
                 const snippet = snippetById.get(item.id);
                 return html`
                   <${Link}
@@ -452,163 +491,172 @@ export function WorkPage() {
           <article
             className="min-w-0 rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] shadow-[var(--v2-card-shadow)]"
           >
-            <div
-              className="border-b border-[var(--v2-panel-border)] px-5 py-4 sm:flex sm:items-start sm:justify-between sm:gap-4"
-            >
-              <div className="min-w-0">
-                <div
-                  className="flex flex-wrap items-center gap-2 text-xs text-[var(--v2-text-muted)]"
-                >
-                  ${
-                    /* Gold = the agent's hand (DESIGN.md color meaning). A saved
+            ${missing
+              ? html`<${NotFoundArticle} />`
+              : html`
+                  <div
+                    className="border-b border-[var(--v2-panel-border)] px-5 py-4 sm:flex sm:items-start sm:justify-between sm:gap-4"
+                  >
+                    <div className="min-w-0">
+                      <div
+                        className="flex flex-wrap items-center gap-2 text-xs text-[var(--v2-text-muted)]"
+                      >
+                        ${
+                          /* Gold = the agent's hand (DESIGN.md color meaning). A saved
                     work product is generated agent work, so the header badge is
                     gold to match the "Generated document" chip in chat and the
                     file-artifact preview below — not success-green, which is a
                     status this surface cannot prove and read inconsistently
                     against the gold body chip. */ ''
-                  }
-                  <span
-                    className="rounded-full border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-2 py-1 text-[var(--v2-gold-text)]"
-                  >
-                    ${selectedArtifact.type === 'file' || selectedArtifact.data_base64
-                      ? `${generatedFileKindLabel(selectedArtifact)} artifact`
-                      : selectedArtifact.type === 'document'
-                        ? 'Saved document'
-                        : 'Saved note'}
-                  </span>
-                  <span>${readableDate(selectedItem.updated_at || selectedItem.created_at)}</span>
-                  <span>Source: ${provenance}</span>
-                </div>
-                <h1 className="mt-3 truncate text-xl font-semibold text-[var(--v2-text-strong)]">
-                  ${selectedArtifact.title || selectedItem.title || 'Saved work product'}
-                </h1>
-                <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
-                  ${selectedItem.objective || 'Saved work product from chat.'}
-                </p>
-              </div>
-              <div className="mt-4 flex shrink-0 gap-2 sm:mt-0">
-                ${linkedThread?.ref
-                  ? html`
-                      <${Button}
-                        as=${Link}
-                        to=${`/chat/${encodeURIComponent(linkedThread.ref)}`}
-                        variant="secondary"
-                        className="min-h-[44px]"
-                      >
-                        Open thread
-                      <//>
-                    `
-                  : html`<${Button}
-                      as=${Link}
-                      to="/chat"
-                      variant="secondary"
-                      className="min-h-[44px]"
-                    >
-                      Back to chat
-                    <//>`}
-              </div>
-            </div>
-
-            <div className="space-y-5 px-5 py-5">
-              <div
-                role="group"
-                aria-label="Work view"
-                className="inline-flex rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-0.5"
-              >
-                ${['saved', 'activity'].map(
-                  (mode) =>
-                    html`<button
-                      key=${mode}
-                      type="button"
-                      aria-pressed=${view === mode}
-                      onClick=${() => setView(mode)}
-                      className=${[
-                        'min-h-[44px] rounded-[8px] px-3 text-sm font-medium',
-                        view === mode
-                          ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
-                          : 'text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]'
-                      ].join(' ')}
-                    >
-                      ${mode === 'saved' ? 'Saved' : 'Activity'}
-                    </button>`
-                )}
-              </div>
-              ${view === 'activity'
-                ? html`<${WorkActivityLedger} items=${items} />`
-                : html`
-                    <${WorkExportActions} item=${selectedItem} artifact=${selectedArtifact} />
-                    ${askEntry?.text &&
-                    html`<section
-                      className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
-                      data-testid="dossier-ask"
-                    >
-                      <div
-                        className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-                      >
-                        The ask
+                        }
+                        <span
+                          className="rounded-full border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-2 py-1 text-[var(--v2-gold-text)]"
+                        >
+                          ${selectedArtifact.type === 'file' || selectedArtifact.data_base64
+                            ? `${generatedFileKindLabel(selectedArtifact)} artifact`
+                            : selectedArtifact.type === 'document'
+                              ? 'Saved document'
+                              : 'Saved note'}
+                        </span>
+                        <span
+                          >${readableDate(selectedItem.updated_at || selectedItem.created_at)}</span
+                        >
+                        <span>Source: ${provenance}</span>
                       </div>
-                      <p
-                        className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-[var(--v2-text)]"
+                      <h1
+                        className="mt-3 truncate text-xl font-semibold text-[var(--v2-text-strong)]"
                       >
-                        ${askEntry.text}
+                        ${selectedArtifact.title || selectedItem.title || 'Saved work product'}
+                      </h1>
+                      <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
+                        ${selectedItem.objective || 'Saved work product from chat.'}
                       </p>
-                    </section>`}
-                    ${receipts.length > 0 &&
-                    html`<section
-                      className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
-                      data-testid="dossier-receipts"
-                    >
-                      <div
-                        className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-                      >
-                        What IronClaw did
-                      </div>
-                      <ul className="mt-2 grid gap-1.5">
-                        ${receipts.map(
-                          (receipt, index) => html`
-                            <li
-                              key=${index}
-                              className="grid grid-cols-[auto_1fr] items-baseline gap-2 text-sm"
-                            >
-                              <span
-                                className="grid h-6 w-6 place-items-center rounded-[6px] border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
-                              >
-                                <${Icon} name="bolt" className="h-3.5 w-3.5" />
-                              </span>
-                              <span className="min-w-0">
-                                <span className="font-medium text-[var(--v2-text-strong)]"
-                                  >${receipt.label}</span
-                                >${receipt.status
-                                  ? html`<span className="ml-2 text-xs text-[var(--v2-text-faint)]"
-                                      >${receipt.status}</span
-                                    >`
-                                  : ''}
-                                ${receipt.detail
-                                  ? html`<span
-                                      className="mt-0.5 block truncate text-xs text-[var(--v2-text-muted)]"
-                                      title=${receipt.detail}
-                                      >${receipt.detail}</span
-                                    >`
-                                  : ''}
-                              </span>
-                            </li>
-                          `
-                        )}
-                      </ul>
-                    </section>`}
-                    <div
-                      className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas)] p-4 sm:p-6"
-                      data-testid="saved-work-artifact"
-                    >
-                      ${content
-                        ? html`<${MarkdownRenderer}
-                            content=${content}
-                            className="max-w-none text-[14px] leading-7 text-[var(--v2-text)]"
-                          />`
-                        : html`<${SavedFileArtifactPreview} artifact=${selectedArtifact} />`}
                     </div>
-                  `}
-            </div>
+                    <div className="mt-4 flex shrink-0 gap-2 sm:mt-0">
+                      ${linkedThread?.ref
+                        ? html`
+                            <${Button}
+                              as=${Link}
+                              to=${`/chat/${encodeURIComponent(linkedThread.ref)}`}
+                              variant="secondary"
+                              className="min-h-[44px]"
+                            >
+                              Open thread
+                            <//>
+                          `
+                        : html`<${Button}
+                            as=${Link}
+                            to="/chat"
+                            variant="secondary"
+                            className="min-h-[44px]"
+                          >
+                            Back to chat
+                          <//>`}
+                    </div>
+                  </div>
+
+                  <div className="space-y-5 px-5 py-5">
+                    <div
+                      role="group"
+                      aria-label="Work view"
+                      className="inline-flex rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-0.5"
+                    >
+                      ${['saved', 'activity'].map(
+                        (mode) =>
+                          html`<button
+                            key=${mode}
+                            type="button"
+                            aria-pressed=${view === mode}
+                            onClick=${() => setView(mode)}
+                            className=${[
+                              'min-h-[44px] rounded-[8px] px-3 text-sm font-medium',
+                              view === mode
+                                ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
+                                : 'text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]'
+                            ].join(' ')}
+                          >
+                            ${mode === 'saved' ? 'Saved' : 'Activity'}
+                          </button>`
+                      )}
+                    </div>
+                    ${view === 'activity'
+                      ? html`<${WorkActivityLedger} items=${items} />`
+                      : html`
+                          <${WorkExportActions} item=${selectedItem} artifact=${selectedArtifact} />
+                          ${askEntry?.text &&
+                          html`<section
+                            className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
+                            data-testid="dossier-ask"
+                          >
+                            <div
+                              className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+                            >
+                              The ask
+                            </div>
+                            <p
+                              className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-[var(--v2-text)]"
+                            >
+                              ${askEntry.text}
+                            </p>
+                          </section>`}
+                          ${receipts.length > 0 &&
+                          html`<section
+                            className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
+                            data-testid="dossier-receipts"
+                          >
+                            <div
+                              className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+                            >
+                              What IronClaw did
+                            </div>
+                            <ul className="mt-2 grid gap-1.5">
+                              ${receipts.map(
+                                (receipt, index) => html`
+                                  <li
+                                    key=${index}
+                                    className="grid grid-cols-[auto_1fr] items-baseline gap-2 text-sm"
+                                  >
+                                    <span
+                                      className="grid h-6 w-6 place-items-center rounded-[6px] border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+                                    >
+                                      <${Icon} name="bolt" className="h-3.5 w-3.5" />
+                                    </span>
+                                    <span className="min-w-0">
+                                      <span className="font-medium text-[var(--v2-text-strong)]"
+                                        >${receipt.label}</span
+                                      >${receipt.status
+                                        ? html`<span
+                                            className="ml-2 text-xs text-[var(--v2-text-faint)]"
+                                            >${receipt.status}</span
+                                          >`
+                                        : ''}
+                                      ${receipt.detail
+                                        ? html`<span
+                                            className="mt-0.5 block truncate text-xs text-[var(--v2-text-muted)]"
+                                            title=${receipt.detail}
+                                            >${receipt.detail}</span
+                                          >`
+                                        : ''}
+                                    </span>
+                                  </li>
+                                `
+                              )}
+                            </ul>
+                          </section>`}
+                          <div
+                            className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas)] p-4 sm:p-6"
+                            data-testid="saved-work-artifact"
+                          >
+                            ${content
+                              ? html`<${MarkdownRenderer}
+                                  content=${content}
+                                  className="max-w-none text-[14px] leading-7 text-[var(--v2-text)]"
+                                />`
+                              : html`<${SavedFileArtifactPreview} artifact=${selectedArtifact} />`}
+                          </div>
+                        `}
+                  </div>
+                `}
           </article>
         </div>
       </div>

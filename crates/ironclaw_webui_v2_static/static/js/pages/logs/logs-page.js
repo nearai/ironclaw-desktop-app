@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import { Button } from '../../design-system/button.js';
+import { ConfirmDialog } from '../../design-system/confirm-dialog.js';
 import { EmptyPanel } from '../../design-system/primitives.js';
 import { React, html } from '../../lib/html.js';
 import { useT } from '../../lib/i18n.js';
@@ -93,6 +94,10 @@ export function LogsPage() {
   // labelled selects.
   const liveStream = status !== 'todo';
 
+  // Themed in-frame confirm for Clear, replacing window.confirm() (wrong chrome,
+  // non-native in the desktop webview, blocks the render thread).
+  const [confirm, setConfirm] = React.useState(null);
+
   const outputRef = React.useRef(null);
 
   React.useEffect(() => {
@@ -157,9 +162,14 @@ export function LogsPage() {
 
             <!-- Clear -->
             <button
-              onClick=${() => {
-                if (confirm(t('logs.confirmClear'))) clearEntries();
-              }}
+              onClick=${() =>
+                setConfirm({
+                  title: t('logs.clear'),
+                  message: t('logs.confirmClear'),
+                  confirmLabel: t('logs.clear'),
+                  tone: 'danger',
+                  onConfirm: clearEntries
+                })}
               className="h-11 rounded-[8px] border border-[var(--v2-panel-border)] px-3 text-xs text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
             >
               ${t('logs.clear')}
@@ -207,6 +217,7 @@ export function LogsPage() {
             `
           : entries.map((entry, i) => html`<${LogEntry} key=${i} entry=${entry} />`)}
       </div>
+      <${ConfirmDialog} request=${confirm} onClose=${() => setConfirm(null)} />
     </div>
   `;
 }

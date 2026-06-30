@@ -98,6 +98,7 @@ function createMessageBubbleContext(overrides = {}) {
         type: artifact.mime_type || 'application/octet-stream'
       })
     }),
+    useNavigate: () => () => {},
     navigator: { clipboard: { writeText: () => Promise.resolve() } },
     setTimeout: () => {},
     ...overrides

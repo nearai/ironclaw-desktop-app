@@ -671,16 +671,9 @@ function markdownBlocks(content, state) {
       continue;
     }
     if (isMarkdownTableRow(line)) {
-      if (!/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line)) {
+      if (!isMarkdownTableSeparatorRow(line)) {
         tableSourceRows.push(line.trim());
-        tableRows.push(
-          line
-            .trim()
-            .replace(/^\|/, '')
-            .replace(/\|$/, '')
-            .split(/(?<!\\)\|/)
-            .map((cell) => cell.replace(/\\\|/g, '|').trim())
-        );
+        tableRows.push(markdownTableCells(line));
       }
       continue;
     }
@@ -834,6 +827,25 @@ function isMarkdownTableRow(line) {
   return /^\s*\|.*\|\s*$/.test(line);
 }
 
+// The GFM header/body delimiter row (e.g. `|---|:--:|`). Carries no data, so
+// both the DOCX table builder and the PDF token stream skip it instead of
+// printing the pipes-and-dashes literally.
+const MARKDOWN_TABLE_SEPARATOR = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/;
+
+function isMarkdownTableSeparatorRow(line) {
+  return MARKDOWN_TABLE_SEPARATOR.test(line);
+}
+
+// Split a markdown table row into trimmed cell strings, honoring escaped pipes.
+function markdownTableCells(line) {
+  return line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split(/(?<!\\)\|/)
+    .map((cell) => cell.replace(/\\\|/g, '|').trim());
+}
+
 // Validate and trim the PDF image inputs. A PDF embed needs the JPEG variant
 // (DCTDecode); entries without one fall back to source-only, so DOCX-style
 // PNG-only payloads do not break the PDF path.
@@ -863,8 +875,22 @@ function tokensForPdf(content, images = []) {
   let codeLanguage = '';
   let mermaidSource = [];
   let mermaidLabelIndex = -1;
+  // Buffer consecutive markdown table rows so the table renders as aligned
+  // monospace columns instead of raw pipe text. The GFM `|---|` delimiter row is
+  // dropped; remaining rows are padded to a shared per-column width.
+  let tableBuffer = [];
+  const flushPdfTable = () => {
+    if (!tableBuffer.length) return;
+    for (const wrapped of pdfTableLines(tableBuffer)) tokens.push(wrapped);
+    tableBuffer = [];
+  };
 
   for (const line of String(content || '').split(/\r?\n/)) {
+    if (!inCode && isMarkdownTableRow(line)) {
+      if (!isMarkdownTableSeparatorRow(line)) tableBuffer.push(markdownTableCells(line));
+      continue;
+    }
+    flushPdfTable();
     const fence = parseFence(line);
     if (fence) {
       if (inCode) {
@@ -898,7 +924,36 @@ function tokensForPdf(content, images = []) {
       }
     }
   }
+  flushPdfTable();
   return tokens.length ? tokens : ['IronClaw export'];
+}
+
+// Render buffered markdown table rows as aligned monospace text lines: each
+// column is padded to the widest cell in that column (sanitized of inline
+// markdown), and a dashed rule separates the header row from the body. The
+// PDF text path word-wraps overly wide lines, so wide tables still paginate.
+function pdfTableLines(rows) {
+  if (!rows.length) return [];
+  const cells = rows.map((row) => row.map((cell) => stripMarkdown(cell).trim()));
+  const columnCount = cells.reduce((max, row) => Math.max(max, row.length), 0);
+  const widths = [];
+  for (let col = 0; col < columnCount; col += 1) {
+    widths[col] = cells.reduce((max, row) => Math.max(max, (row[col] || '').length), 0);
+  }
+  const renderRow = (row) =>
+    widths
+      .map((width, col) => (row[col] || '').padEnd(width))
+      .join('  ')
+      .trimEnd();
+  const lines = [];
+  cells.forEach((row, index) => {
+    for (const wrapped of wrapPdfLine(renderRow(row))) lines.push(wrapped);
+    if (index === 0 && cells.length > 1) {
+      const rule = widths.map((width) => '-'.repeat(Math.max(1, width))).join('  ');
+      for (const wrapped of wrapPdfLine(rule)) lines.push(wrapped);
+    }
+  });
+  return lines;
 }
 
 // Word-wrap a single logical line at ~95 chars on word boundaries so PDF text

@@ -199,8 +199,18 @@ test('static work product: a stale deep link shows "Saved work not found"', asyn
     page.getByText('That saved artifact is no longer in this desktop profile.')
   ).toBeVisible();
   await expect(page.getByRole('link', { name: 'Back to chat' })).toBeVisible();
-  // The honest not-found state never leaks the unrelated saved artifact.
-  await expect(page.getByText('A real saved item')).toHaveCount(0);
+  // The sidebar stays visible so the user is not stranded: the real saved item
+  // is still reachable from the list rather than being hidden behind a dead
+  // full-bleed empty state.
+  await expect(page.getByRole('complementary', { name: 'Saved work' })).toBeVisible();
+  await expect(
+    page.getByRole('complementary', { name: 'Saved work' }).getByText('A real saved item')
+  ).toBeVisible();
+  // The honest not-found notice owns the article pane — the unrelated artifact's
+  // body is never substituted into the reader.
+  await expect(page.getByTestId('saved-work-not-found')).toBeVisible();
+  await expect(page.getByText('Should not be substituted for a bad deep link.')).toHaveCount(0);
+  await expect(page.getByTestId('saved-work-artifact')).toHaveCount(0);
 });
 
 test('static work product: reader badge attributes generated agent work in gold, not success-green', async ({
@@ -209,8 +219,10 @@ test('static work product: reader badge attributes generated agent work in gold,
   await installWorkProductMocks(page);
   // Color meaning (DESIGN.md): gold is the agent's hand (generated work);
   // success-green is a status this reader cannot prove. The header badge must
-  // resolve to the gold token and read "Generated artifact", matching the chat
-  // "Generated document" chip and the gold file-artifact preview on this page.
+  // resolve to the gold token and label the artifact by type — a `document`
+  // artifact reads "Saved document" (elite-audit #79), not a success/readiness
+  // word — while still using the gold token, matching the gold file-artifact
+  // preview on this page.
   await page.addInitScript(() => {
     window.localStorage.setItem(
       'ironclaw-work-items',
@@ -240,7 +252,7 @@ test('static work product: reader badge attributes generated agent work in gold,
 
   await page.goto('/v2/work?item=work-badge-1&artifact=artifact-badge-1&token=static-work-token');
 
-  const badge = page.getByText('Generated artifact', { exact: true });
+  const badge = page.getByText('Saved document', { exact: true });
   await expect(badge).toBeVisible();
   // No success/readiness language survives in the reader badge.
   await expect(page.getByText('Ready artifact')).toHaveCount(0);

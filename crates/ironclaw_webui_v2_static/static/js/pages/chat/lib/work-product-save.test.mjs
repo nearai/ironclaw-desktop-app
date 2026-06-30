@@ -273,18 +273,52 @@ test('currentThreadId reads static chat paths and query links', () => {
   );
 });
 
-test('openSavedWorkProduct navigates to the saved artifact URL', () => {
+test('openSavedWorkProduct falls back to location.assign without a navigate callback', () => {
   const calls = [];
   assert.equal(
     openSavedWorkProduct(
       { href: workArtifactHref('work/with spaces', 'artifact#1') },
       {
-        assign: (href) => calls.push(href)
+        location: { assign: (href) => calls.push(href) }
       }
     ),
     true
   );
   assert.deepEqual(calls, ['/work?item=work%2Fwith+spaces&artifact=artifact%231']);
+});
+
+test('openSavedWorkProduct prefers the React Router navigate callback over location.assign', () => {
+  const navigated = [];
+  const assigned = [];
+  assert.equal(
+    openSavedWorkProduct(
+      { href: workArtifactHref('work-1', 'artifact-2') },
+      {
+        navigate: (href) => navigated.push(href),
+        location: { assign: (href) => assigned.push(href) }
+      }
+    ),
+    true
+  );
+  assert.deepEqual(navigated, ['/work?item=work-1&artifact=artifact-2']);
+  assert.deepEqual(assigned, []);
+});
+
+test('openSavedWorkProduct strips the /v2 base path before handing the href to navigate', () => {
+  // React Router re-applies the basename, so navigate() must receive a
+  // router-relative path or it doubles to /v2/v2/work and misses the route.
+  const previousWindow = globalThis.window;
+  globalThis.window = { location: { pathname: '/v2/chat/thread-1' } };
+  const navigated = [];
+  try {
+    openSavedWorkProduct(
+      { href: workArtifactHref('work-1', 'artifact-2') },
+      { navigate: (href) => navigated.push(href) }
+    );
+  } finally {
+    globalThis.window = previousWindow;
+  }
+  assert.deepEqual(navigated, ['/work?item=work-1&artifact=artifact-2']);
 });
 
 test('workArtifactHref preserves the hosted /v2 static app prefix', () => {

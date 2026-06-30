@@ -96,6 +96,8 @@ test('static export builders create parseable MD, HTML, JSON, PDF, and DOCX arti
   assert.match(pdf, /^%PDF-1\.4/);
   assert.match(pdf, /SERVICES AGREEMENT SMOKE DRAFT/);
   assert.match(pdf, /Dummy services agreement update/);
+  // The GFM delimiter row must not leak into the PDF as literal pipes-and-dashes.
+  assert.doesNotMatch(pdf, /\| --- \| --- \|/);
   assert.match(pdf, /xref\n0 6/);
   assert.match(pdf, /trailer/);
   assert.match(pdf, /%%EOF/);

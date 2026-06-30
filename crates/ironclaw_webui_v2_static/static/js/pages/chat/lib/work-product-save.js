@@ -1,4 +1,4 @@
-import { appScopedPath } from '../../../lib/app-path.js';
+import { appBasePath, appScopedPath } from '../../../lib/app-path.js';
 import {
   generatedFileKindLabel,
   normalizeGeneratedFileArtifact
@@ -197,8 +197,22 @@ function isQuotaError(err) {
   );
 }
 
-export function openSavedWorkProduct(saved, location = globalThis.window?.location) {
-  if (!saved?.href || !location) return false;
+// Open a freshly saved work product. Prefer a client-side route change via
+// React Router (the `navigate` callback) so we never tear down the SPA with a
+// full document load. `location.assign` is kept only as a non-React fallback
+// for callers outside the router (or when navigate is unavailable).
+export function openSavedWorkProduct(saved, options = {}) {
+  if (!saved?.href) return false;
+  const { navigate, location = globalThis.window?.location } = options;
+  if (typeof navigate === 'function') {
+    // workArtifactHref bakes in the app base path (e.g. /v2/work?…). React
+    // Router already applies that prefix via its basename, so strip it before
+    // handing the path to navigate() — otherwise it doubles to /v2/v2/work and
+    // misses the route. location.assign (the fallback) wants the full path.
+    navigate(routerRelativeHref(saved.href));
+    return true;
+  }
+  if (!location) return false;
   if (typeof location.assign === 'function') {
     location.assign(saved.href);
   } else {
@@ -223,6 +237,17 @@ export function currentThreadId(location = globalThis.window?.location) {
     // Best effort only. Missing thread links should not block saving.
   }
   return '';
+}
+
+// Strip the leading app base path (/v2) so a workArtifactHref can be handed to
+// React Router's navigate(), which re-applies the basename itself.
+function routerRelativeHref(href) {
+  const base = appBasePath();
+  const value = String(href || '');
+  if (base && value.startsWith(`${base}/`)) {
+    return value.slice(base.length) || '/';
+  }
+  return value;
 }
 
 export function workArtifactHref(workId, artifactId) {
