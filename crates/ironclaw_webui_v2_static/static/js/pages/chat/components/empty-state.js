@@ -216,7 +216,7 @@ export function EmptyState({
             ${t('chat.briefLabel')}
           </div>
           <h2
-            className="max-w-[20ch] text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-[var(--v2-text-strong)] sm:text-[32px]"
+            className="max-w-[20ch] text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-[var(--v2-text-strong)]"
           >
             ${t(greetingKey())}
           </h2>

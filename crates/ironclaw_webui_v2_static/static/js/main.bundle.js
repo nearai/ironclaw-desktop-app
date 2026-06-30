@@ -1856,7 +1856,7 @@ ${i}</pre
             ${d("chat.briefLabel")}
           </div>
           <h2
-            className="max-w-[20ch] text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-[var(--v2-text-strong)] sm:text-[32px]"
+            className="max-w-[20ch] text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-[var(--v2-text-strong)]"
           >
             ${d(qO())}
           </h2>
@@ -3529,11 +3529,11 @@ ${ue}`;if(R.current.gateKey!==ut&&(R.current={gateKey:ut,credentialRef:null,inFl
             NEAR AI Cloud native
           </div>
           <h1
-            className="max-w-[16ch] text-[32px] font-semibold leading-[1.06] text-[var(--v2-text-strong)] sm:text-[40px]"
+            className="max-w-[16ch] text-[28px] font-semibold leading-[1.06] text-[var(--v2-text-strong)] sm:text-[28px]"
           >
             ${e("onboarding.title")}
           </h1>
-          <p className="mt-4 max-w-[58ch] text-base leading-7 text-[var(--v2-text-muted)]">
+          <p className="mt-4 max-w-[58ch] text-sm leading-[1.35] text-[var(--v2-text-muted)]">
             ${e("onboarding.subtitle")}
           </p>
           <div className="mt-8 hidden gap-3 lg:grid">
@@ -3570,7 +3570,7 @@ ${ue}`;if(R.current.gateKey!==ut&&(R.current={gateKey:ut,credentialRef:null,inFl
                 <div className="text-[11px] font-semibold uppercase text-[var(--v2-accent-text)]">
                   ${e("onboarding.accessLabel")}
                 </div>
-                <h2 className="mt-1 text-lg font-semibold text-[var(--v2-text-strong)]">
+                <h2 className="mt-1 text-[20px] font-semibold text-[var(--v2-text-strong)]">
                   ${e("onboarding.accessTitle")}
                 </h2>
               </div>
