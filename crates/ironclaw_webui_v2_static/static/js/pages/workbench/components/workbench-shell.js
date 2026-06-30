@@ -58,6 +58,15 @@ export function WorkbenchNav({ view, onView, onSettings }) {
       </button>
       <button
         type="button"
+        className=${view === 'redline' ? 'is-active' : ''}
+        aria-current=${view === 'redline' ? 'page' : undefined}
+        data-testid="workbench-nav-redline"
+        onClick=${() => onView('redline')}
+      >
+        <${Icon} name="file" />Redline
+      </button>
+      <button
+        type="button"
         className=${view === 'memory' ? 'is-active' : ''}
         aria-current=${view === 'memory' ? 'page' : undefined}
         onClick=${() => onView('memory')}

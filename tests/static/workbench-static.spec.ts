@@ -4321,3 +4321,34 @@ test('static workbench: an ACTIVE Slack connection shows no reconnect card', asy
   await expect(page.getByTestId('workbench-nav-review')).toBeVisible(); // shell settled
   await expect(page.getByTestId('workbench-slack-reconnect')).toHaveCount(0);
 });
+
+test('static workbench: the Redline view shows tracked changes per clause (insert + delete + added chip)', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {});
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByTestId('workbench-nav-redline').click();
+
+  // Honest empty until both sides are entered.
+  await expect(page.getByTestId('workbench-redline-empty')).toBeVisible();
+
+  await page
+    .getByTestId('workbench-redline-original')
+    .fill('1. Term: two years.\n2. Fee: one hundred.');
+  await page
+    .getByTestId('workbench-redline-revised')
+    .fill('1. Term: three years.\n2. Fee: one hundred.\n3. Notices: by email.');
+
+  // The Term clause is a modification: "two" struck through, "three" inserted.
+  const modified = page.locator('[data-testid="workbench-redline-clause"][data-kind="modified"]');
+  await expect(modified.locator('del.wb13-rl-del', { hasText: 'two' })).toBeVisible();
+  await expect(modified.locator('ins.wb13-rl-ins', { hasText: 'three' })).toBeVisible();
+
+  // The Notices clause is an addition (its own clause, an Added chip).
+  const added = page.locator('[data-testid="workbench-redline-clause"][data-kind="added"]');
+  await expect(added).toHaveCount(1);
+  await expect(added).toContainText('Notices');
+
+  // The Fee clause is unchanged — no fabricated edits there.
+  await expect(page.getByTestId('workbench-redline-summary')).toContainText('changed');
+});

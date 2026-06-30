@@ -119,6 +119,9 @@ const JarvisView = React.lazy(() =>
 const ReviewView = React.lazy(() =>
   import('./components/workbench-review.js').then((m) => ({ default: m.ReviewView }))
 );
+const RedlineView = React.lazy(() =>
+  import('./components/workbench-redline-view.js').then((m) => ({ default: m.RedlineView }))
+);
 import { WorkPacketPreview } from './components/workbench-packet.js';
 import { WorkbenchDock, WorkbenchNav, WorkbenchTop } from './components/workbench-shell.js';
 import { WorkbenchCommandPalette } from './components/workbench-command-palette.js';
@@ -1831,8 +1834,20 @@ export function WorkbenchPage() {
                 driveLoading=${connectorDrive.isLoading}
               />
             </${React.Suspense}>`
-          : view === 'memory'
+          : view === 'redline'
             ? html`<${React.Suspense}
+                fallback=${html`<main className="wb13-main">
+                  <div className="wb13-page">
+                    <div className="wb13-wide">
+                      <div className="wb13-head"><h1>Redline</h1></div>
+                    </div>
+                  </div>
+                </main>`}
+              >
+                <${RedlineView} />
+              </${React.Suspense}>`
+            : view === 'memory'
+              ? html`<${React.Suspense}
               fallback=${html`<main className="wb13-main">
                 <div className="wb13-page">
                   <div className="wb13-wrap">
@@ -1843,8 +1858,8 @@ export function WorkbenchPage() {
             >
               <${MemoryView} />
             </${React.Suspense}>`
-            : view === 'calendar'
-              ? html`<${React.Suspense}
+              : view === 'calendar'
+                ? html`<${React.Suspense}
                 fallback=${html`<main className="wb13-main">
                   <div className="wb13-page">
                     <div className="wb13-wrap">
@@ -1860,8 +1875,8 @@ export function WorkbenchPage() {
                   onConnect=${() => setShowSources(true)}
                 />
               </${React.Suspense}>`
-              : view === 'library'
-                ? html`<${React.Suspense}
+                : view === 'library'
+                  ? html`<${React.Suspense}
                   fallback=${html`<main className="wb13-main">
                     <div className="wb13-page">
                       <div className="wb13-wide">
@@ -1876,8 +1891,8 @@ export function WorkbenchPage() {
                     onView=${setView}
                   />
                 </${React.Suspense}>`
-                : view === 'projects'
-                  ? html`<${React.Suspense}
+                  : view === 'projects'
+                    ? html`<${React.Suspense}
                     fallback=${html`<main className="wb13-main">
                       <div className="wb13-page">
                         <div className="wb13-wrap">
@@ -1888,8 +1903,8 @@ export function WorkbenchPage() {
                   >
                     <${JarvisView} />
                   </${React.Suspense}>`
-                  : view === 'history'
-                    ? html`<${React.Suspense}
+                    : view === 'history'
+                      ? html`<${React.Suspense}
                       fallback=${html`<main className="wb13-main">
                         <div className="wb13-page">
                           <div className="wb13-wrap">
@@ -1900,8 +1915,8 @@ export function WorkbenchPage() {
                     >
                       <${HistoryView} onReopen=${reopenThread} />
                     </${React.Suspense}>`
-                    : view === 'chat'
-                      ? html`<${React.Suspense}
+                      : view === 'chat'
+                        ? html`<${React.Suspense}
                         fallback=${html`<main className="wb13-main">
                           <div className="wb13-page">
                             <div className="wb13-wrap">
@@ -1912,42 +1927,42 @@ export function WorkbenchPage() {
                       >
                         <${ChatView} work=${startedWork} onView=${setView} />
                       </${React.Suspense}>`
-                      : html`<${HomeView}
-                          commandProps=${commandProps}
-                          startedWork=${startedWork}
-                          briefing=${briefing}
-                          briefingPending=${briefingPending}
-                          onDismissBriefing=${dismissBriefing}
-                          onBriefDraftReply=${onBriefDraftReply}
-                          slackBlockersActive=${slackBlockersActive}
-                          slackBlockers=${slackBlockers}
-                          onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
-                          onOpenMessage=${openMessage}
-                          groups=${railGroups}
-                          savedItems=${savedItems}
-                          packageTab=${packageTab}
-                          onPackageTab=${setPackageTab}
-                          connectorFamilies=${connectedAccounts.families}
-                          connectorsLoading=${connectedAccounts.isLoading}
-                          homeLoading=${connectedAccounts.gmailReady &&
-                          (connectorInbox.isLoading || connectorInbox.isFetching)}
-                          onConnectSources=${() => setShowSources(true)}
-                          slackNeedsReconnect=${connectedAccounts.slackNeedsReconnect}
-                          onReconnectSlack=${() => setShowSources(true)}
-                          gmailReady=${connectedAccounts.gmailReady}
-                          decisionMessages=${triageInbox}
-                          notionPages=${connectorNotion.pages}
-                          slackAwaiting=${slackAwaitingVisible}
-                          slackWeighIn=${slackWeighInVisible}
-                          onSlackReply=${openSlackReply}
-                          onSlackDismiss=${onDismissSlack}
-                          calendarReady=${connectedAccounts.calendarReady}
-                          calendarEvents=${connectorCalendar.events}
-                          calendarError=${connectorCalendar.isError}
-                          onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
-                          onDraftMessage=${openDraftReply}
-                          onDismissDecision=${onDismissDecision}
-                        />`}
+                        : html`<${HomeView}
+                            commandProps=${commandProps}
+                            startedWork=${startedWork}
+                            briefing=${briefing}
+                            briefingPending=${briefingPending}
+                            onDismissBriefing=${dismissBriefing}
+                            onBriefDraftReply=${onBriefDraftReply}
+                            slackBlockersActive=${slackBlockersActive}
+                            slackBlockers=${slackBlockers}
+                            onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
+                            onOpenMessage=${openMessage}
+                            groups=${railGroups}
+                            savedItems=${savedItems}
+                            packageTab=${packageTab}
+                            onPackageTab=${setPackageTab}
+                            connectorFamilies=${connectedAccounts.families}
+                            connectorsLoading=${connectedAccounts.isLoading}
+                            homeLoading=${connectedAccounts.gmailReady &&
+                            (connectorInbox.isLoading || connectorInbox.isFetching)}
+                            onConnectSources=${() => setShowSources(true)}
+                            slackNeedsReconnect=${connectedAccounts.slackNeedsReconnect}
+                            onReconnectSlack=${() => setShowSources(true)}
+                            gmailReady=${connectedAccounts.gmailReady}
+                            decisionMessages=${triageInbox}
+                            notionPages=${connectorNotion.pages}
+                            slackAwaiting=${slackAwaitingVisible}
+                            slackWeighIn=${slackWeighInVisible}
+                            onSlackReply=${openSlackReply}
+                            onSlackDismiss=${onDismissSlack}
+                            calendarReady=${connectedAccounts.calendarReady}
+                            calendarEvents=${connectorCalendar.events}
+                            calendarError=${connectorCalendar.isError}
+                            onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
+                            onDraftMessage=${openDraftReply}
+                            onDismissDecision=${onDismissDecision}
+                          />`}
         ${showSources
           ? html`<${WorkbenchSourcesInspector}
               sourceReadiness=${sourceReadiness}
