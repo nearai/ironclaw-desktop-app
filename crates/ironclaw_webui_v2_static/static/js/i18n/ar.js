@@ -70,7 +70,6 @@ registerPack('ar', {
   'approval.title': 'مطلوب موافقة',
   'approval.approve': 'موافقة',
   'approval.deny': 'رفض',
-  'approval.always': 'دائمًا',
 
   'error.gatewayConnection': 'تعذر الاتصال بالبوابة',
   'error.saveFailed': 'فشل الحفظ: {message}',

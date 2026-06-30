@@ -7,11 +7,9 @@ import { Badge } from '../../design-system/badge.js';
 import { Button } from '../../design-system/button.js';
 import { Card } from '../../design-system/card.js';
 import { Icon } from '../../design-system/icons.js';
-import { ProviderDialog } from '../settings/components/provider-dialog.js';
 import { ProviderLoginStatus } from '../settings/components/provider-login-status.js';
 import { useProviderManagementActions } from '../settings/hooks/useProviderManagementActions.js';
 import { useProviderLogin } from '../settings/hooks/useProviderLogin.js';
-import { isProviderConfigured } from '../settings/lib/llm-providers.js';
 import { setActiveLlm, testLlmProviderConnection } from '../settings/lib/settings-api.js';
 import { ProviderLogo } from './provider-logos.js';
 
@@ -30,116 +28,44 @@ const FEATURED = [
 
 // One provider row: logo + name/subtitle on the left, the auth action(s) on the
 // right. Stacks vertically on mobile (actions wrap onto their own line) and sits
-// on a single line from `sm` up.
-function FeaturedProviderRow({
-  entry,
-  provider,
-  configured,
-  showReady,
-  isBusy,
-  login,
-  t,
-  onUse,
-  onSetUp
-}) {
+// on a single line from `sm` up. NEAR AI Cloud is the only featured provider, so
+// the row always renders the cloud sign-in actions.
+function FeaturedProviderRow({ entry, showReady, login, t }) {
   const name = t(entry.nameKey);
 
-  // Desktop: NEAR AI sign-in runs in a dedicated app window (the
-  // server only accepts private.near.ai callbacks; the window captures the
-  // token from that navigation). Keep first-run focused on cloud sign-in;
-  // fallback setup stays in Settings.
-  let actions;
-  if (entry.auth === 'nearai') {
-    if (isDesktopRuntime()) {
-      actions = html`
-        <${Button}
-          type="button"
-          variant="primary"
-          size="md"
-          fullWidth=${true}
-          className="col-span-2"
-          disabled=${login.nearaiBusy}
-          onClick=${() => login.startNearai('github')}
-        >
-          ${t('onboarding.continue')}
-        <//>
-        <${Button}
-          type="button"
-          variant="secondary"
-          size="md"
-          fullWidth=${true}
-          disabled=${login.nearaiBusy}
-          onClick=${() => login.startNearai('google')}
-        >
-          ${t('onboarding.continueGoogle')}
-        <//>
-        <${Button}
-          type="button"
-          variant="secondary"
-          size="md"
-          fullWidth=${true}
-          disabled=${login.nearaiBusy}
-          onClick=${login.startNearaiWallet}
-        >
-          ${t('onboarding.continueWallet')}
-        <//>
-      `;
-    } else {
-      actions = html`
-        <${Button}
-          type="button"
-          variant="primary"
-          size="md"
-          fullWidth=${true}
-          className="col-span-2"
-          disabled=${login.nearaiBusy}
-          onClick=${() => login.startNearai('github')}
-        >
-          ${t('onboarding.continue')}
-        <//>
-        <${Button}
-          type="button"
-          variant="secondary"
-          size="md"
-          fullWidth=${true}
-          disabled=${login.nearaiBusy}
-          onClick=${() => login.startNearai('google')}
-        >
-          ${t('onboarding.continueGoogle')}
-        <//>
-        <${Button}
-          type="button"
-          variant="secondary"
-          size="md"
-          fullWidth=${true}
-          disabled=${login.nearaiBusy}
-          onClick=${login.startNearaiWallet}
-        >
-          ${t('onboarding.continueWallet')}
-        <//>
-      `;
-    }
-  } else if (configured) {
-    actions = html`<${Button}
+  const actions = html`
+    <${Button}
       type="button"
       variant="primary"
-      size="sm"
-      disabled=${isBusy}
-      onClick=${() => onUse(provider)}
+      size="md"
+      fullWidth=${true}
+      className="col-span-2"
+      disabled=${login.nearaiBusy}
+      onClick=${() => login.startNearai('github')}
     >
-      ${t('llm.use')}
-    <//>`;
-  } else {
-    actions = html`<${Button}
+      ${t('onboarding.continue')}
+    <//>
+    <${Button}
       type="button"
-      variant="primary"
-      size="sm"
-      disabled=${isBusy}
-      onClick=${() => onSetUp(provider)}
+      variant="secondary"
+      size="md"
+      fullWidth=${true}
+      disabled=${login.nearaiBusy}
+      onClick=${() => login.startNearai('google')}
     >
-      ${t('onboarding.setUp')}
-    <//>`;
-  }
+      ${t('onboarding.continueGoogle')}
+    <//>
+    <${Button}
+      type="button"
+      variant="secondary"
+      size="md"
+      fullWidth=${true}
+      disabled=${login.nearaiBusy}
+      onClick=${login.startNearaiWallet}
+    >
+      ${t('onboarding.continueWallet')}
+    <//>
+  `;
 
   return html`
     <div className="grid gap-4">
@@ -301,34 +227,6 @@ export function OnboardingPage() {
     };
   }, [state.isLoading, state.providers, state.activeProviderId, navigate, queryClient]);
 
-  // Make an already-configured NEAR AI provider the active selection and head to
-  // chat without opening the dialog.
-  const handleUse = React.useCallback(
-    async (provider) => {
-      const model = provider.active_model || provider.default_model || '';
-      await setActiveLlm({ provider_id: provider.id, model });
-      await queryClient.invalidateQueries({ queryKey: ['llm-providers'] });
-      navigate('/chat');
-    },
-    [navigate, queryClient]
-  );
-
-  const handleOnboardingSave = React.useCallback(
-    async ({ form, apiKey, provider }) => {
-      // Persist the provider (+ any key) via the shared save path, then make it
-      // the active selection and head to chat. The cold-boot reload swaps the
-      // placeholder for the real provider — no restart needed.
-      await actions.handleSave({ form, apiKey, provider });
-      const providerId = provider?.id || form.id.trim();
-      const model = form.model?.trim() || provider?.default_model || '';
-      await setActiveLlm({ provider_id: providerId, model });
-      await queryClient.invalidateQueries({ queryKey: ['llm-providers'] });
-      actions.closeDialog();
-      navigate('/chat');
-    },
-    [actions, navigate, queryClient]
-  );
-
   return html`
     <div className="h-full overflow-y-auto bg-[var(--v2-canvas)]">
       <div
@@ -452,15 +350,10 @@ export function OnboardingPage() {
                       <${FeaturedProviderRow}
                         key=${entry.id}
                         entry=${entry}
-                        provider=${provider}
-                        configured=${isProviderConfigured(provider, state.builtinOverrides)}
                         showReady=${state.activeProviderId === provider.id ||
                         provider.has_api_key === true}
-                        isBusy=${state.isBusy}
                         login=${login}
                         t=${t}
-                        onUse=${handleUse}
-                        onSetUp=${actions.openDialog}
                       />
                     `
                   )}
@@ -493,17 +386,6 @@ export function OnboardingPage() {
           </div>
         </div>
       </div>
-
-      <${ProviderDialog}
-        open=${actions.isDialogOpen}
-        provider=${actions.dialogProvider}
-        allProviderIds=${actions.allProviderIds}
-        builtinOverrides=${state.builtinOverrides}
-        onClose=${actions.closeDialog}
-        onSave=${handleOnboardingSave}
-        onTest=${state.testConnection}
-        onListModels=${state.listModels}
-      />
     </div>
   `;
 }

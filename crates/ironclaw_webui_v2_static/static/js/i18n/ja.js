@@ -71,7 +71,6 @@ registerPack('ja', {
   'approval.title': '承認が必要です',
   'approval.approve': '承認',
   'approval.deny': '拒否',
-  'approval.always': '常に',
 
   'error.gatewayConnection': 'ゲートウェイに接続できません',
   'error.saveFailed': '保存に失敗しました: {message}',

@@ -193,7 +193,6 @@ registerPack('en', {
   'approval.agentContext': 'IronClaw is asking to act',
   'approval.approve': 'Approve',
   'approval.deny': 'Deny',
-  'approval.always': 'Always',
   'approval.approveAndAlways': 'Approve & always allow',
   'approval.alwaysAllowToolLabel': 'Always allow {tool} without asking',
   'approval.alwaysUnavailable':
@@ -201,9 +200,7 @@ registerPack('en', {
   'approval.thisTool': 'this tool',
   'approval.nothingSentYet': 'Nothing has been sent yet.',
   'approval.actionLabel': 'Action',
-  'approval.targetLabel': 'Target / resource',
   'approval.destinationLabel': 'Destination',
-  'approval.outboundDataLabel': 'Outbound data',
   'approval.touchesLabel': 'Touches',
   'approval.whatLeavesMachineLabel': 'What leaves the machine',
   'approval.notSpecified': 'Not specified by the tool.',
@@ -243,7 +240,6 @@ registerPack('en', {
   'authGate.submitting': 'Checking...',
   'authGate.cancel': 'Cancel',
   'authGate.oauthTitle': 'Authorization required',
-  'authGate.oauthAccountLabel': 'Account:',
   'authGate.openAuthorization': 'Open {provider} authorization',
   'authGate.reopenAuthorization': 'Re-open {provider} authorization',
   'authGate.oauthWaiting':

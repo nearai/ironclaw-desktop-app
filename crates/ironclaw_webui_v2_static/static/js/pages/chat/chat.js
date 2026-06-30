@@ -16,7 +16,6 @@ import { EmptyState } from './components/empty-state.js';
 import { KeyboardShortcuts } from './components/keyboard-shortcuts.js';
 import { MessageList } from './components/message-list.js';
 import { RecoveryNotice } from './components/recovery-notice.js';
-import { SuggestionChips } from './components/suggestion-chips.js';
 import { TypingIndicator } from './components/typing-indicator.js';
 import { useChat } from './hooks/useChat.js';
 import { buildRuntimeContext } from './lib/runtime-context.js';
@@ -43,7 +42,6 @@ export function Chat({
     isProcessing,
     pendingGate,
     channelConnectAction,
-    suggestions,
     sseStatus,
     historyLoading,
     hasMore,
@@ -55,7 +53,6 @@ export function Chat({
     approve,
     recoverHistory,
     loadMore,
-    setSuggestions,
     submitAuthToken,
     dismissChannelConnectAction
   } = useChat(activeThreadId);
@@ -96,14 +93,6 @@ export function Chat({
       return response;
     },
     [activeThreadId, onSelectThread, send]
-  );
-
-  const handleSuggestion = React.useCallback(
-    async (text) => {
-      setSuggestions([]);
-      await handleSend(text);
-    },
-    [handleSend, setSuggestions]
   );
 
   const handleCancelRun = React.useCallback(() => cancelRun('user_requested'), [cancelRun]);
@@ -170,7 +159,6 @@ export function Chat({
           <${EmptyState}
             threads=${threads}
             threadStates=${threadStates}
-            onSuggestion=${handleSuggestion}
             onSend=${handleSend}
             disabled=${composerDisabled}
             initialText=${composerDraft}
@@ -233,8 +221,6 @@ export function Chat({
                   />
                 `)}
           <//>
-
-          <${SuggestionChips} suggestions=${suggestions} onSelect=${handleSuggestion} />
 
           <${ChatInput}
             onSend=${handleSend}

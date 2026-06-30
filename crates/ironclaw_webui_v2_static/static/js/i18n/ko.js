@@ -70,7 +70,6 @@ registerPack('ko', {
   'approval.title': '승인 필요',
   'approval.approve': '승인',
   'approval.deny': '거부',
-  'approval.always': '항상 허용',
 
   'error.gatewayConnection': '게이트웨이에 연결할 수 없습니다',
   'error.saveFailed': '저장 실패: {message}',

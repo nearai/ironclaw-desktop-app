@@ -48,7 +48,9 @@ export function connectorIconKind(source) {
   if (key === 'google-sheets' || key === 'gsheets' || key === 'sheets') return 'google-sheets';
   if (key.includes('github')) return 'github';
   if (key.includes('telegram')) return 'telegram';
-  if (key.includes('web') || key.includes('http') || key.includes('hacker-news')) return 'web';
+  if (key === 'web' || key === 'web-http' || key.startsWith('http') || key === 'hacker-news') {
+    return 'web';
+  }
   if (key.includes('routine') || key.includes('trigger')) return 'routine';
   if (family === 'notion') return 'notion';
   if (family === 'slack') return 'slack';

@@ -57,7 +57,6 @@ function renderChat({ hookState, activeThreadId = 'thread-1' }) {
     KeyboardShortcuts() {},
     MessageList() {},
     RecoveryNotice() {},
-    SuggestionChips() {},
     TypingIndicator() {}
   };
   const context = {
@@ -96,7 +95,6 @@ test('Chat cancel button routes through active thread run cancellation', async (
       messages: [{ id: 'message-1' }],
       isProcessing: true,
       pendingGate: null,
-      suggestions: [],
       sseStatus: 'open',
       historyLoading: false,
       hasMore: false,
@@ -109,7 +107,6 @@ test('Chat cancel button routes through active thread run cancellation', async (
       approve: () => {},
       recoverHistory: () => {},
       loadMore: () => {},
-      setSuggestions: () => {},
       submitAuthToken: async () => {}
     }
   });
@@ -127,7 +124,6 @@ test('Chat cancel button ignores active runs from another thread', () => {
       messages: [{ id: 'message-1' }],
       isProcessing: true,
       pendingGate: null,
-      suggestions: [],
       sseStatus: 'open',
       historyLoading: false,
       hasMore: false,
@@ -140,7 +136,6 @@ test('Chat cancel button ignores active runs from another thread', () => {
       approve: () => {},
       recoverHistory: () => {},
       loadMore: () => {},
-      setSuggestions: () => {},
       submitAuthToken: async () => {}
     }
   });
@@ -163,7 +158,6 @@ test('Chat keeps composer cancel disabled while a gate owns the run decision', (
       messages: [{ id: 'message-1' }],
       isProcessing: false,
       pendingGate,
-      suggestions: [],
       sseStatus: 'open',
       historyLoading: false,
       hasMore: false,
@@ -176,7 +170,6 @@ test('Chat keeps composer cancel disabled while a gate owns the run decision', (
       approve: () => {},
       recoverHistory: () => {},
       loadMore: () => {},
-      setSuggestions: () => {},
       submitAuthToken: async () => {}
     }
   });
@@ -200,7 +193,6 @@ test('Chat deny gate callback routes through approve compatibility path', () => 
       messages: [{ id: 'message-1' }],
       isProcessing: false,
       pendingGate,
-      suggestions: [],
       sseStatus: 'open',
       historyLoading: false,
       hasMore: false,
@@ -213,7 +205,6 @@ test('Chat deny gate callback routes through approve compatibility path', () => 
       approve: (...args) => approveCalls.push(args),
       recoverHistory: () => {},
       loadMore: () => {},
-      setSuggestions: () => {},
       submitAuthToken: async () => {}
     }
   });

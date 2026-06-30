@@ -70,7 +70,6 @@ registerPack('hi', {
   'approval.title': 'अनुमोदन आवश्यक',
   'approval.approve': 'अनुमोदित करें',
   'approval.deny': 'अस्वीकार करें',
-  'approval.always': 'हमेशा',
 
   'error.gatewayConnection': 'गेटवे से कनेक्ट नहीं हो पाया',
   'error.saveFailed': 'सेव विफल: {message}',

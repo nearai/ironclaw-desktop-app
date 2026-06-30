@@ -68,7 +68,6 @@ registerPack('zh-CN', {
   'approval.title': '需要审批',
   'approval.approve': '批准',
   'approval.deny': '拒绝',
-  'approval.always': '始终允许',
 
   'error.gatewayConnection': '无法连接到网关',
   'error.saveFailed': '保存失败：{message}',

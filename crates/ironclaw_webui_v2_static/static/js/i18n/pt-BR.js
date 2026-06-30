@@ -70,7 +70,6 @@ registerPack('pt-BR', {
   'approval.title': 'Aprovação necessária',
   'approval.approve': 'Aprovar',
   'approval.deny': 'Negar',
-  'approval.always': 'Sempre',
 
   'error.gatewayConnection': 'Não foi possível conectar ao gateway',
   'error.saveFailed': 'Falha ao salvar: {message}',

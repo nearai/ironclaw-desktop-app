@@ -710,8 +710,6 @@ export function useChat(threadId) {
     loadMore,
     dismissChannelConnectAction: () => setChannelConnectAction(null),
     // fork-shape compatibility — see comments above
-    suggestions: [],
-    setSuggestions: noop,
     retryMessage: noop,
     approve,
     recoverHistory: noop,

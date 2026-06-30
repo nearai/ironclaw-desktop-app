@@ -69,7 +69,6 @@ function writeFrontDoorLastSeen(value) {
 export function EmptyState({
   threads = [],
   threadStates,
-  onSuggestion: _onSuggestion,
   onSend,
   disabled,
   initialText,

@@ -70,7 +70,6 @@ registerPack('uk', {
   'approval.title': 'Потрібне затвердження',
   'approval.approve': 'Затвердити',
   'approval.deny': 'Відхилити',
-  'approval.always': 'Завжди',
 
   'error.gatewayConnection': 'Не вдалося підключитися до шлюзу',
   'error.saveFailed': 'Не вдалося зберегти: {message}',

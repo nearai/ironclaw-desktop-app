@@ -23,17 +23,14 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'approval.destinationLabel',
   'approval.notSpecified',
   'approval.nothingSentYet',
-  'approval.outboundDataLabel',
   'approval.parametersLabel',
   'approval.shortcutHint',
-  'approval.targetLabel',
   'approval.thisTool',
   'approval.touchesLabel',
   'approval.whatLeavesMachineLabel',
   'authGate.cancel',
   'authGate.expiresAt',
   'authGate.googleHint',
-  'authGate.oauthAccountLabel',
   'authGate.oauthProviderFallback',
   'authGate.oauthTitle',
   'authGate.oauthWaiting',
@@ -347,7 +344,7 @@ test('every advertised language has a registered pack', () => {
 
 test('i18n baseline is sorted, unique, and references real English keys', () => {
   const englishKeys = Object.keys(packs.en || {}).sort();
-  assert.equal(englishKeys.length, 808);
+  assert.equal(englishKeys.length, 804);
   assert.deepEqual(BASELINE_MISSING_KEYS, sortedUnique(BASELINE_MISSING_KEYS));
 
   const unknownBaselineKeys = BASELINE_MISSING_KEYS.filter((key) => !packs.en?.[key]);

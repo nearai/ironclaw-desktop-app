@@ -71,7 +71,6 @@ registerPack('es', {
   'approval.title': 'Se requiere aprobación',
   'approval.approve': 'Aprobar',
   'approval.deny': 'Denegar',
-  'approval.always': 'Siempre',
 
   'error.gatewayConnection': 'No se pudo conectar al gateway',
   'error.saveFailed': 'Error al guardar: {message}',

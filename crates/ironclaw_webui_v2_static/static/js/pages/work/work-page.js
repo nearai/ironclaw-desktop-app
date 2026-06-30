@@ -472,7 +472,9 @@ export function WorkPage() {
                   >
                     ${selectedArtifact.type === 'file' || selectedArtifact.data_base64
                       ? `${generatedFileKindLabel(selectedArtifact)} artifact`
-                      : 'Generated artifact'}
+                      : selectedArtifact.type === 'document'
+                        ? 'Saved document'
+                        : 'Saved note'}
                   </span>
                   <span>${readableDate(selectedItem.updated_at || selectedItem.created_at)}</span>
                   <span>Source: ${provenance}</span>

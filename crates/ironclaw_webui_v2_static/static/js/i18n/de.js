@@ -71,7 +71,6 @@ registerPack('de', {
   'approval.title': 'Freigabe erforderlich',
   'approval.approve': 'Freigeben',
   'approval.deny': 'Ablehnen',
-  'approval.always': 'Immer',
 
   'error.gatewayConnection': 'Verbindung zum Gateway fehlgeschlagen',
   'error.saveFailed': 'Speichern fehlgeschlagen: {message}',
