@@ -242,6 +242,18 @@ test('static keyboard: command palette navigates without exposing hidden surface
 
   const palette = page.getByRole('dialog', { name: 'Command palette' });
   await expect(palette).toBeVisible();
+
+  // Combobox/listbox semantics expose the palette to assistive tech (elite-audit
+  // #26): the input is a combobox controlling a listbox of options, and the
+  // arrow-key highlight is mirrored to aria-activedescendant.
+  const combobox = palette.getByRole('combobox', { name: 'Search commands and threads' });
+  await expect(combobox).toBeVisible();
+  await expect(palette.getByRole('listbox')).toBeVisible();
+  await expect(palette.getByRole('option').first()).toBeVisible();
+  await expect
+    .poll(() => combobox.getAttribute('aria-activedescendant'))
+    .toMatch(/^command-option-/);
+
   await expect(palette.getByText('Go to Chat')).toBeVisible();
   await expect(palette.getByText('Go to Connections')).toBeVisible();
   await expect(palette.getByText('Go to Settings')).toBeVisible();
@@ -293,7 +305,8 @@ test('static keyboard: command palette traps focus, closes from a row, and retur
   }
 
   // Escape resolves even when a result row (not the input) holds focus.
-  await palette.getByRole('button', { name: 'New chat' }).focus();
+  // Rows expose role=option (combobox/listbox semantics), not button.
+  await palette.getByRole('option', { name: 'New chat' }).focus();
   await page.keyboard.press('Escape');
   await expect(palette).toHaveCount(0);
 

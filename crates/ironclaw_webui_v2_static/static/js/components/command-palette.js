@@ -171,6 +171,8 @@ export function CommandPalette({
   if (!open) return null;
 
   let lastGroup = null;
+  const optionId = (command) => `command-option-${command.id}`;
+  const activeId = filtered[active] ? optionId(filtered[active]) : undefined;
 
   return html`
     <div
@@ -197,6 +199,12 @@ export function CommandPalette({
             value=${query}
             onInput=${(e) => setQuery(e.currentTarget.value)}
             placeholder="Type a command or search…"
+            role="combobox"
+            aria-label="Search commands and threads"
+            aria-controls="command-options"
+            aria-expanded=${filtered.length > 0}
+            aria-autocomplete="list"
+            aria-activedescendant=${activeId}
             className="h-12 w-full border-0 bg-transparent text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)]"
           />
           <kbd
@@ -204,9 +212,15 @@ export function CommandPalette({
             >esc</kbd
           >
         </div>
-        <ul className="max-h-[50vh] overflow-y-auto p-1.5">
+        <ul
+          id="command-options"
+          role="listbox"
+          aria-label="Commands and threads"
+          className="max-h-[50vh] overflow-y-auto p-1.5"
+        >
           ${filtered.length === 0 &&
           html`<li
+            role="presentation"
             className="flex flex-col items-center gap-1 px-3 py-7 text-center"
             data-testid="command-palette-empty"
           >
@@ -223,13 +237,17 @@ export function CommandPalette({
               ${showGroup &&
               html`<li
                 key=${`g-${command.group}`}
+                role="presentation"
                 className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--v2-text-faint)]"
               >
                 ${command.group}
               </li>`}
-              <li key=${command.id} ref=${isActive ? activeRowRef : null}>
+              <li key=${command.id} role="presentation" ref=${isActive ? activeRowRef : null}>
                 <button
                   type="button"
+                  id=${optionId(command)}
+                  role="option"
+                  aria-selected=${isActive}
                   onMouseEnter=${() => setActive(index)}
                   onClick=${() => exec(command)}
                   className=${[
