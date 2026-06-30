@@ -758,6 +758,149 @@ test('scoreSlackRelevance: a STALE critical hit decays out of the lead; a FRESH 
   );
 });
 
+test('scoreSlackRelevance: a @channel broadcast announcement is demoted BELOW a genuine direct ask (never dropped)', () => {
+  const ctx = { selfUserId: 'UME', kind: 'awaiting', footprint: buildFootprint([], {}) };
+  const broadcast = scoreSlackRelevance(
+    {
+      who: 'UANN',
+      raw: '<!channel> huge congrats to the whole team on the launch 🎉 thanks everyone',
+      text: 'huge congrats to the whole team on the launch 🎉 thanks everyone',
+      ts: tsAgo(2)
+    },
+    ctx
+  );
+  const directAsk = scoreSlackRelevance(
+    {
+      who: 'UDEV',
+      raw: 'hey <@UME> can you approve the vendor invoice?',
+      text: 'hey can you approve the vendor invoice?',
+      ts: tsAgo(2)
+    },
+    ctx
+  );
+  assert.equal(
+    broadcast.drop,
+    false,
+    'a broadcast announcement is never hard-dropped (never-miss)'
+  );
+  assert.ok(
+    broadcast.score > 0.34,
+    `a demoted broadcast stays visible above the drop threshold (got ${broadcast.score})`
+  );
+  assert.equal(
+    broadcast.reason,
+    'broadcast-demote',
+    'the broadcast announcement is tagged demoted'
+  );
+  assert.ok(
+    directAsk.score > broadcast.score,
+    `a genuine direct ask (${directAsk.score}) must outrank a @channel announcement (${broadcast.score})`
+  );
+});
+
+test('scoreSlackRelevance: a @channel broadcast that CARRIES a real ask, or is LEGAL, keeps full rank (not demoted)', () => {
+  const ctx = { selfUserId: 'UME', kind: 'awaiting', footprint: buildFootprint([], {}) };
+  // baseline: a pure announcement that DOES get demoted
+  const plainBroadcast = scoreSlackRelevance(
+    {
+      who: 'UANN',
+      raw: '<!channel> huge congrats to the whole team on the launch 🎉 thanks everyone',
+      text: 'huge congrats to the whole team on the launch 🎉 thanks everyone',
+      ts: tsAgo(1)
+    },
+    ctx
+  );
+  // a broadcast that asks the channel for action is a real owed reply → NOT demoted
+  const broadcastAsk = scoreSlackRelevance(
+    {
+      who: 'UOPS',
+      raw: '<!channel> can someone approve the prod deploy before 5pm?',
+      text: 'can someone approve the prod deploy before 5pm?',
+      ts: tsAgo(1)
+    },
+    ctx
+  );
+  assert.notEqual(
+    broadcastAsk.reason,
+    'broadcast-demote',
+    'a broadcast with a real ask is not demoted'
+  );
+  assert.ok(
+    broadcastAsk.score > plainBroadcast.score,
+    `a broadcast that asks the channel outranks a pure announcement (${broadcastAsk.score} > ${plainBroadcast.score})`
+  );
+  // a legal/regulatory broadcast is exempt — never demoted, leads its conversation
+  const legalBroadcast = scoreSlackRelevance(
+    {
+      who: 'UCOUNSEL',
+      raw: '<!channel> counsel flagged the SEC has questions on the token sale — see the subpoena',
+      text: 'counsel flagged the SEC has questions on the token sale — see the subpoena',
+      ts: tsAgo(3)
+    },
+    ctx
+  );
+  assert.notEqual(
+    legalBroadcast.reason,
+    'broadcast-demote',
+    'a legal/regulatory broadcast is never demoted (legal-exempt)'
+  );
+  assert.ok(
+    legalBroadcast.score > plainBroadcast.score,
+    `a legal broadcast outranks a pure announcement (${legalBroadcast.score} > ${plainBroadcast.score})`
+  );
+});
+
+test('scoreSlackRelevance: a DIRECTLY-addressed task phrased with a pleasantry is NOT demoted (adversarial-review fix)', () => {
+  // Regression lock for the over-demote hole: a real owed action that opens with a social
+  // pleasantry and is a directive (not a question) must keep full rank because it is directly
+  // addressed (address=1). Only NON-directly-addressed @channel broadcasts get demoted.
+  const ctx = { selfUserId: 'UME', kind: 'awaiting', footprint: buildFootprint([], {}) };
+  const directSocial = scoreSlackRelevance(
+    {
+      who: 'ULEAD',
+      raw: 'hey <@UME> congrats on closing — counting on you to own the Henderson handoff',
+      text: 'hey congrats on closing — counting on you to own the Henderson handoff',
+      ts: tsAgo(2)
+    },
+    ctx
+  );
+  assert.notEqual(
+    directSocial.reason,
+    'broadcast-demote',
+    'a directly-addressed item is never demoted'
+  );
+  assert.ok(
+    directSocial.score > 0.5,
+    `a directly-addressed owed task is not capped into the broadcast-demote band (got ${directSocial.score})`
+  );
+});
+
+test('scoreSlackRelevance: a NON-social high-stakes @channel broadcast is NOT demoted (never-miss-legal fix)', () => {
+  // Regression lock for the second adversarial-review lens: a governance/control-change broadcast
+  // whose vocabulary the legal lexicon misses ("the board voted to remove the CEO") must NOT be
+  // demoted just for being a @channel broadcast — the demote requires a positive SOCIAL token, so
+  // a flat high-stakes announcement keeps full rank.
+  const ctx = { selfUserId: 'UME', kind: 'awaiting', footprint: buildFootprint([], {}) };
+  const governance = scoreSlackRelevance(
+    {
+      who: 'UBOARD',
+      raw: '<!channel> the board voted this morning to remove the CEO, effective immediately — details to follow',
+      text: 'the board voted this morning to remove the CEO, effective immediately — details to follow',
+      ts: tsAgo(2)
+    },
+    ctx
+  );
+  assert.notEqual(
+    governance.reason,
+    'broadcast-demote',
+    'a non-social high-stakes broadcast is never demoted (no social token)'
+  );
+  assert.ok(
+    governance.score > 0.5,
+    `a non-social high-stakes broadcast keeps full rank, not capped into the demote band (got ${governance.score})`
+  );
+});
+
 test('scoreSlackRelevance: broad contract vocab does NOT lead; only fraud/regulatory earns the lead-floor', () => {
   // Adversarial-review #3: a casual DM containing a broad LEGAL_RE word ("charter") must not
   // floor to the top over a genuine high-stakes message.

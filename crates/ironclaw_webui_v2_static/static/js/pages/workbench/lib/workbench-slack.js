@@ -473,6 +473,9 @@ const REL = {
 const DROP_THRESHOLD = 0.34;
 const VITALITY_FLOOR = 0.15;
 const AWAIT_FLOOR = 0.55;
+// Cap (below AWAIT_FLOOR) for broadcast/social AWAITING items: they rank UNDER any genuine
+// direct ask but are never dropped (stays well above DROP_THRESHOLD) — never-miss preserved.
+const AWAIT_DEMOTE = 0.5;
 const DECAY_FLOOR = 0.5;
 const DECAY_HALFLIFE_H = 24;
 
@@ -715,6 +718,29 @@ export function scoreSlackRelevance(row, ctx = {}) {
 
   let drop = false;
   let reason = 'kept';
+  // A @channel/@here broadcast that is ALSO social/celebratory chatter (congrats / welcome / FYI
+  // pleasantry) with no direct question is an announcement, not an owed reply — CAP it under
+  // AWAIT_FLOOR so it ranks BELOW a genuine direct ask. Demote requires ALL of: broadcast
+  // (address <= 0.3) AND no ask AND no urgency AND a positive social token — never a hard-drop
+  // (stays above DROP_THRESHOLD). Adversarial review (two never-miss lenses) hardened this twice:
+  //  (1) the address gate keeps a DIRECTLY-addressed item (address = 1) from ever being demoted,
+  //      even when it opens with a pleasantry; and
+  //  (2) requiring SOCIAL_RE keeps a NON-social high-stakes broadcast that the legal lexicon
+  //      misses — "the board voted to remove the CEO", "filing due Friday" — at full rank. Form
+  //      alone can't separate noise from governance (legal shares the broadcast form), so we only
+  //      sink broadcasts that carry a positive noise signal, and legal/high-stakes is exempt.
+  if (
+    kind === 'awaiting' &&
+    !leadStakes &&
+    !isLegal &&
+    address <= 0.3 &&
+    !hasAsk &&
+    urg === 0 &&
+    SOCIAL_RE.test(text)
+  ) {
+    score = Math.min(score, AWAIT_DEMOTE);
+    reason = 'broadcast-demote';
+  }
   if (kind === 'weighin') {
     if (substantive) {
       // kept: real multi-person discussion OR legal/regulatory substance (checked first
