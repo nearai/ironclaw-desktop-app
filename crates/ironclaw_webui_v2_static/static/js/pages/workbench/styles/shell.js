@@ -107,11 +107,11 @@ export const WORKBENCH_SHELL_STYLE = `.wb13-shell {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: 15px 4px 6px;
+  margin: 16px 4px 6px;
   color: var(--wb-rail-muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
 .wb13-dock-count {
@@ -120,9 +120,9 @@ export const WORKBENCH_SHELL_STYLE = `.wb13-shell {
   background: var(--wb-rail-2);
   color: var(--wb-ink-2);
   font-weight: 600;
-  padding: 0 6px;
-  font-size: 10px;
-  line-height: 15px;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  line-height: 1;
 }
 .wb13-workspace-titlerow { display: flex; align-items: center; gap: 8px; }
 .wb13-live {
