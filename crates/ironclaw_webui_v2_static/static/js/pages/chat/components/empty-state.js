@@ -204,10 +204,10 @@ export function EmptyState({
 
   return html`
     <div
-      className="v2-page-entrance flex min-h-0 flex-1 items-center overflow-y-auto px-4 py-6 sm:px-8 lg:px-12"
+      className="v2-page-entrance flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-8 lg:px-12"
     >
       <div
-        className="mx-auto grid w-full max-w-6xl gap-7 lg:grid-cols-[1.08fr_0.92fr] lg:items-start"
+        className="mx-auto my-auto grid w-full max-w-6xl gap-7 lg:grid-cols-[1.08fr_0.92fr] lg:items-start"
       >
         <section className="min-w-0">
           <div

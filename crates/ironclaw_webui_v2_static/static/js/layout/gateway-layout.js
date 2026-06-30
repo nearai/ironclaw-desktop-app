@@ -68,6 +68,13 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
   });
   const status = statusQuery.data;
 
+  // Close the mobile drawer on any route change. Navigation that does not call
+  // sidebar.close() itself (command palette, header links) would otherwise leave
+  // the drawer open over the new page.
+  React.useEffect(() => {
+    sidebar.close();
+  }, [location.pathname, sidebar.close]);
+
   // Chat is the front door. Model setup remains truthful in the composer and
   // Settings; the layout no longer redirects first-run users into provider
   // management before they can see the product surface.

@@ -24,7 +24,7 @@ export function Sidebar({
     >
       <div
         data-tauri-drag-region
-        className=${`flex items-center gap-2.5 px-4 pb-4 ${isDesktopRuntime() ? 'pt-10' : 'pt-5'}`}
+        className=${`flex items-center gap-2.5 px-4 pb-4 ${isDesktopRuntime() ? 'pt-10' : 'v2-sidebar-header pt-5'}`}
       >
         <${Link}
           to="/chat"

@@ -623,7 +623,7 @@ export function ChatInput({
     setAddMenuOpen(false);
     fileInputRef.current?.click();
   }, []);
-  const shellClass = isHero ? 'w-full' : 'px-4 py-3 sm:px-5 lg:px-8';
+  const shellClass = isHero ? 'w-full' : 'v2-composer-dock px-4 py-3 sm:px-5 lg:px-8';
   const composerClass = [
     'relative mx-auto w-full max-w-5xl rounded-[20px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] shadow-[var(--v2-card-shadow)] p-2.5',
     isHero ? 'min-h-[120px]' : '',
@@ -725,7 +725,7 @@ export function ChatInput({
                   </button>
                   <button
                     onClick=${() => removeAttachment(i)}
-                    className="ml-1 text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]"
+                    className="-m-2 grid min-h-[44px] min-w-[44px] place-items-center text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]"
                     aria-label=${t('chat.removeAttachment')}
                   >
                     <${Icon} name="close" className="h-3.5 w-3.5" />

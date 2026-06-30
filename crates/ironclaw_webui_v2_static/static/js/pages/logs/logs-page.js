@@ -33,7 +33,7 @@ function LogEntry({ entry }) {
       onClick=${() => setExpanded((v) => !v)}
       className=${[
         'grid cursor-pointer select-none gap-x-3 px-4 py-1 font-mono text-xs hover:bg-[var(--v2-surface-muted)]',
-        'grid-cols-[7rem_3rem_minmax(10rem,18rem)_1fr]',
+        'grid-cols-[5rem_2.5rem_minmax(6rem,10rem)_1fr] md:grid-cols-[7rem_3rem_minmax(10rem,18rem)_1fr]',
         rowBg
       ]
         .filter(Boolean)

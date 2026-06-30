@@ -20,6 +20,11 @@
 :root {
   color-scheme: light;
 
+  /* Safe-area insets — index.html ships viewport-fit=cover, so the composer
+     dock and sidebar header must clear the notch / home indicator. */
+  --v2-safe-bottom: max(0.75rem, env(safe-area-inset-bottom));
+  --v2-safe-top:    max(0.5rem, env(safe-area-inset-top));
+
   /* Canvas / surfaces */
   --v2-canvas:        #f6f8fb;
   --v2-canvas-strong: #ffffff;
@@ -353,6 +358,17 @@ summary:focus-visible {
   background: var(--v2-card-bg);
   box-shadow: var(--v2-card-shadow);
   border-radius: 16px;
+}
+
+/* Composer dock — clear the home indicator on viewport-fit=cover devices so
+   the send button is never occluded. Adds to the dock's existing padding. */
+.v2-composer-dock {
+  padding-bottom: var(--v2-safe-bottom);
+}
+
+/* Sidebar header — clear the notch so the brand row is never occluded. */
+.v2-sidebar-header {
+  padding-top: var(--v2-safe-top);
 }
 
 /* Base button reset — kept for components still using raw <button>/<label> with v2-button */
