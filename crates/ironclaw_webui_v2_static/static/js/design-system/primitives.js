@@ -190,16 +190,11 @@ export function SectionHeader({ title, subtitle }) {
 
 /* ── SubLabel ──────────────────────────────────────────────────────── */
 /**
- * Section divider label: text-[1.35rem] font-medium text/82
+ * Section divider label: text-[1.35rem] font-medium text-muted
  */
 export function SubLabel({ children, className = '' }) {
   return html`
-    <div
-      className=${cn(
-        'mb-4 text-[1.35rem] font-medium text-[var(--v2-text-strong)] opacity-[0.82]',
-        className
-      )}
-    >
+    <div className=${cn('mb-4 text-[1.35rem] font-medium text-[var(--v2-text-muted)]', className)}>
       ${children}
     </div>
   `;
