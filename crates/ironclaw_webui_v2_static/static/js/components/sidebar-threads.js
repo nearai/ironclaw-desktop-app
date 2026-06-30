@@ -86,7 +86,7 @@ function ThreadItem({ thread, isActive, isPinned, presentation, onSelect, onDele
   return html`
     <div
       className=${cn(
-        'group flex w-full items-stretch rounded-[7px] border border-l-2',
+        'group flex w-full items-stretch rounded-[var(--v2-radius-control)] border border-l-2',
         presentation
           ? presentation.borderClass
           : isActive
@@ -129,7 +129,7 @@ function ThreadItem({ thread, isActive, isPinned, presentation, onSelect, onDele
         aria-label=${isPinned ? 'Unpin chat' : 'Pin chat'}
         aria-pressed=${isPinned ? 'true' : 'false'}
         className=${cn(
-          'my-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px] transition',
+          'my-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--v2-radius-control)] transition',
           isPinned
             ? 'text-[var(--v2-accent-text)]'
             : 'opacity-0 text-[var(--v2-text-faint)] group-hover:opacity-100 focus:opacity-100',
@@ -145,7 +145,7 @@ function ThreadItem({ thread, isActive, isPinned, presentation, onSelect, onDele
         title="Delete chat"
         aria-label="Delete chat"
         className=${cn(
-          'my-1 mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-[6px]',
+          'my-1 mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--v2-radius-control)]',
           'opacity-0 transition group-hover:opacity-100 focus:opacity-100',
           'text-[var(--v2-text-faint)] hover:bg-[var(--v2-danger-soft)] hover:text-[var(--v2-danger-text)]'
         )}
@@ -225,14 +225,25 @@ export function SidebarThreads({
         recentList.push(thread);
       }
     }
-    pinnedList.sort(byActivityDesc);
-    recentList.sort(byActivityDesc);
+    // Float what needs the user to the top: attention > running > failed > recent.
+    // The product's reason to exist outranks recency in the list.
+    const priority = (id) => {
+      const state = states.get(id);
+      if (state === THREAD_STATE.NEEDS_ATTENTION) return 0;
+      if (state === THREAD_STATE.RUNNING) return 1;
+      if (state === THREAD_STATE.FAILED) return 2;
+      return 3;
+    };
+    const byAttentionThenActivity = (a, b) =>
+      priority(a.id) - priority(b.id) || byActivityDesc(a, b);
+    pinnedList.sort(byAttentionThenActivity);
+    recentList.sort(byAttentionThenActivity);
     return {
       pinned: pinnedList,
       recent: recentList,
       totalMatches: pinnedList.length + recentList.length
     };
-  }, [threads, query, pinnedIds]);
+  }, [threads, query, pinnedIds, states]);
 
   // Search-miss auto-load: while a search has no loaded matches but older pages
   // exist, page through them so a thread on page 3 is still findable. Bounded —
@@ -248,11 +259,9 @@ export function SidebarThreads({
     <div className="flex min-h-0 flex-1 flex-col px-2">
       <button
         onClick=${() => setCollapsed((v) => !v)}
-        className="flex min-h-[44px] w-full items-center gap-1 rounded-[6px] px-2 py-1.5 hover:bg-[var(--v2-surface-soft)]"
+        className="flex min-h-[44px] w-full items-center gap-1 rounded-[var(--v2-radius-control)] px-2 py-1.5 hover:bg-[var(--v2-surface-soft)]"
       >
-        <span className="flex-1 text-left text-[13px] font-medium text-[var(--v2-text-muted)]">
-          Conversations
-        </span>
+        <span className="v2-text-label flex-1 text-left">Conversations</span>
         <${Icon}
           name="chevron"
           className=${cn('h-3.5 w-3.5 text-[var(--v2-text-faint)]', collapsed ? '-rotate-90' : '')}
@@ -276,7 +285,7 @@ export function SidebarThreads({
             onInput=${(event) => setQuery(event.currentTarget.value)}
             aria-label=${t('chat.searchThreads')}
             placeholder="Search chats…"
-            className="h-11 w-full rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[12px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
+            className="h-11 w-full rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[12px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
           />
         </div>`}
         <div
@@ -296,18 +305,18 @@ export function SidebarThreads({
                 <div className="flex items-center gap-2 px-1">
                   <div
                     aria-hidden="true"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-[var(--v2-surface-muted)] text-[var(--v2-text-faint)]"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--v2-radius-control)] bg-[var(--v2-surface-muted)] text-[var(--v2-text-faint)]"
                   >
                     <${Icon} name="chat" className="h-4 w-4" />
                   </div>
-                  <div className="v2-skeleton h-8 flex-1 rounded-[8px]" />
+                  <div className="v2-skeleton h-8 flex-1 rounded-[var(--v2-radius-control)]" />
                 </div>
                 ${[2, 3, 4].map(
                   (i) =>
                     html`<div
                       key=${i}
                       aria-hidden="true"
-                      className="v2-skeleton h-8 w-full rounded-[8px]"
+                      className="v2-skeleton h-8 w-full rounded-[var(--v2-radius-control)]"
                     />`
                 )}
               </div>`
@@ -330,7 +339,7 @@ export function SidebarThreads({
                   html`<button
                     type="button"
                     onClick=${() => onRetry()}
-                    className="mt-1 inline-flex min-h-[44px] items-center gap-1 rounded-[6px] px-2 py-1 text-[12px] font-medium text-[var(--v2-accent)] hover:bg-[color-mix(in_srgb,var(--v2-accent)_10%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]"
+                    className="mt-1 inline-flex min-h-[44px] items-center gap-1 rounded-[var(--v2-radius-control)] px-2 py-1 text-[12px] font-medium text-[var(--v2-accent)] hover:bg-[color-mix(in_srgb,var(--v2-accent)_10%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]"
                   >
                     <${Icon} name="retry" className="h-3.5 w-3.5" /> Retry
                   </button>`}
@@ -376,7 +385,7 @@ export function SidebarThreads({
             type="button"
             onClick=${() => onLoadMore?.()}
             disabled=${isLoadingMore}
-            className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[8px] border border-[var(--v2-panel-border)] px-3 text-[12px] font-medium text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:opacity-60"
+            className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] px-3 text-[12px] font-medium text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:opacity-60"
           >
             ${isLoadingMore ? 'Loading…' : 'Load older conversations'}
           </button>`}

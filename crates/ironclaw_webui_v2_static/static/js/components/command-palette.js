@@ -190,7 +190,7 @@ export function CommandPalette({
         className="absolute inset-0 bg-black/50"
       ></button>
       <div
-        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-[var(--v2-panel-border)] bg-[var(--v2-surface)]"
+        className="relative w-full max-w-lg overflow-hidden rounded-[var(--v2-radius-shell)] border border-[var(--v2-panel-border)] border-t-2 border-t-[var(--v2-accent)] bg-[var(--v2-surface-soft)]"
       >
         <div className="flex items-center gap-2 border-b border-[var(--v2-panel-border)] px-3">
           <${Icon} name="search" className="h-4 w-4 text-[var(--v2-text-faint)]" />
@@ -238,7 +238,7 @@ export function CommandPalette({
               html`<li
                 key=${`g-${command.group}`}
                 role="presentation"
-                className="px-2.5 pb-1 pt-3 text-[13px] font-medium text-[var(--v2-text-muted)]"
+                className="v2-text-label px-2.5 pb-1 pt-3"
               >
                 ${command.group}
               </li>`}
@@ -251,9 +251,9 @@ export function CommandPalette({
                   onMouseEnter=${() => setActive(index)}
                   onClick=${() => exec(command)}
                   className=${[
-                    'flex min-h-[44px] w-full items-center gap-2.5 rounded-[9px] px-2.5 py-2 text-left text-sm',
+                    'flex min-h-[44px] w-full items-center gap-2.5 rounded-[var(--v2-radius-control)] px-2.5 py-2 text-left text-sm',
                     isActive
-                      ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
+                      ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-text-strong)]'
                       : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]'
                   ].join(' ')}
                 >
@@ -264,6 +264,13 @@ export function CommandPalette({
             `;
           })}
         </ul>
+        <div
+          className="flex items-center gap-3 border-t border-[var(--v2-panel-border)] px-3 py-2 v2-text-meta"
+        >
+          <span>↑↓ navigate</span>
+          <span>↵ open</span>
+          <span>esc close</span>
+        </div>
       </div>
     </div>
   `;

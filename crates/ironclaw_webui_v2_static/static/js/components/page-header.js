@@ -25,7 +25,7 @@ function ChromeControls({ chrome, onSetChromePosition, onSetChromeDensity }) {
         aria-label="Sidebar position"
         value=${chrome.position}
         onChange=${(event) => onSetChromePosition(event.currentTarget.value)}
-        className="h-8 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-2 text-[11px] font-semibold text-[var(--v2-text-muted)] outline-none hover:bg-[var(--v2-surface-muted)] focus:border-[var(--v2-accent)]"
+        className="h-8 rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-2 text-[11px] font-semibold text-[var(--v2-text-muted)] outline-none hover:bg-[var(--v2-surface-muted)] focus:border-[var(--v2-accent)]"
       >
         <option value="left">Left</option>
         <option value="right">Right</option>
@@ -35,7 +35,7 @@ function ChromeControls({ chrome, onSetChromePosition, onSetChromeDensity }) {
         aria-label="Sidebar density"
         value=${chrome.density}
         onChange=${(event) => onSetChromeDensity(event.currentTarget.value)}
-        className="h-8 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-2 text-[11px] font-semibold text-[var(--v2-text-muted)] outline-none hover:bg-[var(--v2-surface-muted)] focus:border-[var(--v2-accent)]"
+        className="h-8 rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-2 text-[11px] font-semibold text-[var(--v2-text-muted)] outline-none hover:bg-[var(--v2-surface-muted)] focus:border-[var(--v2-accent)]"
       >
         <option value="expanded">Expanded</option>
         <option value="compact">Compact</option>
@@ -90,13 +90,12 @@ export function PageHeader({
     <header
       className=${cn(
         'flex min-h-12 shrink-0 items-center gap-3 px-4',
-        'border-b border-[var(--v2-panel-border)]',
-        'bg-[color-mix(in_srgb,var(--v2-canvas-strong)_92%,transparent)] backdrop-blur-xl'
+        'border-b border-[var(--v2-panel-border)] bg-[var(--v2-canvas)]'
       )}
     >
       <button
         onClick=${onToggleSidebar}
-        className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-[7px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] md:hidden"
+        className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-[var(--v2-radius-control)] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] md:hidden"
         aria-label="Toggle sidebar"
       >
         <${Icon} name="list" className="h-4 w-4" />
@@ -114,7 +113,7 @@ export function PageHeader({
             </div>
           `
         : html`
-            <span className="truncate text-[13px] font-semibold text-[var(--v2-text-strong)]">
+            <span className="truncate text-[15px] font-semibold text-[var(--v2-text-strong)]">
               ${title}
             </span>
           `}
@@ -129,7 +128,7 @@ export function PageHeader({
         <button
           type="button"
           onClick=${openCommandPalette}
-          className="hidden h-11 items-center gap-1.5 rounded-[8px] px-2.5 text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] sm:inline-flex"
+          className="hidden h-11 items-center gap-1.5 rounded-[var(--v2-radius-control)] px-2.5 text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] sm:inline-flex"
           title=${t('nav.commandPalette')}
           aria-label=${t('nav.commandPalette')}
         >
@@ -143,7 +142,7 @@ export function PageHeader({
           to="/logs"
           className=${({ isActive }) =>
             cn(
-              'inline-flex min-h-[44px] items-center rounded-[7px] px-3 text-xs font-semibold text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]',
+              'inline-flex min-h-[44px] items-center rounded-[var(--v2-radius-control)] px-3 text-xs font-semibold text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]',
               isActive &&
                 'border border-[color-mix(in_srgb,var(--v2-accent)_32%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
             )}
@@ -155,7 +154,7 @@ export function PageHeader({
           href=${DOCS_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="-mr-2 inline-flex min-h-[44px] items-center rounded-[7px] px-3 text-xs font-semibold text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+          className="-mr-2 inline-flex min-h-[44px] items-center rounded-[var(--v2-radius-control)] px-3 text-xs font-semibold text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
           title=${t('nav.docs')}
         >
           ${t('nav.docs')}

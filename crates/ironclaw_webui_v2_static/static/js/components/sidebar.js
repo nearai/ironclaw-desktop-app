@@ -33,7 +33,7 @@ function RecentThreadStrip({ threads, activeThreadId, onSelect }) {
               onClick=${() => onSelect(thread.id)}
               title=${threadTitle(thread)}
               className=${cn(
-                'min-h-[36px] min-w-[112px] max-w-[144px] rounded-[7px] border px-2 text-left text-[11px] font-medium',
+                'min-h-[36px] min-w-[112px] max-w-[144px] rounded-[var(--v2-radius-control)] border px-2 text-left text-[11px] font-medium',
                 thread.id === activeThreadId
                   ? 'border-[color-mix(in_srgb,var(--v2-accent)_36%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
                   : 'border-transparent text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text-strong)]'
@@ -69,7 +69,7 @@ export function Sidebar({
   if (bottom) {
     return html`
       <aside
-        className="flex h-[86px] w-full shrink-0 items-stretch border-t border-[var(--v2-panel-border)] bg-[var(--v2-surface)]"
+        className="flex h-[86px] w-full shrink-0 items-stretch border-t border-[var(--v2-panel-border)] bg-[var(--v2-canvas)]"
       >
         <div
           data-tauri-drag-region
@@ -115,7 +115,7 @@ export function Sidebar({
   return html`
     <aside
       className=${cn(
-        'flex h-full shrink-0 flex-col bg-[var(--v2-surface)]',
+        'flex h-full shrink-0 flex-col bg-[var(--v2-canvas)]',
         compact ? 'w-[72px]' : 'w-[260px]',
         right
           ? 'border-l border-[var(--v2-panel-border)]'

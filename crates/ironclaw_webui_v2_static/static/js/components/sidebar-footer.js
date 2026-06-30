@@ -50,8 +50,8 @@ export function SidebarFooter({
       html`
         <div
           className=${cn(
-            'absolute bottom-full left-3 right-3 mb-2 rounded-[10px] border p-3',
-            'border-[var(--v2-panel-border)] bg-[var(--v2-surface)]'
+            'absolute bottom-full left-3 right-3 mb-2 rounded-[var(--v2-radius-card)] border border-t-2 border-t-[var(--v2-accent)] p-3',
+            'border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)]'
           )}
         >
           <div className="truncate text-sm font-medium text-[var(--v2-text-strong)]">${name}</div>
@@ -68,7 +68,7 @@ export function SidebarFooter({
         type="button"
         onClick=${accountPopover.toggle}
         className=${cn(
-          'flex min-h-[44px] min-w-0 items-center rounded-[8px] text-left',
+          'flex min-h-[44px] min-w-0 items-center rounded-[var(--v2-radius-control)] text-left',
           compact ? 'justify-center' : 'flex-1 gap-2'
         )}
         title=${name}
@@ -96,7 +96,7 @@ export function SidebarFooter({
       </button>
       <button
         onClick=${toggleTheme}
-        className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--v2-radius-control)] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
         title=${theme === 'dark' ? t('theme.light') : t('theme.dark')}
         aria-label=${theme === 'dark' ? t('theme.light') : t('theme.dark')}
       >
@@ -104,7 +104,7 @@ export function SidebarFooter({
       </button>
       <button
         onClick=${onSignOut}
-        className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+        className="-mr-1 grid h-11 w-11 shrink-0 place-items-center rounded-[var(--v2-radius-control)] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
         title=${t('header.signOut')}
         aria-label=${t('header.signOut')}
       >

@@ -41,13 +41,16 @@ export function TeeShield() {
         aria-expanded=${open}
         title=${t('tee.title')}
         className=${cn(
-          'grid h-11 w-11 place-items-center rounded-[8px]',
-          'border border-[color-mix(in_srgb,var(--v2-positive-text)_28%,transparent)]',
-          'bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]',
-          'hover:border-[color-mix(in_srgb,var(--v2-positive-text)_52%,transparent)]'
+          'inline-flex h-8 items-center gap-1.5 rounded-[var(--v2-radius-control)] px-2.5',
+          'border border-[var(--v2-panel-border)] bg-transparent v2-text-meta',
+          'hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text-strong)]'
         )}
       >
-        <${Icon} name="shield" className="h-4 w-4" />
+        <span
+          className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-positive-text)]"
+          aria-hidden="true"
+        ></span>
+        tee · verified
       </button>
 
       ${open &&
@@ -55,8 +58,8 @@ export function TeeShield() {
         <div
           className=${cn(
             'absolute right-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-2rem))]',
-            'rounded-[14px] border border-[var(--v2-panel-border)]',
-            'bg-[var(--v2-surface)] p-3 shadow-[0_16px_40px_-18px_rgba(33,28,21,0.3)]'
+            'rounded-[var(--v2-radius-shell)] border border-[var(--v2-panel-border)] border-t-2 border-t-[var(--v2-accent)]',
+            'bg-[var(--v2-surface-soft)] p-3'
           )}
         >
           <div className="flex items-center gap-2">
