@@ -307,18 +307,22 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
       </div>
 
       ${parameters &&
-      html`<div className="mb-3">
-        <div
-          className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+      html`<details className="mb-3 group">
+        <summary
+          className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
         >
-          ${t('approval.parametersLabel')}
-        </div>
+          <${Icon}
+            name="chevron"
+            className="h-3 w-3 -rotate-90 transition-transform group-open:rotate-0"
+          />
+          ${t('approval.rawParametersLabel')}
+        </summary>
         <pre
-          className="max-h-44 overflow-auto rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas-strong)] p-3 font-mono text-xs leading-5 text-[var(--v2-text)]"
+          className="mt-1 max-h-44 overflow-auto rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas-strong)] p-3 font-mono text-xs leading-5 text-[var(--v2-text)]"
         >
 ${parameters}</pre
         >
-      </div>`}
+      </details>`}
       ${allowAlwaysAvailable &&
       html`
         <label

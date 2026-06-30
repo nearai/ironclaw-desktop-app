@@ -75,6 +75,9 @@ registerPack('en', {
   'chat.briefReadyTitle': 'Ready to work',
   'chat.briefReadyDesc':
     'Send a message or attach a document. The assistant will keep work product visible in the thread.',
+  'chat.briefVerifyingTitle': 'Verification pending',
+  'chat.briefVerifyingDesc':
+    'IronClaw is still verifying model access. You can draft your ask now; it sends once verification completes.',
   'chat.briefResumeTitle': 'Recent threads are ready to reopen',
   'chat.briefResumeDesc': 'Pick up context without starting from a blank prompt.',
   'chat.briefWorkspaceTitle': 'Workspace context appears as it is connected',
@@ -206,6 +209,7 @@ registerPack('en', {
   'approval.whatLeavesMachineLabel': 'What leaves the machine',
   'approval.notSpecified': 'Not specified by the tool.',
   'approval.parametersLabel': 'Parameters',
+  'approval.rawParametersLabel': 'Raw parameters',
   'approval.shortcutHint': 'Cmd/Ctrl+Enter approve / Esc deny',
   // Chat — tool activity
   'tool.tabDetails': 'Details',
@@ -233,6 +237,7 @@ registerPack('en', {
   'tool.riskExport': 'exports',
   'tool.riskExec': 'runs commands',
   'tool.riskNetwork': 'uses network',
+  'tool.riskUnknown': 'unrecognized action — review parameters',
   'authGate.title': 'Authentication required',
   'authGate.tokenLabel': 'Access token',
   'authGate.tokenPlaceholder': 'Paste access token',
@@ -246,6 +251,9 @@ registerPack('en', {
   'authGate.oauthWaiting':
     'Waiting for authorization to complete\u2026 You can close the popup tab once you\u2019ve approved access.',
   'authGate.expiresAt': 'Expires',
+  'authGate.oauthExpired': 'Authorization expired — re-open to try again.',
+  'authGate.oauthLinkUnavailable':
+    'Authorization link unavailable. IronClaw could not get a valid sign-in URL from the provider.',
   'authGate.oauthProviderFallback': 'the provider',
   'authGate.pillAuthorize': 'Authorize',
   'authGate.pillEnterToken': 'Enter token',
@@ -367,6 +375,7 @@ registerPack('en', {
   'onboarding.providerNearai': 'NEAR AI',
   'onboarding.providerNearaiDesc': 'Hosted model access through IronClaw.',
   'onboarding.nearaiWaiting': 'Finish signing in to NEAR AI in your browser…',
+  'onboarding.nearaiWaitingDesktop': 'Finish signing in to NEAR AI in the sign-in window…',
   'onboarding.nearaiTimeout': 'NEAR AI sign-in timed out. Please try again.',
   'onboarding.nearaiFailed': 'NEAR AI sign-in failed. Please try again.',
   'onboarding.resumingSession': 'Found an existing NEAR AI session — connecting…',

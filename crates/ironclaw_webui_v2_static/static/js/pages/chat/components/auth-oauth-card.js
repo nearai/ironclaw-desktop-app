@@ -26,6 +26,13 @@ import { Button } from '../../../design-system/button.js';
 import { Icon } from '../../../design-system/icons.js';
 import { AuthGateShell } from './auth-gate-shell.js';
 
+// Resolve the gate expiry to a finite epoch-ms value, or null when absent.
+function resolveExpiry(expiresAt) {
+  if (expiresAt == null || expiresAt === '') return null;
+  const stamp = typeof expiresAt === 'number' ? expiresAt : Date.parse(expiresAt);
+  return Number.isFinite(stamp) ? stamp : null;
+}
+
 export function AuthOauthCard({ gate, onCancel }) {
   const t = useT();
   const [opened, setOpened] = React.useState(false);
@@ -38,6 +45,29 @@ export function AuthOauthCard({ gate, onCancel }) {
     }
   }, [gate.authorizationUrl]);
 
+  // Expiry: an OAuth authorization URL is time-boxed. Once it lapses the waiting
+  // text would lie ("waiting…" on a dead link), so we flip to an expired state
+  // and steer the user to re-open instead. A timer fires at the expiry instant so
+  // the state changes without a fresh render trigger.
+  const expiresAt = React.useMemo(() => resolveExpiry(gate?.expiresAt), [gate?.expiresAt]);
+  const [expired, setExpired] = React.useState(() =>
+    expiresAt != null ? Date.now() >= expiresAt : false
+  );
+  React.useEffect(() => {
+    if (expiresAt == null) {
+      setExpired(false);
+      return undefined;
+    }
+    const remaining = expiresAt - Date.now();
+    if (remaining <= 0) {
+      setExpired(true);
+      return undefined;
+    }
+    setExpired(false);
+    const timer = window.setTimeout(() => setExpired(true), remaining);
+    return () => window.clearTimeout(timer);
+  }, [expiresAt]);
+
   const providerLabel = gate.provider
     ? gate.provider.charAt(0).toUpperCase() + gate.provider.slice(1)
     : t('authGate.oauthProviderFallback');
@@ -47,6 +77,9 @@ export function AuthOauthCard({ gate, onCancel }) {
     // custom protocol handlers (javascript:, tel:, ms-msdt:, slack:) are
     // never opened even if a future code path writes an unexpected scheme.
     if (!hasHttpsAuthorizationUrl) return;
+    // Re-opening after expiry mints a fresh attempt; clear the expired flag so
+    // the waiting hint replaces the expiry notice.
+    setExpired(false);
     // Desktop: route to the SYSTEM browser — window.open in WKWebView spawns
     // a cookie-less child webview where the user has no Google session and
     // OAuth cannot complete. openExternalUrl falls back to window.open when
@@ -55,9 +88,11 @@ export function AuthOauthCard({ gate, onCancel }) {
     setOpened(true);
   }, [gate.authorizationUrl, hasHttpsAuthorizationUrl]);
 
-  const openLabel = opened
-    ? t('authGate.reopenAuthorization', { provider: providerLabel })
-    : t('authGate.openAuthorization', { provider: providerLabel });
+  // After expiry the CTA always reads as a re-open, since the prior link is dead.
+  const openLabel =
+    opened || expired
+      ? t('authGate.reopenAuthorization', { provider: providerLabel })
+      : t('authGate.openAuthorization', { provider: providerLabel });
 
   return html`
     <${AuthGateShell}
@@ -67,31 +102,53 @@ export function AuthOauthCard({ gate, onCancel }) {
       accountLabel=${gate?.accountLabel || ''}
       body=${gate?.body || ''}
       expiresAt=${gate?.expiresAt || ''}
+      expired=${expired}
       pillHint=${t('authGate.pillAuthorize')}
     >
       <div className="flex flex-wrap gap-2">
-        <${Button}
-          as="a"
-          href=${hasHttpsAuthorizationUrl ? gate.authorizationUrl : undefined}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="auth-oauth"
-          variant="primary"
-          disabled=${!hasHttpsAuthorizationUrl}
-          onClick=${(event) => {
-            event.preventDefault();
-            openAuth();
-          }}
-        >
-          <${Icon} name="link" className="h-4 w-4" />
-          ${openLabel}
-        <//>
+        ${hasHttpsAuthorizationUrl
+          ? html`<${Button}
+              as="a"
+              href=${gate.authorizationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="auth-oauth"
+              variant="primary"
+              onClick=${(event) => {
+                event.preventDefault();
+                openAuth();
+              }}
+            >
+              <${Icon} name="link" className="h-4 w-4" />
+              ${openLabel}
+            <//>`
+          : html`<${Button}
+              as="button"
+              type="button"
+              className="auth-oauth"
+              variant="primary"
+              disabled
+            >
+              <${Icon} name="link" className="h-4 w-4" />
+              ${openLabel}
+            <//>`}
         <${Button} type="button" variant="secondary" onClick=${() => onCancel?.()}>
           ${t('authGate.cancel')}
         <//>
       </div>
 
-      ${opened &&
+      ${!hasHttpsAuthorizationUrl &&
+      html`<p className="mt-2 text-xs text-[var(--v2-warning-text)]">
+        ${t('authGate.oauthLinkUnavailable')}
+      </p>`}
+      ${hasHttpsAuthorizationUrl &&
+      expired &&
+      html`<p className="mt-2 text-xs text-[var(--v2-warning-text)]">
+        ${t('authGate.oauthExpired')}
+      </p>`}
+      ${hasHttpsAuthorizationUrl &&
+      !expired &&
+      opened &&
       html` <p className="mt-2 text-xs text-iron-300">${t('authGate.oauthWaiting')}</p> `}
     <//>
   `;

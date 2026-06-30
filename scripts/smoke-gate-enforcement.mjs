@@ -494,6 +494,9 @@ try {
     .waitFor({ timeout: 20_000 });
   await page.getByText('Touches', { exact: true }).waitFor({ timeout: 20_000 });
   await page.getByText('What leaves the machine', { exact: true }).waitFor({ timeout: 20_000 });
+  // Raw parameter JSON is collapsed by default (Raw parameters <details>); expand
+  // it so the full payload is still reachable for the assertion below.
+  await page.getByText('Raw parameters', { exact: true }).click();
   await page.getByText('"recipient": "legal-review@example.com"').waitFor({ timeout: 20_000 });
   // The outbound cell must disclose every field that leaves: the email subject
   // is sent externally and previously never surfaced on the gate. It now renders

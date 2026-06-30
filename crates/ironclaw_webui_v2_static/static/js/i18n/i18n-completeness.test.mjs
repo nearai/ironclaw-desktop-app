@@ -24,6 +24,7 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'approval.notSpecified',
   'approval.nothingSentYet',
   'approval.parametersLabel',
+  'approval.rawParametersLabel',
   'approval.shortcutHint',
   'approval.thisTool',
   'approval.touchesLabel',
@@ -31,6 +32,8 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'authGate.cancel',
   'authGate.expiresAt',
   'authGate.googleHint',
+  'authGate.oauthExpired',
+  'authGate.oauthLinkUnavailable',
   'authGate.oauthProviderFallback',
   'authGate.oauthTitle',
   'authGate.oauthWaiting',
@@ -91,6 +94,8 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'chat.briefResumeTitle',
   'chat.briefSafetyDesc',
   'chat.briefSafetyTitle',
+  'chat.briefVerifyingDesc',
+  'chat.briefVerifyingTitle',
   'chat.briefWorkspaceDesc',
   'chat.briefWorkspaceTitle',
   'chat.dropToAttach',
@@ -219,6 +224,7 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'onboarding.nearaiFailed',
   'onboarding.nearaiTimeout',
   'onboarding.nearaiWaiting',
+  'onboarding.nearaiWaitingDesktop',
   'onboarding.promiseApprovalsBody',
   'onboarding.promiseApprovalsTitle',
   'onboarding.promiseFilesBody',
@@ -316,6 +322,7 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'tool.riskRead',
   'tool.riskSend',
   'tool.riskTrade',
+  'tool.riskUnknown',
   'tool.riskWrite',
   'tool.runCommand',
   'tool.runCommands',
@@ -345,7 +352,7 @@ test('every advertised language has a registered pack', () => {
 
 test('i18n baseline is sorted, unique, and references real English keys', () => {
   const englishKeys = Object.keys(packs.en || {}).sort();
-  assert.equal(englishKeys.length, 805);
+  assert.equal(englishKeys.length, 812);
   assert.deepEqual(BASELINE_MISSING_KEYS, sortedUnique(BASELINE_MISSING_KEYS));
 
   const unknownBaselineKeys = BASELINE_MISSING_KEYS.filter((key) => !packs.en?.[key]);

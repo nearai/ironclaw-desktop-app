@@ -156,6 +156,10 @@ export function EmptyState({
   const setupBlocked =
     context?.sendBlocked === true || providerSetupRequired || providerSetupFailed;
   const suggestionsBlocked = Boolean(setupBlocked || disabled);
+  // Only claim "Ready to work" when the gateway has actually verified model
+  // access. Otherwise the green brief row would contradict the composer's amber
+  // "Verification pending" chip — fake readiness the desk must never imply.
+  const modelVerified = context?.modelReadiness?.verified === true;
   const briefRows = [
     providerSetupChecking
       ? {
@@ -171,12 +175,19 @@ export function EmptyState({
             detail: context?.sendBlockReason || t('chat.briefNeedsSetupDesc'),
             tone: 'warning'
           }
-        : {
-            icon: 'check',
-            title: t('chat.briefReadyTitle'),
-            detail: t('chat.briefReadyDesc'),
-            tone: 'positive'
-          },
+        : modelVerified
+          ? {
+              icon: 'check',
+              title: t('chat.briefReadyTitle'),
+              detail: t('chat.briefReadyDesc'),
+              tone: 'positive'
+            }
+          : {
+              icon: 'pulse',
+              title: t('chat.briefVerifyingTitle'),
+              detail: t('chat.briefVerifyingDesc'),
+              tone: 'muted'
+            },
     {
       icon: recentThreads.length > 0 ? 'chat' : 'folder',
       title: recentThreads.length > 0 ? t('chat.briefResumeTitle') : t('chat.briefWorkspaceTitle'),

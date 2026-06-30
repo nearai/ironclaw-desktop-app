@@ -73,6 +73,7 @@ function renderApprovalCard({
     'approval.whatLeavesMachineLabel': 'What leaves the machine',
     'approval.notSpecified': 'Not specified by the tool.',
     'approval.parametersLabel': 'Parameters',
+    'approval.rawParametersLabel': 'Raw parameters',
     'approval.shortcutHint': 'Cmd/Ctrl+Enter approve / Esc deny',
     'projects.card.risk': 'Risk',
     'tool.riskRead': 'reads',
@@ -153,7 +154,7 @@ test('ApprovalCard names literal action fields, unknown outbound data, and short
   // still listed, so expanding the outbound set never dropped a prior field.
   assert.match(visible, /attachment: services-agreement\.docx/);
   assert.match(visible, /Always allow is unavailable/);
-  assert.match(visible, /Parameters/);
+  assert.match(visible, /Raw parameters/);
   assert.match(visible, /legal-review@example\.com/);
   assert.match(visible, /Cmd\/Ctrl\+Enter approve \/ Esc deny/);
   assert.match(visible, /Approve/);

@@ -1,5 +1,7 @@
 import { SlackPairingSection } from '../../../components/slack-pairing-section.js';
+import { Button } from '../../../design-system/button.js';
 import { Icon } from '../../../design-system/icons.js';
+import { appScopedPath } from '../../../lib/app-path.js';
 import { html } from '../../../lib/html.js';
 
 export function ChannelConnectCard({ connectAction, onDismiss }) {
@@ -47,10 +49,24 @@ export function ChannelConnectCard({ connectAction, onDismiss }) {
             `
           : html`
               <div
-                className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs leading-5 text-iron-300"
+                className="grid gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs leading-5 text-iron-300"
               >
-                ${connectAction.action?.instructions ||
-                'This channel exposes a connect action, but the WebUI has no renderer for its strategy yet.'}
+                <p>
+                  ${connectAction.action?.instructions ||
+                  `Finish connecting ${
+                    connectAction.display_name || channel
+                  } from the Connections page.`}
+                </p>
+                <${Button}
+                  as="a"
+                  href=${appScopedPath('/extensions/registry')}
+                  variant="secondary"
+                  size="sm"
+                  className="w-fit"
+                >
+                  Open Connections
+                  <${Icon} name="chevron" className="ml-1.5 h-3 w-3 -rotate-90" />
+                <//>
               </div>
             `}
     </div>

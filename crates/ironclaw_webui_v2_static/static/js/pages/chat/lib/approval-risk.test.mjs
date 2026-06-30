@@ -46,3 +46,39 @@ test('classifyRisk: legacy approval action kinds get specific danger labels', ()
     });
   }
 });
+
+test('classifyRisk: compose is a send (outbound), not a generic create/save write', () => {
+  // SEND/PUBLISH are tested before WRITE so a send-shaped verb is not downgraded
+  // to a plain "writes files" label even though it also reads as creation.
+  assert.deepEqual(classifyRisk('compose_message', 'Compose a reply', '{}'), {
+    tone: 'danger',
+    key: 'tool.riskSend',
+    allowAlways: false
+  });
+});
+
+test('classifyRisk: create_draft is a write (creates a file/record)', () => {
+  assert.deepEqual(classifyRisk('create_draft', 'Create a draft document', '{}'), {
+    tone: 'danger',
+    key: 'tool.riskWrite',
+    allowAlways: false
+  });
+});
+
+test('classifyRisk: a recognizable read verb keeps the muted reads label', () => {
+  assert.deepEqual(classifyRisk('list_invoices', 'List invoices', '{}'), {
+    tone: 'muted',
+    key: 'tool.riskRead',
+    allowAlways: true
+  });
+});
+
+test('classifyRisk: an unknown vendor tool is flagged for review, not whitewashed green', () => {
+  // No recognizable verb: the classifier must NOT default to a safe "reads"
+  // badge with always-allow. It surfaces a neutral review warning instead.
+  assert.deepEqual(classifyRisk('acme_zorp', 'Vendor-specific action', '{}'), {
+    tone: 'warning',
+    key: 'tool.riskUnknown',
+    allowAlways: false
+  });
+});

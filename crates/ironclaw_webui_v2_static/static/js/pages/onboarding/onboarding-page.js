@@ -30,8 +30,9 @@ const FEATURED = [
 // right. Stacks vertically on mobile (actions wrap onto their own line) and sits
 // on a single line from `sm` up. NEAR AI Cloud is the only featured provider, so
 // the row always renders the cloud sign-in actions.
-function FeaturedProviderRow({ entry, showReady, login, t }) {
+function FeaturedProviderRow({ entry, showReady, login, resuming = false, t }) {
   const name = t(entry.nameKey);
+  const authBusy = login.nearaiBusy || resuming;
 
   const actions = html`
     <${Button}
@@ -40,7 +41,7 @@ function FeaturedProviderRow({ entry, showReady, login, t }) {
       size="md"
       fullWidth=${true}
       className="col-span-2"
-      disabled=${login.nearaiBusy}
+      disabled=${authBusy}
       onClick=${() => login.startNearai('github')}
     >
       ${t('onboarding.continue')}
@@ -50,7 +51,7 @@ function FeaturedProviderRow({ entry, showReady, login, t }) {
       variant="secondary"
       size="md"
       fullWidth=${true}
-      disabled=${login.nearaiBusy}
+      disabled=${authBusy}
       onClick=${() => login.startNearai('google')}
     >
       ${t('onboarding.continueGoogle')}
@@ -60,7 +61,7 @@ function FeaturedProviderRow({ entry, showReady, login, t }) {
       variant="secondary"
       size="md"
       fullWidth=${true}
-      disabled=${login.nearaiBusy}
+      disabled=${authBusy}
       onClick=${login.startNearaiWallet}
     >
       ${t('onboarding.continueWallet')}
@@ -187,6 +188,10 @@ export function OnboardingPage() {
   // test, activate it, and go straight to chat. Sign-in stays the path for
   // genuinely new machines.
   const resumeAttemptedRef = React.useRef(false);
+  // While the resume probe is in flight, the auth buttons are disabled and a
+  // status line renders — otherwise a returning user could fire a fresh sign-in
+  // on top of the silent resume and race two logins.
+  const [resuming, setResuming] = React.useState(false);
   React.useEffect(() => {
     if (resumeAttemptedRef.current || state.isLoading) return;
     const nearai = state.providers.find((provider) => provider.id === 'nearai');
@@ -195,6 +200,7 @@ export function OnboardingPage() {
     let cancelled = false;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), RESUME_SESSION_TIMEOUT_MS);
+    setResuming(true);
     (async () => {
       try {
         const probe = await testLlmProviderConnection(
@@ -218,6 +224,7 @@ export function OnboardingPage() {
         // No working session — the sign-in buttons below are the path.
       } finally {
         window.clearTimeout(timeout);
+        if (!cancelled) setResuming(false);
       }
     })();
     return () => {
@@ -266,6 +273,15 @@ export function OnboardingPage() {
         </div>
 
         <div className="grid gap-4">
+          ${resuming &&
+          html`<div
+            className="flex items-center justify-center gap-2 rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-sm text-[var(--v2-text-muted)]"
+            role="status"
+            aria-live="polite"
+          >
+            <${Icon} name="pulse" className="h-3.5 w-3.5" />
+            ${t('onboarding.resumingSession')}
+          </div>`}
           <${Card} radius="lg" className="p-5 sm:p-6">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
@@ -317,7 +333,7 @@ export function OnboardingPage() {
                           size="md"
                           fullWidth=${true}
                           className="col-span-2"
-                          disabled=${providerAccessBlocked || login.nearaiBusy}
+                          disabled=${providerAccessBlocked || login.nearaiBusy || resuming}
                           onClick=${() => login.startNearai('github')}
                         >
                           ${t('onboarding.continue')}
@@ -327,7 +343,7 @@ export function OnboardingPage() {
                           variant="secondary"
                           size="md"
                           fullWidth=${true}
-                          disabled=${providerAccessBlocked || login.nearaiBusy}
+                          disabled=${providerAccessBlocked || login.nearaiBusy || resuming}
                           onClick=${() => login.startNearai('google')}
                         >
                           ${t('onboarding.continueGoogle')}
@@ -337,7 +353,7 @@ export function OnboardingPage() {
                           variant="secondary"
                           size="md"
                           fullWidth=${true}
-                          disabled=${providerAccessBlocked || login.nearaiBusy}
+                          disabled=${providerAccessBlocked || login.nearaiBusy || resuming}
                           onClick=${login.startNearaiWallet}
                         >
                           ${t('onboarding.continueWallet')}
@@ -353,6 +369,7 @@ export function OnboardingPage() {
                         showReady=${state.activeProviderId === provider.id ||
                         provider.has_api_key === true}
                         login=${login}
+                        resuming=${resuming}
                         t=${t}
                       />
                     `

@@ -635,6 +635,10 @@ for (const scenario of [
 
       await expect(page.getByRole('group', { name: 'Approval required' })).toBeVisible();
       await expect(page.getByText('send_email', { exact: true })).toBeVisible();
+      // Raw parameter JSON lives in a collapsed-by-default <details> so the card
+      // does not dump full payloads in an always-open pre. Expand it to assert
+      // the payload is still reachable.
+      await page.getByText('Raw parameters', { exact: true }).click();
       await expect(page.getByText('"recipient": "legal-review@example.com"')).toBeVisible();
       // DT-6 craft: the risk is explicitly named, the sent-yet boundary and the
       // data-movement fields are present, and the approve/deny controls are

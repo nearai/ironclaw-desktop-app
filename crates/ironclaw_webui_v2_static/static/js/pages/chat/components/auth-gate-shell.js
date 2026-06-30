@@ -13,6 +13,7 @@
  *   accountLabel  optional account label (subtitle; takes precedence)
  *   body          optional descriptive text shown at the top of the drawer
  *   expiresAt     optional ISO timestamp rendered as an expiry hint
+ *   expired       when true, the expiry line reads as a lapsed-authorization notice
  *   pillHint      short call-to-action text on the right of the pill
  *   defaultExpanded boolean (default true — active gates block the run)
  *   controlsId    id used for aria-controls / drawer id
@@ -29,6 +30,7 @@ export function AuthGateShell({
   accountLabel,
   body,
   expiresAt,
+  expired = false,
   pillHint,
   defaultExpanded = true,
   children
@@ -84,11 +86,17 @@ export function AuthGateShell({
           html`<div className="mb-3 text-sm leading-6 text-[var(--v2-text-muted)]">${body}</div>`}
           ${children}
           ${expiresAt &&
-          html`
-            <p className="mt-2 text-xs text-[var(--v2-text-faint)]">
-              ${t('authGate.expiresAt')}: ${new Date(expiresAt).toLocaleString()}
-            </p>
-          `}
+          (expired
+            ? html`
+                <p className="mt-2 text-xs text-[var(--v2-warning-text)]">
+                  ${t('authGate.oauthExpired')}
+                </p>
+              `
+            : html`
+                <p className="mt-2 text-xs text-[var(--v2-text-faint)]">
+                  ${t('authGate.expiresAt')}: ${new Date(expiresAt).toLocaleString()}
+                </p>
+              `)}
         </div>
       `}
     </div>
