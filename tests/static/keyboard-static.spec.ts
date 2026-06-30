@@ -119,6 +119,15 @@ async function activeElementSummary(page: Page) {
   });
 }
 
+async function focusWithinDialog(page: Page, label: string) {
+  return page.evaluate((dialogLabel) => {
+    const active = document.activeElement as HTMLElement | null;
+    if (!active) return false;
+    const dialog = active.closest('[role="dialog"]') as HTMLElement | null;
+    return Boolean(dialog) && dialog!.getAttribute('aria-label') === dialogLabel;
+  }, label);
+}
+
 test('static keyboard: composer reaches model, add sheet, and send controls in order', async ({
   page
 }) => {
@@ -148,6 +157,40 @@ test('static keyboard: composer reaches model, add sheet, and send controls in o
 
   await page.keyboard.press('Tab');
   await expect.poll(() => activeElementSummary(page)).toContain('Send message');
+});
+
+test('static keyboard: Add-to-message popover moves focus in, traps Tab, and restores on close', async ({
+  page
+}) => {
+  await installStaticInteractionMocks(page);
+  await page.goto('/v2/chat?token=static-keyboard-token');
+  await expect(
+    page.getByRole('heading', { name: 'What should IronClaw handle next?' })
+  ).toBeVisible();
+
+  const trigger = page.getByRole('button', { name: 'Add to message' });
+  await trigger.focus();
+  await page.keyboard.press('Enter');
+
+  const sheet = page.getByRole('dialog', { name: 'Add to message' });
+  await expect(sheet).toBeVisible();
+
+  // Focus is moved into the open dialog (not stranded on the trigger or <body>).
+  await expect.poll(() => focusWithinDialog(page, 'Add to message')).toBe(true);
+
+  // Tab/Shift-Tab stay trapped inside the dialog instead of walking the page
+  // behind it — the defect this guards (elite-audit #21).
+  for (let i = 0; i < 6; i += 1) {
+    await page.keyboard.press('Tab');
+    expect(await focusWithinDialog(page, 'Add to message')).toBe(true);
+  }
+  await page.keyboard.press('Shift+Tab');
+  expect(await focusWithinDialog(page, 'Add to message')).toBe(true);
+
+  // Escape closes and returns focus to the opener so the user is never stranded.
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect.poll(() => activeElementSummary(page)).toContain('Add to message');
 });
 
 test('static keyboard: model selector opens, closes, and keeps setup reachable', async ({
