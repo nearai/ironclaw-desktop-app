@@ -234,21 +234,26 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
     <div
       role="group"
       aria-label=${t('approval.title')}
-      className="mx-auto w-full max-w-xl rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_40%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-gold-soft)_72%,var(--v2-card-bg))] p-4"
+      className="mx-auto w-full max-w-xl rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-surface-soft)] p-4"
     >
       <div className="mb-3 flex items-start gap-3">
         <span
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+          className="grid h-9 w-9 shrink-0 place-items-center text-[var(--v2-gold-text)]"
+          aria-hidden="true"
         >
           <${Icon} name="lock" className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <div
-            className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--v2-gold-text)]"
-          >
+          <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
             ${t('approval.agentContext')}
           </div>
-          <h3 className="mt-1 text-base font-semibold leading-6 text-[var(--v2-text-strong)]">
+          <h3
+            className="mt-1 flex items-center gap-2 text-base font-semibold leading-6 text-[var(--v2-text-strong)]"
+          >
+            <span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
+            />
             ${displayName}
           </h3>
           ${visibleDescription &&
@@ -259,20 +264,16 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
           `}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
-          <span
-            className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--v2-text-faint)]"
-          >
+          <span className="text-[13px] font-medium text-[var(--v2-text-faint)]">
             ${t('projects.card.risk')}
           </span>
           <${Badge} tone=${risk.tone} label=${t(risk.key)} dot=${false} size="sm" />
         </div>
       </div>
 
-      <div
-        className="mb-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
-      >
+      <div className="mb-3 border-t border-[var(--v2-panel-border)] pt-3">
         <div
-          className="mb-3 flex items-center gap-2 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_28%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-3 py-2 text-sm font-semibold text-[var(--v2-text-strong)]"
+          className="mb-3 flex items-center gap-2 text-sm font-medium text-[var(--v2-text-strong)]"
         >
           <${Icon} name="shield" className="h-4 w-4 shrink-0 text-[var(--v2-gold-text)]" />
           ${t('approval.nothingSentYet')}
@@ -284,12 +285,10 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
                 key=${row.label}
                 className=${'grid gap-1' +
                 (row.emphasis && row.value
-                  ? ' rounded-[8px] border border-[color-mix(in_srgb,var(--v2-gold)_22%,var(--v2-panel-border))] bg-[var(--v2-canvas-strong)] px-2.5 py-2'
+                  ? ' rounded-[8px] border-l-2 border-[color-mix(in_srgb,var(--v2-gold)_45%,var(--v2-panel-border))] bg-[var(--v2-canvas-strong)] px-2.5 py-2'
                   : '')}
               >
-                <dt
-                  className="font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-                >
+                <dt className="text-[13px] font-medium text-[var(--v2-text-muted)]">
                   ${row.label}
                 </dt>
                 <dd
@@ -309,7 +308,7 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
       ${parameters &&
       html`<details className="mb-3 group">
         <summary
-          className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+          className="flex cursor-pointer list-none items-center gap-1.5 text-[13px] font-medium text-[var(--v2-text-muted)]"
         >
           <${Icon} name="chevron" className="h-3 w-3 -rotate-90 group-open:rotate-0" />
           ${t('approval.rawParametersLabel')}

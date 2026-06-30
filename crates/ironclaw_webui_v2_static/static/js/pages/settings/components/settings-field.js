@@ -1,6 +1,5 @@
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
-import { Card } from '../../../design-system/card.js';
 
 function SavedIndicator({ visible }) {
   const t = useT();
@@ -162,12 +161,8 @@ export function SettingsGroup({ group, groupKey, fields, settings, onSave, saved
   const t = useT();
   const groupLabel = groupKey ? t(groupKey) : group || '';
   return html`
-    <${Card} className="p-4 sm:p-6">
-      <h3
-        className="mb-4 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
-      >
-        ${groupLabel}
-      </h3>
+    <section className="mt-9 first:mt-0">
+      <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">${groupLabel}</h3>
       <div>
         ${fields.map(
           (field) => html`
@@ -181,6 +176,6 @@ export function SettingsGroup({ group, groupKey, fields, settings, onSave, saved
           `
         )}
       </div>
-    <//>
+    </section>
   `;
 }

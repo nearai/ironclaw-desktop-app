@@ -31,14 +31,14 @@ export function ThreadSidebar({
         <button
           onClick=${onCreate}
           disabled=${createDisabled}
-          className="v2-button h-9 shrink-0 rounded-md border border-signal/25 bg-signal/10 px-3 text-xs font-semibold text-signal disabled:opacity-50"
+          className="v2-button h-9 shrink-0 rounded-[8px] border border-transparent bg-transparent px-3 text-xs font-medium text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:opacity-50"
         >
           ${isCreating ? t('chat.creating') : t('chat.newThread')}
         </button>
         <select
           value=${activeThreadId || ''}
           onChange=${(event) => onSelect(event.target.value || null)}
-          className="v2-select h-9 min-w-0 flex-1 rounded-md border border-white/10 bg-iron-900 px-3 text-sm text-white outline-none focus:border-signal/60"
+          className="v2-select h-9 min-w-0 flex-1 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-sm text-[var(--v2-text-strong)] outline-none focus:border-[color-mix(in_srgb,var(--v2-accent)_60%,var(--v2-panel-border))]"
         >
           <option value="">${t('chat.selectConversation')}</option>
           ${threads.map(
@@ -54,18 +54,24 @@ export function ThreadSidebar({
   }
 
   return html`
-    <div className="flex h-full flex-col border-r border-white/10 bg-iron-950/72 backdrop-blur-xl">
-      <div className="flex items-center justify-between border-b border-white/10 px-5 py-5">
+    <div
+      className="flex h-full flex-col border-r border-[var(--v2-panel-border)] bg-[var(--v2-surface)]"
+    >
+      <div
+        className="flex items-center justify-between border-b border-[var(--v2-panel-border)] px-5 py-5"
+      >
         <div>
-          <span className="text-sm font-semibold text-white">${t('chat.conversations')}</span>
-          <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.16em] text-iron-300">
+          <span className="text-sm font-semibold text-[var(--v2-text-strong)]"
+            >${t('chat.conversations')}</span
+          >
+          <p className="mt-1 text-[13px] font-medium text-[var(--v2-text-muted)] tabular-nums">
             ${t('chat.threads', { count: threads.length })}
           </p>
         </div>
         <button
           onClick=${onCreate}
           disabled=${createDisabled}
-          className="v2-button inline-flex h-8 items-center gap-1.5 rounded-md border border-signal/25 bg-signal/10 px-2 text-xs font-medium text-signal hover:bg-signal/15 disabled:opacity-50"
+          className="v2-button inline-flex h-8 items-center gap-1.5 rounded-[8px] border border-transparent bg-transparent px-2 text-xs font-medium text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:opacity-50"
         >
           ${isCreating
             ? t('chat.creating')
@@ -76,7 +82,7 @@ export function ThreadSidebar({
       <div className="flex-1 overflow-y-auto p-2">
         ${threads.length === 0 &&
         html`<div
-          className="mx-2 mt-3 rounded-md border border-dashed border-white/12 px-4 py-7 text-left text-xs leading-5 text-iron-300"
+          className="mx-2 mt-3 px-2 py-7 text-left text-xs leading-5 text-[var(--v2-text-muted)]"
         >
           ${t('chat.noConversations')}
         </div>`}
@@ -87,22 +93,28 @@ export function ThreadSidebar({
               key=${thread.id}
               onClick=${() => onSelect(thread.id)}
               className=${[
-                'v2-button mb-1 flex w-full justify-start items-start flex-col gap-1 rounded-md border px-3 py-3 text-left',
+                'v2-button mb-0.5 flex w-full justify-start items-start flex-col gap-1 rounded-[8px] px-3 py-2.5 text-left',
                 active
-                  ? 'border-signal/35 bg-signal/10'
-                  : 'border-transparent hover:border-white/10 hover:bg-white/[0.045]'
+                  ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
+                  : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-muted)]'
               ].join(' ')}
             >
-              <div className="flex items-center gap-2">
-                <span className="truncate max-w-[150px] text-sm font-medium text-iron-100">
+              <div className="flex w-full items-center gap-2">
+                <span
+                  className="truncate max-w-[150px] text-sm font-medium text-[var(--v2-text-strong)]"
+                >
                   ${thread.title || `Thread ${thread.id.slice(0, 8)}`}
                 </span>
                 ${thread.state === 'Processing' &&
-                html`<span className="v2-breathing-dot ml-auto h-2 w-2 rounded-full bg-signal" />`}
+                html`<span
+                  className="v2-breathing-dot ml-auto h-2 w-2 rounded-full bg-[var(--v2-accent)]"
+                />`}
               </div>
-              <div className="flex items-center gap-2 font-mono text-[11px] text-iron-300">
+              <div
+                className="flex items-center gap-2 text-[11px] text-[var(--v2-text-faint)] tabular-nums"
+              >
                 <span>${t('chat.turns', { count: thread.turn_count || 0 })}</span>
-                <span>/</span>
+                <span>·</span>
                 <span>${formatTime(thread.updated_at)}</span>
               </div>
             </button>

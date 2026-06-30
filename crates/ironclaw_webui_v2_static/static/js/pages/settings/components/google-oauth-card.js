@@ -68,16 +68,14 @@ export function GoogleOauthCard() {
   const dirty = clientId.trim() !== savedId;
 
   return html`
-    <${Card} id=${'google-oauth'} padding="none" className="scroll-mt-6 p-4 sm:p-5">
+    <${Card} variant="soft" id=${'google-oauth'} padding="none" className="scroll-mt-6 p-4 sm:p-5">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h3
-          className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
-        >
+        <h3 className="text-[13px] font-medium text-[var(--v2-text-muted)]">
           ${t('googleOauth.title')}
         </h3>
         <span
           className=${[
-            'rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]',
+            'rounded-full border px-2 py-0.5 text-[11px] font-medium',
             savedId
               ? 'border-[color-mix(in_srgb,var(--v2-positive-text)_34%,var(--v2-panel-border))] text-[var(--v2-positive-text)]'
               : 'border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] text-[var(--v2-warning-text)]'

@@ -1,6 +1,5 @@
 import { Icon } from '../../../design-system/icons.js';
 import { Badge } from '../../../design-system/badge.js';
-import { Card } from '../../../design-system/card.js';
 import { html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { useTools } from '../hooks/useTools.js';
@@ -87,7 +86,7 @@ export function ToolsTab({ searchQuery = '' }) {
 
   if (query.isLoading) {
     return html`
-      <${Card} padding="md">
+      <section className="mt-9 first:mt-0">
         <div className="v2-skeleton mb-4 h-3 w-28 rounded" />
         ${[1, 2, 3, 4, 5].map(
           (i) => html`
@@ -100,17 +99,15 @@ export function ToolsTab({ searchQuery = '' }) {
             </div>
           `
         )}
-      <//>
+      </section>
     `;
   }
 
   if (query.error) {
     return html`
-      <${Card} padding="md">
-        <p className="text-sm text-[var(--v2-danger-text)]">
-          ${t('tools.failedLoad', { message: query.error.message })}
-        </p>
-      <//>
+      <p className="text-sm text-[var(--v2-danger-text)]">
+        ${t('tools.failedLoad', { message: query.error.message })}
+      </p>
     `;
   }
 
@@ -125,20 +122,18 @@ export function ToolsTab({ searchQuery = '' }) {
   );
 
   return html`
-    <div className="space-y-4">
+    <div>
       ${searchQuery &&
       html`
         <div className="flex justify-end">
-          <span className="font-mono text-[11px] text-[var(--v2-text-faint)]">
+          <span className="text-[11px] tabular-nums text-[var(--v2-text-faint)]">
             ${filtered.length} / ${tools.length}
           </span>
         </div>
       `}
 
-      <${Card} padding="md">
-        <h3
-          className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-        >
+      <section className="mt-6 first:mt-0">
+        <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
           ${t('tools.permissions')}
         </h3>
         ${filtered.length === 0
@@ -154,7 +149,7 @@ export function ToolsTab({ searchQuery = '' }) {
                 />
               `
             )}
-      <//>
+      </section>
     </div>
   `;
 }

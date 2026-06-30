@@ -12,27 +12,26 @@ import {
   registryStatusBadge
 } from '../lib/extension-actions.js';
 
-/* Card layout (Option B): self-contained bordered card. Capabilities collapse
-   behind a count disclosure; secondary actions (Configure / Setup / Remove)
-   live in an overflow menu so the resting card stays calm. */
+/* Hairline row (de-boxed): a connector lives directly on the page as a row
+   separated from its neighbours by a 0.5px hairline — no per-row card. The
+   meta, capability disclosure, and chips are quiet sentence-case text; hover is
+   color-only. Capabilities collapse behind a count disclosure; secondary
+   actions (Configure / Setup / Remove) live in an overflow menu so the resting
+   row stays calm. */
 
-const CARD =
-  'flex h-full flex-col rounded-[12px] border border-[var(--v2-panel-border)] ' +
-  'bg-[var(--v2-card-bg)] p-4 shadow-[var(--v2-shadow-sm)] ' +
-  'hover:border-[color-mix(in_srgb,var(--v2-accent)_22%,var(--v2-panel-border))]';
-const META =
-  'mt-1.5 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-[var(--v2-text-faint)]';
+const CARD = 'flex flex-col border-t border-[var(--v2-panel-border)] py-4 first:border-t-0';
+const META = 'mt-1 flex flex-wrap items-center gap-x-2 text-xs text-[var(--v2-text-faint)]';
 const DESC = 'mt-2 line-clamp-2 text-xs leading-5 text-[var(--v2-text-muted)]';
-const FOOTER = 'mt-auto flex items-center gap-2 border-t border-[var(--v2-panel-border)] pt-3';
+const FOOTER = 'mt-3 flex items-center gap-2';
 const DISCLOSURE =
   'v2-button -my-2 inline-flex min-h-[44px] items-center gap-1.5 border-0 bg-transparent py-2 pr-2 ' +
-  'font-mono text-[11px] text-[var(--v2-text-faint)] hover:text-[var(--v2-accent-text)]';
+  'text-[11px] text-[var(--v2-text-faint)] hover:text-[var(--v2-accent-text)]';
 const CHIP =
-  'rounded-[6px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] ' +
-  'px-1.5 py-0.5 font-mono text-[10px] text-[var(--v2-text-muted)]';
+  'rounded-[6px] bg-[var(--v2-surface-soft)] ' +
+  'px-1.5 py-0.5 text-[11px] text-[var(--v2-text-muted)]';
 const APP_ICON =
   'grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-[10px] border ' +
-  'border-[var(--v2-panel-border)] bg-[var(--v2-surface)] shadow-[var(--v2-shadow-sm)]';
+  'border-[var(--v2-panel-border)] bg-[var(--v2-surface)]';
 
 function packageId(item) {
   return item.package_ref?.id || '';

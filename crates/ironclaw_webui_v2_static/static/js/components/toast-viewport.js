@@ -36,7 +36,7 @@ export function ToastViewport() {
             role=${item.tone === 'error' ? 'alert' : 'status'}
             aria-live=${item.tone === 'error' ? 'assertive' : 'polite'}
             className=${[
-              'pointer-events-auto flex items-center gap-2 rounded-xl border bg-[var(--v2-surface)] px-3.5 py-2.5 text-sm shadow-[0_20px_40px_-20px_rgba(0,0,0,0.7)]',
+              'pointer-events-auto flex items-center gap-2 rounded-xl border bg-[var(--v2-surface)] px-3.5 py-2.5 text-sm shadow-[0_12px_32px_-16px_rgba(33,28,21,0.28)]',
               TONE[item.tone] || TONE.info
             ].join(' ')}
           >

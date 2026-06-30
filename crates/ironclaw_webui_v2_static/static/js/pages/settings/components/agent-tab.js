@@ -1,5 +1,4 @@
 import { html } from '../../../lib/html.js';
-import { Card } from '../../../design-system/card.js';
 import { AGENT_FIELDS } from '../lib/settings-schema.js';
 import { filterSettingsSections } from '../lib/settings-search.js';
 import { SettingsGroup } from './settings-field.js';
@@ -34,7 +33,7 @@ export function AgentTab({
   }
 
   return html`
-    <div className="space-y-5">
+    <div>
       ${sections.map(
         (section) => html`
           <${SettingsGroup}
@@ -53,10 +52,10 @@ export function AgentTab({
 
 function AgentSkeleton() {
   return html`
-    <div className="space-y-5">
+    <div>
       ${[1, 2, 3].map(
         (i) => html`
-          <${Card} key=${i} padding="md">
+          <section key=${i} className="mt-9 first:mt-0">
             <div className="v2-skeleton mb-4 h-3 w-20 rounded" />
             ${[1, 2, 3, 4].map(
               (j) => html`
@@ -72,7 +71,7 @@ function AgentSkeleton() {
                 </div>
               `
             )}
-          <//>
+          </section>
         `
       )}
     </div>

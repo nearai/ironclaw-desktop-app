@@ -26,11 +26,11 @@ export function SlackPairingSection({ action }) {
   };
 
   return html`
-    <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
-      <h4 className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-signal">
-        ${copy.title}
-      </h4>
-      <p className="mb-4 text-xs leading-5 text-iron-300">${copy.instructions}</p>
+    <div
+      className="mt-4 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
+    >
+      <h4 className="mb-2 text-[13px] font-medium text-[var(--v2-text-muted)]">${copy.title}</h4>
+      <p className="mb-4 text-xs leading-5 text-[var(--v2-text-muted)]">${copy.instructions}</p>
 
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
@@ -39,11 +39,12 @@ export function SlackPairingSection({ action }) {
           onChange=${(event) => setManualCode(event.target.value)}
           onKeyDown=${(event) => event.key === 'Enter' && submit()}
           placeholder=${copy.codePlaceholder}
-          className="h-9 min-w-0 flex-1 rounded-md border border-white/12 bg-white/[0.04] px-3 font-mono text-sm text-iron-100 outline-none placeholder:text-iron-700 focus:border-signal/45"
+          className="h-11 min-w-0 flex-1 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-3 font-mono text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:outline-none focus:ring-2 focus:ring-[var(--v2-accent)]/40"
         />
         <${Button}
-          variant="secondary"
-          className="h-9 shrink-0 px-3 text-xs"
+          variant="primary"
+          size="md"
+          className="shrink-0"
           onClick=${submit}
           disabled=${redeemMutation.isPending || !manualCode.trim()}
         >

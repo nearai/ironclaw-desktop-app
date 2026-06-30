@@ -23,15 +23,15 @@ export function McpTab({
 }) {
   const isEmpty = mcpServers.length === 0 && mcpRegistry.length === 0;
   return html`
-    <div className="space-y-5">
+    <div className="space-y-8">
       <${CustomMcpServerCard} onAddCustom=${onAddCustom} isBusy=${isBusy} />
       ${isEmpty &&
       html`
-        <${Card} variant="bordered" radius="lg" padding="lg">
+        <div className="max-w-md py-2">
           <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">
             No knowledge apps connected
           </h3>
-          <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
+          <p className="mt-2 text-sm leading-6 text-[var(--v2-text-muted)]">
             Connect Notion or another knowledge source from Browse so IronClaw can search team
             context before drafting or deciding.
           </p>
@@ -50,13 +50,13 @@ export function McpTab({
               The local gateway is unavailable, so app setup cannot start yet.
             </p>
           `}
-        <//>
+        </div>
       `}
       ${mcpServers.length > 0 &&
       html`
-        <${Card} variant="bordered" radius="lg" padding="md">
-          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Connected knowledge apps <//>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+        <section>
+          <${CardLabel}>Connected knowledge apps<//>
+          <div className="mt-2 grid grid-cols-1">
             ${mcpServers.map(
               (ext) => html`
                 <${ExtensionCard}
@@ -70,13 +70,13 @@ export function McpTab({
               `
             )}
           </div>
-        <//>
+        </section>
       `}
       ${mcpRegistry.length > 0 &&
       html`
-        <${Card} variant="bordered" radius="lg" padding="md">
-          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Available knowledge apps <//>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+        <section>
+          <${CardLabel}>Available knowledge apps<//>
+          <div className="mt-2 grid grid-cols-1">
             ${mcpRegistry.map(
               (entry) => html`
                 <${RegistryCard}
@@ -88,7 +88,7 @@ export function McpTab({
               `
             )}
           </div>
-        <//>
+        </section>
       `}
     </div>
   `;
@@ -123,17 +123,17 @@ function CustomMcpServerCard({ onAddCustom, isBusy }) {
 
   return html`
     <${Card}
-      variant="bordered"
+      variant="soft"
       radius="lg"
-      padding="md"
+      padding="lg"
       data-testid="custom-mcp-card"
       data-disabled-reason=${disabledReason}
       aria-label="Add custom MCP server"
     >
       <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
         <div>
-          <${CardLabel} className="mb-2 text-[var(--v2-accent-text)]"> Custom source <//>
-          <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">
+          <${CardLabel}>Custom source<//>
+          <h3 className="mt-2 text-lg font-semibold text-[var(--v2-text-strong)]">
             Add custom MCP server
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--v2-text-muted)]">
@@ -144,7 +144,7 @@ function CustomMcpServerCard({ onAddCustom, isBusy }) {
         ${normalizedName &&
         html`
           <span
-            className="inline-flex w-fit rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-2.5 py-1 font-mono text-[11px] text-[var(--v2-text-muted)]"
+            className="inline-flex w-fit rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--v2-text-muted)]"
           >
             ${normalizedName}
           </span>

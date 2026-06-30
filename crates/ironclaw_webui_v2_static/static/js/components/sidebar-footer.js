@@ -34,7 +34,7 @@ export function SidebarFooter({ theme, toggleTheme, profile, onSignOut }) {
       html`
         <div
           className=${cn(
-            'absolute bottom-full left-3 right-3 mb-2 rounded-[10px] border p-3 shadow-lg',
+            'absolute bottom-full left-3 right-3 mb-2 rounded-[10px] border p-3',
             'border-[var(--v2-panel-border)] bg-[var(--v2-surface)]'
           )}
         >
@@ -44,9 +44,7 @@ export function SidebarFooter({ theme, toggleTheme, profile, onSignOut }) {
             ${profile.email}
           </div>`}
           ${profile?.role &&
-          html`<div className="mt-2 text-[11px] uppercase text-[var(--v2-text-faint)]">
-            ${profile.role}
-          </div>`}
+          html`<div className="mt-2 text-[11px] text-[var(--v2-text-faint)]">${profile.role}</div>`}
         </div>
       `}
 

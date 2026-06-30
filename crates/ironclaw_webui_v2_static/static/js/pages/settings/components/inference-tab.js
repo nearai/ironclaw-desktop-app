@@ -75,13 +75,11 @@ export function InferenceTab({
   }
 
   return html`
-    <div className="space-y-5">
+    <div className="space-y-8">
       ${!readiness.verified &&
       html`
-        <${Card} padding="none" className="p-4 sm:p-5">
-          <h3
-            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
-          >
+        <${Card} variant="soft" padding="none" className="p-4 sm:p-5">
+          <h3 className="text-[13px] font-medium text-[var(--v2-text-muted)]">
             Connect NEAR AI Cloud
           </h3>
           <p className="mt-1 text-sm text-[var(--v2-text-muted)]">
@@ -111,16 +109,12 @@ export function InferenceTab({
       `}
       ${showProviderSummary &&
       html`
-        <${Card} padding="none" className="p-4 sm:p-5">
-          <h3
-            className="mb-4 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
-          >
+        <section>
+          <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
             ${t('inference.provider')}
           </h3>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div
-              className="rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
-            >
+          <div className="grid gap-x-6 sm:grid-cols-2">
+            <div className="border-t border-[var(--v2-panel-border)] py-3.5">
               <div className="text-xs text-[var(--v2-text-muted)]">${t('inference.backend')}</div>
               <div className="mt-1 flex items-center gap-2">
                 <span className="text-base font-semibold text-[var(--v2-text-strong)]"
@@ -132,16 +126,14 @@ export function InferenceTab({
                 ${readiness.description}
               </div>
             </div>
-            <div
-              className="rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
-            >
+            <div className="border-t border-[var(--v2-panel-border)] py-3.5">
               <div className="text-xs text-[var(--v2-text-muted)]">${t('inference.model')}</div>
               <div className="mt-1 text-base font-semibold text-[var(--v2-text-strong)]">
                 ${model || t('inference.none')}
               </div>
             </div>
           </div>
-        <//>
+        </section>
       `}
       ${showProviderManagement &&
       html`
@@ -174,27 +166,23 @@ function Skeleton({ className = '' }) {
 
 function SettingsSkeleton() {
   return html`
-    <div className="space-y-5">
-      <${Card} padding="md">
+    <div className="space-y-8">
+      <section>
         <${Skeleton} className="mb-4 h-3 w-24" />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div
-            className="rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
-          >
+        <div className="grid gap-x-6 sm:grid-cols-2">
+          <div className="border-t border-[var(--v2-panel-border)] py-3.5">
             <${Skeleton} className="h-3 w-16" />
             <${Skeleton} className="mt-2 h-6 w-28" />
           </div>
-          <div
-            className="rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
-          >
+          <div className="border-t border-[var(--v2-panel-border)] py-3.5">
             <${Skeleton} className="h-3 w-16" />
             <${Skeleton} className="mt-2 h-6 w-40" />
           </div>
         </div>
-      <//>
+      </section>
       ${[1, 2].map(
         (i) => html`
-          <${Card} key=${i} padding="md">
+          <section key=${i}>
             <${Skeleton} className="mb-4 h-3 w-20" />
             ${[1, 2, 3].map(
               (j) => html`
@@ -207,7 +195,7 @@ function SettingsSkeleton() {
                 </div>
               `
             )}
-          <//>
+          </section>
         `
       )}
     </div>

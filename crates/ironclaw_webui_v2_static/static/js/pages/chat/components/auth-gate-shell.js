@@ -42,7 +42,7 @@ export function AuthGateShell({
 
   return html`
     <div
-      className="mx-auto w-full max-w-xl rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-gold-soft)_58%,var(--v2-card-bg))]"
+      className="mx-auto w-full max-w-xl rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-surface-soft)]"
     >
       <button
         type="button"
@@ -52,13 +52,20 @@ export function AuthGateShell({
         className="flex w-full items-center gap-3 rounded-[16px] border-0 bg-transparent px-4 py-3 text-left"
       >
         <span
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+          className="grid h-9 w-9 shrink-0 place-items-center text-[var(--v2-gold-text)]"
+          aria-hidden="true"
         >
           <${Icon} name=${icon} className="h-4 w-4" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-[var(--v2-text-strong)]">
-            ${headline || t('authGate.title')}
+          <span className="flex min-w-0 items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
+            />
+            <span className="block truncate text-sm font-semibold text-[var(--v2-text-strong)]">
+              ${headline || t('authGate.title')}
+            </span>
           </span>
           ${subtitle &&
           html`<span className="mt-0.5 block truncate text-xs text-[var(--v2-text-muted)]"
@@ -78,10 +85,7 @@ export function AuthGateShell({
 
       ${expanded &&
       html`
-        <div
-          id=${controlsId}
-          className="border-t border-[color-mix(in_srgb,var(--v2-gold)_24%,var(--v2-panel-border))] px-4 pb-4 pt-3"
-        >
+        <div id=${controlsId} className="border-t border-[var(--v2-panel-border)] px-4 pb-4 pt-3">
           ${body &&
           html`<div className="mb-3 text-sm leading-6 text-[var(--v2-text-muted)]">${body}</div>`}
           ${children}

@@ -1,5 +1,4 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Card } from '../../../design-system/card.js';
 import { ConfirmDialog } from '../../../design-system/confirm-dialog.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
@@ -26,13 +25,9 @@ function GroupHeader({ label, count, dotClass }) {
   return html`
     <div className="mb-2 mt-1 flex items-center gap-2 px-1">
       <span className=${'h-1.5 w-1.5 rounded-full ' + dotClass} />
-      <span
-        className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-[var(--v2-text-faint)]"
-      >
-        ${label}
-      </span>
-      <span className="font-mono text-[10.5px] text-[var(--v2-text-faint)]">·</span>
-      <span className="font-mono text-[10.5px] text-[var(--v2-text-faint)]">${count}</span>
+      <span className="text-[13px] font-medium text-[var(--v2-text-muted)]">${label}</span>
+      <span className="text-[13px] text-[var(--v2-text-faint)]">·</span>
+      <span className="text-[13px] tabular-nums text-[var(--v2-text-faint)]">${count}</span>
       <span className="ml-2 h-px flex-1 bg-[var(--v2-panel-border)]" />
     </div>
   `;
@@ -49,11 +44,7 @@ export function ActiveModelPanel({ provider, currentModel, onListModels, onApply
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <div
-            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
-          >
-            Current model
-          </div>
+          <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">Current model</div>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-[var(--v2-text-strong)]">
               ${displayName}
@@ -121,12 +112,10 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
   const hasProviderRows = providersNeedingSetup.length > 0;
 
   return html`
-    <${Card} className="p-4 sm:p-6">
+    <section>
       <div className="mb-4">
         <div>
-          <h3
-            className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
-          >
+          <h3 className="text-[13px] font-medium text-[var(--v2-text-muted)]">
             ${t('llm.providers')}
           </h3>
           <p className="mt-1 text-sm text-[var(--v2-text-muted)]">${t('llm.providersDesc')}</p>
@@ -236,6 +225,6 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
         onListModels=${state.listModels}
       />
       <${ConfirmDialog} request=${actions.confirmRequest} onClose=${actions.dismissConfirm} />
-    <//>
+    </section>
   `;
 }

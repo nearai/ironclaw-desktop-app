@@ -210,9 +210,7 @@ export function EmptyState({
         className="mx-auto my-auto grid w-full max-w-6xl gap-7 lg:grid-cols-[1.08fr_0.92fr] lg:items-start"
       >
         <section className="min-w-0">
-          <div
-            className="mb-3 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-          >
+          <div className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
             ${t('chat.briefLabel')}
           </div>
           <h2
@@ -220,36 +218,43 @@ export function EmptyState({
           >
             ${t(greetingKey())}
           </h2>
-          <p className="mt-4 max-w-[58ch] text-sm leading-6 text-[var(--v2-text-muted)]">
+          <p className="mt-4 max-w-[58ch] text-[15px] leading-relaxed text-[var(--v2-text-muted)]">
             ${t('chat.heroDesc')}
           </p>
 
-          <div className="mt-7 grid gap-2">
+          <div className="mt-9 grid">
             ${briefRows.map(
               (item) => html`
                 <div
                   key=${item.title}
-                  className="grid grid-cols-[auto_1fr] gap-3 border-t border-[var(--v2-panel-border)] py-3"
+                  className="grid grid-cols-[auto_1fr] items-start gap-3 border-t border-[var(--v2-panel-border)] py-3.5 first:border-t-0"
                 >
                   <span
                     className=${[
-                      'mt-0.5 grid h-8 w-8 place-items-center rounded-[8px] border',
+                      'mt-1 grid h-7 w-7 place-items-center',
                       item.tone === 'positive'
-                        ? 'border-[color-mix(in_srgb,var(--v2-positive-text)_30%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]'
+                        ? 'text-[var(--v2-positive-text)]'
                         : item.tone === 'warning'
-                          ? 'border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] text-[var(--v2-warning-text)]'
+                          ? 'text-[var(--v2-warning-text)]'
                           : item.tone === 'gold'
-                            ? 'border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]'
-                            : 'border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)]'
+                            ? 'text-[var(--v2-gold-text)]'
+                            : 'text-[var(--v2-text-muted)]'
                     ].join(' ')}
                   >
                     <${Icon} name=${item.icon} className="h-4 w-4" />
                   </span>
                   <span>
-                    <span className="block text-sm font-semibold text-[var(--v2-text-strong)]">
+                    <span
+                      className="flex items-center gap-2 text-sm font-medium text-[var(--v2-text-strong)]"
+                    >
                       ${item.title}
+                      ${item.tone === 'gold' &&
+                      html`<span
+                        aria-hidden="true"
+                        className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
+                      />`}
                     </span>
-                    <span className="mt-0.5 block text-sm leading-6 text-[var(--v2-text-muted)]">
+                    <span className="mt-1 block text-sm leading-6 text-[var(--v2-text-muted)]">
                       ${item.detail}
                     </span>
                   </span>
@@ -260,24 +265,24 @@ export function EmptyState({
 
           ${recentThreads.length > 0 &&
           html`
-            <div className="mt-5">
-              <div
-                className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-              >
+            <div className="mt-8">
+              <div className="mb-2 text-[13px] font-medium text-[var(--v2-text-muted)]">
                 ${t('chat.resumeHeading')}
               </div>
-              <div className="grid gap-2">
+              <div className="grid">
                 ${recentThreads.map(
                   (thread) => html`
                     <${Link}
                       key=${thread.thread_id || thread.id}
                       to=${`/chat/${thread.thread_id || thread.id}`}
-                      className="group grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2.5 text-sm text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
+                      className="group grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2.5 border-t border-[var(--v2-panel-border)] py-3 text-sm text-[var(--v2-text)] first:border-t-0 hover:text-[var(--v2-accent-text)]"
                     >
                       <${Icon} name="chat" className="h-3.5 w-3.5 shrink-0 opacity-70" />
                       <span className="truncate">${thread.title}</span>
                       ${thread.updated_at &&
-                      html`<span className="shrink-0 text-xs text-[var(--v2-text-faint)]">
+                      html`<span
+                        className="shrink-0 text-xs text-[var(--v2-text-faint)] tabular-nums"
+                      >
                         ${relativeAge(thread.updated_at, t)}
                       </span>`}
                     <//>
@@ -329,7 +334,7 @@ export function EmptyState({
             handled=${frontDoor.handled}
           />
 
-          <div className="mt-4 grid gap-2">
+          <div className="mt-6 grid">
             ${suggestions.map(
               (item) => html`
                 <button
@@ -338,19 +343,19 @@ export function EmptyState({
                   disabled=${suggestionsBlocked}
                   onClick=${() => prefill(item.prompt)}
                   className=${[
-                    'v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2.5 text-left',
+                    'v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-[var(--v2-panel-border)] px-1 py-3.5 text-left first:border-t-0',
                     suggestionsBlocked
                       ? 'cursor-not-allowed opacity-60'
-                      : 'hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))]'
+                      : 'hover:text-[var(--v2-text-strong)]'
                   ].join(' ')}
                 >
                   <span
-                    className="grid h-8 w-8 place-items-center rounded-[8px] border border-[var(--v2-panel-border)] text-[var(--v2-text-muted)] group-hover:border-[var(--v2-accent)] group-hover:text-[var(--v2-accent-text)]"
+                    className="grid h-8 w-8 place-items-center text-[var(--v2-text-muted)] group-hover:text-[var(--v2-accent-text)]"
                   >
                     <${Icon} name=${item.icon} className="h-4 w-4" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-[var(--v2-text-strong)]">
+                    <span className="block text-sm font-medium text-[var(--v2-text-strong)]">
                       ${item.title}
                     </span>
                     <span className="mt-0.5 block text-sm leading-5 text-[var(--v2-text-muted)]">
@@ -358,7 +363,7 @@ export function EmptyState({
                     </span>
                   </span>
                   <span
-                    className="self-start whitespace-nowrap text-xs font-medium text-[var(--v2-text-faint)]"
+                    className="self-start whitespace-nowrap text-xs font-medium text-[var(--v2-text-faint)] group-hover:text-[var(--v2-accent-text)]"
                   >
                     ${suggestionsBlocked ? 'Setup first' : t('chat.suggestionUse')}
                   </span>
@@ -374,10 +379,7 @@ export function EmptyState({
 
 function FrontDoorPanel({ sinceAway = [], sinceAwayTotal = 0, needsYou, needsYouTotal, handled }) {
   return html`
-    <div
-      className="mt-4 grid gap-2 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
-      data-testid="frontdoor-panel"
-    >
+    <div className="mt-8 grid gap-7" data-testid="frontdoor-panel">
       ${sinceAway.length > 0 &&
       html`<${FrontDoorSection}
         title="Since your last visit"
@@ -423,24 +425,18 @@ function FrontDoorSection({
   // there are real items to point at. An empty count stays muted so a quiet desk
   // never glows with a meaningless "0".
   const populated = total > 0;
-  const toneClass =
-    tone === 'gold'
-      ? 'bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]'
-      : 'bg-[var(--v2-warning-soft)] text-[var(--v2-warning-text)]';
-  const countToneClass = populated
-    ? toneClass
-    : 'bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)]';
+  // gold tone = agent-attributed work; mark it with a quiet clay icon + dot, not
+  // a filled chip. warning tone keeps its semantic color on the icon only.
+  const iconToneClass =
+    tone === 'gold' ? 'text-[var(--v2-gold-text)]' : 'text-[var(--v2-warning-text)]';
+  const countToneClass = populated ? 'text-[var(--v2-text-muted)]' : 'text-[var(--v2-text-faint)]';
   return html`
     <section className="min-w-0" aria-label=${title} data-testid=${`frontdoor-${tone}`}>
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="text-[11px] font-semibold uppercase text-[var(--v2-text-faint)]">
-          ${title}
-        </div>
-        <span className=${`rounded-[6px] px-2 py-0.5 text-[11px] font-semibold ${countToneClass}`}>
-          ${total}
-        </span>
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">${title}</div>
+        <span className=${`text-[12px] font-medium tabular-nums ${countToneClass}`}>${total}</span>
       </div>
-      <div className="grid gap-2">
+      <div className="grid">
         ${populated
           ? html`
               ${items.map(
@@ -448,20 +444,23 @@ function FrontDoorSection({
                   <${Link}
                     key=${item.id}
                     to=${item.href}
-                    className="grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 hover:border-[color-mix(in_srgb,var(--v2-accent)_42%,var(--v2-panel-border))]"
+                    className="group grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2.5 border-t border-[var(--v2-panel-border)] py-3 first:border-t-0 hover:text-[var(--v2-accent-text)]"
                   >
-                    <span className=${`grid h-8 w-8 place-items-center rounded-[8px] ${toneClass}`}>
+                    <span className=${`grid h-8 w-8 place-items-center ${iconToneClass}`}>
                       <${Icon} name=${item.icon} className="h-4 w-4" />
                     </span>
                     <span className="min-w-0">
                       <span className="flex min-w-0 items-center gap-2">
-                        <span
-                          className="truncate text-sm font-semibold text-[var(--v2-text-strong)]"
-                        >
+                        ${tone === 'gold' &&
+                        html`<span
+                          aria-hidden="true"
+                          className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
+                        />`}
+                        <span className="truncate text-sm font-medium text-[var(--v2-text-strong)]">
                           ${item.title}
                         </span>
                         <span
-                          className="shrink-0 rounded-[4px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.04em] text-[var(--v2-text-faint)]"
+                          className="shrink-0 text-[11px] font-medium text-[var(--v2-text-faint)]"
                         >
                           ${item.badge}
                         </span>
@@ -477,23 +476,21 @@ function FrontDoorSection({
                           : ''}${item.detail}
                       </span>
                     </span>
-                    <span className="self-start text-xs font-semibold text-[var(--v2-accent-text)]"
+                    <span className="self-start text-xs font-medium text-[var(--v2-accent-text)]"
                       >Open</span
                     >
                   <//>
                 `
               )}
               ${total > items.length
-                ? html`<div className="px-3 py-1.5 text-[11px] text-[var(--v2-text-faint)]">
+                ? html`<div className="py-2 text-[11px] text-[var(--v2-text-faint)]">
                     +${total - items.length} ${moreLabel}
                   </div>`
                 : ''}
             `
           : html`
-              <div
-                className="rounded-[8px] border border-dashed border-[var(--v2-panel-border)] px-3 py-2"
-              >
-                <div className="text-sm font-semibold text-[var(--v2-text-strong)]">
+              <div className="py-1">
+                <div className="text-sm font-medium text-[var(--v2-text-strong)]">
                   ${emptyTitle}
                 </div>
                 <div className="mt-0.5 text-xs leading-5 text-[var(--v2-text-muted)]">

@@ -172,9 +172,7 @@ function ModelPopover({ open, onClose, t }) {
   return html`
     <div className="w-[min(28rem,calc(100vw-2rem))] p-2">
       <div className="px-2 pb-2 pt-1">
-        <div
-          className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-        >
+        <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
           ${t('chat.modelPopoverProvider')}
         </div>
         <div className="mt-0.5 truncate text-sm font-medium text-[var(--v2-text-strong)]">
@@ -241,9 +239,7 @@ function ModelPopover({ open, onClose, t }) {
             `
           : html`
               <div className="border-t border-[var(--v2-panel-border)] px-2 pb-2 pt-2">
-                <div
-                  className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-                >
+                <div className="mb-1 text-[13px] font-medium text-[var(--v2-text-muted)]">
                   ${t('chat.modelPopoverTitle')}
                 </div>
               </div>
@@ -261,9 +257,7 @@ function ModelPopover({ open, onClose, t }) {
                 models.length > 0 &&
                 html`
                   <div className="px-2 pb-1">
-                    <div
-                      className="mb-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--v2-text-faint)]"
-                    >
+                    <div className="mb-1 text-[13px] font-medium text-[var(--v2-text-muted)]">
                       ${t('chat.modelPopoverActive')}
                     </div>
                     <button
@@ -289,9 +283,7 @@ function ModelPopover({ open, onClose, t }) {
                   ${availableModels.length > 0 &&
                   html`
                     <div className="px-2 pt-2">
-                      <div
-                        className="mb-1 font-mono text-[10.5px] uppercase tracking-[0.12em] text-[var(--v2-text-faint)]"
-                      >
+                      <div className="mb-1 text-[13px] font-medium text-[var(--v2-text-muted)]">
                         ${t('chat.modelPopoverAvailable')}
                       </div>
                       <div className="grid gap-1">
@@ -347,7 +339,7 @@ function ModelPopover({ open, onClose, t }) {
                     className="mt-2 rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-2"
                   >
                     <label
-                      className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+                      className="mb-1 block text-[13px] font-medium text-[var(--v2-text-muted)]"
                     >
                       ${t('chat.modelPopoverManualLabel')}
                     </label>
@@ -625,7 +617,7 @@ export function ChatInput({
   }, []);
   const shellClass = isHero ? 'w-full' : 'v2-composer-dock px-4 py-3 sm:px-5 lg:px-8';
   const composerClass = [
-    'relative mx-auto w-full max-w-5xl rounded-[20px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] shadow-[var(--v2-card-shadow)] p-2.5',
+    'relative mx-auto w-full max-w-5xl rounded-[20px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-2.5',
     isHero ? 'min-h-[120px]' : '',
     disabled ? 'opacity-70' : ''
   ].join(' ');
@@ -796,7 +788,7 @@ export function ChatInput({
                   aria-expanded=${modelMenuOpen}
                   title=${`${readiness.label} — ${readiness.description || ''}`}
                   onClick=${() => setModelMenuOpen((value) => !value)}
-                  className="inline-flex h-11 min-w-0 max-w-[16rem] items-center gap-2 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-semibold text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
+                  className="inline-flex h-11 min-w-0 max-w-[16rem] items-center gap-2 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-xs font-medium text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
                 >
                   <span className=${`h-1.5 w-1.5 shrink-0 rounded-full ${readinessDotClass}`} />
                   <span className="truncate">${modelControlLabel}</span>
@@ -837,9 +829,7 @@ export function ChatInput({
               `}
             >
               <div className="w-[min(18rem,calc(100vw-2rem))] p-2" data-testid="composer-add-menu">
-                <div
-                  className="px-2 pb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-                >
+                <div className="px-2 pb-2 text-[13px] font-medium text-[var(--v2-text-muted)]">
                   ${t('chat.addMenuTitle')}
                 </div>
                 <button
@@ -883,7 +873,7 @@ export function ChatInput({
               : html`
                   <${Button}
                     type="button"
-                    variant="primary"
+                    variant="clay"
                     size="icon-sm"
                     onClick=${handleSend}
                     disabled=${disabled ||

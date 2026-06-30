@@ -74,7 +74,7 @@ function FeaturedProviderRow({ entry, showReady, login, resuming = false, t }) {
         <${ProviderLogo} id=${entry.id} name=${name} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-[var(--v2-text-strong)]">${name}</span>
+            <span className="text-sm font-medium text-[var(--v2-text-strong)]">${name}</span>
             ${showReady &&
             html`<${Badge} tone="positive" label=${t('onboarding.ready')} size="sm" />`}
           </div>
@@ -93,16 +93,14 @@ function FeaturedProviderRow({ entry, showReady, login, resuming = false, t }) {
 function TrustRow({ icon, title, body }) {
   return html`
     <div
-      className="grid grid-cols-[auto_1fr] gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[color-mix(in_srgb,var(--v2-surface-soft)_58%,transparent)] p-3"
+      className="grid grid-cols-[auto_1fr] items-start gap-3 border-t border-[var(--v2-panel-border)] py-3.5 first:border-t-0"
     >
-      <span
-        className="mt-0.5 grid h-8 w-8 place-items-center rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)]"
-      >
-        <${Icon} name=${icon} className="h-3.5 w-3.5" />
+      <span className="mt-1 grid h-7 w-7 place-items-center text-[var(--v2-text-muted)]">
+        <${Icon} name=${icon} className="h-4 w-4" />
       </span>
       <span>
-        <span className="block text-sm font-semibold text-[var(--v2-text-strong)]">${title}</span>
-        <span className="mt-0.5 block text-sm leading-6 text-[var(--v2-text-muted)]">${body}</span>
+        <span className="block text-sm font-medium text-[var(--v2-text-strong)]">${title}</span>
+        <span className="mt-1 block text-sm leading-6 text-[var(--v2-text-muted)]">${body}</span>
       </span>
     </div>
   `;
@@ -237,23 +235,21 @@ export function OnboardingPage() {
   return html`
     <div className="h-full overflow-y-auto bg-[var(--v2-canvas)]">
       <div
-        className="mx-auto grid min-h-full max-w-6xl gap-8 px-5 py-6 sm:px-8 sm:py-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center"
+        className="mx-auto grid min-h-full max-w-6xl gap-7 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8"
       >
         <div className="max-w-2xl">
-          <div
-            className="mb-4 inline-flex h-7 items-center rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-[11px] font-semibold text-[var(--v2-text-muted)]"
-          >
+          <div className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
             NEAR AI Cloud native
           </div>
           <h1
-            className="max-w-[16ch] text-[28px] font-semibold leading-[1.06] text-[var(--v2-text-strong)] sm:text-[28px]"
+            className="max-w-[16ch] text-[28px] font-semibold leading-[1.06] tracking-[-0.01em] text-[var(--v2-text-strong)] sm:text-[28px]"
           >
             ${t('onboarding.title')}
           </h1>
-          <p className="mt-4 max-w-[58ch] text-sm leading-[1.35] text-[var(--v2-text-muted)]">
+          <p className="mt-4 max-w-[58ch] text-[15px] leading-relaxed text-[var(--v2-text-muted)]">
             ${t('onboarding.subtitle')}
           </p>
-          <div className="mt-8 hidden gap-3 lg:grid">
+          <div className="mt-9 hidden lg:grid">
             <${TrustRow}
               icon="spark"
               title=${t('onboarding.promiseModelsTitle')}
@@ -272,20 +268,20 @@ export function OnboardingPage() {
           </div>
         </div>
 
-        <div className="grid gap-4">
+        <div className="grid gap-7">
           ${resuming &&
           html`<div
-            className="flex items-center justify-center gap-2 rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-sm text-[var(--v2-text-muted)]"
+            className="flex items-center justify-center gap-2 text-sm text-[var(--v2-text-muted)]"
             role="status"
             aria-live="polite"
           >
             <${Icon} name="pulse" className="h-3.5 w-3.5" />
             ${t('onboarding.resumingSession')}
           </div>`}
-          <${Card} radius="lg" className="p-5 sm:p-6">
-            <div className="mb-4 flex items-center justify-between gap-3">
+          <${Card} variant="soft" radius="lg" className="p-5 sm:p-6">
+            <div className="mb-5 flex items-center justify-between gap-3">
               <div>
-                <div className="text-[11px] font-semibold uppercase text-[var(--v2-accent-text)]">
+                <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
                   ${t('onboarding.accessLabel')}
                 </div>
                 <h2 className="mt-1 text-[20px] font-semibold text-[var(--v2-text-strong)]">
@@ -384,7 +380,7 @@ export function OnboardingPage() {
             <span className="font-medium text-[var(--v2-text-strong)]"> ${t('nav.settings')} </span>
           </div>
 
-          <div className="grid gap-3 lg:hidden">
+          <div className="grid lg:hidden">
             <${TrustRow}
               icon="spark"
               title=${t('onboarding.promiseModelsTitle')}

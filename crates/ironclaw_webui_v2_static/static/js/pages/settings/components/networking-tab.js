@@ -1,5 +1,4 @@
 import { html } from '../../../lib/html.js';
-import { Card } from '../../../design-system/card.js';
 import { NETWORKING_FIELDS } from '../lib/settings-schema.js';
 import { filterSettingsSections } from '../lib/settings-search.js';
 import { SettingsGroup } from './settings-field.js';
@@ -18,10 +17,10 @@ export function NetworkingTab({
   const t = useT();
   if (isLoading) {
     return html`
-      <div className="space-y-5">
+      <div>
         ${[1, 2].map(
           (i) => html`
-            <${Card} key=${i} padding="md">
+            <section key=${i} className="mt-9 first:mt-0">
               <div className="v2-skeleton mb-4 h-3 w-20 rounded" />
               ${[1, 2].map(
                 (j) => html`
@@ -34,7 +33,7 @@ export function NetworkingTab({
                   </div>
                 `
               )}
-            <//>
+            </section>
           `
         )}
       </div>
@@ -55,7 +54,7 @@ export function NetworkingTab({
   }
 
   return html`
-    <div className="space-y-5">
+    <div>
       ${sections.map(
         (section) => html`
           <${SettingsGroup}

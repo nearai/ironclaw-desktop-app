@@ -2,11 +2,13 @@ import { html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 
 const STYLES = {
-  reconnecting: 'bg-[var(--v2-warning-soft)] text-copper border-copper/30',
+  reconnecting:
+    'bg-[var(--v2-warning-soft)] text-[var(--v2-warning-text)] border-[color-mix(in_srgb,var(--v2-warning-text)_30%,var(--v2-panel-border))]',
   disconnected:
     'bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)] border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))]',
-  connecting: 'bg-iron-700/50 text-iron-200 border-iron-700/50',
-  paused: 'bg-iron-700/50 text-iron-200 border-iron-700/50',
+  connecting:
+    'bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] border-[var(--v2-panel-border)]',
+  paused: 'bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] border-[var(--v2-panel-border)]',
   idle: 'hidden'
 };
 

@@ -82,9 +82,7 @@ export function PairingSection({
     <div
       className="mt-3 rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
     >
-      <h4
-        className="mb-3 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-      >
+      <h4 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
         ${pairingCopy.title}
       </h4>
       <p className="mb-4 text-xs leading-5 text-[var(--v2-text-muted)]">

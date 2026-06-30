@@ -127,9 +127,7 @@ function ThreadGroup({ label, items, activeThreadId, states, onSelect, onDelete 
   if (items.length === 0) return null;
   return html`
     <div className="flex flex-col gap-1">
-      <span
-        className="px-3 pt-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--v2-text-faint)]"
-      >
+      <span className="px-3 pt-1 text-[12px] font-medium text-[var(--v2-text-faint)]">
         ${label}
       </span>
       ${items.map(
@@ -214,9 +212,7 @@ export function SidebarThreads({
         onClick=${() => setCollapsed((v) => !v)}
         className="flex min-h-[44px] w-full items-center gap-1 rounded-[6px] px-2 py-1.5 hover:bg-[var(--v2-surface-muted)]"
       >
-        <span
-          className="flex-1 text-left text-[11px] font-semibold uppercase tracking-wider text-[var(--v2-text-faint)]"
-        >
+        <span className="flex-1 text-left text-[13px] font-medium text-[var(--v2-text-muted)]">
           Conversations
         </span>
         <${Icon}

@@ -19,7 +19,9 @@ export function AuthGenericCard({ gate, onCancel }) {
       body=${gate?.body || ''}
     >
       <form onSubmit=${(event) => event.preventDefault()}>
-        <div className="mb-3 text-sm text-iron-200">${t('authGate.unsupportedChallenge')}</div>
+        <div className="mb-3 text-sm text-[var(--v2-text-muted)]">
+          ${t('authGate.unsupportedChallenge')}
+        </div>
         <div className="flex flex-wrap gap-2">
           <${Button} type="button" variant="secondary" onClick=${() => onCancel?.()}>
             ${t('authGate.cancel')}

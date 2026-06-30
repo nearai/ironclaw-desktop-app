@@ -251,8 +251,12 @@ function SavedFileArtifactPreview({ artifact }) {
         </span>
         <span className="min-w-[12rem] flex-1">
           <span
-            className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-gold-text)]"
+            className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--v2-gold-text)]"
           >
+            <span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
+            ></span>
             ${kind} file artifact
           </span>
           <span className="block truncate text-base font-semibold text-[var(--v2-text-strong)]">
@@ -280,30 +284,31 @@ const WORK_LIST_VISIBLE_LIMIT = 30;
 function WorkActivityLedger({ items }) {
   const ledger = buildWorkLedger(items);
   return html`
-    <div className="space-y-3" data-testid="work-activity-ledger">
-      <p
-        className="rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
-      >
+    <div data-testid="work-activity-ledger">
+      <p className="text-xs leading-5 text-[var(--v2-text-muted)]">
         A device-local record of work you have saved and the actions behind it. A full server-side
         audit log is not available on this gateway yet.
       </p>
       ${ledger.length === 0
-        ? html`<p className="px-1 py-2 text-sm text-[var(--v2-text-muted)]">
+        ? html`<p className="mt-4 text-sm text-[var(--v2-text-muted)]">
             No activity recorded yet.
           </p>`
-        : html`<ol className="grid gap-1.5">
+        : html`<ol className="mt-4 grid grid-cols-1">
             ${ledger.map(
               (entry) => html`
-                <li key=${entry.id}>
+                <li
+                  key=${entry.id}
+                  className="border-t border-[var(--v2-panel-border)] first:border-t-0"
+                >
                   <${Link}
                     to=${workArtifactHref(entry.matterId, entry.artifactId)}
-                    className="grid grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[8px] border border-transparent px-2 py-2 hover:border-[var(--v2-panel-border)] hover:bg-[var(--v2-surface-soft)]"
+                    className="grid grid-cols-[auto_1fr_auto] items-center gap-2.5 py-3.5 hover:text-[var(--v2-accent-text)]"
                   >
                     <span
                       className=${`grid h-7 w-7 shrink-0 place-items-center rounded-[7px] ${
                         entry.kind === 'saved'
-                          ? 'border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-faint)]'
-                          : 'border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]'
+                          ? 'text-[var(--v2-text-faint)]'
+                          : 'text-[var(--v2-gold-text)]'
                       }`}
                     >
                       <${Icon}
@@ -312,7 +317,14 @@ function WorkActivityLedger({ items }) {
                       />
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-sm text-[var(--v2-text-strong)]">
+                      <span
+                        className="flex items-center gap-1.5 truncate text-sm text-[var(--v2-text-strong)]"
+                      >
+                        ${entry.kind !== 'saved' &&
+                        html`<span
+                          aria-hidden="true"
+                          className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
+                        ></span>`}
                         ${entry.kind === 'saved' ? `Saved ${entry.label}` : entry.label}
                       </span>
                       <span className="block truncate text-xs text-[var(--v2-text-faint)]">
@@ -321,7 +333,7 @@ function WorkActivityLedger({ items }) {
                           : `in ${entry.matter}`}${entry.status ? ` · ${entry.status}` : ''}
                       </span>
                     </span>
-                    <span className="shrink-0 text-xs text-[var(--v2-text-faint)]">
+                    <span className="shrink-0 text-xs tabular-nums text-[var(--v2-text-faint)]">
                       ${entry.kind === 'saved' ? readableDate(entry.timestamp) : ''}
                     </span>
                   <//>
@@ -407,26 +419,19 @@ export function WorkPage() {
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="v2-page-entrance flex-1 p-4 sm:p-6">
         <div
-          className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)] gap-5 xl:grid-cols-[320px_minmax(0,1fr)]"
+          className="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)] gap-7 xl:grid-cols-[300px_minmax(0,1fr)]"
         >
-          <aside
-            className="h-fit rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3 shadow-[var(--v2-card-shadow)]"
-            aria-label="Saved work"
-          >
-            <div className="px-2 py-2">
-              <div
-                className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-              >
-                Saved work
-              </div>
-              <p className="mt-1 text-sm leading-5 text-[var(--v2-text-muted)]">
+          <aside className="h-fit" aria-label="Saved work">
+            <div className="px-1 py-2">
+              <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">Saved work</div>
+              <p className="mt-1 text-sm leading-5 text-[var(--v2-text-faint)]">
                 Local artifacts saved from chat.
               </p>
             </div>
             ${items.length > 8 &&
-            html`<div className="relative mb-1 px-2">
+            html`<div className="relative mb-1 px-1">
               <span
-                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[var(--v2-text-faint)]"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--v2-text-faint)]"
               >
                 <${Icon} name="search" className="h-3.5 w-3.5" />
               </span>
@@ -442,7 +447,7 @@ export function WorkPage() {
                 className="h-9 min-h-[44px] w-full rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[13px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
               />
             </div>`}
-            <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-1">
+            <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-0.5">
               ${visibleItems.map((item) => {
                 const artifact = firstReadyArtifact(item);
                 const href = artifact ? workArtifactHref(item.id, artifact.id) : '/work';
@@ -453,10 +458,10 @@ export function WorkPage() {
                     key=${item.id}
                     to=${href}
                     className=${[
-                      'rounded-[10px] border px-3 py-3 text-left text-sm transition',
+                      'rounded-[10px] px-3 py-3 text-left text-sm',
                       active
-                        ? 'border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-text-strong)]'
-                        : 'border-transparent text-[var(--v2-text-muted)] hover:border-[var(--v2-panel-border)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text)]'
+                        ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-text-strong)]'
+                        : 'text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text)]'
                     ].join(' ')}
                   >
                     <span className="block truncate font-semibold">
@@ -488,14 +493,12 @@ export function WorkPage() {
             </button>`}
           </aside>
 
-          <article
-            className="min-w-0 rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] shadow-[var(--v2-card-shadow)]"
-          >
+          <article className="min-w-0">
             ${missing
               ? html`<${NotFoundArticle} />`
               : html`
                   <div
-                    className="border-b border-[var(--v2-panel-border)] px-5 py-4 sm:flex sm:items-start sm:justify-between sm:gap-4"
+                    className="border-b border-[var(--v2-panel-border)] pb-5 sm:flex sm:items-start sm:justify-between sm:gap-4"
                   >
                     <div className="min-w-0">
                       <div
@@ -509,9 +512,11 @@ export function WorkPage() {
                     status this surface cannot prove and read inconsistently
                     against the gold body chip. */ ''
                         }
-                        <span
-                          className="rounded-full border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-2 py-1 text-[var(--v2-gold-text)]"
-                        >
+                        <span className="flex items-center gap-1.5 text-[var(--v2-gold-text)]">
+                          <span
+                            aria-hidden="true"
+                            className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
+                          ></span>
                           ${selectedArtifact.type === 'file' || selectedArtifact.data_base64
                             ? `${generatedFileKindLabel(selectedArtifact)} artifact`
                             : selectedArtifact.type === 'document'
@@ -555,7 +560,7 @@ export function WorkPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-5 px-5 py-5">
+                  <div className="space-y-6 pt-6">
                     <div
                       role="group"
                       aria-label="Work view"
@@ -585,28 +590,24 @@ export function WorkPage() {
                           <${WorkExportActions} item=${selectedItem} artifact=${selectedArtifact} />
                           ${askEntry?.text &&
                           html`<section
-                            className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
+                            className="border-t border-[var(--v2-panel-border)] pt-4"
                             data-testid="dossier-ask"
                           >
-                            <div
-                              className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-                            >
+                            <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
                               The ask
                             </div>
                             <p
-                              className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-[var(--v2-text)]"
+                              className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--v2-text)]"
                             >
                               ${askEntry.text}
                             </p>
                           </section>`}
                           ${receipts.length > 0 &&
                           html`<section
-                            className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
+                            className="border-t border-[var(--v2-panel-border)] pt-4"
                             data-testid="dossier-receipts"
                           >
-                            <div
-                              className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
-                            >
+                            <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
                               What IronClaw did
                             </div>
                             <ul className="mt-2 grid gap-1.5">
@@ -617,7 +618,7 @@ export function WorkPage() {
                                     className="grid grid-cols-[auto_1fr] items-baseline gap-2 text-sm"
                                   >
                                     <span
-                                      className="grid h-6 w-6 place-items-center rounded-[6px] border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+                                      className="grid h-6 w-6 place-items-center text-[var(--v2-gold-text)]"
                                     >
                                       <${Icon} name="bolt" className="h-3.5 w-3.5" />
                                     </span>

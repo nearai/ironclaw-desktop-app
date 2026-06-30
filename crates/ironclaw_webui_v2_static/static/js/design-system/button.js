@@ -6,7 +6,10 @@
  * no gradients, no glow (DESIGN.md motion/color law), correct in both themes.
  *
  * Props
- *   variant   "primary" | "outline" | "secondary" | "ghost" | "danger"
+ *   variant   "primary" | "clay" | "outline" | "secondary" | "ghost" | "danger"
+ *             primary = the ONE blue action per screen (the user's hand).
+ *             clay    = agent send / generated work (the agent's hand).
+ *             ghost   = the quiet default feel for everything else.
  *   size      "sm" | "md" (default) | "lg" | "icon" | "icon-sm"
  *   fullWidth boolean
  *   as        "button" | "a" (renders anchor; pass href via ...props)
@@ -20,7 +23,7 @@ import { cn } from '../utils/cn.js';
 /* ── Base ──────────────────────────────────────────────────────────── */
 
 const BASE =
-  'inline-flex items-center justify-center font-semibold select-none ' +
+  'inline-flex items-center justify-center font-medium select-none ' +
   'disabled:cursor-not-allowed disabled:opacity-50 ' +
   'focus-visible:outline-none focus-visible:ring-2 ' +
   'focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 ' +
@@ -43,6 +46,11 @@ const VARIANTS = {
     'border border-transparent bg-[var(--v2-accent-btn)] text-white ' +
     'hover:bg-[color-mix(in_srgb,var(--v2-accent-btn)_88%,#000)] ' +
     'active:bg-[color-mix(in_srgb,var(--v2-accent-btn)_88%,#000)]',
+
+  clay:
+    'border border-transparent bg-[var(--v2-gold-btn,var(--v2-gold))] text-white ' +
+    'hover:bg-[color-mix(in_srgb,var(--v2-gold)_88%,#000)] ' +
+    'active:bg-[color-mix(in_srgb,var(--v2-gold)_88%,#000)]',
 
   outline:
     'border border-[color-mix(in_srgb,var(--v2-accent)_55%,transparent)] bg-transparent ' +

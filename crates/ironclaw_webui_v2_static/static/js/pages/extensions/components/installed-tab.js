@@ -1,6 +1,6 @@
 import { html } from '../../../lib/html.js';
 import { Button } from '../../../design-system/button.js';
-import { Card, CardLabel } from '../../../design-system/card.js';
+import { CardLabel } from '../../../design-system/card.js';
 import { appScopedPath } from '../../../lib/app-path.js';
 import { ExtensionCard } from './extension-card.js';
 
@@ -11,11 +11,11 @@ function packageId(ext) {
 export function InstalledTab({ extensions, onActivate, onConfigure, onRemove, isBusy }) {
   if (extensions.length === 0) {
     return html`
-      <${Card} variant="bordered" radius="lg" padding="lg">
+      <div className="max-w-md py-2">
         <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">
           No apps connected yet
         </h3>
-        <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
+        <p className="mt-2 text-sm leading-6 text-[var(--v2-text-muted)]">
           Open Browse to connect mail, calendar, docs, chat, code, web, routines, and workspace
           files.
         </p>
@@ -28,14 +28,14 @@ export function InstalledTab({ extensions, onActivate, onConfigure, onRemove, is
         >
           Browse apps
         <//>
-      <//>
+      </div>
     `;
   }
 
   return html`
-    <${Card} variant="bordered" radius="lg" padding="md">
-      <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]">Connected apps<//>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+    <section>
+      <${CardLabel}>Connected apps<//>
+      <div className="mt-2 grid grid-cols-1">
         ${extensions.map(
           (ext) => html`
             <${ExtensionCard}
@@ -49,6 +49,6 @@ export function InstalledTab({ extensions, onActivate, onConfigure, onRemove, is
           `
         )}
       </div>
-    <//>
+    </section>
   `;
 }

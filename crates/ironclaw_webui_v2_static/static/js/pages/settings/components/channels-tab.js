@@ -1,5 +1,4 @@
 import { Badge } from '../../../design-system/badge.js';
-import { Card } from '../../../design-system/card.js';
 import { html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { useChannels } from '../hooks/useChannels.js';
@@ -181,8 +180,8 @@ export function ChannelsTab({ searchQuery = '' }) {
 
   if (isLoading) {
     return html`
-      <div className="space-y-5">
-        <${Card} padding="md">
+      <div>
+        <section className="mt-9 first:mt-0">
           <div className="v2-skeleton mb-4 h-3 w-28 rounded" />
           ${[1, 2, 3].map(
             (i) => html`
@@ -195,7 +194,7 @@ export function ChannelsTab({ searchQuery = '' }) {
               </div>
             `
           )}
-        <//>
+        </section>
       </div>
     `;
   }
@@ -222,13 +221,11 @@ export function ChannelsTab({ searchQuery = '' }) {
   }
 
   return html`
-    <div className="space-y-5">
+    <div>
       ${builtInChannels.length > 0 &&
       html`
-        <${Card} padding="md">
-          <h3
-            className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-          >
+        <section className="mt-9 first:mt-0">
+          <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
             ${t('channels.builtIn')}
           </h3>
           ${builtInChannels.map(
@@ -242,14 +239,12 @@ export function ChannelsTab({ searchQuery = '' }) {
               />
             `
           )}
-        <//>
+        </section>
       `}
       ${(visibleChannels.length > 0 || availableRegistry.length > 0) &&
       html`
-        <${Card} padding="md">
-          <h3
-            className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-          >
+        <section className="mt-9 first:mt-0">
+          <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
             ${t('channels.messaging')}
           </h3>
           ${visibleChannels.map(
@@ -264,14 +259,12 @@ export function ChannelsTab({ searchQuery = '' }) {
           ${availableRegistry.map(
             (r) => html` <${ExtensionChannelCard} key=${r.name} registryEntry=${r} /> `
           )}
-        <//>
+        </section>
       `}
       ${(visibleMcpServers.length > 0 || availableMcp.length > 0) &&
       html`
-        <${Card} padding="md">
-          <h3
-            className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-          >
+        <section className="mt-9 first:mt-0">
+          <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
             ${t('channels.mcpServers')}
           </h3>
           ${visibleMcpServers.map(
@@ -318,7 +311,7 @@ export function ChannelsTab({ searchQuery = '' }) {
               </div>
             `
           )}
-        <//>
+        </section>
       `}
     </div>
   `;

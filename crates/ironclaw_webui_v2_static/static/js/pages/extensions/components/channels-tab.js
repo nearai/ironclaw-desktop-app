@@ -1,5 +1,5 @@
 import { StatusPill } from '../../../design-system/primitives.js';
-import { Card, CardLabel } from '../../../design-system/card.js';
+import { CardLabel } from '../../../design-system/card.js';
 import { html } from '../../../lib/html.js';
 import { ExtensionCard, RegistryCard } from './extension-card.js';
 import { PairingSection } from './pairing-section.js';
@@ -93,7 +93,7 @@ export function ChannelsTab({
   });
 
   return html`
-    <div className="space-y-5">
+    <div className="space-y-8">
       ${gatewayOffline &&
       html`
         <div
@@ -104,68 +104,70 @@ export function ChannelsTab({
           is available.
         </div>
       `}
-      <${Card} variant="bordered" radius="lg" padding="md">
-        <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Built-in messaging paths <//>
-        <${BuiltinRow}
-          name="Desktop chat"
-          description="The live chat connection used by this app"
-          enabled=${desktopChatEnabled}
-          statusLabel=${desktopChatStatusLabel}
-          statusTone=${desktopChatStatusTone}
-          detail=${'SSE: ' +
-          (status.sse_connections || 0) +
-          ' · WS: ' +
-          (status.ws_connections || 0)}
-        />
-        <${BuiltinRow}
-          name="External webhook"
-          description="A controlled inbound path for approved external events"
-          enabled=${!gatewayOffline && enabledChannels.includes('http')}
-          statusLabel=${gatewayOffline ? 'unavailable' : undefined}
-          statusTone=${gatewayOffline ? 'warning' : undefined}
-          detail=${gatewayOffline ? null : 'ENABLE_HTTP=true'}
-        />
-        <${BuiltinRow}
-          name="Slack"
-          description="DMs and app mentions from the workspace Slack app"
-          enabled=${slackEnabled}
-          statusLabel=${slackStatusLabel}
-          statusTone=${slackStatusTone}
-          detail=${gatewayOffline ? null : 'Workspace Slack app'}
-        >
-          ${slackConnectAction &&
-          html`<${PairingSection}
-            channel="slack"
-            redeemFn=${redeemPairingCode}
-            i18nKeys=${SLACK_PAIRING_I18N_KEYS}
-            copy=${slackConnectAction.action}
-            queryKeys=${SLACK_PAIRING_QUERY_KEYS}
-            showPendingRequests=${false}
-          />`}
-        <//>
-        <${BuiltinRow}
-          name="CLI"
-          description="Local command bridge for development and debugging"
-          enabled=${!gatewayOffline && enabledChannels.includes('cli')}
-          statusLabel=${gatewayOffline ? 'unavailable' : undefined}
-          statusTone=${gatewayOffline ? 'warning' : undefined}
-          detail=${gatewayOffline ? null : 'ironclaw run --cli'}
-        />
-        <${BuiltinRow}
-          name="Developer bridge"
-          description="Low-level local testing path"
-          enabled=${!gatewayOffline && enabledChannels.includes('repl')}
-          statusLabel=${gatewayOffline ? 'unavailable' : undefined}
-          statusTone=${gatewayOffline ? 'warning' : undefined}
-          detail=${gatewayOffline ? null : 'ironclaw run --repl'}
-        />
-      <//>
+      <section>
+        <${CardLabel}>Built-in messaging paths<//>
+        <div className="mt-2">
+          <${BuiltinRow}
+            name="Desktop chat"
+            description="The live chat connection used by this app"
+            enabled=${desktopChatEnabled}
+            statusLabel=${desktopChatStatusLabel}
+            statusTone=${desktopChatStatusTone}
+            detail=${'SSE: ' +
+            (status.sse_connections || 0) +
+            ' · WS: ' +
+            (status.ws_connections || 0)}
+          />
+          <${BuiltinRow}
+            name="External webhook"
+            description="A controlled inbound path for approved external events"
+            enabled=${!gatewayOffline && enabledChannels.includes('http')}
+            statusLabel=${gatewayOffline ? 'unavailable' : undefined}
+            statusTone=${gatewayOffline ? 'warning' : undefined}
+            detail=${gatewayOffline ? null : 'ENABLE_HTTP=true'}
+          />
+          <${BuiltinRow}
+            name="Slack"
+            description="DMs and app mentions from the workspace Slack app"
+            enabled=${slackEnabled}
+            statusLabel=${slackStatusLabel}
+            statusTone=${slackStatusTone}
+            detail=${gatewayOffline ? null : 'Workspace Slack app'}
+          >
+            ${slackConnectAction &&
+            html`<${PairingSection}
+              channel="slack"
+              redeemFn=${redeemPairingCode}
+              i18nKeys=${SLACK_PAIRING_I18N_KEYS}
+              copy=${slackConnectAction.action}
+              queryKeys=${SLACK_PAIRING_QUERY_KEYS}
+              showPendingRequests=${false}
+            />`}
+          <//>
+          <${BuiltinRow}
+            name="CLI"
+            description="Local command bridge for development and debugging"
+            enabled=${!gatewayOffline && enabledChannels.includes('cli')}
+            statusLabel=${gatewayOffline ? 'unavailable' : undefined}
+            statusTone=${gatewayOffline ? 'warning' : undefined}
+            detail=${gatewayOffline ? null : 'ironclaw run --cli'}
+          />
+          <${BuiltinRow}
+            name="Developer bridge"
+            description="Low-level local testing path"
+            enabled=${!gatewayOffline && enabledChannels.includes('repl')}
+            statusLabel=${gatewayOffline ? 'unavailable' : undefined}
+            statusTone=${gatewayOffline ? 'warning' : undefined}
+            detail=${gatewayOffline ? null : 'ironclaw run --repl'}
+          />
+        </div>
+      </section>
 
       ${channels.length > 0 &&
       html`
-        <${Card} variant="bordered" radius="lg" padding="md">
-          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Connected messaging apps <//>
-          <div className="grid grid-cols-1 gap-4">
+        <section>
+          <${CardLabel}>Connected messaging apps<//>
+          <div className="mt-2 grid grid-cols-1 gap-4">
             ${channels.map(
               (ch) => html`
                 <div key=${packageId(ch)} className="flex flex-col gap-3">
@@ -183,13 +185,13 @@ export function ChannelsTab({
               `
             )}
           </div>
-        <//>
+        </section>
       `}
       ${channelRegistry.length > 0 &&
       html`
-        <${Card} variant="bordered" radius="lg" padding="md">
-          <${CardLabel} className="mb-4 text-[var(--v2-accent-text)]"> Available messaging apps <//>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-3">
+        <section>
+          <${CardLabel}>Available messaging apps<//>
+          <div className="mt-2 grid grid-cols-1">
             ${channelRegistry.map(
               (entry) => html`
                 <${RegistryCard}
@@ -201,7 +203,7 @@ export function ChannelsTab({
               `
             )}
           </div>
-        <//>
+        </section>
       `}
     </div>
   `;

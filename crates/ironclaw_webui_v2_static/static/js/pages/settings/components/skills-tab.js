@@ -1,5 +1,4 @@
 import { React, html } from '../../../lib/html.js';
-import { Card } from '../../../design-system/card.js';
 import { ConfirmDialog } from '../../../design-system/confirm-dialog.js';
 import { useT } from '../../../lib/i18n.js';
 import { useSkills } from '../hooks/useSkills.js';
@@ -49,9 +48,9 @@ export function SkillsTab({ searchQuery = '' }) {
 
   if (query.isLoading) {
     return html`
-      <div className="space-y-4">
+      <div className="space-y-8">
         ${installPanel}
-        <${Card} padding="md">
+        <section>
           <div className="v2-skeleton mb-4 h-3 w-24 rounded" />
           ${[1, 2, 3].map(
             (i) => html`
@@ -67,20 +66,18 @@ export function SkillsTab({ searchQuery = '' }) {
               </div>
             `
           )}
-        <//>
+        </section>
       </div>
     `;
   }
 
   if (query.error) {
     return html`
-      <div className="space-y-4">
+      <div className="space-y-8">
         ${installPanel}
-        <${Card} padding="md">
-          <p className="text-sm text-[var(--v2-danger-text)]">
-            ${t('skills.failedLoad', { message: query.error.message })}
-          </p>
-        <//>
+        <p className="text-sm text-[var(--v2-danger-text)]">
+          ${t('skills.failedLoad', { message: query.error.message })}
+        </p>
       </div>
     `;
   }
@@ -98,23 +95,23 @@ export function SkillsTab({ searchQuery = '' }) {
 
   if (skills.length === 0) {
     return html`
-      <div className="space-y-4">
+      <div className="space-y-8">
         ${installPanel}
-        <${Card} padding="lg">
+        <section>
           <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">
             ${t('skills.noInstalled')}
           </h3>
           <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
             ${t('skills.noInstalledDesc')}
           </p>
-        <//>
+        </section>
       </div>
     `;
   }
 
   if (filteredSkills.length === 0) {
     return html`
-      <div className="space-y-4">
+      <div className="space-y-8">
         ${installPanel}
         <${SettingsSearchEmpty} query=${searchQuery} />
       </div>
@@ -122,13 +119,11 @@ export function SkillsTab({ searchQuery = '' }) {
   }
 
   return html`
-    <div className="space-y-4">
+    <div className="space-y-8">
       ${installPanel}
       <${SkillActionResult} error=${actionError} result=${actionResult} />
-      <${Card} padding="md">
-        <h3
-          className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-        >
+      <section>
+        <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
           ${t('skills.installed')}
         </h3>
         ${filteredSkills.map(
@@ -141,7 +136,7 @@ export function SkillsTab({ searchQuery = '' }) {
             />
           `
         )}
-      <//>
+      </section>
       <${ConfirmDialog} request=${confirmRemove} onClose=${() => setConfirmRemove(null)} />
     </div>
   `;

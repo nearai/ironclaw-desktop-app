@@ -56,7 +56,7 @@ export function TeeShield() {
           className=${cn(
             'absolute right-0 top-full z-40 mt-2 w-[min(22rem,calc(100vw-2rem))]',
             'rounded-[14px] border border-[var(--v2-panel-border)]',
-            'bg-[var(--v2-surface)] p-3 shadow-[0_18px_48px_rgba(0,0,0,0.35)]'
+            'bg-[var(--v2-surface)] p-3 shadow-[0_16px_40px_-18px_rgba(33,28,21,0.3)]'
           )}
         >
           <div className="flex items-center gap-2">
@@ -73,13 +73,11 @@ export function TeeShield() {
             </div>
           </div>
 
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 grid">
             ${rows.map(
               (row) => html`
-                <div className="rounded-[10px] bg-[var(--v2-surface-soft)] px-3 py-2">
-                  <div
-                    className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--v2-text-faint)]"
-                  >
+                <div className="border-t border-[var(--v2-panel-border)] py-3 first:border-t-0">
+                  <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
                     ${row.label}
                   </div>
                   <div className="mt-1 break-all font-mono text-[11px] text-[var(--v2-text)]">

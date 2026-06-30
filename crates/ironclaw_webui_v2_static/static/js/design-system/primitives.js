@@ -82,11 +82,7 @@ export function StatCard({
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div
-            className="font-mono text-[0.6875rem] uppercase tracking-[0.14em] text-[var(--v2-text-muted)]"
-          >
-            ${label}
-          </div>
+          <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">${label}</div>
           <div
             className="mt-3 truncate text-[1.75rem] font-medium tabular-nums tracking-[-0.05em] text-[var(--v2-text-strong)] md:text-[2rem]"
           >
@@ -176,15 +172,17 @@ export function EmptyPanel({ title, description, children, boxed = true }) {
  */
 export function SectionHeader({ title, subtitle }) {
   return html`
-    <${Card} padding="lg" className="hidden md:block">
+    <div className="hidden md:block">
       <h1
         className="text-[1.9rem] font-medium tracking-[-0.04em] text-[var(--v2-text-strong)] md:text-[2.2rem]"
       >
         ${title}
       </h1>
       ${subtitle &&
-      html`<p className="mt-1 text-[15px] text-[var(--v2-text-muted)]">${subtitle}</p>`}
-    <//>
+      html`<p className="mt-1.5 text-[15px] leading-relaxed text-[var(--v2-text-muted)]">
+        ${subtitle}
+      </p>`}
+    </div>
   `;
 }
 
@@ -194,7 +192,7 @@ export function SectionHeader({ title, subtitle }) {
  */
 export function SubLabel({ children, className = '' }) {
   return html`
-    <div className=${cn('mb-4 text-[1.35rem] font-medium text-[var(--v2-text-muted)]', className)}>
+    <div className=${cn('mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]', className)}>
       ${children}
     </div>
   `;

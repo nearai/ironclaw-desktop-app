@@ -1,6 +1,6 @@
 import { html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
-import { Panel, StatCard } from '../../../design-system/primitives.js';
+import { StatCard } from '../../../design-system/primitives.js';
 
 export function AutomationsSummaryStrip({ summary }) {
   const t = useT();
@@ -38,26 +38,19 @@ export function AutomationsSummaryStrip({ summary }) {
   ];
 
   return html`
-    <${Panel} className="p-4 sm:p-5">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        ${cards.map(
-          (card) => html`
-            <div
-              key=${card.key}
-              className="rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
-            >
-              <${StatCard}
-                label=${card.label}
-                value=${card.value}
-                tone=${card.tone}
-                detail=${card.detail}
-                showDivider=${false}
-                className="px-0 py-0"
-              />
-            </div>
-          `
-        )}
-      </div>
-    <//>
+    <div className="grid gap-x-7 md:grid-cols-2 xl:grid-cols-4">
+      ${cards.map(
+        (card) => html`
+          <${StatCard}
+            key=${card.key}
+            label=${card.label}
+            value=${card.value}
+            tone=${card.tone}
+            detail=${card.detail}
+            showDivider=${false}
+          />
+        `
+      )}
+    </div>
   `;
 }

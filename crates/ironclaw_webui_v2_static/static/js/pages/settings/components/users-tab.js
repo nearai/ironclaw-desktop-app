@@ -41,10 +41,8 @@ function CreateUserForm({ onCreate, isCreating, error }) {
   }
 
   return html`
-    <${Card} padding="md">
-      <h3
-        className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-      >
+    <${Card} variant="soft" padding="md">
+      <h3 className="mb-4 text-[13px] font-medium text-[var(--v2-text-muted)]">
         ${t('users.newUser')}
       </h3>
       <form onSubmit=${handleSubmit} className="space-y-4">
@@ -133,7 +131,7 @@ export function UsersTab({ searchQuery = '' }) {
 
   if (query.isLoading) {
     return html`
-      <${Card} padding="md">
+      <section className="mt-6 first:mt-0">
         <div className="v2-skeleton mb-4 h-3 w-24 rounded" />
         ${[1, 2, 3].map(
           (i) => html`
@@ -146,13 +144,13 @@ export function UsersTab({ searchQuery = '' }) {
             </div>
           `
         )}
-      <//>
+      </section>
     `;
   }
 
   if (isForbidden) {
     return html`
-      <${Card} padding="lg">
+      <section>
         <div className="flex items-center gap-3">
           <${Icon} name="lock" className="h-5 w-5 text-[var(--v2-text-faint)]" />
           <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">
@@ -162,17 +160,15 @@ export function UsersTab({ searchQuery = '' }) {
         <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
           ${t('users.adminRequiredDesc')}
         </p>
-      <//>
+      </section>
     `;
   }
 
   if (query.error) {
     return html`
-      <${Card} padding="md">
-        <p className="text-sm text-[var(--v2-danger-text)]">
-          ${t('users.failedLoad', { message: query.error.message })}
-        </p>
-      <//>
+      <p className="text-sm text-[var(--v2-danger-text)]">
+        ${t('users.failedLoad', { message: query.error.message })}
+      </p>
     `;
   }
 
@@ -197,13 +193,11 @@ export function UsersTab({ searchQuery = '' }) {
   );
 
   return html`
-    <div className="space-y-5">
+    <div className="space-y-8">
       <${CreateUserForm} onCreate=${createUser} isCreating=${isCreating} error=${createError} />
 
-      <${Card} padding="md">
-        <h3
-          className="mb-4 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-        >
+      <section>
+        <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
           ${t('users.title', { count: filteredUsers.length })}
         </h3>
         ${users.length === 0
@@ -213,7 +207,7 @@ export function UsersTab({ searchQuery = '' }) {
                 ${t('settings.noMatchingSettings', { query: searchQuery })}
               </p>`
             : filteredUsers.map((user) => html`<${UserRow} key=${user.id} user=${user} />`)}
-      <//>
+      </section>
     </div>
   `;
 }

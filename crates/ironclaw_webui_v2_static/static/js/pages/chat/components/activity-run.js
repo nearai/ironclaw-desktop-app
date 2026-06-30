@@ -32,7 +32,9 @@ export function ActivityRun({ activity }) {
         data-testid="activity-summary-row"
         className=${[
           'v2-button flex w-full items-center gap-2 border-0 bg-transparent px-1 py-1.5 text-left text-sm',
-          summary.hasError ? 'text-[var(--v2-danger-text)]' : 'text-iron-400 hover:text-iron-200'
+          summary.hasError
+            ? 'text-[var(--v2-danger-text)]'
+            : 'text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]'
         ].join(' ')}
       >
         <${Icon} name="layers" className="h-4 w-4 shrink-0" />
@@ -65,24 +67,28 @@ function ActivityReceiptCard({ activity, summary, expanded, setExpanded }) {
   const link = receiptLinkForActivity(activity);
   return html`
     <div
-      className="mr-auto flex w-full max-w-[min(760px,92vw)] flex-col gap-2 rounded-[14px] border border-[color-mix(in_srgb,var(--v2-gold)_28%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] px-4 py-3 text-sm text-[var(--v2-text-strong)] shadow-[var(--v2-card-shadow)]"
+      className="mr-auto flex w-full max-w-[min(760px,92vw)] flex-col gap-2 rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3 text-sm text-[var(--v2-text-strong)]"
       data-testid="activity-receipt-card"
     >
       <div className="flex min-w-0 items-start gap-3">
         <span
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-gold)_16%,transparent)] text-[var(--v2-gold-text)]"
+          className="grid h-8 w-8 shrink-0 place-items-center text-[var(--v2-gold-text)]"
           aria-hidden="true"
         >
           <${Icon} name="check" className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <div
-            className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-gold-text)]"
-          >
+          <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
             Agent action completed
           </div>
-          <div className="truncate text-sm font-semibold text-[var(--v2-text-strong)]">
-            ${receiptTitleForActivity(activity, summary)}
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
+            />
+            <span className="truncate text-sm font-semibold text-[var(--v2-text-strong)]">
+              ${receiptTitleForActivity(activity, summary)}
+            </span>
           </div>
         </div>
         <button
@@ -90,7 +96,7 @@ function ActivityReceiptCard({ activity, summary, expanded, setExpanded }) {
           onClick=${() => setExpanded((value) => !value)}
           aria-expanded=${expanded ? 'true' : 'false'}
           aria-label=${`${expanded ? 'Hide' : 'View'} action details`}
-          className="v2-button inline-flex shrink-0 items-center gap-1 rounded-md border border-[color-mix(in_srgb,var(--v2-gold)_26%,var(--v2-panel-border))] bg-transparent px-2 py-1 text-[11px] font-medium text-[var(--v2-gold-text)] hover:bg-[color-mix(in_srgb,var(--v2-gold)_10%,transparent)]"
+          className="v2-button inline-flex shrink-0 items-center gap-1 rounded-[8px] border border-transparent bg-transparent px-2 py-1 text-[11px] font-medium text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
         >
           ${expanded ? 'Hide details' : 'View details'}
           <${Icon}
@@ -104,7 +110,7 @@ function ActivityReceiptCard({ activity, summary, expanded, setExpanded }) {
         ${rows.map(
           (row) => html`
             <div key=${row.label} className="grid grid-cols-[5.25rem_minmax(0,1fr)] gap-3">
-              <span className="text-[var(--v2-gold-text)]">${row.label}</span>
+              <span className="text-[var(--v2-text-faint)]">${row.label}</span>
               <span className="truncate text-[var(--v2-text-muted)]" title=${row.value}
                 >${row.value}</span
               >
@@ -119,7 +125,7 @@ function ActivityReceiptCard({ activity, summary, expanded, setExpanded }) {
           href=${link.href}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex w-fit items-center gap-1.5 rounded-md border border-[color-mix(in_srgb,var(--v2-gold)_28%,var(--v2-panel-border))] px-2 py-1 text-xs font-medium text-[var(--v2-gold-text)] hover:bg-[color-mix(in_srgb,var(--v2-gold)_10%,transparent)]"
+          className="inline-flex w-fit items-center gap-1.5 text-xs font-medium text-[var(--v2-accent-text)] hover:underline"
         >
           ${link.label}
           <${Icon} name="external" className="h-3 w-3" />
@@ -127,9 +133,7 @@ function ActivityReceiptCard({ activity, summary, expanded, setExpanded }) {
       `}
       ${expanded &&
       html`
-        <div
-          className="mt-1 border-t border-[color-mix(in_srgb,var(--v2-gold)_18%,var(--v2-panel-border))] pt-3"
-        >
+        <div className="mt-1 border-t border-[var(--v2-panel-border)] pt-3">
           <div className="flex flex-col gap-3">
             ${activity.map(
               (item, index) => html`
@@ -166,19 +170,13 @@ function ReasoningItem({ content }) {
   return html`
     <div className="flex gap-2.5">
       <span
-        className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-[color-mix(in_srgb,var(--v2-gold)_30%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+        className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center text-[var(--v2-gold-text)]"
         aria-hidden="true"
       >
         <${Icon} name="spark" className="h-3.5 w-3.5" />
       </span>
-      <div
-        className="min-w-0 flex-1 border-l-2 border-[color-mix(in_srgb,var(--v2-gold)_22%,var(--v2-panel-border))] pl-3"
-      >
-        <div
-          className="mb-0.5 font-mono text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-gold-text)]"
-        >
-          Thinking
-        </div>
+      <div className="min-w-0 flex-1 border-l border-[var(--v2-panel-border)] pl-3">
+        <div className="mb-0.5 text-[13px] font-medium text-[var(--v2-text-muted)]">Thinking</div>
         <${MarkdownRenderer}
           content=${content}
           className="text-[13px] text-[var(--v2-text-muted)]"

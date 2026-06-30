@@ -47,12 +47,10 @@ export function SkillInstallPanel({ onInstall, isInstalling }) {
   }, [content, name, onInstall, t, url]);
 
   return html`
-    <${Card} padding="md">
+    <${Card} variant="soft" padding="md">
       <div className="mb-4 flex items-start justify-between gap-4">
         <div>
-          <h3
-            className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--v2-accent-text)]"
-          >
+          <h3 className="text-[13px] font-medium text-[var(--v2-text-muted)]">
             ${t('skills.import')}
           </h3>
           <p className="mt-1 text-sm text-[var(--v2-text-muted)]">${t('skills.importDesc')}</p>

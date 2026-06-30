@@ -315,19 +315,19 @@ export function ProviderCard({
         >
           <div className="grid gap-3 text-xs text-[var(--v2-text-muted)] sm:grid-cols-3">
             <div>
-              <div className="font-mono uppercase text-[10px] text-[var(--v2-text-faint)]">
+              <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
                 ${t('llm.adapter')}
               </div>
               <div className="mt-1 truncate">${adapterLabel(provider.adapter)}</div>
             </div>
             <div>
-              <div className="font-mono uppercase text-[10px] text-[var(--v2-text-faint)]">
+              <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
                 ${t('llm.baseUrl')}
               </div>
               <div className="mt-1 truncate font-mono">${baseUrl || t('llm.none')}</div>
             </div>
             <div>
-              <div className="font-mono uppercase text-[10px] text-[var(--v2-text-faint)]">
+              <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
                 ${t('llm.model')}
               </div>
               <div className="mt-1 truncate font-mono">${modelLabel || t('llm.none')}</div>

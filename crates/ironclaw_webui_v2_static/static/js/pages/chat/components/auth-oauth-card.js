@@ -144,7 +144,9 @@ export function AuthOauthCard({ gate, onCancel }) {
       ${hasHttpsAuthorizationUrl &&
       !expired &&
       opened &&
-      html` <p className="mt-2 text-xs text-iron-300">${t('authGate.oauthWaiting')}</p> `}
+      html`
+        <p className="mt-2 text-xs text-[var(--v2-text-muted)]">${t('authGate.oauthWaiting')}</p>
+      `}
     <//>
   `;
 }

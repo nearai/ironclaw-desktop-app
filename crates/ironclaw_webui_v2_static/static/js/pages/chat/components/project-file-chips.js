@@ -49,11 +49,13 @@ function ProjectFileChip({ threadId, path }) {
       onClick=${onDownload}
       disabled=${downloading}
       title=${path}
-      className="flex items-center gap-2 rounded-md border border-iron-700 bg-iron-900/50 px-3 py-2 text-xs text-left hover:border-signal/35 disabled:opacity-60"
+      className="group flex items-center gap-2 rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs text-left text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_38%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)] disabled:opacity-60"
     >
-      <${Icon} name="file" className="h-3.5 w-3.5 shrink-0 text-signal" />
+      <${Icon} name="file" className="h-3.5 w-3.5 shrink-0 text-[var(--v2-accent-text)]" />
       <span className="truncate">${basename(path)}</span>
-      <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-iron-200">
+      <span
+        className="ml-auto inline-flex shrink-0 items-center gap-1 text-[var(--v2-text-muted)] tabular-nums"
+      >
         ${sizeLabel}
         <${Icon} name="download" className="h-3.5 w-3.5" />
       </span>

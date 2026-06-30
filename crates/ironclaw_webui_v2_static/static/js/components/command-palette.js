@@ -190,7 +190,7 @@ export function CommandPalette({
         className="absolute inset-0 bg-black/50"
       ></button>
       <div
-        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] shadow-[0_30px_60px_-20px_rgba(0,0,0,0.8)]"
+        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-[var(--v2-panel-border)] bg-[var(--v2-surface)]"
       >
         <div className="flex items-center gap-2 border-b border-[var(--v2-panel-border)] px-3">
           <${Icon} name="search" className="h-4 w-4 text-[var(--v2-text-faint)]" />
@@ -208,7 +208,7 @@ export function CommandPalette({
             className="h-12 w-full border-0 bg-transparent text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)]"
           />
           <kbd
-            className="rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--v2-text-faint)]"
+            className="rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--v2-text-faint)]"
             >esc</kbd
           >
         </div>
@@ -238,7 +238,7 @@ export function CommandPalette({
               html`<li
                 key=${`g-${command.group}`}
                 role="presentation"
-                className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--v2-text-faint)]"
+                className="px-2.5 pb-1 pt-3 text-[13px] font-medium text-[var(--v2-text-muted)]"
               >
                 ${command.group}
               </li>`}

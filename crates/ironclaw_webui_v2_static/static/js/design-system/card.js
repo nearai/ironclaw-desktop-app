@@ -6,7 +6,7 @@
  * light ↔ dark theme switching is automatic.
  *
  * Props
- *   variant   "default" | "bordered" | "subtle" | "inset"
+ *   variant   "default" | "bordered" | "subtle" | "inset" | "plain" | "soft"
  *   radius    "sm" | "md" (default) | "lg"
  *   padding   "none" (default) | "sm" | "md" | "lg"
  *   as        element tag, default "div"
@@ -31,13 +31,16 @@ import { cn } from '../utils/cn.js';
 // --v2-card-border : transparent in dark (shadow-only), subtle in light
 // --v2-card-shadow : generally none; panels lift through borders/surface only
 
+// Warm-light default: surfaces lean on whitespace + hairlines, not heavy boxes.
+// `plain` is the de-boxed default (no border, no fill — pure layout container);
+// `soft` is the ONE allowed soft framed surface per region (e.g. a composer).
 const VARIANTS = {
-  default:
-    'bg-[var(--v2-card-bg)] border border-[var(--v2-card-border)] shadow-[var(--v2-card-shadow)]',
-  bordered:
-    'bg-[var(--v2-card-bg)] border border-[var(--v2-panel-border)] shadow-[var(--v2-card-shadow)]',
+  default: 'bg-[var(--v2-card-bg)] border border-[var(--v2-card-border)]',
+  bordered: 'bg-[var(--v2-card-bg)] border border-[var(--v2-panel-border)]',
   subtle: 'bg-[var(--v2-surface-soft)] border border-[var(--v2-panel-border)]',
-  inset: 'bg-[var(--v2-surface-muted)] border border-[var(--v2-panel-border)]'
+  inset: 'bg-[var(--v2-surface-muted)] border border-[var(--v2-panel-border)]',
+  plain: 'bg-transparent border border-transparent',
+  soft: 'bg-[var(--v2-surface-soft)] border border-[var(--v2-panel-border)]'
 };
 
 /* ─── Radius ──────────────────────────────────────────────────────── */
@@ -137,15 +140,10 @@ export function CardFooter({ children, className = '', divider = true, padding =
 
 /* ─── CardLabel ───────────────────────────────────────────────────── */
 
-/** Mono-caps eyebrow label — sits above section headings. */
+/** Quiet sentence-case eyebrow label — sits above section headings. */
 export function CardLabel({ children, className = '' }) {
   return html`
-    <div
-      className=${cn(
-        'font-mono text-[0.6875rem] font-semibold uppercase tracking-[0.22em] text-[var(--v2-text-faint)]',
-        className
-      )}
-    >
+    <div className=${cn('text-[13px] font-medium text-[var(--v2-text-muted)]', className)}>
       ${children}
     </div>
   `;

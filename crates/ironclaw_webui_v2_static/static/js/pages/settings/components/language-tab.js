@@ -1,5 +1,4 @@
 import { html } from '../../../lib/html.js';
-import { Card } from '../../../design-system/card.js';
 import { AVAILABLE_LANGUAGES, useI18n, useT } from '../../../lib/i18n.js';
 import { matchesSearch } from '../lib/settings-search.js';
 import { SettingsSearchEmpty } from './settings-search-empty.js';
@@ -18,17 +17,13 @@ export function LanguageTab({ searchQuery = '' }) {
   }
 
   return html`
-    <${Card} padding="md">
-      <h3
-        className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-accent-text)]"
-      >
+    <section>
+      <h3 className="mb-2 text-[13px] font-medium text-[var(--v2-text-muted)]">
         ${t('lang.title')}
       </h3>
       <p className="text-sm leading-6 text-[var(--v2-text-muted)]">${t('lang.description')}</p>
 
-      <div
-        className="mt-5 rounded-xl border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
-      >
+      <div className="mt-6 border-t border-[var(--v2-panel-border)] py-4">
         <div className="text-xs text-[var(--v2-text-muted)]">${t('lang.current')}</div>
         <div className="mt-1 flex items-baseline gap-2">
           <span className="text-lg font-semibold text-[var(--v2-text-strong)]"
@@ -38,7 +33,7 @@ export function LanguageTab({ searchQuery = '' }) {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      <div className="mt-6 grid gap-2 sm:grid-cols-2">
         ${languages.map(
           (l) => html`
             <button
@@ -63,6 +58,6 @@ export function LanguageTab({ searchQuery = '' }) {
           `
         )}
       </div>
-    <//>
+    </section>
   `;
 }
