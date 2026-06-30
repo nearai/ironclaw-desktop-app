@@ -19,7 +19,7 @@ import {
 const CARD =
   'flex h-full flex-col rounded-[14px] border border-[var(--v2-panel-border)] ' +
   'bg-[var(--v2-card-bg)] p-4 shadow-[var(--v2-shadow-sm)] ' +
-  'transition-colors hover:border-[color-mix(in_srgb,var(--v2-accent)_22%,var(--v2-panel-border))]';
+  'hover:border-[color-mix(in_srgb,var(--v2-accent)_22%,var(--v2-panel-border))]';
 const META =
   'mt-1.5 flex flex-wrap items-center gap-x-2 font-mono text-[10px] text-[var(--v2-text-faint)]';
 const DESC = 'mt-2 line-clamp-2 text-xs leading-5 text-[var(--v2-text-muted)]';

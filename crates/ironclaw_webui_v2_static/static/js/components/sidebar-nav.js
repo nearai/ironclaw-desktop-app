@@ -72,10 +72,7 @@ function ExpandableNavItem({ route, label, subRoutes, onNavigate }) {
         <span className="min-w-0 flex-1 truncate">${label}</span>
         <${Icon}
           name="chevron"
-          className=${cn(
-            'h-3.5 w-3.5 shrink-0 transition-transform duration-150',
-            isExpanded && 'rotate-180'
-          )}
+          className=${cn('h-3.5 w-3.5 shrink-0', isExpanded && 'rotate-180')}
         />
       <//>
 

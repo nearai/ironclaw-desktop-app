@@ -338,7 +338,7 @@ function ModelPopover({ open, onClose, t }) {
                   <span>${t('chat.modelPopoverManualToggle')}</span>
                   <${Icon}
                     name="chevron"
-                    className=${`h-3.5 w-3.5 transition-transform ${manualOpen ? 'rotate-180' : ''}`}
+                    className=${`h-3.5 w-3.5 ${manualOpen ? 'rotate-180' : ''}`}
                   />
                 </button>
                 ${manualOpen &&

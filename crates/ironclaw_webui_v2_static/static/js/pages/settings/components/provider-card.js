@@ -246,7 +246,6 @@ export function ProviderCard({
       data-testid="llm-provider-card"
       data-provider-id=${provider.id}
       className=${[
-        'transition-colors',
         isActive
           ? 'border-[color-mix(in_srgb,var(--v2-positive-text)_36%,var(--v2-panel-border))]'
           : expanded
@@ -299,7 +298,7 @@ export function ProviderCard({
             data-testid="llm-provider-chevron"
             aria-label=${expanded ? t('llm.collapseDetails') : t('llm.expandDetails')}
             className=${[
-              'grid h-11 w-11 place-items-center rounded-md text-[var(--v2-text-faint)] transition-transform hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)] md:h-7 md:w-7',
+              'grid h-11 w-11 place-items-center rounded-md text-[var(--v2-text-faint)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)] md:h-7 md:w-7',
               expanded ? 'rotate-180' : ''
             ].join(' ')}
           >

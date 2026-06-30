@@ -311,10 +311,7 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
         <summary
           className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
         >
-          <${Icon}
-            name="chevron"
-            className="h-3 w-3 -rotate-90 transition-transform group-open:rotate-0"
-          />
+          <${Icon} name="chevron" className="h-3 w-3 -rotate-90 group-open:rotate-0" />
           ${t('approval.rawParametersLabel')}
         </summary>
         <pre
