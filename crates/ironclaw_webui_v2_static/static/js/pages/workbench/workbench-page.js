@@ -1832,6 +1832,7 @@ export function WorkbenchPage() {
                 files=${connectorDrive.files}
                 driveReady=${connectedAccounts.driveReady}
                 driveLoading=${connectorDrive.isLoading}
+                driveError=${connectorDrive.isError}
               />
             </${React.Suspense}>`
           : view === 'redline'

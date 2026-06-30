@@ -4414,3 +4414,18 @@ test('static workbench: Redline accept/reject toggles a clause decision and upda
     '1 of 1 changes accepted'
   );
 });
+
+test('static workbench: Review is honest when the Drive file list fails to load (error, not empty)', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [{ toolkit: 'googledrive', status: 'ACTIVE', user_id: 'pg' }],
+    connectorReadError: 500 // the GOOGLEDRIVE_LIST_FILES read fails even though Drive is connected
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByTestId('workbench-nav-review').click();
+  // An honest "couldn't load" error — NOT the "no documents found" empty state (which would imply
+  // the Drive is simply empty) and NOT the not-connected prompt.
+  await expect(page.getByTestId('workbench-review-drive-error')).toBeVisible();
+  await expect(page.getByTestId('workbench-review-empty')).toHaveCount(0);
+});

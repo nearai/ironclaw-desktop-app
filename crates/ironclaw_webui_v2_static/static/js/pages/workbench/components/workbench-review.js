@@ -195,7 +195,12 @@ function statusCells(update, columns) {
   return out;
 }
 
-export function ReviewView({ files = [], driveReady = false, driveLoading = false }) {
+export function ReviewView({
+  files = [],
+  driveReady = false,
+  driveLoading = false,
+  driveError = false
+}) {
   const docs = Array.isArray(files) ? files : [];
   const [selected, setSelected] = React.useState(() => new Set());
   const [cells, setCells] = React.useState({});
@@ -283,6 +288,15 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
   } else if (driveLoading && !docs.length) {
     body = html`<div className="wb13-review-hint" data-testid="workbench-review-loading">
       Loading documents from Google Drive…
+    </div>`;
+  } else if (driveError && !docs.length) {
+    // Drive is connected but the file list failed to load — an error, NOT an empty Drive.
+    body = html`<div
+      className="wb13-review-runerror"
+      data-testid="workbench-review-drive-error"
+      role="status"
+    >
+      Couldn't load your Drive documents — the connection may have dropped. Try again in a moment.
     </div>`;
   } else if (!docs.length) {
     body = html`<${ReviewEmpty}
