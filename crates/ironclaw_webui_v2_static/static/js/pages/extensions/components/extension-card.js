@@ -17,7 +17,7 @@ import {
    live in an overflow menu so the resting card stays calm. */
 
 const CARD =
-  'flex h-full flex-col rounded-[14px] border border-[var(--v2-panel-border)] ' +
+  'flex h-full flex-col rounded-[12px] border border-[var(--v2-panel-border)] ' +
   'bg-[var(--v2-card-bg)] p-4 shadow-[var(--v2-shadow-sm)] ' +
   'hover:border-[color-mix(in_srgb,var(--v2-accent)_22%,var(--v2-panel-border))]';
 const META =
@@ -28,7 +28,7 @@ const DISCLOSURE =
   'v2-button -my-2 inline-flex min-h-[44px] items-center gap-1.5 border-0 bg-transparent py-2 pr-2 ' +
   'font-mono text-[11px] text-[var(--v2-text-faint)] hover:text-[var(--v2-accent-text)]';
 const CHIP =
-  'rounded border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] ' +
+  'rounded-[6px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] ' +
   'px-1.5 py-0.5 font-mono text-[10px] text-[var(--v2-text-muted)]';
 const APP_ICON =
   'grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-[10px] border ' +
