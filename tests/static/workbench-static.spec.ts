@@ -4097,6 +4097,8 @@ test('static workbench: Review lists Drive documents and builds a pending grid o
   await expect(grid).toContainText('Change of Control');
   await expect(grid).toContainText('Acme NDA');
   await expect(grid.locator('.wb13-rev-pending').first()).toBeVisible();
+  // The data table carries an accessible name for screen readers navigating by table (WCAG H39).
+  await expect(grid.getByRole('table', { name: /Tabular review results/i })).toBeVisible();
 });
 
 test('static workbench: Review run surfaces an honest error for an unreadable document (never a fabricated cell)', async ({

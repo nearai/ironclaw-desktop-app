@@ -43,6 +43,19 @@ export function ReviewGrid({ columns = [], documents = [], cells = {} }) {
           width: 100%;
           font-size: 13px;
         }
+        /* Visually hidden, but names the table for screen readers navigating by table (WCAG H39). */
+        .wb13-rev-caption {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0 0 0 0);
+          clip-path: inset(50%);
+          white-space: nowrap;
+          border: 0;
+        }
         .wb13-review-grid th {
           text-align: left;
           font-weight: 600;
@@ -149,6 +162,9 @@ export function ReviewGrid({ columns = [], documents = [], cells = {} }) {
         }
       </style>
       <table className="wb13-review-grid">
+        <caption className="wb13-rev-caption">
+          Tabular review results — documents by extraction column
+        </caption>
         <thead>
           <tr>
             <th>Document</th>
