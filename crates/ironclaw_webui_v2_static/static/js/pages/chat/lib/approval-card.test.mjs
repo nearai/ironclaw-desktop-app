@@ -55,6 +55,7 @@ function renderApprovalCard({
   const components = {
     Badge() {},
     Button() {},
+    Caret() {},
     Icon() {}
   };
   const translations = {

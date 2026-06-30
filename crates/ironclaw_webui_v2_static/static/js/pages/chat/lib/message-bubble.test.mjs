@@ -149,7 +149,7 @@ test('system messages render on a neutral surface, not warning copper', () => {
   assert.match(systemClass, /text-\[var\(--v2-text-muted\)\]/);
 });
 
-test('plain assistant prose is borderless while user turns keep the blue bubble', () => {
+test('assistant prose is borderless and the user turn is prose with a blue left-rule', () => {
   const context = createMessageBubbleContext();
 
   vm.runInNewContext(messageBubbleSourceForTest(), context);
@@ -161,15 +161,12 @@ test('plain assistant prose is borderless while user turns keep the blue bubble'
   assert.doesNotMatch(assistantClass, /\bborder(?:-|_|\b)/);
   assert.doesNotMatch(assistantClass, /v2-gold/);
   assert.doesNotMatch(assistantClass, /\brounded-/);
-  // The user turn stays the one distinct blue bubble: warm-light tokens the
-  // soft blue fill + faint blue-tinted hairline instead of the legacy
-  // signal/10 + signal/25 raw classes.
-  assert.match(userClass, /bg-\[var\(--v2-accent-soft\)\]/);
-  assert.match(
-    userClass,
-    /border-\[color-mix\(in_srgb,var\(--v2-accent\)_22%,var\(--v2-panel-border\)\)\]/
-  );
-  assert.match(userClass, /rounded-\[18px\]/);
+  // The user turn is plain prose with a 2px blue left-rule (the user's hand) — a
+  // document with a spine, not a chat bubble: no fill, no border box, no radius.
+  assert.match(userClass, /border-l-2/);
+  assert.match(userClass, /border-\[var\(--v2-accent\)\]/);
+  assert.doesNotMatch(userClass, /\bbg-/);
+  assert.doesNotMatch(userClass, /rounded-/);
   assert.match(messageShellClass(false, false), /max-w-\[min\(760px,92vw\)\]/);
   assert.match(messageShellClass(true, false), /max-w-\[min\(680px,86vw\)\]/);
 });
@@ -543,7 +540,7 @@ test('previewable image attachments render above the user bubble as thumbnails',
     Array.from(fileAttachmentsForMessage(attachments).map((attachment) => attachment.filename)),
     ['template.pdf', 'reload-only.jpg']
   );
-  assert.match(imageThumbnailStripClass(true), /justify-end/);
+  assert.match(imageThumbnailStripClass(true), /justify-start/);
 
   const tree = MessageBubble({
     message: {

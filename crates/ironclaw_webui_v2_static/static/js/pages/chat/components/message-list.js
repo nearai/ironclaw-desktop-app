@@ -16,7 +16,7 @@ function messageListContentClass() {
 }
 
 function jumpToLatestClass() {
-  return 'absolute bottom-0 left-1/2 z-20 inline-flex -translate-x-1/2 translate-y-1/2 items-center gap-1.5 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-3 py-1.5 text-xs font-medium text-[var(--v2-text-strong)] shadow-[0_10px_30px_-12px_rgba(0,0,0,0.7)] hover:border-[color-mix(in_srgb,var(--v2-accent)_40%,var(--v2-panel-border))]';
+  return 'absolute bottom-0 left-1/2 z-20 inline-flex -translate-x-1/2 translate-y-1/2 items-center gap-1.5 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-1.5 text-xs font-medium text-[var(--v2-text-strong)] hover:border-[color-mix(in_srgb,var(--v2-accent)_40%,var(--v2-panel-border))]';
 }
 
 export function MessageList({

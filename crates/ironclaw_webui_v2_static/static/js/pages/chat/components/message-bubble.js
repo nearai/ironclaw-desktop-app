@@ -34,10 +34,12 @@ import {
 
 /* Bicolor attribution (DESIGN.md): signal blue is the user's hand and gold is
    reserved for agent provenance, approvals, receipts, and generated work.
-   User turns stay in a restrained blue bubble; plain assistant prose stays
-   borderless and document-like; generated work gets the gold artifact panel. */
+   The thread reads as a document with a spine: the user turn is plain prose with
+   a 2px blue left-rule (the user's hand), assistant prose stays borderless and
+   document-like, and generated work gets the clay artifact panel. No chat
+   bubbles, nothing right-aligned. */
 const ROLE_STYLES = {
-  user: 'ml-auto rounded-[18px] border border-[color-mix(in_srgb,var(--v2-accent)_22%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] px-4 py-3 text-[var(--v2-text-strong)]',
+  user: 'mr-auto border-l-2 border-[var(--v2-accent)] pl-3 text-[var(--v2-text)]',
   assistant: 'mr-auto text-[var(--v2-text)]',
   assistantWorkProduct:
     'mr-auto w-full max-w-full rounded-[16px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-5 py-4 text-[var(--v2-text)]',
@@ -83,16 +85,12 @@ function messageShellClass(isUser, isAssistantWorkProduct) {
       : isUser
         ? 'max-w-[min(680px,86vw)]'
         : 'max-w-[min(760px,92vw)]',
-    isUser ? 'items-end' : 'items-start'
+    'items-start'
   ].join(' ');
 }
 
 function messageOuterClass(isUser, isAssistantWorkProduct) {
-  return [
-    'group flex flex-col',
-    isAssistantWorkProduct ? 'w-full' : '',
-    isUser ? 'items-end' : 'items-start'
-  ].join(' ');
+  return ['group flex flex-col', isAssistantWorkProduct ? 'w-full' : '', 'items-start'].join(' ');
 }
 
 function messageBodyClass(role, isOptimistic, isAssistantWorkProduct) {
@@ -199,7 +197,7 @@ function fileAttachmentsForMessage(attachments = []) {
 }
 
 function imageThumbnailStripClass(isUser) {
-  return ['flex max-w-full flex-wrap gap-2', isUser ? 'justify-end' : 'justify-start'].join(' ');
+  return ['flex max-w-full flex-wrap gap-2', 'justify-start'].join(' ');
 }
 
 /* Collapsible provider-reasoning summary. Collapsed by default so the

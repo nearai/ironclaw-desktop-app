@@ -9,7 +9,7 @@
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { Button } from '../../../design-system/button.js';
-import { Badge } from '../../../design-system/badge.js';
+import { Caret } from '../../../design-system/caret.js';
 import { Icon } from '../../../design-system/icons.js';
 import { classifyRisk } from '../lib/approval-risk.js';
 
@@ -215,6 +215,16 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
     [displayName, headline, parsedParameters, t]
   );
 
+  // The command line leads with the action and where it lands; the rows below
+  // carry the full proof. Risk is an inline severity word, never a corner pill.
+  const destination = findSummary(parsedParameters, DESTINATION_KEYS);
+  const riskColor =
+    risk.tone === 'danger'
+      ? 'text-[var(--v2-danger-text)]'
+      : risk.tone === 'warning'
+        ? 'text-[var(--v2-warning-text)]'
+        : 'text-[var(--v2-text-muted)]';
+
   const onPrimary = React.useCallback(() => {
     if (always && allowAlwaysAvailable) {
       onAlways?.();
@@ -243,48 +253,33 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
     <div
       role="group"
       aria-label=${t('approval.title')}
-      className="mx-auto w-full max-w-xl rounded-[16px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-surface-soft)] p-4"
+      className="mx-auto w-full max-w-xl overflow-hidden rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] border-l-[3px] border-l-[var(--v2-accent)] bg-[color-mix(in_srgb,var(--v2-accent-soft)_55%,var(--v2-surface-soft))] p-4"
     >
-      <div className="mb-3 flex items-start gap-3">
-        <span
-          className="grid h-9 w-9 shrink-0 place-items-center text-[var(--v2-gold-text)]"
-          aria-hidden="true"
-        >
-          <${Icon} name="lock" className="h-4 w-4" />
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="v2-text-label">${t('approval.agentContext')}</span>
+        <span className="font-mono text-[12px] font-medium">
+          <span className="text-[var(--v2-text-faint)]">${t('projects.card.risk')}</span
+          ><span className=${'pl-1 ' + riskColor}>· ${t(risk.key)}</span>
         </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
-            ${t('approval.agentContext')}
-          </div>
-          <h3
-            className="mt-1 flex items-center gap-2 text-base font-semibold leading-6 text-[var(--v2-text-strong)]"
-          >
-            <span
-              aria-hidden="true"
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
-            />
-            ${displayName}
-          </h3>
-          ${visibleDescription &&
-          html`
-            <p className="mt-1 text-sm leading-5 text-[var(--v2-text-muted)]">
-              ${visibleDescription}
-            </p>
-          `}
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <span className="text-[13px] font-medium text-[var(--v2-text-faint)]">
-            ${t('projects.card.risk')}
-          </span>
-          <${Badge} tone=${risk.tone} label=${t(risk.key)} dot=${false} size="sm" />
-        </div>
       </div>
 
-      <div className="mb-3 border-t border-[var(--v2-panel-border)] pt-3">
+      <div className="font-mono text-[16px] leading-relaxed text-[var(--v2-text-strong)]">
+        <${Caret} state="live" className="mr-1.5" />
+        <h3 className="m-0 inline font-semibold">${displayName}</h3>
+        ${destination &&
+        html`<span className="text-[var(--v2-text-faint)]"> → </span
+          ><span className="text-[var(--v2-accent-text)]">${destination}</span>`}
+      </div>
+      ${visibleDescription &&
+      html`<p className="mt-1.5 text-sm leading-5 text-[var(--v2-text-muted)]">
+        ${visibleDescription}
+      </p>`}
+
+      <div className="mb-3 mt-3 border-t border-[var(--v2-panel-border)] pt-3">
         <div
           className="mb-3 flex items-center gap-2 text-sm font-medium text-[var(--v2-text-strong)]"
         >
-          <${Icon} name="shield" className="h-4 w-4 shrink-0 text-[var(--v2-gold-text)]" />
+          <${Icon} name="shield" className="h-4 w-4 shrink-0 text-[var(--v2-accent-text)]" />
           ${t('approval.nothingSentYet')}
         </div>
         <dl className="grid gap-3 text-xs sm:grid-cols-2">
@@ -294,12 +289,10 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
                 key=${row.label}
                 className=${'grid gap-1' +
                 (row.emphasis && row.value
-                  ? ' rounded-[8px] border-l-2 border-[color-mix(in_srgb,var(--v2-gold)_45%,var(--v2-panel-border))] bg-[var(--v2-canvas-strong)] px-2.5 py-2'
+                  ? ' rounded-[var(--v2-radius-control)] border-l-2 border-[var(--v2-accent)] bg-[var(--v2-surface)] px-2.5 py-2'
                   : '')}
               >
-                <dt className="text-[13px] font-medium text-[var(--v2-text-muted)]">
-                  ${row.label}
-                </dt>
+                <dt className="v2-text-label">${row.label}</dt>
                 <dd
                   className=${'text-sm leading-5 ' +
                   (row.emphasis && row.value
@@ -323,7 +316,7 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
           ${t('approval.rawParametersLabel')}
         </summary>
         <pre
-          className="mt-1 max-h-44 overflow-auto rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas-strong)] p-3 font-mono text-xs leading-5 text-[var(--v2-text)]"
+          className="mt-1 max-h-44 overflow-auto rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas)] p-3 font-mono text-xs leading-5 text-[var(--v2-text)]"
         >
 ${parameters}</pre
         >
@@ -331,7 +324,7 @@ ${parameters}</pre
       ${allowAlwaysAvailable &&
       html`
         <label
-          className="mb-3 flex items-start gap-2 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
+          className="mb-3 flex items-start gap-2 rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
         >
           <input
             type="checkbox"
@@ -346,22 +339,32 @@ ${parameters}</pre
       !allowAlwaysAvailable &&
       html`
         <div
-          className="mb-3 rounded-[7px] border border-[color-mix(in_srgb,var(--v2-warning-text)_32%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-warning-text)]"
+          className="mb-3 rounded-[var(--v2-radius-control)] border border-[color-mix(in_srgb,var(--v2-warning-text)_32%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-warning-text)]"
         >
           ${t('approval.alwaysUnavailable')}
         </div>
       `}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-xs leading-5 text-[var(--v2-text-faint)]">
-          ${t('approval.shortcutHint')}
-        </div>
+        <div className="v2-text-meta">${t('approval.shortcutHint')}</div>
         <div className="flex flex-wrap gap-2">
-          <${Button} variant="secondary" onClick=${() => onDeny?.()}> ${t('approval.deny')} <//>
+          <${Button} variant="secondary" onClick=${() => onDeny?.()}>
+            ${t('approval.deny')}
+            <kbd
+              aria-hidden="true"
+              className="ml-2 rounded-[4px] border border-[var(--v2-panel-border)] px-1.5 font-mono text-[11px] text-[var(--v2-text-faint)]"
+              >esc</kbd
+            >
+          <//>
           <${Button} variant="primary" onClick=${onPrimary}>
             ${always && allowAlwaysAvailable
               ? t('approval.approveAndAlways')
               : t('approval.approve')}
+            <kbd
+              aria-hidden="true"
+              className="ml-2 rounded-[4px] border border-white/30 px-1.5 font-mono text-[11px] v2-force-white"
+              >return</kbd
+            >
           <//>
         </div>
       </div>
