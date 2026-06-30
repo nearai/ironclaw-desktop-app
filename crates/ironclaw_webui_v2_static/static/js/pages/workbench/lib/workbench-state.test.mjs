@@ -2,7 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { THREAD_STATE } from '../../../lib/thread-state.js';
-import { buildWorkbenchStateRail } from './workbench-state.js';
+import {
+  buildWorkbenchStateRail,
+  railDismissKey,
+  isDismissableRailGroup,
+  filterDismissedRailGroups
+} from './workbench-state.js';
 
 test('workbench rail keeps source catalog/setup noise out of active work', () => {
   const rail = buildWorkbenchStateRail({
@@ -1003,4 +1008,84 @@ test('workbench Notion/Drive groups degrade to honest empty states with no data'
   assert.equal(drive.total, 0);
   assert.deepEqual(drive.rows, []);
   assert.equal(drive.emptyDetail, 'Recently modified Drive files will appear here.');
+});
+
+test('railDismissKey: built from stable identity (href, then title), scoped by group', () => {
+  assert.equal(
+    railDismissKey({ groupId: 'github', href: 'https://github.com/x/y/pull/1', title: 'PR' }),
+    'rail:github|https://github.com/x/y/pull/1'
+  );
+  // No href → falls back to title.
+  assert.equal(
+    railDismissKey({ groupId: 'slack', title: 'Hey, a question' }),
+    'rail:slack|Hey, a question'
+  );
+  assert.equal(railDismissKey(null), 'rail:');
+  assert.equal(railDismissKey({}), 'rail:|');
+});
+
+test('railDismissKey: stable across a transient id change (the reload bug)', () => {
+  // A Slack rail row gets a fresh search `iid` (and thus a fresh `id`) every fetch. The key
+  // must NOT move with it — same permalink => same key, so a dismissal sticks across reloads.
+  const before = { groupId: 'slack', id: 'slack-iid-A', href: 'https://slack/p/123', title: 'X' };
+  const afterReload = {
+    groupId: 'slack',
+    id: 'slack-iid-B',
+    href: 'https://slack/p/123',
+    title: 'X'
+  };
+  assert.equal(railDismissKey(before), railDismissKey(afterReload));
+});
+
+test('isDismissableRailGroup: only FYI/source groups are dismissable, never work-you-owe', () => {
+  // FYI / source-activity groups CAN be cleared off the rail.
+  assert.equal(isDismissableRailGroup('github'), true);
+  assert.equal(isDismissableRailGroup('slack'), true);
+  // Real obligations must be handled, not hidden.
+  for (const owed of ['needs-reply', 'needs-approval', 'blocked', 'working', 'upcoming']) {
+    assert.equal(isDismissableRailGroup(owed), false, owed);
+  }
+});
+
+test('filterDismissedRailGroups: drops dismissed rows, recounts, preserves untouched groups', () => {
+  const a = { groupId: 'github', id: 'github-1', href: 'https://gh/1', title: 'A' };
+  const b = { groupId: 'github', id: 'github-2', href: 'https://gh/2', title: 'B' };
+  const groups = [
+    { id: 'github', label: 'GitHub', total: 2, rows: [a, b] },
+    { id: 'upcoming', label: 'Upcoming', total: 1, rows: [{ id: 'cal-9' }] }
+  ];
+  const dismissals = { [railDismissKey(a)]: { reason: 'dismissed-rail', ts: 1 } };
+  const out = filterDismissedRailGroups(groups, dismissals);
+  const gh = out.find((g) => g.id === 'github');
+  assert.deepEqual(
+    gh.rows.map((r) => r.id),
+    ['github-2']
+  );
+  assert.equal(gh.total, 1, 'count reflects the surviving rows');
+  assert.ok(out.find((g) => g.id === 'upcoming'));
+});
+
+test('filterDismissedRailGroups: a group emptied by dismissals is preserved with 0 rows (dock drops it for display)', () => {
+  const a = { groupId: 'github', id: 'github-1', href: 'https://gh/1' };
+  const groups = [{ id: 'github', total: 1, rows: [a] }];
+  const dismissals = { [railDismissKey(a)]: { reason: 'dismissed-rail', ts: 1 } };
+  const out = filterDismissedRailGroups(groups, dismissals);
+  assert.equal(out.length, 1, 'group set is unchanged');
+  assert.deepEqual(out[0].rows, []);
+  assert.equal(out[0].total, 0);
+});
+
+test('filterDismissedRailGroups: a non-rail dismissal key never suppresses a rail row', () => {
+  // A dismissed email/notion row that shares the bare href/title must NOT hide the rail row —
+  // the rail: namespace fences them apart.
+  const a = { groupId: 'github', id: 'github-1', href: 'https://gh/1' };
+  const groups = [{ id: 'github', total: 1, rows: [a] }];
+  const dismissals = { 'https://gh/1': { reason: 'Not relevant', ts: 1 } };
+  assert.equal(filterDismissedRailGroups(groups, dismissals)[0].rows.length, 1);
+});
+
+test('filterDismissedRailGroups: tolerates non-array input + empty dismissals', () => {
+  assert.deepEqual(filterDismissedRailGroups(null, {}), []);
+  const groups = [{ id: 'github', total: 1, rows: [{ groupId: 'github', href: 'https://gh/1' }] }];
+  assert.equal(filterDismissedRailGroups(groups, undefined)[0].rows.length, 1);
 });

@@ -4,6 +4,7 @@ import { Icon } from '../../../design-system/icons.js';
 import { useInterfaceTheme } from '../../../design-system/theme.js';
 import { React, html } from '../../../lib/html.js';
 import { cn } from '../../../utils/cn.js';
+import { isDismissableRailGroup } from '../lib/workbench-state.js';
 
 function railToneForGroup(groupId) {
   if (groupId === 'needs-reply') return 'wb13-dot-reply';
@@ -131,7 +132,7 @@ function workspaceIdentity(currentUser) {
 // via onOpenMessage — they have no route. Calendar ("Upcoming") rows open their
 // real Google Calendar htmlLink in a new tab. Everything else navigates to its
 // in-app href via the SPA router.
-function DockRow({ group, row, onClose, onOpenMessage }) {
+function DockRow({ group, row, onClose, onOpenMessage, onDismissRow }) {
   const dot = html`<span className=${cn('wb13-dot', railToneForGroup(group.id))}></span>`;
   const label = html`
     <span>
@@ -140,6 +141,7 @@ function DockRow({ group, row, onClose, onOpenMessage }) {
     </span>
   `;
 
+  let rowEl;
   if (row.kind === 'inbox' || row.kind === 'notion' || row.kind === 'drivedoc') {
     const testid =
       row.kind === 'notion'
@@ -147,7 +149,7 @@ function DockRow({ group, row, onClose, onOpenMessage }) {
         : row.kind === 'drivedoc'
           ? 'workbench-rail-drivedoc'
           : 'workbench-rail-reply';
-    return html`
+    rowEl = html`
       <button
         type="button"
         className="wb13-dock-item"
@@ -160,11 +162,8 @@ function DockRow({ group, row, onClose, onOpenMessage }) {
         ${dot}${label}
       </button>
     `;
-  }
-
-  const isExternal = /^https?:\/\//i.test(row.href || '');
-  if (isExternal) {
-    return html`
+  } else if (/^https?:\/\//i.test(row.href || '')) {
+    rowEl = html`
       <a
         className="wb13-dock-item"
         data-testid="workbench-rail-upcoming"
@@ -176,10 +175,32 @@ function DockRow({ group, row, onClose, onOpenMessage }) {
         ${dot}${label}
       </a>
     `;
+  } else {
+    rowEl = html`
+      <${Link} to=${row.href} className="wb13-dock-item" onClick=${onClose}> ${dot}${label} <//>
+    `;
   }
 
+  // FYI / source-activity rows you don't owe a reply to (e.g. GitHub) get a reversible
+  // dismiss so the rail clears instead of accreting. Work-you-owe groups never get one —
+  // they must be handled, not hidden. The × is a sibling of the row (no nested
+  // interactive element) and is revealed on hover/focus to keep the dense rail quiet.
+  if (typeof onDismissRow !== 'function' || !isDismissableRailGroup(group.id)) {
+    return rowEl;
+  }
   return html`
-    <${Link} to=${row.href} className="wb13-dock-item" onClick=${onClose}> ${dot}${label} <//>
+    <div className="wb13-dock-item-wrap">
+      ${rowEl}
+      <button
+        type="button"
+        className="wb13-dock-dismiss"
+        data-testid="workbench-rail-dismiss"
+        aria-label=${`Dismiss ${row.title || 'item'}`}
+        onClick=${() => onDismissRow(row)}
+      >
+        ×
+      </button>
+    </div>
   `;
 }
 
@@ -189,9 +210,10 @@ export function WorkbenchDock({
   loading = false,
   onClose,
   onOpenMessage,
+  onDismissRow,
   currentUser
 }) {
-  // The Console source-stream: a persistent, live, grouped feed of everything across
+  // The Workbench source-stream: a persistent, live, grouped feed of everything across
   // your tools. Only groups with rows render (no placeholder "Nothing… 0" rows). The
   // search filters the rows in place across every group — a real client-side filter
   // over the live reads, not a decorative box.
@@ -264,6 +286,7 @@ export function WorkbenchDock({
                       row=${row}
                       onClose=${onClose}
                       onOpenMessage=${onOpenMessage}
+                      onDismissRow=${onDismissRow}
                     />
                   `
                 )}

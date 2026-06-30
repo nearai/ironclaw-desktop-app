@@ -38,7 +38,11 @@ import { useWorkbenchSourceReadiness } from './hooks/useWorkbenchSourceReadiness
 import { approvalsFeedReadSupported, fetchApprovalsFeed } from './lib/approvals-feed-api.js';
 import { fetchReceiptsFeed, receiptsFeedReadSupported } from './lib/receipts-feed-api.js';
 import { fetchWorkbenchFeed, workbenchFeedReadSupported } from './lib/workbench-feed-api.js';
-import { buildWorkbenchStateRail } from './lib/workbench-state.js';
+import {
+  buildWorkbenchStateRail,
+  filterDismissedRailGroups,
+  railDismissKey
+} from './lib/workbench-state.js';
 import { readTierOverrides } from './lib/workbench-profile-overrides.js';
 import { readDismissals, dismissRow, learnedIgnoreSenders } from './lib/workbench-dismissals.js';
 import { recordEditedVoiceSample, effectiveVoiceDirective } from './lib/workbench-voice-store.js';
@@ -1447,6 +1451,20 @@ export function WorkbenchPage() {
     ]
   );
 
+  // The rail the user SEES: dismissed FYI/source rows filtered out (reversible). The raw
+  // railGroups still feed briefing/catch-up logic below — a dismissed row is hidden, not
+  // erased from what the agent knows.
+  const railGroupsVisible = React.useMemo(
+    () => filterDismissedRailGroups(railGroups, dismissals),
+    [railGroups, dismissals]
+  );
+  const onDismissRailRow = React.useCallback((row) => {
+    if (!row || typeof row !== 'object') return;
+    const key = railDismissKey(row);
+    if (key === 'rail:|') return;
+    setDismissals(dismissRow(key, { reason: 'dismissed-rail', sender: '' }));
+  }, []);
+
   // Answer a catch-up intent instantly from connector data already loaded —
   // unread inbox, upcoming calendar, Slack blocker search rows, and the
   // active-work rail — with no model or agent round-trip. Everything else still
@@ -1807,11 +1825,12 @@ export function WorkbenchPage() {
       <div className="wb13-shell">
         <${WorkbenchNav} view=${view} onView=${setView} onSettings=${() => setShowSettings(true)} />
         <${WorkbenchDock}
-          groups=${railGroups}
+          groups=${railGroupsVisible}
           open=${dockOpen}
           loading=${briefingLoadingSources.length > 0}
           onClose=${() => setDockOpen(false)}
           onOpenMessage=${openMessage}
+          onDismissRow=${onDismissRailRow}
           currentUser=${currentUser}
         />
         ${dockOpen
@@ -1950,7 +1969,7 @@ export function WorkbenchPage() {
                             slackBlockers=${slackBlockers}
                             onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
                             onOpenMessage=${openMessage}
-                            groups=${railGroups}
+                            groups=${railGroupsVisible}
                             savedItems=${savedItems}
                             packageTab=${packageTab}
                             onPackageTab=${setPackageTab}

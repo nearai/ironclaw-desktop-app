@@ -189,6 +189,39 @@ export const WORKBENCH_SHELL_STYLE = `.wb13-shell {
 .wb13-dock-item:hover,
 .wb13-dock-item.is-active { background: var(--wb-rail-active); }
 .wb13-dock-item > span:last-child { min-width: 0; }
+.wb13-dock-item-wrap { position: relative; }
+.wb13-dock-item-wrap .wb13-dock-item { padding-right: 30px; }
+.wb13-dock-dismiss {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--wb-faint);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease;
+}
+.wb13-dock-item-wrap:hover .wb13-dock-dismiss,
+.wb13-dock-item-wrap:focus-within .wb13-dock-dismiss { opacity: 1; }
+.wb13-dock-dismiss:hover { color: var(--wb-danger); }
+.wb13-dock-dismiss:focus-visible {
+  opacity: 1;
+  outline: 2px solid var(--wb-accent);
+  outline-offset: 2px;
+}
+@media (pointer: coarse) {
+  .wb13-dock-dismiss { opacity: 1; width: 44px; height: 44px; top: 2px; right: 2px; }
+  .wb13-dock-item-wrap .wb13-dock-item { padding-right: 46px; }
+}
 .wb13-dot {
   width: 7px;
   height: 7px;
