@@ -91,6 +91,16 @@ const REVIEW_STYLE = `
   .wb13-review-pick-note { padding: 11px 16px; border-top: 1px solid var(--wb-line); font-size: 12.5px; color: var(--wb-muted); line-height: 1.5; }
   .wb13-review-runbar { display: flex; align-items: center; gap: 12px; }
   .wb13-review-hint { font-size: 13px; color: var(--wb-muted); max-width: 560px; }
+  .wb13-review-runerror {
+    max-width: 560px;
+    padding: 12px 14px;
+    border: 1px solid var(--wb-danger);
+    border-radius: 12px;
+    background: var(--wb-danger-soft, var(--wb-surface));
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--wb-danger-text, var(--wb-ink));
+  }
   .wb13-review-cols {
     max-width: 560px;
     border: 1px solid var(--wb-line);
@@ -190,6 +200,7 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
   const [selected, setSelected] = React.useState(() => new Set());
   const [cells, setCells] = React.useState({});
   const [running, setRunning] = React.useState(false);
+  const [perDocStatus, setPerDocStatus] = React.useState({});
   const [customColumns, setCustomColumns] = React.useState([]);
   const [seq, setSeq] = React.useState(1);
   const [newLabel, setNewLabel] = React.useState('');
@@ -231,6 +242,7 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
   const onRun = async () => {
     if (!selectedDocs.length || running) return;
     setRunning(true);
+    setPerDocStatus({}); // clear a previous run's outcome before this one
     const token =
       (typeof crypto !== 'undefined' && crypto.randomUUID && crypto.randomUUID()) ||
       `tok-${Date.now()}`;
@@ -245,13 +257,23 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
         extractDoc,
         token,
         concurrency: 3,
-        onUpdate: (id, update) =>
-          setCells((prev) => ({ ...prev, [id]: statusCells(update, runColumns) }))
+        onUpdate: (id, update) => {
+          setCells((prev) => ({ ...prev, [id]: statusCells(update, runColumns) }));
+          setPerDocStatus((prev) => ({ ...prev, [id]: update.status }));
+        }
       });
     } finally {
       setRunning(false);
     }
   };
+
+  // The whole run failed when it has settled, documents were selected, and EVERY one errored —
+  // a systemic failure (the model or a connected source was unreachable), distinct from a single
+  // unreadable document among others. Surfaced as one honest run-level note, not just empty cells.
+  const runFailed =
+    !running &&
+    selectedDocs.length > 0 &&
+    selectedDocs.every((doc) => perDocStatus[doc.id] === 'error');
 
   let body;
   if (!driveReady) {
@@ -367,6 +389,16 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
               >`
             : null}
         </div>
+        ${runFailed
+          ? html`<div
+              className="wb13-review-runerror"
+              data-testid="workbench-review-run-error"
+              role="status"
+            >
+              Couldn't complete the review — the model or a connected source was unreachable. Your
+              documents weren't changed. Try running it again.
+            </div>`
+          : null}
         ${selectedDocs.length
           ? html`<${ReviewGrid} columns=${columns} documents=${selectedDocs} cells=${cells} />`
           : html`<div className="wb13-review-hint" data-testid="workbench-review-hint">

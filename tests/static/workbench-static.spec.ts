@@ -4132,6 +4132,8 @@ test('static workbench: Review run surfaces an honest error for an unreadable do
   // no risk-flag dot landed in any cell (the legend dots live outside <td>) — nothing fabricated
   await expect(grid.locator('td .wb13-rev-flag')).toHaveCount(0);
   await expect(run).toBeEnabled();
+  // every selected document errored → one honest run-level note (a systemic failure, try again)
+  await expect(page.getByTestId('workbench-review-run-error')).toBeVisible();
 });
 
 test('static workbench: Review cell reveals the model reasoning on click (and is honest when there is none)', async ({
@@ -4202,6 +4204,8 @@ test('static workbench: Review cell reveals the model reasoning on click (and is
   await expect(governing.getByTestId('workbench-review-cell-reasoning')).toContainText(
     'No reasoning given'
   );
+  // A successful run shows no run-level error note (that note is only for an all-errored run).
+  await expect(page.getByTestId('workbench-review-run-error')).toHaveCount(0);
 });
 
 test('static workbench: Review supports a custom column — add it, it fills on run, then remove it', async ({
