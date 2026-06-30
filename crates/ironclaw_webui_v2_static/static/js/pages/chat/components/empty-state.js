@@ -1,36 +1,22 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { Icon } from '../../../design-system/icons.js';
-import { listAutomations } from '../../../lib/automations-api.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
-import { normalizeAutomations } from '../../automations/lib/automations-presenters.js';
 import { filterDesktopVisibleLlmProviders } from '../../settings/lib/llm-providers.js';
 import { fetchLlmProviders } from '../../settings/lib/settings-api.js';
-import { buildFrontDoorData } from '../lib/frontdoor-data.js';
 import { ChatInput } from './chat-input.js';
 
-// Anticipation over interrogation: the front door greets by time of day,
-// offers the threads you were just working in, and showcases tasks the app
-// can genuinely finish today (document summarize / draft / spreadsheet
-// analysis — all backed by the client-side extractors). Suggestion clicks
-// PREFILL the composer rather than firing blind, since two of the three
-// start with attaching a file.
+// Chat-first front door. The home is the single thing the user came to do — hand
+// IronClaw a task — so it is a calm greeting and one prominent composer, nothing
+// else. Approvals surface in the thread when they are real; receipts and saved
+// work live in Work; recent conversations live in the sidebar. The only extra
+// element here is an honest "connect model access" notice when the gateway has
+// no usable provider, because without it a failed send would be a mystery.
 function greetingKey() {
   const hour = new Date().getHours();
   if (hour < 12) return 'chat.heroMorning';
   if (hour < 18) return 'chat.heroAfternoon';
   return 'chat.heroEvening';
-}
-
-function relativeAge(iso, t) {
-  const stamp = Date.parse(iso || '');
-  if (!Number.isFinite(stamp)) return '';
-  const minutes = Math.max(1, Math.round((Date.now() - stamp) / 60_000));
-  if (minutes < 60) return t('chat.resumeMinutes', { n: String(minutes) });
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return t('chat.resumeHours', { n: String(hours) });
-  return t('chat.resumeDays', { n: String(Math.round(hours / 24)) });
 }
 
 function visibleLlmSnapshot(snapshot = {}) {
@@ -45,30 +31,7 @@ function visibleLlmSnapshot(snapshot = {}) {
   return { providers, active };
 }
 
-const FRONT_DOOR_LAST_SEEN_KEY = 'ironclaw:frontdoor:lastSeenAt';
-
-function readFrontDoorLastSeen() {
-  try {
-    const value = Number(
-      window.localStorage && window.localStorage.getItem(FRONT_DOOR_LAST_SEEN_KEY)
-    );
-    return Number.isFinite(value) && value > 0 ? value : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function writeFrontDoorLastSeen(value) {
-  try {
-    if (window.localStorage) window.localStorage.setItem(FRONT_DOOR_LAST_SEEN_KEY, String(value));
-  } catch {
-    // localStorage unavailable (private mode) — the brief just stays empty.
-  }
-}
-
 export function EmptyState({
-  threads = [],
-  threadStates,
   onSend,
   disabled,
   initialText,
@@ -80,228 +43,39 @@ export function EmptyState({
   onCancel
 }) {
   const t = useT();
-  // Reads the cached threads list (loaded by the sidebar); no extra traffic.
-  const threadsQuery = useQuery({ queryKey: ['threads'], enabled: false });
   const providersQuery = useQuery({
     queryKey: ['llm-providers'],
     queryFn: fetchLlmProviders,
     staleTime: 60_000
   });
-  // The cached ['threads'] query is an infinite query (paged); flatten its pages.
-  // Tolerate the legacy { threads } shape too so this never silently empties.
-  const cachedThreads =
-    threadsQuery.data?.pages?.flatMap((page) => page?.threads || []) ||
-    threadsQuery.data?.threads ||
-    [];
-  const rawThreads = threads.length > 0 ? threads : cachedThreads;
-  const automationsQuery = useQuery({
-    queryKey: ['automations'],
-    queryFn: () => listAutomations({ limit: 10 }),
-    staleTime: 60_000
-  });
-  const recentThreads = rawThreads
-    .filter((thread) => (thread?.thread_id || thread?.id) && (thread.title || '').trim())
-    .slice(0, 3);
-  // Device-local last-seen watermark for the "Since your last visit" brief.
-  // Captured once on mount (the value when the user arrived), then advanced to
-  // now — so what shows is real change since the previous landing visit, not a
-  // server "presence" claim.
-  const lastSeenRef = React.useRef(readFrontDoorLastSeen());
-  React.useEffect(() => {
-    writeFrontDoorLastSeen(Date.now());
-  }, []);
-  const lastSeenAt = lastSeenRef.current;
-  const frontDoor = React.useMemo(
-    () =>
-      buildFrontDoorData({
-        threads: rawThreads,
-        threadStates,
-        automations: normalizeAutomations(automationsQuery.data),
-        lastSeenAt
-      }),
-    [rawThreads, threadStates, automationsQuery.data, lastSeenAt]
-  );
   const providersSnapshot = providersQuery.data;
   const visibleProvidersSnapshot = visibleLlmSnapshot(providersSnapshot || {});
-  const providerSetupChecking = Boolean(!providersSnapshot && providersQuery.isLoading);
   const providerSetupRequired = Boolean(providersSnapshot && !visibleProvidersSnapshot.active);
   const providerSetupFailed = Boolean(!providersSnapshot && providersQuery.error);
-
-  const [draft, setDraft] = React.useState('');
-  const [draftResetKey, setDraftResetKey] = React.useState(0);
-  const prefill = (text) => {
-    setDraft(text);
-    setDraftResetKey((key) => key + 1);
-  };
-
-  const suggestions = [
-    {
-      icon: 'file',
-      title: t('chat.suggestion1'),
-      detail: t('chat.suggestion1Desc'),
-      prompt: t('chat.suggestion1Prompt')
-    },
-    {
-      icon: 'send',
-      title: t('chat.suggestion2'),
-      detail: t('chat.suggestion2Desc'),
-      prompt: t('chat.suggestion2Prompt')
-    },
-    {
-      icon: 'pulse',
-      title: t('chat.suggestion3'),
-      detail: t('chat.suggestion3Desc'),
-      prompt: t('chat.suggestion3Prompt')
-    }
-  ];
   const setupBlocked =
     context?.sendBlocked === true || providerSetupRequired || providerSetupFailed;
-  const suggestionsBlocked = Boolean(setupBlocked || disabled);
-  // Only claim "Ready to work" when the gateway has actually verified model
-  // access. Otherwise the green brief row would contradict the composer's amber
-  // "Verification pending" chip — fake readiness the desk must never imply.
-  const modelVerified = context?.modelReadiness?.verified === true;
-  const briefRows = [
-    providerSetupChecking
-      ? {
-          icon: 'pulse',
-          title: 'Checking NEAR AI Cloud',
-          detail: 'IronClaw is checking your local gateway and model access.',
-          tone: 'muted'
-        }
-      : setupBlocked
-        ? {
-            icon: 'lock',
-            title: t('chat.briefNeedsSetupTitle'),
-            detail: context?.sendBlockReason || t('chat.briefNeedsSetupDesc'),
-            tone: 'warning'
-          }
-        : modelVerified
-          ? {
-              icon: 'check',
-              title: t('chat.briefReadyTitle'),
-              detail: t('chat.briefReadyDesc'),
-              tone: 'positive'
-            }
-          : {
-              icon: 'pulse',
-              title: t('chat.briefVerifyingTitle'),
-              detail: t('chat.briefVerifyingDesc'),
-              tone: 'muted'
-            },
-    {
-      icon: recentThreads.length > 0 ? 'chat' : 'folder',
-      title: recentThreads.length > 0 ? t('chat.briefResumeTitle') : t('chat.briefWorkspaceTitle'),
-      detail: recentThreads.length > 0 ? t('chat.briefResumeDesc') : t('chat.briefWorkspaceDesc'),
-      tone: 'muted'
-    },
-    {
-      icon: 'shield',
-      title: t('chat.briefSafetyTitle'),
-      detail: t('chat.briefSafetyDesc'),
-      tone: 'gold'
-    }
-  ];
 
   return html`
     <div
-      className="v2-page-entrance flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-6 lg:px-8"
+      className="v2-page-entrance flex min-h-0 flex-1 flex-col overflow-y-auto px-6"
+      data-testid="chat-front-door"
     >
-      <div
-        className="mx-auto my-auto grid w-full max-w-6xl gap-7 lg:grid-cols-[1.08fr_0.92fr] lg:items-start"
-      >
-        <section className="min-w-0">
-          <div className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
-            ${t('chat.briefLabel')}
-          </div>
-          <h2
-            className="max-w-[20ch] text-[28px] font-semibold leading-[1.1] tracking-[-0.01em] text-[var(--v2-text-strong)]"
-          >
-            ${t(greetingKey())}
-          </h2>
-          <p className="mt-4 max-w-[58ch] text-[15px] leading-relaxed text-[var(--v2-text-muted)]">
-            ${t('chat.heroDesc')}
-          </p>
+      <div className="mx-auto my-auto flex w-full max-w-[720px] flex-col py-12">
+        <h1
+          className="text-[28px] font-semibold leading-[1.15] tracking-[-0.01em] text-[var(--v2-text-strong)]"
+        >
+          ${t(greetingKey())}
+        </h1>
+        <p className="mt-2 text-[15px] leading-relaxed text-[var(--v2-text-muted)]">
+          ${t('chat.heroDesc')}
+        </p>
 
-          <div className="mt-9 grid">
-            ${briefRows.map(
-              (item) => html`
-                <div
-                  key=${item.title}
-                  className="grid grid-cols-[auto_1fr] items-start gap-3 border-t border-[var(--v2-panel-border)] py-3.5 first:border-t-0"
-                >
-                  <span
-                    className=${[
-                      'mt-1 grid h-7 w-7 place-items-center',
-                      item.tone === 'positive'
-                        ? 'text-[var(--v2-positive-text)]'
-                        : item.tone === 'warning'
-                          ? 'text-[var(--v2-warning-text)]'
-                          : item.tone === 'gold'
-                            ? 'text-[var(--v2-gold-text)]'
-                            : 'text-[var(--v2-text-muted)]'
-                    ].join(' ')}
-                  >
-                    <${Icon} name=${item.icon} className="h-4 w-4" />
-                  </span>
-                  <span>
-                    <span
-                      className="flex items-center gap-2 text-sm font-medium text-[var(--v2-text-strong)]"
-                    >
-                      ${item.title}
-                      ${item.tone === 'gold' &&
-                      html`<span
-                        aria-hidden="true"
-                        className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
-                      />`}
-                    </span>
-                    <span className="mt-1 block text-sm leading-6 text-[var(--v2-text-muted)]">
-                      ${item.detail}
-                    </span>
-                  </span>
-                </div>
-              `
-            )}
-          </div>
-
-          <${SourceBoundaryStrip} />
-
-          ${recentThreads.length > 0 &&
-          html`
-            <div className="mt-8">
-              <div className="mb-2 text-[13px] font-medium text-[var(--v2-text-muted)]">
-                ${t('chat.resumeHeading')}
-              </div>
-              <div className="grid">
-                ${recentThreads.map(
-                  (thread) => html`
-                    <${Link}
-                      key=${thread.thread_id || thread.id}
-                      to=${`/chat/${thread.thread_id || thread.id}`}
-                      className="group grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2.5 border-t border-[var(--v2-panel-border)] py-3 text-sm text-[var(--v2-text)] first:border-t-0 hover:text-[var(--v2-accent-text)]"
-                    >
-                      <${Icon} name="chat" className="h-3.5 w-3.5 shrink-0 opacity-70" />
-                      <span className="truncate">${thread.title}</span>
-                      ${thread.updated_at &&
-                      html`<span
-                        className="shrink-0 text-xs text-[var(--v2-text-faint)] tabular-nums"
-                      >
-                        ${relativeAge(thread.updated_at, t)}
-                      </span>`}
-                    <//>
-                  `
-                )}
-              </div>
-            </div>
-          `}
-        </section>
-
-        <section className="min-w-0">
+        <div className="mt-6">
           <${ChatInput}
             onSend=${onSend}
             disabled=${disabled}
-            initialText=${draft || initialText}
-            resetKey=${`${resetKey}-${draftResetKey}`}
+            initialText=${initialText}
+            resetKey=${resetKey}
             draftKey=${composerDraftKey}
             variant="hero"
             context=${context}
@@ -309,229 +83,28 @@ export function EmptyState({
             canCancel=${canCancel}
             onCancel=${onCancel}
           />
-
-          ${setupBlocked &&
-          html`
-            <div
-              className="mt-3 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
-            >
-              <div className="text-sm font-semibold text-[var(--v2-text-strong)]">
-                Connect model access first, then start with a task.
-              </div>
-              <div className="mt-1 text-sm leading-5 text-[var(--v2-text-muted)]">
-                Workspace sources are configured separately in Connections; unset connectors are not
-                used.
-              </div>
-              <${Link}
-                to="/settings/inference"
-                className="mt-3 inline-flex h-10 items-center rounded-[8px] bg-[var(--v2-accent-btn)] px-4 text-sm font-semibold text-white v2-force-white"
-              >
-                Open setup
-              <//>
-            </div>
-          `}
-
-          <${FrontDoorPanel}
-            sinceAway=${frontDoor.sinceAway}
-            sinceAwayTotal=${frontDoor.sinceAwayTotal}
-            needsYou=${frontDoor.needsYou}
-            needsYouTotal=${frontDoor.needsYouTotal}
-            handled=${frontDoor.handled}
-          />
-
-          <div className="mt-6 grid">
-            ${suggestions.map(
-              (item) => html`
-                <button
-                  type="button"
-                  key=${item.title}
-                  disabled=${suggestionsBlocked}
-                  onClick=${() => prefill(item.prompt)}
-                  className=${[
-                    'v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-[var(--v2-panel-border)] px-1 py-3.5 text-left first:border-t-0',
-                    suggestionsBlocked
-                      ? 'cursor-not-allowed opacity-60'
-                      : 'hover:text-[var(--v2-text-strong)]'
-                  ].join(' ')}
-                >
-                  <span
-                    className="grid h-8 w-8 place-items-center text-[var(--v2-text-muted)] group-hover:text-[var(--v2-accent-text)]"
-                  >
-                    <${Icon} name=${item.icon} className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-medium text-[var(--v2-text-strong)]">
-                      ${item.title}
-                    </span>
-                    <span className="mt-0.5 block text-sm leading-5 text-[var(--v2-text-muted)]">
-                      ${item.detail}
-                    </span>
-                  </span>
-                  <span
-                    className="self-start whitespace-nowrap text-xs font-medium text-[var(--v2-text-faint)] group-hover:text-[var(--v2-accent-text)]"
-                  >
-                    ${suggestionsBlocked ? 'Setup first' : t('chat.suggestionUse')}
-                  </span>
-                </button>
-              `
-            )}
-          </div>
-        </section>
-      </div>
-    </div>
-  `;
-}
-
-function SourceBoundaryStrip() {
-  return html`
-    <div
-      className="mt-5 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-3"
-      data-testid="source-boundary"
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-[12px] font-semibold text-[var(--v2-text-faint)]">
-            Source boundary
-          </div>
-          <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
-            Only attached files and connectors you set up can be used. External sends, posts, and
-            changes pause for approval.
-          </p>
         </div>
-        <${Link}
-          to="/extensions"
-          className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-sm font-semibold text-[var(--v2-text-strong)] hover:border-[color-mix(in_srgb,var(--v2-accent)_42%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
-        >
-          <${Icon} name="plug" className="h-4 w-4" />
-          Connect sources
-        <//>
+
+        ${setupBlocked &&
+        html`
+          <div
+            className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_30%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
+          >
+            <div className="text-sm font-medium text-[var(--v2-text-strong)]">
+              ${t('chat.briefNeedsSetupTitle')}
+            </div>
+            <div className="mt-1 text-sm leading-5 text-[var(--v2-text-muted)]">
+              ${context?.sendBlockReason || t('chat.briefNeedsSetupDesc')}
+            </div>
+            <${Link}
+              to="/settings/inference"
+              className="mt-3 inline-flex min-h-[40px] items-center rounded-[8px] bg-[var(--v2-accent-btn)] px-4 text-sm font-medium text-white v2-force-white"
+            >
+              Open setup
+            <//>
+          </div>
+        `}
       </div>
     </div>
-  `;
-}
-
-function FrontDoorPanel({ sinceAway = [], sinceAwayTotal = 0, needsYou, needsYouTotal, handled }) {
-  return html`
-    <div className="mt-8 grid gap-7" data-testid="frontdoor-panel">
-      ${sinceAway.length > 0 &&
-      html`<${FrontDoorSection}
-        title="Since your last visit"
-        emptyTitle=""
-        emptyDetail=""
-        tone="gold"
-        items=${sinceAway}
-        count=${sinceAwayTotal}
-        moreLabel="more on Scheduled"
-      />`}
-      <${FrontDoorSection}
-        title="Needs you"
-        emptyTitle="Nothing waiting on you."
-        emptyDetail="Approvals and auth gates appear here when they are backed by a thread."
-        tone="warning"
-        items=${needsYou}
-        count=${needsYouTotal}
-      />
-      <${FrontDoorSection}
-        title="Handled"
-        emptyTitle="No completed receipts yet."
-        emptyDetail="Completed actions, automations, and recent work appear here once IronClaw has evidence."
-        tone="gold"
-        items=${handled}
-      />
-    </div>
-  `;
-}
-
-function FrontDoorSection({
-  title,
-  emptyTitle,
-  emptyDetail,
-  tone,
-  items,
-  count,
-  moreLabel = 'more in your threads'
-}) {
-  // The badge reports the TRUE total (count) when provided, even though only the
-  // top rows render — never under-report how many items actually need the user.
-  const total = typeof count === 'number' ? count : items.length;
-  // Color is attribution, not decoration: gold/warning only earns its place when
-  // there are real items to point at. An empty count stays muted so a quiet desk
-  // never glows with a meaningless "0".
-  const populated = total > 0;
-  // gold tone = agent-attributed work; mark it with a quiet clay icon + dot, not
-  // a filled chip. warning tone keeps its semantic color on the icon only.
-  const iconToneClass =
-    tone === 'gold' ? 'text-[var(--v2-gold-text)]' : 'text-[var(--v2-warning-text)]';
-  const countToneClass = populated ? 'text-[var(--v2-text-muted)]' : 'text-[var(--v2-text-faint)]';
-  return html`
-    <section className="min-w-0" aria-label=${title} data-testid=${`frontdoor-${tone}`}>
-      <div className="mb-1 flex items-center justify-between gap-3">
-        <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">${title}</div>
-        <span className=${`text-[12px] font-medium tabular-nums ${countToneClass}`}>${total}</span>
-      </div>
-      <div className="grid">
-        ${populated
-          ? html`
-              ${items.map(
-                (item) => html`
-                  <${Link}
-                    key=${item.id}
-                    to=${item.href}
-                    className="group grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2.5 border-t border-[var(--v2-panel-border)] py-3 first:border-t-0 hover:text-[var(--v2-accent-text)]"
-                  >
-                    <span className=${`grid h-8 w-8 place-items-center ${iconToneClass}`}>
-                      <${Icon} name=${item.icon} className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="flex min-w-0 items-center gap-2">
-                        ${tone === 'gold' &&
-                        html`<span
-                          aria-hidden="true"
-                          className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
-                        />`}
-                        <span className="truncate text-sm font-medium text-[var(--v2-text-strong)]">
-                          ${item.title}
-                        </span>
-                        <span
-                          className="shrink-0 text-[11px] font-medium text-[var(--v2-text-faint)]"
-                        >
-                          ${item.badge}
-                        </span>
-                      </span>
-                      <span
-                        className="mt-0.5 line-clamp-2 text-xs leading-[1.45] text-[var(--v2-text-muted)]"
-                        title=${item.age ? `${item.age} · ${item.detail}` : item.detail}
-                      >
-                        ${item.age
-                          ? html`<span className="text-[var(--v2-text-faint)]"
-                              >${item.age} ·
-                            </span>`
-                          : ''}${item.detail}
-                      </span>
-                    </span>
-                    <span className="self-start text-xs font-medium text-[var(--v2-accent-text)]"
-                      >Open</span
-                    >
-                  <//>
-                `
-              )}
-              ${total > items.length
-                ? html`<div className="py-2 text-[11px] text-[var(--v2-text-faint)]">
-                    +${total - items.length} ${moreLabel}
-                  </div>`
-                : ''}
-            `
-          : html`
-              <div className="py-1">
-                <div className="text-sm font-medium text-[var(--v2-text-strong)]">
-                  ${emptyTitle}
-                </div>
-                <div className="mt-0.5 text-xs leading-5 text-[var(--v2-text-muted)]">
-                  ${emptyDetail}
-                </div>
-              </div>
-            `}
-      </div>
-    </section>
   `;
 }

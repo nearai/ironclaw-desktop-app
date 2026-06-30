@@ -54,7 +54,10 @@ test('static workbench: direct route renders v13 replacement shell with real wir
 
   await installWorkbenchMocks(page);
   await seedRecentWork(page);
-  await page.goto('/v2/?token=workbench-static-token');
+  // Workbench is a separate product instance — deep-link-only, off the desktop
+  // information architecture (the root now opens to /chat). It still renders its
+  // own shell when reached directly.
+  await page.goto('/v2/workbench?token=workbench-static-token');
 
   await expect(page).toHaveURL(/\/v2\/workbench$/);
   await expect(page.getByTestId('workbench-page')).toBeVisible();

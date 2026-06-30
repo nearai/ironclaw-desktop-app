@@ -8,12 +8,10 @@ function visibleRouteIds() {
 }
 
 test('desktop primary information architecture stays simple for normal users', () => {
-  assert.equal(defaultRoute, '/workbench');
-  // 'automations' (labelled "Scheduled") is a real, gateway-backed read-only
-  // viewer of recurring work the agent created — promoted into primary nav.
-  // 'you' is the live behaviour-profile ("How you work") surface, profile-backed.
+  // Chat is the front door. Workbench is a separate product instance, kept
+  // deep-link-only and off the desktop information architecture.
+  assert.equal(defaultRoute, '/chat');
   assert.deepEqual(visibleRouteIds(), [
-    'workbench',
     'you',
     'chat',
     'work',
@@ -30,10 +28,10 @@ test('saved work surface is a registered, visible route', () => {
   assert.equal(work.path, '/work');
 });
 
-test('workbench replacement route is registered as the default surface', () => {
+test('workbench stays registered but hidden — a separate product instance', () => {
   const workbench = primaryRoutes.find((route) => route.id === 'workbench');
-  assert.ok(workbench, 'workbench route should be registered');
-  assert.equal(workbench.hidden, false);
+  assert.ok(workbench, 'workbench route should stay registered (deep-link only)');
+  assert.equal(workbench.hidden, true);
   assert.equal(workbench.path, '/workbench');
 });
 

@@ -32,9 +32,14 @@ const llmProviders = {
   }
 };
 
-test('static front door: cold open shows backed needs-you and handled receipts', async ({
+test('static front door: cold open is composer-first — greeting + composer, no prepared-desk dashboard', async ({
   page
 }) => {
+  // The home is the single thing the user came to do: hand IronClaw a task. It is
+  // a calm greeting and one prominent composer — NOT a 3-column dashboard. The old
+  // prepared desk (Needs you / Handled rails, source-boundary strip, suggestion
+  // cards) is gone; approvals surface in-thread, receipts live in Work, recent
+  // threads live in the sidebar.
   const consoleIssues: string[] = [];
   page.on('console', (message) => {
     if (['error', 'warning'].includes(message.type())) {
@@ -45,161 +50,30 @@ test('static front door: cold open shows backed needs-you and handled receipts',
     consoleIssues.push(`pageerror: ${error.message}`);
   });
 
-  await page.addInitScript(() => {
-    window.localStorage.setItem(
-      'ironclaw:v2-thread-attention',
-      JSON.stringify([['thread-needs-you', 'needs_attention']])
-    );
-  });
   await installFrontDoorMocks(page);
-
   await page.goto('/v2/chat?token=frontdoor-static-token');
+
   await expect(
     page.getByRole('heading', { name: 'What should IronClaw handle next?' })
   ).toBeVisible();
+  await expect(page.getByTestId('chat-front-door')).toBeVisible();
 
-  const panel = page.getByTestId('frontdoor-panel');
-  await expect(panel).toBeVisible();
-  await expect(panel.getByText('Needs you')).toBeVisible();
-  await expect(panel.getByText('Legal review approval')).toBeVisible();
-  await expect(panel.getByText('Needs approval')).toBeVisible();
-  await expect(panel.getByRole('link', { name: /Legal review approval/ })).toHaveAttribute(
-    'href',
-    '/v2/chat/thread-needs-you'
-  );
+  // The composer is the hero and is present on the cold open.
+  const composer = page.getByTestId('chat-composer');
+  await expect(composer).toBeVisible();
+  await expect(composer.getByRole('button', { name: 'Send message' })).toBeVisible();
 
-  await expect(panel.getByText('Handled')).toBeVisible();
-  await expect(panel.getByText('Daily digest')).toBeVisible();
-  await expect(panel.getByText('Completed')).toBeVisible();
-  await expect(panel.getByRole('link', { name: /Daily digest/ })).toHaveAttribute(
-    'href',
-    '/v2/automations'
-  );
+  // The prepared-desk dashboard is gone.
+  await expect(page.getByTestId('frontdoor-panel')).toHaveCount(0);
+  await expect(page.getByTestId('source-boundary')).toHaveCount(0);
+  await expect(page.getByText('Needs you', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Handled', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Use prompt')).toHaveCount(0);
 
-  const boundary = page.getByTestId('source-boundary');
-  await expect(boundary).toBeVisible();
-  await expect(boundary).toContainText(
-    'Only attached files and connectors you set up can be used.'
-  );
-  await expect(boundary).toContainText('External sends, posts, and changes pause for approval.');
-  await expect(boundary.getByRole('link', { name: 'Connect sources' })).toHaveAttribute(
-    'href',
-    '/v2/extensions'
-  );
+  // A provider is active in the mock, so no setup nudge competes with the composer.
+  await expect(page.getByRole('link', { name: 'Open setup' })).toHaveCount(0);
 
   expect(consoleIssues).toEqual([]);
-});
-
-test('static front door: receipt rows show the full specific detail, not just badge metadata', async ({
-  page
-}) => {
-  // Trust law: a receipt earns the panel by showing specific data, not wallpaper.
-  // Regression guard for the old single-line `badge · age · detail` cram, where the
-  // load-bearing detail (the actual receipt) was clipped behind the category badge
-  // and age on desktop and went fully invisible at 390px. The detail must render in
-  // full and wrap (line-clamp), and the badge must be its own chip on the title row.
-  await page.addInitScript(() => {
-    window.localStorage.setItem(
-      'ironclaw:v2-thread-attention',
-      JSON.stringify([['thread-needs-you', 'needs_attention']])
-    );
-  });
-  await installFrontDoorMocks(page);
-
-  await page.goto('/v2/chat?token=frontdoor-static-token');
-  const panel = page.getByTestId('frontdoor-panel');
-  await expect(panel).toBeVisible();
-
-  const needsRow = panel.getByRole('link', { name: /Legal review approval/ });
-  // The specific receipt payload is present in full (was truncated to "...waiting in t…").
-  await expect(needsRow).toContainText('An approval or auth gate is waiting in this thread.');
-  // The detail lives on its own wrappable line, never a single-line truncate.
-  const needsDetail = needsRow.locator('[title]').filter({
-    hasText: 'An approval or auth gate is waiting in this thread.'
-  });
-  await expect(needsDetail).toHaveCount(1);
-  const needsDetailClass = (await needsDetail.first().getAttribute('class')) || '';
-  expect(needsDetailClass).toContain('line-clamp-2');
-  expect(needsDetailClass).not.toContain('truncate');
-  // Age and badge are still shown, but as supporting metadata around the detail.
-  await expect(needsRow).toContainText('Needs approval');
-  await expect(needsRow).toContainText(/\dh ago/);
-
-  // Handled receipts keep their specific payload too.
-  const handledRow = panel.getByRole('link', { name: /Daily digest/ });
-  await expect(handledRow).toContainText('Automation result from');
-  const handledDetailClass =
-    (await handledRow.locator('[title]').first().getAttribute('class')) || '';
-  expect(handledDetailClass).toContain('line-clamp-2');
-});
-
-test('static front door: suggestion action label never wraps', async ({ page }) => {
-  // Design-system SuggestionCard keeps the "Use prompt" affordance on one line
-  // (whiteSpace: nowrap). The shipped static card had dropped this, so the label
-  // wrapped to "Use\nprompt" and ragged the third column. Guard it stays one line.
-  await installFrontDoorMocks(page);
-
-  await page.goto('/v2/chat?token=frontdoor-static-token');
-  await expect(page.getByTestId('frontdoor-panel')).toBeVisible();
-
-  const useLabel = page.getByText('Use prompt', { exact: true }).first();
-  await expect(useLabel).toBeVisible();
-  const labelClass = (await useLabel.getAttribute('class')) || '';
-  expect(labelClass).toContain('whitespace-nowrap');
-
-  // Single text line: client rect height stays within one line-height band.
-  const lineMetrics = await useLabel.evaluate((el) => {
-    const rect = el.getBoundingClientRect();
-    const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || rect.height;
-    return { height: rect.height, lineHeight };
-  });
-  expect(lineMetrics.height).toBeLessThanOrEqual(lineMetrics.lineHeight + 2);
-});
-
-test('static front door: empty desk keeps zero-state pills neutral and shows at most one setup nudge', async ({
-  page
-}) => {
-  // No seeded attention state, no automations, no threads => both Needs you and
-  // Handled render their empty zero-state. onboarding-desk-3: the count pill must
-  // stay on muted tokens (no gold/warning glow on a meaningless "0"). chat-3/DT-1:
-  // the prepared desk surfaces a single "Open setup" connect affordance (the NEAR
-  // AI Cloud panel when setup is blocked) — never duplicate competing nudges.
-  await installFrontDoorMocks(page, { threads: [], automations: [] });
-
-  await page.goto('/v2/chat?token=frontdoor-static-token');
-  await expect(
-    page.getByRole('heading', { name: 'What should IronClaw handle next?' })
-  ).toBeVisible();
-
-  const panel = page.getByTestId('frontdoor-panel');
-  await expect(panel).toBeVisible();
-
-  for (const tone of ['warning', 'gold']) {
-    const section = panel.getByTestId(`frontdoor-${tone}`);
-    await expect(section).toBeVisible();
-    // The empty section renders its zero-state copy, never a real item link.
-    await expect(section.getByRole('link')).toHaveCount(0);
-    const countPill = section.locator('span').filter({ hasText: /^0$/ });
-    await expect(countPill).toHaveCount(1);
-    const pillClass = (await countPill.first().getAttribute('class')) || '';
-    // De-boxed warm-light count: the zero-state reads as quiet faint text, not a
-    // filled chip. onboarding-desk-3 honesty holds — a meaningless "0" never
-    // earns the gold/warning attribution glow reserved for real items.
-    expect(pillClass).toContain('var(--v2-text-faint)');
-    expect(pillClass).not.toContain('var(--v2-surface-soft)');
-    expect(pillClass).not.toContain('var(--v2-gold-soft)');
-    expect(pillClass).not.toContain('var(--v2-gold-text)');
-    expect(pillClass).not.toContain('var(--v2-warning-soft)');
-    expect(pillClass).not.toContain('var(--v2-warning-text)');
-  }
-
-  await expect(panel.getByText('Nothing waiting on you.')).toBeVisible();
-  await expect(panel.getByText('No completed receipts yet.')).toBeVisible();
-
-  // chat-3/DT-1: the prepared desk carries at most one "Open setup" affordance
-  // (the single connect panel when setup is blocked; none when a provider is ready).
-  expect(await page.getByRole('link', { name: 'Open setup' }).count()).toBeLessThanOrEqual(1);
-  expect(await page.getByRole('button', { name: 'Open setup' }).count()).toBeLessThanOrEqual(1);
 });
 
 test('static front door at 390px: no horizontal overflow and composer touch targets stay >=44px', async ({
@@ -207,8 +81,6 @@ test('static front door at 390px: no horizontal overflow and composer touch targ
 }) => {
   // Mobile-first law: the chat front door must not overflow at 390px and every
   // composer control the user taps must clear the 44px touch-target minimum.
-  // Regression guard for the composer send/add/model controls (were 32-36px)
-  // and the prepared-desk "Open setup" CTA (was 32px).
   await page.setViewportSize({ width: 390, height: 844 });
   await installFrontDoorMocks(page);
 
@@ -216,9 +88,8 @@ test('static front door at 390px: no horizontal overflow and composer touch targ
   await expect(
     page.getByRole('heading', { name: 'What should IronClaw handle next?' })
   ).toBeVisible();
-  await expect(page.getByTestId('frontdoor-panel')).toBeVisible();
+  await expect(page.getByTestId('chat-front-door')).toBeVisible();
 
-  // No horizontal overflow: the document never scrolls sideways at 390px.
   const overflow = await page.evaluate(() => {
     const de = document.documentElement;
     return {
@@ -229,7 +100,6 @@ test('static front door at 390px: no horizontal overflow and composer touch targ
   expect(overflow.docOverflow).toBeLessThanOrEqual(1);
   expect(overflow.bodyOverflow).toBeLessThanOrEqual(1);
 
-  // Every composer control the thumb hits clears 44px in both dimensions.
   const composer = page.getByTestId('chat-composer');
   for (const name of ['Chat model settings', 'Add to message', 'Send message']) {
     const control = composer.getByRole('button', { name }).first();
@@ -239,52 +109,14 @@ test('static front door at 390px: no horizontal overflow and composer touch targ
     expect(box!.height, `${name} height >=44px`).toBeGreaterThanOrEqual(44);
     expect(box!.width, `${name} width >=44px`).toBeGreaterThanOrEqual(44);
   }
-
-  const connectSources = page.getByRole('link', { name: 'Connect sources' });
-  await expect(connectSources).toBeVisible();
-  const connectBox = await connectSources.boundingBox();
-  expect(connectBox, 'Connect sources should have a measurable box').not.toBeNull();
-  expect(connectBox!.height, 'Connect sources height >=44px').toBeGreaterThanOrEqual(44);
 });
 
 async function installFrontDoorMocks(
   page: Page,
   overrides: { threads?: unknown[]; automations?: unknown[] } = {}
 ) {
-  // Timestamps are relative to now so the rendered relative-age stays in the
-  // "Xh ago" band the assertions expect, regardless of the calendar date the
-  // suite runs on. (Hardcoded dates aged past 24h and flipped to "1d ago".)
-  const now = Date.now();
-  const hoursAgo = (h: number) => new Date(now - h * 3_600_000).toISOString();
-  const hoursFromNow = (h: number) => new Date(now + h * 3_600_000).toISOString();
-  const threads = overrides.threads ?? [
-    {
-      id: 'thread-needs-you',
-      thread_id: 'thread-needs-you',
-      title: 'Legal review approval',
-      turn_count: 4,
-      updated_at: hoursAgo(3)
-    },
-    {
-      id: 'thread-recent',
-      thread_id: 'thread-recent',
-      title: 'Draft launch memo',
-      turn_count: 2,
-      updated_at: hoursAgo(1)
-    }
-  ];
-  const automations = overrides.automations ?? [
-    {
-      id: 'daily-digest',
-      name: 'Daily digest',
-      state: 'active',
-      source: { type: 'schedule', cron: '0 8 * * *' },
-      last_status: 'ok',
-      last_run_at: hoursAgo(2),
-      next_run_at: hoursFromNow(6),
-      created_at: hoursAgo(72)
-    }
-  ];
+  const threads = overrides.threads ?? [];
+  const automations = overrides.automations ?? [];
   await installFrontDoorRoutes(page, threads, automations);
 }
 

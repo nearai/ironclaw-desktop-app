@@ -1,10 +1,12 @@
-export const defaultRoute = '/workbench';
+export const defaultRoute = '/chat';
 
 // `hidden: true` keeps deep links registered while removing unfinished
 // or specialist surfaces from the normal desktop information architecture.
 // Unhide a route only when its visible workflow is honest and supported.
+// Workbench is a separate product instance — kept deep-link-only, off the
+// IronClaw Desktop information architecture.
 export const primaryRoutes = [
-  { id: 'workbench', path: '/workbench', labelKey: 'nav.workbench', hidden: false },
+  { id: 'workbench', path: '/workbench', labelKey: 'nav.workbench', hidden: true },
   // The "How you work" perspective surface — what IronClaw learned about who you
   // reply to / how fast / what it auto-files.
   { id: 'you', path: '/you', labelKey: 'nav.you', hidden: false },

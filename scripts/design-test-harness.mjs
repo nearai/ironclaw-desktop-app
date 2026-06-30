@@ -9,9 +9,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const checks = [
   {
     id: 'DT-1',
-    label: 'cold-open prepared desk',
+    label: 'cold-open is composer-first',
     proof:
-      'front door data ranks backed needs-you work and the empty state renders the prepared desk',
+      'the chat cold open is a calm greeting and one prominent composer (no prepared-desk dashboard), with an honest connect-model notice only when the gateway has no usable provider',
     commands: [
       {
         label: 'front-door data contract',
@@ -28,15 +28,13 @@ const checks = [
         includes: ['font-family: "Geist"', 'geist-variable.woff2']
       },
       {
-        label: 'chat cold open includes the prepared desk panel',
+        label: 'chat cold open is composer-first (no prepared-desk dashboard)',
         file: 'crates/ironclaw_webui_v2_static/static/js/pages/chat/components/empty-state.js',
         includes: [
-          'data-testid="frontdoor-panel"',
-          'title="Needs you"',
-          'title="Handled"',
+          'data-testid="chat-front-door"',
           'variant="hero"',
-          "t('chat.briefNeedsSetupTitle')",
-          'Workspace sources are configured separately in Connections'
+          "t('chat.heroDesc')",
+          "t('chat.briefNeedsSetupTitle')"
         ]
       }
     ]
@@ -149,16 +147,6 @@ const checks = [
     proof: 'empty states explain what happens next and loading uses static skeleton structure',
     commands: [],
     assertions: [
-      {
-        label: 'front door empty states name next evidence-backed action',
-        file: 'crates/ironclaw_webui_v2_static/static/js/pages/chat/components/empty-state.js',
-        includes: [
-          'Nothing waiting on you.',
-          'Approvals and auth gates appear here when they are backed by a thread.',
-          'No completed receipts yet.',
-          'Completed actions, automations, and recent work appear here once IronClaw has evidence.'
-        ]
-      },
       {
         label: 'installed Connections empty state has a next action',
         file: 'crates/ironclaw_webui_v2_static/static/js/pages/extensions/components/installed-tab.js',
