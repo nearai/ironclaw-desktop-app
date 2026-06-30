@@ -231,19 +231,22 @@ test('static workbench: primary command label follows the inferred work type', a
   await page.goto('/v2/workbench?token=workbench-static-token');
 
   const brief = page.getByTestId('workbench-brief-input');
-  await expect(page.getByRole('button', { name: 'Ask', exact: true })).toBeVisible();
+  // Assert the COMMAND send button's label (scoped by testid) — not any button by name, since
+  // the "Review" nav entry also exists; this spec is about the inferred primary action label.
+  const send = page.getByTestId('workbench-send-button');
+  await expect(send).toContainText('Ask');
 
   await brief.fill('Prepare investor update for the board.');
-  await expect(page.getByRole('button', { name: 'Prepare', exact: true })).toBeVisible();
+  await expect(send).toContainText('Prepare');
 
   await brief.fill('Review the agreement counter before approval.');
-  await expect(page.getByRole('button', { name: 'Review', exact: true })).toBeVisible();
+  await expect(send).toContainText('Review');
 
   await brief.fill('Watch competitor launches weekly.');
-  await expect(page.getByRole('button', { name: 'Watch', exact: true })).toBeVisible();
+  await expect(send).toContainText('Watch');
 
   await brief.fill('Help me think through this unusual thing.');
-  await expect(page.getByRole('button', { name: 'Ask', exact: true })).toBeVisible();
+  await expect(send).toContainText('Ask');
 });
 
 test('static workbench: active rail renders real scheduled automation reads', async ({ page }) => {
@@ -4024,4 +4027,19 @@ test('static workbench: keyboard layer opens shortcuts and runs the g-nav chord'
   await page.keyboard.press('g');
   await page.keyboard.press('m');
   await expect(page.getByTestId('workbench-memory')).toBeVisible();
+});
+
+test('static workbench: the Review nav opens the Tabular Review surface with an honest empty state', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page);
+  await page.goto('/v2/workbench?token=workbench-static-token');
+
+  await page.getByTestId('workbench-nav-review').click();
+  const empty = page.getByTestId('workbench-review-empty');
+  await expect(empty).toBeVisible();
+  await expect(empty).toContainText('Review your terms across many documents');
+  // Honest scaffold: the entry point is present but not yet wired — the action is disabled,
+  // and there is no fabricated grid/data until the document picker + extraction land.
+  await expect(empty.getByRole('button', { name: 'Choose documents' })).toBeDisabled();
 });
