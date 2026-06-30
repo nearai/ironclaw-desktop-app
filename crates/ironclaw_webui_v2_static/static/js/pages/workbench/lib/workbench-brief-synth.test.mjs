@@ -98,6 +98,18 @@ test('buildNeedsYouPrompt is the replies-only turn: needsYou schema + inbox data
   );
 });
 
+test('buildNeedsYouPrompt carries the never-miss-legal carve-out (broadcast-phrased legal is never dropped)', () => {
+  const bundle = buildBriefSynthesisBundle(SAMPLE_BRIEFING, PROFILE);
+  const p = buildNeedsYouPrompt(bundle, PROFILE);
+  // it still instructs dropping announcements/broadcasts...
+  assert.match(p, /DROP everything else/i);
+  assert.match(p, /announcements, broadcasts/i);
+  // ...but carves out legal/regulatory/governance so a CLO never misses one phrased as an FYI
+  assert.match(p, /EXCEPTION/);
+  assert.match(p, /never drop a legal, regulatory, fraud, governance, contract/i);
+  assert.match(p, /KEEP it/i, 'tie-breaks toward keeping a possibly-legal item');
+});
+
 test('buildBriefSynthesisBundle folds slackAwaiting into needsReply (Slack-first) + carries weighInCandidates + voiceSample', () => {
   const briefing = {
     ...SAMPLE_BRIEFING,
