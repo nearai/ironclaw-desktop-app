@@ -1,0 +1,181 @@
+/* ============================================================
+   NEAR Private Chat — Tokens
+   Source of truth: uploads/DESIGN.md
+
+   Font strategy:
+   - On Apple platforms we get real SF Pro via -apple-system / BlinkMacSystemFont.
+   - Off-Apple (Linux, Windows, Android browsers) we fall through to
+     Pretendard, an open-source SF Pro clone that's visually ~99% identical
+     and SIL OFL licensed. Loaded from the jsDelivr CDN below.
+   - SF Pro Italic.ttf (user-supplied) is wired as @font-face so italic
+     runs render with the real Apple cut when present on disk.
+   The SwiftUI handoff target uses real SF Pro on-device; Pretendard is a
+   web-prototype-only stand-in.
+   ============================================================ */
+
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css");
+
+@font-face {
+  font-family: "SF Pro";
+  font-style: italic;
+  font-weight: 400 600;
+  font-display: swap;
+  src: url("./fonts/SF-Pro-Italic.ttf") format("truetype");
+}
+
+:root {
+  /* ---------- Surfaces (light) ---------- */
+  --bg:          #F8F8F6;   /* warm off-white app background */
+  --panel:       #FFFFFF;   /* cards, message containers, sheets */
+  --surface-2:   #F1F2F1;   /* list groups, tinted blocks, quoted snippets, user bubble */
+  --border:      rgba(0, 0, 0, 0.08);
+  --hairline:    rgba(0, 0, 0, 0.05);
+
+  /* ---------- Accent & action ---------- */
+  --action:      #0091FD;   /* primary action / brand blue — the loudest color */
+  --action-press:#0078D1;
+  --accent-sky:  #83DCFF;   /* fresh-state highlight, sparingly */
+  --selection:   #DCEFFF;   /* selected-row tint (selectionSubtle) */
+  --action-tint: #EBF6FF;   /* appBlueTint */
+  --action-fill: #C7E8FF;   /* appSymbolBlueBackground */
+
+  /* ---------- Semantic state (proof / trust) ---------- */
+  --verified:    #15BE53;   /* fresh per-message proof */
+  --stale:       #F5A623;   /* >1h or network failure */
+  --failed:      #E5484D;   /* cryptographic mismatch */
+
+  /* ---------- Text (light) ---------- */
+  --text:        rgba(0, 0, 0, 0.95);
+  --text-2:      rgba(39, 39, 39, 0.72);
+  --text-3:      rgba(39, 39, 39, 0.48);
+  --text-on-action: #FFFFFF;
+
+  /* ---------- Type stack ----------
+     Apple platforms → real SF Pro via -apple-system.
+     Other platforms → Pretendard (CDN, SIL OFL, ~99% SF Pro visual match).
+     "SF Pro" name routes italic runs to the user-supplied SF-Pro-Italic.ttf. */
+  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", "SF Pro Display", "Pretendard Variable", "Pretendard", system-ui, sans-serif;
+  --font-mono:   ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* ---------- Type scale (px / lh) ---------- */
+  --display-size: 28px;     --display-lh: 32px;   --display-w: 600;
+  --title3-size:  20px;     --title3-lh:  24px;   --title3-w:  600;
+  --headline-size:17px;     --headline-lh:22px;   --headline-w:600;
+  --body-size:    17px;     --body-lh:    24px;   --body-w:    400;
+  --subhead-size: 15px;     --subhead-lh: 20px;   --subhead-w: 400;
+  --footnote-size:13px;     --footnote-lh:18px;   --footnote-w:600;
+  --caption-size: 11px;     --caption-lh: 14px;   --caption-w: 500;
+  --mono-size:    11px;     --mono-lh:    14px;   --mono-w:    400;
+
+  /* ---------- Spacing (4-pt grid) ---------- */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;   /* default container padding */
+  --s-5: 20px;
+  --s-6: 24px;   /* default section gap */
+  --s-8: 32px;
+
+  /* ---------- Radii (all continuous) ---------- */
+  --r-pill:    8px;   /* inline pills, citation pills */
+  --r-button:  12px;  /* buttons, small cards */
+  --r-card:    16px;  /* message bubbles, source cards */
+  --r-sheet:   22px;  /* sheets at partial detent */
+  --r-capsule: 9999px;
+
+  /* ---------- Elevation ---------- */
+  --shadow-floating: 0 4px 12px rgba(0, 0, 0, 0.10);
+  --glass-blur: blur(20px) saturate(180%);
+
+  /* ---------- Motion ---------- */
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+  --dur-fast: 120ms;
+  --dur-med:  240ms;
+  --dur-slow: 320ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:        #0E0F10;
+    --panel:     #131517;
+    --surface-2: #191B1D;
+    --border:    rgba(255, 255, 255, 0.11);
+    --hairline:  rgba(255, 255, 255, 0.07);
+
+    --selection: rgba(0, 145, 253, 0.20);
+    --action-tint: rgba(0, 145, 253, 0.12);
+    --action-fill: rgba(0, 145, 253, 0.22);
+
+    --text:   rgba(255, 255, 255, 0.92);
+    --text-2: rgba(255, 255, 255, 0.68);
+    --text-3: rgba(255, 255, 255, 0.40);
+  }
+}
+
+/* ============================================================
+   Semantic typography classes (apply directly: <p class="t-body">)
+   ============================================================ */
+
+.t-display {
+  font: var(--display-w) var(--display-size)/var(--display-lh) var(--font-system);
+  letter-spacing: -0.4px;
+  color: var(--text);
+}
+.t-title3 {
+  font: var(--title3-w) var(--title3-size)/var(--title3-lh) var(--font-system);
+  letter-spacing: -0.3px;
+  color: var(--text);
+}
+.t-headline {
+  font: var(--headline-w) var(--headline-size)/var(--headline-lh) var(--font-system);
+  letter-spacing: -0.2px;
+  color: var(--text);
+}
+.t-body {
+  font: var(--body-w) var(--body-size)/var(--body-lh) var(--font-system);
+  letter-spacing: -0.2px;
+  color: var(--text);
+}
+.t-subhead {
+  font: var(--subhead-w) var(--subhead-size)/var(--subhead-lh) var(--font-system);
+  letter-spacing: -0.1px;
+  color: var(--text-2);
+}
+.t-footnote {
+  font: var(--footnote-w) var(--footnote-size)/var(--footnote-lh) var(--font-system);
+  letter-spacing: 0;
+  color: var(--text-2);
+}
+.t-caption {
+  font: var(--caption-w) var(--caption-size)/var(--caption-lh) var(--font-system);
+  letter-spacing: 0.1px;
+  color: var(--text-2);
+}
+.t-mono {
+  font: var(--mono-w) var(--mono-size)/var(--mono-lh) var(--font-mono);
+  color: var(--text);
+}
+
+/* ============================================================
+   Reset (minimal — for prototypes only)
+   ============================================================ */
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--font-system);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Reduce-motion baseline */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

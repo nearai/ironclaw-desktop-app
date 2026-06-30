@@ -317,14 +317,12 @@ export async function seedLocalDocumentWork(page: Page) {
 }
 
 export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOptions = {}) {
-  // The default home auto-runs the LLM-judged brief in production. In tests that would be an
-  // LLM turn with non-deterministic timing, so it is gated OFF here unless a spec opts in with
-  // { autoBrief: true } (which also mocks the synthesis via timelineMessages). This preserves
-  // every existing spec's deterministic home composition.
-  if (!options.autoBrief) {
+  // The product default is the Direction-B triage cockpit, so auto-brief is OFF by default.
+  // A spec opts into the on-demand/auto-judged brief with { autoBrief: true }, which enables it
+  // (and mocks the synthesis via timelineMessages). The judged brief is otherwise on-demand.
+  if (options.autoBrief) {
     await page.addInitScript(() => {
-      (window as unknown as { __WB_TEST_NO_AUTO_BRIEF__?: boolean }).__WB_TEST_NO_AUTO_BRIEF__ =
-        true;
+      (window as unknown as { __WB_AUTO_BRIEF__?: boolean }).__WB_AUTO_BRIEF__ = true;
     });
   }
   let activeLlm = { ...llmProviders.active };

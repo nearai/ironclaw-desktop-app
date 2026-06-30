@@ -220,9 +220,9 @@ function TriageSection({ groups, hasDecisions = false, statusFilter = null, load
     `;
   }
 
-  // One cohesive pilled list (no per-group headers): every actionable item reads as a
-  // card carrying its own colored status pill — the varied Decision / Blocked / Ready
-  // cockpit. Groups are already in priority order, so flatMap preserves the ranking.
+  // Grouped triage: each priority group is its own block — a small tone-tinted section header
+  // (amber decisions, red blocked, blue ready) over its cards, each card led by a tone-tinted
+  // icon tile. Groups are already in priority order.
   const toneFor = (id) =>
     id === 'needs-approval'
       ? 'hold'
@@ -233,10 +233,7 @@ function TriageSection({ groups, hasDecisions = false, statusFilter = null, load
           : id === 'receipts'
             ? 'done'
             : 'ready';
-  const pillClassFor = (tone) =>
-    ({ hold: 'is-decision', danger: 'is-blocked', run: 'is-working', done: 'is-done' })[tone] ||
-    'is-reply';
-  const pillLabelFor = (group) =>
+  const groupLabelFor = (group) =>
     ({
       'needs-approval': 'Needs a decision',
       blocked: 'Blocked',
@@ -246,21 +243,15 @@ function TriageSection({ groups, hasDecisions = false, statusFilter = null, load
       scheduled: 'Scheduled'
     })[group.id] || group.label;
   return html`
-    <div className="wb13-section wb13-list" data-testid="workbench-triage">
-      ${populatedGroups.flatMap((group) => {
+    <div className="wb13-section wb13-triage-groups" data-testid="workbench-triage">
+      ${populatedGroups.map((group) => {
         const tone = toneFor(group.id);
-        const pillCls = pillClassFor(tone);
-        const pillLabel = pillLabelFor(group);
-        return group.rows.map(
-          (row) =>
-            html`<${TriageCard}
-              key=${row.id}
-              row=${row}
-              tone=${tone}
-              pillCls=${pillCls}
-              pillLabel=${pillLabel}
-            />`
-        );
+        return html`<div className="wb13-triage-group" key=${group.id}>
+          <div className=${cn('wb13-triage-group-head', `is-${tone}`)}>
+            ${groupLabelFor(group)} · ${group.rows.length}
+          </div>
+          ${group.rows.map((row) => html`<${TriageCard} key=${row.id} row=${row} tone=${tone} />`)}
+        </div>`;
       })}
     </div>
   `;
@@ -279,22 +270,34 @@ function triageCtaLabel(row, tone) {
   return 'Open';
 }
 
-function TriageCard({ row, tone, pillCls = 'is-reply', pillLabel = '' }) {
+const TRIAGE_TONE_ICON = {
+  hold: 'shield',
+  danger: 'flag',
+  ready: 'file',
+  run: 'pulse',
+  done: 'check',
+  reply: 'mail'
+};
+function TriageCard({ row, tone }) {
   const ctaLabel = triageCtaLabel(row, tone);
+  const tile = TRIAGE_TONE_ICON[tone] || 'mail';
+  // tone leads the primary action for the loud lanes (decision/blocked/ready); quieter lanes
+  // keep a neutral button.
+  const primary = tone === 'hold' || tone === 'danger' || tone === 'ready';
   return html`
-    <div className=${cn('wb13-card wb13-card-readable', tone === 'hold' && 'is-decision')}>
+    <div className=${cn('wb13-card wb13-triage-card', `is-${tone}`)}>
+      <div className=${cn('wb13-triage-tile', `is-${tone}`)} aria-hidden="true">
+        <${Icon} name=${tile} />
+      </div>
       <div className="wb13-card-main">
-        <div className="wb13-card-status">
-          <span className=${cn('wb13-status-pill', pillCls)}>${pillLabel}</span>
-          ${row.badge ? html`<span className="wb13-card-when">${row.badge}</span>` : null}
-        </div>
         <div className="wb13-card-title">${row.title}</div>
         ${row.detail ? html`<div className="wb13-card-copy">${row.detail}</div>` : null}
+        ${row.badge ? html`<div className="wb13-card-meta">${row.badge}</div>` : null}
       </div>
       <div className="wb13-card-actions">
         <${Link}
           to=${row.href || '/workbench'}
-          className=${cn('wb13-button is-sm', tone === 'hold' && 'is-primary')}
+          className=${cn('wb13-button is-sm', primary && 'is-primary')}
         >
           ${ctaLabel}
         <//>
@@ -341,6 +344,33 @@ const TRIAGE_HEAD_STYLE = `
 .wb13-triage-head .count { font-size:13px; color:var(--wb-muted); }
 .wb13-triage-pills { display:flex; flex-wrap:wrap; gap:7px; margin: 10px 0 2px; }
 .wb13-triage-empty { margin: 12px 0; color: var(--wb-faint); font-size: 13px; display:flex; gap:8px; align-items:center; }
+/* Grouped triage: tone-tinted group headers + icon-tile cards. */
+.wb13-triage-groups { display:flex; flex-direction:column; }
+.wb13-triage-group-head {
+  font: 600 10.5px/1 var(--wb-font-body);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  margin: 22px 0 8px;
+  color: var(--wb-muted);
+}
+.wb13-triage-group-head.is-hold { color: var(--wb-hold-text); }
+.wb13-triage-group-head.is-danger { color: var(--wb-danger); }
+.wb13-triage-group-head.is-ready,
+.wb13-triage-group-head.is-run { color: var(--wb-accent-ink); }
+.wb13-triage-group-head.is-done { color: var(--wb-good-text); }
+.wb13-triage-card { display:flex; gap:14px; align-items:center; padding:15px 16px; margin-bottom:8px; }
+.wb13-triage-tile {
+  width: 38px; height: 38px; flex: none; border-radius: 11px;
+  display: grid; place-items: center;
+  background: var(--wb-surface); color: var(--wb-muted);
+}
+.wb13-triage-tile svg { width: 19px; height: 19px; }
+.wb13-triage-tile.is-hold { background: var(--wb-hold-tint); color: var(--wb-hold-text); }
+.wb13-triage-tile.is-danger { background: color-mix(in srgb, var(--wb-danger) 13%, transparent); color: var(--wb-danger); }
+.wb13-triage-tile.is-ready,
+.wb13-triage-tile.is-run { background: var(--wb-accent-soft); color: var(--wb-accent); }
+.wb13-triage-tile.is-done { background: var(--wb-good-tint); color: var(--wb-good-text); }
+.wb13-triage-card .wb13-card-meta { margin-top: 4px; }
 `;
 
 function HomeView(props) {
@@ -1556,15 +1586,14 @@ export function WorkbenchPage() {
     if (!briefingPending || briefingReadsPending) return;
     runBriefing();
   }, [briefingPending, briefingReadsPending, runBriefing]);
-  // Auto-run the LLM-judged briefing ONCE per page session, the moment the eager reads settle,
-  // so the DEFAULT home is the model's judged "what needs you" (or an honest "nothing does") —
-  // not the deterministic noise. Latched (never re-fires); never overrides a manual brief or one
-  // the user dismissed. Setting briefingPending hands off to the effect above. Gated off in the
-  // static test harness (window.__WB_TEST_NO_AUTO_BRIEF__) so specs keep a deterministic home.
+  // Optional: auto-run the LLM-judged briefing once per page session. The product DEFAULT is
+  // Direction B — the triage cockpit is the home — so this is OFF unless explicitly enabled
+  // (window.__WB_AUTO_BRIEF__). The judged brief stays available on demand ("catch me up").
+  // Latched; never overrides a manual brief or a dismissed one.
   const autoBriefedRef = React.useRef(false);
   React.useEffect(() => {
     if (autoBriefedRef.current) return;
-    if (typeof window !== 'undefined' && window.__WB_TEST_NO_AUTO_BRIEF__) return;
+    if (!(typeof window !== 'undefined' && window.__WB_AUTO_BRIEF__)) return;
     if (view !== 'home' || !canBrief) return;
     if (briefing || briefingPending || briefingReadsPending) return;
     autoBriefedRef.current = true;
