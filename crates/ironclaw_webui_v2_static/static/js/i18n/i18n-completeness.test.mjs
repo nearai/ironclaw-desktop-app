@@ -129,6 +129,7 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'chat.resumeHeading',
   'chat.resumeHours',
   'chat.resumeMinutes',
+  'chat.searchThreads',
   'chat.suggestion1Prompt',
   'chat.suggestion2Prompt',
   'chat.suggestion3Prompt',
@@ -344,7 +345,7 @@ test('every advertised language has a registered pack', () => {
 
 test('i18n baseline is sorted, unique, and references real English keys', () => {
   const englishKeys = Object.keys(packs.en || {}).sort();
-  assert.equal(englishKeys.length, 804);
+  assert.equal(englishKeys.length, 805);
   assert.deepEqual(BASELINE_MISSING_KEYS, sortedUnique(BASELINE_MISSING_KEYS));
 
   const unknownBaselineKeys = BASELINE_MISSING_KEYS.filter((key) => !packs.en?.[key]);

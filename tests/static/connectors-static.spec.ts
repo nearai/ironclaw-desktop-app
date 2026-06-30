@@ -323,6 +323,7 @@ test('static connectors: installed card actions stay 44px tappable at 390px', as
             display_name: 'Google Calendar Scheduling Assistant',
             kind: 'wasm_tool',
             active: true,
+            has_auth: true,
             version: '1.4.2',
             package_ref: { kind: 'extension', id: 'tools/google_calendar' },
             description: 'Find meetings, protect focus blocks, and prepare schedule changes.',
@@ -344,6 +345,29 @@ test('static connectors: installed card actions stay 44px tappable at 390px', as
 
   const disclosure = page.getByRole('button', { name: /capabilit/ }).first();
   expect(await tapHeight(disclosure)).toBeGreaterThanOrEqual(44);
+
+  // Keyboard contract for the overflow menu: opening focuses the first menuitem,
+  // ArrowDown/ArrowUp move between items, and Escape closes + restores trigger focus.
+  await overflowTrigger.focus();
+  await page.keyboard.press('Enter');
+  const menu = page.getByRole('menu').first();
+  await expect(menu).toBeVisible();
+  const menuItems = page.getByRole('menuitem');
+  await expect.poll(() => menuItems.count()).toBeGreaterThan(1);
+
+  // First item focused on open.
+  await expect(menuItems.first()).toBeFocused();
+
+  // ArrowDown advances to the second item; ArrowUp returns to the first.
+  await page.keyboard.press('ArrowDown');
+  await expect(menuItems.nth(1)).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(menuItems.first()).toBeFocused();
+
+  // Escape closes the menu and restores focus to the trigger.
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await expect(overflowTrigger).toBeFocused();
 });
 
 test('static connectors: configure setup dialog honors the modal keyboard contract', async ({
@@ -391,6 +415,12 @@ test('static connectors: configure setup dialog honors the modal keyboard contra
 
   const dialog = page.getByTestId('connector-setup-modal');
   await expect(dialog).toBeVisible();
+
+  // The role=dialog has an accessible name via aria-labelledby → the <h3> title.
+  const namedDialog = page.getByRole('dialog');
+  await expect(namedDialog).toHaveAttribute('aria-labelledby', 'connector-setup-title');
+  await expect(page.locator('#connector-setup-title')).toHaveCount(1);
+  expect((await namedDialog.getAttribute('aria-label')) ?? '').toBe('');
 
   // Focus moved into the dialog on open.
   await expect

@@ -346,6 +346,7 @@ function ModalShell({ onClose, title, children }) {
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 backdrop-blur-sm sm:items-center"
       role="dialog"
       aria-modal="true"
+      aria-labelledby="connector-setup-title"
       onKeyDown=${onKeyDown}
       onClick=${(e) => {
         if (e.target === e.currentTarget) onClose();
@@ -361,7 +362,12 @@ function ModalShell({ onClose, title, children }) {
         <div
           className="flex items-center justify-between gap-4 border-b border-[var(--v2-panel-border)] px-5 py-4"
         >
-          <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">${title}</h3>
+          <h3
+            id="connector-setup-title"
+            className="text-lg font-semibold text-[var(--v2-text-strong)]"
+          >
+            ${title}
+          </h3>
           <button
             type="button"
             onClick=${onClose}

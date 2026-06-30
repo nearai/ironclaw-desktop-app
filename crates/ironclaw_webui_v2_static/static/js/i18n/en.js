@@ -174,6 +174,7 @@ registerPack('en', {
 
   // Chat — thread sidebar
   'chat.conversations': 'Conversations',
+  'chat.searchThreads': 'Search conversations',
   'chat.threads': '{count} threads',
   'chat.newThread': 'New',
   'chat.creating': 'Creating',

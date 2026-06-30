@@ -224,10 +224,15 @@ export function ConnectorAppIcon({ source, className = '' }) {
   `;
 }
 
-/* Lightweight overflow menu. Real <button>s; closes on outside click. */
+/* Lightweight overflow menu. Real <button>s; closes on outside click. Keyboard:
+   Escape closes and restores trigger focus, ArrowUp/Down move between menuitems,
+   and the first item is focused on open (mirrors the ModalShell/ConfigureModal
+   focus pattern). */
 function OverflowMenu({ actions, isBusy }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef(null);
+  const triggerRef = React.useRef(null);
+  const menuRef = React.useRef(null);
 
   React.useEffect(() => {
     if (!open) return undefined;
@@ -238,9 +243,44 @@ function OverflowMenu({ actions, isBusy }) {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
+  // Focus the first menuitem when the menu opens.
+  React.useEffect(() => {
+    if (!open) return undefined;
+    const id = window.requestAnimationFrame(() => {
+      const first = menuRef.current?.querySelector('[role="menuitem"]:not([disabled])');
+      if (first instanceof HTMLElement) first.focus();
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [open]);
+
+  const closeAndRestore = () => {
+    setOpen(false);
+    triggerRef.current?.focus?.();
+  };
+
+  const onMenuKeyDown = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeAndRestore();
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    const menu = menuRef.current;
+    if (!menu) return;
+    const items = Array.from(menu.querySelectorAll('[role="menuitem"]:not([disabled])'));
+    if (items.length === 0) return;
+    const currentIndex = items.indexOf(document.activeElement);
+    const delta = event.key === 'ArrowDown' ? 1 : -1;
+    const nextIndex = (currentIndex + delta + items.length) % items.length;
+    const next = items[nextIndex];
+    if (next instanceof HTMLElement) next.focus();
+  };
+
   return html`
     <div ref=${ref} className="relative shrink-0">
       <button
+        ref=${triggerRef}
         type="button"
         aria-label="More actions"
         aria-haspopup="true"
@@ -254,7 +294,9 @@ function OverflowMenu({ actions, isBusy }) {
       ${open &&
       html`
         <div
+          ref=${menuRef}
           role="menu"
+          onKeyDown=${onMenuKeyDown}
           className="absolute right-0 top-8 z-10 min-w-[156px] rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-1 shadow-[0_20px_40px_-20px_rgba(0,0,0,0.7)]"
         >
           ${actions.map(

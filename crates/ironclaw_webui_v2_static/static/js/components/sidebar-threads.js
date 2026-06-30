@@ -2,6 +2,7 @@ import { React, html } from '../lib/html.js';
 import { Icon } from '../design-system/icons.js';
 import { ConfirmDialog } from '../design-system/confirm-dialog.js';
 import { THREAD_STATE, useThreadStates } from '../lib/thread-state.js';
+import { useT } from '../lib/i18n.js';
 import {
   byActivityDesc,
   formatThreadActivityLabel,
@@ -159,6 +160,7 @@ export function SidebarThreads({
   onSelect,
   onDelete
 }) {
+  const t = useT();
   const [collapsed, setCollapsed] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const states = useThreadStates();
@@ -229,6 +231,7 @@ export function SidebarThreads({
         ${threads.length > 0 &&
         html`<div className="relative mb-1 mt-1 px-1">
           <span
+            aria-hidden="true"
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--v2-text-faint)]"
           >
             <${Icon} name="search" className="h-3.5 w-3.5" />
@@ -237,6 +240,7 @@ export function SidebarThreads({
             type="text"
             value=${query}
             onInput=${(event) => setQuery(event.currentTarget.value)}
+            aria-label=${t('chat.searchThreads')}
             placeholder="Search chats…"
             className="h-8 min-h-[44px] w-full rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[12px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
           />

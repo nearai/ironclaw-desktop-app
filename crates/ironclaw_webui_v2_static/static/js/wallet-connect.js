@@ -7,9 +7,22 @@ const MESSAGE = 'Sign in to NEAR AI Cloud';
 const RECIPIENT = 'cloud.near.ai';
 
 const statusEl = document.getElementById('status');
+const statusErrorEl = document.getElementById('status-error');
 function setStatus(text, isError) {
+  // Polite #status carries progress; errors are announced assertively from the
+  // separate role="alert" region so screen readers interrupt with the failure.
+  if (isError) {
+    statusEl.textContent = '';
+    if (statusErrorEl) statusErrorEl.textContent = text;
+    else {
+      statusEl.textContent = text;
+      statusEl.classList.add('error');
+    }
+    return;
+  }
+  if (statusErrorEl) statusErrorEl.textContent = '';
   statusEl.textContent = text;
-  statusEl.classList.toggle('error', Boolean(isError));
+  statusEl.classList.remove('error');
 }
 
 // NEAR AI requires the first 8 nonce bytes to be the big-endian epoch-millis

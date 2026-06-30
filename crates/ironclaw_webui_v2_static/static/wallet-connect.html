@@ -55,7 +55,10 @@
   <body>
     <div class="card">
       <div class="title">Connect your NEAR wallet</div>
-      <div id="status" class="status">Opening wallet…</div>
+      <div id="status" class="status" role="status" aria-live="polite">
+        Opening wallet…
+      </div>
+      <div id="status-error" class="status error" role="alert" aria-live="assertive"></div>
     </div>
     <script type="module" src="/v2/js/wallet-connect.js"></script>
   </body>
