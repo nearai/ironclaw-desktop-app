@@ -46,6 +46,7 @@ import {
 import { readTierOverrides } from './lib/workbench-profile-overrides.js';
 import { readDismissals, dismissRow, learnedIgnoreSenders } from './lib/workbench-dismissals.js';
 import { recordEditedVoiceSample, effectiveVoiceDirective } from './lib/workbench-voice-store.js';
+import { readMemoryPrefs } from './lib/workbench-memory-store.js';
 import { selectTriageInbox, answeredThreadIndex } from './lib/workbench-connectors.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
@@ -1651,6 +1652,9 @@ export function WorkbenchPage() {
         synthesizeBriefing({
           briefing: det,
           profile: WORKBENCH_PROFILE,
+          // Saved Memory prefs become a prompt directive so what the user saves actually
+          // steers the briefing (read at run time — the next briefing picks up new saves).
+          memory: readMemoryPrefs(),
           deps: { createThread, sendMessage, fetchTimeline, timezone },
           // Progressive: render the needsYou half (with the deterministic radar) the
           // moment turn A lands, then the final upgrades worthWeighingIn when turn B

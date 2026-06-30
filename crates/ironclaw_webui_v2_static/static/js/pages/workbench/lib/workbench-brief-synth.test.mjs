@@ -9,7 +9,10 @@ import {
   deriveThisWeek,
   deriveBestTimes,
   parseBriefJson,
-  synthesizeBriefing
+  synthesizeBriefing,
+  memoryDirective,
+  MEMORY_MAX_ITEMS,
+  MEMORY_TEXT_MAX
 } from './workbench-brief-synth.js';
 
 const SAMPLE_BRIEFING = {
@@ -504,4 +507,52 @@ test('synthesizeBriefing returns null on missing deps, empty bundle, or timeout 
     await synthesizeBriefing({ briefing: SAMPLE_BRIEFING, profile: PROFILE, deps: liveDeps }),
     null
   );
+});
+
+test('memoryDirective: empty / non-array inputs produce no directive', () => {
+  assert.equal(memoryDirective([]), '');
+  assert.equal(memoryDirective(null), '');
+  assert.equal(memoryDirective(undefined), '');
+  assert.equal(memoryDirective(['', '   ', { text: '' }]), '');
+});
+
+test('memoryDirective: accepts pref objects and plain strings, quotes the texts', () => {
+  const out = memoryDirective([
+    { text: 'Always flag anything from the SEC', scope: 'Personal' },
+    'Prefer terse replies'
+  ]);
+  assert.match(out, /standing preferences/i);
+  assert.ok(out.includes('Always flag anything from the SEC'));
+  assert.ok(out.includes('Prefer terse replies'));
+  // The legal-safety carve-out must ride along so a saved pref can't suppress a legal item.
+  assert.match(out, /NEVER drop a legal/i);
+});
+
+test('memoryDirective: caps item count and per-item length', () => {
+  const many = Array.from({ length: MEMORY_MAX_ITEMS + 5 }, (_, i) => `pref number ${i}`);
+  const out = memoryDirective(many);
+  // Only the first MEMORY_MAX_ITEMS survive.
+  assert.ok(out.includes('pref number 0'));
+  assert.ok(out.includes(`pref number ${MEMORY_MAX_ITEMS - 1}`));
+  assert.ok(!out.includes(`pref number ${MEMORY_MAX_ITEMS}`));
+  const long = 'x'.repeat(MEMORY_TEXT_MAX + 50);
+  const clipped = memoryDirective([long]);
+  assert.ok(clipped.includes('…'));
+  assert.ok(!clipped.includes('x'.repeat(MEMORY_TEXT_MAX + 1)));
+});
+
+test('buildNeedsYouPrompt + buildWorthWeighingInPrompt: saved memory reaches the prompt', () => {
+  const bundle = buildBriefSynthesisBundle(SAMPLE_BRIEFING, PROFILE);
+  const memory = [{ text: 'Treat Northwind as top priority', scope: 'Workspace' }];
+  const needs = buildNeedsYouPrompt(bundle, PROFILE, memory);
+  const weigh = buildWorthWeighingInPrompt(
+    bundle,
+    [{ id: 'c1', title: 't', channel: 'x' }],
+    PROFILE,
+    memory
+  );
+  assert.ok(needs.includes('Treat Northwind as top priority'));
+  assert.ok(weigh.includes('Treat Northwind as top priority'));
+  // No memory => no directive leaks into the prompt.
+  assert.ok(!buildNeedsYouPrompt(bundle, PROFILE).includes('standing preferences'));
 });

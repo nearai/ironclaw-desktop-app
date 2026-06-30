@@ -26,6 +26,27 @@ function clip(value, max) {
     .slice(0, max);
 }
 
+// Standing preferences the user saved on the Memory surface, turned into a prompt
+// directive so saved memory ACTUALLY changes the briefing (not just a notepad). Accepts
+// the raw pref objects ({ text, scope }) or plain strings; bounded so it can't bloat the
+// prompt. Pure; returns '' when there is nothing saved (the header then omits the line).
+export const MEMORY_MAX_ITEMS = 8;
+export const MEMORY_TEXT_MAX = 200;
+export function memoryDirective(memory) {
+  const items = (Array.isArray(memory) ? memory : [])
+    .map((m) => (typeof m === 'string' ? m : m && m.text))
+    .map((t) =>
+      String(t || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    )
+    .filter(Boolean)
+    .slice(0, MEMORY_MAX_ITEMS)
+    .map((t) => (t.length > MEMORY_TEXT_MAX ? `${t.slice(0, MEMORY_TEXT_MAX - 1)}…` : t));
+  if (!items.length) return '';
+  return `The user saved these standing preferences for how they want their briefing handled — honor them when deciding what needs the user and how to frame each item (they override generic defaults, but NEVER drop a legal/regulatory/governance matter to satisfy one): ${JSON.stringify(items)}.`;
+}
+
 function senderName(message) {
   const raw = String(
     (message && (message.sender || message.fromName || message.fromEmail)) || ''
@@ -145,11 +166,13 @@ export function buildBriefSynthesisBundle(briefing, profile = {}) {
   };
 }
 
-function briefHeader(bundle, profile = {}) {
+function briefHeader(bundle, profile = {}, memory) {
   const name = String(profile.name || bundle?.profile?.name || '').trim();
   const title = String(profile.title || bundle?.profile?.title || '').trim();
   const who = [name, title].filter(Boolean).join(', ');
-  return `You are ${who || 'the user'}'s chief of staff writing their morning briefing. Use ONLY the CONTEXT JSON — never invent a sender, link, or item.`;
+  const base = `You are ${who || 'the user'}'s chief of staff writing their morning briefing. Use ONLY the CONTEXT JSON — never invent a sender, link, or item.`;
+  const memLine = memoryDirective(memory);
+  return memLine ? `${base}\n${memLine}` : base;
 }
 
 // THE SPLIT (validated live): one turn that writes ALL five sections overruns the
@@ -157,13 +180,13 @@ function briefHeader(bundle, profile = {}) {
 // several in-voice replies), while each HALF on its own converges (~30-38s). So
 // synthesis runs two SMALL turns in parallel. Turn A — "Needs you": just the
 // replies, context + a ready reply per item (the heavy generative part). Pure.
-export function buildNeedsYouPrompt(bundle, profile = {}) {
+export function buildNeedsYouPrompt(bundle, profile = {}, memory) {
   const voiceSample = Array.isArray(bundle?.profile?.voiceSample) ? bundle.profile.voiceSample : [];
   const voiceLine = voiceSample.length
     ? `Match the style of these real examples of how I write replies: ${JSON.stringify(voiceSample)}.`
     : `Write the way I would dash off a quick, decisive Slack reply.`;
   return [
-    briefHeader(bundle, profile),
+    briefHeader(bundle, profile, memory),
     `You are my chief of staff. JUDGE each candidate and KEEP ONLY the ones that genuinely need ME to reply or decide. DROP everything else — announcements, broadcasts, FYIs, newsletters, automated notifications, social or celebratory posts, "thanks"/acknowledgements, links shared for awareness, and anything where no reply or decision is actually owed by me. A message being addressed to a group or mentioning me in passing is NOT enough — there must be a real ask or decision on me. EXCEPTION — I am a chief legal officer, so NEVER drop a legal, regulatory, fraud, governance, contract, compliance, or litigation matter, even when it is phrased as an announcement, broadcast, or FYI (e.g. "@channel the SEC sent questions", "the board votes Friday on the charter", "MSA auto-renews unless we give notice"): for me those always warrant attention — KEEP them and badge them "Decision" or "time-sensitive" as fits. If the choice is between dropping and keeping a possibly-legal item, KEEP it. Returning an EMPTY needsYou array is correct and expected when nothing truly needs me; do NOT manufacture priorities or pad the list.`,
     `Output ONLY one JSON object (no prose, no code fence): {needsYou:[{id,source:"Email"|"Slack",sender,channel:"the Slack channel for a Slack item, else empty",badges:["Decision"|"FYI"|"time-sensitive"],context:"2-4 sentences naming the parties, the decision on the table, the current positions, and why it sits on ME specifically",suggestedReply:"a ready reply in MY voice, or empty string if no reply is owed",replyHref,bestWindow}]} — include an object ONLY for the items you KEEP; echo id+channel+replyHref from the candidate; never invent a sender or link.`,
     `The suggestedReply must be in MY voice: all-lowercase, first-person, decisive, a specific position not a hedge. ${voiceLine}`,
@@ -235,7 +258,7 @@ export function deriveWorthWeighingIn(bundle) {
 // confidence. Tiny CONTEXT (~1KB), so it converges in the poll window and runs in
 // PARALLEL with the needsYou turn. On timeout the caller keeps the deterministic
 // candidates (no take, no confidence) — never blocks, never fabricates. Pure.
-export function buildWorthWeighingInPrompt(bundle, candidates, profile = {}) {
+export function buildWorthWeighingInPrompt(bundle, candidates, profile = {}, memory) {
   const rows = (Array.isArray(candidates) ? candidates : []).map((c) => ({
     id: String(c.id || ''),
     title: clip(c.title || c.text, 200),
@@ -243,7 +266,7 @@ export function buildWorthWeighingInPrompt(bundle, candidates, profile = {}) {
     link: String(c.link || '')
   }));
   return [
-    briefHeader(bundle, profile),
+    briefHeader(bundle, profile, memory),
     `These are active Slack threads I was NOT tagged on. MOST ARE NOISE. KEEP an item ONLY if it is a genuine decision forming on MY critical path — legal, regulatory, strategic, or commercial-risk — where my input would materially change the outcome. DROP everything else: announcements, social or celebratory posts, anniversaries, shared links, livestreams, product chatter, banter, hype, and general FYIs. When in doubt, DROP. Returning an EMPTY worthWeighingIn array is the correct, expected answer when nothing genuinely warrants my weigh-in — never manufacture or pad.`,
     `Output ONLY one JSON object (no prose, no code fence): {worthWeighingIn:[{id,title,channel,whyYours:"why this decision sits in MY domain and on me",take:"my pressure-test position — the risk to flag or the move to make, in my voice",confidence:0-100,link}]} — include an object ONLY for the items you KEEP; echo id+link from the candidate; never invent an item.`,
     ``,
@@ -463,7 +486,7 @@ export function deriveIntro(bundle) {
 // the home fills in ~one turn's time, not the sum. Returns the final merged brief,
 // or null on total failure (caller keeps the deterministic briefing). `deps` =
 // { createThread, sendMessage, fetchTimeline, sleep?, timezone?, maxTries? }.
-export async function synthesizeBriefing({ briefing, profile, deps, onPartial } = {}) {
+export async function synthesizeBriefing({ briefing, profile, deps, onPartial, memory } = {}) {
   const d = deps || {};
   if (!d.createThread || !d.sendMessage || !d.fetchTimeline) return null;
   const bundle = buildBriefSynthesisBundle(briefing, profile || {});
@@ -493,11 +516,13 @@ export async function synthesizeBriefing({ briefing, profile, deps, onPartial } 
     // Launch both turns concurrently. Each catches its own failure to null so
     // allSettled below never lets one turn's error reject the other.
     const needsYouTurn = bundle.needsReply.length
-      ? runSynthesisTurn(buildNeedsYouPrompt(bundle, p), d, sleep, maxTries).catch(() => null)
+      ? runSynthesisTurn(buildNeedsYouPrompt(bundle, p, memory), d, sleep, maxTries).catch(
+          () => null
+        )
       : Promise.resolve(null);
     const radarTurn = candidates.length
       ? runSynthesisTurn(
-          buildWorthWeighingInPrompt(bundle, candidates, p),
+          buildWorthWeighingInPrompt(bundle, candidates, p, memory),
           d,
           sleep,
           maxTries
