@@ -72,7 +72,9 @@ import {
   selectNewNotionPages,
   readNotionSeen,
   notionSeenAfterViewing,
-  writeNotionSeen
+  writeNotionSeen,
+  notionDismissKey,
+  filterDismissedNotionPages
 } from './lib/workbench-notion-new.js';
 import { recordThreadTitle } from './lib/workbench-thread-titles.js';
 import {
@@ -656,6 +658,7 @@ function HomeView(props) {
                 pages=${newNotionPages}
                 onOpen=${props.onOpenMessage}
                 onReviewed=${markNotionReviewed}
+                onDismiss=${props.onDismissNotion}
               />`
             : null}
           ${centerFilter === 'all' && hasReviewableSavedWork
@@ -1356,6 +1359,14 @@ export function WorkbenchPage() {
     // still suppresses the item; it just doesn't feed mail-sender learning.
     setDismissals(dismissRow(key, { reason, sender: '' }));
   }, []);
+  // Notion "new in Notion" dismiss: file the page away through the SAME store (namespaced
+  // notion: key), reversible, and never feeds sender-learning (sender stays empty). The new-pages
+  // band filters dismissed ids below so it stays gone across refetches.
+  const onDismissNotion = React.useCallback((pageId) => {
+    const id = String(pageId || '');
+    if (!id) return;
+    setDismissals(dismissRow(notionDismissKey(id), { reason: 'dismissed-notion', sender: '' }));
+  }, []);
   // Triage-worthy inbox = what may be surfaced on the Workbench (Needs-a-decision,
   // Arrived). Drops bulk/newsletters/notes (e.g. gemini-notes meeting summaries),
   // ignore-corrected senders, and rows the user dismissed — mirroring the rail's
@@ -1952,7 +1963,11 @@ export function WorkbenchPage() {
                             onReconnectSlack=${() => setShowSources(true)}
                             gmailReady=${connectedAccounts.gmailReady}
                             decisionMessages=${triageInbox}
-                            notionPages=${connectorNotion.pages}
+                            notionPages=${filterDismissedNotionPages(
+                              connectorNotion.pages,
+                              dismissals
+                            )}
+                            onDismissNotion=${onDismissNotion}
                             slackAwaiting=${slackAwaitingVisible}
                             slackWeighIn=${slackWeighInVisible}
                             onSlackReply=${openSlackReply}

@@ -3,6 +3,8 @@
 // instead of the user digging. Pure selection (selectNewNotionPages) + a localStorage
 // seen-map keep it honest: it only shows what is genuinely new since the user last looked.
 
+import { isDismissed } from './workbench-dismissals.js';
+
 const SEEN_KEY = 'workbench:notion-seen:v1';
 const DEFAULT_WINDOW_DAYS = 7;
 const DEFAULT_LIMIT = 4;
@@ -13,6 +15,20 @@ const CREATED_GAP_MS = 5 * 60 * 1000;
 function parseMs(value) {
   const ms = Date.parse(value || '');
   return Number.isFinite(ms) ? ms : 0;
+}
+
+// Namespaced dismissal key for a Notion page. The `notion:` prefix fences these from the
+// email/slack dismissals that share the store, so a dismissed page never collides with a
+// dismissed message and never feeds mail-sender learning.
+export function notionDismissKey(pageId) {
+  return `notion:${String(pageId || '')}`;
+}
+
+// Drop pages the user dismissed (reversibly — the dismissal lives in the shared store) from
+// the band, so a dismissed "New in Notion" item stays gone across refetches. Pure.
+export function filterDismissedNotionPages(pages, dismissals) {
+  const rows = Array.isArray(pages) ? pages : [];
+  return rows.filter((page) => !isDismissed(dismissals, notionDismissKey(page && page.id)));
 }
 
 // Pure: given the notion pages (from normalizeNotionPages), the seen-map

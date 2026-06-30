@@ -4,7 +4,9 @@ import { test } from 'node:test';
 import {
   selectNewNotionPages,
   notionSeenAfterViewing,
-  notionGist
+  notionGist,
+  notionDismissKey,
+  filterDismissedNotionPages
 } from './workbench-notion-new.js';
 
 const now = Date.parse('2026-06-28T20:00:00Z');
@@ -99,4 +101,39 @@ test('notionGist: truncates to maxChars with an ellipsis', () => {
   const g = notionGist([{ kind: 'para', text: 'x'.repeat(300) }], { maxChars: 40 });
   assert.ok(g.length <= 40);
   assert.ok(g.endsWith('…'));
+});
+
+test('notionDismissKey: namespaces under notion: and coerces to string', () => {
+  assert.equal(notionDismissKey('abc-123'), 'notion:abc-123');
+  assert.equal(notionDismissKey(''), 'notion:');
+  assert.equal(notionDismissKey(undefined), 'notion:');
+});
+
+test('filterDismissedNotionPages: drops dismissed pages, keeps the rest', () => {
+  const pages = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
+  const dismissals = { [notionDismissKey('b')]: { reason: 'dismissed-notion', sender: '', ts: 1 } };
+  const out = filterDismissedNotionPages(pages, dismissals);
+  assert.deepEqual(
+    out.map((p) => p.id),
+    ['a', 'c']
+  );
+});
+
+test('filterDismissedNotionPages: a non-notion dismissal key never suppresses a page', () => {
+  // A dismissed EMAIL row that happens to share the bare id must NOT hide the Notion page —
+  // the notion: namespace fences them apart.
+  const pages = [{ id: 'shared-id' }];
+  const dismissals = { 'shared-id': { reason: 'Not relevant', sender: 'x@y.com', ts: 1 } };
+  assert.deepEqual(
+    filterDismissedNotionPages(pages, dismissals).map((p) => p.id),
+    ['shared-id']
+  );
+});
+
+test('filterDismissedNotionPages: tolerates non-array input + empty dismissals', () => {
+  assert.deepEqual(filterDismissedNotionPages(null, {}), []);
+  assert.deepEqual(
+    filterDismissedNotionPages([{ id: 'a' }], undefined).map((p) => p.id),
+    ['a']
+  );
 });
