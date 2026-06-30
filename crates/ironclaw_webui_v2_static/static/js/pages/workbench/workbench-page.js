@@ -56,7 +56,7 @@ import {
   useConnectorSlackBlockers,
   useConnectorSlackDeep
 } from './hooks/useWorkbenchConnectors.js';
-import { WorkbenchColdStart, WorkbenchDecisions } from './components/workbench-arrived.js';
+import { WorkbenchColdStart } from './components/workbench-arrived.js';
 import { WorkbenchApprove } from './components/workbench-approve.js';
 import { WorkbenchBriefing } from './components/workbench-briefing.js';
 // The rich briefing renders only AFTER a synthesis turn (never on cold start), so
@@ -78,6 +78,7 @@ import {
   WorkbenchSlackReplies,
   WorkbenchSlackCompose
 } from './components/workbench-slack-replies.js';
+import { WorkbenchNeedsReply } from './components/workbench-needs-reply.js';
 import { WorkbenchCommandSurface } from './components/workbench-command.js';
 import { WorkbenchReadingPanel } from './components/workbench-reading-panel.js';
 import { WorkbenchWorkspaceFiles } from './components/workbench-files.js';
@@ -132,7 +133,17 @@ import { WORKBENCH_STYLE } from './workbench-styles.js';
 // triage still surfaces genuinely-actionable work-STATUS (approvals, blocked,
 // working, ready-to-review, receipts, scheduled).
 // Not dead config — do not remove 'upcoming' without dropping the feed pathway.
-const TRIAGE_EXCLUDED_GROUPS = new Set(['needs-reply', 'upcoming', 'github', 'notion', 'drive']);
+const TRIAGE_EXCLUDED_GROUPS = new Set([
+  'needs-reply',
+  // 'slack' awaiting rows now live in the consolidated WorkbenchNeedsReply container; excluding
+  // the group here stops the center TriageSection re-rendering them as a duplicate "Slack · N"
+  // block (the left rail keeps its Slack group — railGroups does not use this set).
+  'slack',
+  'upcoming',
+  'github',
+  'notion',
+  'drive'
+]);
 
 // Profile that scopes the rich briefing's "Worth weighing in" radar (role -> domain
 // + the channels the radar may scan). The radar module (workbench-radar.js) is
@@ -525,19 +536,16 @@ function HomeView(props) {
               />`
             : null}
           ${visible('replies') && !suppressDeterministic
-            ? html`<${WorkbenchDecisions}
-                gmailReady=${props.gmailReady}
-                messages=${props.decisionMessages}
+            ? html`<${WorkbenchNeedsReply}
+                decisionMessages=${props.gmailReady
+                  ? (props.decisionMessages || []).filter((message) => message.unread)
+                  : []}
+                slackAwaiting=${props.slackAwaiting}
                 onOpenMessage=${props.onOpenMessage}
                 onDraftMessage=${props.onDraftMessage}
-                onDismiss=${props.onDismissDecision}
-              />`
-            : null}
-          ${visible('replies') && !suppressDeterministic
-            ? html`<${WorkbenchSlackReplies}
-                items=${props.slackAwaiting}
-                onReply=${props.onSlackReply}
-                onDismiss=${props.onSlackDismiss}
+                onDismissDecision=${props.onDismissDecision}
+                onSlackReply=${props.onSlackReply}
+                onSlackDismiss=${props.onSlackDismiss}
               />`
             : null}
           ${visible('replies') && !suppressDeterministic

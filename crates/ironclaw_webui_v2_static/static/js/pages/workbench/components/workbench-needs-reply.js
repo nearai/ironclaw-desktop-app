@@ -37,8 +37,48 @@ export function WorkbenchNeedsReply({
     <section
       className="wb13-section wb13-list wb13-needs-reply"
       data-testid="workbench-needs-reply"
+      aria-labelledby="wb13-needs-reply-heading"
     >
-      <div className="wb13-section-label">
+      <style>
+        /* Direction B: ONE bordered container — rows are borderless and divided, not nested
+           cards (scoped to .wb13-needs-reply so other card surfaces are untouched). */
+        .wb13-needs-reply {
+          border: 1px solid var(--wb-line);
+          border-radius: 14px;
+          overflow: hidden;
+          background: var(--wb-surface);
+        }
+        .wb13-needs-reply > .wb13-section-label {
+          margin: 0;
+          padding: 12px 16px 8px;
+        }
+        .wb13-needs-reply > .wb13-card {
+          border: 0;
+          border-radius: 0;
+          background: none;
+          margin-bottom: 0;
+        }
+        .wb13-needs-reply > .wb13-card:hover {
+          border-color: transparent;
+        }
+        .wb13-needs-reply > .wb13-card + .wb13-card {
+          border-top: 1px solid var(--wb-line);
+        }
+        /* the rounded container clips overflow; keep the meta line from hard-clipping at narrow widths */
+        .wb13-needs-reply .wb13-card-status {
+          min-width: 0;
+        }
+        .wb13-needs-reply .wb13-card-when {
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      </style>
+      <div
+        className="wb13-section-label"
+        id="wb13-needs-reply-heading"
+        role="heading"
+        aria-level="2"
+      >
         <${Icon} name="mail" /> Needs a reply
         <span className="wb13-section-count">${total}</span>
       </div>

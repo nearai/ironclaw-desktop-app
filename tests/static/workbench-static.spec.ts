@@ -1493,8 +1493,8 @@ test('static workbench: Slack awaiting renders on the home with a gated respond-
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  const slack = page.getByTestId('workbench-slack-replies');
-  await expect(slack).toContainText('Slack · awaiting your reply');
+  const slack = page.getByTestId('workbench-needs-reply');
+  await expect(slack).toContainText('Needs a reply');
   await expect(slack).toContainText('launch');
   await expect(slack).toContainText('review the launch plan');
 
@@ -2229,7 +2229,7 @@ test('static workbench: connector reads drive the readiness strip and Needs-a-de
   // Unread mail renders as a Needs-a-decision card; read mail does not. (Which
   // accounts read as Ready, incl. INITIATED-not-Ready, is the source-inspector
   // test's subject.)
-  const decisions = page.getByTestId('workbench-decisions');
+  const decisions = page.getByTestId('workbench-needs-reply');
   await expect(decisions).toBeVisible();
   await expect(decisions).toContainText('Renewal terms for Q3');
   await expect(decisions).not.toContainText('PR #482 was merged');
@@ -3167,8 +3167,8 @@ test('static workbench: the DEFAULT home auto-runs the LLM-judged brief and supp
   await expect(brief).toContainText('Renewal terms for Q3');
   // The raw deterministic sections are suppressed — the judged brief is authoritative, so the
   // home shows the judged result, not a second noisier copy below it.
-  await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
-  await expect(page.getByTestId('workbench-slack-replies')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-decision-card')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-slack-reply')).toHaveCount(0);
   await expect(page.getByTestId('workbench-slack-weighin')).toHaveCount(0);
 });
 
@@ -3210,7 +3210,7 @@ test('static workbench: the AUTO-judged home shows an honest empty state when no
   await expect(brief).toBeVisible({ timeout: 15000 });
   await expect(brief).toContainText(/nothing needs you|all clear/i);
   // No manufactured priorities: the deterministic noise is suppressed, not shown below.
-  await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-decision-card')).toHaveCount(0);
   await expect(page.getByTestId('workbench-slack-weighin')).toHaveCount(0);
 });
 
@@ -3265,7 +3265,7 @@ test('static workbench: with the auto-judged brief active, the Replies filter st
   // Filtering to Replies must NOT strand a blank center: the brief is 'all'-only, so under an
   // explicit Replies filter the raw reply cards are shown (the user asked for them).
   await page.getByTestId('workbench-triage-pill-replies').click();
-  await expect(page.getByTestId('workbench-decisions')).toBeVisible();
+  await expect(page.getByTestId('workbench-needs-reply')).toBeVisible();
 });
 
 test('static workbench: real unread mail renders as v13 Needs you cards', async ({ page }) => {
@@ -3323,10 +3323,10 @@ test('static workbench: real unread mail renders as v13 Needs you cards', async 
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  const decisions = page.getByTestId('workbench-decisions');
+  const decisions = page.getByTestId('workbench-needs-reply');
   await expect(decisions).toBeVisible();
-  await expect(decisions).toContainText('Needs you');
-  await expect(decisions).toContainText('· 1');
+  await expect(decisions).toContainText('Needs a reply');
+  await expect(decisions.getByTestId('workbench-decision-card')).toHaveCount(1);
   await expect(decisions).toContainText('Renewal terms for Q3');
   await expect(decisions).toContainText('Dana Lee');
   // The read GitHub mail is NOT a decision card.
@@ -3389,7 +3389,7 @@ test('static workbench: no unread mail hides the Needs you cards', async ({ page
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-decision-card')).toHaveCount(0);
 });
 
 test('static workbench: a live connector with an empty inbox hides the cold-open without console errors', async ({
@@ -3414,7 +3414,7 @@ test('static workbench: a live connector with an empty inbox hides the cold-open
   // A live connector means the cold-open yields to the real surface, and an
   // empty inbox fabricates no decision cards.
   await expect(page.getByTestId('workbench-coldstart')).toHaveCount(0);
-  await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-decision-card')).toHaveCount(0);
   expect(consoleIssues).toEqual([]);
 });
 
@@ -3436,7 +3436,7 @@ test('static workbench: no connected account shows the cold-open, not empty surf
 
   await expect(page.getByTestId('workbench-page')).toBeVisible();
   // No Gmail account → no Needs-a-decision cards.
-  await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-decision-card')).toHaveCount(0);
   // With no connector live the Workbench would be an empty column; the cold-open
   // takes its place with an anticipatory connect prompt (DESIGN.md Law 1).
   await expect(page.getByTestId('workbench-coldstart')).toBeVisible();
@@ -3470,7 +3470,7 @@ test('static workbench: connector read failure degrades honestly without fabrica
 
   // A failed inbox read fabricates no decision cards. The briefing carries the
   // honest source-read-failure notice (see the briefing source-problems test).
-  await expect(page.getByTestId('workbench-decisions')).toHaveCount(0);
+  await expect(page.getByTestId('workbench-decision-card')).toHaveCount(0);
   expect(appConsoleIssues).toEqual([]);
 });
 
@@ -3524,7 +3524,7 @@ test('static workbench: clicking a decision card opens the reading panel with th
   await page.goto('/v2/workbench?token=workbench-static-token');
 
   // The decision card body is clickable (not the action button).
-  const decisions = page.getByTestId('workbench-decisions');
+  const decisions = page.getByTestId('workbench-needs-reply');
   await expect(decisions).toBeVisible();
   await decisions.getByTestId('workbench-decision-open').first().click();
 
@@ -3602,7 +3602,7 @@ test('static workbench: a markdown email body renders as formatted structure, no
   await page.goto('/v2/workbench?token=workbench-static-token');
 
   await page
-    .getByTestId('workbench-decisions')
+    .getByTestId('workbench-needs-reply')
     .getByTestId('workbench-decision-open')
     .first()
     .click();
@@ -3681,7 +3681,7 @@ test('static workbench: reading panel creates a reviewable Gmail draft through t
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  await page.getByTestId('workbench-decisions').getByTestId('workbench-decision-open').click();
+  await page.getByTestId('workbench-needs-reply').getByTestId('workbench-decision-open').click();
   const panel = page.getByTestId('workbench-reading-panel');
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId('workbench-reading-panel-body')).toContainText(
@@ -3790,7 +3790,7 @@ test('static workbench: Gmail draft write failure stays in the review modal with
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
 
-  await page.getByTestId('workbench-decisions').getByTestId('workbench-decision-open').click();
+  await page.getByTestId('workbench-needs-reply').getByTestId('workbench-decision-open').click();
   await page
     .getByTestId('workbench-reading-panel')
     .getByTestId('workbench-reading-panel-draft')
@@ -3872,7 +3872,7 @@ test('static workbench: decision card drafts open the gated in-app modal, not an
 
   // The decision card draft action opens the gated in-app draft modal, not an
   // external Gmail compose URL.
-  const draft = page.getByTestId('workbench-decisions').getByTestId('workbench-decision-draft');
+  const draft = page.getByTestId('workbench-needs-reply').getByTestId('workbench-decision-draft');
   await expect(draft).toHaveText('Draft reply');
   await expect(draft).not.toHaveAttribute('href', /.+/);
   await draft.click();
