@@ -4126,3 +4126,73 @@ test('static workbench: Review run surfaces an honest error for an unreadable do
   await expect(grid.locator('td .wb13-rev-flag')).toHaveCount(0);
   await expect(run).toBeEnabled();
 });
+
+test('static workbench: Review cell reveals the model reasoning on click (and is honest when there is none)', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [{ toolkit: 'googledrive', status: 'ACTIVE', user_id: 'pg-test' }],
+    sentMessages: [], // required so the chat timeline can read back the per-run token
+    connectorReads: {
+      GOOGLEDRIVE_LIST_FILES: {
+        successful: true,
+        data: {
+          files: [{ id: 'f1', name: 'Acme NDA', mimeType: 'application/vnd.google-apps.document' }]
+        }
+      },
+      GOOGLEDOCS_GET_DOCUMENT_BY_ID: {
+        successful: true,
+        data: {
+          body: {
+            content: [
+              {
+                paragraph: {
+                  elements: [
+                    {
+                      textRun: {
+                        content: 'This NDA is between Acme and Beta, governed by Delaware law.'
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    // column 0 (parties) has reasoning; column 1 (governing law) has none → honest "No reasoning given"
+    reviewModelLines: [
+      {
+        column_index: 0,
+        summary: 'Acme & Beta',
+        flag: 'green',
+        reasoning: 'Named in the recitals'
+      },
+      { column_index: 1, summary: 'Delaware', flag: 'green' }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByTestId('workbench-nav-review').click();
+  await page.getByTestId('workbench-review-doc').first().check();
+  await page.getByTestId('workbench-review-run').click();
+
+  const grid = page.getByTestId('workbench-review-grid');
+  const cells = grid.getByTestId('workbench-review-cell-evidence');
+  await expect(cells).toHaveCount(2, { timeout: 15000 }); // the two answered columns fill
+
+  // The reasoning is collapsed until the cell is clicked (read-only disclosure).
+  const parties = cells.nth(0);
+  const partiesReasoning = parties.getByTestId('workbench-review-cell-reasoning');
+  await expect(partiesReasoning).toBeHidden();
+  await parties.locator('summary').click();
+  await expect(partiesReasoning).toBeVisible();
+  await expect(partiesReasoning).toContainText('Named in the recitals');
+
+  // A cell with no reasoning is honest about it rather than implying evidence.
+  const governing = cells.nth(1);
+  await governing.locator('summary').click();
+  await expect(governing.getByTestId('workbench-review-cell-reasoning')).toContainText(
+    'No reasoning given'
+  );
+});

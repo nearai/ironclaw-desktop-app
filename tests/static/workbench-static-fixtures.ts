@@ -42,6 +42,15 @@ type WorkbenchMockOptions = {
   automations?: Array<Record<string, unknown>>;
   automationsError?: string;
   timelineMessages?: Array<Record<string, unknown>>;
+  // Tabular Review happy path: when set, the chat timeline echoes an assistant message built from
+  // these column lines, stamped with the live per-run token extracted from the sent review prompt
+  // (the parser rejects untokened lines, so the token must match). Requires sentMessages: [].
+  reviewModelLines?: Array<{
+    column_index: number;
+    summary: string;
+    flag: string;
+    reasoning?: string;
+  }>;
   extensions?: Array<Record<string, unknown>>;
   registryEntries?: Array<Record<string, unknown>>;
   workspaceFs?: {
@@ -453,8 +462,35 @@ export async function installWorkbenchMocks(page: Page, options: WorkbenchMockOp
       });
     }
     if (path === '/api/webchat/v2/threads/thread-workbench-runtime/timeline') {
+      let messages: Array<Record<string, unknown>> = options.timelineMessages || [];
+      if (options.reviewModelLines) {
+        // Echo the review extraction stamped with the live token from the sent prompt.
+        const sent = (options.sentMessages || [])
+          .map((s) => String((s.body as { content?: unknown })?.content || ''))
+          .reverse();
+        const prompt = sent.find((c) => c.includes('<<<'));
+        const m = prompt ? prompt.match(/<<<([^>]+)>>>/) : null;
+        if (m) {
+          const token = m[1];
+          const content =
+            options.reviewModelLines
+              .map((l) =>
+                JSON.stringify({
+                  column_index: l.column_index,
+                  summary: l.summary,
+                  flag: l.flag,
+                  reasoning: l.reasoning || '',
+                  k: token
+                })
+              )
+              .join('\n') + '\n';
+          messages = [
+            { kind: 'assistant', content, id: 'msg-review', created_at: '2026-06-30T00:00:00Z' }
+          ];
+        }
+      }
       return json(route, {
-        messages: options.timelineMessages || [],
+        messages,
         summary_artifacts: [],
         next_cursor: null
       });

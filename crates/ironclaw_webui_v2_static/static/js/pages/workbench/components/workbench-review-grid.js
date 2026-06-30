@@ -18,6 +18,13 @@ export function reviewCell(cells, docId, colId) {
   return (row && row[colId]) || null;
 }
 
+// The model's reasoning for a cell, trimmed; '' when none was given (the grid shows an honest
+// "No reasoning given" rather than implying evidence that isn't there).
+export function cellReasoning(cell) {
+  const r = cell && cell.reasoning;
+  return typeof r === 'string' ? r.trim() : '';
+}
+
 export function ReviewGrid({ columns = [], documents = [], cells = {} }) {
   const cols = Array.isArray(columns) ? columns : [];
   const docs = Array.isArray(documents) ? documents : [];
@@ -72,6 +79,32 @@ export function ReviewGrid({ columns = [], documents = [], cells = {} }) {
         .wb13-rev-pending {
           color: var(--wb-faint);
         }
+        .wb13-rev-evidence > summary {
+          display: block;
+          cursor: pointer;
+          list-style: none;
+          border-radius: 5px;
+        }
+        .wb13-rev-evidence > summary::-webkit-details-marker {
+          display: none;
+        }
+        .wb13-rev-evidence > summary:hover .wb13-rev-summary {
+          color: var(--wb-ink);
+        }
+        .wb13-rev-evidence > summary:focus-visible {
+          outline: 2px solid var(--wb-accent, var(--wb-ink));
+          outline-offset: 2px;
+        }
+        .wb13-rev-evidence[open] > summary {
+          margin-bottom: 8px;
+        }
+        .wb13-rev-reasoning {
+          font-size: 12px;
+          color: var(--wb-muted);
+          line-height: 1.5;
+          padding-top: 8px;
+          border-top: 1px dashed var(--wb-line);
+        }
         .wb13-rev-flag {
           display: inline-block;
           width: 8px;
@@ -125,11 +158,24 @@ export function ReviewGrid({ columns = [], documents = [], cells = {} }) {
                   const cell = reviewCell(cells, doc.id, column.id);
                   const body =
                     cell && cell.status === 'done'
-                      ? html`<span
-                            className=${`wb13-rev-flag is-${REVIEW_FLAGS.includes(cell.flag) ? cell.flag : 'grey'}`}
-                            aria-hidden="true"
-                          ></span
-                          ><span className="wb13-rev-summary">${cell.summary}</span>`
+                      ? html`<details
+                          className="wb13-rev-evidence"
+                          data-testid="workbench-review-cell-evidence"
+                        >
+                          <summary>
+                            <span
+                              className=${`wb13-rev-flag is-${REVIEW_FLAGS.includes(cell.flag) ? cell.flag : 'grey'}`}
+                              aria-hidden="true"
+                            ></span
+                            ><span className="wb13-rev-summary">${cell.summary}</span>
+                          </summary>
+                          <div
+                            className="wb13-rev-reasoning"
+                            data-testid="workbench-review-cell-reasoning"
+                          >
+                            ${cellReasoning(cell) || 'No reasoning given'}
+                          </div>
+                        </details>`
                       : cell && cell.status === 'error'
                         ? html`<span className="wb13-rev-pending">couldn't read</span>`
                         : cell && cell.status === 'running'

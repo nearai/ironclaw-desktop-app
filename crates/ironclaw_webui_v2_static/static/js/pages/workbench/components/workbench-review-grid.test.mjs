@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { ReviewGrid, reviewCell } from './workbench-review-grid.js';
+import { ReviewGrid, reviewCell, cellReasoning } from './workbench-review-grid.js';
 import { REVIEW_COLUMNS } from '../lib/workbench-review-columns.js';
 
 const DOCS = [
@@ -26,4 +26,13 @@ test('reviewCell resolves a cell by document + column, null when absent', () => 
   assert.equal(reviewCell(cells, 'd1', 'parties'), null);
   assert.equal(reviewCell(cells, 'd2', 'term'), null);
   assert.equal(reviewCell(undefined, 'd1', 'term'), null);
+});
+
+test('cellReasoning returns the trimmed reasoning, or empty string when there is none', () => {
+  assert.equal(cellReasoning({ reasoning: '  Named in the recitals  ' }), 'Named in the recitals');
+  assert.equal(cellReasoning({ reasoning: '' }), '');
+  assert.equal(cellReasoning({ summary: 'x' }), ''); // no reasoning key
+  assert.equal(cellReasoning({ reasoning: 123 }), ''); // non-string is not evidence
+  assert.equal(cellReasoning(null), '');
+  assert.equal(cellReasoning(undefined), '');
 });
