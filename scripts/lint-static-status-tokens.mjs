@@ -21,38 +21,12 @@ const rawStatusColorPattern =
 const aliasColorPattern =
   /\b((?:hover:|focus:|active:|group-hover:)?(?:bg|text|border|ring|from|to|via|fill|stroke)-(?:iron-\d+|signal|copper|mint)(?:\/(?:\[[^\]]+\]|\d+))?)\b/g;
 
-// Known-unmapped alias classes. These render as no-ops today (rows 33/50 of
-// docs/reviews/elite-audit-reverify-2026-06-29.md). Batch I maps them to real
-// --v2 tokens in app.css and removes them from this allowlist; until then the
-// coverage gate reports them but does not fail the build on them. Do NOT add new
-// entries here — a newly-introduced unmapped alias class is a real defect.
-// TODO(elite-audit #33,#50): remove these as Batch I maps them in app.css.
-const KNOWN_UNMAPPED_ALIAS_CLASSES = Object.freeze([
-  'bg-copper/20',
-  'bg-iron-800/50',
-  'bg-iron-800/60',
-  'bg-iron-800/70',
-  'bg-iron-900/70',
-  'bg-iron-950/40',
-  'bg-iron-950/50',
-  'bg-iron-950/55',
-  'bg-iron-950/70',
-  'bg-iron-950/78',
-  'bg-mint/10',
-  'bg-mint/20',
-  'bg-signal/50',
-  'border-copper/25',
-  'border-copper/40',
-  'border-iron-700/40',
-  'border-iron-700/60',
-  'border-mint/15',
-  'border-mint/30',
-  'border-signal/20',
-  'focus:border-signal/40',
-  'group-hover:border-signal/35',
-  'hover:bg-copper/10',
-  'hover:bg-iron-800/80'
-]);
+// Known-unmapped alias classes. Batch I (elite-audit #33,#50) mapped the
+// previously-unmapped variants to real --v2 tokens in app.css, so this allowlist
+// is now empty: every alias colour class shipped in JS must resolve to a real
+// Tailwind rule or an app.css remap. Do NOT add entries here — a newly-introduced
+// unmapped alias class is a real defect and must be mapped in app.css instead.
+const KNOWN_UNMAPPED_ALIAS_CLASSES = Object.freeze([]);
 
 async function collectFiles(dir) {
   const entries = await readdir(dir, { withFileTypes: true });
