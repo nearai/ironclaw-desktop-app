@@ -137,10 +137,15 @@ async function main() {
         .catch(() => '');
       results.push({ surface: surface.name, path: surface.path, file, heading: heading.slice(0, 80) });
     }
-    // Dark mode pass on onboarding for the hero typography check.
-    await page.emulateMedia({ colorScheme: 'dark' });
+    // Dark mode pass on onboarding for the hero typography check. The app's dark
+    // theme is attribute-driven (data-theme), not prefers-color-scheme, so set it
+    // directly — emulateMedia({colorScheme:'dark'}) never triggers it.
     await page.goto(`http://127.0.0.1:${port}${appBasePath}/welcome`, { waitUntil: 'networkidle' });
-    await wait(1200);
+    await page.evaluate(() => {
+      window.localStorage.setItem('ironclaw:v2-theme', 'dark');
+      document.documentElement.dataset.theme = 'dark';
+    });
+    await wait(900);
     await page.screenshot({ path: path.join(outDir, 'onboarding-welcome-dark.png') });
 
     await browser.close();
