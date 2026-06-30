@@ -137,6 +137,12 @@ export const WORKBENCH_COMMAND_STYLE = `.wb13-command { padding-top: 16px; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.wb13-mode-btn .wb13-mode-caret {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  opacity: 0.5;
+}
 .wb13-send {
   display: inline-flex;
   align-items: center;

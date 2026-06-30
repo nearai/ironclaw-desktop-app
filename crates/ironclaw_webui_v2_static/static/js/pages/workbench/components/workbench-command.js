@@ -231,12 +231,14 @@ export function WorkbenchCommandSurface({
             <button
               type="button"
               className="wb13-mode-btn"
+              data-testid="workbench-model-mode"
               aria-label="Choose model and effort"
               title="Choose model and effort"
               onClick=${onOpenWorkMode}
             >
               <${Icon} name="spark" />
               <span>${modeLabel}</span>
+              <${Icon} name="chevronDown" className="wb13-mode-caret" />
             </button>
             <button
               type="button"

@@ -4134,12 +4134,14 @@ ${me}`;if(O.current.gateKey!==ye&&(O.current={gateKey:ye,credentialRef:null,inFl
             <button
               type="button"
               className="wb13-mode-btn"
+              data-testid="workbench-model-mode"
               aria-label="Choose model and effort"
               title="Choose model and effort"
               onClick=${m}
             >
               <${N} name="spark" />
               <span>${T}</span>
+              <${N} name="chevronDown" className="wb13-mode-caret" />
             </button>
             <button
               type="button"
@@ -5814,6 +5816,12 @@ ${me}`;if(O.current.gateKey!==ye&&(O.current={gateKey:ye,credentialRef:null,inFl
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.wb13-mode-btn .wb13-mode-caret {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  opacity: 0.5;
 }
 .wb13-send {
   display: inline-flex;
