@@ -1,0 +1,1564 @@
+# Gateway connector-route changes (uncommitted on branch reborn-integration), captured Sun Jun 21 00:35:10 EDT 2026
+# Modified tracked files (my uncommitted diff vs HEAD):
+diff --git a/crates/ironclaw_product_workflow/src/lib.rs b/crates/ironclaw_product_workflow/src/lib.rs
+index 95e761a5b..4eb0f0c29 100644
+--- a/crates/ironclaw_product_workflow/src/lib.rs
++++ b/crates/ironclaw_product_workflow/src/lib.rs
+@@ -134,12 +134,15 @@ pub use ironclaw_product_adapters::{
+ // without pulling `ironclaw_common` into its forbidden-imports set.
+ pub use ironclaw_common::ExtensionName;
+ pub use reborn_services::{
+-    RebornCancelRunResponse, RebornCreateThreadResponse, RebornGetRunStateRequest,
+-    RebornGetRunStateResponse, RebornListThreadsResponse, RebornResolveGateResponse,
+-    RebornResumeGateResponse, RebornServices, RebornServicesApi, RebornServicesError,
+-    RebornServicesErrorCode, RebornServicesErrorKind, RebornSetupExtensionResponse,
+-    RebornStreamEventsRequest, RebornStreamEventsResponse, RebornSubmitTurnResponse,
+-    RebornTimelineRequest, RebornTimelineResponse,
++    ConnectorReadError, ConnectorReadPort, ConnectorWriteKind, RebornCancelRunResponse,
++    RebornConnectedAccount, RebornConnectedAccountsResponse, RebornConnectorReadRequest,
++    RebornConnectorReadResponse, RebornConnectorWriteRequest, RebornCreateThreadResponse,
++    RebornGetRunStateRequest, RebornGetRunStateResponse, RebornListThreadsResponse,
++    RebornResolveGateResponse, RebornResumeGateResponse, RebornServices, RebornServicesApi,
++    RebornServicesError, RebornServicesErrorCode, RebornServicesErrorKind,
++    RebornSetupExtensionResponse, RebornStreamEventsRequest, RebornStreamEventsResponse,
++    RebornSubmitTurnResponse, RebornTimelineRequest, RebornTimelineResponse,
++    classify_connector_write, is_read_only_tool,
+ };
+ pub use webui_inbound::{
+     WebUiAuthenticatedCaller, WebUiCancelReason, WebUiCancelRunRequest, WebUiCreateThreadRequest,
+diff --git a/crates/ironclaw_product_workflow/src/reborn_services.rs b/crates/ironclaw_product_workflow/src/reborn_services.rs
+index 8d10d55ef..b1dd9302f 100644
+--- a/crates/ironclaw_product_workflow/src/reborn_services.rs
++++ b/crates/ironclaw_product_workflow/src/reborn_services.rs
+@@ -45,10 +45,16 @@ use crate::{
+     is_approval_gate_ref, is_auth_gate_ref,
+ };
+ 
++mod connectors;
+ mod error;
+ mod lifecycle_setup;
+ mod types;
+ 
++pub use connectors::{
++    ConnectorReadError, ConnectorReadPort, ConnectorWriteKind, RebornConnectedAccount,
++    RebornConnectedAccountsResponse, RebornConnectorReadRequest, RebornConnectorReadResponse,
++    RebornConnectorWriteRequest, classify_connector_write, is_read_only_tool,
++};
+ pub use error::{RebornServicesError, RebornServicesErrorCode, RebornServicesErrorKind};
+ pub use types::{
+     RebornCancelRunResponse, RebornCreateThreadResponse, RebornGetRunStateRequest,
+@@ -62,6 +68,8 @@ type SkillActivationRecorder =
+     dyn Fn(&TurnScope, &AcceptedMessageRef, &str) -> Result<(), RebornServicesError> + Send + Sync;
+ type SkillActivationClearer =
+     dyn Fn(&TurnScope, &AcceptedMessageRef) -> Result<(), RebornServicesError> + Send + Sync;
++type TurnRunnerAliveProbe = dyn Fn() -> bool + Send + Sync;
++type TurnRunnerWake = dyn Fn() + Send + Sync;
+ 
+ #[derive(Clone, Copy)]
+ enum GateResolutionRoute {
+@@ -194,6 +202,38 @@ pub trait RebornServicesApi: Send + Sync {
+         extension_name: ExtensionName,
+         request: WebUiSetupExtensionRequest,
+     ) -> Result<RebornSetupExtensionResponse, RebornServicesError>;
++
++    /// List the owner's active connected accounts (read-only proxy over the
++    /// connector provider). The provider API key is resolved server-side and
++    /// never crosses this boundary. Returns `503` when the connector
++    /// subsystem is not wired in the active profile.
++    async fn connector_connected(
++        &self,
++        caller: WebUiAuthenticatedCaller,
++    ) -> Result<RebornConnectedAccountsResponse, RebornServicesError>;
++
++    /// Execute a single read-only connector tool and return its output.
++    ///
++    /// The implementation enforces a read-only allowlist server-side (only
++    /// `*_FETCH_* / *_LIST_* / *_GET_* / *_SEARCH_*` tools); any write-shaped
++    /// tool is rejected with `400` so mutations stay on the gated agent path.
++    async fn connector_read(
++        &self,
++        caller: WebUiAuthenticatedCaller,
++        request: RebornConnectorReadRequest,
++    ) -> Result<RebornConnectorReadResponse, RebornServicesError>;
++
++    /// Execute a single GATED write connector tool and return its output.
++    ///
++    /// The implementation enforces an explicit write allowlist server-side:
++    /// draft-creation tools are always permitted; send/deliver tools only when
++    /// the gateway was started with the send capability enabled. Everything
++    /// else is rejected with `400`. The provider key is resolved server-side.
++    async fn connector_write(
++        &self,
++        caller: WebUiAuthenticatedCaller,
++        request: RebornConnectorWriteRequest,
++    ) -> Result<RebornConnectorReadResponse, RebornServicesError>;
+ }
+ 
+ /// Default facade implementation composed at the WebUI boundary.
+@@ -207,6 +247,9 @@ pub struct RebornServices {
+     auth_interactions: Arc<dyn AuthInteractionService>,
+     skill_activation_recorder: Option<Arc<SkillActivationRecorder>>,
+     skill_activation_clearer: Option<Arc<SkillActivationClearer>>,
++    turn_runner_alive_probe: Option<Arc<TurnRunnerAliveProbe>>,
++    turn_runner_wake: Option<Arc<TurnRunnerWake>>,
++    connector_port: Option<Arc<dyn ConnectorReadPort>>,
+ }
+ 
+ impl RebornServices {
+@@ -225,9 +268,21 @@ impl RebornServices {
+             auth_interactions: Arc::new(RejectingAuthInteractionService),
+             skill_activation_recorder: None,
+             skill_activation_clearer: None,
++            turn_runner_alive_probe: None,
++            turn_runner_wake: None,
++            connector_port: None,
+         }
+     }
+ 
++    /// Inject the read-only connector port. Host composition supplies the
++    /// concrete implementation (secret-store-backed key resolution + the
++    /// provider REST client + the read-only allowlist). When unset, the
++    /// connector routes return `503` (subsystem not wired in this profile).
++    pub fn with_connector_port(mut self, port: Arc<dyn ConnectorReadPort>) -> Self {
++        self.connector_port = Some(port);
++        self
++    }
++
+     pub fn with_event_stream(mut self, event_stream: Arc<dyn ProjectionStream>) -> Self {
+         self.event_stream = Some(event_stream);
+         self
+@@ -284,6 +339,31 @@ impl RebornServices {
+         self
+     }
+ 
++    pub fn with_turn_runner_hooks(
++        mut self,
++        alive_probe: Arc<dyn Fn() -> bool + Send + Sync>,
++        wake: Arc<dyn Fn() + Send + Sync>,
++    ) -> Self {
++        self.turn_runner_alive_probe = Some(alive_probe);
++        self.turn_runner_wake = Some(wake);
++        self
++    }
++
++    fn ensure_turn_runner_available(&self) -> Result<(), RebornServicesError> {
++        if let Some(alive_probe) = &self.turn_runner_alive_probe {
++            if !alive_probe() {
++                return Err(RebornServicesError::service_unavailable(true));
++            }
++        }
++        Ok(())
++    }
++
++    fn wake_turn_runner(&self) {
++        if let Some(wake) = &self.turn_runner_wake {
++            wake();
++        }
++    }
++
+     fn record_skill_activation_message(
+         &self,
+         scope: &TurnScope,
+@@ -374,11 +454,14 @@ impl RebornServicesApi for RebornServices {
+             actor,
+             client_action_id,
+             content,
++            attachments: _,
+         } = command
+         else {
+             return Err(RebornServicesError::internal_invariant());
+         };
+ 
++        self.ensure_turn_runner_available()?;
++
+         let (scope, thread_scope) = self.resolve_webui_thread_metadata(scope, &actor).await?;
+         let source_binding_id = webui_source_binding_id(&scope, &actor);
+         let external_event_id = client_action_id.as_str().to_string();
+@@ -411,6 +494,9 @@ impl RebornServicesApi for RebornServices {
+                         })
+                         .await
+                         .map_err(map_turn_error)?;
++                    if !state.status.is_terminal() {
++                        self.wake_turn_runner();
++                    }
+                     return Ok(RebornSubmitTurnResponse::AlreadySubmitted {
+                         thread_id: replay.thread_id,
+                         accepted_message_ref: accepted_message_ref(replay.message_id.to_string())?,
+@@ -504,6 +590,8 @@ impl RebornServicesApi for RebornServices {
+                 )
+                 .await?;
+ 
++                self.wake_turn_runner();
++
+                 Ok(RebornSubmitTurnResponse::Submitted {
+                     thread_id: handoff.thread_id,
+                     accepted_message_ref,
+@@ -753,6 +841,22 @@ impl RebornServicesApi for RebornServices {
+         extension_name: ExtensionName,
+         request: WebUiSetupExtensionRequest,
+     ) -> Result<RebornSetupExtensionResponse, RebornServicesError> {
++        // The composio extension authenticates with a single API key the user
++        // supplies via `configure`. The lifecycle facade owns no secret store,
++        // so we persist that key through the connector port (which owns both
++        // the secret store and the read path, guaranteeing one owner scope)
++        // instead of routing it through the lifecycle `ExtensionConfigure`
++        // projection. Any non-composio extension, or composio with a
++        // non-configure action, falls through to the lifecycle facade.
++        if let Some(response) = lifecycle_setup::try_configure_composio_secrets(
++            self.connector_port.as_deref(),
++            &extension_name,
++            &request,
++        )
++        .await?
++        {
++            return Ok(response);
++        }
+         lifecycle_setup::setup_extension(
+             self.lifecycle_facade.as_ref(),
+             caller,
+@@ -761,6 +865,62 @@ impl RebornServicesApi for RebornServices {
+         )
+         .await
+     }
++
++    async fn connector_connected(
++        &self,
++        _caller: WebUiAuthenticatedCaller,
++    ) -> Result<RebornConnectedAccountsResponse, RebornServicesError> {
++        let port = self
++            .connector_port
++            .as_ref()
++            .ok_or_else(|| RebornServicesError::service_unavailable(false))?;
++        port.connected().await.map_err(connector_error_to_services)
++    }
++
++    async fn connector_read(
++        &self,
++        _caller: WebUiAuthenticatedCaller,
++        request: RebornConnectorReadRequest,
++    ) -> Result<RebornConnectorReadResponse, RebornServicesError> {
++        let port = self
++            .connector_port
++            .as_ref()
++            .ok_or_else(|| RebornServicesError::service_unavailable(false))?;
++        port.read(request)
++            .await
++            .map_err(connector_error_to_services)
++    }
++
++    async fn connector_write(
++        &self,
++        _caller: WebUiAuthenticatedCaller,
++        request: RebornConnectorWriteRequest,
++    ) -> Result<RebornConnectorReadResponse, RebornServicesError> {
++        let port = self
++            .connector_port
++            .as_ref()
++            .ok_or_else(|| RebornServicesError::service_unavailable(false))?;
++        port.write(request)
++            .await
++            .map_err(connector_error_to_services)
++    }
++}
++
++fn connector_error_to_services(error: ConnectorReadError) -> RebornServicesError {
++    match error {
++        ConnectorReadError::InvalidRequest { .. } => RebornServicesError::from_status(
++            RebornServicesErrorCode::InvalidRequest,
++            400,
++            false,
++        ),
++        ConnectorReadError::Unavailable { retryable } => {
++            RebornServicesError::service_unavailable(retryable)
++        }
++        // Upstream provider failures map to a non-retryable unavailable so the
++        // bounded provider text never leaks through the wire-stable error body.
++        ConnectorReadError::Upstream { .. } => RebornServicesError::service_unavailable(false),
++        ConnectorReadError::Internal => RebornServicesError::internal_invariant(),
++    }
+ }
+ 
+ struct AcceptedWebUiMessage {
+diff --git a/crates/ironclaw_product_workflow/src/reborn_services/lifecycle_setup.rs b/crates/ironclaw_product_workflow/src/reborn_services/lifecycle_setup.rs
+index 3d7a573e0..d006915a9 100644
+--- a/crates/ironclaw_product_workflow/src/reborn_services/lifecycle_setup.rs
++++ b/crates/ironclaw_product_workflow/src/reborn_services/lifecycle_setup.rs
+@@ -1,34 +1,177 @@
++use std::collections::HashMap;
++
+ use ironclaw_common::ExtensionName;
+ 
+ use crate::{
+-    LifecyclePackageKind, LifecyclePackageRef, LifecycleProductContext, LifecycleProductFacade,
++    ConnectorReadError, ConnectorReadPort, LifecyclePackageKind, LifecyclePackageRef,
++    LifecyclePhase, LifecycleProductAction, LifecycleProductContext, LifecycleProductFacade,
+     LifecycleProductResponse, LifecycleProductSurfaceContext, ProductWorkflowError,
+     RebornServicesError, RebornServicesErrorCode, RebornSetupExtensionResponse,
+     WebUiAuthenticatedCaller, WebUiSetupExtensionRequest,
+ };
+ 
++/// Extension id whose `configure` action carries a connector API key the
++/// connector port persists server-side.
++const COMPOSIO_EXTENSION_NAME: &str = "composio";
++
++/// If this is a `composio` `configure` request, persist the supplied secrets
++/// through the connector port and return an `Active` projection. Returns
++/// `Ok(None)` for every other extension/action so the caller falls through to
++/// the lifecycle facade.
++///
++/// The connector port owns both the secret store and the read path, so writing
++/// the key here keeps the configure write and the connector reads on a single
++/// owner scope by construction.
++pub(super) async fn try_configure_composio_secrets(
++    connector_port: Option<&dyn ConnectorReadPort>,
++    extension_name: &ExtensionName,
++    request: &WebUiSetupExtensionRequest,
++) -> Result<Option<RebornSetupExtensionResponse>, RebornServicesError> {
++    if extension_name.as_str() != COMPOSIO_EXTENSION_NAME {
++        return Ok(None);
++    }
++    if !is_configure_action(request.action.as_deref()) {
++        return Ok(None);
++    }
++    let Some(connector_port) = connector_port else {
++        // No connector subsystem in this profile: report it the same way the
++        // connector routes do (503), rather than silently no-op'ing.
++        return Err(RebornServicesError::service_unavailable(false));
++    };
++
++    let secrets = extract_payload_secrets(request.payload.as_ref());
++    connector_port
++        .configure_secrets(secrets)
++        .await
++        .map_err(connector_error_to_services)?;
++
++    let package_ref =
++        LifecyclePackageRef::new(LifecyclePackageKind::Extension, COMPOSIO_EXTENSION_NAME)
++            .map_err(map_lifecycle_error)?;
++    Ok(Some(RebornSetupExtensionResponse {
++        extension_name: extension_name.clone(),
++        phase: LifecyclePhase::Active,
++        blockers: Vec::new(),
++        package_ref: Some(package_ref),
++        payload: None,
++    }))
++}
++
++fn is_configure_action(action: Option<&str>) -> bool {
++    action
++        .map(str::trim)
++        .map(|action| action.replace('-', "_").to_ascii_lowercase())
++        .is_some_and(|normalized| {
++            matches!(normalized.as_str(), "configure" | "config" | "extension_configure")
++        })
++}
++
++/// Pull `payload.secrets` (a flat `{ name: value }` object) into a string map.
++/// Non-string values and a missing/non-object payload yield an empty map; the
++/// connector port enforces that the required key is present.
++fn extract_payload_secrets(payload: Option<&serde_json::Value>) -> HashMap<String, String> {
++    payload
++        .and_then(|payload| payload.get("secrets"))
++        .and_then(serde_json::Value::as_object)
++        .map(|secrets| {
++            secrets
++                .iter()
++                .filter_map(|(name, value)| {
++                    value.as_str().map(|value| (name.clone(), value.to_string()))
++                })
++                .collect()
++        })
++        .unwrap_or_default()
++}
++
++fn connector_error_to_services(error: ConnectorReadError) -> RebornServicesError {
++    match error {
++        ConnectorReadError::InvalidRequest { .. } => {
++            RebornServicesError::from_status(RebornServicesErrorCode::InvalidRequest, 400, false)
++        }
++        ConnectorReadError::Unavailable { retryable } => {
++            RebornServicesError::service_unavailable(retryable)
++        }
++        ConnectorReadError::Upstream { .. } => RebornServicesError::service_unavailable(false),
++        ConnectorReadError::Internal => RebornServicesError::internal_invariant(),
++    }
++}
++
+ pub(super) async fn setup_extension(
+     facade: &dyn LifecycleProductFacade,
+     caller: WebUiAuthenticatedCaller,
+     extension_name: ExtensionName,
+-    _request: WebUiSetupExtensionRequest,
++    request: WebUiSetupExtensionRequest,
+ ) -> Result<RebornSetupExtensionResponse, RebornServicesError> {
+-    let lifecycle = facade
+-        .project_package(
+-            LifecycleProductContext::Surface(LifecycleProductSurfaceContext {
+-                tenant_id: caller.tenant_id,
+-                user_id: caller.user_id,
+-                agent_id: caller.agent_id,
+-                project_id: caller.project_id,
+-            }),
+-            LifecyclePackageRef::new(LifecyclePackageKind::Extension, extension_name.as_str())
+-                .map_err(map_lifecycle_error)?,
+-        )
+-        .await
+-        .map_err(map_lifecycle_error)?;
++    let context = LifecycleProductContext::Surface(LifecycleProductSurfaceContext {
++        tenant_id: caller.tenant_id,
++        user_id: caller.user_id,
++        agent_id: caller.agent_id,
++        project_id: caller.project_id,
++    });
++    let package_ref = lifecycle_package_ref_for_extension(&extension_name)?;
++    let lifecycle = match setup_action(package_ref.clone(), request)? {
++        Some(action) => facade.execute(context, action).await,
++        None => facade.project_package(context, package_ref).await,
++    }
++    .map_err(map_lifecycle_error)?;
+     Ok(setup_extension_response(extension_name, lifecycle))
+ }
+ 
++fn lifecycle_package_ref_for_extension(
++    extension_name: &ExtensionName,
++) -> Result<LifecyclePackageRef, RebornServicesError> {
++    let package_id = match extension_name.as_str() {
++        "google_calendar" => "google-calendar",
++        other => other,
++    };
++    LifecyclePackageRef::new(LifecyclePackageKind::Extension, package_id)
++        .map_err(map_lifecycle_error)
++}
++
++fn setup_action(
++    package_ref: LifecyclePackageRef,
++    request: WebUiSetupExtensionRequest,
++) -> Result<Option<LifecycleProductAction>, RebornServicesError> {
++    let Some(action) = request
++        .action
++        .as_deref()
++        .map(str::trim)
++        .filter(|action| !action.is_empty())
++    else {
++        return Ok(None);
++    };
++    let normalized = action.replace('-', "_").to_ascii_lowercase();
++    match normalized.as_str() {
++        "begin" | "setup" | "project" | "status" | "readiness" => Ok(None),
++        "install" | "extension_install" => Ok(Some(LifecycleProductAction::ExtensionInstall {
++            package_ref,
++        })),
++        "activate" | "extension_activate" => Ok(Some(LifecycleProductAction::ExtensionActivate {
++            package_ref,
++        })),
++        "auth" | "authorize" | "connect" | "extension_auth" => {
++            Ok(Some(LifecycleProductAction::ExtensionAuth { package_ref }))
++        }
++        "configure" | "config" | "extension_configure" => {
++            Ok(Some(LifecycleProductAction::ExtensionConfigure {
++                package_ref,
++                payload: request.payload,
++            }))
++        }
++        "remove" | "uninstall" | "extension_remove" => {
++            Ok(Some(LifecycleProductAction::ExtensionRemove {
++                package_ref,
++            }))
++        }
++        other => Err(map_lifecycle_error(
++            ProductWorkflowError::UnsupportedActionKind {
++                kind: other.to_string(),
++            },
++        )),
++    }
++}
++
+ fn setup_extension_response(
+     extension_name: ExtensionName,
+     lifecycle: LifecycleProductResponse,
+diff --git a/crates/ironclaw_reborn_composition/src/lib.rs b/crates/ironclaw_reborn_composition/src/lib.rs
+index 1caeed58e..31eab129e 100644
+--- a/crates/ironclaw_reborn_composition/src/lib.rs
++++ b/crates/ironclaw_reborn_composition/src/lib.rs
+@@ -23,6 +23,8 @@ use std::sync::Arc;
+ mod auth;
+ mod available_extensions;
+ mod bundled_skills;
++#[cfg(feature = "webui-v2-beta")]
++mod connectors;
+ mod default_system_prompt;
+ mod error;
+ mod extension_installation_store;
+diff --git a/crates/ironclaw_webui_v2/src/descriptors.rs b/crates/ironclaw_webui_v2/src/descriptors.rs
+index 41ca071b9..46bdaa035 100644
+--- a/crates/ironclaw_webui_v2/src/descriptors.rs
++++ b/crates/ironclaw_webui_v2/src/descriptors.rs
+@@ -19,9 +19,13 @@ pub const WEBUI_V2_ROUTE_LIST_THREADS: &str = "webui.v2.list_threads";
+ pub const WEBUI_V2_ROUTE_GET_TIMELINE: &str = "webui.v2.get_timeline";
+ pub const WEBUI_V2_ROUTE_STREAM_EVENTS: &str = "webui.v2.stream_events";
+ pub const WEBUI_V2_ROUTE_STREAM_EVENTS_WS: &str = "webui.v2.stream_events_ws";
++pub const WEBUI_V2_ROUTE_GET_RUN_STATE: &str = "webui.v2.get_run_state";
+ pub const WEBUI_V2_ROUTE_CANCEL_RUN: &str = "webui.v2.cancel_run";
+ pub const WEBUI_V2_ROUTE_RESOLVE_GATE: &str = "webui.v2.resolve_gate";
+ pub const WEBUI_V2_ROUTE_SETUP_EXTENSION: &str = "webui.v2.setup_extension";
++pub const WEBUI_V2_ROUTE_CONNECTORS_CONNECTED: &str = "webui.v2.connectors_connected";
++pub const WEBUI_V2_ROUTE_CONNECTORS_READ: &str = "webui.v2.connectors_read";
++pub const WEBUI_V2_ROUTE_CONNECTORS_WRITE: &str = "webui.v2.connectors_write";
+ 
+ pub const WEBUI_V2_PATTERN_CREATE_THREAD: &str = "/api/webchat/v2/threads";
+ pub const WEBUI_V2_PATTERN_LIST_THREADS: &str = "/api/webchat/v2/threads";
+@@ -29,12 +33,17 @@ pub const WEBUI_V2_PATTERN_SEND_MESSAGE: &str = "/api/webchat/v2/threads/{thread
+ pub const WEBUI_V2_PATTERN_GET_TIMELINE: &str = "/api/webchat/v2/threads/{thread_id}/timeline";
+ pub const WEBUI_V2_PATTERN_STREAM_EVENTS: &str = "/api/webchat/v2/threads/{thread_id}/events";
+ pub const WEBUI_V2_PATTERN_STREAM_EVENTS_WS: &str = "/api/webchat/v2/threads/{thread_id}/ws";
++pub const WEBUI_V2_PATTERN_GET_RUN_STATE: &str =
++    "/api/webchat/v2/threads/{thread_id}/runs/{run_id}";
+ pub const WEBUI_V2_PATTERN_CANCEL_RUN: &str =
+     "/api/webchat/v2/threads/{thread_id}/runs/{run_id}/cancel";
+ pub const WEBUI_V2_PATTERN_RESOLVE_GATE: &str =
+     "/api/webchat/v2/threads/{thread_id}/runs/{run_id}/gates/{gate_ref}/resolve";
+ pub const WEBUI_V2_PATTERN_SETUP_EXTENSION: &str =
+     "/api/webchat/v2/extensions/{extension_name}/setup";
++pub const WEBUI_V2_PATTERN_CONNECTORS_CONNECTED: &str = "/api/webchat/v2/connectors/connected";
++pub const WEBUI_V2_PATTERN_CONNECTORS_READ: &str = "/api/webchat/v2/connectors/read";
++pub const WEBUI_V2_PATTERN_CONNECTORS_WRITE: &str = "/api/webchat/v2/connectors/write";
+ 
+ /// Return the canonical [`IngressRouteDescriptor`] set for the WebChat v2
+ /// beta route surface.
+@@ -50,9 +59,13 @@ pub fn webui_v2_routes() -> Vec<IngressRouteDescriptor> {
+         get_timeline_descriptor(),
+         stream_events_descriptor(),
+         stream_events_ws_descriptor(),
++        get_run_state_descriptor(),
+         cancel_run_descriptor(),
+         resolve_gate_descriptor(),
+         setup_extension_descriptor(),
++        connectors_connected_descriptor(),
++        connectors_read_descriptor(),
++        connectors_write_descriptor(),
+     ]
+ }
+ 
+@@ -114,6 +127,20 @@ fn stream_events_descriptor() -> IngressRouteDescriptor {
+     )
+ }
+ 
++fn get_run_state_descriptor() -> IngressRouteDescriptor {
++    descriptor(
++        WEBUI_V2_ROUTE_GET_RUN_STATE,
++        NetworkMethod::Get,
++        WEBUI_V2_PATTERN_GET_RUN_STATE,
++        read_policy(
++            read_rate_limit(),
++            AuditTraceClass::UserAction,
++            AllowedEffectPath::TurnCoordinator,
++            StreamingMode::None,
++        ),
++    )
++}
++
+ fn cancel_run_descriptor() -> IngressRouteDescriptor {
+     descriptor(
+         WEBUI_V2_ROUTE_CANCEL_RUN,
+@@ -183,6 +210,55 @@ fn setup_extension_descriptor() -> IngressRouteDescriptor {
+     )
+ }
+ 
++fn connectors_connected_descriptor() -> IngressRouteDescriptor {
++    descriptor(
++        WEBUI_V2_ROUTE_CONNECTORS_CONNECTED,
++        NetworkMethod::Get,
++        WEBUI_V2_PATTERN_CONNECTORS_CONNECTED,
++        read_policy(
++            read_rate_limit(),
++            AuditTraceClass::UserAction,
++            AllowedEffectPath::ProductWorkflow,
++            StreamingMode::None,
++        ),
++    )
++}
++
++fn connectors_read_descriptor() -> IngressRouteDescriptor {
++    descriptor(
++        WEBUI_V2_ROUTE_CONNECTORS_READ,
++        // POST because it carries a JSON body (toolkit/tool/arguments), but
++        // the effect is a server-enforced read-only proxy; writes are
++        // rejected with 400 in the handler/facade before any upstream call.
++        NetworkMethod::Post,
++        WEBUI_V2_PATTERN_CONNECTORS_READ,
++        mutation_policy(
++            body_limit_kib(16),
++            mutation_rate_limit(),
++            AuditTraceClass::UserAction,
++            AllowedEffectPath::ProductWorkflow,
++        ),
++    )
++}
++
++fn connectors_write_descriptor() -> IngressRouteDescriptor {
++    descriptor(
++        WEBUI_V2_ROUTE_CONNECTORS_WRITE,
++        // POST carrying a JSON body; the facade enforces an explicit write
++        // allowlist (draft-creation always; sends only with the gateway send
++        // capability) before any upstream call. A larger body limit than the
++        // read path accommodates draft bodies.
++        NetworkMethod::Post,
++        WEBUI_V2_PATTERN_CONNECTORS_WRITE,
++        mutation_policy(
++            body_limit_kib(64),
++            mutation_rate_limit(),
++            AuditTraceClass::UserAction,
++            AllowedEffectPath::ProductWorkflow,
++        ),
++    )
++}
++
+ fn ws_read_policy(
+     rate_limit: RateLimitPolicy,
+     audit: AuditTraceClass,
+diff --git a/crates/ironclaw_webui_v2/src/handlers.rs b/crates/ironclaw_webui_v2/src/handlers.rs
+index 0606cada8..713c5fb50 100644
+--- a/crates/ironclaw_webui_v2/src/handlers.rs
++++ b/crates/ironclaw_webui_v2/src/handlers.rs
+@@ -22,14 +22,16 @@ use axum::response::sse::{Event, KeepAlive, Sse};
+ use futures::SinkExt;
+ use futures::stream::Stream;
+ use ironclaw_product_workflow::{
+-    ExtensionName, ProjectionCursor, RebornCancelRunResponse, RebornCreateThreadResponse,
+-    RebornListThreadsResponse, RebornResolveGateResponse, RebornServicesApi, RebornServicesError,
+-    RebornServicesErrorCode, RebornServicesErrorKind, RebornSetupExtensionResponse,
+-    RebornStreamEventsRequest, RebornSubmitTurnResponse, RebornTimelineRequest,
+-    RebornTimelineResponse, WebUiAuthenticatedCaller, WebUiCancelRunRequest,
+-    WebUiCreateThreadRequest, WebUiInboundValidationCode, WebUiInboundValidationError,
+-    WebUiListThreadsRequest, WebUiResolveGateRequest, WebUiSendMessageRequest,
+-    WebUiSetupExtensionRequest,
++    ExtensionName, ProjectionCursor, RebornCancelRunResponse, RebornConnectedAccountsResponse,
++    RebornConnectorReadRequest, RebornConnectorReadResponse, RebornConnectorWriteRequest,
++    RebornCreateThreadResponse,
++    RebornGetRunStateRequest, RebornGetRunStateResponse, RebornListThreadsResponse,
++    RebornResolveGateResponse, RebornServicesApi, RebornServicesError, RebornServicesErrorCode,
++    RebornServicesErrorKind, RebornSetupExtensionResponse, RebornStreamEventsRequest,
++    RebornSubmitTurnResponse, RebornTimelineRequest, RebornTimelineResponse,
++    WebUiAuthenticatedCaller, WebUiCancelRunRequest, WebUiCreateThreadRequest,
++    WebUiInboundValidationCode, WebUiInboundValidationError, WebUiListThreadsRequest,
++    WebUiResolveGateRequest, WebUiSendMessageRequest, WebUiSetupExtensionRequest,
+ };
+ use serde::{Deserialize, Serialize};
+ 
+@@ -315,6 +317,29 @@ fn cursor_token(cursor: &ProjectionCursor) -> Option<String> {
+     serde_json::to_string(cursor).ok()
+ }
+ 
++/// `GET /api/webchat/v2/threads/{thread_id}/runs/{run_id}`
++///
++/// Stable read of the run state returned by `send_message`. The browser uses
++/// this to recover from missed SSE/WS events and to show an honest queued,
++/// running, blocked, failed, or completed state instead of a dead spinner.
++pub async fn get_run_state(
++    State(state): State<WebUiV2State>,
++    Extension(caller): Extension<WebUiAuthenticatedCaller>,
++    Path(GetRunStatePath { thread_id, run_id }): Path<GetRunStatePath>,
++) -> Result<Json<RebornGetRunStateResponse>, WebUiV2HttpError> {
++    let response = state
++        .services()
++        .get_run_state(caller, RebornGetRunStateRequest { thread_id, run_id })
++        .await?;
++    Ok(Json(response))
++}
++
++#[derive(Debug, Deserialize)]
++pub struct GetRunStatePath {
++    pub thread_id: String,
++    pub run_id: String,
++}
++
+ /// `POST /api/webchat/v2/threads/{thread_id}/runs/{run_id}/cancel`
+ ///
+ /// Body shape: [`WebUiCancelRunRequest`] (path `thread_id` and `run_id`
+@@ -428,6 +453,52 @@ pub struct SetupExtensionPath {
+     pub extension_name: String,
+ }
+ 
++/// `GET /api/webchat/v2/connectors/connected`
++///
++/// Read-only proxy over the connector provider. Lists the owner's active
++/// connected accounts as `{ "accounts": [{ toolkit, status, user_id }, …] }`.
++/// The provider API key is resolved server-side and never crosses this
++/// boundary. Returns `503` when the connector subsystem is not wired in the
++/// active profile.
++pub async fn connectors_connected(
++    State(state): State<WebUiV2State>,
++    Extension(caller): Extension<WebUiAuthenticatedCaller>,
++) -> Result<Json<RebornConnectedAccountsResponse>, WebUiV2HttpError> {
++    let response = state.services().connector_connected(caller).await?;
++    Ok(Json(response))
++}
++
++/// `POST /api/webchat/v2/connectors/read`
++///
++/// Body shape: [`RebornConnectorReadRequest`] (`{ toolkit, tool, arguments }`).
++/// Executes a single read-only connector tool and returns
++/// `{ successful, data, error }`. The read-only allowlist is enforced
++/// server-side (only `*_FETCH_* / *_LIST_* / *_GET_* / *_SEARCH_*`); any
++/// write-shaped tool is rejected with `400`. The provider API key is resolved
++/// server-side and never crosses this boundary.
++pub async fn connectors_read(
++    State(state): State<WebUiV2State>,
++    Extension(caller): Extension<WebUiAuthenticatedCaller>,
++    Json(body): Json<RebornConnectorReadRequest>,
++) -> Result<Json<RebornConnectorReadResponse>, WebUiV2HttpError> {
++    let response = state.services().connector_read(caller, body).await?;
++    Ok(Json(response))
++}
++
++/// `POST /api/webchat/v2/connectors/write`
++///
++/// Body shape: [`RebornConnectorWriteRequest`]. The facade enforces the explicit
++/// write allowlist (draft-creation always; sends only when the gateway send
++/// capability is enabled) and resolves the provider key server-side.
++pub async fn connectors_write(
++    State(state): State<WebUiV2State>,
++    Extension(caller): Extension<WebUiAuthenticatedCaller>,
++    Json(body): Json<RebornConnectorWriteRequest>,
++) -> Result<Json<RebornConnectorReadResponse>, WebUiV2HttpError> {
++    let response = state.services().connector_write(caller, body).await?;
++    Ok(Json(response))
++}
++
+ /// `GET /api/webchat/v2/threads/{thread_id}/ws`
+ ///
+ /// WebSocket transport variant of [`stream_events`]. The handler
+diff --git a/crates/ironclaw_webui_v2/src/router.rs b/crates/ironclaw_webui_v2/src/router.rs
+index 3d6b74e6b..1b8cfce5b 100644
+--- a/crates/ironclaw_webui_v2/src/router.rs
++++ b/crates/ironclaw_webui_v2/src/router.rs
+@@ -13,9 +13,12 @@ use axum::routing::{get, post};
+ use ironclaw_product_workflow::RebornServicesApi;
+ 
+ use crate::descriptors::{
+-    WEBUI_V2_PATTERN_CANCEL_RUN, WEBUI_V2_PATTERN_CREATE_THREAD, WEBUI_V2_PATTERN_GET_TIMELINE,
+-    WEBUI_V2_PATTERN_RESOLVE_GATE, WEBUI_V2_PATTERN_SEND_MESSAGE, WEBUI_V2_PATTERN_SETUP_EXTENSION,
+-    WEBUI_V2_PATTERN_STREAM_EVENTS, WEBUI_V2_PATTERN_STREAM_EVENTS_WS,
++    WEBUI_V2_PATTERN_CANCEL_RUN, WEBUI_V2_PATTERN_CONNECTORS_CONNECTED,
++    WEBUI_V2_PATTERN_CONNECTORS_READ, WEBUI_V2_PATTERN_CONNECTORS_WRITE,
++    WEBUI_V2_PATTERN_CREATE_THREAD,
++    WEBUI_V2_PATTERN_GET_RUN_STATE, WEBUI_V2_PATTERN_GET_TIMELINE, WEBUI_V2_PATTERN_RESOLVE_GATE,
++    WEBUI_V2_PATTERN_SEND_MESSAGE, WEBUI_V2_PATTERN_SETUP_EXTENSION, WEBUI_V2_PATTERN_STREAM_EVENTS,
++    WEBUI_V2_PATTERN_STREAM_EVENTS_WS,
+ };
+ use crate::handlers;
+ use crate::sse_capacity::{DEFAULT_SSE_MAX_CONCURRENT_PER_CALLER, SseCapacity};
+@@ -83,11 +86,24 @@ pub fn webui_v2_router(state: WebUiV2State) -> Router {
+             WEBUI_V2_PATTERN_STREAM_EVENTS_WS,
+             get(handlers::stream_events_ws),
+         )
++        .route(WEBUI_V2_PATTERN_GET_RUN_STATE, get(handlers::get_run_state))
+         .route(WEBUI_V2_PATTERN_CANCEL_RUN, post(handlers::cancel_run))
+         .route(WEBUI_V2_PATTERN_RESOLVE_GATE, post(handlers::resolve_gate))
+         .route(
+             WEBUI_V2_PATTERN_SETUP_EXTENSION,
+             post(handlers::setup_extension),
+         )
++        .route(
++            WEBUI_V2_PATTERN_CONNECTORS_CONNECTED,
++            get(handlers::connectors_connected),
++        )
++        .route(
++            WEBUI_V2_PATTERN_CONNECTORS_READ,
++            post(handlers::connectors_read),
++        )
++        .route(
++            WEBUI_V2_PATTERN_CONNECTORS_WRITE,
++            post(handlers::connectors_write),
++        )
+         .with_state(state)
+ }
+
+# New files (full content as add-diffs):
+diff --git a/crates/ironclaw_product_workflow/src/reborn_services/connectors.rs b/crates/ironclaw_product_workflow/src/reborn_services/connectors.rs
+new file mode 100644
+index 000000000..f9d1d1155
+--- /dev/null
++++ b/crates/ironclaw_product_workflow/src/reborn_services/connectors.rs
+@@ -0,0 +1,316 @@
++//! Read-only connector proxy contract for the Reborn WebUI surface.
++//!
++//! The Workbench needs to fetch the user's real connected-account data
++//! (Gmail/Calendar/etc., brokered through Composio) deterministically,
++//! without going through the LLM agent path and without ever exposing the
++//! provider API key to the browser.
++//!
++//! This module defines the *contract* only. The facade
++//! ([`super::RebornServicesApi`]) delegates to an injected
++//! [`ConnectorReadPort`]; the concrete implementation (key resolution from
++//! the encrypted secret store + the Composio REST calls + the read-only
++//! allowlist) lives in host composition, which is the only layer that owns a
++//! secret store. Keeping the port abstract here means `ironclaw_product_workflow`
++//! never depends on an HTTP client or the secret store, and the WebUI handler
++//! crate calls a single stable surface.
++
++use async_trait::async_trait;
++use serde::{Deserialize, Serialize};
++
++/// Request body for `POST /api/webchat/v2/connectors/read`.
++#[derive(Debug, Clone, Deserialize)]
++pub struct RebornConnectorReadRequest {
++    /// Toolkit slug whose connected account owns the read (e.g. `"gmail"`).
++    pub toolkit: String,
++    /// Composio tool slug to execute. The implementation enforces a
++    /// read-only allowlist (`*_FETCH_* / *_LIST_* / *_GET_* / *_SEARCH_*`)
++    /// and rejects everything else with `400`.
++    pub tool: String,
++    /// Arguments forwarded verbatim as the tool's `arguments` payload.
++    #[serde(default)]
++    pub arguments: serde_json::Value,
++}
++
++/// Response body for `POST /api/webchat/v2/connectors/read`.
++#[derive(Debug, Clone, Serialize)]
++pub struct RebornConnectorReadResponse {
++    pub successful: bool,
++    pub data: serde_json::Value,
++    #[serde(skip_serializing_if = "Option::is_none")]
++    pub error: Option<String>,
++}
++
++/// Request body for `POST /api/webchat/v2/connectors/write`.
++///
++/// The write path is DELIBERATELY separate from the read path: reads can never
++/// reach a mutating tool, and writes are confined to a small, explicit
++/// allowlist (draft-creation by default; sends only when the gateway is started
++/// with the send capability enabled). The provider key is still resolved
++/// server-side and never crosses to the browser.
++#[derive(Debug, Clone, Deserialize)]
++pub struct RebornConnectorWriteRequest {
++    /// Toolkit slug whose connected account owns the write (e.g. `"gmail"`).
++    pub toolkit: String,
++    /// Composio tool slug to execute. The implementation enforces the
++    /// write allowlist and rejects everything else with `400`.
++    pub tool: String,
++    /// Arguments forwarded verbatim as the tool's `arguments` payload.
++    #[serde(default)]
++    pub arguments: serde_json::Value,
++}
++
++/// A single connected account, redacted to the fields the Workbench needs.
++#[derive(Debug, Clone, Serialize, Deserialize)]
++pub struct RebornConnectedAccount {
++    pub toolkit: String,
++    pub status: String,
++    pub user_id: String,
++}
++
++/// Response body for `GET /api/webchat/v2/connectors/connected`.
++#[derive(Debug, Clone, Serialize)]
++pub struct RebornConnectedAccountsResponse {
++    pub accounts: Vec<RebornConnectedAccount>,
++}
++
++/// Failure surface for connector reads. The facade maps these to the
++/// stable `RebornServicesError` HTTP vocabulary; no provider error text or
++/// secret material ever flows through these variants except the bounded,
++/// already-redacted upstream message attached to [`ConnectorReadError::Upstream`].
++#[derive(Debug, Clone)]
++pub enum ConnectorReadError {
++    /// The requested tool is not on the read-only allowlist, or another
++    /// request field failed validation. Maps to `400`.
++    InvalidRequest { reason: String },
++    /// The connector subsystem (secret store / provider client) is not
++    /// wired in this profile, or the API key is not bound. Maps to `503`.
++    Unavailable { retryable: bool },
++    /// The upstream provider returned an error. `message` is bounded and
++    /// must never contain secret material. Maps to `502`-ish via `Unavailable`
++    /// at the facade (kept retryable=false).
++    Upstream { message: String },
++    /// An internal invariant failed (serialization, etc.). Maps to `500`.
++    Internal,
++}
++
++/// Read-only connector port. Implemented by host composition.
++///
++/// Implementations MUST:
++/// - resolve the provider API key server-side from the encrypted secret
++///   store and send it only as the upstream auth header — never return or
++///   log it;
++/// - enforce the read-only allowlist before issuing any execute call.
++#[async_trait]
++pub trait ConnectorReadPort: Send + Sync {
++    /// List the active connected accounts for the owner entity.
++    async fn connected(&self) -> Result<RebornConnectedAccountsResponse, ConnectorReadError>;
++
++    /// Execute a single read-only connector tool and return its output.
++    async fn read(
++        &self,
++        request: RebornConnectorReadRequest,
++    ) -> Result<RebornConnectorReadResponse, ConnectorReadError>;
++
++    /// Execute a single GATED write connector tool and return its output.
++    ///
++    /// Implementations MUST classify the tool with [`classify_connector_write`]
++    /// and reject anything not on the write allowlist with `InvalidRequest`.
++    /// A [`ConnectorWriteKind::Send`] tool is permitted ONLY when the gateway
++    /// was started with the send capability enabled; otherwise it is rejected
++    /// even though it is a recognized send tool. Draft-creation tools are always
++    /// permitted. The provider key is resolved server-side as for reads.
++    async fn write(
++        &self,
++        request: RebornConnectorWriteRequest,
++    ) -> Result<RebornConnectorReadResponse, ConnectorReadError>;
++
++    /// Persist the provider API key from a `setup … {action:"configure"}`
++    /// request into the encrypted secret store, scoped to the same owner the
++    /// read path resolves against. The key is the only secret consumed; any
++    /// other entries are ignored. The value is never returned or logged.
++    ///
++    /// Binding the write here (rather than in a lifecycle facade that owns no
++    /// secret store) guarantees the configure write and the connector read use
++    /// one owner scope and therefore cannot drift apart.
++    async fn configure_secrets(
++        &self,
++        secrets: std::collections::HashMap<String, String>,
++    ) -> Result<(), ConnectorReadError>;
++}
++
++/// Read-only allowlist for connector tool slugs, exposed so both the port
++/// implementation and tests share one definition.
++///
++/// Composio slugs are `TOOLKIT_<action…>` with the verb in any action position
++/// (`GMAIL_FETCH_EMAILS`, `GOOGLECALENDAR_EVENTS_LIST`, `GOOGLECALENDAR_FIND_EVENT`).
++/// A slug is permitted iff: it has a real uppercase/digit toolkit prefix that is
++/// not itself a verb, no empty segments, at least one action segment is a known
++/// READ verb, and NO segment is a known WRITE/mutate verb. The write denylist is
++/// authoritative — a read verb does not rescue a slug that also mutates
++/// (e.g. `GOOGLECALENDAR_CALENDAR_LIST_INSERT` is rejected by `INSERT`).
++const READ_VERBS: &[&str] = &["FETCH", "LIST", "GET", "SEARCH", "FIND", "READ"];
++const WRITE_VERBS: &[&str] = &[
++    "SEND", "CREATE", "DELETE", "UPDATE", "MODIFY", "INSERT", "MOVE", "WATCH", "TRASH", "UNTRASH",
++    "REMOVE", "ADD", "PATCH", "REPLY", "DRAFT", "CLEAR", "WRITE", "APPEND", "SET", "ENABLE",
++    "DISABLE", "ARCHIVE", "UNARCHIVE", "MARK", "IMPORT", "COPY", "RENAME", "FORMAT", "DUPLICATE",
++];
++
++pub fn is_read_only_tool(tool: &str) -> bool {
++    let segments: Vec<&str> = tool.split('_').collect();
++    if segments.len() < 2 || segments.iter().any(|s| s.is_empty()) {
++        return false;
++    }
++    // Every segment must be uppercase/digit; the toolkit prefix must not be a verb.
++    if !segments
++        .iter()
++        .all(|s| s.bytes().all(|b| b.is_ascii_uppercase() || b.is_ascii_digit()))
++    {
++        return false;
++    }
++    let toolkit = segments[0];
++    if READ_VERBS.contains(&toolkit) || WRITE_VERBS.contains(&toolkit) {
++        return false;
++    }
++    let action = &segments[1..];
++    if action.iter().any(|s| WRITE_VERBS.contains(s)) {
++        return false;
++    }
++    action.iter().any(|s| READ_VERBS.contains(s))
++}
++
++/// Gated-write allowlist. Unlike reads (verb-classified), writes are an
++/// EXPLICIT, exhaustive allowlist — a write tool is permitted only if it is
++/// named here, so the blast radius of the write path is auditable at a glance.
++///
++/// `DRAFT_WRITE_TOOLS` create reviewable drafts and never deliver anything;
++/// they are always permitted. `SEND_WRITE_TOOLS` actually deliver and are
++/// permitted ONLY when the gateway is started with the send capability enabled
++/// (see [`ConnectorWriteKind`]). Everything else is `Forbidden`.
++pub const DRAFT_WRITE_TOOLS: &[&str] = &["GMAIL_CREATE_EMAIL_DRAFT"];
++pub const SEND_WRITE_TOOLS: &[&str] = &[
++    "GMAIL_SEND_EMAIL",
++    "GMAIL_SEND_DRAFT",
++    "GMAIL_REPLY_TO_THREAD",
++];
++
++/// Classification of a connector write tool against the explicit allowlist.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++pub enum ConnectorWriteKind {
++    /// Creates a reviewable draft; delivers nothing. Always permitted.
++    Draft,
++    /// Actually delivers (send/post/reply). Permitted only when the send
++    /// capability is enabled on the gateway.
++    Send,
++    /// Not on the write allowlist. Always rejected.
++    Forbidden,
++}
++
++/// Classify a connector write tool slug. The slug must be an exact, whole match
++/// of an allowlisted tool (after trimming) — no fuzzy/verb matching, so a
++/// near-miss like `GMAIL_SEND_EMAILS` is `Forbidden`, not a send.
++pub fn classify_connector_write(tool: &str) -> ConnectorWriteKind {
++    let tool = tool.trim();
++    if DRAFT_WRITE_TOOLS.contains(&tool) {
++        ConnectorWriteKind::Draft
++    } else if SEND_WRITE_TOOLS.contains(&tool) {
++        ConnectorWriteKind::Send
++    } else {
++        ConnectorWriteKind::Forbidden
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::{
++        classify_connector_write, is_read_only_tool, ConnectorWriteKind, DRAFT_WRITE_TOOLS,
++        SEND_WRITE_TOOLS,
++    };
++
++    #[test]
++    fn write_classifier_separates_draft_send_forbidden() {
++        assert_eq!(
++            classify_connector_write("GMAIL_CREATE_EMAIL_DRAFT"),
++            ConnectorWriteKind::Draft
++        );
++        assert_eq!(
++            classify_connector_write("  GMAIL_CREATE_EMAIL_DRAFT  "),
++            ConnectorWriteKind::Draft
++        );
++        assert_eq!(
++            classify_connector_write("GMAIL_SEND_EMAIL"),
++            ConnectorWriteKind::Send
++        );
++        assert_eq!(
++            classify_connector_write("GMAIL_REPLY_TO_THREAD"),
++            ConnectorWriteKind::Send
++        );
++        // Not on the allowlist — including destructive and near-miss slugs.
++        for forbidden in [
++            "",
++            "GMAIL_DELETE_MESSAGE",
++            "GMAIL_TRASH_MESSAGE",
++            "GMAIL_SEND_EMAILS",
++            "NOTION_UPDATE_PAGE",
++            "GMAIL_FETCH_EMAILS",
++        ] {
++            assert_eq!(
++                classify_connector_write(forbidden),
++                ConnectorWriteKind::Forbidden,
++                "{forbidden} must be forbidden"
++            );
++        }
++    }
++
++    #[test]
++    fn draft_tools_are_never_also_read_only() {
++        // The draft/send tools must never sneak through the read path.
++        for tool in DRAFT_WRITE_TOOLS.iter().chain(SEND_WRITE_TOOLS.iter()) {
++            assert!(!is_read_only_tool(tool), "{tool} must not be read-only");
++        }
++    }
++
++    #[test]
++    fn allows_canonical_read_tools() {
++        assert!(is_read_only_tool("GMAIL_FETCH_EMAILS"));
++        assert!(is_read_only_tool("GOOGLECALENDAR_LIST_EVENTS"));
++        assert!(is_read_only_tool("GMAIL_GET_MESSAGE"));
++        assert!(is_read_only_tool("GITHUB_SEARCH_REPOS"));
++        assert!(is_read_only_tool("NOTION_FETCH_PAGE"));
++        // Real Composio slugs put the verb in a trailing/middle segment.
++        assert!(is_read_only_tool("GOOGLECALENDAR_EVENTS_LIST"));
++        assert!(is_read_only_tool("GOOGLECALENDAR_FIND_EVENT"));
++        assert!(is_read_only_tool("GOOGLECALENDAR_FIND_FREE_SLOTS"));
++        assert!(is_read_only_tool("GOOGLECALENDAR_GET_CURRENT_DATE_TIME"));
++        assert!(is_read_only_tool("GMAIL_LIST_THREADS"));
++        assert!(is_read_only_tool("GOOGLECALENDAR_LIST_CALENDARS"));
++    }
++
++    #[test]
++    fn rejects_writes() {
++        assert!(!is_read_only_tool("GMAIL_SEND_EMAIL"));
++        assert!(!is_read_only_tool("GMAIL_CREATE_DRAFT"));
++        assert!(!is_read_only_tool("GMAIL_DELETE_MESSAGE"));
++        assert!(!is_read_only_tool("GMAIL_TRASH_MESSAGE"));
++        assert!(!is_read_only_tool("GMAIL_MODIFY_LABELS"));
++        assert!(!is_read_only_tool("GMAIL_REPLY_TO_THREAD"));
++        assert!(!is_read_only_tool("NOTION_UPDATE_PAGE"));
++        // A read verb must NOT rescue a slug that also mutates.
++        assert!(!is_read_only_tool("GOOGLECALENDAR_CALENDAR_LIST_INSERT"));
++        assert!(!is_read_only_tool("GOOGLECALENDAR_EVENTS_WATCH"));
++        assert!(!is_read_only_tool("GOOGLECALENDAR_EVENTS_MOVE"));
++        assert!(!is_read_only_tool("GMAIL_LIST_ADD_LABEL"));
++    }
++
++    #[test]
++    fn rejects_malformed_or_partial() {
++        assert!(!is_read_only_tool(""));
++        assert!(!is_read_only_tool("FETCH_EMAILS"));
++        assert!(!is_read_only_tool("_FETCH_EMAILS"));
++        assert!(!is_read_only_tool("gmail_fetch_emails"));
++        assert!(!is_read_only_tool("GMAIL_FETCH_"));
++        assert!(!is_read_only_tool("GMAIL_FETCHEMAILS"));
++        assert!(!is_read_only_tool("GMAIL"));
++        // verb must be a whole underscore-delimited segment
++        assert!(!is_read_only_tool("GMAIL_GETTER_THING"));
++    }
++}
+diff --git a/crates/ironclaw_reborn_composition/src/connectors.rs b/crates/ironclaw_reborn_composition/src/connectors.rs
+new file mode 100644
+index 000000000..ec6621164
+--- /dev/null
++++ b/crates/ironclaw_reborn_composition/src/connectors.rs
+@@ -0,0 +1,459 @@
++//! Read-only connector proxy implementation (Composio REST).
++//!
++//! This is the only layer that holds both the encrypted secret store and an
++//! HTTP client, so it owns the full read path the WebUI Workbench needs:
++//!
++//! 1. resolve the bound `composio_api_key` from the secret store, scoped to
++//!    the owner — server-side only, never returned or logged;
++//! 2. proxy `GET /api/v3/connected_accounts?statuses=ACTIVE` for the
++//!    connected-account list;
++//! 3. proxy `POST /api/v3/tools/execute/{tool}` for a single read, after
++//!    enforcing the read-only allowlist
++//!    ([`ironclaw_product_workflow::is_read_only_tool`]) and resolving the
++//!    Composio entity (`user_id`) that owns the requested toolkit's account.
++//!
++//! Writes (SEND/CREATE/DELETE/MODIFY/REPLY/TRASH/UPDATE …) are rejected here
++//! with `400`; they stay on the gated agent path.
++
++use std::collections::HashMap;
++use std::sync::Arc;
++
++use async_trait::async_trait;
++use ironclaw_auth::{
++    AuthProductScope, AuthProviderId, AuthSurface, CredentialAccountSelectionRequest,
++    CredentialAccountStatus,
++};
++use ironclaw_host_api::{InvocationId, ResourceScope, SecretHandle, UserId};
++use ironclaw_product_workflow::{
++    ConnectorReadError, ConnectorReadPort, ConnectorWriteKind, RebornConnectedAccount,
++    RebornConnectedAccountsResponse, RebornConnectorReadRequest, RebornConnectorReadResponse,
++    RebornConnectorWriteRequest, classify_connector_write, is_read_only_tool,
++};
++use ironclaw_secrets::{SecretMaterial, SecretStore};
++use secrecy::ExposeSecret;
++use tokio::sync::Mutex;
++
++use crate::product_auth_runtime_credentials::RuntimeCredentialAccountSelectionService;
++
++/// Composio REST v3 base. Matches the proven, first-party `composio` WASM tool.
++const COMPOSIO_API_BASE: &str = "https://backend.composio.dev/api/v3";
++
++/// Provider id the composio extension binds its `manual_token` credential
++/// account under (`product_auth_account`, provider `composio`).
++const COMPOSIO_PROVIDER: &str = "composio";
++
++/// Convenience handle the composio WASM tool documents (`secret_exists`). Used
++/// as a fallback when no `product_auth_account` record resolves an access
++/// secret for the provider.
++const COMPOSIO_API_KEY_HANDLE: &str = "composio_api_key";
++
++/// Read-only Composio connector port backed by the encrypted secret store.
++pub(crate) struct ComposioConnectorPort {
++    http: reqwest::Client,
++    secret_store: Arc<dyn SecretStore>,
++    accounts: Arc<dyn RuntimeCredentialAccountSelectionService>,
++    owner: UserId,
++    /// `toolkit slug` -> `composio entity user_id` cache, populated from the
++    /// connected-accounts listing so a read can target the right entity.
++    entity_by_toolkit: Mutex<HashMap<String, String>>,
++    /// Whether the gateway permits actual SEND writes (deliver email / post to
++    /// Slack). Off by default; draft-creation writes are always allowed. Set
++    /// from `IRONCLAW_WORKBENCH_SEND_ENABLED` at construction so flipping the
++    /// capability is an explicit deployment decision, not a per-request flag.
++    send_enabled: bool,
++}
++
++impl std::fmt::Debug for ComposioConnectorPort {
++    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
++        formatter
++            .debug_struct("ComposioConnectorPort")
++            .field("owner", &self.owner.as_str())
++            .finish_non_exhaustive()
++    }
++}
++
++impl ComposioConnectorPort {
++    pub(crate) fn new(
++        secret_store: Arc<dyn SecretStore>,
++        accounts: Arc<dyn RuntimeCredentialAccountSelectionService>,
++        owner: UserId,
++    ) -> Self {
++        Self {
++            http: reqwest::Client::new(),
++            secret_store,
++            accounts,
++            owner,
++            entity_by_toolkit: Mutex::new(HashMap::new()),
++            send_enabled: send_capability_enabled(),
++        }
++    }
++
++    /// Resolve the secret handle holding the composio API key.
++    ///
++    /// The composio extension binds the key as a `product_auth_account`
++    /// (`manual_token`) credential, so the durable access secret is named by
++    /// the credential-account record — not the literal `composio_api_key`. We
++    /// resolve it through the product-auth selection service (same path the
++    /// runtime credential injection uses for the gated tool), and fall back to
++    /// the documented literal handle if no configured account is found.
++    async fn resolve_api_key_handle(
++        &self,
++        scope: &ResourceScope,
++    ) -> Result<SecretHandle, ConnectorReadError> {
++        let provider = AuthProviderId::new(COMPOSIO_PROVIDER)
++            .map_err(|_| ConnectorReadError::Internal)?;
++        let auth_scope = AuthProductScope::new(scope.clone(), AuthSurface::Api);
++        let request = CredentialAccountSelectionRequest::new(auth_scope, provider);
++        match self
++            .accounts
++            .select_unique_configured_runtime_account(request)
++            .await
++        {
++            Ok(account)
++                if account.status == CredentialAccountStatus::Configured
++                    && account.access_secret.is_some() =>
++            {
++                Ok(account.access_secret.expect("checked is_some above"))
++            }
++            // No configured product-auth account (or no access secret on it):
++            // fall back to the documented convenience handle.
++            _ => Self::literal_api_key_handle(),
++        }
++    }
++
++    /// The documented literal `composio_api_key` handle. This is the handle the
++    /// `setup … {action:"configure"}` write lands under (see
++    /// [`Self::configure_secrets`]) and the same one the WASM tool's
++    /// `secret_exists("composio_api_key")` pre-flight checks, so the two share
++    /// one binding.
++    fn literal_api_key_handle() -> Result<SecretHandle, ConnectorReadError> {
++        SecretHandle::new(COMPOSIO_API_KEY_HANDLE).map_err(|_| ConnectorReadError::Internal)
++    }
++
++    /// Resolve the owner-scoped composio API key from the encrypted secret
++    /// store. The returned value is used only as the upstream `x-api-key`
++    /// header by callers in this module — it is never logged or surfaced.
++    async fn resolve_api_key(&self) -> Result<String, ConnectorReadError> {
++        let scope = self.owner_scope().map_err(|_| ConnectorReadError::Internal)?;
++        let handle = self.resolve_api_key_handle(&scope).await?;
++
++        let lease = self
++            .secret_store
++            .lease_once(&scope, &handle)
++            .await
++            .map_err(|_| ConnectorReadError::Unavailable { retryable: false })?;
++        let material = self
++            .secret_store
++            .consume(&scope, lease.id)
++            .await
++            .map_err(|_| ConnectorReadError::Unavailable { retryable: false })?;
++        Ok(material.expose_secret().to_string())
++    }
++
++    fn owner_scope(&self) -> Result<ResourceScope, ()> {
++        ResourceScope::local_default(self.owner.clone(), InvocationId::new()).map_err(|_| ())
++    }
++
++    /// Fetch the raw active connected-accounts list from Composio.
++    async fn fetch_connected_accounts(&self) -> Result<serde_json::Value, ConnectorReadError> {
++        let api_key = self.resolve_api_key().await?;
++        let url = format!("{COMPOSIO_API_BASE}/connected_accounts?statuses=ACTIVE");
++        let response = self
++            .http
++            .get(&url)
++            .header("x-api-key", &api_key)
++            .header("Accept", "application/json")
++            .send()
++            .await
++            .map_err(|_| ConnectorReadError::Unavailable { retryable: true })?;
++        let status = response.status();
++        let body: serde_json::Value = response
++            .json()
++            .await
++            .map_err(|_| ConnectorReadError::Upstream {
++                message: "connected_accounts: invalid upstream JSON".to_string(),
++            })?;
++        if !status.is_success() {
++            return Err(ConnectorReadError::Upstream {
++                message: format!("connected_accounts upstream status {}", status.as_u16()),
++            });
++        }
++        Ok(body)
++    }
++
++    /// Cache and return the `toolkit -> entity user_id` map for active accounts.
++    async fn refresh_entity_map(&self) -> Result<Vec<RebornConnectedAccount>, ConnectorReadError> {
++        let body = self.fetch_connected_accounts().await?;
++        let items = extract_items(&body);
++
++        let mut accounts = Vec::with_capacity(items.len());
++        let mut map = self.entity_by_toolkit.lock().await;
++        for item in items {
++            let toolkit = extract_toolkit_slug(item);
++            let user_id = item
++                .get("user_id")
++                .and_then(|v| v.as_str())
++                .map(str::to_string);
++            let status = item
++                .get("status")
++                .and_then(|v| v.as_str())
++                .unwrap_or("UNKNOWN")
++                .to_string();
++            if let (Some(toolkit), Some(user_id)) = (toolkit.clone(), user_id.clone()) {
++                map.entry(toolkit.to_ascii_lowercase()).or_insert(user_id);
++            }
++            if let (Some(toolkit), Some(user_id)) = (toolkit, user_id) {
++                accounts.push(RebornConnectedAccount {
++                    toolkit: toolkit.to_ascii_lowercase(),
++                    status,
++                    user_id,
++                });
++            }
++        }
++        Ok(accounts)
++    }
++
++    /// Resolve the Composio entity (`user_id`) that owns `toolkit`'s active
++    /// account, using the cache and refreshing once on a miss.
++    async fn entity_for_toolkit(&self, toolkit: &str) -> Result<String, ConnectorReadError> {
++        let key = toolkit.to_ascii_lowercase();
++        if let Some(entity) = self.entity_by_toolkit.lock().await.get(&key).cloned() {
++            return Ok(entity);
++        }
++        self.refresh_entity_map().await?;
++        self.entity_by_toolkit
++            .lock()
++            .await
++            .get(&key)
++            .cloned()
++            .ok_or_else(|| ConnectorReadError::InvalidRequest {
++                reason: format!("no active connected account for toolkit '{key}'"),
++            })
++    }
++
++    /// Resolve the owner entity + server-side key and proxy a single
++    /// `tools/execute/{tool}` call, returning the Composio `{successful,data,
++    /// error}` envelope. Shared by the read and gated-write paths so both issue
++    /// the identical upstream call; each caller enforces its own allowlist gate
++    /// BEFORE invoking this. The key is sent only as the upstream header.
++    async fn execute_tool(
++        &self,
++        toolkit: &str,
++        tool: &str,
++        arguments: &serde_json::Value,
++    ) -> Result<RebornConnectorReadResponse, ConnectorReadError> {
++        // Defense-in-depth against path traversal in the tool slug.
++        if tool.contains('/') || tool.contains('\\') || tool.contains("..") {
++            return Err(ConnectorReadError::InvalidRequest {
++                reason: "invalid tool slug".to_string(),
++            });
++        }
++
++        let entity = self.entity_for_toolkit(toolkit).await?;
++        let api_key = self.resolve_api_key().await?;
++
++        let url = format!("{COMPOSIO_API_BASE}/tools/execute/{tool}");
++        let payload = serde_json::json!({
++            "arguments": arguments,
++            "user_id": entity,
++        });
++
++        let response = self
++            .http
++            .post(&url)
++            .header("x-api-key", &api_key)
++            .header("Accept", "application/json")
++            .header("Content-Type", "application/json")
++            .json(&payload)
++            .send()
++            .await
++            .map_err(|_| ConnectorReadError::Unavailable { retryable: true })?;
++        let status = response.status();
++        let body: serde_json::Value =
++            response
++                .json()
++                .await
++                .map_err(|_| ConnectorReadError::Upstream {
++                    message: "tools/execute: invalid upstream JSON".to_string(),
++                })?;
++        if !status.is_success() {
++            return Err(ConnectorReadError::Upstream {
++                message: format!("tools/execute upstream status {}", status.as_u16()),
++            });
++        }
++
++        // Composio wraps tool output as { successful, data, error }.
++        let successful = body
++            .get("successful")
++            .and_then(|v| v.as_bool())
++            .unwrap_or(true);
++        let data = body.get("data").cloned().unwrap_or(serde_json::Value::Null);
++        let error = body
++            .get("error")
++            .and_then(|v| v.as_str())
++            .map(str::to_string);
++
++        Ok(RebornConnectorReadResponse {
++            successful,
++            data,
++            error,
++        })
++    }
++}
++
++/// Whether the gateway permits actual SEND writes. Off unless the env var is an
++/// affirmative value, so enabling delivery is an explicit deployment decision.
++fn send_capability_enabled() -> bool {
++    matches!(
++        std::env::var("IRONCLAW_WORKBENCH_SEND_ENABLED")
++            .ok()
++            .as_deref()
++            .map(|v| v.trim().to_ascii_lowercase())
++            .as_deref(),
++        Some("1" | "true" | "yes" | "on")
++    )
++}
++
++#[async_trait]
++impl ConnectorReadPort for ComposioConnectorPort {
++    async fn connected(&self) -> Result<RebornConnectedAccountsResponse, ConnectorReadError> {
++        let accounts = self.refresh_entity_map().await?;
++        Ok(RebornConnectedAccountsResponse { accounts })
++    }
++
++    async fn read(
++        &self,
++        request: RebornConnectorReadRequest,
++    ) -> Result<RebornConnectorReadResponse, ConnectorReadError> {
++        // Read-only allowlist — enforced before any upstream call so writes
++        // never leave this process.
++        if !is_read_only_tool(&request.tool) {
++            return Err(ConnectorReadError::InvalidRequest {
++                reason: format!(
++                    "tool '{}' is not on the read-only allowlist",
++                    request.tool
++                ),
++            });
++        }
++        self.execute_tool(&request.toolkit, &request.tool, &request.arguments)
++            .await
++    }
++
++    async fn write(
++        &self,
++        request: RebornConnectorWriteRequest,
++    ) -> Result<RebornConnectorReadResponse, ConnectorReadError> {
++        // Explicit write allowlist — enforced before any upstream call. Drafts
++        // are always permitted; sends require the gateway send capability.
++        match classify_connector_write(&request.tool) {
++            ConnectorWriteKind::Draft => {}
++            ConnectorWriteKind::Send if self.send_enabled => {}
++            ConnectorWriteKind::Send => {
++                return Err(ConnectorReadError::InvalidRequest {
++                    reason: format!(
++                        "tool '{}' delivers and is disabled; the gateway send capability is off",
++                        request.tool
++                    ),
++                });
++            }
++            ConnectorWriteKind::Forbidden => {
++                return Err(ConnectorReadError::InvalidRequest {
++                    reason: format!("tool '{}' is not on the write allowlist", request.tool),
++                });
++            }
++        }
++        self.execute_tool(&request.toolkit, &request.tool, &request.arguments)
++            .await
++    }
++
++    async fn configure_secrets(
++        &self,
++        secrets: HashMap<String, String>,
++    ) -> Result<(), ConnectorReadError> {
++        // Only the composio API key is consumed; ignore anything else so the
++        // configure surface can never be used to plant arbitrary secrets.
++        let Some(api_key) = secrets.get(COMPOSIO_API_KEY_HANDLE) else {
++            return Err(ConnectorReadError::InvalidRequest {
++                reason: format!("configure payload is missing `{COMPOSIO_API_KEY_HANDLE}`"),
++            });
++        };
++        if api_key.is_empty() {
++            return Err(ConnectorReadError::InvalidRequest {
++                reason: format!("`{COMPOSIO_API_KEY_HANDLE}` must not be empty"),
++            });
++        }
++
++        // Write under the SAME owner scope + literal handle the read path
++        // resolves against (`owner_scope()` + `literal_api_key_handle()`), so a
++        // configure write is guaranteed to be visible to the connector reads.
++        let scope = self.owner_scope().map_err(|_| ConnectorReadError::Internal)?;
++        let handle = Self::literal_api_key_handle()?;
++        // Best-effort delete of any prior value so re-configuring replaces
++        // rather than conflicts; a missing prior secret is not an error.
++        let _ = self.secret_store.delete(&scope, &handle).await;
++        self.secret_store
++            .put(scope, handle, SecretMaterial::from(api_key.clone()))
++            .await
++            .map_err(|_| ConnectorReadError::Unavailable { retryable: false })?;
++        Ok(())
++    }
++}
++
++/// Extract the items array from a Composio v3 response (`{ "items": [...] }`)
++/// or treat a bare array as the items.
++fn extract_items(value: &serde_json::Value) -> Vec<&serde_json::Value> {
++    if let Some(items) = value.get("items").and_then(|v| v.as_array()) {
++        return items.iter().collect();
++    }
++    if let Some(items) = value.as_array() {
++        return items.iter().collect();
++    }
++    Vec::new()
++}
++
++/// Extract a toolkit slug from a connected-account object. v3 nests it under
++/// `toolkit.slug`; falls back to `toolkit_slug` / a string `toolkit`.
++fn extract_toolkit_slug(item: &serde_json::Value) -> Option<String> {
++    if let Some(slug) = item
++        .get("toolkit")
++        .and_then(|tk| tk.get("slug"))
++        .and_then(|v| v.as_str())
++    {
++        return Some(slug.to_string());
++    }
++    if let Some(slug) = item.get("toolkit_slug").and_then(|v| v.as_str()) {
++        return Some(slug.to_string());
++    }
++    item.get("toolkit")
++        .and_then(|v| v.as_str())
++        .map(str::to_string)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::{extract_items, extract_toolkit_slug};
++
++    #[test]
++    fn extract_items_handles_envelope_and_bare_array() {
++        let env: serde_json::Value =
++            serde_json::from_str(r#"{"items":[{"a":1},{"a":2}]}"#).unwrap();
++        assert_eq!(extract_items(&env).len(), 2);
++        let bare: serde_json::Value = serde_json::from_str(r#"[{"a":1}]"#).unwrap();
++        assert_eq!(extract_items(&bare).len(), 1);
++        let none: serde_json::Value = serde_json::from_str(r#"{"x":1}"#).unwrap();
++        assert!(extract_items(&none).is_empty());
++    }
++
++    #[test]
++    fn extract_toolkit_slug_prefers_nested() {
++        let nested: serde_json::Value =
++            serde_json::from_str(r#"{"toolkit":{"slug":"gmail"}}"#).unwrap();
++        assert_eq!(extract_toolkit_slug(&nested).as_deref(), Some("gmail"));
++        let flat: serde_json::Value =
++            serde_json::from_str(r#"{"toolkit_slug":"slack"}"#).unwrap();
++        assert_eq!(extract_toolkit_slug(&flat).as_deref(), Some("slack"));
++        let str_toolkit: serde_json::Value =
++            serde_json::from_str(r#"{"toolkit":"notion"}"#).unwrap();
++        assert_eq!(extract_toolkit_slug(&str_toolkit).as_deref(), Some("notion"));
++    }
++}

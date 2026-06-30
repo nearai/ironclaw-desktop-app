@@ -77,6 +77,9 @@ async function installStaticInteractionMocks(page: Page) {
     if (path === '/api/webchat/v2/automations' && method === 'GET') {
       return json(route, { automations: [], next_cursor: null });
     }
+    if (path === '/api/webchat/v2/operator/logs' && method === 'GET') {
+      return json(route, { logs: { entries: [] }, next_cursor: null });
+    }
     if (path === '/api/webchat/v2/extensions/registry') {
       return json(route, { entries: [] });
     }
@@ -600,10 +603,11 @@ test('static logs at 390px: filter controls stay >=44px and the surface does not
   await expect(chatAction).toBeVisible();
   await expect(chatAction).toHaveAttribute('href', '/v2/chat');
 
-  // No fake readiness: stream-lifecycle controls are absent without a stream.
-  await expect(page.getByRole('button', { name: 'Pause' })).toHaveCount(0);
-  await expect(page.getByRole('button', { name: 'Clear' })).toHaveCount(0);
-  await expect(page.getByLabel('Auto-scroll')).toHaveCount(0);
+  // The v2 operator-log endpoint is query-backed in this fixture, so the
+  // lifecycle controls are real polling controls even when the result is empty.
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Clear' })).toBeVisible();
+  await expect(page.getByLabel('Auto-scroll')).toBeVisible();
 
   const filterControls: Array<[string, ReturnType<Page['locator']>]> = [
     ['Log level filter', page.getByLabel('Log level filter')],
@@ -642,13 +646,14 @@ for (const scenario of [
       await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
       await page.getByRole('button', { name: 'Send message' }).click();
 
-      await expect(page.getByRole('group', { name: 'Approval required' })).toBeVisible();
-      await expect(page.getByText('send_email', { exact: true })).toBeVisible();
+      const approval = page.getByRole('group', { name: 'Approval required' });
+      await expect(approval).toBeVisible();
+      await expect(approval.getByRole('heading', { name: 'send_email' })).toBeVisible();
       // Raw parameter JSON lives in a collapsed-by-default <details> so the card
       // does not dump full payloads in an always-open pre. Expand it to assert
       // the payload is still reachable.
-      await page.getByText('Raw parameters', { exact: true }).click();
-      await expect(page.getByText('"recipient": "legal-review@example.com"')).toBeVisible();
+      await approval.getByText('Raw parameters', { exact: true }).click();
+      await expect(approval.getByText('"recipient": "legal-review@example.com"')).toBeVisible();
       // DT-6 craft: the risk is explicitly named, the sent-yet boundary and the
       // data-movement fields are present, and the approve/deny controls are
       // keyboard-focusable with a visible label each.

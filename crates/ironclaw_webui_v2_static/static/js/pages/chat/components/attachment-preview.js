@@ -14,12 +14,14 @@ import { React, html } from '../../../lib/html.js';
 import { Modal, ModalBody } from '../../../design-system/modal.js';
 import { Icon } from '../../../design-system/icons.js';
 import { useT } from '../../../lib/i18n.js';
+import { fetchAttachmentBlob } from '../../../lib/project-files-api.js';
 import { loadPdfjs, isPdfAttachment } from '../lib/extract-attachment-text.js';
 import { saveBlob } from '../../../lib/save-file.js';
 import { toast } from '../../../lib/toast.js';
 
 const PDF_PREVIEW_MAX_PAGES = 8;
 const PDF_PREVIEW_WIDTH = 720;
+const MAX_TEXT_PREVIEW_BYTES = 128_000;
 
 // Tab-separated extractions (spreadsheets, CSV-ish) read better in a mono
 // grid; prose documents read better in the product face.
@@ -39,6 +41,25 @@ function statusBanner(att, t) {
     return { tone: 'warning', label: t('chat.previewOmitted') };
   }
   return null;
+}
+
+function attachmentPreviewMode(mime) {
+  const normalized = String(mime || '').toLowerCase();
+  if (normalized.startsWith('image/')) return 'image';
+  if (normalized.startsWith('audio/')) return 'audio';
+  if (normalized.startsWith('video/')) return 'video';
+  if (normalized === 'application/pdf') return 'pdf';
+  if (
+    normalized.startsWith('text/') ||
+    normalized === 'application/json' ||
+    normalized === 'application/xml' ||
+    normalized === 'application/csv' ||
+    normalized.endsWith('+json') ||
+    normalized.endsWith('+xml')
+  ) {
+    return 'text';
+  }
+  return 'download';
 }
 
 function PdfPagesPreview({ sourceFile }) {
@@ -116,29 +137,118 @@ function PdfPagesPreview({ sourceFile }) {
 export function AttachmentPreviewModal({ open, onClose, attachment }) {
   const t = useT();
   const [saving, setSaving] = React.useState(false);
-  if (!open || !attachment) return null;
+  const [remoteState, setRemoteState] = React.useState({
+    status: 'idle',
+    blob: null,
+    objectUrl: '',
+    dataUrl: '',
+    text: '',
+    truncated: false
+  });
+  const isOpen = Boolean(open && attachment);
+  const mode = attachment ? attachmentPreviewMode(attachment.mime_type) : 'download';
 
-  const text = attachment.extractedText || attachment.embedded_text || '';
+  React.useEffect(() => {
+    if (!isOpen || !attachment?.fetch_url) {
+      setRemoteState({
+        status: 'idle',
+        blob: null,
+        objectUrl: '',
+        dataUrl: '',
+        text: '',
+        truncated: false
+      });
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+    let objectUrl = '';
+    setRemoteState({
+      status: 'loading',
+      blob: null,
+      objectUrl: '',
+      dataUrl: '',
+      text: '',
+      truncated: false
+    });
+
+    fetchAttachmentBlob(attachment.fetch_url, { signal: controller.signal })
+      .then(async (blob) => {
+        objectUrl = URL.createObjectURL(blob);
+        const next = {
+          status: 'ready',
+          blob,
+          objectUrl,
+          dataUrl: '',
+          text: '',
+          truncated: false
+        };
+        if (mode === 'image' || mode === 'audio' || mode === 'video') {
+          next.dataUrl = objectUrl;
+        } else if (mode === 'text') {
+          const sliced = blob.slice(0, MAX_TEXT_PREVIEW_BYTES);
+          next.truncated = blob.size > MAX_TEXT_PREVIEW_BYTES;
+          next.text = await sliced.text();
+        }
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        setRemoteState(next);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setRemoteState({
+            status: 'error',
+            blob: null,
+            objectUrl: '',
+            dataUrl: '',
+            text: '',
+            truncated: false
+          });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [isOpen, attachment?.fetch_url, mode]);
+
+  if (!isOpen) return null;
+
+  const text = attachment.extractedText || attachment.embedded_text || remoteState.text || '';
   const canRenderPdfPages =
     attachment.sourceFile && isPdfAttachment({ ...attachment, filename: attachment.filename });
   const banner = statusBanner(attachment, t);
+  const canSave = Boolean(attachment.sourceFile || text || attachment.fetch_url);
 
   // Guard the native save dialog: without a busy flag a double-click spawns two
-  // dialogs. Mirrors GeneratedFileArtifactCard's try/catch + finally.
+  // dialogs. Mirrors GeneratedFileArtifactCard's try/catch + finally. Prefer the
+  // ORIGINAL file when we still hold it, then a fetched remote blob, then the
+  // extracted text the model received.
   const saveAttachment = async () => {
     setSaving(true);
     try {
-      // Prefer the ORIGINAL file when we still hold it; otherwise save the
-      // extracted text the model received.
       const name = attachment.filename || 'attachment';
-      const blob = attachment.sourceFile
-        ? attachment.sourceFile
-        : new Blob([text], { type: 'text/plain' });
-      const suggested = attachment.sourceFile ? name : `${name}.txt`;
+      let blob;
+      let suggested = name;
+      if (attachment.sourceFile) {
+        blob = attachment.sourceFile;
+      } else if (remoteState.blob) {
+        blob = remoteState.blob;
+      } else if (attachment.fetch_url) {
+        blob = await fetchAttachmentBlob(attachment.fetch_url);
+      } else {
+        blob = new Blob([text], { type: 'text/plain' });
+        suggested = `${name}.txt`;
+      }
       const saved = await saveBlob(blob, suggested);
       if (saved) toast(`Saved ${String(saved).split('/').pop()}`, { tone: 'success' });
-    } catch {
-      toast('Could not save file', { tone: 'error' });
+    } catch (_) {
+      toast(t('chat.fileDownloadFailed'), { tone: 'error' });
     } finally {
       setSaving(false);
     }
@@ -157,11 +267,12 @@ export function AttachmentPreviewModal({ open, onClose, attachment }) {
           <span>${attachment.mime_type || ''}</span>
           ${attachment.size_label && html`<span>· ${attachment.size_label}</span>`}
           ${text && html`<span className="ml-auto">${t('chat.previewModelNote')}</span>`}
-          ${(attachment.sourceFile || text) &&
+          ${canSave &&
           html`<button
             type="button"
             disabled=${saving}
             onClick=${saveAttachment}
+            data-testid="attachment-download"
             className=${`${text ? '' : 'ml-auto '}shrink-0 rounded-[6px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-2 py-1 text-[var(--v2-text)] hover:bg-[var(--v2-surface-muted)] disabled:opacity-60`}
           >
             ${saving ? t('chat.previewSaving') : t('chat.previewSave')}
@@ -175,21 +286,89 @@ export function AttachmentPreviewModal({ open, onClose, attachment }) {
         </p>`}
         ${canRenderPdfPages
           ? html`<${PdfPagesPreview} sourceFile=${attachment.sourceFile} />`
-          : text
-            ? html`<pre
-                className=${`max-w-full whitespace-pre-wrap break-words rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4 text-[13px] leading-relaxed text-[var(--v2-text)] ${
-                  looksTabular(attachment.filename, text) ? 'font-mono text-xs' : ''
-                }`}
-                data-testid="attachment-preview-text"
-              >
+          : attachment.fetch_url
+            ? html`<${RemotePreviewBody}
+                mode=${mode}
+                remoteState=${remoteState}
+                filename=${attachment.filename || t('chat.previewTitle')}
+                t=${t}
+              />`
+            : text
+              ? html`<pre
+                  className=${`max-w-full whitespace-pre-wrap break-words rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4 text-[13px] leading-relaxed text-[var(--v2-text)] ${
+                    looksTabular(attachment.filename, text) ? 'font-mono text-xs' : ''
+                  }`}
+                  data-testid="attachment-preview-text"
+                >
 ${text}</pre
-              >`
-            : html`<div
-                className="rounded-[12px] border border-dashed border-[var(--v2-panel-border)] p-8 text-center text-sm text-[var(--v2-text-muted)]"
-              >
-                ${t('chat.previewUnavailable')}
-              </div>`}
+                >`
+              : html`<div
+                  className="rounded-[12px] border border-dashed border-[var(--v2-panel-border)] p-8 text-center text-sm text-[var(--v2-text-muted)]"
+                >
+                  ${t('chat.previewUnavailable')}
+                </div>`}
       <//>
     <//>
   `;
+}
+
+function RemotePreviewBody({ mode, remoteState, filename, t }) {
+  if (remoteState.status === 'loading') {
+    return html`<div
+      className="rounded-[12px] border border-dashed border-[var(--v2-panel-border)] p-8 text-center text-sm text-[var(--v2-text-muted)]"
+    >
+      ${t('common.loading')}
+    </div>`;
+  }
+  if (remoteState.status === 'error') {
+    return html`<div
+      className="rounded-[12px] border border-dashed border-[var(--v2-panel-border)] p-8 text-center text-sm text-[var(--v2-text-muted)]"
+    >
+      ${t('chat.previewUnavailable')}
+    </div>`;
+  }
+  if (remoteState.status !== 'ready') return null;
+
+  switch (mode) {
+    case 'image':
+      return html`<img
+        src=${remoteState.dataUrl}
+        alt=${filename}
+        className="mx-auto max-h-[70vh] w-auto rounded object-contain"
+      />`;
+    case 'audio':
+      return html`<audio controls src=${remoteState.dataUrl} className="w-full" />`;
+    case 'video':
+      return html`<video
+        controls
+        src=${remoteState.dataUrl}
+        className="max-h-[70vh] w-full rounded"
+      />`;
+    case 'pdf':
+      return html`<iframe
+        src=${remoteState.objectUrl}
+        title=${filename}
+        className="h-[70vh] w-full rounded border border-[var(--v2-panel-border)] bg-white"
+      />`;
+    case 'text':
+      return html`<div className="w-full">
+        <pre
+          className="max-h-[70vh] w-full overflow-auto whitespace-pre-wrap break-words rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4 text-xs leading-relaxed text-[var(--v2-text)]"
+          data-testid="attachment-preview-text"
+        >
+${remoteState.text}</pre
+        >
+        ${remoteState.truncated &&
+        html`<div className="mt-2 text-xs text-[var(--v2-text-muted)]">
+          ${t('chat.previewTruncated')}
+        </div>`}
+      </div>`;
+    default:
+      return html`<div
+        className="flex flex-col items-center gap-2 rounded-[12px] border border-dashed border-[var(--v2-panel-border)] p-8 text-center text-sm text-[var(--v2-text-muted)]"
+      >
+        <${Icon} name="file" className="h-10 w-10 text-[var(--v2-accent-text)]" />
+        <div>${t('chat.previewUnavailable')}</div>
+      </div>`;
+  }
 }

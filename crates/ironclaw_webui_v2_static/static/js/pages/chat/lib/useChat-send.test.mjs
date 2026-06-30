@@ -83,6 +83,9 @@ test('useChat.send: accepted ref reconciles pending message on timeline reload',
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       throw new Error('thread should already exist');
     },
@@ -151,8 +154,6 @@ test('useChat.send: accepted ref reconciles pending message on timeline reload',
   await chat.send('check my calendar');
 
   assert.equal(renderedMessages.length, 1);
-  // Ids are collision-proof (random suffix) so restored localStorage rows
-  // from a prior session can never share an id with a new send.
   assert.match(renderedMessages[0].id, /^pending-/);
   assert.equal(renderedMessages[0].role, 'user');
   assert.equal(renderedMessages[0].content, 'check my calendar');
@@ -164,6 +165,94 @@ test('useChat.send: accepted ref reconciles pending message on timeline reload',
   assert.deepEqual(
     renderedMessages.map((message) => message.id),
     ['msg-message-1']
+  );
+});
+
+test('useChat.send: skipConnectDetection bypasses connect-command detection (Workbench runs)', async () => {
+  // REGRESSION: a Workbench work-request carries a verbose draft that names
+  // Gmail/Calendar/Slack — which trips looksLikeChannelConnectCommand. Without the
+  // opt-out, send short-circuits into a "connect gmail" action, returns NO thread id,
+  // and the run never starts (the Workbench Ask dead-ends).
+  const connectLike = 'connect gmail and set up the calendar workspace files';
+  assert.equal(
+    looksLikeChannelConnectCommand(connectLike),
+    true,
+    'precondition: this content WOULD trip connect detection'
+  );
+  let createThreadCalled = false;
+  let sendMessageCalled = false;
+  const context = {
+    AbortController,
+    TextEncoder,
+    Date,
+    Error,
+    Map,
+    Math,
+    React: createReactStub(),
+    addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
+    flattenCachedThreads,
+    cancelRunRequest: async () => {},
+    clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
+    createThreadRequest: async () => {
+      createThreadCalled = true;
+      return { thread: { thread_id: 'thread-wb' } };
+    },
+    globalThis: {},
+    listConnectableChannels: async () => {
+      throw new Error('skipConnectDetection must prevent any connectable-channels fetch');
+    },
+    looksLikeChannelConnectCommand,
+    queryClient: {
+      fetchQuery: async () => {
+        throw new Error('skipConnectDetection must prevent any connectable-channels fetch');
+      },
+      invalidateQueries: () => {},
+      getQueryData: () => undefined
+    },
+    recordAcceptedMessageRef,
+    removePending,
+    replacePending,
+    resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
+    resolveGateRequest: async () => {},
+    sendMessage: async () => {
+      sendMessageCalled = true;
+      // The /messages response intentionally omits thread_id at the top level — the
+      // caller must still receive it (merged from the created thread).
+      return { accepted_message_ref: 'msg:m1', run_id: 'run-1', status: 'queued' };
+    },
+    setInterval,
+    setTimeout,
+    submitManualToken: async () => {},
+    useChatEvents: () => () => {},
+    useHistory: () => ({
+      messages: [],
+      hasMore: false,
+      nextCursor: null,
+      isLoading: false,
+      loadHistory: async () => {},
+      setMessages: () => {}
+    }),
+    useSSE: () => ({ status: 'idle' })
+  };
+
+  vm.runInNewContext(useChatSourceForTest(), context);
+  const chat = context.globalThis.__testExports.useChat(null);
+  const result = await chat.send(connectLike, { skipConnectDetection: true });
+
+  assert.equal(createThreadCalled, true, 'a thread is created — the run actually starts');
+  assert.equal(sendMessageCalled, true, 'the message is actually sent');
+  assert.equal(result.channel_connect_action, undefined, 'no connect short-circuit');
+  assert.equal(
+    result.thread_id,
+    'thread-wb',
+    'send returns the thread id (merged from the created thread) so the run attaches'
   );
 });
 
@@ -226,6 +315,9 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       throw new Error('thread should already exist');
     },
@@ -297,16 +389,15 @@ test('useChat.send: forwards composer attachments to sendMessage and optimistic 
   for (const attachment of attachmentScenarios) {
     assert.equal(sentArgs.content.includes(attachment.base64), false);
   }
-  // The wire carries chip metadata but NO bytes: the Reborn byte-landing path
-  // (#4644) is incomplete and 500s on any data_base64 under the DevOnly
-  // composition, and the model reads the document only through the inlined
-  // durable block above. See attachmentsForWire / GATEWAY_LANDS_ATTACHMENT_BYTES.
+  // The wire carries bytes again: latest Reborn main lands first-class
+  // attachments while the durable block remains as the backward-compatible
+  // model-readable/reload path for older sidecars.
   assert.deepEqual(
     JSON.parse(JSON.stringify(sentArgs.attachments)),
     attachmentScenarios.map((attachment) => ({
       name: attachment.filename,
       mime_type: attachment.mime_type,
-      data_base64: '',
+      data_base64: attachment.base64,
       size: attachment.size
     }))
   );
@@ -368,6 +459,9 @@ test('useChat.cancelRun clears local state before cancel request resolves', asyn
       });
     },
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       throw new Error('createThread should not run');
     },
@@ -451,6 +545,9 @@ test('useChat.cancelRun completion does not clear a newer run', async () => {
         resolveCancelRequest = resolve;
       }),
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       throw new Error('createThread should not run');
     },
@@ -531,6 +628,9 @@ test('useChat.send: channel connect requests return an action without submitting
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       createThreadCalled = true;
       throw new Error('connect action should not create a thread');
@@ -610,6 +710,9 @@ test('useChat.send: extension connect requests show setup action without submitt
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       createThreadCalled = true;
       throw new Error('connect action should not create a thread');
@@ -655,7 +758,7 @@ test('useChat.send: extension connect requests show setup action without submitt
   assert.equal(sendMessageCalled, false);
   assert.equal(response.channel_connect_action.channel, 'notion');
   assert.equal(response.channel_connect_action.strategy, 'extension_setup_link');
-  assert.equal(response.channel_connect_action.package_ref.id, 'mcp-servers/notion');
+  assert.equal(response.channel_connect_action.package_ref.id, 'notion');
   assert.equal(
     response.channel_connect_action.action.href,
     '/extensions/registry?setup=1&focus=notion'
@@ -681,6 +784,9 @@ test('useChat.send: unmatched channel connect requests submit the prompt', async
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     createThreadRequest: async () => {
       createThreadCalled = true;
       return { thread: { thread_id: 'thread-created' } };
@@ -738,10 +844,10 @@ test('useChat.send: unmatched channel connect requests submit the prompt', async
   vm.runInNewContext(useChatSourceForTest(), context);
 
   const chat = context.globalThis.__testExports.useChat(null);
-  const response = await chat.send('connect telegram account');
+  const response = await chat.send('connect whatsapp account');
 
   assert.equal(createThreadCalled, true);
-  assert.equal(sentContent, 'connect telegram account');
+  assert.equal(sentContent, 'connect whatsapp account');
   assert.equal(response.channel_connect_action, undefined);
   assert.equal(response.thread_id, 'thread-created');
 });
@@ -766,6 +872,9 @@ test('useChat.send: connectable channel fetch failures fall back to extension se
     flattenCachedThreads,
     cancelRunRequest: async () => {},
     clearTimeout,
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    resetToolActivityState: () => {},
     console: {
       error: (...args) => loggedErrors.push(args)
     },
@@ -826,4 +935,155 @@ test('useChat.send: connectable channel fetch failures fall back to extension se
     '/extensions/registry?setup=1&focus=slack'
   );
   assert.equal(loggedErrors[0][0], 'Failed to resolve connectable channels:');
+});
+
+function createResolveGateContext({
+  stateUpdates = [],
+  resolveGateResponse = {
+    outcome: 'resumed',
+    run_id: 'run-1',
+    thread_id: 'thread-1',
+    status: 'queued'
+  }
+} = {}) {
+  const pendingGate = { runId: 'run-1', gateRef: 'gate-1' };
+  const context = {
+    AbortController,
+    TextEncoder,
+    Date,
+    Error,
+    Map,
+    Math,
+    React: createReactStub({
+      initialByIndex: new Map([
+        [2, { runId: 'run-1', threadId: 'thread-1', status: 'running' }],
+        [4, true],
+        [5, pendingGate]
+      ]),
+      setCalls: stateUpdates
+    }),
+    addPending,
+    loadPending,
+    pendingMessageId,
+    buildDurableAttachmentBlock,
+    flattenCachedThreads,
+    cancelRunRequest: async () => {},
+    clearTimeout,
+    createThreadRequest: async () => {
+      throw new Error('createThread should not run');
+    },
+    createToolActivityState: () => ({}),
+    failGateToolActivity: () => {},
+    globalThis: {},
+    listConnectableChannels: async () => ({ channels: [] }),
+    looksLikeChannelConnectCommand,
+    queryClient: {
+      fetchQuery: async () => ({ channels: [] }),
+      invalidateQueries: () => {}
+    },
+    recordAcceptedMessageRef,
+    removePending,
+    replacePending,
+    resolveChannelConnectCommand,
+    resolveExtensionConnectCommand,
+    resolveGateRequest: async () => resolveGateResponse,
+    resetToolActivityState: () => {},
+    sendMessage: async () => {
+      throw new Error('sendMessage should not run');
+    },
+    setInterval,
+    setTimeout,
+    submitManualToken: async () => {},
+    toast: () => {},
+    useChatEvents: (args) => {
+      context.chatEventsArgs = args;
+      return () => {};
+    },
+    useHistory: () => ({
+      messages: [],
+      hasMore: false,
+      nextCursor: null,
+      isLoading: false,
+      loadHistory: () => {},
+      setMessages: () => {}
+    }),
+    useSSE: () => ({ status: 'idle' })
+  };
+  return context;
+}
+
+test('useChat.resolveGate: denied resumed gate keeps processing and activeRun', async () => {
+  const stateUpdates = [];
+  const context = createResolveGateContext({ stateUpdates });
+
+  vm.runInNewContext(useChatSourceForTest(), context);
+
+  const chat = context.globalThis.__testExports.useChat('thread-1');
+  await chat.resolveGate('denied');
+
+  assert.equal(stateUpdates.filter((u) => u.index === 5).at(-1).value, null);
+  assert.equal(stateUpdates.filter((u) => u.index === 4).at(-1).value, true);
+  assert.equal(
+    stateUpdates.some((u) => u.index === 2 && u.value === null),
+    false,
+    'resolveGate must not clear activeRun for resumed gates'
+  );
+  assert.deepEqual(
+    JSON.parse(
+      JSON.stringify(context.chatEventsArgs.locallyResolvedGatesRef.current.get('run-1\ngate-1'))
+    ),
+    { resolution: 'denied', outcome: 'resumed' }
+  );
+});
+
+test('useChat.resolveGate: cancelled resumed auth keeps processing until follow-up settles', async () => {
+  const stateUpdates = [];
+  const context = createResolveGateContext({ stateUpdates });
+
+  vm.runInNewContext(useChatSourceForTest(), context);
+
+  const chat = context.globalThis.__testExports.useChat('thread-1');
+  await chat.resolveGate('cancelled');
+
+  assert.equal(stateUpdates.filter((u) => u.index === 5).at(-1).value, null);
+  assert.equal(stateUpdates.filter((u) => u.index === 4).at(-1).value, true);
+  assert.equal(
+    stateUpdates.some((u) => u.index === 2 && u.value === null),
+    false,
+    'resolveGate must not clear activeRun for resumed auth gates'
+  );
+  assert.deepEqual(
+    JSON.parse(
+      JSON.stringify(context.chatEventsArgs.locallyResolvedGatesRef.current.get('run-1\ngate-1'))
+    ),
+    { resolution: 'cancelled', outcome: 'resumed' }
+  );
+});
+
+test('useChat.resolveGate: terminal cancelled clears processing and activeRun', async () => {
+  const stateUpdates = [];
+  const context = createResolveGateContext({
+    stateUpdates,
+    resolveGateResponse: {
+      outcome: 'cancelled',
+      run_id: 'run-1',
+      thread_id: 'thread-1',
+      status: 'cancelled'
+    }
+  });
+
+  vm.runInNewContext(useChatSourceForTest(), context);
+
+  const chat = context.globalThis.__testExports.useChat('thread-1');
+  await chat.resolveGate('cancelled');
+
+  assert.equal(stateUpdates.filter((u) => u.index === 5).at(-1).value, null);
+  assert.equal(stateUpdates.filter((u) => u.index === 4).at(-1).value, false);
+  assert.equal(stateUpdates.filter((u) => u.index === 2).at(-1).value, null);
+  assert.deepEqual(
+    JSON.parse(
+      JSON.stringify(context.chatEventsArgs.locallyResolvedGatesRef.current.get('run-1\ngate-1'))
+    ),
+    { resolution: 'cancelled', outcome: 'cancelled' }
+  );
 });

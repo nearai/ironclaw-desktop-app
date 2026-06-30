@@ -76,6 +76,17 @@ test('static front door: cold open shows backed needs-you and handled receipts',
     '/v2/automations'
   );
 
+  const boundary = page.getByTestId('source-boundary');
+  await expect(boundary).toBeVisible();
+  await expect(boundary).toContainText(
+    'Only attached files and connectors you set up can be used.'
+  );
+  await expect(boundary).toContainText('External sends, posts, and changes pause for approval.');
+  await expect(boundary.getByRole('link', { name: 'Connect sources' })).toHaveAttribute(
+    'href',
+    '/v2/extensions'
+  );
+
   expect(consoleIssues).toEqual([]);
 });
 
@@ -228,6 +239,12 @@ test('static front door at 390px: no horizontal overflow and composer touch targ
     expect(box!.height, `${name} height >=44px`).toBeGreaterThanOrEqual(44);
     expect(box!.width, `${name} width >=44px`).toBeGreaterThanOrEqual(44);
   }
+
+  const connectSources = page.getByRole('link', { name: 'Connect sources' });
+  await expect(connectSources).toBeVisible();
+  const connectBox = await connectSources.boundingBox();
+  expect(connectBox, 'Connect sources should have a measurable box').not.toBeNull();
+  expect(connectBox!.height, 'Connect sources height >=44px').toBeGreaterThanOrEqual(44);
 });
 
 async function installFrontDoorMocks(

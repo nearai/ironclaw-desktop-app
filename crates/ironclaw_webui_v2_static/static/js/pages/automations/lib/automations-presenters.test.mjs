@@ -5,6 +5,7 @@ import {
   automationSummary,
   filterAutomations,
   normalizeAutomations,
+  runSummaryView,
   scheduleLabel,
   stateTone
 } from './automations-presenters.js';
@@ -36,6 +37,89 @@ test('normalizeAutomations keeps only schedule rows and avoids raw schedule text
   assert.equal(automations[0].display_name, 'Daily summary');
   assert.equal(automations[0].schedule_label, 'Weekdays at 9:00 AM');
   assert.equal(automations[0].last_status_label, 'Done');
+});
+
+test('normalizeAutomations folds recent runs into status, links, and success rate', () => {
+  const automations = normalizeAutomations({
+    automations: [
+      {
+        automation_id: 'daily',
+        name: 'Daily summary',
+        source: { type: 'schedule', cron: '0 9 * * *', timezone: 'America/Toronto' },
+        state: 'active',
+        recent_runs: [
+          {
+            status: 'error',
+            fired_at: '2026-06-05T13:00:00Z',
+            completed_at: '2026-06-05T13:02:00Z',
+            thread_id: 'thread-failed',
+            run_id: 'run-failed'
+          },
+          {
+            status: 'ok',
+            fired_at: '2026-06-04T13:00:00Z',
+            completed_at: '2026-06-04T13:01:00Z',
+            thread_id: 'thread-ok'
+          },
+          {
+            status: 'running',
+            fired_at: '2026-06-06T13:00:00Z',
+            thread_id: 'thread-running'
+          }
+        ]
+      }
+    ]
+  });
+
+  assert.equal(automations[0].has_running_run, true);
+  assert.equal(automations[0].has_failed_runs, true);
+  assert.equal(automations[0].current_run.thread_id, 'thread-running');
+  assert.equal(automations[0].recent_runs[0].status, 'running');
+  assert.equal(automations[0].recent_runs[0].chat_path, '/chat/thread-running');
+  assert.equal(automations[0].last_status_label, 'Error');
+  assert.equal(automations[0].last_status_tone, 'danger');
+  assert.equal(automations[0].success_rate_label, '50% successful');
+  assert.deepEqual(runSummaryView(automations[0].recent_runs), {
+    total: 3,
+    totalText: '3 runs',
+    chips: [
+      { key: 'ok', tone: 'success', count: 1, text: '1 done' },
+      { key: 'error', tone: 'danger', count: 1, text: '1 failed' },
+      { key: 'running', tone: 'info', count: 1, text: '1 running' }
+    ]
+  });
+});
+
+test('runSummaryView localizes every counted run bucket including unknown', () => {
+  const t = (key, params = {}) => {
+    const copy = {
+      'automations.runs.total': 'Recent runs: {count}',
+      'automations.runs.ok': 'OK: {count}',
+      'automations.runs.error': 'Failed: {count}',
+      'automations.runs.running': 'Running: {count}',
+      'automations.runs.unknown': 'Unknown: {count}'
+    };
+    return (copy[key] || key).replace('{count}', params.count);
+  };
+  const view = runSummaryView(
+    [{ status: 'ok' }, { status: 'error' }, { status: 'running' }, { status: 'mystery' }, {}],
+    t
+  );
+
+  assert.deepEqual(view, {
+    total: 5,
+    totalText: 'Recent runs: 5',
+    chips: [
+      { key: 'ok', tone: 'success', count: 1, text: 'OK: 1' },
+      { key: 'error', tone: 'danger', count: 1, text: 'Failed: 1' },
+      { key: 'running', tone: 'info', count: 1, text: 'Running: 1' },
+      { key: 'unknown', tone: 'muted', count: 2, text: 'Unknown: 2' }
+    ]
+  });
+  assert.equal(
+    view.chips.reduce((sum, chip) => sum + chip.count, 0),
+    view.total
+  );
 });
 
 test('normalizeAutomations handles empty and malformed schedule payloads', () => {
@@ -82,7 +166,7 @@ test('scheduleLabel presents common recurring schedules in friendly language', (
   assert.equal(scheduleLabel('0 17 12 * *'), '12th day of each month at 5:00 PM');
   assert.equal(scheduleLabel('0 17 13 * *'), '13th day of each month at 5:00 PM');
   assert.equal(scheduleLabel('0 0 9 1 1 * 2027'), 'Jan 1, 2027 at 9:00 AM');
-  assert.equal(scheduleLabel('*/5 * * * *'), 'Custom schedule');
+  assert.equal(scheduleLabel('*/5 * * * *'), 'Every 5 minutes');
   assert.equal(scheduleLabel('* 0 9 * * *'), 'Custom schedule');
   assert.equal(scheduleLabel('0 24 * * *'), 'Custom schedule');
   assert.equal(scheduleLabel('0 0 32 * *'), 'Custom schedule');
@@ -131,9 +215,13 @@ test('filterAutomations, sorting, and summary use browser-visible active state',
     filterAutomations(automations, 'paused').map((automation) => automation.automation_id),
     ['paused']
   );
+  assert.deepEqual(filterAutomations(automations, 'running'), []);
+  assert.deepEqual(filterAutomations(automations, 'failures'), []);
   assert.deepEqual(automationSummary(automations), {
     scheduled: 3,
     active: 2,
+    running: 0,
+    failures: 0,
     paused: 1,
     nextRun: automations[0].next_run_label
   });
@@ -157,6 +245,8 @@ test('automationSummary ignores unparseable next_run_at values', () => {
   assert.deepEqual(automationSummary(automations), {
     scheduled: 1,
     active: 1,
+    running: 0,
+    failures: 0,
     paused: 0,
     nextRun: null
   });

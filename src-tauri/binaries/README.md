@@ -25,6 +25,12 @@ tarballs yet, so release CI builds it from a checked-out IronClaw source tree:
 IRONCLAW_REPO_DIR=/path/to/nearai/ironclaw npm run build:reborn-sidecars
 ```
 
+The default Reborn build features are `webui-v2-beta,slack-v2-host-beta` so
+the bundled sidecar can mount Slack when runtime config enables it. Slack is
+still disabled unless `$IRONCLAW_REBORN_HOME/config.toml` contains
+`[slack] enabled = true` and the referenced Slack signing-secret and bot-token
+environment variables are present.
+
 Before building the public universal macOS bundle, combine every per-arch
 sidecar into the target files Tauri will resolve:
 

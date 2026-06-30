@@ -223,10 +223,9 @@ async function proveChatAttachmentRoute(report, check) {
     data_base64: base64FromText(csv)
   };
   // Send exactly as the real UI does: the durable attachment block carries
-  // chip metadata for reload AND the embedded text content — the only
-  // channel through which the model can read a document (the sidecar never
-  // feeds attachment bytes to it). The timeline echo below then proves the
-  // backend content validator accepted the embedded form.
+  // chip metadata for reload AND embedded text content. Mainline Reborn also
+  // receives the attachment payload, but this smoke keeps proving the
+  // backward-compatible embedded form survives the backend validator.
   const contentForReborn = `${prompt}${buildDurableAttachmentBlock(
     [
       {
@@ -305,12 +304,10 @@ async function proveChatAttachmentRoute(report, check) {
     }
   );
 
-  // NOTE: the bundled Reborn sidecar (v0.29.0) does not mount the
-  // `/threads/{id}/runs/{run_id}` GET route — it 404s, and the WebView's
-  // Tauri HTTP path can stall on that response. The run's liveness is proven
-  // independently and reliably by scripts/probe-live-reborn-model-execution.mjs
-  // via the SSE `run_status` stream (queued -> running -> failed/completed),
-  // so the packaged smoke does not depend on the run-state route here.
+  // The run-state route has varied across sidecar lineages. The run's liveness
+  // is proven independently and reliably by scripts/probe-live-reborn-model-
+  // execution.mjs via the SSE `run_status` stream (queued -> running ->
+  // failed/completed), so the packaged smoke does not depend on that route.
 
   const pendingStore = new Map();
   const pendingRecord = {

@@ -1,4 +1,5 @@
-import { Link, useSearchParams } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useOutletContext, useSearchParams } from 'react-router';
 import { Button } from '../../design-system/button.js';
 import { Icon } from '../../design-system/icons.js';
 import { React, html } from '../../lib/html.js';
@@ -12,7 +13,13 @@ import {
   downloadMarkdown,
   downloadPdf
 } from '../chat/lib/work-product-export.js';
-import { readSavedWorkItems, workArtifactHref } from '../chat/lib/work-product-save.js';
+import {
+  fetchSavedWorkSnapshot,
+  mergeSavedWorkSnapshots,
+  readSavedWorkSnapshot,
+  savedWorkServerReadSupported,
+  workArtifactHref
+} from '../chat/lib/work-product-save.js';
 import {
   buildGeneratedFileBlob,
   generatedFileKindLabel,
@@ -66,7 +73,10 @@ function findArtifact(item, artifactId) {
   return firstReadyArtifact(item);
 }
 
-function EmptyWorkState({ missing }) {
+function EmptyWorkState({ missing, savedWorkSnapshot }) {
+  const sourceDetail =
+    savedWorkSnapshot?.detail ||
+    'Saved outputs from this desktop profile appear here after you save them from Chat.';
   return html`
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="v2-page-entrance flex-1 p-4 sm:p-6">
@@ -82,9 +92,7 @@ function EmptyWorkState({ missing }) {
             ${missing ? 'Saved work not found' : 'No saved work yet'}
           </h1>
           <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
-            ${missing
-              ? 'That saved artifact is no longer in this desktop profile.'
-              : 'Generated documents you save from chat will appear here with copy and export controls.'}
+            ${missing ? 'That saved artifact is no longer in this desktop profile.' : sourceDetail}
           </p>
           <div className="mt-6">
             <${Button} as=${Link} to="/chat" variant="primary">Back to chat<//>
@@ -347,7 +355,19 @@ function WorkActivityLedger({ items }) {
 
 export function WorkPage() {
   const [params] = useSearchParams();
-  const [items, setItems] = React.useState(() => readSavedWorkItems());
+  const outletContext = useOutletContext() || {};
+  const { gatewayStatus } = outletContext;
+  const [savedWorkSnapshot, setSavedWorkSnapshot] = React.useState(() => readSavedWorkSnapshot());
+  const savedWorkReadEnabled = savedWorkServerReadSupported(gatewayStatus);
+  const serverSavedWorkQuery = useQuery({
+    queryKey: ['work-saved-work-server'],
+    queryFn: ({ signal }) => fetchSavedWorkSnapshot({ signal }),
+    enabled: savedWorkReadEnabled,
+    staleTime: 30_000,
+    retry: 1,
+    throwOnError: false
+  });
+  const items = savedWorkSnapshot.items || [];
   // The saved-work store holds up to 500 items; without a filter + expander the
   // sidebar list hard-capped at 30 and everything older was unreachable.
   const [workFilter, setWorkFilter] = React.useState('');
@@ -356,8 +376,15 @@ export function WorkPage() {
   const [view, setView] = React.useState('saved');
 
   React.useEffect(() => {
-    setItems(readSavedWorkItems());
+    setSavedWorkSnapshot(readSavedWorkSnapshot());
   }, []);
+
+  React.useEffect(() => {
+    if (!savedWorkReadEnabled || !serverSavedWorkQuery.data) return;
+    setSavedWorkSnapshot((localSnapshot) =>
+      mergeSavedWorkSnapshots(serverSavedWorkQuery.data, localSnapshot)
+    );
+  }, [savedWorkReadEnabled, serverSavedWorkQuery.data]);
 
   const requestedItemId = params.get('item') || '';
   const requestedArtifactId = params.get('artifact') || '';
@@ -377,7 +404,7 @@ export function WorkPage() {
   // empty state. Once items exist, always render the two-pane layout (sidebar +
   // article) — a broken deep link only changes what the article pane shows.
   if (!items.length) {
-    return html`<${EmptyWorkState} missing=${false} />`;
+    return html`<${EmptyWorkState} missing=${false} savedWorkSnapshot=${savedWorkSnapshot} />`;
   }
 
   // When the deep link resolves, read that item/artifact; when it does not,
@@ -425,8 +452,13 @@ export function WorkPage() {
             <div className="px-1 py-2">
               <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">Saved work</div>
               <p className="mt-1 text-sm leading-5 text-[var(--v2-text-faint)]">
-                Local artifacts saved from chat.
+                ${savedWorkSnapshot.detail || 'Local artifacts saved from chat.'}
               </p>
+              <span
+                className="mt-2 inline-flex min-h-[28px] items-center rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-2 text-xs font-semibold text-[var(--v2-text)]"
+              >
+                ${savedWorkSnapshot.statusLabel || savedWorkSnapshot.label || 'Local profile'}
+              </span>
             </div>
             ${items.length > 8 &&
             html`<div className="relative mb-1 px-1">

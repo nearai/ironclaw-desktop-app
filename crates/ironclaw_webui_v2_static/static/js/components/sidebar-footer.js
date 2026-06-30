@@ -20,15 +20,31 @@ function useAccountPopover() {
   return { open, toggle };
 }
 
-export function SidebarFooter({ theme, toggleTheme, profile, onSignOut }) {
+export function SidebarFooter({
+  theme,
+  toggleTheme,
+  profile,
+  onSignOut,
+  orientation = 'vertical',
+  density = 'expanded'
+}) {
   const t = useT();
   const accountPopover = useAccountPopover();
   const name = profileName(profile);
   const detail = profile?.email || profile?.role || 'Gateway session';
+  const compact = density === 'compact';
+  const horizontal = orientation === 'horizontal';
 
   return html`
     <div
-      className="relative flex items-center gap-2 border-t border-[var(--v2-panel-border)] px-3 py-3"
+      className=${cn(
+        'relative flex items-center gap-2',
+        horizontal
+          ? 'h-full border-l border-[var(--v2-panel-border)] px-2 py-2'
+          : compact
+            ? 'flex-col border-t border-[var(--v2-panel-border)] px-2 py-3'
+            : 'border-t border-[var(--v2-panel-border)] px-3 py-3'
+      )}
     >
       ${accountPopover.open &&
       html`
@@ -51,7 +67,10 @@ export function SidebarFooter({ theme, toggleTheme, profile, onSignOut }) {
       <button
         type="button"
         onClick=${accountPopover.toggle}
-        className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 rounded-[8px] text-left"
+        className=${cn(
+          'flex min-h-[44px] min-w-0 items-center rounded-[8px] text-left',
+          compact ? 'justify-center' : 'flex-1 gap-2'
+        )}
         title=${name}
       >
         <div
@@ -66,7 +85,7 @@ export function SidebarFooter({ theme, toggleTheme, profile, onSignOut }) {
               />`
             : html`<span className="place-self-center">${profileInitial(profile)}</span>`}
         </div>
-        <span className="min-w-0">
+        <span className=${compact ? 'sr-only' : 'min-w-0'}>
           <span className="block truncate text-[13px] font-medium text-[var(--v2-text-strong)]">
             ${name}
           </span>

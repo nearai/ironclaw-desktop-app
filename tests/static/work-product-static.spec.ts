@@ -32,6 +32,12 @@ const llmProviders = {
   }
 };
 
+type WorkProductMockOptions = {
+  savedWorkReadEnabled?: boolean;
+  savedWorkItems?: Array<Record<string, unknown>>;
+  savedWorkRequests?: string[];
+};
+
 test('static work product: saved chat artifact reloads in Work route', async ({ page }) => {
   await installWorkProductMocks(page);
   await page.addInitScript(() => {
@@ -74,6 +80,9 @@ test('static work product: saved chat artifact reloads in Work route', async ({ 
 
   await page.goto('/v2/work?item=work-static-1&artifact=artifact-static-1&token=static-work-token');
 
+  const savedWorkRail = page.locator('aside[aria-label="Saved work"]');
+  await expect(savedWorkRail).toContainText('On this device');
+  await expect(savedWorkRail).toContainText('kept here, on this device');
   await expect(page.locator('article h1').first()).toHaveText('Services agreement draft');
   await expect(page.getByTestId('saved-work-artifact')).toContainText(
     'Acme Labs hires Northstar Ops'
@@ -85,6 +94,43 @@ test('static work product: saved chat artifact reloads in Work route', async ({ 
     'href',
     '/v2/chat/thread-services'
   );
+});
+
+test('static work product: server-backed Work reader loads when advertised', async ({ page }) => {
+  const savedWorkRequests: string[] = [];
+  await installWorkProductMocks(page, {
+    savedWorkReadEnabled: true,
+    savedWorkRequests,
+    savedWorkItems: [
+      {
+        id: 'server-work-1',
+        title: 'Server services package',
+        updated_at: '2026-06-21T05:50:00.000Z',
+        links: [{ kind: 'thread', ref: 'thread-services', label: 'Services thread' }],
+        artifacts: [
+          {
+            id: 'server-artifact-1',
+            title: 'Server services memo',
+            status: 'ready',
+            content:
+              '# Server services memo\n\nNorthwind implementation terms are ready for review.',
+            content_format: 'markdown'
+          }
+        ]
+      }
+    ]
+  });
+
+  await page.goto('/v2/work?item=server-work-1&artifact=server-artifact-1&token=static-work-token');
+
+  const savedWorkRail = page.locator('aside[aria-label="Saved work"]');
+  await expect(savedWorkRail).toContainText('Server-backed');
+  await expect(savedWorkRail).toContainText('Server services package');
+  await expect(page.locator('article h1').first()).toHaveText('Server services memo');
+  await expect(page.getByTestId('saved-work-artifact')).toContainText(
+    'Northwind implementation terms are ready for review'
+  );
+  expect(savedWorkRequests).toEqual(['GET /api/webchat/v2/work']);
 });
 
 test('static work product: assistant generated DOCX chip saves to Work and reloads as a file', async ({
@@ -348,14 +394,17 @@ function toRgb(value: string): string {
   return `rgb(${(int >> 16) & 255}, ${(int >> 8) & 255}, ${int & 255})`;
 }
 
-async function installWorkProductMocks(page: Page) {
+async function installWorkProductMocks(page: Page, options: WorkProductMockOptions = {}) {
   await page.route(/\/(api|auth)\//, async (route: Route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
     const method = route.request().method();
 
     if (path === '/api/gateway/status') {
-      return json(route, gatewayStatus);
+      return json(route, {
+        ...gatewayStatus,
+        capabilities: options.savedWorkReadEnabled ? { saved_work_read: true } : {}
+      });
     }
     if (path === '/api/webchat/v2/llm/providers') {
       return json(route, llmProviders);
@@ -378,6 +427,10 @@ async function installWorkProductMocks(page: Page) {
         ],
         next_cursor: null
       });
+    }
+    if (path === '/api/webchat/v2/work' && method === 'GET') {
+      options.savedWorkRequests?.push(`${method} ${path}`);
+      return json(route, { items: options.savedWorkItems || [] });
     }
     if (path === '/api/webchat/v2/threads/thread-generated-file/timeline') {
       return json(route, {

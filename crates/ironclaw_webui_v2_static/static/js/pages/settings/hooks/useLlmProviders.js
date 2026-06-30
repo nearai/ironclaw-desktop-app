@@ -35,11 +35,15 @@ function fallbackNearaiSnapshot() {
   };
 }
 
-// The v2 `/llm/providers` snapshot is the single source of truth: a unified
-// provider list (built-in + operator-defined) already annotated with the active
-// selection, `builtin`, and `api_key_set`. Overrides are no longer a separate
-// client-side merge — the backend resolves them — so `builtinOverrides` is kept
-// as an empty object purely for the shared helper signatures.
+// Must be a stable reference: it is threaded down to the provider dialog's
+// reset-effect dependency array, so a fresh object each render can reset
+// in-progress form values while the parent re-renders.
+const EMPTY_BUILTIN_OVERRIDES = Object.freeze({});
+
+// The providers snapshot is the single source of truth: a unified provider list
+// already annotated with the active selection and key state. Overrides are no
+// longer a separate client-side merge, so builtinOverrides is kept as an empty
+// object purely for the shared helper signatures.
 export function useLlmProviders({ settings: _settings, gatewayStatus }) {
   const queryClient = useQueryClient();
   const providersQuery = useQuery({
@@ -64,6 +68,7 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
     hasActiveProvider
   } = providerSnapshot;
   const builtinOverrides = providerSnapshot.builtinOverrides;
+  const defaultProviderId = activeProviderId || 'nearai';
   const providers = [...allProviders].sort((a, b) => {
     if (a.id === activeProviderId) return -1;
     if (b.id === activeProviderId) return 1;
@@ -107,7 +112,7 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
       if (apiKey.trim()) {
         payload.api_key = apiKey.trim();
       }
-      if ((editingProvider || provider)?.id === activeProviderId && payload.default_model) {
+      if ((editingProvider || provider)?.id === defaultProviderId && payload.default_model) {
         payload.set_active = true;
         payload.model = payload.default_model;
       }
@@ -151,7 +156,7 @@ export function useLlmProviders({ settings: _settings, gatewayStatus }) {
 }
 
 export function deriveProviderSnapshot(snapshot = {}) {
-  const builtinOverrides = {};
+  const builtinOverrides = EMPTY_BUILTIN_OVERRIDES;
   // Map the wire view onto the field names the components/helpers expect.
   const rawProviders = (Array.isArray(snapshot.providers) ? snapshot.providers : []).map(
     (provider) => ({

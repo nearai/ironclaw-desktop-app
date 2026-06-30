@@ -78,8 +78,44 @@ export function getRegisteredPacks() {
   return { ...packs };
 }
 
-function translate(lang, key, params = {}) {
-  const text = packs[lang]?.[key] || packs['en']?.[key] || key;
+// Only English is imported eagerly by main.js. Other locale packs are
+// discovered as static dynamic imports and loaded the first time a user selects
+// or auto-detects that language.
+const loaders = {
+  es: () => import('../i18n/es.js'),
+  fr: () => import('../i18n/fr.js'),
+  de: () => import('../i18n/de.js'),
+  'pt-BR': () => import('../i18n/pt-BR.js'),
+  ja: () => import('../i18n/ja.js'),
+  ar: () => import('../i18n/ar.js'),
+  hi: () => import('../i18n/hi.js'),
+  uk: () => import('../i18n/uk.js'),
+  'zh-CN': () => import('../i18n/zh-CN.js'),
+  ko: () => import('../i18n/ko.js')
+};
+
+const pending = {};
+
+function ensurePack(lang) {
+  if (packs[lang]) return Promise.resolve(packs[lang]);
+  const loader = loaders[lang];
+  if (!loader) return Promise.resolve(null);
+  if (!pending[lang]) {
+    pending[lang] = loader()
+      .then(() => {
+        delete pending[lang];
+        return packs[lang] || null;
+      })
+      .catch(() => {
+        delete pending[lang];
+        return null;
+      });
+  }
+  return pending[lang];
+}
+
+function translate(pack, key, params = {}) {
+  const text = pack?.[key] || packs['en']?.[key] || key;
   if (!params || typeof text !== 'string') return text;
   return text.replace(/\{(\w+)\}/g, (match, k) => (params[k] !== undefined ? params[k] : match));
 }
@@ -87,45 +123,66 @@ function translate(lang, key, params = {}) {
 const I18nContext = React.createContext({
   lang: 'en',
   setLang: () => {},
-  t: (key, params) => translate('en', key, params)
+  t: (key, params) => translate(packs['en'], key, params)
 });
 
 export function I18nProvider({ children }) {
   const [lang, setLangState] = React.useState(detectLanguage);
+  const [pack, setPack] = React.useState(() => packs[lang] || null);
+  // Latest language the user actually requested. Updated synchronously the
+  // instant setLang is called so a slower, earlier pack load that resolves LAST
+  // can detect it is stale and refuse to clobber the newer active language.
+  const activeLangRef = React.useRef(lang);
 
   const commitLang = React.useCallback((next) => {
     setLangState(next);
+    setPack(packs[next] || null);
     try {
       localStorage.setItem(STORAGE_KEY, next);
     } catch (_) {}
-    document.documentElement.lang = next;
-    document.documentElement.dir = directionFor(next);
   }, []);
 
   const setLang = React.useCallback(
     (next) => {
-      if (!PACK_LOADERS[next] && next !== 'en') return;
+      if (!loaders[next] && next !== 'en') return;
+      // Record the request synchronously; this is the stale-load token. A pack
+      // load that resolves after a newer setLang call will see a different
+      // activeLangRef and bail.
+      activeLangRef.current = next;
       // English is already bundled; every other pack is lazy-loaded on first use,
       // then the switch is committed so the UI re-renders fully translated.
       if (next === 'en' || packs[next]) {
         commitLang(next);
         return;
       }
-      loadLanguagePack(next)
-        .then(() => commitLang(next))
-        .catch((err) => {
-          console.warn('[ironclaw] failed to load language pack', next, err);
-        });
+      ensurePack(next).then((loaded) => {
+        if (activeLangRef.current !== next) return;
+        if (loaded) commitLang(next);
+      });
     },
     [commitLang]
   );
 
   React.useEffect(() => {
+    let cancelled = false;
+    activeLangRef.current = lang;
+    if (!packs[lang]) {
+      ensurePack(lang).then((loaded) => {
+        if (!cancelled && loaded && activeLangRef.current === lang) {
+          setPack(loaded);
+        }
+      });
+    }
+    // The committed language drives both document lang and direction; setting
+    // only lang would leave RTL locales rendered mirrored-wrong.
     document.documentElement.lang = lang;
     document.documentElement.dir = directionFor(lang);
+    return () => {
+      cancelled = true;
+    };
   }, [lang]);
 
-  const t = React.useCallback((key, params) => translate(lang, key, params), [lang]);
+  const t = React.useCallback((key, params) => translate(pack, key, params), [pack]);
 
   const ctx = React.useMemo(() => ({ lang, setLang, t }), [lang, setLang, t]);
 

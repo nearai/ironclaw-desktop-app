@@ -10,15 +10,18 @@ const settingsDir = path.resolve(componentsDir, '..');
 const i18nDir = path.resolve(componentsDir, '..', '..', '..', 'i18n');
 
 // Settings sub-tabs reachable by deep-link (/v2/settings/<tab>) must not present
-// actionable controls backed by permanent stubs. `settings-api.js` returns
-// `{ todo: true }` for skills/tools reads and `{ success: false }` for their
-// writes. Design Law: "No fake readiness — a surface may not imply a capability
-// the gateway cannot prove." Mirrors the inference-tab and logs gates.
+// actionable controls backed by permanent stubs. `settings-api.js` still returns
+// `{ todo: true }` for tools/users reads and `{ success: false }` for their
+// writes (skills + extensions are now wired to real v2 endpoints). Design Law:
+// "No fake readiness — a surface may not imply a capability the gateway cannot
+// prove." Mirrors the inference-tab and logs gates.
 
-test('useSkills reports status:todo while the skills backend is a stub', async () => {
+test('useSkills goes ready ONLY on a successful skills fetch (no fake readiness on error)', async () => {
   const source = await readFile(path.join(hooksDir, 'useSkills.js'), 'utf8');
 
-  assert.match(source, /const status = query\.data\?\.todo \? 'todo' : 'ready';/);
+  // Wired to the real endpoint, but the import form must stay gated unless the
+  // fetch actually succeeded — a loading/errored fetch must NOT read as 'ready'.
+  assert.match(source, /const status = query\.isSuccess && !query\.data\?\.todo \? 'ready' : 'todo';/);
   assert.match(source, /\bstatus,/);
 });
 

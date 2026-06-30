@@ -1,0 +1,240 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import test from 'node:test';
+import {
+  LLM_LIST_MODELS_SHAPE_CHECK_NAME,
+  LLM_MODEL_CATALOG_DEGRADED_WARNING_NAME,
+  OUTBOUND_DELIVERY_CHECK_NAME,
+  SLACK_ADMIN_MANAGED_CHECK_NAME,
+  evaluateLlmListModelsRoute,
+  evaluateOutboundDeliveryRoutes,
+  evaluateSlackAdminManagedRoutes
+} from './probe-new-sidecar-acceptance.mjs';
+
+test('new sidecar acceptance gates Slack admin-managed routes when advertised', async () => {
+  const source = await readFile(
+    new URL('./probe-new-sidecar-acceptance.mjs', import.meta.url),
+    'utf8'
+  );
+
+  assert.match(source, /'channels\/connectable'/);
+  assert.match(source, /admin_managed_channels/);
+  assert.match(source, /channels\/slack\/allowed/);
+  assert.match(source, /channels\/slack\/subjects/);
+  assert.match(
+    source,
+    /Slack admin-managed capability is backed by allowed-channel and subject routes/
+  );
+});
+
+test('new sidecar acceptance keeps list-models shape non-breaking but warns on failed empty catalog', () => {
+  const verdict = evaluateLlmListModelsRoute({
+    listModels: { res: { ok: true, status: 200 }, body: { ok: false, models: [] } },
+    providerId: 'nearai'
+  });
+
+  assert.equal(verdict.check.name, LLM_LIST_MODELS_SHAPE_CHECK_NAME);
+  assert.equal(verdict.check.pass, true);
+  assert.equal(verdict.warning.name, LLM_MODEL_CATALOG_DEGRADED_WARNING_NAME);
+  assert.deepEqual(verdict.warning.detail, {
+    status: 200,
+    provider_id: 'nearai',
+    ok: false,
+    model_count: 0,
+    degraded_reasons: ['catalog_not_ok', 'empty_catalog']
+  });
+});
+
+test('new sidecar acceptance warns on empty list-models catalog even when ok is true', () => {
+  const verdict = evaluateLlmListModelsRoute({
+    listModels: { res: { ok: true, status: 200 }, body: { ok: true, models: [] } },
+    providerId: 'nearai'
+  });
+
+  assert.equal(verdict.check.pass, true);
+  assert.deepEqual(verdict.warning, {
+    name: LLM_MODEL_CATALOG_DEGRADED_WARNING_NAME,
+    detail: {
+      status: 200,
+      provider_id: 'nearai',
+      ok: true,
+      model_count: 0,
+      degraded_reasons: ['empty_catalog']
+    }
+  });
+});
+
+test('new sidecar acceptance passes populated list-models catalog without warning', () => {
+  const verdict = evaluateLlmListModelsRoute({
+    listModels: {
+      res: { ok: true, status: 200 },
+      body: { ok: true, models: [{ id: 'nearai/auto' }] }
+    },
+    providerId: 'nearai'
+  });
+
+  assert.equal(verdict.check.pass, true);
+  assert.deepEqual(verdict.check.detail, {
+    status: 200,
+    provider_id: 'nearai',
+    ok: true,
+    model_count: 1
+  });
+  assert.equal(verdict.warning, null);
+});
+
+test('new sidecar acceptance still fails malformed list-models route shape', () => {
+  const verdict = evaluateLlmListModelsRoute({
+    listModels: { res: { ok: true, status: 200 }, body: { ok: true } },
+    providerId: 'nearai'
+  });
+
+  assert.equal(verdict.check.pass, false);
+  assert.deepEqual(verdict.check.detail, {
+    status: 200,
+    provider_id: 'nearai',
+    ok: true,
+    model_count: null
+  });
+  assert.equal(verdict.warning, null);
+});
+
+test('new sidecar acceptance recognizes the top-level Slack admin-managed strategy used by the UI', () => {
+  const verdict = evaluateSlackAdminManagedRoutes({
+    connectable: {
+      body: {
+        channels: [{ channel: 'slack', strategy: 'admin_managed_channels' }]
+      }
+    },
+    allowed: { res: { ok: true, status: 200 }, body: { channels: [] } },
+    subjects: { res: { ok: true, status: 200 }, body: { subjects: [] } }
+  });
+
+  assert.equal(verdict.pass, true);
+  assert.deepEqual(verdict.detail, {
+    advertised: true,
+    allowed_status: 200,
+    subjects_status: 200
+  });
+});
+
+test('new sidecar acceptance fails when admin-managed Slack routes are missing', () => {
+  const verdict = evaluateSlackAdminManagedRoutes({
+    connectable: {
+      body: {
+        channels: [{ channel: 'slack', action: { strategy: 'admin_managed_channels' } }]
+      }
+    },
+    allowed: { res: { ok: false, status: 404 }, body: null },
+    subjects: { res: { ok: true, status: 200 }, body: { subjects: [] } }
+  });
+
+  assert.equal(verdict.name, SLACK_ADMIN_MANAGED_CHECK_NAME);
+  assert.equal(verdict.pass, false);
+  assert.deepEqual(verdict.detail, {
+    advertised: true,
+    allowed_status: 404,
+    subjects_status: 200
+  });
+});
+
+test('new sidecar acceptance ignores Slack routes when admin-managed Slack is not advertised', () => {
+  const verdict = evaluateSlackAdminManagedRoutes({
+    connectable: { body: { channels: [] } },
+    allowed: { res: { ok: false, status: 404 }, body: null },
+    subjects: { res: { ok: false, status: 404 }, body: null }
+  });
+
+  assert.equal(verdict.pass, true);
+  assert.equal(verdict.detail.advertised, false);
+});
+
+test('new sidecar acceptance fails when top-level admin-managed Slack is missing subjects route', () => {
+  const verdict = evaluateSlackAdminManagedRoutes({
+    connectable: {
+      body: {
+        channels: [{ channel: 'slack', strategy: 'admin_managed_channels' }]
+      }
+    },
+    allowed: { res: { ok: true, status: 200 }, body: { channels: [] } },
+    subjects: { res: { ok: false, status: 404 }, body: null }
+  });
+
+  assert.equal(verdict.name, SLACK_ADMIN_MANAGED_CHECK_NAME);
+  assert.equal(verdict.pass, false);
+  assert.deepEqual(verdict.detail, {
+    advertised: true,
+    allowed_status: 200,
+    subjects_status: 404
+  });
+});
+
+test('new sidecar acceptance requires outbound delivery route shapes', () => {
+  const verdict = evaluateOutboundDeliveryRoutes({
+    preferences: {
+      res: { ok: true, status: 200 },
+      body: {
+        final_reply_target: null,
+        final_reply_target_status: 'none_configured'
+      }
+    },
+    targets: { res: { ok: true, status: 200 }, body: { targets: [] } }
+  });
+
+  assert.equal(verdict.name, OUTBOUND_DELIVERY_CHECK_NAME);
+  assert.equal(verdict.pass, true);
+  assert.deepEqual(verdict.detail, {
+    preferences_status: 200,
+    targets_status: 200,
+    has_final_reply_target: true,
+    has_final_reply_target_status: true,
+    final_reply_target_defaulted: false,
+    targets_count: 0
+  });
+});
+
+test('new sidecar acceptance accepts omitted target when status is none configured', () => {
+  const verdict = evaluateOutboundDeliveryRoutes({
+    preferences: {
+      res: { ok: true, status: 200 },
+      body: {
+        final_reply_target_status: 'none_configured'
+      }
+    },
+    targets: { res: { ok: true, status: 200 }, body: { targets: [] } }
+  });
+
+  assert.equal(verdict.name, OUTBOUND_DELIVERY_CHECK_NAME);
+  assert.equal(verdict.pass, true);
+  assert.deepEqual(verdict.detail, {
+    preferences_status: 200,
+    targets_status: 200,
+    has_final_reply_target: false,
+    has_final_reply_target_status: true,
+    final_reply_target_defaulted: true,
+    targets_count: 0
+  });
+});
+
+test('new sidecar acceptance fails malformed outbound delivery routes', () => {
+  const missingPreferenceFields = evaluateOutboundDeliveryRoutes({
+    preferences: { res: { ok: true, status: 200 }, body: { ok: true } },
+    targets: { res: { ok: true, status: 200 }, body: { targets: [] } }
+  });
+  const missingTargetsArray = evaluateOutboundDeliveryRoutes({
+    preferences: {
+      res: { ok: true, status: 200 },
+      body: {
+        final_reply_target: null,
+        final_reply_target_status: 'none_configured'
+      }
+    },
+    targets: { res: { ok: true, status: 200 }, body: { ok: true } }
+  });
+
+  assert.equal(missingPreferenceFields.pass, false);
+  assert.equal(missingPreferenceFields.detail.has_final_reply_target, false);
+  assert.equal(missingPreferenceFields.detail.has_final_reply_target_status, false);
+  assert.equal(missingTargetsArray.pass, false);
+  assert.equal(missingTargetsArray.detail.targets_count, null);
+});

@@ -28,34 +28,30 @@ test('logs empty state is dignified and offers a real next action (DT-5)', async
   // bare line of muted text floating in a void.
   assert.match(source, /EmptyPanel/);
   assert.match(source, /title=\$\{t\('nav\.logs'\)\}/);
-  assert.match(source, /description=\$\{t\('logs\.empty'\)\}/);
+  assert.match(source, /const emptyDescription = isUnsupported \? t\('logs\.unsupported'\) : t\('logs\.empty'\);/);
+  assert.match(source, /description=\$\{emptyDescription\}/);
 
   // It must not dead-end: a primary Chat CTA routes to where work actually lives.
   assert.match(source, /as=\$\{Link\}\s+to="\/chat"\s+variant="primary"/);
   assert.match(source, /\$\{t\('nav\.chat'\)\}/);
 });
 
-test('logs stream controls are gated behind a live stream (no fake readiness)', async () => {
+test('logs stream controls are backed by live operator logs (no fake readiness)', async () => {
   const source = await readFile(logsPagePath, 'utf8');
+  const hookSource = await readFile(path.join(testDir, 'hooks', 'useLogs.js'), 'utf8');
 
-  // Pause/Resume, Clear, Auto-scroll, and Server level act on a log stream. With
-  // no v2 streaming endpoint the hook reports status:'todo'; the toolbar must not
-  // render lifecycle controls that imply a controllable stream that has no source.
-  assert.match(source, /const liveStream = status !== 'todo';/);
+  // Pause/Resume, Clear, and Auto-scroll now act on the Reborn logs
+  // endpoint. The old desktop contract hid them while logs were a TODO stub;
+  // keeping that guard would hide a real Reborn feature.
+  assert.match(hookSource, /import \{ queryOperatorLogs \}/);
+  assert.match(hookSource, /queryOperatorLogs\(/);
+  assert.match(hookSource, /setInterval\(loadLogs,\s*POLL_INTERVAL_MS\)/);
+  assert.doesNotMatch(hookSource, /status:\s*'todo'/);
 
   const pauseIndex = source.indexOf("t('logs.pause')");
   const clearIndex = source.indexOf("t('logs.clear')");
   const autoScrollIndex = source.indexOf("t('logs.autoScroll')");
   assert.ok(pauseIndex > -1 && clearIndex > -1 && autoScrollIndex > -1);
-
-  // Each lifecycle control sits inside a `${liveStream && ...}` guarded block.
-  for (const controlIndex of [pauseIndex, clearIndex, autoScrollIndex]) {
-    const guardBefore = source.lastIndexOf('${liveStream', controlIndex);
-    assert.ok(
-      guardBefore > -1 && guardBefore < controlIndex,
-      'lifecycle control must be gated behind liveStream'
-    );
-  }
 });
 
 test('logs toolbar controls meet the 44px mobile tap-target floor', async () => {

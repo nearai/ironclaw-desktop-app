@@ -36,6 +36,7 @@ function resolveExpiry(expiresAt) {
 export function AuthOauthCard({ gate, onCancel }) {
   const t = useT();
   const [opened, setOpened] = React.useState(false);
+  const [error, setError] = React.useState('');
   const hasHttpsAuthorizationUrl = React.useMemo(() => {
     if (!gate.authorizationUrl) return false;
     try {
@@ -44,6 +45,9 @@ export function AuthOauthCard({ gate, onCancel }) {
       return false;
     }
   }, [gate.authorizationUrl]);
+  React.useEffect(() => {
+    setError('');
+  }, [gate.authorizationUrl, gate.gateRef, gate.runId]);
 
   // Expiry: an OAuth authorization URL is time-boxed. Once it lapses the waiting
   // text would lie ("waiting…" on a dead link), so we flip to an expired state
@@ -76,7 +80,10 @@ export function AuthOauthCard({ gate, onCancel }) {
     // Guard: reject missing or non-HTTPS URLs before window.open so that
     // custom protocol handlers (javascript:, tel:, ms-msdt:, slack:) are
     // never opened even if a future code path writes an unexpected scheme.
-    if (!hasHttpsAuthorizationUrl) return;
+    if (!hasHttpsAuthorizationUrl) {
+      setError(t('authGate.serviceUnavailable'));
+      return;
+    }
     // Re-opening after expiry mints a fresh attempt; clear the expired flag so
     // the waiting hint replaces the expiry notice.
     setExpired(false);
@@ -84,9 +91,10 @@ export function AuthOauthCard({ gate, onCancel }) {
     // a cookie-less child webview where the user has no Google session and
     // OAuth cannot complete. openExternalUrl falls back to window.open when
     // hosted, keeping the user-gesture popup semantics there.
+    setError('');
     openExternalUrl(gate.authorizationUrl);
     setOpened(true);
-  }, [gate.authorizationUrl, hasHttpsAuthorizationUrl]);
+  }, [gate.authorizationUrl, hasHttpsAuthorizationUrl, t]);
 
   // After expiry the CTA always reads as a re-open, since the prior link is dead.
   const openLabel =
@@ -106,41 +114,35 @@ export function AuthOauthCard({ gate, onCancel }) {
       pillHint=${t('authGate.pillAuthorize')}
     >
       <div className="flex flex-wrap gap-2">
-        ${hasHttpsAuthorizationUrl
-          ? html`<${Button}
-              as="a"
-              href=${gate.authorizationUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="auth-oauth"
-              variant="primary"
-              onClick=${(event) => {
-                event.preventDefault();
-                openAuth();
-              }}
-            >
-              <${Icon} name="link" className="h-4 w-4" />
-              ${openLabel}
-            <//>`
-          : html`<${Button}
-              as="button"
-              type="button"
-              className="auth-oauth"
-              variant="primary"
-              disabled
-            >
-              <${Icon} name="link" className="h-4 w-4" />
-              ${openLabel}
-            <//>`}
+        <${Button}
+          as="a"
+          href=${hasHttpsAuthorizationUrl ? gate.authorizationUrl : undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="auth-oauth"
+          variant="primary"
+          onClick=${(event) => {
+            event.preventDefault();
+            openAuth();
+          }}
+        >
+          <${Icon} name="link" className="h-4 w-4" />
+          ${openLabel}
+        <//>
         <${Button} type="button" variant="secondary" onClick=${() => onCancel?.()}>
           ${t('authGate.cancel')}
         <//>
       </div>
 
-      ${!hasHttpsAuthorizationUrl &&
-      html`<p className="mt-2 text-xs text-[var(--v2-warning-text)]">
-        ${t('authGate.oauthLinkUnavailable')}
-      </p>`}
+      ${error &&
+      html`
+        <div
+          className="mt-3 rounded-md border border-[color-mix(in_srgb,var(--v2-danger-text)_25%,transparent)] bg-[var(--v2-danger-soft)] px-3 py-2 text-xs text-[var(--v2-danger-text)]"
+          role="alert"
+        >
+          ${error}
+        </div>
+      `}
       ${hasHttpsAuthorizationUrl &&
       !expired &&
       opened &&

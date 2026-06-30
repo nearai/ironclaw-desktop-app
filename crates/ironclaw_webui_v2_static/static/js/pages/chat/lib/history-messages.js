@@ -58,11 +58,13 @@
  *   output_bytes?: number | null;
  *   output_kind?: string | null;
  *   turn_run_id?: string | null;
+ *   activity_order?: number | string | null;
  * }} CapabilityPreview
  *
  * @typedef {{
  *   invocationId: string;
  *   callId: string;
+ *   capabilityId?: string | null;
  *   toolName: string;
  *   toolStatus: string;
  *   toolDetail: string | null;
@@ -76,6 +78,8 @@
  *   outputBytes: number | null;
  *   outputKind: string | null;
  *   turnRunId: string | null;
+ *   activityOrder?: number | null;
+ *   activityOrderSource?: string | null;
  * }} ToolCard
  *
  * @typedef {{
@@ -86,6 +90,9 @@
  *   updated_at?: string | null;
  *   output_bytes?: number | null;
  *   turn_run_id?: string | null;
+ *   subtitle?: string | null;
+ *   input_summary?: string | null;
+ *   activity_order?: number | string | null;
  * }} CapabilityActivity
  */
 
@@ -354,12 +361,11 @@ function normalizeComparableContent(content) {
   }
 }
 
-// The bundled Reborn sidecar (v0.29.x) stores first-class attachments in the
-// thread record but never delivers their CONTENT to the model — no workspace
-// file, no context inlining (upstream adds inlining only in uncommitted
-// work). The message `content` is therefore the ONLY channel through which
-// the model can read a document, so the durable block embeds the extracted
-// text itself, within the backend content validator's laws:
+// The desktop UI keeps embedding extracted attachment text in `content` as a
+// compatibility path for older sidecars and as a reload-stable transcript
+// manifest. Latest Reborn main also lands first-class attachment payloads, but
+// the durable block remains useful for large client-extracted documents and
+// sidecar skew. Keep it within the backend content validator's laws:
 //   - whole content ≤ 64 KiB bytes (USER_MESSAGE_TEXT_MAX_BYTES)
 //   - no control characters except \n and \t (\r is rejected)
 const MESSAGE_CONTENT_MAX_BYTES = 64 * 1024;
@@ -485,9 +491,10 @@ function truncateUtf8(text, maxBytes) {
  *  1. Reload durability — Reborn's timeline echoes `content` but drops the
  *     first-class `attachments` field; the metadata lines are parsed back
  *     into chips by `parseDurableAttachmentBlock` and stripped from view.
- *  2. Model visibility — the sidecar never feeds attachment bytes to the
- *     model, so text payloads (extracted PDFs/DOCX/XLSX, plain text files)
- *     are embedded as length-prefixed fenced sections the model can read.
+ *  2. Model visibility — text payloads (client-extracted PDFs/DOCX/XLSX,
+ *     plain text files) are embedded as length-prefixed fenced sections the
+ *     model can read even when the sidecar is older than the mainline
+ *     attachment-landing path.
  *     `extracted_text_chars` lets the parser skip the content exactly, so
  *     documents containing manifest-like lines can never corrupt parsing.
  *
@@ -757,10 +764,12 @@ function toolCardFromPreviewRecord(record) {
 export function toolCardFromPreview(preview) {
   const failed = preview.status === 'failed' || preview.status === 'killed';
   const invocationId = preview.invocation_id || '';
+  const activityOrder = numericActivityOrder(preview.activity_order);
   return {
     invocationId,
     callId: invocationId,
-    toolName: preview.title || preview.capability_id || 'tool',
+    capabilityId: preview.capability_id || null,
+    toolName: toolDisplayName(preview.title || preview.capability_id) || 'tool',
     toolStatus: toolStatusFromActivityStatus(preview.status),
     toolDetail: preview.subtitle || null,
     toolParameters: preview.input_summary || null,
@@ -777,7 +786,9 @@ export function toolCardFromPreview(preview) {
     truncated: Boolean(preview.truncated),
     outputBytes: preview.output_bytes ?? null,
     outputKind: preview.output_kind || null,
-    turnRunId: preview.turn_run_id || null
+    turnRunId: preview.turn_run_id || null,
+    activityOrder,
+    activityOrderSource: Number.isFinite(activityOrder) ? 'projection' : null
   };
 }
 
@@ -789,13 +800,15 @@ export function toolCardFromPreview(preview) {
  * @param {CapabilityActivity} activity
  */
 export function toolCardFromActivity(activity) {
+  const activityOrder = numericActivityOrder(activity.activity_order);
   return {
     invocationId: activity.invocation_id || '',
     callId: activity.invocation_id || '',
-    toolName: activity.capability_id || 'tool',
+    capabilityId: activity.capability_id || null,
+    toolName: toolDisplayName(activity.capability_id) || 'tool',
     toolStatus: toolStatusFromActivityStatus(activity.status),
-    toolDetail: null,
-    toolParameters: null,
+    toolDetail: activity.subtitle || null,
+    toolParameters: activity.input_summary || null,
     toolResultPreview: null,
     toolError: activity.error_kind || null,
     toolDurationMs: null,
@@ -804,7 +817,9 @@ export function toolCardFromActivity(activity) {
     truncated: false,
     outputBytes: activity.output_bytes ?? null,
     outputKind: null,
-    turnRunId: activity.turn_run_id || null
+    turnRunId: activity.turn_run_id || null,
+    activityOrder,
+    activityOrderSource: Number.isFinite(activityOrder) ? 'projection' : null
   };
 }
 
@@ -813,6 +828,13 @@ export function toolCardFromActivity(activity) {
  */
 export function isTerminalToolStatus(status) {
   return status === 'success' || status === 'error';
+}
+
+export function toolDisplayName(name) {
+  const value = typeof name === 'string' ? name.trim() : '';
+  if (!value) return '';
+  const parts = value.split('.');
+  return parts[parts.length - 1] || value;
 }
 
 /**
@@ -830,4 +852,9 @@ function toolStatusFromActivityStatus(status) {
     default:
       return 'running';
   }
+}
+
+function numericActivityOrder(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }

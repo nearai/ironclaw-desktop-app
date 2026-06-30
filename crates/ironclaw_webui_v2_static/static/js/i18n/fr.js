@@ -5,8 +5,13 @@ registerPack('fr', {
   'language.switch': 'Langue modifiée',
 
   'common.unknown': 'Inconnu',
+  'automations.delivery.loadFailedTitle': 'Parametres de livraison indisponibles',
+  'automations.delivery.loadFailedDesc':
+    'IronClaw n’a pas pu confirmer les destinations de livraison depuis la passerelle. Il ne supposera donc pas une livraison web uniquement et n’enregistrera pas de valeur par defaut.',
+  'automations.delivery.retry': 'Reessayer',
 
   'nav.chat': 'Chat',
+  'nav.workbench': 'Workbench',
   'nav.workspace': 'Espace de travail',
   'nav.projects': 'Projets',
   'nav.jobs': 'Jobs',
@@ -241,16 +246,24 @@ registerPack('fr', {
 
   'workspace.title': 'Espace de travail',
   'workspace.subtitle': 'Mémoire persistante',
+  'workspace.readOnly': 'Lecture seule',
+  'workspace.filterPlaceholder': 'Filtrer par nom...',
+  'workspace.emptyDir': 'Ce dossier est vide.',
   'workspace.refresh': 'Rafraîchir',
   'workspace.refreshing': 'Rafraîchissement',
   'workspace.loading': 'Chargement...',
   'workspace.searching': 'Recherche...',
   'workspace.noResults': 'Aucun résultat.',
   'workspace.noFiles': 'Aucun fichier dans le workspace.',
+  'workspace.noMatches': 'Aucun résultat pour ce filtre.',
   'workspace.breadcrumbRoot': 'workspace',
   'workspace.pickFileTitle': 'Choisir un fichier du workspace',
   'workspace.pickFileDesc':
-    'Choisissez un document mémoire depuis l’arborescence ou la recherche pour l’inspecter et l’éditer.',
+    'Choisissez un fichier dans l’arborescence pour le prévisualiser ou le télécharger. Cette vue est en lecture seule.',
+  'workspace.download': 'Télécharger',
+  'workspace.binaryPreviewUnavailable':
+    'Aucun aperçu pour ce type de fichier. Téléchargez-le pour voir le contenu.',
+  'workspace.fileMeta': '{mime} - {size} octets',
   'workspace.edit': 'Éditer',
   'workspace.cancel': 'Annuler',
   'workspace.save': 'Enregistrer',
@@ -543,6 +556,9 @@ registerPack('fr', {
   'chat.modeAutoReview': 'Revue automatique',
   'chat.runtimeLocal': 'Travailler localement',
   'chat.statusWorking': 'Travail en cours',
+  'chat.deleteFailed': 'Impossible de supprimer cette conversation.',
+  'chat.deleteBusy':
+    "Impossible de supprimer une conversation en cours d'exécution. Arrêtez-la d'abord, puis réessayez.",
 
   // Onglets extensions — nouvelles cles v2
   'extensions.installed': 'Installees',

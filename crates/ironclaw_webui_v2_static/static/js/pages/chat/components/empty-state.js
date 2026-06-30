@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { Icon } from '../../../design-system/icons.js';
-import { listAutomations } from '../../../lib/api.js';
+import { listAutomations } from '../../../lib/automations-api.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 import { normalizeAutomations } from '../../automations/lib/automations-presenters.js';
@@ -73,6 +73,7 @@ export function EmptyState({
   disabled,
   initialText,
   resetKey,
+  draftKey: composerDraftKey,
   context,
   statusText,
   canCancel,
@@ -127,10 +128,10 @@ export function EmptyState({
   const providerSetupFailed = Boolean(!providersSnapshot && providersQuery.error);
 
   const [draft, setDraft] = React.useState('');
-  const [draftKey, setDraftKey] = React.useState(0);
+  const [draftResetKey, setDraftResetKey] = React.useState(0);
   const prefill = (text) => {
     setDraft(text);
-    setDraftKey((key) => key + 1);
+    setDraftResetKey((key) => key + 1);
   };
 
   const suggestions = [
@@ -263,6 +264,8 @@ export function EmptyState({
             )}
           </div>
 
+          <${SourceBoundaryStrip} />
+
           ${recentThreads.length > 0 &&
           html`
             <div className="mt-8">
@@ -298,7 +301,8 @@ export function EmptyState({
             onSend=${onSend}
             disabled=${disabled}
             initialText=${draft || initialText}
-            resetKey=${`${resetKey}-${draftKey}`}
+            resetKey=${`${resetKey}-${draftResetKey}`}
+            draftKey=${composerDraftKey}
             variant="hero"
             context=${context}
             statusText=${statusText}
@@ -309,17 +313,18 @@ export function EmptyState({
           ${setupBlocked &&
           html`
             <div
-              className="mt-3 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
+              className="mt-3 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
             >
               <div className="text-sm font-semibold text-[var(--v2-text-strong)]">
-                Connect NEAR AI Cloud once, then ask naturally.
+                Connect model access first, then start with a task.
               </div>
               <div className="mt-1 text-sm leading-5 text-[var(--v2-text-muted)]">
-                Normal desktop setup uses NEAR AI Cloud; no separate model-provider keys are needed.
+                Workspace sources are configured separately in Connections; unset connectors are not
+                used.
               </div>
               <${Link}
                 to="/settings/inference"
-                className="mt-3 inline-flex h-11 items-center rounded-[8px] bg-[var(--v2-accent-btn)] px-4 text-sm font-semibold text-white"
+                className="mt-3 inline-flex h-10 items-center rounded-[8px] bg-[var(--v2-accent-btn)] px-4 text-sm font-semibold text-white v2-force-white"
               >
                 Open setup
               <//>
@@ -372,6 +377,36 @@ export function EmptyState({
             )}
           </div>
         </section>
+      </div>
+    </div>
+  `;
+}
+
+function SourceBoundaryStrip() {
+  return html`
+    <div
+      className="mt-5 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-3"
+      data-testid="source-boundary"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div
+            className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--v2-text-faint)]"
+          >
+            Source boundary
+          </div>
+          <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
+            Only attached files and connectors you set up can be used. External sends, posts, and
+            changes pause for approval.
+          </p>
+        </div>
+        <${Link}
+          to="/extensions"
+          className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 text-sm font-semibold text-[var(--v2-text-strong)] hover:border-[color-mix(in_srgb,var(--v2-accent)_42%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
+        >
+          <${Icon} name="plug" className="h-4 w-4" />
+          Connect sources
+        <//>
       </div>
     </div>
   `;

@@ -90,6 +90,27 @@ test('onboarding trust-row icon tiles do not use gold as decoration', async () =
   );
 });
 
+test('onboarding copy frames first-run as setup for sources, work, and approvals', () => {
+  const packs = getRegisteredPacks();
+  const en = packs.en || {};
+
+  assert.match(
+    en['onboarding.subtitle'],
+    /private workbench.*ask across workspace sources.*prepare work.*approve external actions/i
+  );
+  assert.match(en['onboarding.moreInSettings'], /open Connections/i);
+  assert.match(en['onboarding.promiseModelsBody'], /Workspace sources are added separately\./);
+  for (const value of [
+    en['onboarding.subtitle'],
+    en['onboarding.moreInSettings'],
+    en['onboarding.promiseModelsBody'],
+    en['onboarding.promiseApprovalsBody'],
+    en['onboarding.promiseFilesBody']
+  ]) {
+    assert.doesNotMatch(value, /custody record|trust ledger|sources connected/i);
+  }
+});
+
 // onboarding-desk-4 — the hero is a single, stable prepared-desk question, not a
 // generic time-of-day greeting. The three hour-keyed slots exist for the i18n
 // key-lock but intentionally resolve to one strong question. A chief-of-staff

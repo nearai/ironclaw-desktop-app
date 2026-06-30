@@ -1,8 +1,10 @@
 import { useNavigate, useParams } from 'react-router';
 import { Button } from '../../design-system/button.js';
+import { StatusPill } from '../../design-system/primitives.js';
 import { React, html } from '../../lib/html.js';
 import { useT } from '../../lib/i18n.js';
 import { FeedbackBanner } from '../projects/components/feedback-banner.js';
+import { WorkspaceDirectory } from './components/workspace-directory.js';
 import { WorkspaceSidebar } from './components/workspace-sidebar.js';
 import { WorkspaceViewer } from './components/workspace-viewer.js';
 import { useWorkspaceBrowser } from './hooks/useWorkspaceBrowser.js';
@@ -22,18 +24,32 @@ export function WorkspacePage() {
     [navigate]
   );
 
-  const handleSave = React.useCallback(async () => {
-    try {
-      await workspace.save();
-    } catch {
-      // Visible result state is owned by the hook.
-    }
-  }, [workspace]);
-
   return html`
     <div className="flex h-full flex-col overflow-y-auto">
-      <div className="v2-page-entrance flex-1 p-4 sm:p-6">
-        <div className="flex h-full min-h-0 flex-col space-y-5">
+      <div className="v2-page-entrance flex-1 p-4 sm:p-5">
+        <div className="flex h-full min-h-0 flex-col space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-semibold text-[var(--v2-text-strong)]">
+                  ${t('workspace.title')}
+                </h1>
+                <${StatusPill} tone="muted" label=${t('workspace.readOnly')} />
+              </div>
+              <p className="mt-0.5 text-sm text-[var(--v2-text-muted)]">
+                ${t('workspace.subtitle')}
+              </p>
+            </div>
+            <${Button}
+              variant="secondary"
+              size="sm"
+              onClick=${workspace.refresh}
+              disabled=${workspace.isFetching}
+            >
+              ${workspace.isFetching ? t('workspace.refreshing') : t('workspace.refresh')}
+            <//>
+          </div>
+
           ${workspace.error &&
           html`
             <div
@@ -44,32 +60,36 @@ export function WorkspacePage() {
           `}
           <${FeedbackBanner} result=${workspace.result} onDismiss=${workspace.clearResult} />
 
-          <div className="grid min-h-0 flex-1 gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
+          <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
             <${WorkspaceSidebar}
-              search=${workspace.search}
-              onSearchChange=${workspace.setSearch}
               rootEntries=${workspace.rootEntries}
               selectedPath=${selectedPath}
               expandedPaths=${workspace.expandedPaths}
-              searchResults=${workspace.searchResults}
+              filter=${workspace.filter}
+              onFilterChange=${workspace.setFilter}
               isLoadingTree=${workspace.isLoadingTree}
-              isSearching=${workspace.isSearching}
               onToggleDirectory=${workspace.toggleDirectory}
               onSelectFile=${handleSelectFile}
             />
-            <${WorkspaceViewer}
-              path=${selectedPath}
-              file=${workspace.file}
-              draft=${workspace.draft}
-              onDraftChange=${workspace.setDraft}
-              editing=${workspace.editing}
-              onStartEdit=${() => workspace.setEditing(true)}
-              onCancelEdit=${() => workspace.setEditing(false)}
-              onSave=${handleSave}
-              isLoading=${workspace.isLoadingFile}
-              isSaving=${workspace.isSaving}
-              onNavigate=${navigate}
-            />
+            ${workspace.selectionIsDirectory
+              ? html`
+                  <${WorkspaceDirectory}
+                    path=${selectedPath}
+                    entries=${workspace.currentEntries}
+                    isLoading=${workspace.isLoadingListing}
+                    filter=${workspace.filter}
+                    onOpen=${handleSelectFile}
+                    onNavigate=${navigate}
+                  />
+                `
+              : html`
+                  <${WorkspaceViewer}
+                    path=${selectedPath}
+                    file=${workspace.file}
+                    isLoading=${workspace.isLoadingFile}
+                    onNavigate=${navigate}
+                  />
+                `}
           </div>
         </div>
       </div>

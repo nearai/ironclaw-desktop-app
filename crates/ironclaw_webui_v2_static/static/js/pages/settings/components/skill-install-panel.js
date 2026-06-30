@@ -10,30 +10,43 @@ export function SkillInstallPanel({ onInstall, isInstalling }) {
   const [name, setName] = React.useState('');
   const [url, setUrl] = React.useState('');
   const [content, setContent] = React.useState('');
-  const [error, setError] = React.useState('');
+  const [fieldErrors, setFieldErrors] = React.useState({ name: '', url: '', content: '' });
+  const [formError, setFormError] = React.useState('');
   const [result, setResult] = React.useState('');
+
+  const clearFieldErrorIfValid = React.useCallback((field, value, siblingValue = '') => {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const trimmed = value.trim();
+      const sibling = siblingValue.trim();
+      const valid =
+        field === 'url'
+          ? !trimmed || trimmed.startsWith('https://')
+          : field === 'content'
+            ? Boolean(trimmed || sibling)
+            : Boolean(trimmed);
+      if (!valid) return current;
+      return { ...current, [field]: '' };
+    });
+  }, []);
 
   const submit = React.useCallback(async () => {
     const payload = buildPayload({ name, url, content });
-    if (!payload.name) {
-      setError(t('skills.nameRequired'));
-      return;
-    }
-    if (!payload.url && !payload.content) {
-      setError(t('skills.importSourceRequired'));
-      return;
-    }
-    if (payload.url && !payload.url.startsWith('https://')) {
-      setError(t('skills.httpsRequired'));
+    const validationErrors = validatePayload(payload, t);
+    if (validationErrors.name || validationErrors.url || validationErrors.content) {
+      setFieldErrors(validationErrors);
+      setFormError('');
+      setResult('');
       return;
     }
 
-    setError('');
+    setFieldErrors({ name: '', url: '', content: '' });
+    setFormError('');
     setResult('');
     try {
       const response = await onInstall(payload);
       if (!response?.success) {
-        setError(response?.message || t('skills.installFailed'));
+        setFormError(response?.message || t('skills.installFailed'));
         return;
       }
 
@@ -42,7 +55,7 @@ export function SkillInstallPanel({ onInstall, isInstalling }) {
       setContent('');
       setResult(response.message || t('skills.installedSuccess', { name: payload.name }));
     } catch (err) {
-      setError(err.message || t('skills.installFailed'));
+      setFormError(err.message || t('skills.installFailed'));
     }
   }, [content, name, onInstall, t, url]);
 
@@ -58,34 +71,59 @@ export function SkillInstallPanel({ onInstall, isInstalling }) {
       </div>
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1fr)]">
-        <${FormField} label=${t('skills.name')} error=${error && !name.trim() ? error : ''}>
+        <${FormField} label=${t('skills.name')} error=${fieldErrors.name} required>
           <${Input}
             size="sm"
+            error=${Boolean(fieldErrors.name)}
+            aria-invalid=${fieldErrors.name ? 'true' : undefined}
             value=${name}
             placeholder=${t('skills.namePlaceholder')}
-            onInput=${(event) => setName(event.currentTarget.value)}
+            onInput=${(event) => {
+              const nextName = event.currentTarget.value;
+              setName(nextName);
+              clearFieldErrorIfValid('name', nextName);
+            }}
           />
         <//>
-        <${FormField} label=${t('skills.url')} hint=${t('skills.urlHint')}>
+        <${FormField} label=${t('skills.url')} hint=${t('skills.urlHint')} error=${fieldErrors.url}>
           <${Input}
             size="sm"
+            error=${Boolean(fieldErrors.url)}
+            aria-invalid=${fieldErrors.url ? 'true' : undefined}
             value=${url}
             placeholder=${t('skills.urlPlaceholder')}
-            onInput=${(event) => setUrl(event.currentTarget.value)}
+            onInput=${(event) => {
+              const nextUrl = event.currentTarget.value;
+              setUrl(nextUrl);
+              clearFieldErrorIfValid('url', nextUrl);
+              clearFieldErrorIfValid('content', content, nextUrl);
+            }}
           />
         <//>
       </div>
 
-      <${FormField} className="mt-3" label=${t('skills.content')} hint=${t('skills.contentHint')}>
+      <${FormField}
+        className="mt-3"
+        label=${t('skills.content')}
+        error=${fieldErrors.content}
+        hint=${t('skills.contentHint')}
+      >
         <${Textarea}
           rows=${5}
+          error=${Boolean(fieldErrors.content)}
+          aria-invalid=${fieldErrors.content ? 'true' : undefined}
           value=${content}
           placeholder=${t('skills.contentPlaceholder')}
-          onInput=${(event) => setContent(event.currentTarget.value)}
+          onInput=${(event) => {
+            const nextContent = event.currentTarget.value;
+            setContent(nextContent);
+            clearFieldErrorIfValid('content', nextContent, url);
+          }}
         />
       <//>
 
-      ${error && html`<p className="mt-3 text-sm text-[var(--v2-danger-text)]">${error}</p>`}
+      ${formError &&
+      html`<p className="mt-3 text-sm text-[var(--v2-danger-text)]">${formError}</p>`}
       ${result && html`<p className="mt-3 text-sm text-[var(--v2-positive-text)]">${result}</p>`}
 
       <div className="mt-4 flex justify-end">
@@ -103,4 +141,12 @@ function buildPayload({ name, url, content }) {
   if (url.trim()) payload.url = url.trim();
   if (content.trim()) payload.content = content.trim();
   return payload;
+}
+
+function validatePayload(payload, t) {
+  return {
+    name: payload.name ? '' : t('skills.nameRequired'),
+    url: payload.url && !payload.url.startsWith('https://') ? t('skills.httpsRequired') : '',
+    content: payload.url || payload.content ? '' : t('skills.importSourceRequired')
+  };
 }

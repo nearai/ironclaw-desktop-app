@@ -4,17 +4,30 @@ import { Button } from '../../../design-system/button.js';
 import { Popover } from '../../../design-system/popover.js';
 import { AttachmentPreviewModal } from './attachment-preview.js';
 import { React, html } from '../../../lib/html.js';
+import { authScope } from '../../../lib/auth-scope.js';
 import { useT } from '../../../lib/i18n.js';
 import { formatSize, useComposerAttachments } from '../hooks/useComposerAttachments.js';
+import {
+  NEW_DRAFT_KEY,
+  clearDraft,
+  clearStagedAttachments,
+  getDraft,
+  setDraft
+} from '../lib/draft-store.js';
 import {
   fetchLlmProviders,
   listLlmProviderModels,
   setActiveLlm
 } from '../../settings/lib/settings-api.js';
 import {
-  filterDesktopVisibleLlmProviders,
-  modelDisplayName
-} from '../../settings/lib/llm-providers.js';
+  formatProviderLabel,
+  modelForProvider,
+  normalizeModelEntries,
+  providerSetupFailedMessage,
+  uniqueModelsByDisplayLabel,
+  visibleLlmSnapshot
+} from './chat-model-utils.js';
+import { modelDisplayName } from '../../settings/lib/llm-providers.js';
 
 // One short status per chip: what actually happens to this file when sent.
 function attachmentStatusLabel(att, t) {
@@ -43,18 +56,6 @@ function modelSettingsPath() {
     return '/v2/settings/inference';
   }
   return '/settings/inference';
-}
-
-function visibleLlmSnapshot(snapshot = {}) {
-  const providers = filterDesktopVisibleLlmProviders(
-    Array.isArray(snapshot.providers) ? snapshot.providers : []
-  );
-  const rawActive = snapshot.active || null;
-  const active =
-    rawActive && providers.some((provider) => provider.id === rawActive.provider_id)
-      ? rawActive
-      : null;
-  return { providers, active };
 }
 
 // Compact model switcher anchored to the composer chip. Models come from the
@@ -243,6 +244,47 @@ function ModelPopover({ open, onClose, t }) {
                   ${t('chat.modelPopoverTitle')}
                 </div>
               </div>
+              <div className="mb-2 border-t border-[var(--v2-panel-border)] px-2 pt-2">
+                <button
+                  type="button"
+                  aria-expanded=${manualOpen ? 'true' : 'false'}
+                  onClick=${() => {
+                    setManualOpen((value) => !value);
+                    setManualModel('');
+                  }}
+                  className="flex min-h-11 w-full items-center justify-between gap-2 rounded-[8px] px-2 py-1.5 text-left text-xs font-medium text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]"
+                >
+                  <span>${t('chat.modelPopoverManualToggle')}</span>
+                  <${Icon}
+                    name="chevron"
+                    className=${`h-3.5 w-3.5 transition-transform ${manualOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                ${manualOpen &&
+                html`
+                  <div
+                    className="mt-2 rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-2"
+                  >
+                    <label
+                      className="mb-1 block text-[13px] font-medium text-[var(--v2-text-muted)]"
+                    >
+                      ${t('chat.modelPopoverManualLabel')}
+                    </label>
+                    <input
+                      type="text"
+                      value=${manualModel}
+                      onChange=${(event) => {
+                        setManualModel(event.target.value);
+                      }}
+                      placeholder=${t('chat.modelPopoverManualPlaceholder')}
+                      className="h-9 w-full rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 font-mono text-xs text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--v2-accent)_28%,transparent)]"
+                    />
+                    <p className="mt-1.5 text-xs leading-4 text-[var(--v2-text-muted)]">
+                      ${t('chat.modelPopoverManualDesc')}
+                    </p>
+                  </div>
+                `}
+              </div>
               <div className="max-h-64 overflow-y-auto">
                 ${models === null &&
                 html`<div className="px-2 py-3 text-sm text-[var(--v2-text-muted)]">
@@ -317,47 +359,6 @@ function ModelPopover({ open, onClose, t }) {
                   `}
                 `}
               </div>
-              <div className="mt-2 border-t border-[var(--v2-panel-border)] px-2 pt-2">
-                <button
-                  type="button"
-                  aria-expanded=${manualOpen ? 'true' : 'false'}
-                  onClick=${() => {
-                    setManualOpen((value) => !value);
-                    setManualModel('');
-                  }}
-                  className="flex w-full items-center justify-between gap-2 rounded-[8px] px-2 py-1.5 text-left text-xs font-medium text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]"
-                >
-                  <span>${t('chat.modelPopoverManualToggle')}</span>
-                  <${Icon}
-                    name="chevron"
-                    className=${`h-3.5 w-3.5 ${manualOpen ? 'rotate-180' : ''}`}
-                  />
-                </button>
-                ${manualOpen &&
-                html`
-                  <div
-                    className="mt-2 rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-2"
-                  >
-                    <label
-                      className="mb-1 block text-[13px] font-medium text-[var(--v2-text-muted)]"
-                    >
-                      ${t('chat.modelPopoverManualLabel')}
-                    </label>
-                    <input
-                      type="text"
-                      value=${manualModel}
-                      onChange=${(event) => {
-                        setManualModel(event.target.value);
-                      }}
-                      placeholder=${t('chat.modelPopoverManualPlaceholder')}
-                      className="h-9 w-full rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 font-mono text-xs text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)] focus:ring-2 focus:ring-[color-mix(in_srgb,var(--v2-accent)_28%,transparent)]"
-                    />
-                    <p className="mt-1.5 text-xs leading-4 text-[var(--v2-text-muted)]">
-                      ${t('chat.modelPopoverManualDesc')}
-                    </p>
-                  </div>
-                `}
-              </div>
             `}
       <div className="mt-2 border-t border-[var(--v2-panel-border)] px-2 pb-1 pt-2">
         <div className=${active ? 'flex items-center justify-between gap-3' : 'grid'}>
@@ -403,18 +404,48 @@ export function ChatInput({
   canCancel = false,
   initialText = '',
   resetKey = '',
+  draftKey = NEW_DRAFT_KEY,
   variant = 'dock',
   context = {},
   statusText = ''
 }) {
   const t = useT();
   const isHero = variant === 'hero';
-  const [text, setText] = React.useState('');
+  const [text, setText] = React.useState(() => getDraft(draftKey));
   const [isSending, setIsSending] = React.useState(false);
   const [isCancelling, setIsCancelling] = React.useState(false);
   const [attachmentPreview, setAttachmentPreview] = React.useState(null);
   const textareaRef = React.useRef(null);
   const fileInputRef = React.useRef(null);
+  const pendingDraftRef = React.useRef(null);
+  const draftTimerRef = React.useRef(null);
+  const flushDraft = React.useCallback(() => {
+    if (draftTimerRef.current) {
+      window.clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = null;
+    }
+    const pending = pendingDraftRef.current;
+    pendingDraftRef.current = null;
+    if (pending && pending.scope === authScope()) {
+      setDraft(pending.key, pending.text);
+    }
+  }, []);
+  const cancelPendingDraft = React.useCallback(() => {
+    if (draftTimerRef.current) {
+      window.clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = null;
+    }
+    pendingDraftRef.current = null;
+  }, []);
+  const setTextAndDraft = React.useCallback(
+    (next) => {
+      setText(next);
+      pendingDraftRef.current = { key: draftKey, text: next, scope: authScope() };
+      if (draftTimerRef.current) window.clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = window.setTimeout(flushDraft, 300);
+    },
+    [draftKey, flushDraft]
+  );
   const {
     images,
     attachments,
@@ -424,7 +455,7 @@ export function ChatInput({
     removeAttachment,
     dismissRejections,
     clearAttachments
-  } = useComposerAttachments();
+  } = useComposerAttachments(draftKey);
   const extracting = attachments.some((att) => att.extraction === 'extracting');
   const baseReadiness = context.modelReadiness || {
     verified: false,
@@ -506,14 +537,21 @@ export function ChatInput({
 
   React.useEffect(() => {
     if (!initialText) return;
-    setText(initialText);
+    setTextAndDraft(initialText);
     window.requestAnimationFrame(() => {
       if (textareaRef.current) {
         textareaRef.current.focus();
         textareaRef.current.setSelectionRange(initialText.length, initialText.length);
       }
     });
-  }, [initialText, resetKey]);
+  }, [initialText, resetKey, setTextAndDraft]);
+
+  React.useEffect(() => {
+    if (!initialText) {
+      setText(getDraft(draftKey));
+    }
+    return () => flushDraft();
+  }, [draftKey, flushDraft, initialText]);
 
   const handleSend = React.useCallback(async () => {
     if (
@@ -527,6 +565,9 @@ export function ChatInput({
     setIsSending(true);
     try {
       await onSend(text.trim(), { images, attachments });
+      cancelPendingDraft();
+      clearDraft(draftKey);
+      clearStagedAttachments(draftKey);
       setText('');
       clearAttachments();
       if (textareaRef.current) textareaRef.current.style.height = 'auto';
@@ -544,6 +585,8 @@ export function ChatInput({
     isSending,
     extracting,
     onSend,
+    draftKey,
+    cancelPendingDraft,
     clearAttachments
   ]);
 
@@ -657,7 +700,7 @@ export function ChatInput({
                   />
                   <button
                     onClick=${() => removeImage(i)}
-                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,transparent)] bg-[var(--v2-danger-text)] text-white opacity-0 group-hover:opacity-100"
+                    className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,transparent)] bg-[var(--v2-danger-text)] text-white v2-force-white opacity-0 group-hover:opacity-100"
                     aria-label=${t('chat.removeImage')}
                   >
                     <${Icon} name="close" className="h-3 w-3" />
@@ -746,7 +789,7 @@ export function ChatInput({
         ${readiness.sendBlocked &&
         html`
           <div
-            className="mb-3 rounded-[14px] border border-[color-mix(in_srgb,var(--v2-warning-text)_35%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-sm font-semibold leading-5 text-[var(--v2-warning-text)]"
+            className="mb-3 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-warning-text)_35%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-sm font-semibold leading-5 text-[var(--v2-warning-text)]"
             role="status"
           >
             ${readiness.sendBlockReason || readiness.description}
@@ -756,7 +799,7 @@ export function ChatInput({
         <textarea
           ref=${textareaRef}
           value=${text}
-          onChange=${(e) => setText(e.target.value)}
+          onChange=${(e) => setTextAndDraft(e.target.value)}
           onKeyDown=${onKeyDown}
           onPaste=${onPaste}
           placeholder=${placeholder}
@@ -779,6 +822,7 @@ export function ChatInput({
               onClose=${() => setModelMenuOpen(false)}
               align="end"
               side="top"
+              className="max-h-[min(28rem,calc(100vh-10rem))] overflow-y-auto"
               ariaLabel="Chat model settings"
               className="!max-w-none w-[min(28rem,calc(100vw-2rem))]"
               trigger=${html`
@@ -819,7 +863,7 @@ export function ChatInput({
                 <button
                   type="button"
                   onClick=${() => setAddMenuOpen((value) => !value)}
-                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--v2-canvas)]"
+                  className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-accent-text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--v2-canvas)]"
                   title=${t('chat.addToMessage')}
                   aria-label=${t('chat.addToMessage')}
                   aria-expanded=${addMenuOpen}
@@ -865,7 +909,7 @@ export function ChatInput({
                     disabled=${isCancelling}
                     aria-label=${t('common.cancel')}
                     title=${t('common.cancel')}
-                    className="!h-11 !w-11 rounded-full"
+                    className="!h-11 !w-11 rounded-[8px]"
                   >
                     <${Icon} name="close" className="h-5 w-5" />
                   <//>
@@ -882,7 +926,7 @@ export function ChatInput({
                     extracting ||
                     !hasPayload}
                     aria-label=${t('chat.send')}
-                    className="!h-11 !w-11 rounded-full"
+                    className="!h-11 !w-11 rounded-[8px]"
                   >
                     <${Icon} name="send" className="h-5 w-5" />
                   <//>
@@ -897,57 +941,4 @@ export function ChatInput({
       />
     </div>
   `;
-}
-
-function providerSetupFailedMessage(failed) {
-  if (failed) {
-    return 'IronClaw cannot reach NEAR AI Cloud yet. Open setup or retry when the gateway is ready.';
-  }
-  return 'Connect NEAR AI Cloud before sending your first message.';
-}
-
-function formatProviderLabel(providerId, providerName, fallbackId = 'nearai') {
-  const raw = String(providerId || fallbackId || 'nearai').trim();
-  const normalized = raw.toLowerCase().replace(/[\s]+/g, '').replace(/[_-]+/g, '_');
-
-  if (normalized === 'nearai') return 'NEAR AI Cloud';
-  if (providerName && providerName.trim()) return providerName.trim();
-  if (!providerName) return 'External provider';
-
-  const humanized = raw
-    .trim()
-    .toLowerCase()
-    .replace(/[-_]+/g, ' ')
-    .split(' ')
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-
-  return humanized || 'NEAR.AI';
-}
-
-function normalizeModelEntries(models) {
-  if (!Array.isArray(models)) return [];
-  return models
-    .map((model) =>
-      typeof model === 'string' ? model : model?.id || model?.model || model?.name || ''
-    )
-    .map((model) => String(model).trim())
-    .filter(Boolean);
-}
-
-function uniqueModelsByDisplayLabel(models) {
-  const seen = new Set();
-  return normalizeModelEntries(models).filter((model) => {
-    const label = modelDisplayName(model).toLowerCase();
-    if (seen.has(label)) return false;
-    seen.add(label);
-    return true;
-  });
-}
-
-function modelForProvider(provider, active) {
-  if (!provider) return '';
-  if (provider.id === active?.provider_id) return String(active?.model || 'auto');
-  return String(provider.active_model || provider.default_model || provider.model || '').trim();
 }

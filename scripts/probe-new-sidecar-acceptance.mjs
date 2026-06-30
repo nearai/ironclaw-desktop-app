@@ -3,12 +3,17 @@
 //
 // Spawns the GIVEN binary (arg 1, or $CANDIDATE_SIDECAR) on a temp port with
 // the same hermetic env the desktop uses, then checks every WebChat v2
-// contract our static UI depends on — plus the specific risks in the
-// reborn-integration -> main delta:
+// contract our static UI depends on — plus the specific risks in recent
+// nearai/ironclaw mainline changes:
 //   * #4623 CSRF/origin/CORS limits   -> our WebView requests must still pass
 //   * #4624 sanitized error shapes     -> error envelope still { code, message }
 //   * #4552/#4546 SSE projection path  -> run_status events still stream
-//   * additive routes we want to gain  -> automations/runs, channels/slack/*
+//   * #5057 filesystem browser         -> /fs/mounts/list/stat/content serve
+//   * Workbench model controls          -> /llm/providers/list-models/active serve
+//   * delivery defaults + Trace credits -> outbound/* and traces/credit serve
+//   * operator logs query             -> /operator/logs serves scoped logs
+//   * additive routes we want to gain  -> automations/runs, projects/*
+//   * Slack admin-managed invariant    -> channels/slack/* serve if advertised
 //
 // Exit 0 = safe to swap. Non-zero = contract drift; do NOT swap.
 import { spawn } from 'node:child_process';
@@ -17,6 +22,7 @@ import { createServer } from 'node:net';
 import { mkdtemp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(new URL('..', import.meta.url).pathname);
 const candidate =
@@ -27,6 +33,108 @@ const artifactDir = path.join(repoRoot, 'output/new-sidecar-acceptance');
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
 
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+export const SLACK_ADMIN_MANAGED_CHECK_NAME =
+  'Slack admin-managed capability is backed by allowed-channel and subject routes';
+export const OUTBOUND_DELIVERY_CHECK_NAME =
+  'Outbound delivery routes expose preferences and target shapes used by automations';
+export const LLM_LIST_MODELS_SHAPE_CHECK_NAME =
+  'LLM list-models route serves the model-picker shape';
+export const LLM_MODEL_CATALOG_DEGRADED_WARNING_NAME =
+  'LLM list-models catalog is degraded or empty';
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function slackConnectStrategy(channel) {
+  return channel?.strategy || channel?.action?.strategy || '';
+}
+
+export function evaluateSlackAdminManagedRoutes({ connectable, allowed, subjects } = {}) {
+  const connectableChannels = Array.isArray(connectable?.body?.channels)
+    ? connectable.body.channels
+    : [];
+  const advertised = connectableChannels.some(
+    (channel) =>
+      channel?.channel === 'slack' && slackConnectStrategy(channel) === 'admin_managed_channels'
+  );
+  const allowedServes = allowed?.res?.ok && Array.isArray(allowed?.body?.channels);
+  const subjectsServes = subjects?.res?.ok && Array.isArray(subjects?.body?.subjects);
+  return {
+    name: SLACK_ADMIN_MANAGED_CHECK_NAME,
+    pass: !advertised || (allowedServes && subjectsServes),
+    detail: {
+      advertised,
+      allowed_status: allowed?.res?.status ?? null,
+      subjects_status: subjects?.res?.status ?? null
+    }
+  };
+}
+
+export function evaluateOutboundDeliveryRoutes({ preferences, targets } = {}) {
+  const preferencesBody = preferences?.body;
+  const finalReplyTarget = preferencesBody?.final_reply_target;
+  const preferencesServes = preferences?.res?.ok && isRecord(preferencesBody);
+  const hasFinalReplyTarget =
+    preferencesServes &&
+    Object.prototype.hasOwnProperty.call(preferencesBody, 'final_reply_target');
+  const hasFinalReplyTargetStatus =
+    preferencesServes &&
+    Object.prototype.hasOwnProperty.call(preferencesBody, 'final_reply_target_status');
+  const finalReplyTargetStatus = preferencesBody?.final_reply_target_status;
+  const finalReplyTargetShape =
+    (hasFinalReplyTarget && (finalReplyTarget === null || isRecord(finalReplyTarget))) ||
+    (!hasFinalReplyTarget && finalReplyTargetStatus === 'none_configured');
+  const finalReplyTargetStatusShape =
+    hasFinalReplyTargetStatus &&
+    typeof finalReplyTargetStatus === 'string' &&
+    finalReplyTargetStatus.length > 0;
+  const targetsServes = targets?.res?.ok && Array.isArray(targets?.body?.targets);
+  return {
+    name: OUTBOUND_DELIVERY_CHECK_NAME,
+    pass:
+      preferencesServes && finalReplyTargetShape && finalReplyTargetStatusShape && targetsServes,
+    detail: {
+      preferences_status: preferences?.res?.status ?? null,
+      targets_status: targets?.res?.status ?? null,
+      has_final_reply_target: Boolean(hasFinalReplyTarget),
+      has_final_reply_target_status: Boolean(hasFinalReplyTargetStatus),
+      final_reply_target_defaulted: Boolean(
+        preferencesServes && !hasFinalReplyTarget && finalReplyTargetStatus === 'none_configured'
+      ),
+      targets_count: Array.isArray(targets?.body?.targets) ? targets.body.targets.length : null
+    }
+  };
+}
+
+export function evaluateLlmListModelsRoute({ listModels, providerId } = {}) {
+  const models = Array.isArray(listModels?.body?.models) ? listModels.body.models : null;
+  const ok = listModels?.body?.ok ?? null;
+  const detail = {
+    status: listModels?.res?.status ?? null,
+    provider_id: providerId ?? null,
+    ok,
+    model_count: models ? models.length : null
+  };
+  const routeShape = {
+    name: LLM_LIST_MODELS_SHAPE_CHECK_NAME,
+    pass: Boolean(listModels?.res?.ok && models),
+    detail
+  };
+  const degradedReasons = [];
+  if (ok === false) degradedReasons.push('catalog_not_ok');
+  if (models?.length === 0) degradedReasons.push('empty_catalog');
+  return {
+    check: routeShape,
+    warning:
+      routeShape.pass && degradedReasons.length > 0
+        ? {
+            name: LLM_MODEL_CATALOG_DEGRADED_WARNING_NAME,
+            detail: { ...detail, degraded_reasons: degradedReasons }
+          }
+        : null
+  };
+}
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -40,6 +148,8 @@ function freePort() {
 }
 
 // Mirror src-tauri/src/sidecar.rs: clear ambient provider vars, NEAR.AI block.
+// Unauthenticated NEAR.AI mode deliberately leaves NEARAI_* endpoint vars unset:
+// Reborn aborts if NEARAI_BASE_URL is present without a matching credential.
 function hermeticEnv(extra) {
   const base = Object.fromEntries(
     Object.entries(process.env).filter(
@@ -49,9 +159,10 @@ function hermeticEnv(extra) {
   return {
     ...base,
     LLM_BACKEND: 'nearai',
-    NEARAI_BASE_URL: 'https://private.near.ai',
-    NEARAI_API_URL: 'https://private.near.ai/v1',
     NEARAI_MODEL: 'auto',
+    IRONCLAW_DESKTOP_NEARAI_AUTH_CONFIGURED: 'false',
+    IRONCLAW_DESKTOP_MODEL_READINESS_REASON:
+      'NEAR.AI Cloud is selected; execution readiness will be verified by the first WebChat run.',
     ...extra
   };
 }
@@ -63,9 +174,13 @@ async function main() {
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
   const checks = [];
+  const warnings = [];
   const log = [];
   const check = (name, pass, detail = {}) => {
     checks.push({ name, pass: Boolean(pass), detail });
+  };
+  const warn = (warning) => {
+    if (warning) warnings.push(warning);
   };
 
   const child = spawn(candidate, ['serve', '--host', '127.0.0.1', '--port', String(port)], {
@@ -81,7 +196,13 @@ async function main() {
   child.stdout.on('data', (c) => log.push(c.toString()));
   child.stderr.on('data', (c) => log.push(c.toString()));
 
-  const api = async (method, pathname, { body, headers } = {}) => {
+  const api = async (method, pathname, options = {}) => {
+    const parse = options?.parse || 'json';
+    const hasEnvelope =
+      Object.prototype.hasOwnProperty.call(options, 'body') ||
+      Object.prototype.hasOwnProperty.call(options, 'headers');
+    const body = hasEnvelope ? options.body : method === 'GET' ? undefined : options;
+    const headers = hasEnvelope ? options.headers : undefined;
     const res = await fetch(`${origin}${pathname}`, {
       method,
       headers: {
@@ -93,7 +214,7 @@ async function main() {
     });
     let parsed = null;
     try {
-      parsed = await res.json();
+      parsed = parse === 'text' ? await res.text() : await res.json();
     } catch (_) {
       /* non-JSON */
     }
@@ -141,18 +262,29 @@ async function main() {
       status: localhostOrigin.res.status
     });
 
-    // Auth envelope (#4624): unauthorized must still be a JSON { code, message }.
+    // Auth failure (#4624): unauthorized must stay generic/sanitized. Upstream
+    // currently allows an empty 401 body here; wrong-token route tests pin the
+    // fixed string "Invalid or missing auth token". JSON envelopes are also OK
+    // for older/newer handler layers as long as they do not leak secrets.
     const unauth = await fetch(`${origin}/api/webchat/v2/threads`);
+    const unauthText = await unauth.text();
     let unauthBody = null;
     try {
-      unauthBody = await unauth.json();
+      unauthBody = unauthText ? JSON.parse(unauthText) : null;
     } catch (_) {
       /* */
     }
+    const sanitizedUnauthBody =
+      unauthText === '' ||
+      unauthText === 'Invalid or missing auth token' ||
+      (unauthBody && typeof unauthBody.code === 'string');
     check(
-      'unauthorized returns sanitized JSON error envelope',
-      unauth.status === 401 && unauthBody && typeof unauthBody.code === 'string',
-      { status: unauth.status, body: unauthBody }
+      'unauthorized returns sanitized 401 without leaking auth details',
+      unauth.status === 401 &&
+        sanitizedUnauthBody &&
+        !unauthText.includes(token) &&
+        !unauthText.includes('owner'),
+      { status: unauth.status, body: unauthBody, text: unauthText }
     );
 
     // Thread + message + attachment contract our UI uses.
@@ -178,7 +310,11 @@ async function main() {
         client_action_id: `accept-msg-${timestamp}`,
         content: `${prompt}${sentinelBlock}`,
         attachments: [
-          { name: 'ledger.csv', mime_type: 'text/plain', data_base64: Buffer.from('x').toString('base64') }
+          {
+            name: 'ledger.csv',
+            mime_type: 'text/plain',
+            data_base64: Buffer.from('x').toString('base64')
+          }
         ]
       }
     );
@@ -233,17 +369,201 @@ async function main() {
     check('SSE events stream emits run_status (UI lifecycle source)', sseStatusSeen);
 
     // Routes we already depend on must remain.
-    for (const route of ['llm/providers', 'automations', 'extensions/registry']) {
+    const servedRoutes = {};
+    for (const route of [
+      'llm/providers',
+      'automations',
+      'extensions/registry',
+      'channels/connectable',
+      'outbound/preferences',
+      'outbound/targets',
+      'traces/credit',
+      'operator/logs'
+    ]) {
       const r = await api('GET', `/api/webchat/v2/${route}`);
+      servedRoutes[route] = r;
       check(`existing route /${route} still serves`, r.res.ok, { status: r.res.status });
     }
+    const providerSnapshot = servedRoutes['llm/providers']?.body || {};
+    const llmProviders = Array.isArray(providerSnapshot.providers)
+      ? providerSnapshot.providers
+      : [];
+    const activeSelection =
+      providerSnapshot.active ||
+      llmProviders.find((provider) => provider?.active) ||
+      llmProviders[0] ||
+      null;
+    const activeProviderId = activeSelection?.provider_id || activeSelection?.id || 'nearai';
+    const activeProvider =
+      llmProviders.find((provider) => provider?.id === activeProviderId) || activeSelection;
+    const activeModel =
+      activeSelection?.model ||
+      activeSelection?.active_model ||
+      activeProvider?.active_model ||
+      activeProvider?.default_model ||
+      'auto';
+    const listModels = await api('POST', '/api/webchat/v2/llm/list-models', {
+      provider_id: activeProviderId,
+      adapter: activeProvider?.adapter || activeProviderId
+    });
+    const listModelsEvaluation = evaluateLlmListModelsRoute({
+      listModels,
+      providerId: activeProviderId
+    });
+    check(
+      listModelsEvaluation.check.name,
+      listModelsEvaluation.check.pass,
+      listModelsEvaluation.check.detail
+    );
+    warn(listModelsEvaluation.warning);
+    const activeLlm = await api('POST', '/api/webchat/v2/llm/active', {
+      provider_id: activeProviderId,
+      model: activeModel
+    });
+    check(
+      'LLM active route accepts the current active model selection',
+      activeLlm.res.ok && Array.isArray(activeLlm.body?.providers),
+      {
+        status: activeLlm.res.status,
+        provider_id: activeProviderId,
+        model: activeModel
+      }
+    );
+    const outboundCheck = evaluateOutboundDeliveryRoutes({
+      preferences: servedRoutes['outbound/preferences'],
+      targets: servedRoutes['outbound/targets']
+    });
+    check(outboundCheck.name, outboundCheck.pass, outboundCheck.detail);
+
+    const fsMounts = await api('GET', '/api/webchat/v2/fs/mounts');
+    const mountIds = Array.isArray(fsMounts.body?.mounts)
+      ? fsMounts.body.mounts.map((mount) => mount?.mount).filter(Boolean)
+      : [];
+    check(
+      'workspace filesystem mounts route serves memory + workspace',
+      fsMounts.res.ok && mountIds.includes('memory') && mountIds.includes('workspace'),
+      { status: fsMounts.res.status, mounts: mountIds }
+    );
+    const fsList = await api('GET', '/api/webchat/v2/fs/list?mount=workspace');
+    const fsEntries = Array.isArray(fsList.body?.entries) ? fsList.body.entries : [];
+    check('workspace filesystem list route serves entries', fsList.res.ok && fsEntries.length > 0, {
+      status: fsList.res.status,
+      entry_count: fsEntries.length
+    });
+    const preferredProbePaths = ['README.md', 'package.json', 'CLAUDE.md'];
+    const fsProbeEntry =
+      preferredProbePaths
+        .map((probePath) =>
+          fsEntries.find((entry) => entry?.kind === 'file' && entry.path === probePath)
+        )
+        .find(Boolean) || fsEntries.find((entry) => entry?.kind === 'file' && entry?.path);
+    const fsProbePath = fsProbeEntry?.path || '';
+    const fsStat = fsProbePath
+      ? await api(
+          'GET',
+          `/api/webchat/v2/fs/stat?mount=workspace&path=${encodeURIComponent(fsProbePath)}`
+        )
+      : null;
+    check(
+      'workspace filesystem stat route serves selected file metadata',
+      Boolean(fsStat?.res?.ok && fsStat.body?.stat?.kind === 'file'),
+      {
+        status: fsStat?.res?.status ?? null,
+        path: fsProbePath || null,
+        size_bytes: fsStat?.body?.stat?.size_bytes ?? null
+      }
+    );
+    const fsContent = fsProbePath
+      ? await api(
+          'GET',
+          `/api/webchat/v2/fs/content?mount=workspace&path=${encodeURIComponent(fsProbePath)}`,
+          { parse: 'text' }
+        )
+      : null;
+    check(
+      'workspace filesystem content route serves selected file bytes',
+      Boolean(
+        fsContent?.res?.ok && typeof fsContent.body === 'string' && fsContent.body.length > 0
+      ),
+      {
+        status: fsContent?.res?.status ?? null,
+        path: fsProbePath || null,
+        bytes: typeof fsContent?.body === 'string' ? Buffer.byteLength(fsContent.body) : null
+      }
+    );
+
+    const projects = await api('GET', '/api/webchat/v2/projects?limit=5');
+    check(
+      'project list route serves an array',
+      projects.res.ok && Array.isArray(projects.body?.projects),
+      {
+        status: projects.res.status,
+        project_count: Array.isArray(projects.body?.projects) ? projects.body.projects.length : null
+      }
+    );
+
+    const projectName = `Desktop acceptance ${timestamp}`;
+    const createdProject = await api('POST', '/api/webchat/v2/projects', {
+      name: projectName,
+      description: 'Disposable project created by desktop sidecar acceptance.',
+      metadata: { source: 'ironclaw-desktop-app acceptance probe' }
+    });
+    const projectId = createdProject.body?.project?.project_id || '';
+    check(
+      'project create route returns a project id',
+      createdProject.res.ok && Boolean(projectId),
+      {
+        status: createdProject.res.status,
+        project_id: projectId || null
+      }
+    );
+    if (projectId) {
+      const projectDetail = await api(
+        'GET',
+        `/api/webchat/v2/projects/${encodeURIComponent(projectId)}`
+      );
+      check(
+        'project detail route returns created project',
+        projectDetail.res.ok && projectDetail.body?.project?.project_id === projectId,
+        {
+          status: projectDetail.res.status,
+          project_id: projectDetail.body?.project?.project_id || null
+        }
+      );
+      const projectMembers = await api(
+        'GET',
+        `/api/webchat/v2/projects/${encodeURIComponent(projectId)}/members`
+      );
+      check(
+        'project members route serves an array',
+        projectMembers.res.ok && Array.isArray(projectMembers.body?.members),
+        {
+          status: projectMembers.res.status,
+          member_count: Array.isArray(projectMembers.body?.members)
+            ? projectMembers.body.members.length
+            : null
+        }
+      );
+    }
+
+    const connectable = await api('GET', '/api/webchat/v2/channels/connectable');
+    const slackAllowed = await api('GET', '/api/webchat/v2/channels/slack/allowed');
+    const slackSubjects = await api('GET', '/api/webchat/v2/channels/slack/subjects');
+    const slackCheck = evaluateSlackAdminManagedRoutes({
+      connectable,
+      allowed: slackAllowed,
+      subjects: slackSubjects
+    });
+    check(slackCheck.name, slackCheck.pass, slackCheck.detail);
 
     // Additive routes we WANT to gain from main (informational — not gating).
     const gained = {};
-    for (const route of ['automations/runs', 'channels/slack/allowed', 'channels/slack/subjects']) {
+    for (const route of ['automations/runs']) {
       const r = await api('GET', `/api/webchat/v2/${route}`);
       gained[route] = r.res.status;
     }
+    gained['channels/slack/allowed'] = slackAllowed.res.status;
+    gained['channels/slack/subjects'] = slackSubjects.res.status;
 
     const required = checks.filter((c) => !c.pass);
     const verdict = required.length === 0 ? 'PASS' : 'FAIL';
@@ -252,6 +572,7 @@ async function main() {
       candidate,
       verdict,
       checks,
+      warnings,
       gained_routes: gained,
       sidecar_log_tail: log.join('').split('\n').slice(-15)
     };
@@ -261,6 +582,7 @@ async function main() {
     );
     console.log(`verdict: ${verdict}`);
     for (const c of checks) console.log(`  ${c.pass ? 'PASS' : 'FAIL'} - ${c.name}`);
+    for (const w of warnings) console.log(`  WARN - ${w.name}`);
     console.log('gained routes (want 200):', JSON.stringify(gained));
     if (verdict !== 'PASS') process.exitCode = 1;
   } catch (err) {
@@ -270,10 +592,15 @@ async function main() {
   } finally {
     if (child.exitCode == null) {
       child.kill('SIGTERM');
-      await Promise.race([new Promise((r) => child.once('exit', r)), delay(3000).then(() => child.kill('SIGKILL'))]);
+      await Promise.race([
+        new Promise((r) => child.once('exit', r)),
+        delay(3000).then(() => child.kill('SIGKILL'))
+      ]);
     }
     await rm(home, { recursive: true, force: true });
   }
 }
 
-main();
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main();
+}

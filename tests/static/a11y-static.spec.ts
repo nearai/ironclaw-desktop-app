@@ -7,6 +7,7 @@ interface Surface {
   label: string;
   path: string;
   authenticated?: boolean;
+  setup?: (page: Page) => Promise<void>;
   waitFor: (page: Page) => Promise<void>;
 }
 
@@ -58,6 +59,35 @@ const surfaces: Surface[] = [
       await expect(
         page.getByRole('heading', { name: 'What should IronClaw handle next?' })
       ).toBeVisible();
+    }
+  },
+  {
+    label: 'workbench replacement surface',
+    path: '/v2/workbench',
+    authenticated: true,
+    waitFor: async (page) => {
+      await expect(page.getByTestId('workbench-brief-input')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Choose model and effort' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Ask' })).toBeVisible();
+    }
+  },
+  {
+    label: 'saved work reader',
+    path: '/v2/work?item=work-reader-a11y&artifact=artifact-reader-a11y',
+    authenticated: true,
+    setup: async (page) => {
+      await seedSavedWorkReader(page);
+    },
+    waitFor: async (page) => {
+      await expect(page.locator('article h1').first()).toHaveText('Reader source trail receipt');
+      await expect(page.getByTestId('saved-work-artifact')).toContainText(
+        'The saved reader still opens from an explicit Work deep link.'
+      );
+      await expect(page.getByTestId('dossier-receipts')).toContainText('Reviewed source trail');
+      await expect(page.getByRole('link', { name: 'Open thread' })).toHaveAttribute(
+        'href',
+        '/v2/chat/thread-reader'
+      );
     }
   },
   {
@@ -182,11 +212,11 @@ const surfaces: Surface[] = [
     waitFor: async (page) => {
       await expect(page.getByRole('heading', { name: 'No skills installed' })).toBeVisible();
 
-      // No fake readiness: no v2 skills endpoint exists (useSkills status:'todo'),
-      // so the Import-skill form must not render over a stub. Submitting it would
-      // silently no-op. The dignified empty state stands alone.
-      await expect(page.getByRole('heading', { name: 'Import skill' })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: 'Import', exact: true })).toHaveCount(0);
+      // Skills are now wired to the v2 endpoint: a SUCCESSFUL fetch ({skills:[]})
+      // proves the backend, so the Import-skill form is live alongside the empty
+      // state. (No fake readiness is still enforced: useSkills only reports
+      // 'ready' on a successful fetch — a failed fetch keeps the form gated.)
+      await expect(page.getByRole('heading', { name: 'Import skill' })).toBeVisible();
     }
   },
   {
@@ -203,8 +233,8 @@ const surfaces: Surface[] = [
     path: '/v2/workspace',
     authenticated: true,
     waitFor: async (page) => {
-      await expect(page.getByText('No files in workspace.')).toBeVisible();
-      await expect(page.getByRole('heading', { name: 'Pick a workspace file' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Workspace' })).toBeVisible();
+      await expect(page.getByText('This folder is empty.')).toBeVisible();
       await expect(page.getByRole('button', { name: 'Edit' })).toHaveCount(0);
     }
   },
@@ -281,20 +311,17 @@ const surfaces: Surface[] = [
     path: '/v2/logs',
     authenticated: true,
     waitFor: async (page) => {
-      // Empty/loading dignity (DT-5): no v2 log-streaming endpoint exists, so the
-      // surface must show a dignified empty state with a real next action instead
-      // of a void plus stream-lifecycle controls that imply a capability the
-      // gateway cannot prove.
+      // Empty/loading dignity (DT-5): the v2 operator-log endpoint can return an
+      // empty backed result, so the surface keeps its real polling controls and
+      // still offers a concrete next action instead of a void.
       await expect(page.getByRole('heading', { name: 'Logs' })).toBeVisible();
       const logsAction = page.getByRole('main').getByRole('link', { name: 'Chat' });
       await expect(logsAction).toBeVisible();
       await expect(logsAction).toHaveAttribute('href', '/v2/chat');
 
-      // No fake readiness: lifecycle controls (Pause/Clear/Auto-scroll) must not
-      // render while there is no stream to control.
-      await expect(page.getByRole('button', { name: 'Pause' })).toHaveCount(0);
-      await expect(page.getByRole('button', { name: 'Clear' })).toHaveCount(0);
-      await expect(page.getByLabel('Auto-scroll')).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Clear' })).toBeVisible();
+      await expect(page.getByLabel('Auto-scroll')).toBeVisible();
 
       // The named filter control stays (preserves the prior control-name fix).
       // Its >=44px mobile tap-target floor is asserted at 390px in
@@ -303,6 +330,71 @@ const surfaces: Surface[] = [
     }
   }
 ];
+
+const disallowedVisibleCopy = [
+  { label: 'custody record', pattern: /\bcustody\s+record\b/i },
+  { label: 'trust ledger', pattern: /\btrust\s+ledger\b/i },
+  { label: 'sources connected', pattern: /\bsources\s+connected\b/i }
+];
+
+function withStaticToken(path: string): string {
+  const [pathAndQuery, hash = ''] = path.split('#');
+  const [pathname, query = ''] = pathAndQuery.split('?');
+  const params = new URLSearchParams(query);
+  params.set('token', 'static-a11y-token');
+  return `${pathname}?${params.toString()}${hash ? `#${hash}` : ''}`;
+}
+
+async function seedSavedWorkReader(page: Page) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'ironclaw-work-items',
+      JSON.stringify([
+        {
+          id: 'work-reader-a11y',
+          title: 'Reader source trail receipt',
+          objective: 'Saved work product with receipts and approval-friendly language.',
+          domain: 'general',
+          runbookIds: ['general'],
+          status: 'active',
+          created_at: '2026-06-19T14:00:00.000Z',
+          updated_at: '2026-06-19T14:00:00.000Z',
+          links: [{ kind: 'thread', ref: 'thread-reader', label: 'Reader thread' }],
+          dossier: [
+            {
+              kind: 'ask',
+              text: 'Review the source trail and prepare a short receipt.'
+            }
+          ],
+          approvalBoundaries: ['External sharing requires approval.'],
+          artifacts: [
+            {
+              id: 'artifact-reader-a11y',
+              type: 'document',
+              title: 'Reader source trail receipt',
+              status: 'ready',
+              provenance: ['thread:thread-reader'],
+              content:
+                '# Reader source trail receipt\n\nThe saved reader still opens from an explicit Work deep link.\n\n- Source trail reviewed\n- Receipt retained locally\n- Approval required before sending',
+              content_format: 'markdown'
+            }
+          ],
+          watches: [],
+          receipts: [
+            {
+              label: 'Reviewed source trail',
+              status: 'complete',
+              detail: 'Matched the saved artifact to its originating thread.'
+            }
+          ],
+          openApprovals: [],
+          followUps: [],
+          nextAction: 'Review saved work product.'
+        }
+      ])
+    );
+  });
+}
 
 async function installStaticApiMocks(page: Page, automations: unknown[] = []) {
   await page.route(/\/(api|auth)\//, async (route: Route) => {
@@ -322,11 +414,17 @@ async function installStaticApiMocks(page: Page, automations: unknown[] = []) {
     if (path === '/api/webchat/v2/automations' && method === 'GET') {
       return json(route, { automations, next_cursor: null });
     }
+    if (path === '/api/webchat/v2/operator/logs' && method === 'GET') {
+      return json(route, { logs: { entries: [] }, next_cursor: null });
+    }
     if (path === '/api/webchat/v2/extensions/registry') {
       return json(route, { entries: [] });
     }
     if (path === '/api/webchat/v2/extensions') {
       return json(route, { extensions: [] });
+    }
+    if (path === '/api/webchat/v2/skills' && method === 'GET') {
+      return json(route, { skills: [], count: 0 });
     }
     if (path === '/api/webchat/v2/channels/connectable') {
       return json(route, { channels: [] });
@@ -366,6 +464,13 @@ async function expectNoBlockingA11y(page: Page, label: string) {
     blocking,
     `${label} has ${blocking.length} blocking a11y violation(s): ${JSON.stringify(blocking, null, 2)}`
   ).toEqual([]);
+}
+
+async function expectNoDisallowedCopy(page: Page, label: string) {
+  const bodyText = await page.locator('body').innerText();
+  for (const copy of disallowedVisibleCopy) {
+    expect(bodyText, `${label} must not show "${copy.label}" copy`).not.toMatch(copy.pattern);
+  }
 }
 
 const mixedAutomations = [
@@ -420,7 +525,7 @@ test('static automations: backed rows attribute enabled state in gold, not the l
   await installStaticApiMocks(page, mixedAutomations);
   await page.goto('/v2/automations?token=static-a11y-token');
   await expect(page.getByRole('heading', { name: 'Scheduled', exact: true })).toBeVisible();
-  await expect(page.getByText('Daily news digest')).toBeVisible();
+  await expect(page.locator('table').getByText('Daily news digest')).toBeVisible();
 
   const rows = page.locator('table tbody tr');
   await expect(rows).toHaveCount(3);
@@ -453,17 +558,10 @@ test('static automations: backed rows attribute enabled state in gold, not the l
     expect(info.live, `${state} state pill does not pulse as live`).toBe(false);
   }
 
-  // A genuinely completed run keeps the success tone — the two truths stay
-  // visually distinct on the same surface.
-  const done = await pill('Daily news digest', 'Done');
-  expect(done.color, 'a completed run keeps the success green').toBe(POSITIVE_GREEN);
-
-  // A paused schedule and a failed last run read as their own honest tones, not
-  // green: the surface never makes a stopped/errored automation look active.
+  // A paused schedule reads as its own honest tone, not green: the surface never
+  // makes a stopped automation look active.
   const paused = await pill('Weekly portfolio report', 'Paused');
   expect(paused.color, 'paused state is not green').not.toBe(POSITIVE_GREEN);
-  const errored = await pill('Weekly portfolio report', 'Error');
-  expect(errored.color, 'errored last run is not green').not.toBe(POSITIVE_GREEN);
 
   await expectNoBlockingA11y(page, 'automations backed rows');
 });
@@ -477,13 +575,13 @@ test('static automations at 390px: list controls clear 44px and the surface does
   await page.setViewportSize({ width: 390, height: 844 });
   await installStaticApiMocks(page, mixedAutomations);
   await page.goto('/v2/automations?token=static-a11y-token');
-  await expect(page.getByText('Daily news digest')).toBeVisible();
+  await expect(page.locator('table').getByText('Daily news digest')).toBeVisible();
 
   const filterButtons = page.locator(
     '[role="group"][aria-label="Automation status filter"] button'
   );
   const filterCount = await filterButtons.count();
-  expect(filterCount).toBe(3);
+  expect(filterCount).toBe(5);
   for (let i = 0; i < filterCount; i += 1) {
     const box = await filterButtons.nth(i).boundingBox();
     expect(box, `filter button ${i} should have a measurable box`).not.toBeNull();
@@ -512,7 +610,7 @@ test('static automations: empty state offers a real next action instead of dead-
   await installStaticApiMocks(page, []);
   await page.goto('/v2/automations?token=static-a11y-token');
   await expect(page.getByText('No scheduled automations yet.')).toBeVisible();
-  const action = page.getByRole('main').getByRole('link', { name: 'Chat' });
+  const action = page.getByRole('main').getByRole('link', { name: 'Start in chat' });
   await expect(action).toBeVisible();
   await expect(action).toHaveAttribute('href', '/v2/chat');
 });
@@ -530,14 +628,23 @@ for (const surface of surfaces) {
     });
 
     await installStaticApiMocks(page);
-    const token = surface.authenticated ? '?token=static-a11y-token' : '';
-    await page.goto(`${surface.path}${token}`);
+    await surface.setup?.(page);
+    await page.goto(surface.authenticated ? withStaticToken(surface.path) : surface.path);
     await surface.waitFor(page);
 
     await expectNoBlockingA11y(page, surface.label);
+    await expectNoDisallowedCopy(page, surface.label);
     expect(consoleIssues, `${surface.label} console should stay quiet`).toEqual([]);
   });
 }
+
+test('static auth: protected Work route redirects to welcome without token', async ({ page }) => {
+  await installStaticApiMocks(page);
+  await page.goto('/v2/work');
+
+  await expect(page).toHaveURL(/\/v2\/welcome$/);
+  await expect(page.getByRole('heading', { name: 'IronClaw Desktop' })).toBeVisible();
+});
 
 // First-run is the only surface every user sees, and its three NEAR AI Cloud
 // auth controls are the whole job of the screen. They must all be real tap

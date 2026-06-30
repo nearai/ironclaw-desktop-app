@@ -376,8 +376,7 @@ export function OnboardingPage() {
           <${ProviderLoginStatus} login=${login} />
 
           <div className="px-1 text-sm leading-6 text-[var(--v2-text-muted)]">
-            ${t('onboarding.moreInSettings')}${' '}
-            <span className="font-medium text-[var(--v2-text-strong)]"> ${t('nav.settings')} </span>
+            ${t('onboarding.moreInSettings')}
           </div>
 
           <div className="grid lg:hidden">

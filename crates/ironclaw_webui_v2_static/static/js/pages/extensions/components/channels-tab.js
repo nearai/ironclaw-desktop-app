@@ -1,6 +1,8 @@
 import { StatusPill } from '../../../design-system/primitives.js';
 import { CardLabel } from '../../../design-system/card.js';
 import { html } from '../../../lib/html.js';
+import { SlackChannelPicker } from '../../../components/slack-channel-picker.js';
+import { SlackPairingSection } from '../../../components/slack-pairing-section.js';
 import { ExtensionCard, RegistryCard } from './extension-card.js';
 import { PairingSection } from './pairing-section.js';
 import { redeemPairingCode } from '../lib/pairing-api.js';
@@ -23,6 +25,44 @@ function packageId(item) {
 
 export function isSlackChannelEnabled(enabledChannels) {
   return ['slack', 'slack_v2', 'slack-v2'].some((channel) => enabledChannels.includes(channel));
+}
+
+export function isSlackPackage(item) {
+  return packageId(item) === 'slack';
+}
+
+export function isSlackAdminManagedAction(connectAction) {
+  return connectAction?.channel === 'slack' && connectAction.strategy === 'admin_managed_channels';
+}
+
+export function isSlackInboundProofCodeAction(connectAction) {
+  return connectAction?.channel === 'slack' && connectAction.strategy === 'inbound_proof_code';
+}
+
+export function findSlackConnectActions(connectableChannels) {
+  const channels = connectableChannels || [];
+  const actions = [
+    channels.find(isSlackAdminManagedAction),
+    channels.find(isSlackInboundProofCodeAction)
+  ].filter(Boolean);
+  if (actions.length > 0) return actions;
+  const fallback = channels.find((channel) => channel.channel === 'slack');
+  return fallback ? [fallback] : [];
+}
+
+function SlackConnectActionSections({ actions }) {
+  const sections = (actions || [])
+    .map((action) => {
+      if (isSlackAdminManagedAction(action)) {
+        return html`<${SlackChannelPicker} key="admin-managed" action=${action.action} />`;
+      }
+      if (isSlackInboundProofCodeAction(action)) {
+        return html`<${SlackPairingSection} key="inbound-proof" action=${action.action} />`;
+      }
+      return null;
+    })
+    .filter(Boolean);
+  return sections.length > 0 ? html`<div className="space-y-3">${sections}</div>` : null;
 }
 
 // Desktop chat is "on" only when a live transport is actually connected.
@@ -76,6 +116,8 @@ export function ChannelsTab({
 }) {
   const gatewayOffline = Boolean(loadError);
   const enabledChannels = status.enabled_channels || [];
+  const slackConnectActions = findSlackConnectActions(connectableChannels);
+  const hasInstalledSlackPackage = channels.some(isSlackPackage);
   const {
     enabled: slackEnabled,
     connectAction: slackConnectAction,
@@ -134,15 +176,23 @@ export function ChannelsTab({
             statusTone=${slackStatusTone}
             detail=${gatewayOffline ? null : 'Workspace Slack app'}
           >
-            ${slackConnectAction &&
-            html`<${PairingSection}
-              channel="slack"
-              redeemFn=${redeemPairingCode}
-              i18nKeys=${SLACK_PAIRING_I18N_KEYS}
-              copy=${slackConnectAction.action}
-              queryKeys=${SLACK_PAIRING_QUERY_KEYS}
-              showPendingRequests=${false}
-            />`}
+            ${!hasInstalledSlackPackage &&
+            html`
+              <${SlackConnectActionSections} actions=${slackConnectActions} />
+              ${slackConnectAction &&
+              !slackConnectActions.some(
+                (action) =>
+                  isSlackAdminManagedAction(action) || isSlackInboundProofCodeAction(action)
+              ) &&
+              html`<${PairingSection}
+                channel="slack"
+                redeemFn=${redeemPairingCode}
+                i18nKeys=${SLACK_PAIRING_I18N_KEYS}
+                copy=${slackConnectAction.action}
+                queryKeys=${SLACK_PAIRING_QUERY_KEYS}
+                showPendingRequests=${false}
+              />`}
+            `}
           <//>
           <${BuiltinRow}
             name="CLI"
@@ -178,6 +228,8 @@ export function ChannelsTab({
                     onRemove=${onRemove}
                     isBusy=${isBusy}
                   />
+                  ${isSlackPackage(ch) &&
+                  html`<${SlackConnectActionSections} actions=${slackConnectActions} />`}
                   ${(ch.onboarding_state === 'pairing_required' ||
                     ch.onboarding_state === 'pairing') &&
                   html` <${PairingSection} channel=${packageId(ch)} /> `}

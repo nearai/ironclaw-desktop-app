@@ -1,0 +1,766 @@
+[
+  {
+    "index": 1,
+    "title": "IronClaw - Tools & Channels Roadmap (Ongoing)",
+    "status": "Not started",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/38229a6526bf80beb54bfc0c69fe0823?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/01-ironclaw-tools-channels-roadmap-ongoing.png",
+    "text": "Add icon\nAdd cover\nCustomize layout\nIronClaw - Tools & Channels Roadmap (Ongoing)\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJune 9, 2026 → August 2, 2026\nEnd Owner\nEmpty\nInitiative\nIronHub\nStatus\nNot started\nTag\nEmpty\nAdd a property\nComments\nPress ‘enter’ to continue with an empty page, or create a template",
+    "links": [
+      {
+        "href": "https://app.notion.com/p/38029a6526bf803897b0ed80d5471eea?pvs=24",
+        "text": "IronClaw - Tools & Channels Roadmap (Ongoing)"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 2,
+    "title": "Bundles / Collections / Loadouts",
+    "status": "Not started",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Bundles-Collections-Loadouts-38229a6526bf80c8a7e5df4d14114aa2?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/02-bundles-collections-loadouts.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nBundles / Collections / Loadouts\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJuly 4, 2026 → July 17, 2026\nEnd Owner\nEmpty\nInitiative\nIronHub\nStatus\nNot started\nTag\nEmpty\nAdd a property\nComments\nBundles / Loadouts: packaged roles bundling skills + tools (+ soul when ready), e.g. a paralegal\nCollections (skills + tools) exist today, Phase 2\nLoadouts add the soul layer when the runtime supports it\nProblem Statement\nCollections today bundle skills and tools, but they're not yet packaged as deployable roles. A user who wants \"a paralegal\" still has to assemble the pieces and supply the behavioral layer themselves — there's no single artifact that captures what a role does and how it should act.\nFor example, a Security Review or Agent Builder collection gives you the right tools and skills, but not the persona, judgment, and operating style that turn a bundle into a role you can drop in and trust.\nBundles/Loadouts close that gap: a packaged role bundling skills + tools + soul, deployable as a unit.\nUser Stories\nAs a user, I want to install a packaged role like \"paralegal\" in one step, so I get the skills, tools, and behavior together instead of assembling them myself.\nAs an author, I want to publish a loadout as a single unit, so my role is reusable and deployable without setup instructions.\n(Future) As a user, I want a loadout to carry its own soul layer, so the agent acts the part.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 3,
+    "title": "Rating and voting",
+    "status": "Not started",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Rating-and-voting-38229a6526bf8039963afa49d7046fa0?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/03-rating-and-voting.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nRating and voting\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJuly 18, 2026 → July 31, 2026\nEnd Owner\nEmpty\nInitiative\nIronHub\nStatus\nNot started\nTag\nEmpty\nAdd a property\nComments\nProblem Statement\nIronHub discovery relies on curation — Staff Picks and Collections — with no community signal for quality. Users can see security boundaries before installation, but nothing tells them whether a skill actually works, and authors get no feedback loop. Curation is hard to scale.\n\nRating and voting turn: the community highlights what works, so that users know what to install, and authors learn what to refine.\nUser Stories\nAs a user, I want to rate or upvote a skill I've installed, so others can benefit from my experience and the best work surfaces beyond Staff Picks.\nAs a user browsing the marketplace, I want to sort and filter by rating alongside the existing trigger/action counts, so I can quickly pick a proven skill when several overlap.\nAs an author, I want to see how my published skills are rated, so I know what's working and what to improve.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 4,
+    "title": "Private Spaces",
+    "status": "Not started",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Private-Spaces-38229a6526bf803c9cb7dc2d720caac9?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/04-private-spaces.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nPrivate Spaces\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJune 12, 2026 → July 3, 2026\nEnd Owner\nEmpty\nInitiative\nIronHub\nStatus\nNot started\nTag\nEmpty\nAdd a property\nComments\nProblem Statement\nOrganization-specific skills and tools have no shared home scoped to the org. Today, users would have to share the skills and tools through internal channels or publish them publicly. There's no way to share them with a specific org/group.\nFor example, NEAR Foundation has specific tools that all NEAR Foundation employees can benefit from.\nAn Org-scoped hub turns individual effort into compounding team capability: internal skills and tools become discoverable and reusable across NF without ever leaving the boundary.\nUser Stories\n(Needs details) As an IronHub user(?), I want to create a shared space so that my team can share internal tools and skills.\nAs a user, I want to publish a skill that's visible to my whole org but not the public, so the team can reuse it without exposing internal tooling.\nNotes\nCurrent implementation relies on GitHub organizations for group membership. That needs to be updated so that people without GitHub access can access the private space and the groups could be managed outside organization.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 5,
+    "title": "Infra Reliability Improvement",
+    "status": "Not started",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Infra-Reliability-Improvement-38029a6526bf8024b66afa79f378b8e7?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/05-infra-reliability-improvement.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nInfra Reliability Improvement\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJune 11, 2026 → June 30, 2026\nEnd Owner\nEmpty\nInitiative\nInfra\nStatus\nNot started\nTag\nEmpty\nAdd a property\nComments\nContinuous investment including\nAddress critical infra reliability issues (self revealed via metrics, user reports, etc)\nMigrate away from unstable infra service such as CloudRun\nImprove platform synchronization/alignment issue between Chat-API and CrabShack such as session and key management",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 6,
+    "title": "TEE Observability",
+    "status": "Not started",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/TEE-Observability-38029a6526bf809c9259e426bb8a8c3b?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/06-tee-observability.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nTEE Observability\nBlocked by\nTEE support for multi-tenancy\nBlocking\nEmpty\nDate\nJuly 13, 2026 → July 23, 2026\nEnd Owner\nEmpty\nInitiative\nInfra\nStatus\nNot started\nTag\nEmpty\nAdd a property\nComments\nMake sure we can export necessary logging and metric data from TEE without compromising privacy of residents",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 7,
+    "title": "Run Benchmarks daily",
+    "status": "Scoped & Designed",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Run-Benchmarks-daily-37929a6526bf803f9d79e7b83d77306c?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/07-run-benchmarks-daily.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nRun Benchmarks daily\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJune 8, 2026 → June 9, 2026\nEnd Owner\nPranav Raja\nInitiative\nBenchmarks\nStatus\nScoped & Designed\nTag\nEmpty\nAdd a property\nComments\nRun the main benchmarks daily to evaluate the quality of the product",
+    "links": [],
+    "images": [
+      {
+        "alt": "Pranav Raja",
+        "src": "https://lh3.googleusercontent.com/a/ACg8ocLy7x4CaruZ54eh9CFtAr9m4e2q7D54O0MWiNDwPsevxHiUaA=s100"
+      },
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 8,
+    "title": "Long-term memory",
+    "status": "Ideation",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Long-term-memory-37929a6526bf8060ae47ea982bb4392a?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/08-long-term-memory.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nLong-term memory\nBlocked by\nSelf-learning loops\nBlocking\nEmpty\nDate\nJuly 10, 2026 → July 31, 2026\nEnd Owner\nEmpty\nInitiative\nIronClaw core\nStatus\nIdeation\nTag\nEmpty\nAdd a property\nComments\nThe context window is a fixed per-turn budget: every resident token costs money and latency on every inference. But an agent that compounds over months accumulates far more than any window can hold — so we split memory by access pattern:\nShort-term (resident). A small, hard-capped block in the prompt: the facts needed on every turn — user identity, communication style, active project, standing corrections.\nLong-term (retrievable). Everything else — full history, past threads, resolved problems — lives on disk, unbounded, pulled in only when relevant via search.\nHow Hermes AI does it: a hard-capped MEMORY.md and USER.md (~1,300 tokens total) injected into the prompt as short-term memory, alongside full conversation history in SQLite that the agent searches on demand (FTS5, no LLM cost) as long-term recall.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 9,
+    "title": "Missions",
+    "status": "Ideation",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Missions-37829a6526bf80c2a8bdc8902da53b40?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/09-missions.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nMissions\nBlocked by\nEmpty\nBlocking\nMulti-tenant cross agent collaboration\nDate\nJune 26, 2026 → July 5, 2026\nEnd Owner\nEmpty\nInitiative\nIronClaw core\nStatus\nIdeation\nTag\nDifferentiator\nAdd a property\nComments\nProblem and Inspiration\nRoutines are tasks that run on a schedule. Missions are a mechanism for achieving a specific goal: a long-running process focused on outcomes, self-assessing progress, and deciding what to do next.\nThe model is hiring an employee for a mandate (\"grow my following,\" \"keep the queue clear\") rather than scheduling a cron job. A Mission carries a goal + definition of done + budget/resources. A mission deploys routines and executes one-off tasks, runs for days, indefinitely, or until a terminal state.\nThis is the shift from tool SaaS to outcome SaaS: state the outcome, not the steps.\nExamples\nGrow my Twitter followers to 10K — open-ended growth goal pursued proactively; nothing external prompts it, so it runs on a heartbeat and decides its own tactics.\nGet 5 of these 100 target accounts to follow me — targeted outreach with a concrete success list; mix of judgment and irreversible public actions.\nWeekly sub-goals within a mission — e.g. \"10K followers this week, then 5 celebrity follows next\" — showing a mission can carry shifting targets over time.\nReply to all Crisp customer messages — keep the support queue cleared, drafting or sending replies within an SLA. Reactive: wakes on inbound messages.\nMigrate our docs from Confluence to Notion — finite project with a real terminal state; the mission ends when it's done.\nWatch competitor pricing, alert me, and draft a response — standing monitor that never completes; low-action, high-value. Can be done via a routine.\nPreliminary User Stories\nAs a user, I want to hand an agent a goal like \"Grow my Twitter followers to 10K\" so that I stop managing the work myself and just review outcomes.\nAs a user, I want to set a mission's success criteria and budget up front so that it pursues the goal within limits I control, without checking with me on every step.\nAs a user, I want to see what a mission is doing, how it's progressing toward its goal, and what it's spent so that I can trust it's working and not silently burning money or going off track.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 10,
+    "title": "API to Create agents via Crabshack",
+    "status": "Scoped & Designed",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/API-to-Create-agents-via-Crabshack-37329a6526bf80699206e311eff8ff6c?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/10-api-to-create-agents-via-crabshack.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nAPI to Create agents via Crabshack\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJune 15, 2026 → June 19, 2026\nEnd Owner\nEmpty\nInitiative\nInfra\nStatus\nScoped & Designed\nTag\nEmpty\nAdd a property\nComments\nAPI for Agent Hosting - Product Brief",
+    "links": [
+      {
+        "href": "https://app.notion.com/p/API-for-Agent-Hosting-Product-Brief-32529a6526bf80859396fc443bfe429d?pvs=24",
+        "text": "API for Agent Hosting - Product Brief"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 11,
+    "title": "Secrets usage with Skills/Tools",
+    "status": "Scoped & Designed",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Secrets-usage-with-Skills-Tools-36f29a6526bf806bac54f6dc3634ac13?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/11-secrets-usage-with-skills-tools.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nSecrets usage with Skills/Tools\nBlocked by\nSlack as the main channel\nBlocking\nEmpty\nDate\nJune 16, 2026 → June 29, 2026\nEnd Owner\nEmpty\nInitiative\nIronClaw core\nStatus\nScoped & Designed\nTag\nEmpty\nAdd a property\nComments\nProblem\nWhen a user asks the agent to hit a third-party API through the generic http tool (\"send a message in Crisp\", \"look up a Stripe customer\") — in Slack, the web UI, or any channel — it fails. Three closed doors:\nThe agent can't read its own credentials. By design it can only confirm a secret exists, never read the value (secrets_tools.rs).\nIt can't inject auth manually. The http tool blocks manual Authorization headers for any host with a registered credential mapping (http.rs:544-565) — and where no mapping exists, the agent has no value to insert anyway.\nNote: even if you paste credentials into the vault, you still can't get the agent to use them.\nBenchmarks\nhttps://github.com/nearai/benchmarks/pull/55\n\nUser Story\nAs a Slack user, I want to configure a service like Crisp over http straight from a DM, including auth and credentials, so that I can use it in the future.\nIf possible, the credentials are posted via Slack without going through an LLM.\nAs a Slack user, I want to call a service like Crisp over http straight from a DM, so that I get a real result back.\nDesign for Channel experience\nThree options to share credentials in Slack/Telegram:",
+    "links": [
+      {
+        "href": "https://github.com/nearai/benchmarks/pull/55",
+        "text": "https://github.com/nearai/benchmarks/pull/55"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/image/attachment%3A7ef62ec4-3997-4057-8f4d-22c01368917c%3Aimage.png?table=block&id=37829a65-26bf-8033-aa70-d88d3545caf1&spaceId=ade67f57-78e5-460d-be64-19b012fc56e3&width=780&userId=81de1a74-04f6-4b1e-891f-24d3210b85bc&cache=v2&imgBuildSrc=requestProxiedImageUrl"
+      }
+    ]
+  },
+  {
+    "index": 12,
+    "title": "Native app for screen capturing",
+    "status": "Not started",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Native-app-for-screen-capturing-36e29a6526bf8029a72ee4836c01b60d?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/12-native-app-for-screen-capturing.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nNative app for screen capturing\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJuly 17, 2026 → July 30, 2026\nEnd Owner\nEmpty\nInitiative\nManaged App\nStatus\nNot started\nTag\nDifferentiator\nAdd a property\nComments\nIronClaw must provide a native desktop application that enables screen capture as an input and observation channel for the agent. The app should support on-demand screenshots, continuous screen observation (with explicit user control), and region-scoped capture, feeding visual context into the agent's reasoning pipeline alongside text and voice inputs. Requirements include: cross-platform support (macOS, Windows), low-overhead capture, user-controlled start/stop and privacy indicators, selective masking of sensitive regions or applications, and secure transport of captured data.\nThe app must integrate with the existing agent interface (no parallel control surface) and support both interactive workflows (user shows the agent something) and autonomous observation (agent monitors a defined surface as part of a running workflow).",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 13,
+    "title": "Custom build tools",
+    "status": "Not started",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Custom-build-tools-36e29a6526bf80b48306e15daad54fa7?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/13-custom-build-tools.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nCustom build tools\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJuly 1, 2026 → July 17, 2026\nEnd Owner\nEmpty\nInitiative\nIronClaw core\nStatus\nNot started\nTag\nEmpty\nAdd a property\nComments\nToday, building a custom tool to extend IronClaw is an expert exercise. Even a focused integration (e.g., \"let IronClaw read my Crisp chats\") takes a day for someone with Rust experience and\nis effectively impossible for anyone else: it requires installing developer toolchains, hand-writing several hundred lines of code, learning undocumented file conventions, managing secrets through a\nraw admin API, restarting the app, and iterating through silent failure modes. None of that is surfaced in chat or the web UI. As a result, real user needs stay blocked — IronClaw can be extended, but\nonly by the small subset of users who happen to be software engineers willing to spend hours debugging.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 14,
+    "title": "Permission management",
+    "status": "Not started",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Permission-management-36e29a6526bf8042b417f0f2f7da5c0c?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/14-permission-management.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nPermission management\nBlocked by\nAdmin configurable skills/tools\nBlocking\nEmpty\nDate\nJune 26, 2026 → July 21, 2026\nEnd Owner\nEmpty\nInitiative\nIronClaw core\nStatus\nNot started\nTag\nDifferentiator\nAdd a property\nComments\nMain user story: As a user, I want to configure the agent’s permissions and tools access using natural language, so that I can manage my agent via a channel.\nTrust Without Friction - Product Brief/Vision",
+    "links": [
+      {
+        "href": "https://app.notion.com/p/Trust-Without-Friction-Product-Brief-Vision-35a29a6526bf8044bdc0ffd48eb2113f?pvs=24",
+        "text": "Trust Without Friction - Product Brief/Vision"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/image/attachment%3A46566e18-b8fe-41b4-9bb2-b2805cddd5a8%3Aimage.png?table=block&id=37929a65-26bf-80d5-968d-df0f5872e646&spaceId=ade67f57-78e5-460d-be64-19b012fc56e3&width=780&userId=81de1a74-04f6-4b1e-891f-24d3210b85bc&cache=v2&imgBuildSrc=requestProxiedImageUrl"
+      }
+    ]
+  },
+  {
+    "index": 15,
+    "title": "Multi-tenant cross agent collaboration",
+    "status": "Ideation",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Multi-tenant-cross-agent-collaboration-36e29a6526bf8039b69fc48e16d5cbb7?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/15-multi-tenant-cross-agent-collaboration.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nMulti-tenant cross agent collaboration\nBlocked by\nMissions\nBlocking\nEmpty\nDate\nJuly 6, 2026 → July 26, 2026\nEnd Owner\nEmpty\nInitiative\nIronClaw core\nStatus\nIdeation\nTag\nDifferentiator\nAdd a property\nComments\nMain User Story: As a user, I want my agent to collaborate with my colleagues’ agents so that we can work on joint projects.\nIronClaw must enable agents belonging to different users to collaborate within an organization without leaking private context across tenant boundaries. Each agent retains isolated memory, credentials, and tool permissions; cross-agent interaction happens only through explicit, auditable channels with a defined security context passthrough model. Admins retain visibility into cross-agent activity, and isolation is enforced within the TEE boundary rather than by policy alone.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 16,
+    "title": "User-voice model",
+    "status": "Not started",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/User-voice-model-36e29a6526bf80049af1f1de049292f3?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/16-user-voice-model.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nUser-voice model\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJuly 5, 2026 → July 16, 2026\nEnd Owner\nEmpty\nInitiative\nIronClaw core\nStatus\nNot started\nTag\nEmpty\nAdd a property\nComments\nIronClaw must support voice as a first-class input modality. Users should be able to issue instructions, define workflows, and interact with their agent via spoken input, with audio transcribed and routed through the same intent-handling pipeline as text. Requirements include low-latency capture, accurate transcription across accents and ambient conditions, speaker context preservation across multi-turn interactions, and parity with text input for all agent capabilities (tool calls, workflow definition, approvals). Voice input must operate within the TEE boundary to preserve the platform's privacy guarantees",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 17,
+    "title": "Harness improvement feedback loop",
+    "status": "Scoped & Designed",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Harness-improvement-feedback-loop-36e29a6526bf808d8734fb5570553e98?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/17-harness-improvement-feedback-loop.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nHarness improvement feedback loop\nBlocked by\nBenchmarks in CI\nBlocking\nEmpty\nDate\nJune 15, 2026 → June 30, 2026\nEnd Owner\nEmpty\nInitiative\nBenchmarks\nStatus\nScoped & Designed\nTag\nEmpty\nAdd a property\nComments\nUse benchmark results to drive systematic, measurable improvements to the agent harness — prompts, tool definitions, scaffolding, and retry logic.\nThe benchmark harness must produce structured, actionable output that feeds directly into product development. Each run should surface categorized failure modes (tool-call errors, context saturation, planning regressions, integration gaps), track regressions across versions, and expose results in a format that can be triaged into product priorities. Results must be persisted and queryable over time so trends — not just point-in-time scores — inform roadmap decisions. The harness is not complete until its output can be reviewed in a regular cadence and mapped to concrete changes in IronClaw primitives, integrations, or agent loop architecture.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 18,
+    "title": "Enhance Framework to support “new features” benchmarks",
+    "status": "Scoped & Designed",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Enhance-Framework-to-support-new-features-benchmarks-36e29a6526bf80bfadfaf763cb2ab6a3?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/18-enhance-framework-to-support-new-features-benchmarks.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nEnhance Framework to support “new features” benchmarks\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJuly 1, 2026 → July 12, 2026\nEnd Owner\nPranav Raja\nInitiative\nBenchmarks\nStatus\nScoped & Designed\nTag\nEmpty\nAdd a property\nComments\nSelf-learning loops, permissions and secret management require the frame work improvements to full implement benchmarks:\nSecret management: https://github.com/nearai/benchmarks/issues/59​\nSelf-learning loops: https://github.com/nearai/benchmarks/issues/62​\nMemory: https://github.com/nearai/benchmarks/issues/63​\nImprove the quality of benchmarks:\nMock main tool calls: https://github.com/nearai/benchmarks/issues/61​",
+    "links": [
+      {
+        "href": "https://github.com/nearai/benchmarks/issues/59",
+        "text": "https://github.com/nearai/benchmarks/issues/59"
+      },
+      {
+        "href": "https://github.com/nearai/benchmarks/issues/62",
+        "text": "https://github.com/nearai/benchmarks/issues/62"
+      },
+      {
+        "href": "https://github.com/nearai/benchmarks/issues/63",
+        "text": "https://github.com/nearai/benchmarks/issues/63"
+      },
+      {
+        "href": "https://github.com/nearai/benchmarks/issues/61",
+        "text": "https://github.com/nearai/benchmarks/issues/61"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Pranav Raja",
+        "src": "https://lh3.googleusercontent.com/a/ACg8ocLy7x4CaruZ54eh9CFtAr9m4e2q7D54O0MWiNDwPsevxHiUaA=s100"
+      },
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 19,
+    "title": "Benchmarks in CI",
+    "status": "In development",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Benchmarks-in-CI-36e29a6526bf8074bf40d4a19d271734?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/19-benchmarks-in-ci.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nBenchmarks in CI\nBlocked by\nEmpty\nBlocking\nHarness improvement feedback loop\nDate\nMay 20, 2026 → May 31, 2026\nEnd Owner\nPranav Raja\nInitiative\nBenchmarks\nStatus\nIn development\nTag\nEmpty\nAdd a property\nComments\nRun the agent benchmark suite on every CI build so regressions in agent capability — tool selection, multi-step reasoning, end-to-end workflow completion — get caught before they ship. Closes the gap between \"code compiles\" and \"agent still works,\" and provides the signal the harness improvement loop needs to operate.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Pranav Raja",
+        "src": "https://lh3.googleusercontent.com/a/ACg8ocLy7x4CaruZ54eh9CFtAr9m4e2q7D54O0MWiNDwPsevxHiUaA=s100"
+      },
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 20,
+    "title": "Onboarding to channel first approach",
+    "status": "In design",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Onboarding-to-channel-first-approach-36e29a6526bf80a5a5fdf07e8ffe1396?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/20-onboarding-to-channel-first-approach.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nOnboarding to channel first approach\nBlocked by\nSlack as the main channel\nBlocking\nEmpty\nDate\nJune 16, 2026 → June 27, 2026\nEnd Owner\nEmpty\nInitiative\nIronClaw core\nStatus\nIn design\nTag\nEmpty\nAdd a property\nComments\nProblem statement\nIronClaw's value is realized in the channel: Slack or Telegram is where the agent lives and where continuous, conversational work happens. But a channel can't be the entry point: a brand-new user can't authenticate, connect integrations, or be provisioned from inside Slack. The WebUI exists to get the user to the channel asap: authenticate the user, connect their channel, then get out of the way.\nUser Flow\nDetails are pending design exploration",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/image/attachment%3A9669b729-e46b-4c5c-a313-46edebf8eb8c%3Aimage.png?table=block&id=37829a65-26bf-809f-9a65-e0befafd5749&spaceId=ade67f57-78e5-460d-be64-19b012fc56e3&width=780&userId=81de1a74-04f6-4b1e-891f-24d3210b85bc&cache=v2&imgBuildSrc=requestProxiedImageUrl"
+      }
+    ]
+  },
+  {
+    "index": 21,
+    "title": "NEAR Foundation must-haves",
+    "status": "Scoped & Designed",
+    "comments": 2,
+    "href": "https://app.notion.com/p/jasnahcom/NEAR-Foundation-must-haves-36e29a6526bf80b3b02ef6d4fbd3f47f?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/21-near-foundation-must-haves.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nNEAR Foundation must-haves\nBlocked by\nBlocking\nEmpty\nDate\nJune 11, 2026\nEnd Owner\nFirat Sertgoz\nInitiative\nIronClaw core\nStatus\nScoped & Designed\nTag\nEmpty\nAdd a property\nComments\nD\ndaniel\nJun 1\nhey, my suggestion is that integrations with Google, Slack, Notion, and future systems like GitHub or Confluence should not be hardcoded into Ironclaw or treated as core capabilities.\nInstead, we should rely on generic integration standards such as MCP, CLI tools, or skills. This keeps the architecture simpler and more flexible, while allowing users to connect whatever data sources best fit their needs.\nMore importantly, the industry is clearly moving toward agent-friendly interfaces like MCP and CLI. Rather than building deep, custom integrations ourselves, we should align with that trend and leverage these standards whenever possible.\ne.g. for google we can use https://github.com/googleworkspace/cli , notion has mcp which we don’t need to adapt on demand, for slack there are community cli tools (or we can write one)\nFirat Sertgoz\nJun 1\nbut these are not hardcoded, these are extensions that we provide users so that they activate if they want.\nnotion is an MCP, Gsuite is WASM because it provides us the best isolation/security guarantees.\n\nI agree that we should move towards CLIs in general. I have a plan for this which we already started implementing with sandboxed runtimes but probably will land that towards the end of the week if everything goes well with NF launch.\n👍\n1\nMust-haves that should be covered by Reborn:\nGoogle Suite (Gmail, Calendar, Drive, Sheets, Docs)\nSlack: I can talk to my agent via Slack (Slack relay)\nNotion (via MCP)\nWeb UI with Google OAuth\nRoutines\n3\nHosted\nRailway - Supabase start → Crabshack migrate\nNice-to-haves:\nSlack\nPersonal agent gets context from all Slack channels\nTeam agent\nSkills\nAdmin creates skills that are available to everyone\n(lower priority) Get skills from IronHub\nPropagate tools by admin (\nMulti-tenancy and permissions - product brief)\nThe bundle of must-haves that have to land for NEAR Foundation's internal rollout to be real. Per the page's own list: Google Suite (Gmail, Calendar, Drive), Slack relay, Notion via MCP, Web UI, and Routines — with Slack tool, IronHub skills, and admin-propagated tools as nice-to-haves. This is the acceptance criteria for \"Reborn is shippable inside NEAR Foundation.\"\nIronHub roadmap:\nInternal-only space (Org isolation): NF-built skills and tools shared only inside NF, members invited by git auth, behaves like an Org space\nPartly built on the partner dashboard (Railway)\nRating and voting: upvote the useful skills and tools, downvote the weak ones\nBundles / Loadouts: packaged roles bundling skills + tools (+ soul when ready), e.g. a paralegal\nCollections (skills + tools) exist today, Phase 2\nLoadouts add the soul layer when the runtime supports it\nMore added as user feedback comes in",
+    "links": [
+      {
+        "href": "https://github.com/googleworkspace/cli",
+        "text": "https://github.com/googleworkspace/cli"
+      },
+      {
+        "href": "https://app.notion.com/p/Multi-tenancy-and-permissions-product-brief-36529a6526bf80409b90f7ee35d3d011?pvs=24",
+        "text": "Multi-tenancy and permissions - product brief"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Firat Sertgoz",
+        "src": "https://lh3.googleusercontent.com/a/ACg8ocL1LuSTQDKq7vE5ISxU3YzIsgMz5xSFr6zHWH4qw60ZtcDE=s100"
+      },
+      {
+        "alt": "Firat Sertgoz",
+        "src": "https://lh3.googleusercontent.com/a/ACg8ocL1LuSTQDKq7vE5ISxU3YzIsgMz5xSFr6zHWH4qw60ZtcDE=s100"
+      },
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 22,
+    "title": "Clean up old architecture",
+    "status": "Scoped & Designed",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Clean-up-old-architecture-36e29a6526bf805fb2e9ff4da450683d?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/22-clean-up-old-architecture.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nClean up old architecture\nBlocked by\nReborn\nBlocking\nEmpty\nDate\nJune 12, 2026 → June 23, 2026\nEnd Owner\nEmpty\nInitiative\nIronClaw core\nStatus\nScoped & Designed\nTag\nEmpty\nAdd a property\nComments\nDelete the legacy code paths, services, and configuration that the migration to Reborn and Crabshack make obsolete. Pure tech-debt reduction: shrinks the surface area engineers have to reason about, removes a class of \"which system runs this?\" ambiguity, and unblocks future changes that would otherwise have to be made in two places.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 23,
+    "title": "Self-learning loops",
+    "status": "Ideation",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Self-learning-loops-36e29a6526bf8083af81d838c140d619?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/23-self-learning-loops.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nSelf-learning loops\nBlocked by\nEmpty\nBlocking\nLong-term memory\nDate\nJune 20, 2026 → July 8, 2026\nEnd Owner\nEmpty\nInitiative\nIronClaw core\nStatus\nIdeation\nTag\nEmpty\nAdd a property\nComments\nProblem Statement\nIronClaw's agents execute workflows but don't durably get better at them. Improvements either evaporate at session end or require a human in the loop.\nFor example, after a long conversation, the user needs to ask IronClaw to create a skill from it, but if the user forgets, the knowledge is gone. The same is true when an agent recovers from a failure or gets corrected: nothing persists unless someone asks.\nSelf-learning is what separates an agent that resets to zero every session from one that compounds, and it's becoming table stakes (Hermes ships it as a headline feature and courts our migration audience).\nBenchmarks\nhttps://github.com/nearai/benchmarks/pull/60\nUser Stories\nAs a user, after a long working session, I want the agent to save what it figured out on its own, so I don't have to remember to ask — and the next session starts where the last one left off.\nAs a user, when I correct the agent or it recovers from a failure, I want the working path to stick, so the same mistake doesn't recur, and I never give the same feedback twice.\nAs a user, I want the agent to learn my communication style and preferences, so over time, it matches how I work without me having to restate them.\nAs a user, I want the agent to recognize work it's done before and reuse the proven approach, instead of re-deriving it from scratch each time.\nDesign Ideas\nLearn from errors\nLearning Skill\nAttachment - Hermes AI self-learning\nSkill creation — skill_manage tool lets the agent autonomously write/edit/delete its own SKILL.md files; auto-triggers on complex tasks (5+ tool calls), error recovery, user corrections, or novel workflows.\nBounded memory — hard-capped MEMORY.md and USER.md the agent curates itself, persisting preferences, environment facts, and lessons learned across sessions.\nSession search — unbounded conversation history in SQLite with FTS5 full-text search, letting the agent recall past threads on demand.\nThe Curator — background GC that ages skills (active → stale → archived) and consolidates near-duplicates so the learned library doesn't bloat.\nSelf-improvement nudges — periodic prompts pushing the agent to persist what it learned and model the user across sessions.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/image/attachment%3A3a1af3c0-b8c2-49cd-88bf-12b92c5e06b4%3Aimage.png?table=block&id=37929a65-26bf-800d-9151-c345d92d8652&spaceId=ade67f57-78e5-460d-be64-19b012fc56e3&width=780&userId=81de1a74-04f6-4b1e-891f-24d3210b85bc&cache=v2&imgBuildSrc=requestProxiedImageUrl"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/image/attachment%3A30e9d0bf-ec28-4103-b9f9-cb21e90860b4%3Aimage.png?table=block&id=37929a65-26bf-80bb-9a85-f10ea1fdf53d&spaceId=ade67f57-78e5-460d-be64-19b012fc56e3&width=780&userId=81de1a74-04f6-4b1e-891f-24d3210b85bc&cache=v2&imgBuildSrc=requestProxiedImageUrl"
+      }
+    ]
+  },
+  {
+    "index": 24,
+    "title": "Slack app",
+    "status": "Won't do",
+    "comments": 1,
+    "href": "https://app.notion.com/p/jasnahcom/Slack-app-36e29a6526bf806d84d5eb35b2f8cd45?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/24-slack-app.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nSlack app\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nEmpty\nEnd Owner\nEmpty\nInitiative\nManaged App\nStatus\nWon't do\nTag\nEmpty\nAdd a property\nComments\nS\nSergey Astretsov\nJun 3\nWon’t do today:\nGoogle & Slack apps - Overview\nThe official IronClaw Slack app, packaged for distribution through the Slack App Directory. Distinct from the relay: the relay is the message-routing mechanism; the app is the installable, brand-faced product surface that any Slack workspace can add. This is what external customers will install.",
+    "links": [
+      {
+        "href": "https://app.notion.com/profiles/ade67f57-78e5-460d-be64-19b012fc56e3/263d872b-594c-8125-808e-00023d649ca6?pvs=157",
+        "text": "Sergey Astretsov"
+      },
+      {
+        "href": "https://app.notion.com/p/Google-Slack-apps-Overview-37429a6526bf80bf97dde7dbf01bb5c5?pvs=24",
+        "text": "Google & Slack apps - Overview"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 25,
+    "title": "Security Improvements",
+    "status": "Ideation",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Security-Improvements-36e29a6526bf80a195c3e7fa7b591a2e?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/25-security-improvements.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nSecurity Improvements\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJune 22, 2026 → July 16, 2026\nEnd Owner\nEmpty\nInitiative\nInfra\nStatus\nIdeation\nTag\nEmpty\nAdd a property\nComments\nMain projects:\nCookie management\nKey management\nA focused pass of platform hardening: auth flows, secrets handling, sandboxing, audit logging, and the rough edges that always exist around a fast-moving agent runtime. Not a single feature — a list of targeted fixes that together raise the security floor enough to credibly sell into organizations with real compliance requirements.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 26,
+    "title": "TEE support for multi-tenancy",
+    "status": "Scoped & Designed",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/TEE-support-for-multi-tenancy-36e29a6526bf80729f4ad6052f0ac68e?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/26-tee-support-for-multi-tenancy.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nTEE support for multi-tenancy\nBlocked by\nEmpty\nBlocking\nTEE Observability\nDate\nJune 24, 2026 → July 10, 2026\nEnd Owner\nEmpty\nInitiative\nInfra\nStatus\nScoped & Designed\nTag\nEmpty\nAdd a property\nComments\nPer-tenant isolation enforced at the hardware level via Trusted Execution Environments. Multiple users and orgs can share infrastructure efficiently while their data, memory, and credentials remain provably inaccessible to one another and to the platform operator. This is the architectural primitive that lets the free tier exist (see \"Free tier via multi-tenancy\") and is the differentiator the product leans on with privacy-sensitive buyers.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 27,
+    "title": "Free tier via multi-tenancy",
+    "status": "Ideation",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Free-tier-via-multi-tenancy-36e29a6526bf80f596d1fca3b88c8e86?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/27-free-tier-via-multi-tenancy.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nFree tier via multi-tenancy\nBlocked by\nPath from free tier to dedicated agents\nBlocking\nEmpty\nDate\nJuly 13, 2026 → July 24, 2026\nEnd Owner\nEmpty\nInitiative\nInfra\nStatus\nIdeation\nTag\nEmpty\nAdd a property\nComments\nUse the multi-tenant architecture (and the TEE isolation that backs it) to offer a free tier where many users share infrastructure efficiently — making \"try IronClaw\" a one-click experience without giving up on the privacy guarantee. The growth-loop entry point: free-tier users come in, validate the value, and have a clear path to a dedicated agent when they need more.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 28,
+    "title": "Path from free tier to dedicated agents",
+    "status": "Ideation",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Path-from-free-tier-to-dedicated-agents-36e29a6526bf807cb261e535b5f5860a?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/28-path-from-free-tier-to-dedicated-agents.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nPath from free tier to dedicated agents\nBlocked by\nEmpty\nBlocking\nFree tier via multi-tenancy\nDate\nJune 24, 2026 → July 10, 2026\nEnd Owner\nEmpty\nInitiative\nInfra\nStatus\nIdeation\nTag\nEmpty\nAdd a property\nComments\nDefine the product and billing journey from the shared free tier (multi-tenant, lower limits) to a dedicated agent instance (isolated resources, higher limits, paid). Covers the upgrade UX, what carries over, what changes about the user's agent, and the gates and signals that surface the upgrade at the right time.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 29,
+    "title": "Migrate existing agents from agent.near.ai to Reborn",
+    "status": "Scoped & Designed",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Migrate-existing-agents-from-agent-near-ai-to-Reborn-36e29a6526bf80278c40c7c1b7843f0a?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/29-migrate-existing-agents-from-agent-near-ai-to-reborn.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nMigrate existing agents from agent.near.ai to Reborn\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nJune 18, 2026 → June 24, 2026\nEnd Owner\nEmpty\nInitiative\nInfra\nStatus\nScoped & Designed\nTag\nEmpty\nAdd a property\nComments\nPort the live agents currently running on agent.near.ai over to the new Reborn surface. This is the cutover step that retires the legacy entry point and consolidates every existing user, agent, and integration onto a single platform so further work doesn't have to be done twice.",
+    "links": [
+      {
+        "href": "http://agent.near.ai/",
+        "text": "agent.near.ai"
+      },
+      {
+        "href": "http://agent.near.ai/",
+        "text": "agent.near.ai"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 30,
+    "title": "Migrate legacy agents to crabshack",
+    "status": "In design",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Migrate-legacy-agents-to-crabshack-36e29a6526bf80e8b0a6fbdd3d3cca95?pvs=25",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/30-migrate-legacy-agents-to-crabshack.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nMigrate legacy agents to crabshack\nBlocked by\nCrabshack w/ TEE\nBlocking\nEmpty\nDate\nJune 4, 2026 → June 18, 2026\nEnd Owner\nEmpty\nInitiative\nInfra\nStatus\nIn design\nTag\nEmpty\nAdd a property\nComments\nPort the legacy agent code paths onto the Crabshack runtime so every agent — old and new — executes through one path. Unblocks the \"clean up old architecture\" cleanup, consolidates the observability and security story, and removes the maintenance tax of running two execution stacks side by side.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 31,
+    "title": "Crabshack w/ TEE",
+    "status": "In development",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Crabshack-w-TEE-36e29a6526bf80c6a073f84aa4abba16?pvs=25",
+    "capturedUrl": "https://app.notion.com/p/jasnahcom/Crabshack-w-TEE-36e29a6526bf80c6a073f84aa4abba16",
+    "capturedTitle": "(9+) Crabshack w/ TEE | Notion",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/31-crabshack-w-tee.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nCrabshack w/ TEE\nBlocked by\nEmpty\nBlocking\nMigrate legacy agents to crabshack\nDate\nMay 15, 2026 → June 3, 2026\nEnd Owner\nEmpty\nInitiative\nInfra\nStatus\nIn development\nTag\nEmpty\nAdd a property\nComments\nIssue #7\nnearai/nearone-agent-hosting\nConnect to GitHub to update\nRun the Crabshack agent execution runtime inside a hardware-backed Trusted Execution Environment. Brings the new runtime under the same privacy guarantee that defines the rest of the platform — agent code and the data it touches stay isolated from the host and from other tenants — and is the precondition for migrating legacy agents onto Crabshack.",
+    "links": [
+      {
+        "href": "https://github.com/nearai/nearone-agent-hosting/issues/7",
+        "text": "Issue #7 nearai/nearone-agent-hosting Connect to GitHub to update"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/images/external_integrations/github-icon.png"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/images/external_integrations/github-accent.png"
+      }
+    ]
+  },
+  {
+    "index": 32,
+    "title": "Migrate to Railway",
+    "status": "In development",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Migrate-to-Railway-36e29a6526bf800cabd7eec3dc3f268e?pvs=25",
+    "capturedUrl": "https://app.notion.com/p/jasnahcom/Migrate-to-Railway-36e29a6526bf800cabd7eec3dc3f268e",
+    "capturedTitle": "Migrate to Railway | Notion",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/32-migrate-to-railway.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nMigrate to Railway\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nMay 15, 2026 → June 2, 2026\nEnd Owner\nEmpty\nInitiative\nInfra\nStatus\nIn development\nTag\nEmpty\nAdd a property\nComments\nIssue #27\nnearai/nearone-agent-hosting\nConnect to GitHub to update\nMove IronClaw's deployment infrastructure onto Railway as the hosting platform. Replaces the current host with a managed setup that's faster to deploy to, easier to roll back, and simpler to operate for the small team — freeing engineering time from infra work so it can go into the product surface.",
+    "links": [
+      {
+        "href": "https://github.com/nearai/nearone-agent-hosting/issues/27",
+        "text": "Issue #27 nearai/nearone-agent-hosting Connect to GitHub to update"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/images/external_integrations/github-icon.png"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/images/external_integrations/github-accent.png"
+      }
+    ]
+  },
+  {
+    "index": 33,
+    "title": "Google App / Certification",
+    "status": "Won't do",
+    "comments": 1,
+    "href": "https://app.notion.com/p/jasnahcom/Google-App-Certification-36e29a6526bf80a58826e5f4430e199e?pvs=25",
+    "capturedUrl": "https://app.notion.com/p/jasnahcom/Google-App-Certification-36e29a6526bf80a58826e5f4430e199e",
+    "capturedTitle": "Google App / Certification | Notion",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/33-google-app-certification.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nGoogle App / Certification\nBlocked by\nEmpty\nBlocking\nEmpty\nDate\nEmpty\nEnd Owner\nEmpty\nInitiative\nManaged App\nStatus\nWon't do\nTag\nEmpty\nAdd a property\nComments\nS\nSergey Astretsov\nJun 3\nWon’t do today:\nGoogle & Slack apps - Overview\nGet IronClaw verified and listed as a Google Workspace third-party app, so users can connect Gmail, Calendar, and Drive without their admin having to grant a special override. Removes the single biggest friction point in onboarding Google-shop teams and is a prerequisite for any self-serve motion that touches Google data.",
+    "links": [
+      {
+        "href": "https://app.notion.com/profiles/ade67f57-78e5-460d-be64-19b012fc56e3/263d872b-594c-8125-808e-00023d649ca6?pvs=157",
+        "text": "Sergey Astretsov"
+      },
+      {
+        "href": "https://app.notion.com/p/Google-Slack-apps-Overview-37429a6526bf80bf97dde7dbf01bb5c5?pvs=24",
+        "text": "Google & Slack apps - Overview"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  },
+  {
+    "index": 34,
+    "title": "Admin configurable skills/tools",
+    "status": "Scoped & Designed",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Admin-configurable-skills-tools-36e29a6526bf80408720fa4c6c636df6?pvs=25",
+    "capturedUrl": "https://app.notion.com/p/jasnahcom/Admin-configurable-skills-tools-36e29a6526bf80408720fa4c6c636df6",
+    "capturedTitle": "Admin configurable skills/tools | Notion",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/34-admin-configurable-skills-tools.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nAdmin configurable skills/tools\nBlocked by\nEmpty\nBlocking\nPermission management\nDate\nJune 6, 2026 → June 20, 2026\nEnd Owner\nEmpty\nInitiative\nIronClaw core\nStatus\nScoped & Designed\nTag\nEmpty\nAdd a property\nComments\nProblem Statement\nA company runs a single multi-tenant IronClaw instance. Admins configure shared tools and skills (built-in or custom), so users start productive without per-user setup. Users access those shared tools but may need to authenticate individually (e.g., a shared Slack app where each user connects their own account). Users can also add their own private tools and skills on top.\nBenchmark\nWe need to extend the benchmark framework to include non-LLM interactions of the agent, like saving secrets: https://github.com/nearai/benchmarks/issues/59​\nUser Stories\nAs an admin, I can add built-in tools and skills and make them available to all users.\nAn admin can configure a tool (e.g., a single Slack app), and users inherit that configuration.\nAs an admin, I can create and publish custom tools/skills to all users.\n(Already available today) As a user, I can add my own private tools and skills.\n(Out of scope) As a user, I can modify admin-created skills and tools.\nFor the initial phase, we won’t support it.\nOpen question: how per-user auth binds to an admin-configured tool (per-user OAuth token, credential injection into the shared tool config).\nInspiration\nMulti-tenancy and permissions - product brief\nUser Flow (for discussion)",
+    "links": [
+      {
+        "href": "https://github.com/nearai/benchmarks/issues/59",
+        "text": "https://github.com/nearai/benchmarks/issues/59"
+      },
+      {
+        "href": "https://app.notion.com/p/Multi-tenancy-and-permissions-product-brief-36529a6526bf80409b90f7ee35d3d011?pvs=24",
+        "text": "Multi-tenancy and permissions - product brief"
+      }
+    ],
+    "images": [
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/image/attachment%3A263585de-1b19-4ba8-a5e4-fbfbfa4b2143%3Aimage.png?table=block&id=37829a65-26bf-80cf-afe7-fc3fee756b0b&spaceId=ade67f57-78e5-460d-be64-19b012fc56e3&width=780&userId=81de1a74-04f6-4b1e-891f-24d3210b85bc&cache=v2&imgBuildSrc=requestProxiedImageUrl"
+      }
+    ]
+  },
+  {
+    "index": 35,
+    "title": "Slack as the main channel",
+    "status": "Scoped & Designed",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Slack-as-the-main-channel-36e29a6526bf8063b148c05ff5d36f16?pvs=25",
+    "capturedUrl": "https://app.notion.com/p/jasnahcom/Slack-as-the-main-channel-36e29a6526bf8063b148c05ff5d36f16",
+    "capturedTitle": "Slack as the main channel | Notion",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/35-slack-as-the-main-channel.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nSlack as the main channel\nBlocked by\nEmpty\nBlocking\nOnboarding to channel first approach\nSecrets usage with Skills/Tools\nDate\nJune 7, 2026 → June 15, 2026\nEnd Owner\nFirat Sertgoz\nInitiative\nIronClaw core\nStatus\nScoped & Designed\nTag\nEmpty\nAdd a property\nComments\nProblem Statement\nUsers need to interact with IronClaw through Slack as a channel-first surface. There should be a way for both your personal agent and your team agents to work in Slack—where a member can reach their personal agent and the right team agent, each with the right memory and tools, without heavy per-team setup or a confusing tangle of bots.\nBenchmarks/Success criteria\nhttps://github.com/nearai/benchmarks/pull/54\nUser Stories\nAs an admin, I install one Slack app and map channels to agents (no separate app per team).\nAs a member, I DM IronClaw to reach my personal agent, so that I can discuss personal topics.\nAs an admin, I can assign agents to specific channels (#hr, #finance), so that the organization has team-level agents in Slack.\nAs a member, I @-mention IronClaw in #product, and the Product agent replies with its own tools and memory.\nPhase 2 (Deferred)\n(Deferred) As a user, I claim a team channel (e.g., #product) unless it's already claimed for an agent, so that I can create a team-level agent.\n(Deferred) As a member, the team agent answers routine pings on my behalf with attribution.\nDesigns\nUser Flow\nBackground\nTwo ways to map Slack onto IronClaw agents:\nOption A — one app per team. A separate Slack app per team agent (IronClaw Eng, IronClaw Product…). Distinct bot per team, stronger token-level isolation—but a new app to create, approve, and maintain for every team, and users face many bots.\nOption B — one app, channel-routed. One IronClaw app; the channel determines the agent (DMs → personal agent; #product → Product agent w/ GitHub, Linear, Chir inbox; #hr → HR agent w/ Greenhouse, Gmail, Drive). One bot, simpler setup, config-based isolation.\nWe're going with Option B as a simpler setup, and a channel-bound context makes shared memory cleaner.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Firat Sertgoz",
+        "src": "https://lh3.googleusercontent.com/a/ACg8ocL1LuSTQDKq7vE5ISxU3YzIsgMz5xSFr6zHWH4qw60ZtcDE=s100"
+      },
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/image/attachment%3Afd14d9dc-8cbc-47c4-bc03-6255d649a4e7%3Aimage.png?table=block&id=37929a65-26bf-80bf-85a0-e175c00bcd6b&spaceId=ade67f57-78e5-460d-be64-19b012fc56e3&width=780&userId=81de1a74-04f6-4b1e-891f-24d3210b85bc&cache=v2&imgBuildSrc=requestProxiedImageUrl"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/image/attachment%3A8f330302-753f-4fdf-9afe-112b7b2bb389%3Aimage.png?table=block&id=37929a65-26bf-8074-9ac6-e338febe4a46&spaceId=ade67f57-78e5-460d-be64-19b012fc56e3&width=780&userId=81de1a74-04f6-4b1e-891f-24d3210b85bc&cache=v2&imgBuildSrc=requestProxiedImageUrl"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/image/attachment%3Aa2aafe82-d6aa-4ed1-bd6d-0463f00e989d%3Aimage.png?table=block&id=37929a65-26bf-80c6-8d00-e6d3c0a96c09&spaceId=ade67f57-78e5-460d-be64-19b012fc56e3&width=780&userId=81de1a74-04f6-4b1e-891f-24d3210b85bc&cache=v2&imgBuildSrc=requestProxiedImageUrl"
+      },
+      {
+        "alt": "",
+        "src": "https://app.notion.com/image/attachment%3Ad57ce0e5-a336-4162-9ea8-ed48f0379fd1%3Aimage.png?table=block&id=37929a65-26bf-80cc-b583-ea2ce10ccf8c&spaceId=ade67f57-78e5-460d-be64-19b012fc56e3&width=780&userId=81de1a74-04f6-4b1e-891f-24d3210b85bc&cache=v2&imgBuildSrc=requestProxiedImageUrl"
+      }
+    ]
+  },
+  {
+    "index": 36,
+    "title": "Reborn",
+    "status": "In development",
+    "comments": null,
+    "href": "https://app.notion.com/p/jasnahcom/Reborn-36e29a6526bf8042b267c52a1dab02cd?pvs=25",
+    "capturedUrl": "https://app.notion.com/p/jasnahcom/Reborn-36e29a6526bf8042b267c52a1dab02cd",
+    "capturedTitle": "Reborn | Notion",
+    "screenshotPath": "/Users/abhishekvaidyanathan/Documents/Playground/ironclaw-desktop-app-main/docs/design/assets/near-ai-roadmap-2026-06-18/36-reborn.png",
+    "text": "Add icon\nAdd cover\nAdd verification\nCustomize layout\nReborn\nBlocked by\nEmpty\nBlocking\nClean up old architecture\nNEAR Foundation must-haves\nDate\nMay 11, 2026 → June 10, 2026\nEnd Owner\nFirat Sertgoz\nInitiative\nIronClaw core\nStatus\nIn development\nTag\nEmpty\nAdd a property\nComments\nThe relaunched IronClaw product surface — the rebuilt platform that NEAR Foundation will run on as the first internal customer. Reborn is the umbrella initiative that brings together the core agent experience (Web UI, Routines), the connector set required for day-to-day work (Google Suite, Slack relay, Notion via MCP), and the polish needed for non-engineer adoption. Several other roadmap items either block on Reborn or extend it.",
+    "links": [],
+    "images": [
+      {
+        "alt": "Firat Sertgoz",
+        "src": "https://lh3.googleusercontent.com/a/ACg8ocL1LuSTQDKq7vE5ISxU3YzIsgMz5xSFr6zHWH4qw60ZtcDE=s100"
+      },
+      {
+        "alt": "Abhishek Vaidyanathan",
+        "src": "https://lh3.googleusercontent.com/a/AAcHTtd1ywcMkZQUfcwXIfvbe_CbxzKhujvKDyDhl_xLM83O=s100"
+      }
+    ]
+  }
+]

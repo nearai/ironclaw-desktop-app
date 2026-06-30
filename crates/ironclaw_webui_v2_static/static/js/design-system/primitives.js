@@ -17,27 +17,6 @@ import { Badge } from './badge.js';
 /** Backwards-compat alias so existing `import { StatusPill }` still works. */
 export { Badge, Badge as StatusPill };
 
-/* ── tone → dot color ──────────────────────────────────────────────── */
-/**
- * Maps a Badge tone to the semantic v2 text token used for StatCard's quiet
- * accent dot. Mirrors the `text-*` half of Badge's tone map so the indicator
- * color stays in step with the rest of the system, while keeping the tone as
- * STYLING only — the token string is never rendered as copy. Unknown tones fall
- * back to muted.
- */
-const STAT_DOT_COLOR = {
-  success: 'bg-[var(--v2-positive-text)]',
-  positive: 'bg-[var(--v2-positive-text)]',
-  signal: 'bg-[var(--v2-positive-text)]',
-  warning: 'bg-[var(--v2-warning-text)]',
-  copper: 'bg-[var(--v2-warning-text)]',
-  danger: 'bg-[var(--v2-danger-text)]',
-  info: 'bg-[var(--v2-info-text)]',
-  gold: 'bg-[var(--v2-gold-text)]',
-  accent: 'bg-[var(--v2-accent-text)]',
-  muted: 'bg-[var(--v2-text-muted)]'
-};
-
 /**
  * Panel — thin wrapper over Card so existing `import { Panel }` still works.
  * Usage: <${Panel} className="p-5"> … <//>
@@ -60,17 +39,22 @@ export function cx(...classes) {
  *   label      string
  *   value      string | number
  *   tone       Badge tone
+ *   badgeLabel string (optional) — Badge text; defaults to the tone keyword.
+ *     Pass a translated label so the chip is not an English tone name.
  *   detail     string (optional sub-text)
  *   showDivider boolean
  *   className  string
+ *   valueClassName string (optional) — overrides the value font-size classes.
  */
 export function StatCard({
   label,
   value,
   tone = 'muted',
+  badgeLabel,
   detail,
   showDivider = true,
-  className = ''
+  className = '',
+  valueClassName = 'text-[1.5rem] md:text-[1.75rem]'
 }) {
   return html`
     <div
@@ -84,20 +68,17 @@ export function StatCard({
         <div className="min-w-0">
           <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">${label}</div>
           <div
-            className="mt-3 truncate text-[1.75rem] font-medium tabular-nums tracking-[-0.05em] text-[var(--v2-text-strong)] md:text-[2rem]"
+            className=${cn(
+              'mt-3 truncate font-medium tabular-nums tracking-[-0.05em] text-[var(--v2-text-strong)]',
+              valueClassName
+            )}
           >
             ${value}
           </div>
           ${detail &&
           html`<div className="mt-2 text-xs leading-5 text-[var(--v2-text-muted)]">${detail}</div>`}
         </div>
-        <span
-          aria-hidden="true"
-          className=${cn(
-            'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
-            STAT_DOT_COLOR[tone] ?? STAT_DOT_COLOR.muted
-          )}
-        />
+        <${Badge} tone=${tone} label=${badgeLabel ?? tone} />
       </div>
     </div>
   `;
@@ -148,9 +129,7 @@ export function FlowList({ items }) {
 export function EmptyPanel({ title, description, children, boxed = true }) {
   const body = html`
     <div className="max-w-xl">
-      <h2
-        className="text-[1.35rem] font-medium tracking-[-0.03em] text-[var(--v2-text-strong)] md:text-[1.6rem]"
-      >
+      <h2 className="text-[1.2rem] font-semibold text-[var(--v2-text-strong)] md:text-[1.35rem]">
         ${title}
       </h2>
       <p className="mt-3 text-[15px] leading-relaxed text-[var(--v2-text-muted)]">${description}</p>
@@ -168,7 +147,7 @@ export function EmptyPanel({ title, description, children, boxed = true }) {
 /* ── SectionHeader ─────────────────────────────────────────────────── */
 /**
  * Top heading card (hidden on mobile, visible md+) matching reference:
- *   h1 text-[1.9rem] md:text-[2.2rem] font-medium tracking-[-0.04em]
+ *   h1 text-[1.55rem] md:text-[1.8rem] font-semibold
  */
 export function SectionHeader({ title, subtitle }) {
   return html`
@@ -188,7 +167,7 @@ export function SectionHeader({ title, subtitle }) {
 
 /* ── SubLabel ──────────────────────────────────────────────────────── */
 /**
- * Section divider label: text-[1.35rem] font-medium text-muted
+ * Section divider label: quiet sentence-case muted label
  */
 export function SubLabel({ children, className = '' }) {
   return html`

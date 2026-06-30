@@ -1,9 +1,13 @@
-export const defaultRoute = '/chat';
+export const defaultRoute = '/workbench';
 
 // `hidden: true` keeps deep links registered while removing unfinished
 // or specialist surfaces from the normal desktop information architecture.
 // Unhide a route only when its visible workflow is honest and supported.
 export const primaryRoutes = [
+  { id: 'workbench', path: '/workbench', labelKey: 'nav.workbench', hidden: false },
+  // The "How you work" perspective surface — what IronClaw learned about who you
+  // reply to / how fast / what it auto-files.
+  { id: 'you', path: '/you', labelKey: 'nav.you', hidden: false },
   { id: 'chat', path: '/chat', labelKey: 'nav.chat' },
   { id: 'work', path: '/work', labelKey: 'nav.work', hidden: false },
   { id: 'workspace', path: '/workspace', labelKey: 'nav.workspace', hidden: true },
@@ -22,7 +26,18 @@ export const primaryRoutes = [
 export const routeSectionDefs = [
   {
     labelKey: 'nav.sectionWork',
-    ids: ['chat', 'work', 'automations', 'workspace', 'projects', 'jobs', 'routines', 'missions']
+    ids: [
+      'workbench',
+      'you',
+      'chat',
+      'work',
+      'automations',
+      'workspace',
+      'projects',
+      'jobs',
+      'routines',
+      'missions'
+    ]
   },
   {
     labelKey: 'nav.sectionSystem',
@@ -37,6 +52,7 @@ export const SETTINGS_SUB_ROUTES = [
   // { id: "networking", labelKey: "settings.networking", icon: "pulse" },
   // { id: "tools", labelKey: "settings.tools", icon: "tool" },
   // { id: "skills", labelKey: "settings.skills", icon: "file" },
+  { id: 'traces', labelKey: 'settings.traceCommons', icon: 'layers' },
   // { id: "users", labelKey: "settings.users", icon: "lock" },
   { id: 'language', labelKey: 'settings.language', icon: 'globe' }
 ];

@@ -115,12 +115,17 @@ for (const scenario of [
       expect(request.content).toContain('<attachments ic="1">');
       expect(request.content).toContain(`filename: ${scenario.filename}`);
       expect(request.content).toContain('extraction_status: extracted_text');
-      // The document reaches the model through the inlined durable text above —
-      // its only channel. The wire carries NO bytes: the Reborn byte-landing
-      // path (#4644) 500s on any data_base64 under the DevOnly composition, so
-      // shipping bytes would fail the whole turn. See attachmentsForWire.
+      // The durable text block remains the compatibility/model-readable path,
+      // while current Reborn also receives first-class attachment bytes.
       expect(request.content).toContain(scenario.text);
-      expect(request.attachments).toHaveLength(0);
+      expect(request.attachments).toHaveLength(1);
+      expect(request.attachments[0]).toMatchObject({
+        filename: scenario.filename,
+        mime_type: 'text/plain'
+      });
+      expect(Buffer.from(request.attachments[0].data_base64, 'base64').toString('utf8')).toBe(
+        scenario.text
+      );
     } finally {
       await gateway.close();
     }
@@ -147,7 +152,9 @@ test('static attachments: image upload renders thumbnail above sent user bubble'
     await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
     await page.getByRole('button', { name: 'Send message' }).click();
 
-    await expect(page.getByText(prompt, { exact: true })).toBeVisible();
+    await expect(
+      page.getByTestId('chat-message-content').getByText(prompt, { exact: true })
+    ).toBeVisible();
     const thumbnailStrip = page.getByTestId('message-image-thumbnails').first();
     await expect(thumbnailStrip).toBeVisible();
     await expect(thumbnailStrip.locator('img').first()).toHaveAttribute(
@@ -160,9 +167,12 @@ test('static attachments: image upload renders thumbnail above sent user bubble'
 
     expect(request.content).toContain('filename: signature-proof.png');
     expect(request.content).not.toContain('data_base64');
-    // Image bytes are not shipped either: the same landing path 500s on them.
-    // The thumbnail above renders from the local dataUrl, not the wire.
-    expect(request.attachments).toHaveLength(0);
+    expect(request.attachments).toHaveLength(1);
+    expect(request.attachments[0]).toMatchObject({
+      filename: 'signature-proof.png',
+      mime_type: 'image/png'
+    });
+    expect(request.attachments[0].data_base64).toBe(onePixelPngBase64);
   } finally {
     await gateway.close();
   }
@@ -203,7 +213,9 @@ test('static attachments: preview lightbox honors the modal keyboard contract', 
 
     // Wait on the preview opener (its aria-label is the robust anchor — the
     // filename text alone can wrap).
-    const opener = page.getByRole('button', { name: new RegExp(`^Preview ${filename}`) });
+    const opener = page
+      .getByTestId('attachment-stack')
+      .getByRole('button', { name: new RegExp(`^Preview ${filename}`) });
     await expect(opener).toBeVisible({ timeout: 20_000 });
     await opener.focus();
     await opener.press('Enter');

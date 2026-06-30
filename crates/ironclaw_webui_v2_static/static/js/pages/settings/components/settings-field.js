@@ -121,7 +121,7 @@ export function SettingsField({ field, value, onSave, isSaved }) {
                     handleCommit(e.target.value);
                   }}
                   aria-label=${label}
-                  className="v2-select h-11 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-sm text-[var(--v2-text-strong)] outline-none focus:border-[var(--v2-accent)] disabled:opacity-100 md:h-9"
+                  className="v2-select h-11 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-sm text-[var(--v2-text-strong)] outline-none focus:border-[var(--v2-accent)] disabled:opacity-100 md:h-9"
                 >
                   ${!fixedSingleOption && html`<option value="">${t('tools.default')}</option>`}
                   ${field.options.map(
@@ -148,7 +148,7 @@ export function SettingsField({ field, value, onSave, isSaved }) {
                   max=${field.max !== undefined ? String(field.max) : undefined}
                   placeholder=${t('tools.default')}
                   aria-label=${label}
-                  className="h-11 w-36 rounded-md border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-right font-mono text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)] md:h-9"
+                  className="h-11 w-36 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-3 text-right font-mono text-sm text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)] md:h-9"
                 />
               `}
         <${SavedIndicator} visible=${isSaved} />

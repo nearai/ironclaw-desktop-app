@@ -150,15 +150,17 @@ async function buildTailwindCss() {
       },
       fontFamily: {
         sans: [
-          "Inter Variable",
-          "Inter",
+          "Geist",
+          "Geist Variable",
           "SF Pro Display",
           "Helvetica Neue",
           "ui-sans-serif",
           "system-ui",
           "sans-serif"
         ],
-        serif: ["Newsreader", "Lyon Text", "Instrument Serif", "Georgia", "serif"],
+        // No serif in the overhaul — alias serif to the sans stack so any stray
+        // serif utility falls back to Geist, not a system serif.
+        serif: ["Geist", "Geist Variable", "ui-sans-serif", "system-ui", "sans-serif"],
         mono: ["Geist Mono", "SF Mono", "JetBrains Mono", "ui-monospace", "monospace"]
       }
     }
@@ -182,15 +184,19 @@ async function buildTailwindCss() {
 }
 
 async function bundleApp() {
+  await rm(path.join(staticRoot, "js", "chunks"), { recursive: true, force: true });
   await esbuild.build({
     entryPoints: [path.join(staticRoot, "js", "main.js")],
     bundle: true,
+    splitting: true,
     format: "esm",
     platform: "browser",
     target: "es2020",
     minify: true,
     sourcemap: false,
-    outfile: path.join(staticRoot, "js", "main.bundle.js"),
+    outdir: path.join(staticRoot, "js"),
+    entryNames: "[name].bundle",
+    chunkNames: "chunks/[name]-[hash]",
     logLevel: "silent",
   });
 }

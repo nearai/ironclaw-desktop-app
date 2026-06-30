@@ -46,7 +46,9 @@ export function Badge({ tone = 'muted', label, dot = true, size = 'md', classNam
   return html`
     <span
       className=${cn(
-        'inline-flex items-center border font-medium',
+        // CJK and other space-free scripts may wrap between any two glyphs.
+        // Keep translated chip labels on one line inside the fixed-height pill.
+        'inline-flex shrink-0 items-center whitespace-nowrap border font-medium',
         sizeClasses[size] ?? sizeClasses.md,
         toneClasses[tone] ?? toneClasses.muted,
         className

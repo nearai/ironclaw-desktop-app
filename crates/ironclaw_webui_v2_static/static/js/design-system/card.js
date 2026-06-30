@@ -17,7 +17,7 @@
  *   <CardHeader>   — top section, optional bottom divider
  *   <CardBody>     — main content area
  *   <CardFooter>   — bottom section, optional top divider
- *   <CardLabel>    — mono-caps eyebrow label
+ *   <CardLabel>    — quiet sentence-case eyebrow label
  *
  * Header/Body/Footer take a padding="none" | "md" (default) prop. Default
  * "md" keeps the standard section gutter; pair padding="none" with a
@@ -46,18 +46,18 @@ const VARIANTS = {
 /* ─── Radius ──────────────────────────────────────────────────────── */
 
 const RADII = {
-  sm: 'rounded-[8px]',
-  md: 'rounded-[12px]',
-  lg: 'rounded-[16px]'
+  sm: 'rounded-[6px]',
+  md: 'rounded-[8px]',
+  lg: 'rounded-[10px]'
 };
 
 /* ─── Padding ─────────────────────────────────────────────────────── */
 
 const PADDINGS = {
   none: '',
-  sm: 'p-4',
-  md: 'p-5',
-  lg: 'p-5 md:p-7'
+  sm: 'p-3.5',
+  md: 'p-4',
+  lg: 'p-5 md:p-6'
 };
 
 /* ─── Section padding ─────────────────────────────────────────────────

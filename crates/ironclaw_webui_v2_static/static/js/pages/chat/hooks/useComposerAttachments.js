@@ -1,4 +1,5 @@
 import { React } from '../../../lib/html.js';
+import { getStagedAttachments, setStagedAttachments } from '../lib/draft-store.js';
 import {
   extractAttachmentText,
   isExtractableBinary,
@@ -51,9 +52,22 @@ export function fitsRawBudget(runningTotal, fileSize, cap = MAX_RAW_TOTAL_SIZE) 
   return runningTotal + fileSize <= cap;
 }
 
-export function useComposerAttachments() {
-  const [images, setImages] = React.useState([]);
-  const [attachments, setAttachments] = React.useState([]);
+function stagedDraftForKey(draftKey) {
+  const stored = draftKey ? getStagedAttachments(draftKey) : [];
+  if (Array.isArray(stored)) {
+    return { images: [], attachments: stored };
+  }
+  return {
+    images: Array.isArray(stored?.images) ? stored.images : [],
+    attachments: Array.isArray(stored?.attachments) ? stored.attachments : []
+  };
+}
+
+export function useComposerAttachments(draftKey = '') {
+  const [images, setImages] = React.useState(() => stagedDraftForKey(draftKey).images);
+  const [attachments, setAttachments] = React.useState(
+    () => stagedDraftForKey(draftKey).attachments
+  );
   const [rejections, setRejections] = React.useState([]);
 
   // Live running total of raw (base64-shipped) payload bytes across both
@@ -62,7 +76,22 @@ export function useComposerAttachments() {
   // stale state snapshot and both concluding there is room. The ref is bumped
   // synchronously on every admit; the functional updaters below keep it exactly
   // in sync with committed state (admit/drop/clear), so it never drifts.
-  const rawTotalRef = React.useRef(0);
+  const rawTotalRef = React.useRef(sumRawSize(images) + sumRawSize(attachments));
+
+  const stagedDraftKeyRef = React.useRef(draftKey);
+  React.useEffect(() => {
+    if (!draftKey) return;
+    if (stagedDraftKeyRef.current !== draftKey) {
+      stagedDraftKeyRef.current = draftKey;
+      const staged = stagedDraftForKey(draftKey);
+      rawTotalRef.current = sumRawSize(staged.images) + sumRawSize(staged.attachments);
+      setImages(staged.images);
+      setAttachments(staged.attachments);
+      setRejections([]);
+      return;
+    }
+    setStagedAttachments(draftKey, { images, attachments });
+  }, [draftKey, images, attachments]);
 
   const patchAttachment = React.useCallback((id, patch) => {
     setAttachments((prev) =>

@@ -1,0 +1,261 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { WORKBENCH_AUTO_SOURCE_SCOPE } from '../lib/workbench-plan.js';
+import {
+  connectorFamiliesToSourceReadiness,
+  defaultWorkbenchModelId,
+  deriveWorkbenchModelOptions,
+  isModelNotFoundError,
+  manualSourceBlockReason,
+  modelCatalogBlockReason,
+  modelOptionLabel,
+  startedWorkPreferences,
+  workbenchModelSwitchErrorMessage,
+  workbenchStartErrorMessage
+} from './useWorkbenchStart.js';
+
+test('start error maps a runtime model-not-found to an actionable Settings/Inference message', () => {
+  for (const raw of [
+    "HTTP 400: Model 'auto' not found",
+    'model not found',
+    'Unknown model: zai-org/GLM-9',
+    'provider returned model_not_found'
+  ]) {
+    assert.ok(isModelNotFoundError(raw), `should detect: ${raw}`);
+    const msg = workbenchStartErrorMessage(new Error(raw));
+    assert.match(msg, /Settings \/ Inference/);
+    assert.doesNotMatch(msg, /not found/i, 'raw provider error must not leak into the message');
+  }
+  // Unrelated errors keep the generic passthrough (no false positives).
+  assert.ok(!isModelNotFoundError('rate limited'));
+  assert.match(workbenchStartErrorMessage(new Error('rate limited')), /Could not start this through Chat\. rate limited/);
+});
+
+test('workbench model options come only from the real model catalog', () => {
+  assert.deepEqual(
+    deriveWorkbenchModelOptions([
+      'z-ai/glm-4.5',
+      { id: 'z-ai/glm-4.5' },
+      { model: 'gpt-oss-120b' },
+      '',
+      null
+    ]),
+    ['z-ai/glm-4.5', 'gpt-oss-120b']
+  );
+
+  assert.deepEqual(deriveWorkbenchModelOptions(['auto', 'google/gemini-2.5-pro']), [
+    'auto',
+    'google/gemini-2.5-pro'
+  ]);
+});
+
+test('workbench model default selection prefers catalog-backed values', () => {
+  assert.equal(defaultWorkbenchModelId('gpt-oss-120b', ['auto', 'gpt-oss-120b']), 'gpt-oss-120b');
+  assert.equal(
+    defaultWorkbenchModelId('missing-active-model', ['z-ai/glm-4.5', 'gpt-oss-120b']),
+    'z-ai/glm-4.5'
+  );
+  assert.equal(defaultWorkbenchModelId('missing-active-model', []), 'missing-active-model');
+});
+
+test('workbench blocks starts when an active listable provider cannot verify its model catalog', () => {
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: { id: 'nearai', name: 'NEAR AI Cloud', can_list_models: true },
+      modelsResult: { ok: false, models: [] }
+    }),
+    'NEAR AI Cloud model access is not available right now. Open Settings / Inference to refresh provider access before starting work.'
+  );
+
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: { id: 'openrouter', name: 'OpenRouter', can_list_models: false },
+      modelsResult: { ok: false, models: [] }
+    }),
+    ''
+  );
+
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: { id: 'nearai', name: 'NEAR AI Cloud', can_list_models: true },
+      modelsLoading: true
+    }),
+    ''
+  );
+});
+
+test('workbench does NOT block when a concrete model is active even if the catalog listing fails', () => {
+  // Real-app case: NEAR AI list-models returns 0 / ok:false, but a concrete
+  // model (zai-org/GLM-5.1-FP8) is active and inference works. The user must not
+  // be hard-blocked from starting work over a catalog-listing miss.
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: {
+        id: 'nearai',
+        name: 'NEAR AI Cloud',
+        can_list_models: true,
+        active_model: 'zai-org/GLM-5.1-FP8'
+      },
+      modelsResult: { ok: false, models: [] }
+    }),
+    ''
+  );
+
+  // Same when the active model arrives via activeModelId (the selected model).
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: { id: 'nearai', name: 'NEAR AI Cloud', can_list_models: true },
+      modelsResult: { ok: false, models: [] },
+      activeModelId: 'zai-org/GLM-5.1-FP8'
+    }),
+    ''
+  );
+
+  // But 'auto' (no concrete model) with a failed catalog still blocks.
+  assert.equal(
+    modelCatalogBlockReason({
+      activeProvider: { id: 'nearai', name: 'NEAR AI Cloud', can_list_models: true },
+      modelsResult: { ok: false, models: [] },
+      activeModelId: 'auto'
+    }),
+    'NEAR AI Cloud model access is not available right now. Open Settings / Inference to refresh provider access before starting work.'
+  );
+});
+
+test('workbench model labels and preferences preserve selected catalog model ids', () => {
+  assert.equal(modelOptionLabel('z-ai/glm-4.5'), 'GLM 4.5 (z-ai/glm-4.5)');
+
+  assert.deepEqual(
+    startedWorkPreferences({
+      modelId: 'gpt-oss-120b',
+      effort: 'background',
+      sourceMode: WORKBENCH_AUTO_SOURCE_SCOPE.id,
+      sourceIds: ['slack'],
+      cadence: 'Friday morning'
+    }),
+    {
+      model: 'GPT OSS 120B (gpt-oss-120b)',
+      effort: 'Background',
+      sources: WORKBENCH_AUTO_SOURCE_SCOPE.label,
+      timing: 'Friday morning'
+    }
+  );
+});
+
+test('workbench model switch failure message keeps Chat start blocked and draft-saved copy', () => {
+  assert.equal(
+    workbenchModelSwitchErrorMessage(
+      new Error('selected model unavailable'),
+      'GPT OSS 120B (gpt-oss-120b)'
+    ),
+    'Could not switch to GPT OSS 120B (gpt-oss-120b). Chat was not started. Your draft is saved here. selected model unavailable'
+  );
+});
+
+test('manual source selection blocks unavailable connectors instead of pretending they work', () => {
+  assert.equal(
+    manualSourceBlockReason({
+      sourceMode: WORKBENCH_AUTO_SOURCE_SCOPE.id,
+      sourceIds: ['slack'],
+      sourceReadiness: []
+    }),
+    ''
+  );
+
+  assert.equal(
+    manualSourceBlockReason({
+      sourceMode: 'manual',
+      sourceIds: ['slack'],
+      sourceReadiness: [
+        {
+          id: 'slack',
+          state: 'available',
+          statusLabel: 'Available',
+          iconSource: { id: 'slack' }
+        }
+      ]
+    }),
+    "Slack is not connected yet. Open What's allowed to connect it, or switch to Auto sources."
+  );
+
+  assert.equal(
+    manualSourceBlockReason({
+      sourceMode: 'manual',
+      sourceIds: ['docs'],
+      sourceReadiness: [
+        {
+          id: 'drive',
+          state: 'ready',
+          statusLabel: 'Ready',
+          iconSource: { id: 'google-drive' }
+        }
+      ]
+    }),
+    ''
+  );
+});
+
+test('manual source selection honors active connector families from Composio', () => {
+  const connectorFamilies = [
+    { id: 'gmail', label: 'Gmail', state: 'ready', statusLabel: 'Ready', via: 'Composio' },
+    { id: 'drive', label: 'Drive', state: 'ready', statusLabel: 'Ready', via: 'Composio' },
+    { id: 'slack', label: 'Slack', state: 'ready', statusLabel: 'Ready', via: 'Composio' },
+    { id: 'notion', label: 'Notion', state: 'initiated', statusLabel: 'Setup needed' }
+  ];
+
+  assert.deepEqual(connectorFamiliesToSourceReadiness(connectorFamilies), [
+    {
+      id: 'gmail',
+      state: 'ready',
+      statusLabel: 'Ready',
+      displayName: 'Gmail',
+      category: 'Connector via Composio',
+      iconSource: { id: 'gmail' }
+    },
+    {
+      id: 'google-drive',
+      state: 'ready',
+      statusLabel: 'Ready',
+      displayName: 'Drive',
+      category: 'Connector via Composio',
+      iconSource: { id: 'google-drive' }
+    },
+    {
+      id: 'slack',
+      state: 'ready',
+      statusLabel: 'Ready',
+      displayName: 'Slack',
+      category: 'Connector via Composio',
+      iconSource: { id: 'slack' }
+    }
+  ]);
+
+  assert.equal(
+    manualSourceBlockReason({
+      sourceMode: 'manual',
+      sourceIds: ['email'],
+      sourceReadiness: [],
+      connectorFamilies
+    }),
+    ''
+  );
+  assert.equal(
+    manualSourceBlockReason({
+      sourceMode: 'manual',
+      sourceIds: ['slack'],
+      sourceReadiness: [],
+      connectorFamilies
+    }),
+    ''
+  );
+  assert.equal(
+    manualSourceBlockReason({
+      sourceMode: 'manual',
+      sourceIds: ['docs'],
+      sourceReadiness: [],
+      connectorFamilies
+    }),
+    ''
+  );
+});

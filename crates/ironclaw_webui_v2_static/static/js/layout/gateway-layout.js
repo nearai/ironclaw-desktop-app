@@ -57,6 +57,16 @@ function GatewayReadinessNotice({ gatewayError, providerError, pathname, onRetry
   `;
 }
 
+function outletContext({ status, statusQuery, profile, isAdmin, threadsState }) {
+  return {
+    gatewayStatus: status,
+    gatewayStatusQuery: statusQuery,
+    currentUser: profile,
+    isAdmin,
+    threadsState
+  };
+}
+
 export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
   const t = useT();
   const location = useLocation();
@@ -75,10 +85,12 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
     sidebar.close();
   }, [location.pathname, sidebar.close]);
 
-  // Chat is the front door. Model setup remains truthful in the composer and
-  // Settings; the layout no longer redirects first-run users into provider
-  // management before they can see the product surface.
+  // Workbench is the replacement front door. Chat remains the runtime and
+  // thread reader, but Workbench owns the first-screen product surface.
   const llmProviders = useLlmProviders({ settings: {}, gatewayStatus: status });
+  const isWorkbenchSurface =
+    location.pathname === '/workbench' || location.pathname.startsWith('/workbench/');
+  const context = outletContext({ status, statusQuery, profile, isAdmin, threadsState });
 
   const [paletteOpen, setPaletteOpen] = React.useState(false);
   React.useEffect(() => {
@@ -97,65 +109,66 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
 
   return html`
     <div className="flex h-[100dvh] overflow-hidden bg-[var(--v2-canvas)]">
-      ${sidebar.open &&
-      html`<button
-        type="button"
-        aria-label=${t('nav.close')}
-        onClick=${sidebar.close}
-        className="fixed inset-0 z-40 bg-black/40 md:hidden"
-      />`}
+      ${isWorkbenchSurface
+        ? html`
+            <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+              <${Outlet} context=${context} />
+            </main>
+            <${ToastViewport} />
+          `
+        : html`
+            ${sidebar.open &&
+            html`<button
+              type="button"
+              aria-label=${t('nav.close')}
+              onClick=${sidebar.close}
+              className="fixed inset-0 z-40 bg-black/40 md:hidden"
+            />`}
 
-      <div
-        className=${cn(
-          'fixed inset-y-0 left-0 z-50 md:relative md:z-auto',
-          sidebar.open ? 'flex' : 'hidden md:flex'
-        )}
-      >
-        <${Sidebar}
-          threadsState=${threadsState}
-          theme=${theme}
-          toggleTheme=${toggleTheme}
-          profile=${profile}
-          isAdmin=${isAdmin}
-          onSignOut=${onSignOut}
-          onClose=${sidebar.close}
-          onNewChat=${sidebar.newChat}
-          onSelectThread=${sidebar.selectThread}
-        />
-      </div>
+            <div
+              className=${cn(
+                'fixed inset-y-0 left-0 z-50 md:relative md:z-auto',
+                sidebar.open ? 'flex' : 'hidden md:flex'
+              )}
+            >
+              <${Sidebar}
+                threadsState=${threadsState}
+                theme=${theme}
+                toggleTheme=${toggleTheme}
+                profile=${profile}
+                isAdmin=${isAdmin}
+                onSignOut=${onSignOut}
+                onClose=${sidebar.close}
+                onNewChat=${sidebar.newChat}
+                onSelectThread=${sidebar.selectThread}
+              />
+            </div>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        <${PageHeader} threadsState=${threadsState} onToggleSidebar=${sidebar.toggle} />
-        <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          <${GatewayReadinessNotice}
-            gatewayError=${statusQuery.error}
-            providerError=${llmProviders.error}
-            pathname=${location.pathname}
-            onRetry=${() => {
-              statusQuery.refetch?.();
-              llmProviders.refresh?.();
-            }}
-          />
-          <${Outlet}
-            context=${{
-              gatewayStatus: status,
-              gatewayStatusQuery: statusQuery,
-              currentUser: profile,
-              isAdmin,
-              threadsState
-            }}
-          />
-        </main>
-      </div>
-      <${CommandPalette}
-        open=${paletteOpen}
-        onClose=${() => setPaletteOpen(false)}
-        threadsState=${threadsState}
-        onNewChat=${sidebar.newChat}
-        onToggleTheme=${toggleTheme}
-        isAdmin=${isAdmin}
-      />
-      <${ToastViewport} />
+            <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+              <${PageHeader} threadsState=${threadsState} onToggleSidebar=${sidebar.toggle} />
+              <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                <${GatewayReadinessNotice}
+                  gatewayError=${statusQuery.error}
+                  providerError=${llmProviders.error}
+                  pathname=${location.pathname}
+                  onRetry=${() => {
+                    statusQuery.refetch?.();
+                    llmProviders.refresh?.();
+                  }}
+                />
+                <${Outlet} context=${context} />
+              </main>
+            </div>
+            <${CommandPalette}
+              open=${paletteOpen}
+              onClose=${() => setPaletteOpen(false)}
+              threadsState=${threadsState}
+              onNewChat=${sidebar.newChat}
+              onToggleTheme=${toggleTheme}
+              isAdmin=${isAdmin}
+            />
+            <${ToastViewport} />
+          `}
     </div>
   `;
 }

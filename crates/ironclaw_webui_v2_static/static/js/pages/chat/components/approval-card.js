@@ -113,6 +113,14 @@ function summarizeValue(value) {
   return text.length > 120 ? `${text.slice(0, 117)}...` : text;
 }
 
+function normalizedKey(key) {
+  return String(key || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
 function findSummary(parameters, keys) {
   if (!parameters || typeof parameters !== 'object') return '';
   for (const key of keys) {
@@ -147,9 +155,10 @@ function findOutboundSummary(parameters, keys, labels) {
 
   const collect = (source) => {
     if (!source || typeof source !== 'object' || Array.isArray(source)) return;
-    for (const key of keys) {
-      if (!Object.prototype.hasOwnProperty.call(source, key)) continue;
-      const summary = summarizeValue(source[key]);
+    for (const [rawKey, value] of Object.entries(source)) {
+      const key = keys.includes(rawKey) ? rawKey : normalizedKey(rawKey);
+      if (!keys.includes(key)) continue;
+      const summary = summarizeValue(value);
       if (!summary) continue;
       const label = labels[key] || key;
       const dedupeKey = `${label}:${summary}`;
@@ -322,7 +331,7 @@ ${parameters}</pre
       ${allowAlwaysAvailable &&
       html`
         <label
-          className="mb-3 flex items-start gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
+          className="mb-3 flex items-start gap-2 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
         >
           <input
             type="checkbox"
@@ -337,7 +346,7 @@ ${parameters}</pre
       !allowAlwaysAvailable &&
       html`
         <div
-          className="mb-3 rounded-[8px] border border-[color-mix(in_srgb,var(--v2-warning-text)_32%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-warning-text)]"
+          className="mb-3 rounded-[7px] border border-[color-mix(in_srgb,var(--v2-warning-text)_32%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-warning-text)]"
         >
           ${t('approval.alwaysUnavailable')}
         </div>

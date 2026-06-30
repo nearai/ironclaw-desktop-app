@@ -42,9 +42,9 @@ const ROLE_STYLES = {
   assistantWorkProduct:
     'mr-auto w-full max-w-full rounded-[16px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-5 py-4 text-[var(--v2-text)]',
   system:
-    'mx-auto rounded-[18px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3 text-center text-[var(--v2-text-muted)]',
+    'mx-auto rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3 text-center text-[var(--v2-text-muted)]',
   error:
-    'mx-auto rounded-[18px] border border-[color-mix(in_srgb,var(--v2-danger-text)_32%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-center text-[var(--v2-danger-text)]'
+    'mx-auto rounded-[10px] border border-[color-mix(in_srgb,var(--v2-danger-text)_32%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-center text-[var(--v2-danger-text)]'
 };
 const COMPACT_ATTACHMENT_LIMIT = 3;
 
@@ -877,7 +877,7 @@ function messageActionRowClass(role, isUser) {
 
 function actionClass(tone = 'default') {
   return [
-    'v2-button inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px]',
+    'v2-button inline-flex items-center gap-1 rounded-[6px] px-1.5 py-1 text-[11px]',
     tone === 'primary'
       ? 'border border-transparent bg-transparent font-medium text-[var(--v2-accent-text)] hover:bg-[var(--v2-surface-muted)]'
       : 'border-0 bg-transparent text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]'

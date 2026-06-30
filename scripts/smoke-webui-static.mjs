@@ -1077,6 +1077,52 @@ try {
       });
       return;
     }
+    if (webchatPath === '/api/webchat/v2/outbound/preferences') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          final_reply_target: null,
+          final_reply_target_status: 'none_configured'
+        })
+      });
+      return;
+    }
+    if (webchatPath === '/api/webchat/v2/outbound/targets') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ targets: [] })
+      });
+      return;
+    }
+    if (webchatPath === '/api/webchat/v2/traces/credit') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          enrolled: false,
+          submissions_total: 0,
+          submissions_submitted: 0,
+          submissions_accepted: 0,
+          final_credit: 0,
+          pending_credit: 0
+        })
+      });
+      return;
+    }
+    if (webchatPath === '/api/webchat/v2/operator/logs') {
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({
+          logs: {
+            source: 'smoke',
+            entries: [],
+            next_cursor: null,
+            tail_supported: false,
+            follow_supported: false
+          }
+        })
+      });
+      return;
+    }
     if (webchatPath === '/api/webchat/v2/extensions') {
       await route.fulfill({
         contentType: 'application/json',
@@ -1332,9 +1378,10 @@ try {
   await page.goto(`http://127.0.0.1:${port}${appBasePath}/extensions/registry`, {
     waitUntil: 'domcontentloaded'
   });
-  await page.getByText('Catalog unavailable', { exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByText('Core connections', { exact: true }).waitFor({ timeout: 20_000 });
+  await page.getByTestId('source-readiness-panel').waitFor({ timeout: 20_000 });
   await page
-    .getByText('This gateway did not expose installable app catalog entries yet.', {
+    .getByText('IronClaw shows the next setup step for sources that need attention', {
       exact: false
     })
     .waitFor({ timeout: 20_000 });
@@ -1392,23 +1439,22 @@ try {
       );
     }
   }
-  const unavailableConnectorButtons = page.getByRole('button', { name: 'Not available' });
+  const unavailableConnectorButtons = page.getByRole('button', { name: 'Unavailable' });
   const unavailableConnectorCount = await unavailableConnectorButtons.count();
-  if (unavailableConnectorCount < 8) {
+  if (unavailableConnectorCount < 4) {
     const visibleBody = await page.locator('body').innerText();
     throw new Error(
-      `empty registry did not render disabled curated connector cards:\n${visibleBody}`
+      `empty registry did not render disabled unavailable source actions:\n${visibleBody}`
     );
   }
   for (let index = 0; index < unavailableConnectorCount; index += 1) {
     if (!(await unavailableConnectorButtons.nth(index).isDisabled())) {
-      throw new Error(`empty registry curated connector ${index} was actionable`);
+      throw new Error(`empty registry unavailable source action ${index} was actionable`);
     }
   }
-  if ((await page.getByRole('button', { name: 'Connect' }).count()) > 0) {
-    const visibleBody = await page.locator('body').innerText();
-    throw new Error(`empty registry exposed actionable synthetic Connect buttons:\n${visibleBody}`);
-  }
+  await page.getByText('Open Google setup', { exact: true }).first().waitFor();
+  await page.getByText('Reconnect Slack', { exact: true }).first().waitFor();
+  await page.getByRole('button', { name: 'Built in' }).first().waitFor();
   await assertNoLegacyConnectionsClasses(page.locator('body'), 'empty registry Connections');
   await page.screenshot({
     path: 'output/playwright/static-connections-registry-empty.png',
@@ -1672,8 +1718,13 @@ try {
   const promptText = 'Draft a services agreement from this attachment.';
   await verifiedComposer.click();
   await verifiedComposer.pressSequentially(promptText);
-  if ((await verifiedComposer.inputValue()) !== promptText) {
-    throw new Error('static chat composer did not retain typed prompt text');
+  const typedPromptValue = await verifiedComposer.inputValue();
+  if (typedPromptValue !== promptText) {
+    throw new Error(
+      `static chat composer did not retain typed prompt text; expected=${JSON.stringify(
+        promptText
+      )}; actual=${JSON.stringify(typedPromptValue)}`
+    );
   }
   const sendButton = page.locator('button[aria-label="Send message"]').last();
   await page.waitForFunction(() => {
@@ -1804,23 +1855,41 @@ try {
       throw new Error(`static chat manifest missing ${scenario.name}: ${JSON.stringify(chatPost)}`);
     }
   }
-  // The wire carries NO attachment bytes. The Reborn byte-landing path (#4644)
-  // fails the whole turn with HTTP 500 on any data_base64 under the DevOnly
-  // composition ("permission denied for write_file on scoped /workspace/
-  // attachments/..."), and the model never reads attachment bytes regardless —
-  // it reads each document only through the durable manifest embedded in
-  // `content` (verified below). So the composer strips bytes off the wire (see
-  // attachmentsForWire) and the api layer omits the now-empty attachments field.
-  // The corrupt docx is subsumed: nothing rides the wire at all.
+  // Mainline Reborn can land first-class attachment payloads. The wire should
+  // carry the staged bytes, while client-extracted large documents carry their
+  // extracted text payload as text/plain. The corrupt docx is still rejected
+  // before send and must not appear on the wire.
   const wireAttachments = Array.isArray(chatPost.attachments) ? chatPost.attachments : [];
-  if (wireAttachments.length !== 0) {
+  if (wireAttachments.length !== smokeAttachmentScenarios.length) {
     throw new Error(
-      `static chat shipped attachment bytes the gateway cannot land yet: ${JSON.stringify(chatPost)}`
+      `static chat did not ship the expected attachment payloads: ${JSON.stringify(chatPost)}`
     );
   }
-  // The durable block must also EMBED text content — the bundled sidecar
-  // never feeds attachment bytes to the model, so message content is the
-  // only channel the model can actually read a document through.
+  for (const scenario of smokeAttachmentScenarios) {
+    const wire = wireAttachments.find((item) => item.filename === scenario.name);
+    if (!wire || !wire.data_base64) {
+      throw new Error(
+        `static chat wire payload missing ${scenario.name}: ${JSON.stringify(chatPost)}`
+      );
+    }
+    if (scenario.expectExtractedText) {
+      const decoded = Buffer.from(wire.data_base64, 'base64').toString('utf8');
+      if (wire.mime_type !== 'text/plain' || !decoded.includes(scenario.expectExtractedText)) {
+        throw new Error(
+          `static chat did not send extracted text for ${scenario.name}: ${JSON.stringify(wire)}`
+        );
+      }
+    } else if (wire.mime_type !== scenario.mimeType || wire.data_base64 !== scenario.base64) {
+      throw new Error(
+        `static chat altered raw attachment payload for ${scenario.name}: ${JSON.stringify(wire)}`
+      );
+    }
+  }
+  if (wireAttachments.some((item) => item.filename === corruptDocxScenario.name)) {
+    throw new Error(`static chat shipped rejected corrupt attachment: ${JSON.stringify(chatPost)}`);
+  }
+  // The durable block must also EMBED text content as the compatibility path
+  // for older sidecars and for reload-stable transcript chips.
   if (!postedContent.includes('extraction_status: extracted_text')) {
     throw new Error(
       `static chat did not embed extracted text sections in content: ${postedContent.slice(0, 400)}`

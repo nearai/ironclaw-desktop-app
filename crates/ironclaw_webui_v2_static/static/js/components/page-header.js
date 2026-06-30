@@ -17,7 +17,40 @@ function openCommandPalette() {
   );
 }
 
-export function PageHeader({ threadsState, onToggleSidebar }) {
+function ChromeControls({ chrome, onSetChromePosition, onSetChromeDensity }) {
+  if (!chrome || !onSetChromePosition || !onSetChromeDensity) return null;
+  return html`
+    <div className="hidden items-center gap-1 md:flex">
+      <select
+        aria-label="Sidebar position"
+        value=${chrome.position}
+        onChange=${(event) => onSetChromePosition(event.currentTarget.value)}
+        className="h-8 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-2 text-[11px] font-semibold text-[var(--v2-text-muted)] outline-none hover:bg-[var(--v2-surface-muted)] focus:border-[var(--v2-accent)]"
+      >
+        <option value="left">Left</option>
+        <option value="right">Right</option>
+        <option value="bottom">Bottom</option>
+      </select>
+      <select
+        aria-label="Sidebar density"
+        value=${chrome.density}
+        onChange=${(event) => onSetChromeDensity(event.currentTarget.value)}
+        className="h-8 rounded-[7px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] px-2 text-[11px] font-semibold text-[var(--v2-text-muted)] outline-none hover:bg-[var(--v2-surface-muted)] focus:border-[var(--v2-accent)]"
+      >
+        <option value="expanded">Expanded</option>
+        <option value="compact">Compact</option>
+      </select>
+    </div>
+  `;
+}
+
+export function PageHeader({
+  threadsState,
+  onToggleSidebar,
+  chrome,
+  onSetChromePosition,
+  onSetChromeDensity
+}) {
   const t = useT();
   const location = useLocation();
 
@@ -56,14 +89,14 @@ export function PageHeader({ threadsState, onToggleSidebar }) {
   return html`
     <header
       className=${cn(
-        'flex h-14 shrink-0 items-center gap-3 px-4',
+        'flex min-h-12 shrink-0 items-center gap-3 px-4',
         'border-b border-[var(--v2-panel-border)]',
-        'bg-[color-mix(in_srgb,var(--v2-canvas-strong)_88%,transparent)] backdrop-blur-xl'
+        'bg-[color-mix(in_srgb,var(--v2-canvas-strong)_92%,transparent)] backdrop-blur-xl'
       )}
     >
       <button
         onClick=${onToggleSidebar}
-        className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] md:hidden"
+        className="-ml-2 grid h-11 w-11 shrink-0 place-items-center rounded-[7px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] md:hidden"
         aria-label="Toggle sidebar"
       >
         <${Icon} name="list" className="h-4 w-4" />
@@ -71,7 +104,7 @@ export function PageHeader({ threadsState, onToggleSidebar }) {
 
       ${breadcrumb
         ? html`
-            <div className="flex min-w-0 items-center gap-2 text-[14px] font-semibold">
+            <div className="flex min-w-0 items-center gap-2 text-[13px] font-semibold">
               <span className="shrink-0 text-[var(--v2-text-muted)]"> ${breadcrumb.parent} </span>
               <${Icon}
                 name="chevron"
@@ -81,12 +114,17 @@ export function PageHeader({ threadsState, onToggleSidebar }) {
             </div>
           `
         : html`
-            <span className="truncate text-[14px] font-semibold text-[var(--v2-text-strong)]">
+            <span className="truncate text-[13px] font-semibold text-[var(--v2-text-strong)]">
               ${title}
             </span>
           `}
 
       <div className="ml-auto flex shrink-0 items-center gap-1">
+        <${ChromeControls}
+          chrome=${chrome}
+          onSetChromePosition=${onSetChromePosition}
+          onSetChromeDensity=${onSetChromeDensity}
+        />
         <${TeeShield} />
         <button
           type="button"
@@ -105,21 +143,22 @@ export function PageHeader({ threadsState, onToggleSidebar }) {
           to="/logs"
           className=${({ isActive }) =>
             cn(
-              'grid h-11 w-11 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]',
-              isActive && 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
+              'inline-flex min-h-[44px] items-center rounded-[7px] px-3 text-xs font-semibold text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]',
+              isActive &&
+                'border border-[color-mix(in_srgb,var(--v2-accent)_32%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
             )}
           title=${t('nav.logs')}
         >
-          <${Icon} name="list" className="h-4 w-4" />
+          ${t('nav.logs')}
         <//>
         <a
           href=${DOCS_URL}
           target="_blank"
           rel="noopener noreferrer"
-          className="-mr-2 grid h-11 w-11 place-items-center rounded-[8px] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+          className="-mr-2 inline-flex min-h-[44px] items-center rounded-[7px] px-3 text-xs font-semibold text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
           title=${t('nav.docs')}
         >
-          <${Icon} name="file" className="h-4 w-4" />
+          ${t('nav.docs')}
         </a>
       </div>
     </header>

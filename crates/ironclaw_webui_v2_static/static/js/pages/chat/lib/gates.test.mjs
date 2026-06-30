@@ -106,6 +106,86 @@ test('gateFromEvent keeps explicit flat parameters ahead of approval_context fal
   assert.equal(gate.parameters, '{\n  "to": "legal@example.com"\n}');
 });
 
+test('gateFromEvent preserves invocation ids for direct tool activity correlation', () => {
+  assert.equal(
+    gateFromEvent('gate', {
+      turn_run_id: 'run-invocation-1',
+      gate_ref: 'gate-invocation-1',
+      invocation_id: 'invocation-1',
+      tool_name: 'web-access.search'
+    }).invocationId,
+    'invocation-1'
+  );
+  assert.equal(
+    gateFromEvent('gate', {
+      turn_run_id: 'run-invocation-2',
+      gate_ref: 'gate-invocation-2',
+      approval_context: {
+        invocation_id: 'invocation-context-1',
+        tool_name: 'web-access.search'
+      }
+    }).invocationId,
+    'invocation-context-1'
+  );
+});
+
+test('gateFromEvent keeps modern auth prompts without challenge kind off token card', () => {
+  const gate = gateFromEvent('auth_required', {
+    turn_run_id: 'run-auth',
+    auth_request_ref: 'gate:auth',
+    headline: 'Authentication required',
+    body: 'Google authentication required',
+    provider: 'google'
+  });
+
+  assert.deepEqual(gate, {
+    kind: 'auth_required',
+    challengeKind: 'other',
+    runId: 'run-auth',
+    gateRef: 'gate:auth',
+    provider: 'google',
+    accountLabel: '',
+    authorizationUrl: null,
+    expiresAt: null,
+    headline: 'Authentication required',
+    body: 'Google authentication required'
+  });
+});
+
+test('gateFromEvent preserves explicit oauth prompts without authorization URL', () => {
+  const gate = gateFromEvent('auth_required', {
+    turn_run_id: 'run-auth',
+    auth_request_ref: 'gate:auth',
+    headline: 'Authentication required',
+    body: 'Google authentication required',
+    challenge_kind: 'oauth_url',
+    provider: 'google'
+  });
+
+  assert.deepEqual(gate, {
+    kind: 'auth_required',
+    challengeKind: 'oauth_url',
+    runId: 'run-auth',
+    gateRef: 'gate:auth',
+    provider: 'google',
+    accountLabel: '',
+    authorizationUrl: null,
+    expiresAt: null,
+    headline: 'Authentication required',
+    body: 'Google authentication required'
+  });
+});
+
+test('gateFromEvent preserves legacy auth prompts as manual token prompts', () => {
+  assert.equal(
+    gateFromEvent('auth_required', {
+      turn_run_id: 'run-auth',
+      auth_request_ref: 'gate:auth'
+    }).challengeKind,
+    'manual_token'
+  );
+});
+
 test('gateFromProjection keeps projected gate honest without fabricating tool metadata', () => {
   const gate = gateFromProjection('run-2', {
     gate_ref: 'gate-2',
@@ -125,6 +205,16 @@ test('gateFromProjection keeps projected gate honest without fabricating tool me
     parameters: '',
     allowAlways: true
   });
+});
+
+test('gateFromProjection preserves invocation ids when projection provides them', () => {
+  const gate = gateFromProjection('run-2', {
+    gate_ref: 'gate-2',
+    invocation_id: 'invocation-projected-1',
+    tool_name: 'web-access.search'
+  });
+
+  assert.equal(gate.invocationId, 'invocation-projected-1');
 });
 
 test('formatGateParameters returns strings as-is and hides absent values', () => {

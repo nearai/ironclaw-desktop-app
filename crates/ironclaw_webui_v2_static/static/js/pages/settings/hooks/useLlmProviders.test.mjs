@@ -84,3 +84,11 @@ test('deriveProviderSnapshot accepts NEAR AI Cloud as the desktop active provide
   assert.equal(state.selectedModel, 'glm-4.5');
   assert.equal(state.allProviders[0].has_api_key, true);
 });
+
+test('deriveProviderSnapshot keeps builtinOverrides identity stable for dialog forms', () => {
+  const first = deriveProviderSnapshot({ providers: [], active: null });
+  const second = deriveProviderSnapshot({ providers: [], active: null });
+
+  assert.equal(first.builtinOverrides, second.builtinOverrides);
+  assert.equal(Object.isFrozen(first.builtinOverrides), true);
+});

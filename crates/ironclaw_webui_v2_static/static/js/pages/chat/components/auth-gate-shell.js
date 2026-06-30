@@ -49,7 +49,7 @@ export function AuthGateShell({
         onClick=${() => setExpanded((v) => !v)}
         aria-expanded=${expanded ? 'true' : 'false'}
         aria-controls=${controlsId}
-        className="flex w-full items-center gap-3 rounded-[16px] border-0 bg-transparent px-4 py-3 text-left"
+        className="flex w-full items-center gap-3 rounded-[10px] border-0 bg-transparent px-4 py-3 text-left"
       >
         <span
           className="grid h-9 w-9 shrink-0 place-items-center text-[var(--v2-gold-text)]"

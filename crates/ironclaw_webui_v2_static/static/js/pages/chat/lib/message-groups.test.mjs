@@ -17,6 +17,19 @@ test('groupMessages: consecutive tool_activity messages collapse into one run', 
   );
 });
 
+test('groupMessages: tool activities use explicit activity order when present', () => {
+  const grouped = groupMessages([
+    { id: 'late', role: 'tool_activity', toolName: 'write', activityOrder: 2 },
+    { id: 'early', role: 'tool_activity', toolName: 'read', activityOrder: 1 }
+  ]);
+
+  assert.equal(grouped.length, 1);
+  assert.deepEqual(
+    grouped[0].activity.map((item) => item.id),
+    ['early', 'late']
+  );
+});
+
 test('groupMessages: non-auxiliary messages break tool runs', () => {
   const grouped = groupMessages([
     { id: 'a', role: 'tool_activity' },

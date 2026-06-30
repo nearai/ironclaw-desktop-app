@@ -19,7 +19,8 @@ export function useHistory(threadId, options = {}) {
   const loadingRef = React.useRef(false);
 
   const loadHistory = React.useCallback(
-    async (cursor) => {
+    async (cursor, loadOptions = {}) => {
+      const { preserveClientOnly = false } = loadOptions;
       if (!threadId) {
         setState({ messages: [], nextCursor: null, isLoading: false });
         return;
@@ -47,7 +48,9 @@ export function useHistory(threadId, options = {}) {
         }
 
         setState((prev) => {
-          const merged = cursor ? mergePage(renderable, prev.messages) : renderable;
+          const merged = cursor
+            ? mergePage(renderable, prev.messages)
+            : mergeFullRefresh(renderable, prev.messages, { preserveClientOnly });
           return {
             messages: merged,
             nextCursor: data.next_cursor || null,
@@ -92,4 +95,21 @@ export function useHistory(threadId, options = {}) {
 function mergePage(older, current) {
   const ids = new Set(current.map((m) => m.id));
   return [...older.filter((m) => !ids.has(m.id)), ...current];
+}
+
+function mergeFullRefresh(fresh, current, options = {}) {
+  const { preserveClientOnly = false } = options;
+  const ids = new Set(fresh.map((m) => m?.id).filter(Boolean));
+  const preserved = current.filter((message) => {
+    if (!message || typeof message.id !== 'string' || ids.has(message.id)) {
+      return false;
+    }
+    if (isRuntimeActivityMessage(message)) return true;
+    return preserveClientOnly && message.id.startsWith('err-');
+  });
+  return preserved.length > 0 ? [...fresh, ...preserved] : fresh;
+}
+
+function isRuntimeActivityMessage(message) {
+  return message?.role === 'tool_activity' || message?.role === 'thinking';
 }

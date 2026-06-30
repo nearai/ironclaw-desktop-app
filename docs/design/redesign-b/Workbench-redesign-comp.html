@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="stylesheet" href="_ds/colors_and_type.css">
+<style>
+  html,body{background:#e7e8ea}
+  @keyframes wbpulse{0%,100%{opacity:1}50%{opacity:.35}}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:rgba(0,0,0,.14);border-radius:8px;border:3px solid transparent;background-clip:padding-box}
+</style>
+</helmet>
+
+<!-- ============================ DIRECTION A — THE BRIEF ============================ -->
+<div style="position:absolute;left:0;top:0;width:1360px">
+  <div data-drags-parent="1" style="font:600 13px/1.3 var(--font-system);color:#56606e;letter-spacing:.1px;padding:0 0 12px 4px">Direction A · The Brief — a calm proactive standup</div>
+  <div style="height:1000px;background:var(--bg);border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.12);overflow:hidden;display:flex">
+
+    <!-- rail -->
+    <nav style="width:66px;background:var(--panel);border-right:1px solid var(--hairline);display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:2px">
+      <div style="width:32px;height:32px;border-radius:9px;background:var(--action);display:grid;place-items:center;margin-bottom:16px">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M6 19V6.5L18 19V6.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <button style="display:flex;flex-direction:column;align-items:center;gap:5px;width:52px;padding:10px 0;border-radius:13px;border:0;background:var(--action-tint);color:var(--action);font:600 10px/1 var(--font-system);cursor:pointer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Work</button>
+      <button style="display:flex;flex-direction:column;align-items:center;gap:5px;width:52px;padding:10px 0;border-radius:13px;border:0;background:none;color:var(--text-3);font:500 10px/1 var(--font-system);cursor:pointer" style-hover="color:var(--text-2)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 4a1 1 0 0 1 1-1h13v18H6a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 3v18" stroke="currentColor" stroke-width="1.7"/></svg>Library</button>
+      <button style="display:flex;flex-direction:column;align-items:center;gap:5px;width:52px;padding:10px 0;border-radius:13px;border:0;background:none;color:var(--text-3);font:500 10px/1 var(--font-system);cursor:pointer" style-hover="color:var(--text-2)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 3h12a1 1 0 0 1 1 1v16l-7-3.5L5 20V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Memory</button>
+      <button style="display:flex;flex-direction:column;align-items:center;gap:5px;width:52px;padding:10px 0;border-radius:13px;border:0;background:none;color:var(--text-3);font:500 10px/1 var(--font-system);cursor:pointer" style-hover="color:var(--text-2)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M4 9h16M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Calendar</button>
+      <div style="flex:1"></div>
+      <button style="display:grid;place-items:center;width:52px;padding:10px 0;border-radius:13px;border:0;background:none;color:var(--text-3);cursor:pointer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div style="width:30px;height:30px;border-radius:50%;background:#1f6feb;color:#fff;display:grid;place-items:center;font:700 12px/1 var(--font-system);margin-top:8px">A</div>
+    </nav>
+
+    <!-- main -->
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+      <!-- top bar -->
+      <div style="height:54px;flex:none;border-bottom:1px solid var(--hairline);background:var(--panel);display:flex;align-items:center;padding:0 28px;gap:12px">
+        <div style="font:600 14px/1 var(--font-system);color:var(--text)">Workbench</div>
+        <div style="width:1px;height:16px;background:var(--border)"></div>
+        <div style="font:400 13px/1 var(--font-system);color:var(--text-3)">NEAR AI Cloud</div>
+        <div style="flex:1"></div>
+        <div style="display:inline-flex;align-items:center;gap:7px;font:500 12.5px/1 var(--font-system);color:var(--text-2);background:var(--bg);border:1px solid var(--border);border-radius:9999px;padding:6px 12px">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--verified)"></span>All tools synced · 2 min ago</div>
+      </div>
+
+      <!-- scroll -->
+      <div style="flex:1;overflow:auto;padding:40px 28px 32px">
+        <div style="max-width:768px;margin:0 auto">
+
+          <!-- eyebrow + headline + brief -->
+          <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:10px">
+            <div style="font:600 11.5px/1 var(--font-system);letter-spacing:1.1px;text-transform:uppercase;color:var(--text-3)">Tuesday, June 23 · 9:41 AM</div>
+          </div>
+          <h1 style="font:600 31px/1.1 var(--font-system);letter-spacing:-.6px;color:var(--text);margin:0 0 16px">Good morning, Abhi.</h1>
+          <p style="font:400 17px/1.62 var(--font-system);letter-spacing:-.1px;color:var(--text-2);margin:0 0 6px;max-width:680px">
+            Overnight I read <b style="color:var(--text);font-weight:600">14 emails</b>, watched <b style="color:var(--text);font-weight:600">3 Slack channels</b>, and tracked CI on <span style="font:500 14.5px/1 var(--font-mono);background:var(--surface-2);border-radius:6px;padding:1px 6px">workbench-overnight</span>. Two things need a decision from you, one task is blocked on a Slack sign-in, and the June investor update is drafted and waiting for review. Nothing left without your approval.</p>
+
+          <!-- NEEDS YOU -->
+          <div style="display:flex;align-items:baseline;gap:10px;margin:34px 0 14px">
+            <div style="font:600 13px/1 var(--font-system);letter-spacing:.2px;color:var(--text)">Needs you</div>
+            <div style="font:600 11px/1 var(--font-system);color:#fff;background:var(--stale);border-radius:9999px;padding:3px 8px">4</div>
+            <div style="flex:1;height:1px;background:var(--hairline)"></div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:10px">
+
+            <!-- card 1: approval -->
+            <div style="display:flex;gap:15px;align-items:flex-start;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:17px 18px" style-hover="border-color:rgba(0,0,0,.14)">
+              <div style="width:40px;height:40px;flex:none;border-radius:12px;background:#FDF1E3;color:#C77A1E;display:grid;place-items:center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3 5 5.6v5.2c0 4.3 3 6.8 7 7.9 4-1.1 7-3.6 7-7.9V5.6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m9.2 12 1.9 1.9L15 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <div style="flex:1;min-width:0">
+                <div style="font:600 15.5px/1.3 var(--font-system);letter-spacing:-.2px;color:var(--text)">Approve the counter to Northwind</div>
+                <div style="font:400 14px/1.5 var(--font-system);color:var(--text-2);margin-top:3px">The redline and reply are drafted and held. Sending is the only step left to you.</div>
+                <div style="display:inline-flex;align-items:center;gap:7px;font:400 12.5px/1 var(--font-system);color:var(--text-3);margin-top:9px">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="m3 7 9 6 9-6" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+                  Dana replied 8:04 AM — asked for a 12% cap and net 60</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex:none">
+                <button style="height:34px;padding:0 12px;border-radius:10px;background:var(--panel);color:var(--text-2);border:1px solid var(--border);font:500 13px/1 var(--font-system);cursor:pointer" style-hover="background:var(--surface-2)">Open packet</button>
+                <button style="height:34px;padding:0 15px;border-radius:10px;background:var(--action);color:#fff;border:0;font:600 13px/1 var(--font-system);cursor:pointer" style-hover="background:var(--action-press)">Review &amp; approve</button>
+              </div>
+            </div>
+
+            <!-- card 2: blocked -->
+            <div style="display:flex;gap:15px;align-items:flex-start;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:17px 18px" style-hover="border-color:rgba(0,0,0,.14)">
+              <div style="width:40px;height:40px;flex:none;border-radius:12px;background:#FCE9E9;color:#D0383C;display:grid;place-items:center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M10.3 4 3 17a2 2 0 0 0 1.7 3h14.6a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9.5v4M12 17h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+              <div style="flex:1;min-width:0">
+                <div style="font:600 15.5px/1.3 var(--font-system);letter-spacing:-.2px;color:var(--text)">Reconnect Slack to finish the blocker check</div>
+                <div style="font:400 14px/1.5 var(--font-system);color:var(--text-2);margin-top:3px">Your inbox read fine, but the Slack sign-in expired — 2 channels are still unread. Nothing was posted.</div>
+                <div style="display:inline-flex;align-items:center;gap:7px;font:400 12.5px/1 var(--font-system);color:var(--text-3);margin-top:9px">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M10 3v8M14 3v8M4 9h8M12 15h8M14 13v8M10 13v8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+                  Token expired 7 min ago · #ironclaw-pr-issue-tracking</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex:none">
+                <button style="height:34px;padding:0 12px;border-radius:10px;background:var(--panel);color:var(--text-2);border:1px solid var(--border);font:500 13px/1 var(--font-system);cursor:pointer" style-hover="background:var(--surface-2)">Later</button>
+                <button style="height:34px;padding:0 15px;border-radius:10px;background:var(--action);color:#fff;border:0;font:600 13px/1 var(--font-system);cursor:pointer" style-hover="background:var(--action-press)">Reconnect</button>
+              </div>
+            </div>
+
+            <!-- card 3: review -->
+            <div style="display:flex;gap:15px;align-items:flex-start;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:17px 18px" style-hover="border-color:rgba(0,0,0,.14)">
+              <div style="width:40px;height:40px;flex:none;border-radius:12px;background:var(--action-tint);color:var(--action);display:grid;place-items:center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v5h5M8.5 13h7M8.5 16.5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+              <div style="flex:1;min-width:0">
+                <div style="font:600 15.5px/1.3 var(--font-system);letter-spacing:-.2px;color:var(--text)">Review the June investor update</div>
+                <div style="font:400 14px/1.5 var(--font-system);color:var(--text-2);margin-top:3px">Drafted from your metrics and Slack wins. 14 recipients, with 3 numbers flagged to confirm before it leaves.</div>
+                <div style="display:inline-flex;align-items:center;gap:7px;font:400 12.5px/1 var(--font-system);color:var(--text-3);margin-top:9px">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M12 7.5v5l3 1.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  You asked to have this ready by Friday</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex:none">
+                <button style="height:34px;padding:0 12px;border-radius:10px;background:var(--panel);color:var(--text-2);border:1px solid var(--border);font:500 13px/1 var(--font-system);cursor:pointer" style-hover="background:var(--surface-2)">Skip</button>
+                <button style="height:34px;padding:0 15px;border-radius:10px;background:var(--action);color:#fff;border:0;font:600 13px/1 var(--font-system);cursor:pointer" style-hover="background:var(--action-press)">Open draft</button>
+              </div>
+            </div>
+
+            <!-- card 4: replies (quieter) -->
+            <div style="display:flex;gap:15px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px 18px" style-hover="border-color:rgba(0,0,0,.14)">
+              <div style="width:40px;height:40px;flex:none;border-radius:12px;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 11.5a8.5 8.5 0 0 1-12.2 7.7L3 20.5l1.4-5.5A8.5 8.5 0 1 1 21 11.5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
+              <div style="flex:1;min-width:0">
+                <div style="font:600 15px/1.3 var(--font-system);letter-spacing:-.2px;color:var(--text)">2 replies are drafted and waiting</div>
+                <div style="font:400 13.5px/1.5 var(--font-system);color:var(--text-2);margin-top:2px">Alex Scharrer — <span style="color:var(--text-3)">Arthur &lt;&gt; Alex</span> · Ian Mah — <span style="color:var(--text-3)">Bridgetower claim</span></div>
+              </div>
+              <button style="height:34px;padding:0 15px;border-radius:10px;background:var(--panel);color:var(--text);border:1px solid var(--border);font:600 13px/1 var(--font-system);cursor:pointer;flex:none" style-hover="background:var(--surface-2)">Review replies</button>
+            </div>
+
+          </div>
+
+          <!-- IN MOTION -->
+          <div style="display:flex;align-items:baseline;gap:10px;margin:32px 0 14px">
+            <div style="font:600 13px/1 var(--font-system);letter-spacing:.2px;color:var(--text)">In motion</div>
+            <div style="flex:1;height:1px;background:var(--hairline)"></div>
+            <div style="font:400 12px/1 var(--font-system);color:var(--text-3)">working without you</div>
+          </div>
+          <div style="display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:13px;padding:12px 4px;border-bottom:1px solid var(--hairline)">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--action);flex:none;animation:wbpulse 1.4s ease-in-out infinite"></span>
+              <div style="flex:1;min-width:0"><span style="font:500 14px/1.4 var(--font-system);color:var(--text)">Researching TEE vendors</span> <span style="font:400 13.5px/1.4 var(--font-system);color:var(--text-2)">— comparing the top 3 for fintech.</span></div>
+              <div style="font:400 12.5px/1 var(--font-system);color:var(--text-3);flex:none">shortlist ~11 AM</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:13px;padding:12px 4px">
+              <span style="width:8px;height:8px;border-radius:50%;background:var(--text-3);flex:none"></span>
+              <div style="flex:1;min-width:0"><span style="font:500 14px/1.4 var(--font-system);color:var(--text)">Watching competitor launches</span> <span style="font:400 13.5px/1.4 var(--font-system);color:var(--text-2)">— briefs you every Friday.</span></div>
+              <div style="font:400 12.5px/1 var(--font-system);color:var(--text-3);flex:none">nothing new today</div>
+            </div>
+          </div>
+
+          <!-- HANDLED -->
+          <div style="display:flex;align-items:baseline;gap:10px;margin:30px 0 12px">
+            <div style="font:600 13px/1 var(--font-system);letter-spacing:.2px;color:var(--text-3)">Handled overnight</div>
+            <div style="flex:1;height:1px;background:var(--hairline)"></div>
+            <button style="font:500 12.5px/1 var(--font-system);color:var(--action);background:none;border:0;cursor:pointer">View in Library</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px">
+            <div style="display:flex;align-items:center;gap:11px;font:400 13.5px/1.4 var(--font-system);color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex:none;color:var(--verified)"><path d="m20 6-11 11-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Filed the Acme NDA to Drive — no external send</div>
+            <div style="display:flex;align-items:center;gap:11px;font:400 13.5px/1.4 var(--font-system);color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex:none;color:var(--verified)"><path d="m20 6-11 11-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Triaged 12 emails — 9 archived, 3 surfaced above</div>
+            <div style="display:flex;align-items:center;gap:11px;font:400 13.5px/1.4 var(--font-system);color:var(--text-2)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex:none;color:var(--stale)"><path d="M12 9v4M12 17h.01M10.3 4 3 17a2 2 0 0 0 1.7 3h14.6a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              CI on workbench-overnight — 5 runs green, 1 failed and surfaced</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- command footer -->
+      <div style="flex:none;border-top:1px solid var(--hairline);background:var(--panel);padding:14px 28px 16px">
+        <div style="max-width:768px;margin:0 auto">
+          <div style="display:flex;align-items:center;gap:12px;background:var(--bg);border:1px solid var(--border);border-radius:14px;padding:11px 12px 11px 16px" style-hover="border-color:rgba(0,0,0,.16)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="flex:none;color:var(--action)"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M17.7 6.3l-2.8 2.8M9.1 14.9l-2.8 2.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <div style="flex:1;font:400 15px/1 var(--font-system);color:var(--text-3)">Ask IronClaw to handle something across your tools…</div>
+            <div style="display:inline-flex;align-items:center;gap:6px;font:500 12.5px/1 var(--font-system);color:var(--text-2);border:1px solid var(--border);border-radius:9999px;padding:6px 11px;background:var(--panel)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Auto sources</div>
+            <button style="width:38px;height:38px;border-radius:11px;background:var(--action);border:0;display:grid;place-items:center;cursor:pointer;flex:none" style-hover="background:var(--action-press)">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M6 11l6-6 6 6" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin:10px 2px 0;font:400 12.5px/1 var(--font-system);color:var(--text-3)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="color:var(--verified)"><path d="M12 3 5 5.6v5.2c0 4.3 3 6.8 7 7.9 4-1.1 7-3.6 7-7.9V5.6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+            Reads and drafts stay private. Anything that leaves needs your approval.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ============================ DIRECTION B — THE CONSOLE ============================ -->
+<div style="position:absolute;left:1440px;top:0;width:1420px">
+  <div data-drags-parent="1" style="font:600 13px/1.3 var(--font-system);color:#56606e;letter-spacing:.1px;padding:0 0 12px 4px">Direction B · The Console — a live triage cockpit</div>
+  <div style="height:1000px;background:var(--bg);border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.12);overflow:hidden;display:flex">
+
+    <!-- rail -->
+    <nav style="width:66px;background:var(--panel);border-right:1px solid var(--hairline);display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:2px">
+      <div style="width:32px;height:32px;border-radius:9px;background:var(--action);display:grid;place-items:center;margin-bottom:16px">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M6 19V6.5L18 19V6.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <button style="display:flex;flex-direction:column;align-items:center;gap:5px;width:52px;padding:10px 0;border-radius:13px;border:0;background:var(--action-tint);color:var(--action);font:600 10px/1 var(--font-system);cursor:pointer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Work</button>
+      <button style="display:flex;flex-direction:column;align-items:center;gap:5px;width:52px;padding:10px 0;border-radius:13px;border:0;background:none;color:var(--text-3);font:500 10px/1 var(--font-system);cursor:pointer" style-hover="color:var(--text-2)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 4a1 1 0 0 1 1-1h13v18H6a1 1 0 0 1-1-1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M9 3v18" stroke="currentColor" stroke-width="1.7"/></svg>Library</button>
+      <button style="display:flex;flex-direction:column;align-items:center;gap:5px;width:52px;padding:10px 0;border-radius:13px;border:0;background:none;color:var(--text-3);font:500 10px/1 var(--font-system);cursor:pointer" style-hover="color:var(--text-2)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M6 3h12a1 1 0 0 1 1 1v16l-7-3.5L5 20V4a1 1 0 0 1 1-1z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>Memory</button>
+      <button style="display:flex;flex-direction:column;align-items:center;gap:5px;width:52px;padding:10px 0;border-radius:13px;border:0;background:none;color:var(--text-3);font:500 10px/1 var(--font-system);cursor:pointer" style-hover="color:var(--text-2)">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="5" width="16" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M4 9h16M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Calendar</button>
+      <div style="flex:1"></div>
+      <button style="display:grid;place-items:center;width:52px;padding:10px 0;border-radius:13px;border:0;background:none;color:var(--text-3);cursor:pointer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      <div style="width:30px;height:30px;border-radius:50%;background:#1f6feb;color:#fff;display:grid;place-items:center;font:700 12px/1 var(--font-system);margin-top:8px">A</div>
+    </nav>
+
+    <!-- source stream -->
+    <aside style="width:300px;flex:none;background:var(--panel);border-right:1px solid var(--hairline);display:flex;flex-direction:column">
+      <div style="padding:16px 16px 12px;border-bottom:1px solid var(--hairline)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <div style="font:600 15px/1 var(--font-system);color:var(--text)">Workbench</div>
+          <span style="display:inline-flex;align-items:center;gap:5px;font:500 11px/1 var(--font-system);color:var(--verified);background:rgba(21,190,83,.1);border-radius:9999px;padding:3px 8px"><span style="width:6px;height:6px;border-radius:50%;background:var(--verified);animation:wbpulse 1.6s ease-in-out infinite"></span>live</span>
+          <div style="flex:1"></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:7px 10px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" style="color:var(--text-3)"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8"/><path d="m20 20-3-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <div style="font:400 13px/1 var(--font-system);color:var(--text-3)">Search across tools</div>
+        </div>
+      </div>
+
+      <div style="flex:1;overflow:auto;padding:8px 10px 16px">
+
+        <!-- group: needs a reply -->
+        <div style="display:flex;align-items:center;gap:8px;padding:14px 6px 6px"><div style="font:600 10.5px/1 var(--font-system);letter-spacing:.9px;text-transform:uppercase;color:var(--text-3)">Needs a reply</div><div style="flex:1"></div><div style="font:600 10.5px/1 var(--font-system);color:var(--text-2);background:var(--surface-2);border-radius:9999px;padding:3px 7px">2</div></div>
+        <div style="display:grid;grid-template-columns:8px 1fr;gap:10px;padding:8px;border-radius:10px;cursor:pointer" style-hover="background:var(--surface-2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--action);margin-top:5px"></span><div style="min-width:0"><div style="font:500 12.5px/1.35 var(--font-system);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Re: Arthur &lt;&gt; Alex</div><div style="font:400 11px/1.3 var(--font-system);color:var(--text-3);margin-top:2px">Important · Alex Scharrer · 14:13</div></div></div>
+        <div style="display:grid;grid-template-columns:8px 1fr;gap:10px;padding:8px;border-radius:10px;cursor:pointer" style-hover="background:var(--surface-2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--action);margin-top:5px"></span><div style="min-width:0"><div style="font:500 12.5px/1.35 var(--font-system);color:var(--text)">RE: HC/OC 139/2024 — Claim against Bridgetower</div><div style="font:400 11px/1.3 var(--font-system);color:var(--text-3);margin-top:2px">Important · Ian Mah · 21:54</div></div></div>
+
+        <!-- group: slack -->
+        <div style="display:flex;align-items:center;gap:8px;padding:14px 6px 6px"><div style="font:600 10.5px/1 var(--font-system);letter-spacing:.9px;text-transform:uppercase;color:var(--text-3)">Slack</div><div style="flex:1"></div><div style="font:600 10.5px/1 var(--font-system);color:var(--text-2);background:var(--surface-2);border-radius:9999px;padding:3px 7px">1</div></div>
+        <div style="display:grid;grid-template-columns:8px 1fr;gap:10px;padding:8px;border-radius:10px;cursor:pointer" style-hover="background:var(--surface-2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--stale);margin-top:5px"></span><div style="min-width:0"><div style="font:500 12.5px/1.35 var(--font-system);color:var(--text)">Review request on PR #3101</div><div style="font:400 11px/1.3 var(--font-system);color:var(--text-3);margin-top:2px">@mikalai · #ironclaw-pr-issue-tracking</div></div></div>
+
+        <!-- group: github -->
+        <div style="display:flex;align-items:center;gap:8px;padding:14px 6px 6px"><div style="font:600 10.5px/1 var(--font-system);letter-spacing:.9px;text-transform:uppercase;color:var(--text-3)">GitHub</div><div style="flex:1"></div><div style="font:600 10.5px/1 var(--font-system);color:var(--text-2);background:var(--surface-2);border-radius:9999px;padding:3px 7px">6</div></div>
+        <div style="display:grid;grid-template-columns:8px 1fr;gap:10px;padding:8px;border-radius:10px;cursor:pointer" style-hover="background:var(--surface-2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--failed);margin-top:5px"></span><div style="min-width:0"><div style="font:500 12.5px/1.35 var(--font-system);color:var(--text)">6 CI runs failed</div><div style="font:400 11px/1.3 var(--font-system);color:var(--text-3);margin-top:2px">workbench-overnight · nearai/ironclaw-desktop-app</div></div></div>
+
+        <!-- group: notion -->
+        <div style="display:flex;align-items:center;gap:8px;padding:14px 6px 6px"><div style="font:600 10.5px/1 var(--font-system);letter-spacing:.9px;text-transform:uppercase;color:var(--text-3)">Recent in Notion</div><div style="flex:1"></div><div style="font:600 10.5px/1 var(--font-system);color:var(--text-2);background:var(--surface-2);border-radius:9999px;padding:3px 7px">6</div></div>
+        <div style="display:grid;grid-template-columns:8px 1fr;gap:10px;padding:7px 8px;border-radius:10px;cursor:pointer" style-hover="background:var(--surface-2)"><span style="width:6px;height:6px;border-radius:50%;background:var(--text-3);margin-top:5px"></span><div style="min-width:0"><div style="font:500 12.5px/1.3 var(--font-system);color:var(--text-2)">zodl <span style="color:var(--text-3);font-weight:400">· edited 22:15</span></div></div></div>
+        <div style="display:grid;grid-template-columns:8px 1fr;gap:10px;padding:7px 8px;border-radius:10px;cursor:pointer" style-hover="background:var(--surface-2)"><span style="width:6px;height:6px;border-radius:50%;background:var(--text-3);margin-top:5px"></span><div style="min-width:0"><div style="font:500 12.5px/1.3 var(--font-system);color:var(--text-2)">aka-lab <span style="color:var(--text-3);font-weight:400">· edited 22:10</span></div></div></div>
+        <div style="display:grid;grid-template-columns:8px 1fr;gap:10px;padding:7px 8px;border-radius:10px;cursor:pointer" style-hover="background:var(--surface-2)"><span style="width:6px;height:6px;border-radius:50%;background:var(--text-3);margin-top:5px"></span><div style="min-width:0"><div style="font:500 12.5px/1.3 var(--font-system);color:var(--text-2)">depouch <span style="color:var(--text-3);font-weight:400">· edited 22:10</span></div></div></div>
+
+        <!-- group: files -->
+        <div style="display:flex;align-items:center;gap:8px;padding:14px 6px 6px"><div style="font:600 10.5px/1 var(--font-system);letter-spacing:.9px;text-transform:uppercase;color:var(--text-3)">Recent files</div><div style="flex:1"></div><div style="font:600 10.5px/1 var(--font-system);color:var(--text-2);background:var(--surface-2);border-radius:9999px;padding:3px 7px">6</div></div>
+        <div style="display:grid;grid-template-columns:8px 1fr;gap:10px;padding:7px 8px;border-radius:10px;cursor:pointer" style-hover="background:var(--surface-2)"><span style="width:6px;height:6px;border-radius:50%;background:var(--text-3);margin-top:5px"></span><div style="min-width:0"><div style="font:500 12.5px/1.3 var(--font-system);color:var(--text-2)">Full BD Data <span style="color:var(--text-3);font-weight:400">· sheet · 22:26</span></div></div></div>
+        <div style="display:grid;grid-template-columns:8px 1fr;gap:10px;padding:7px 8px;border-radius:10px;cursor:pointer" style-hover="background:var(--surface-2)"><span style="width:6px;height:6px;border-radius:50%;background:var(--text-3);margin-top:5px"></span><div style="min-width:0"><div style="font:500 12.5px/1.3 var(--font-system);color:var(--text-2)">Golden Source: Pricing History <span style="color:var(--text-3);font-weight:400">· sheet · 22:20</span></div></div></div>
+
+      </div>
+    </aside>
+
+    <!-- center -->
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+      <!-- top bar -->
+      <div style="height:54px;flex:none;border-bottom:1px solid var(--hairline);background:var(--panel);display:flex;align-items:center;padding:0 24px;gap:10px">
+        <div style="font:600 14px/1 var(--font-system);color:var(--text)">Work</div>
+        <div style="font:400 13px/1 var(--font-system);color:var(--text-3)">Tuesday, June 23</div>
+        <div style="flex:1"></div>
+        <div style="display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:9999px;padding:3px 11px 3px 3px;font:500 12.5px/1 var(--font-system);color:var(--text-2)"><span style="width:24px;height:24px;border-radius:50%;background:#1f6feb;color:#fff;display:grid;place-items:center;font:700 11px/1 var(--font-system)">A</span>Account</div>
+      </div>
+
+      <!-- command bar -->
+      <div style="flex:none;padding:18px 24px 4px">
+        <div style="display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:14px 14px 14px 18px;box-shadow:0 1px 2px rgba(0,0,0,.05)" style-hover="border-color:rgba(0,0,0,.16)">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" style="flex:none;color:var(--action)"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M17.7 6.3l-2.8 2.8M9.1 14.9l-2.8 2.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <div style="flex:1;font:400 16px/1 var(--font-system);color:var(--text-3)">Ask IronClaw to handle something across your tools…</div>
+          <div style="display:inline-flex;align-items:center;gap:6px;font:500 12.5px/1 var(--font-system);color:var(--text-2);border:1px solid var(--border);border-radius:9999px;padding:7px 12px;cursor:pointer" style-hover="background:var(--surface-2)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Auto sources</div>
+
+          <!-- model picker -->
+          <div style="position:relative;flex:none">
+            <button onClick="{{ toggleModel }}" style="display:inline-flex;align-items:center;gap:6px;font:600 12.5px/1 var(--font-system);color:var(--text-2);background:var(--panel);border:1px solid var(--border);border-radius:9999px;padding:7px 10px 7px 11px;cursor:pointer" style-hover="background:var(--surface-2)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style="color:var(--action)"><rect x="7" y="7" width="10" height="10" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              {{ modelName }}
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="color:var(--text-3)"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <sc-if value="{{ modelOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:calc(100% + 10px);right:0;width:288px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow-floating);padding:6px;z-index:30">
+                <div style="font:600 10px/1 var(--font-system);letter-spacing:.8px;text-transform:uppercase;color:var(--text-3);padding:9px 10px 6px">Model</div>
+                <sc-for list="{{ models }}" as="m" hint-placeholder-count="0">
+                  <button onClick="{{ m.pick }}" style="display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:none;border:0;padding:9px 10px;border-radius:10px;cursor:pointer" style-hover="background:var(--surface-2)">
+                    <div style="flex:1;min-width:0">
+                      <div style="font:600 13.5px/1.3 var(--font-system);color:var(--text)">{{ m.name }}</div>
+                      <div style="font:400 12px/1.35 var(--font-system);color:var(--text-3);margin-top:1px">{{ m.desc }}</div>
+                    </div>
+                    <sc-if value="{{ m.active }}" hint-placeholder-val="{{ false }}">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex:none;color:var(--action)"><path d="m20 6-11 11-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </sc-if>
+                  </button>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+
+          <button style="width:46px;height:42px;border-radius:12px;background:var(--action);border:0;display:grid;place-items:center;cursor:pointer;flex:none;box-shadow:0 4px 12px rgba(0,145,253,.28)" style-hover="background:var(--action-press)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 19V5M6 11l6-6 6 6" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin:11px 2px 0;font:400 12.5px/1 var(--font-system);color:var(--text-3)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style="color:var(--verified)"><path d="M12 3 5 5.6v5.2c0 4.3 3 6.8 7 7.9 4-1.1 7-3.6 7-7.9V5.6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+          Reads and drafts stay private. Anything that leaves needs your approval.</div>
+      </div>
+
+      <!-- triage -->
+      <div style="flex:1;overflow:auto;padding:18px 24px 28px">
+
+        <!-- triage header -->
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
+          <div style="font:600 19px/1 var(--font-system);letter-spacing:-.3px;color:var(--text)">Triage</div>
+          <div style="font:400 13.5px/1 var(--font-system);color:var(--text-3)">4 need you · 18 handled overnight</div>
+          <div style="flex:1"></div>
+          <div style="display:inline-flex;gap:2px;background:var(--surface-2);border-radius:9px;padding:3px">
+            <div style="font:600 12px/1 var(--font-system);color:#fff;background:var(--action);border-radius:7px;padding:6px 11px">All</div>
+            <div style="font:500 12px/1 var(--font-system);color:var(--text-2);border-radius:7px;padding:6px 11px;cursor:pointer">Decisions</div>
+            <div style="font:500 12px/1 var(--font-system);color:var(--text-2);border-radius:7px;padding:6px 11px;cursor:pointer">Replies</div>
+            <div style="font:500 12px/1 var(--font-system);color:var(--text-2);border-radius:7px;padding:6px 11px;cursor:pointer">Blocked</div>
+          </div>
+        </div>
+
+        <!-- NEEDS A DECISION -->
+        <div style="font:600 10.5px/1 var(--font-system);letter-spacing:.9px;text-transform:uppercase;color:#C77A1E;margin:22px 0 8px">Needs a decision · 1</div>
+        <div style="display:flex;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:15px 16px" style-hover="border-color:rgba(0,0,0,.14)">
+          <div style="width:38px;height:38px;flex:none;border-radius:11px;background:#FDF1E3;color:#C77A1E;display:grid;place-items:center">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M12 3 5 5.6v5.2c0 4.3 3 6.8 7 7.9 4-1.1 7-3.6 7-7.9V5.6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m9.2 12 1.9 1.9L15 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div style="flex:1;min-width:0">
+            <div style="font:600 14.5px/1.3 var(--font-system);letter-spacing:-.2px;color:var(--text)">Counter to Northwind is drafted and held</div>
+            <div style="font:400 13px/1.45 var(--font-system);color:var(--text-2);margin-top:2px">Redline + reply ready · Dana asked for a 12% cap and net 60 · sending waits on you</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex:none">
+            <button style="height:32px;padding:0 12px;border-radius:9px;background:var(--panel);color:var(--text-2);border:1px solid var(--border);font:500 12.5px/1 var(--font-system);cursor:pointer" style-hover="background:var(--surface-2)">Open</button>
+            <button style="height:32px;padding:0 14px;border-radius:9px;background:var(--action);color:#fff;border:0;font:600 12.5px/1 var(--font-system);cursor:pointer" style-hover="background:var(--action-press)">Review &amp; approve</button>
+          </div>
+        </div>
+
+        <!-- BLOCKED -->
+        <div style="font:600 10.5px/1 var(--font-system);letter-spacing:.9px;text-transform:uppercase;color:#D0383C;margin:22px 0 8px">Blocked · 1</div>
+        <div style="display:flex;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:15px 16px" style-hover="border-color:rgba(0,0,0,.14)">
+          <div style="width:38px;height:38px;flex:none;border-radius:11px;background:#FCE9E9;color:#D0383C;display:grid;place-items:center">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M10.3 4 3 17a2 2 0 0 0 1.7 3h14.6a2 2 0 0 0 1.7-3L13.7 4a2 2 0 0 0-3.4 0z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9.5v4M12 17h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          <div style="flex:1;min-width:0">
+            <div style="font:600 14.5px/1.3 var(--font-system);letter-spacing:-.2px;color:var(--text)">Slack blocker check is paused</div>
+            <div style="font:400 13px/1.45 var(--font-system);color:var(--text-2);margin-top:2px">Inbox read fine · Slack sign-in expired 7 min ago · 2 channels still unread, nothing posted</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex:none">
+            <button style="height:32px;padding:0 12px;border-radius:9px;background:var(--panel);color:var(--text-2);border:1px solid var(--border);font:500 12.5px/1 var(--font-system);cursor:pointer" style-hover="background:var(--surface-2)">Later</button>
+            <button style="height:32px;padding:0 14px;border-radius:9px;background:var(--action);color:#fff;border:0;font:600 12.5px/1 var(--font-system);cursor:pointer" style-hover="background:var(--action-press)">Reconnect</button>
+          </div>
+        </div>
+
+        <!-- NEEDS REVIEW -->
+        <div style="font:600 10.5px/1 var(--font-system);letter-spacing:.9px;text-transform:uppercase;color:var(--action);margin:22px 0 8px">Ready to review · 1</div>
+        <div style="display:flex;gap:14px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:15px 16px" style-hover="border-color:rgba(0,0,0,.14)">
+          <div style="width:38px;height:38px;flex:none;border-radius:11px;background:var(--action-tint);color:var(--action);display:grid;place-items:center">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 3v5h5M8.5 13h7M8.5 16.5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+          <div style="flex:1;min-width:0">
+            <div style="font:600 14.5px/1.3 var(--font-system);letter-spacing:-.2px;color:var(--text)">June investor update is drafted</div>
+            <div style="font:400 13px/1.45 var(--font-system);color:var(--text-2);margin-top:2px">From your metrics and Slack wins · 14 recipients · 3 numbers flagged to confirm before it leaves</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex:none">
+            <button style="height:32px;padding:0 12px;border-radius:9px;background:var(--panel);color:var(--text-2);border:1px solid var(--border);font:500 12.5px/1 var(--font-system);cursor:pointer" style-hover="background:var(--surface-2)">Skip</button>
+            <button style="height:32px;padding:0 14px;border-radius:9px;background:var(--action);color:#fff;border:0;font:600 12.5px/1 var(--font-system);cursor:pointer" style-hover="background:var(--action-press)">Open draft</button>
+          </div>
+        </div>
+
+        <!-- NEEDS A REPLY -->
+        <div style="font:600 10.5px/1 var(--font-system);letter-spacing:.9px;text-transform:uppercase;color:var(--text-3);margin:22px 0 8px">Needs a reply · 2</div>
+        <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden">
+          <div style="display:flex;gap:13px;align-items:center;padding:13px 16px;border-bottom:1px solid var(--hairline)" style-hover="background:var(--surface-2)">
+            <div style="width:34px;height:34px;flex:none;border-radius:10px;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="m3 7 9 6 9-6" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
+            <div style="flex:1;min-width:0">
+              <div style="font:600 14px/1.3 var(--font-system);color:var(--text)">Re: Arthur &lt;&gt; Alex</div>
+              <div style="font:400 12.5px/1.4 var(--font-system);color:var(--text-2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Alex Scharrer · "excited to see the ETF go live in September…" · reply drafted</div>
+            </div>
+            <button style="height:32px;padding:0 14px;border-radius:9px;background:var(--panel);color:var(--text);border:1px solid var(--border);font:600 12.5px/1 var(--font-system);cursor:pointer;flex:none" style-hover="background:var(--surface-2)">Review reply</button>
+          </div>
+          <div style="display:flex;gap:13px;align-items:center;padding:13px 16px" style-hover="background:var(--surface-2)">
+            <div style="width:34px;height:34px;flex:none;border-radius:10px;background:var(--surface-2);color:var(--text-2);display:grid;place-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="m3 7 9 6 9-6" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
+            <div style="flex:1;min-width:0">
+              <div style="font:600 14px/1.3 var(--font-system);color:var(--text)">RE: HC/OC 139/2024 — Claim against Bridgetower</div>
+              <div style="font:400 12.5px/1.4 var(--font-system);color:var(--text-2);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Ian Mah · "we will proceed to finalise the papers…" · reply drafted</div>
+            </div>
+            <button style="height:32px;padding:0 14px;border-radius:9px;background:var(--panel);color:var(--text);border:1px solid var(--border);font:600 12.5px/1 var(--font-system);cursor:pointer;flex:none" style-hover="background:var(--surface-2)">Review reply</button>
+          </div>
+        </div>
+
+        <!-- HANDLED -->
+        <div style="display:flex;align-items:center;gap:11px;margin-top:22px;padding:13px 16px;background:var(--surface-2);border-radius:12px">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" style="flex:none;color:var(--verified)"><path d="m20 6-11 11-5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div style="flex:1;font:400 13px/1.45 var(--font-system);color:var(--text-2)"><b style="color:var(--text);font-weight:600">18 items handled overnight</b> — emails archived, the Acme NDA filed, CI runs triaged. Nothing left your tools.</div>
+          <button style="font:600 12.5px/1 var(--font-system);color:var(--action);background:none;border:0;cursor:pointer;flex:none">View all</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { modelOpen: false, model: 'glm-52' };
+  MODELS = [
+    { id: 'glm-52', name: 'GLM 5.2', desc: 'Default · fast, strong reasoning' },
+    { id: 'glm-51', name: 'GLM 5.1', desc: 'Previous default' },
+    { id: 'claude', name: 'Claude Sonnet 4.5', desc: 'Long context, careful drafting' },
+    { id: 'gpt5', name: 'GPT-5', desc: 'General purpose' },
+    { id: 'llama', name: 'Llama 4 Maverick', desc: 'Open weight' }
+  ];
+  renderVals() {
+    const cur = this.MODELS.find(m => m.id === this.state.model) || this.MODELS[0];
+    return {
+      modelOpen: this.state.modelOpen,
+      modelName: cur.name,
+      toggleModel: () => this.setState(s => ({ modelOpen: !s.modelOpen })),
+      closeModel: () => this.setState({ modelOpen: false }),
+      models: this.MODELS.map(m => ({
+        id: m.id, name: m.name, desc: m.desc, active: m.id === this.state.model,
+        pick: () => this.setState({ model: m.id, modelOpen: false })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>
