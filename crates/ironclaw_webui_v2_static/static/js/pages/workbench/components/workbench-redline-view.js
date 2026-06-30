@@ -1,5 +1,5 @@
 import { React, html } from '../../../lib/html.js';
-import { redlineClauses, resolvedText } from '../lib/workbench-redline.js';
+import { redlineClauses, resolvedText, buildRedlineHtml } from '../lib/workbench-redline.js';
 
 // Tracked-changes redline (legal #2, slices D2–D3). Paste an original and a revised version;
 // redlineClauses aligns them clause-by-clause and this renders the word-level diff — insertions
@@ -120,6 +120,25 @@ export function RedlineView({ initialOriginal = '', initialRevised = '' }) {
       setCopied(false);
     }
   };
+  // Download the redline RECORD (all tracked changes) as a self-contained, printable HTML file —
+  // a local download of content already on screen, no network. The escaped HTML is built in the lib.
+  const downloadRedline = () => {
+    try {
+      const blob = new Blob([buildRedlineHtml(clauses, { title: 'Redline' })], {
+        type: 'text/html'
+      });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'redline.html';
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    } catch {
+      /* download unavailable in this environment */
+    }
+  };
 
   return html`
     <main className="wb13-main">
@@ -214,6 +233,15 @@ export function RedlineView({ initialOriginal = '', initialRevised = '' }) {
                     onClick=${copyResolved}
                   >
                     ${copied ? 'Copied' : 'Copy resolved text'}
+                  </button>
+                  <button
+                    type="button"
+                    className="wb13-button is-sm"
+                    data-testid="workbench-redline-download"
+                    disabled=${!clauses.length}
+                    onClick=${downloadRedline}
+                  >
+                    Download redline
                   </button>
                   <span className="wb13-rl-count" data-testid="workbench-redline-count">
                     ${changedCount - rejectedCount} of ${changedCount} changes

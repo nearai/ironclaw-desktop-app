@@ -4351,6 +4351,13 @@ test('static workbench: the Redline view shows tracked changes per clause (inser
 
   // The Fee clause is unchanged — no fabricated edits there.
   await expect(page.getByTestId('workbench-redline-summary')).toContainText('changed');
+
+  // Download the redline as a local HTML artifact (a download, not a send/export).
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByTestId('workbench-redline-download').click()
+  ]);
+  expect(download.suggestedFilename()).toBe('redline.html');
 });
 
 test('static workbench: Redline accept/reject toggles a clause decision and updates the resolved count', async ({

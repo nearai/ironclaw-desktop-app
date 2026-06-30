@@ -6,7 +6,8 @@ import {
   diffWords,
   splitClauses,
   redlineClauses,
-  resolvedText
+  resolvedText,
+  buildRedlineHtml
 } from './workbench-redline.js';
 
 // The two reconstruction invariants every diff must satisfy:
@@ -209,4 +210,28 @@ test('resolvedText: tolerant of junk input', () => {
   assert.equal(resolvedText(null, null), '');
   assert.equal(resolvedText([], {}), '');
   assert.equal(resolvedText([{ id: 'x', before: '', after: '' }], {}), '');
+});
+
+test('buildRedlineHtml renders insertions + deletions and a kind tag per clause', () => {
+  const clauses = redlineClauses('Term: two years.', 'Term: three years.');
+  const htmlOut = buildRedlineHtml(clauses, { title: 'NDA redline' });
+  assert.match(htmlOut, /^<!doctype html>/);
+  assert.match(htmlOut, /<title>NDA redline<\/title>/);
+  assert.match(htmlOut, /<ins>three<\/ins>/);
+  assert.match(htmlOut, /<del>two<\/del>/);
+  assert.match(htmlOut, /class="k">modified/);
+});
+
+test('buildRedlineHtml escapes user document text — no markup injection into the downloaded file', () => {
+  const clauses = redlineClauses('safe clause', 'evil <script>alert(1)</script> clause');
+  const htmlOut = buildRedlineHtml(clauses);
+  assert.doesNotMatch(htmlOut, /<script>alert/, 'a raw <script> from the document never survives');
+  assert.match(htmlOut, /&lt;script&gt;/, 'the script text is escaped, not executed');
+  // a malicious title is escaped too
+  assert.match(buildRedlineHtml([], { title: '<img src=x onerror=1>' }), /&lt;img src=x/);
+});
+
+test('buildRedlineHtml is tolerant of empty/junk clauses', () => {
+  assert.match(buildRedlineHtml([], {}), /<body><h1>Redline<\/h1>/);
+  assert.match(buildRedlineHtml(null), /<!doctype html>/);
 });

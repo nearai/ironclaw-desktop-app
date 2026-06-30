@@ -228,3 +228,46 @@ export function resolvedText(clauses, decisions) {
     .filter((text) => text.length > 0)
     .join('\n');
 }
+
+const HTML_ESCAPE = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function escapeHtml(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, (ch) => HTML_ESCAPE[ch]);
+}
+
+// Build a self-contained, printable HTML artifact of the redline (insertions underlined, deletions
+// struck through, a kind tag per clause). ALL document text is HTML-escaped — the inputs are
+// user-pasted, so this never lets clause content inject markup/script into the downloaded file.
+// This is the redline RECORD (every tracked change), distinct from resolvedText (the decided final
+// document). Pure: returns the HTML string; the caller downloads it as a local file (no network).
+export function buildRedlineHtml(clauses, { title = 'Redline' } = {}) {
+  const list = Array.isArray(clauses) ? clauses : [];
+  const safeTitle = escapeHtml(title);
+  const rows = list
+    .map((clause) => {
+      if (!clause || typeof clause !== 'object') return '';
+      const segs = (Array.isArray(clause.segments) ? clause.segments : [])
+        .map((seg) => {
+          const text = escapeHtml(seg && seg.text);
+          if (seg && seg.op === 'insert') return `<ins>${text}</ins>`;
+          if (seg && seg.op === 'delete') return `<del>${text}</del>`;
+          return text;
+        })
+        .join('');
+      return `<p class="c"><span class="k">${escapeHtml(clause.kind)}</span>${segs}</p>`;
+    })
+    .filter(Boolean)
+    .join('\n');
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>${safeTitle}</title>
+<style>
+body{font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;max-width:760px;margin:40px auto;padding:0 22px;color:#1b1b1b}
+h1{font-size:20px;margin:0 0 18px}
+.c{margin:0 0 12px;padding:11px 13px;border:1px solid #e4e4e4;border-radius:8px;white-space:pre-wrap}
+.k{display:inline-block;font:700 10px/1 sans-serif;text-transform:uppercase;letter-spacing:.07em;color:#8a8a8a;margin-right:8px}
+ins{color:#0a7d33;text-decoration:underline}
+del{color:#c0392b;text-decoration:line-through}
+</style></head>
+<body><h1>${safeTitle}</h1>
+${rows}
+</body></html>`;
+}
