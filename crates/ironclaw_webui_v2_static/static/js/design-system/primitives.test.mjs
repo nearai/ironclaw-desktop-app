@@ -62,7 +62,7 @@ test('StatCard still renders its real content (label, value, detail)', () => {
 test('StatCard expresses tone through Badge semantic v2 colors', () => {
   const toToken = {
     success: '--v2-positive-text',
-    signal: '--v2-positive-text',
+    signal: '--v2-accent-text',
     warning: '--v2-warning-text',
     danger: '--v2-danger-text',
     info: '--v2-info-text',

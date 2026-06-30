@@ -46,9 +46,9 @@ const VARIANTS = {
 /* ─── Radius ──────────────────────────────────────────────────────── */
 
 const RADII = {
-  sm: 'rounded-[6px]',
-  md: 'rounded-[8px]',
-  lg: 'rounded-[10px]'
+  sm: 'rounded-[var(--v2-radius-control)]',
+  md: 'rounded-[var(--v2-radius-card)]',
+  lg: 'rounded-[var(--v2-radius-shell)]'
 };
 
 /* ─── Padding ─────────────────────────────────────────────────────── */

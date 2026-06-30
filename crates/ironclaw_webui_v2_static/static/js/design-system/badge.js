@@ -22,7 +22,7 @@ const toneClasses = {
   positive:
     'border-[color-mix(in_srgb,var(--v2-positive-text)_30%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]',
   signal:
-    'border-[color-mix(in_srgb,var(--v2-positive-text)_30%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]',
+    'border-[color-mix(in_srgb,var(--v2-accent-text)_30%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]',
   warning:
     'border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] text-[var(--v2-warning-text)]',
   copper:
@@ -42,7 +42,8 @@ const sizeClasses = {
 };
 
 export function Badge({ tone = 'muted', label, dot = true, size = 'md', className = '' }) {
-  const isLive = tone === 'success' || tone === 'positive' || tone === 'signal';
+  // The breathing dot is reserved for genuine in-flight/ready state only.
+  const isLive = tone === 'success' || tone === 'positive';
   return html`
     <span
       className=${cn(

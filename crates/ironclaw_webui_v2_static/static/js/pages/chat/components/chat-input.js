@@ -917,7 +917,7 @@ export function ChatInput({
               : html`
                   <${Button}
                     type="button"
-                    variant="clay"
+                    variant="primary"
                     size="icon-sm"
                     onClick=${handleSend}
                     disabled=${disabled ||
@@ -926,7 +926,7 @@ export function ChatInput({
                     extracting ||
                     !hasPayload}
                     aria-label=${t('chat.send')}
-                    className="!h-11 !w-11 rounded-[8px]"
+                    className="!h-11 !w-11 rounded-[var(--v2-radius-control)]"
                   >
                     <${Icon} name="send" className="h-5 w-5" />
                   <//>

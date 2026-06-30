@@ -29,9 +29,9 @@ const INPUT_BASE =
 
 /* Sizes mirroring reference AppInput */
 const INPUT_SIZES = {
-  sm: 'h-9 rounded-[10px] px-3 text-[12px]',
-  md: 'h-[44px] rounded-[12px] px-3.5 text-[13px] md:h-[50px] md:rounded-[16px] md:px-4 md:text-sm',
-  lg: 'h-[54px] rounded-[18px] px-4 text-base'
+  sm: 'h-9 rounded-[var(--v2-radius-control)] px-3 text-[12px]',
+  md: 'h-[44px] rounded-[var(--v2-radius-control)] px-3.5 text-[13px] md:h-[50px] md:px-4 md:text-sm',
+  lg: 'h-[54px] rounded-[var(--v2-radius-control)] px-4 text-base'
 };
 
 /* ─── Input ───────────────────────────────────────────────────────── */
@@ -59,7 +59,7 @@ export function Textarea({ className = '', error = false, rows = 4, ...rest }) {
       rows=${rows}
       className=${cn(
         INPUT_BASE,
-        'rounded-[12px] px-3.5 py-3 text-[13px] md:rounded-[16px] md:px-4 md:text-sm',
+        'rounded-[var(--v2-radius-card)] px-3.5 py-3 text-[13px] md:px-4 md:text-sm',
         'resize-y min-h-[80px]',
         error &&
           'border-[var(--v2-danger-text)] focus:ring-[color-mix(in_srgb,var(--v2-danger-text)_28%,transparent)]',

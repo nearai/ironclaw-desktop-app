@@ -32,11 +32,11 @@ const BASE =
 /* ── Size classes ──────────────────────────────────────────────────── */
 
 const SIZES = {
-  sm: 'h-8 rounded-[6px] px-3 text-xs',
-  md: 'min-h-[44px] rounded-[8px] px-3.5 text-[13px] md:px-4 md:text-sm',
-  lg: 'min-h-[48px] rounded-[10px] px-5 text-sm',
-  icon: 'h-11 w-11 rounded-[8px]',
-  'icon-sm': 'h-8 w-8 rounded-[6px]'
+  sm: 'h-8 rounded-[var(--v2-radius-control)] px-3 text-xs',
+  md: 'min-h-[44px] rounded-[var(--v2-radius-control)] px-3.5 text-[13px] md:px-4 md:text-sm',
+  lg: 'min-h-[48px] rounded-[var(--v2-radius-control)] px-5 text-sm',
+  icon: 'h-11 w-11 rounded-[var(--v2-radius-control)]',
+  'icon-sm': 'h-8 w-8 rounded-[var(--v2-radius-control)]'
 };
 
 /* ── Variant classes ───────────────────────────────────────────────── */
@@ -88,7 +88,8 @@ export function Button({
 }) {
   const sizeClass = SIZES[size] ?? SIZES.md;
   const fullClass = fullWidth ? 'w-full' : '';
-  const variantClass = VARIANTS[variant] ?? VARIANTS.outline;
+  // Unknown-variant fallback matches the default variant — no silent third look.
+  const variantClass = VARIANTS[variant] ?? VARIANTS.primary;
 
   return html`
     <${Tag} className=${cn(BASE, sizeClass, fullClass, variantClass, className)} ...${rest}>
