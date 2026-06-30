@@ -38,6 +38,7 @@ export const WORKBENCH_RESPONSIVE_STYLE = `@media (max-width: 1120px) {
   .wb13-files { grid-template-columns: 1fr; }
   .wb13-files-list { border-right: 0; border-bottom: 1px solid var(--wb-line); }
   .wb13-doc-nav { display: none; }
+  .wb13-top-context, .wb13-top-divider { display: none; }
   .wb13-head .meta { margin-left: 0; }
   .wb13-tabs { flex-wrap: nowrap; overflow-x: auto; }
   .wb13-tab { flex: none; white-space: nowrap; }

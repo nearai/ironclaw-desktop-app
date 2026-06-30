@@ -306,6 +306,8 @@ export function WorkbenchTop({ view, currentUser, dockOpen, onHome, onToggleDock
                     ? html`<span>Work</span><span>/</span><strong>Projects</strong>`
                     : html`<strong>Work</strong>`}
       </div>
+      <span className="wb13-top-divider" aria-hidden="true"></span>
+      <span className="wb13-top-context">NEAR AI Cloud</span>
       <div className="wb13-spacer"></div>
       <div className="wb13-account">
         <span className="wb13-avatar"

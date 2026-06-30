@@ -238,6 +238,8 @@ export const WORKBENCH_SHELL_STYLE = `.wb13-shell {
   font-size: 13.5px;
 }
 .wb13-crumb strong { color: var(--wb-ink); font-weight: 700; }
+.wb13-top-divider { flex: none; width: 1px; height: 16px; background: var(--wb-line); }
+.wb13-top-context { flex: none; color: var(--wb-muted); font-size: 13px; white-space: nowrap; }
 .wb13-top-button,
 .wb13-icon-button {
   display: inline-grid;

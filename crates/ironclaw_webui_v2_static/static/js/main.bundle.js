@@ -4978,6 +4978,8 @@ ${me}`;if(O.current.gateKey!==ye&&(O.current={gateKey:ye,credentialRef:null,inFl
       <div className="wb13-crumb">
         ${e==="chat"?l`<span>Work</span><span>/</span><strong>Chat</strong>`:e==="library"?l`<span>Work</span><span>/</span><strong>Library</strong>`:e==="memory"?l`<span>Work</span><span>/</span><strong>Memory</strong>`:e==="calendar"?l`<span>Work</span><span>/</span><strong>Calendar</strong>`:e==="history"?l`<span>Work</span><span>/</span><strong>History</strong>`:e==="projects"?l`<span>Work</span><span>/</span><strong>Projects</strong>`:l`<strong>Work</strong>`}
       </div>
+      <span className="wb13-top-divider" aria-hidden="true"></span>
+      <span className="wb13-top-context">NEAR AI Cloud</span>
       <div className="wb13-spacer"></div>
       <div className="wb13-account">
         <span className="wb13-avatar"
@@ -5622,6 +5624,8 @@ ${me}`;if(O.current.gateKey!==ye&&(O.current={gateKey:ye,credentialRef:null,inFl
   font-size: 13.5px;
 }
 .wb13-crumb strong { color: var(--wb-ink); font-weight: 700; }
+.wb13-top-divider { flex: none; width: 1px; height: 16px; background: var(--wb-line); }
+.wb13-top-context { flex: none; color: var(--wb-muted); font-size: 13px; white-space: nowrap; }
 .wb13-top-button,
 .wb13-icon-button {
   display: inline-grid;
@@ -8651,6 +8655,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   .wb13-files { grid-template-columns: 1fr; }
   .wb13-files-list { border-right: 0; border-bottom: 1px solid var(--wb-line); }
   .wb13-doc-nav { display: none; }
+  .wb13-top-context, .wb13-top-divider { display: none; }
   .wb13-head .meta { margin-left: 0; }
   .wb13-tabs { flex-wrap: nowrap; overflow-x: auto; }
   .wb13-tab { flex: none; white-space: nowrap; }
