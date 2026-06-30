@@ -66,6 +66,7 @@ const WorkbenchBrief = React.lazy(() =>
   import('./components/workbench-brief.js').then((m) => ({ default: m.WorkbenchBrief }))
 );
 import { WorkbenchSlackBlockers } from './components/workbench-slack-blockers.js';
+import { WorkbenchSlackReconnect } from './components/workbench-slack-reconnect.js';
 import { WorkbenchNotionNew } from './components/workbench-notion-new.js';
 import {
   selectNewNotionPages,
@@ -539,6 +540,9 @@ function HomeView(props) {
                 isError=${props.slackBlockers.isError}
                 onDismiss=${props.onDismissSlackBlockers}
               />`
+            : null}
+          ${props.slackNeedsReconnect
+            ? html`<${WorkbenchSlackReconnect} onReconnect=${props.onReconnectSlack} />`
             : null}
           ${visible('replies') && !suppressDeterministic
             ? html`<${WorkbenchNeedsReply}
@@ -1928,6 +1932,8 @@ export function WorkbenchPage() {
                           homeLoading=${connectedAccounts.gmailReady &&
                           (connectorInbox.isLoading || connectorInbox.isFetching)}
                           onConnectSources=${() => setShowSources(true)}
+                          slackNeedsReconnect=${connectedAccounts.slackNeedsReconnect}
+                          onReconnectSlack=${() => setShowSources(true)}
                           gmailReady=${connectedAccounts.gmailReady}
                           decisionMessages=${triageInbox}
                           notionPages=${connectorNotion.pages}

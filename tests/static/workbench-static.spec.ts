@@ -4293,3 +4293,31 @@ test('static workbench: Review is honest when no Drive file is a Google Doc (non
   await expect(checks.nth(1)).toBeDisabled();
   await expect(page.getByTestId('workbench-review-run')).toBeDisabled();
 });
+
+test('static workbench: an expired Slack connection shows an honest Reconnect Slack card', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [
+      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg' },
+      { toolkit: 'slack', status: 'INACTIVE', user_id: 'pg' } // on file but not active → reconnect
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  const card = page.getByTestId('workbench-slack-reconnect');
+  await expect(card).toBeVisible();
+  await expect(card).toContainText('Slack needs reconnecting');
+  await expect(page.getByTestId('workbench-slack-reconnect-cta')).toBeVisible();
+});
+
+test('static workbench: an ACTIVE Slack connection shows no reconnect card', async ({ page }) => {
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [
+      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg' },
+      { toolkit: 'slack', status: 'ACTIVE', user_id: 'pg' }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await expect(page.getByTestId('workbench-nav-review')).toBeVisible(); // shell settled
+  await expect(page.getByTestId('workbench-slack-reconnect')).toHaveCount(0);
+});

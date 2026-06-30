@@ -4,6 +4,7 @@ import { React } from '../../../lib/html.js';
 import { connectorRead, connectorsConnected } from '../../../lib/api.js';
 import {
   connectorFamilyReadiness,
+  connectorFamilyState,
   gmailProfileEmail,
   hasActiveToolkit,
   normalizeCalendarEvents,
@@ -66,6 +67,12 @@ export function useConnectedAccounts() {
     () => !query.isError && hasActiveToolkit(query.data, 'slack'),
     [query.data, query.isError]
   );
+  // Slack has an account on file but it isn't ACTIVE → show an honest "Reconnect Slack" prompt
+  // (vs. never-connected, which the cold-start surface handles).
+  const slackNeedsReconnect = React.useMemo(
+    () => !query.isError && connectorFamilyState(query.data, 'slack') === 'needs_reconnect',
+    [query.data, query.isError]
+  );
   const driveReady = React.useMemo(
     () => !query.isError && hasActiveToolkit(query.data, 'drive'),
     [query.data, query.isError]
@@ -84,6 +91,7 @@ export function useConnectedAccounts() {
     gmailReady,
     calendarReady,
     slackReady,
+    slackNeedsReconnect,
     driveReady,
     notionReady,
     githubReady,

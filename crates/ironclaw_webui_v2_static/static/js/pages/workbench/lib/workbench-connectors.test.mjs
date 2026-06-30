@@ -8,6 +8,7 @@ import {
   layoutDayColumn,
   cleanEmailBody,
   connectorFamilyReadiness,
+  connectorFamilyState,
   decodeBase64Part,
   extractHtmlBody,
   gmailMessageHref,
@@ -24,6 +25,42 @@ import {
   unreadInboxCount,
   urgencyScore
 } from './workbench-connectors.js';
+
+test('connectorFamilyState distinguishes ready / needs_reconnect / absent', () => {
+  // an ACTIVE account → ready (an expired account for the same family doesn't downgrade it)
+  assert.equal(
+    connectorFamilyState(
+      {
+        accounts: [
+          { toolkit: 'slack', status: 'INACTIVE' },
+          { toolkit: 'slack', status: 'ACTIVE' }
+        ]
+      },
+      'slack'
+    ),
+    'ready'
+  );
+  // present but no ACTIVE account → needs_reconnect (expired/disconnected)
+  assert.equal(
+    connectorFamilyState({ accounts: [{ toolkit: 'slack', status: 'INACTIVE' }] }, 'slack'),
+    'needs_reconnect'
+  );
+  assert.equal(
+    connectorFamilyState({ accounts: [{ toolkit: 'slack', status: 'EXPIRED' }] }, 'slack'),
+    'needs_reconnect'
+  );
+  // no account maps to the family → absent
+  assert.equal(
+    connectorFamilyState({ accounts: [{ toolkit: 'gmail', status: 'ACTIVE' }] }, 'slack'),
+    'absent'
+  );
+  assert.equal(connectorFamilyState(null, 'slack'), 'absent');
+  // a bare array is accepted; googledrive maps to the 'drive' family
+  assert.equal(
+    connectorFamilyState([{ toolkit: 'googledrive', status: 'ACTIVE' }], 'drive'),
+    'ready'
+  );
+});
 
 test('toEpochMs parses epoch-ms strings, ISO dates, and degrades to 0', () => {
   assert.equal(toEpochMs('1718900000000'), 1718900000000);

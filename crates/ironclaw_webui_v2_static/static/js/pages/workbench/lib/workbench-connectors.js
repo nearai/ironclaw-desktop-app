@@ -88,6 +88,28 @@ export function hasActiveToolkit(payload, family) {
   return connectorFamilyReadiness(payload).some((item) => item.id === family);
 }
 
+// Resolve a family's connection state from the raw payload:
+//   'ready'           — at least one ACTIVE account maps to the family
+//   'needs_reconnect' — an account maps to the family but none is ACTIVE (expired/disconnected)
+//   'absent'          — no account maps to the family (never connected)
+// This lets a surface show an honest "Reconnect" prompt for an expired connection instead of
+// silently rendering empty (which reads as "nothing happening" rather than "Slack is down").
+export function connectorFamilyState(payload, family) {
+  const accounts = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.accounts)
+      ? payload.accounts
+      : [];
+  let present = false;
+  for (const account of accounts) {
+    if (!account || typeof account !== 'object') continue;
+    if (TOOLKIT_FAMILY[asString(account.toolkit).toLowerCase()] !== family) continue;
+    if (isActiveStatus(account.status)) return 'ready';
+    present = true;
+  }
+  return present ? 'needs_reconnect' : 'absent';
+}
+
 // The signed-in user's own email, from GMAIL_GET_PROFILE
 // (data.response_data.emailAddress, with a couple of envelope fallbacks). Used to
 // resolve the user inside the Slack workspace so the briefing is theirs, not a
