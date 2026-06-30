@@ -31,6 +31,14 @@ import {
 import { useHistory } from './useHistory.js';
 import { useSSE } from './useSSE.js';
 
+// Once the rate-limit cooldown has elapsed, the 250ms tick must clear
+// cooldownUntil so the effect re-runs with a falsy value and its cleanup stops
+// the interval. Exported + pure so the regression (interval leaking forever
+// after a single 429) is unit-tested directly.
+export function cooldownExpired(now, cooldownUntil) {
+  return Boolean(cooldownUntil) && now >= cooldownUntil;
+}
+
 const AUTH_TOKEN_FLOW_TIMEOUT_MS = 30000;
 const RUN_STATE_FALLBACK_POLL_MS = 1500;
 // Long generations (e.g. drafting a full agreement) routinely run well past 30s.
@@ -193,7 +201,14 @@ export function useChat(threadId) {
 
   React.useEffect(() => {
     if (!cooldownUntil) return;
-    const timer = setInterval(() => setNow(Date.now()), 250);
+    const timer = setInterval(() => {
+      const tick = Date.now();
+      setNow(tick);
+      // Clear the cooldown once it elapses so this effect re-runs with a falsy
+      // cooldownUntil and the cleanup below stops the interval. Without this the
+      // 250ms timer (and its re-renders) leaks forever after a single 429.
+      if (cooldownExpired(tick, cooldownUntil)) setCooldownUntil(0);
+    }, 250);
     return () => clearInterval(timer);
   }, [cooldownUntil]);
 

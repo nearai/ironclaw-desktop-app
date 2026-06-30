@@ -600,6 +600,10 @@ function GeneratedFileArtifactCard({ artifact, onPreview }) {
         toast('File bytes unavailable', { tone: 'error' });
         return;
       }
+      if (saved.error) {
+        toast('Too large for Work — use Save to keep the file', { tone: 'error' });
+        return;
+      }
       toast('Saved to Work', { tone: 'success' });
       openSavedWorkProduct(saved);
     } catch {
@@ -848,6 +852,10 @@ function saveToWork(title, content, messages = []) {
     const saved = saveAssistantResponseToWork({ title, content, messages });
     if (!saved) {
       toast('Nothing to save', { tone: 'error' });
+      return;
+    }
+    if (saved.error) {
+      toast('Too large for Work — use Save to keep the file', { tone: 'error' });
       return;
     }
     toast('Saved to Work', { tone: 'success' });

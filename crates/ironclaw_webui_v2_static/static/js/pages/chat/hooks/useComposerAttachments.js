@@ -35,26 +35,57 @@ function readDataUrl(file) {
 
 let attachmentSeq = 0;
 
+export function rawSizeOf(item) {
+  return (item && (item.payloadSize || item.size)) || 0;
+}
+
+export function sumRawSize(items) {
+  return (items || []).reduce((sum, item) => sum + rawSizeOf(item), 0);
+}
+
+// Admission decision for a raw (base64-shipped) payload against the live running
+// total. Exported so the race-relevant cap math is unit-tested directly: a
+// reservation-based running total (not a stale per-batch state snapshot) is what
+// keeps concurrent addFiles batches from each independently overflowing the cap.
+export function fitsRawBudget(runningTotal, fileSize, cap = MAX_RAW_TOTAL_SIZE) {
+  return runningTotal + fileSize <= cap;
+}
+
 export function useComposerAttachments() {
   const [images, setImages] = React.useState([]);
   const [attachments, setAttachments] = React.useState([]);
   const [rejections, setRejections] = React.useState([]);
 
+  // Live running total of raw (base64-shipped) payload bytes across both
+  // attachments and images. addFiles is async (FileReader / extraction awaits),
+  // so two concurrent batches must share ONE total rather than each reading a
+  // stale state snapshot and both concluding there is room. The ref is bumped
+  // synchronously on every admit; the functional updaters below keep it exactly
+  // in sync with committed state (admit/drop/clear), so it never drifts.
+  const rawTotalRef = React.useRef(0);
+
   const patchAttachment = React.useCallback((id, patch) => {
-    setAttachments((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
+    setAttachments((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const next = { ...item, ...patch };
+        rawTotalRef.current += rawSizeOf(next) - rawSizeOf(item);
+        return next;
+      })
+    );
   }, []);
 
   const dropAttachment = React.useCallback((id) => {
-    setAttachments((prev) => prev.filter((item) => item.id !== id));
+    setAttachments((prev) => {
+      const removed = prev.find((item) => item.id === id);
+      if (removed) rawTotalRef.current -= rawSizeOf(removed);
+      return prev.filter((item) => item.id !== id);
+    });
   }, []);
 
   const addFiles = React.useCallback(
     async (files) => {
       const notices = [];
-      let rawTotal = [...attachments, ...images].reduce(
-        (sum, item) => sum + (item.payloadSize || item.size || 0),
-        0
-      );
 
       for (const file of files) {
         const meta = { mime_type: file.type, filename: file.name };
@@ -71,13 +102,20 @@ export function useComposerAttachments() {
         }
 
         if (file.type.startsWith('image/')) {
-          if (file.size > MAX_RAW_FILE_SIZE || rawTotal + file.size > MAX_RAW_TOTAL_SIZE) {
+          if (file.size > MAX_RAW_FILE_SIZE || !fitsRawBudget(rawTotalRef.current, file.size)) {
             notices.push(`${file.name} skipped — images are limited to 5 MB.`);
             continue;
           }
-          rawTotal += file.size;
-          const info = await readDataUrl(file);
-          setImages((prev) => [...prev, info]);
+          // Reserve the bytes synchronously (before awaiting the FileReader) so
+          // a concurrent batch cannot slip through the same gap and overflow.
+          rawTotalRef.current += file.size;
+          try {
+            const info = await readDataUrl(file);
+            setImages((prev) => [...prev, info]);
+          } catch (_) {
+            rawTotalRef.current -= file.size;
+            notices.push(`${file.name}: could not be read — it will not be sent.`);
+          }
           continue;
         }
 
@@ -151,7 +189,8 @@ export function useComposerAttachments() {
               // No readable text (scanned/image-only) but small enough to
               // ship raw. The model cannot read raw binary — the chip says
               // so via modelReadable instead of pretending success.
-              rawTotal += file.size;
+              // payloadSize lands via patchAttachment, which keeps rawTotalRef
+              // in sync — no manual increment needed here.
               const info = await readDataUrl(file);
               patchAttachment(id, {
                 base64: info.base64,
@@ -180,47 +219,73 @@ export function useComposerAttachments() {
           notices.push(`${file.name} skipped — files of this type are limited to 5 MB.`);
           continue;
         }
-        if (rawTotal + file.size > MAX_RAW_TOTAL_SIZE) {
+        if (!fitsRawBudget(rawTotalRef.current, file.size)) {
           notices.push(`${file.name} skipped — total attachment size is limited to 10 MB.`);
           continue;
         }
-        rawTotal += file.size;
-        const info = await readDataUrl(file);
-        setAttachments((prev) => [
-          ...prev,
-          {
-            id: `att-${(attachmentSeq += 1)}`,
-            ...info,
-            payloadSize: file.size,
-            extraction: 'raw',
-            sourceFile: file,
-            modelReadable: isAttachmentTextEmbeddable({
-              name: file.name,
-              mime_type: file.type
-            })
-          }
-        ]);
+        // Reserve before awaiting the read so concurrent batches see the
+        // committed total; release the reservation if the read fails.
+        rawTotalRef.current += file.size;
+        try {
+          const info = await readDataUrl(file);
+          setAttachments((prev) => [
+            ...prev,
+            {
+              id: `att-${(attachmentSeq += 1)}`,
+              ...info,
+              payloadSize: file.size,
+              extraction: 'raw',
+              sourceFile: file,
+              modelReadable: isAttachmentTextEmbeddable({
+                name: file.name,
+                mime_type: file.type
+              })
+            }
+          ]);
+        } catch (_) {
+          rawTotalRef.current -= file.size;
+          notices.push(`${file.name}: could not be read — it will not be sent.`);
+        }
       }
 
       if (notices.length > 0) {
         setRejections((prev) => [...prev, ...notices].slice(-4));
       }
     },
-    [attachments, dropAttachment, images, patchAttachment]
+    [dropAttachment, patchAttachment]
   );
+
+  const removeImage = React.useCallback((index) => {
+    setImages((prev) => {
+      const removed = prev[index];
+      if (removed) rawTotalRef.current -= rawSizeOf(removed);
+      return prev.filter((_, idx) => idx !== index);
+    });
+  }, []);
+
+  const removeAttachment = React.useCallback((index) => {
+    setAttachments((prev) => {
+      const removed = prev[index];
+      if (removed) rawTotalRef.current -= rawSizeOf(removed);
+      return prev.filter((_, idx) => idx !== index);
+    });
+  }, []);
+
+  const clearAttachments = React.useCallback(() => {
+    rawTotalRef.current = 0;
+    setImages([]);
+    setAttachments([]);
+    setRejections([]);
+  }, []);
 
   return {
     images,
     attachments,
     rejections,
     addFiles,
-    removeImage: (index) => setImages((prev) => prev.filter((_, idx) => idx !== index)),
-    removeAttachment: (index) => setAttachments((prev) => prev.filter((_, idx) => idx !== index)),
+    removeImage,
+    removeAttachment,
     dismissRejections: () => setRejections([]),
-    clearAttachments: () => {
-      setImages([]);
-      setAttachments([]);
-      setRejections([]);
-    }
+    clearAttachments
   };
 }

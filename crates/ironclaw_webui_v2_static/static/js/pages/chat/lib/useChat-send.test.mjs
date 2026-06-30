@@ -32,7 +32,9 @@ function useChatSourceForTest() {
       skippingImport = !line.trimEnd().endsWith(';');
       continue;
     }
-    lines.push(line.replace('export function useChat', 'function useChat'));
+    // The source is run as a plain script in a vm (not a module), so strip the
+    // `export` keyword from any top-level `export function`/`export const`.
+    lines.push(line.replace(/^export\s+(function|const|let|var)\b/, '$1'));
   }
   return `${lines.join('\n')}\nglobalThis.__testExports = { useChat };`;
 }

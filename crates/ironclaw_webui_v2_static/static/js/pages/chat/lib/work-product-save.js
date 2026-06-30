@@ -91,7 +91,8 @@ export function saveAssistantResponseToWork({
   };
 
   const existing = readSavedWorkItems(storage);
-  storage.setItem(WORK_ITEMS_KEY, JSON.stringify([item, ...existing].slice(0, MAX_WORK_ITEMS)));
+  const persisted = persistWorkItems(storage, [item, ...existing]);
+  if (persisted?.error) return persisted;
   return {
     item,
     artifact: item.artifacts[0],
@@ -161,12 +162,39 @@ export function saveGeneratedFileArtifactToWork({
   };
 
   const existing = readSavedWorkItems(storage);
-  storage.setItem(WORK_ITEMS_KEY, JSON.stringify([item, ...existing].slice(0, MAX_WORK_ITEMS)));
+  const persisted = persistWorkItems(storage, [item, ...existing]);
+  if (persisted?.error) return persisted;
   return {
     item,
     artifact: item.artifacts[0],
     href: workArtifactHref(workId, artifactId)
   };
+}
+
+// Persist the bounded Work list. localStorage.setItem can throw
+// QuotaExceededError when the artifact (e.g. a large base64 file) overflows the
+// origin quota. Catch it and return {error:'quota'} so callers steer the user to
+// disk-save instead of toasting a false success.
+function persistWorkItems(storage, items) {
+  try {
+    storage.setItem(WORK_ITEMS_KEY, JSON.stringify(items.slice(0, MAX_WORK_ITEMS)));
+    return null;
+  } catch (err) {
+    return { error: isQuotaError(err) ? 'quota' : 'storage' };
+  }
+}
+
+function isQuotaError(err) {
+  if (!err) return false;
+  // Standard DOMException name, Firefox legacy name, and numeric codes (22 /
+  // 1014). Some embedded WebViews only set the code.
+  const name = err.name || '';
+  return (
+    name === 'QuotaExceededError' ||
+    name === 'NS_ERROR_DOM_QUOTA_REACHED' ||
+    err.code === 22 ||
+    err.code === 1014
+  );
 }
 
 export function openSavedWorkProduct(saved, location = globalThis.window?.location) {

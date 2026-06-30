@@ -200,6 +200,70 @@ test('saveGeneratedFileArtifactToWork persists generated file bytes as a reloada
   ]);
 });
 
+function quotaStorage(name = 'QuotaExceededError') {
+  return {
+    getItem: () => null,
+    setItem: () => {
+      const err = new Error('quota');
+      err.name = name;
+      throw err;
+    }
+  };
+}
+
+test('saveAssistantResponseToWork returns {error:"quota"} when setItem throws QuotaExceededError', () => {
+  const saved = saveAssistantResponseToWork({
+    title: 'Huge memo',
+    content: 'x'.repeat(1024),
+    storage: quotaStorage(),
+    idFactory: sequenceIds()
+  });
+  assert.deepEqual(saved, { error: 'quota' });
+});
+
+test('saveGeneratedFileArtifactToWork returns {error:"quota"} on quota (incl. Firefox name + code 22)', () => {
+  for (const storage of [
+    quotaStorage('QuotaExceededError'),
+    quotaStorage('NS_ERROR_DOM_QUOTA_REACHED'),
+    {
+      getItem: () => null,
+      setItem: () => {
+        const err = new Error('quota');
+        err.code = 22;
+        throw err;
+      }
+    }
+  ]) {
+    const saved = saveGeneratedFileArtifactToWork({
+      artifact: {
+        title: 'Big file',
+        filename: 'big.bin',
+        mime_type: 'application/octet-stream',
+        data_base64: Buffer.from('payload').toString('base64'),
+        size: 7
+      },
+      storage,
+      idFactory: sequenceIds()
+    });
+    assert.deepEqual(saved, { error: 'quota' });
+  }
+});
+
+test('saveAssistantResponseToWork returns {error:"storage"} for non-quota setItem failures', () => {
+  const saved = saveAssistantResponseToWork({
+    title: 'Memo',
+    content: 'body',
+    storage: {
+      getItem: () => null,
+      setItem: () => {
+        throw new Error('disk gone');
+      }
+    },
+    idFactory: sequenceIds()
+  });
+  assert.deepEqual(saved, { error: 'storage' });
+});
+
 test('currentThreadId reads static chat paths and query links', () => {
   assert.equal(currentThreadId({ href: 'http://app.local/chat/thread-123' }), 'thread-123');
   assert.equal(currentThreadId({ href: 'http://app.local/v2/chat/thread-456' }), 'thread-456');
