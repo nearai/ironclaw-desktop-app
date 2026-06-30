@@ -1821,7 +1821,11 @@ export function WorkbenchPage() {
                 </div>
               </main>`}
             >
-              <${ReviewView} />
+              <${ReviewView}
+                files=${connectorDrive.files}
+                driveReady=${connectedAccounts.driveReady}
+                driveLoading=${connectorDrive.isLoading}
+              />
             </${React.Suspense}>`
           : view === 'memory'
             ? html`<${React.Suspense}

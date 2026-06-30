@@ -4043,3 +4043,53 @@ test('static workbench: the Review nav opens the Tabular Review surface with an 
   // and there is no fabricated grid/data until the document picker + extraction land.
   await expect(empty.getByRole('button', { name: 'Choose documents' })).toBeDisabled();
 });
+
+test('static workbench: Review lists Drive documents and builds a pending grid on selection', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [{ toolkit: 'googledrive', status: 'ACTIVE', user_id: 'pg-test' }],
+    connectorReads: {
+      GOOGLEDRIVE_LIST_FILES: {
+        successful: true,
+        data: {
+          files: [
+            {
+              id: 'f1',
+              name: 'Acme NDA.pdf',
+              mimeType: 'application/pdf',
+              modifiedTime: '2026-06-28T10:00:00Z'
+            },
+            {
+              id: 'f2',
+              name: 'Northwind MSA.docx',
+              mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+              modifiedTime: '2026-06-27T10:00:00Z'
+            }
+          ]
+        }
+      }
+    }
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByTestId('workbench-nav-review').click();
+
+  // The picker lists the real Drive documents (no fabricated entries).
+  const picker = page.getByTestId('workbench-review-picker');
+  await expect(picker).toBeVisible();
+  await expect(picker).toContainText('Acme NDA.pdf');
+  await expect(picker).toContainText('Northwind MSA.docx');
+
+  // No grid until a document is chosen.
+  await expect(page.getByTestId('workbench-review-grid')).toHaveCount(0);
+
+  // Selecting a document builds a grid row with the 5 NDA columns; every cell is PENDING
+  // (no LLM has run, so no fabricated values).
+  await page.getByTestId('workbench-review-doc').first().check();
+  const grid = page.getByTestId('workbench-review-grid');
+  await expect(grid).toBeVisible();
+  await expect(grid).toContainText('Governing Law');
+  await expect(grid).toContainText('Change of Control');
+  await expect(grid).toContainText('Acme NDA.pdf');
+  await expect(grid.locator('.wb13-rev-pending').first()).toBeVisible();
+});
