@@ -50,24 +50,6 @@ export function WorkbenchNav({ view, onView, onSettings }) {
       </button>
       <button
         type="button"
-        className=${view === 'review' ? 'is-active' : ''}
-        aria-current=${view === 'review' ? 'page' : undefined}
-        data-testid="workbench-nav-review"
-        onClick=${() => onView('review')}
-      >
-        <${Icon} name="layers" />Review
-      </button>
-      <button
-        type="button"
-        className=${view === 'redline' ? 'is-active' : ''}
-        aria-current=${view === 'redline' ? 'page' : undefined}
-        data-testid="workbench-nav-redline"
-        onClick=${() => onView('redline')}
-      >
-        <${Icon} name="file" />Redline
-      </button>
-      <button
-        type="button"
         data-testid="workbench-nav-memory"
         className=${view === 'memory' ? 'is-active' : ''}
         aria-current=${view === 'memory' ? 'page' : undefined}
