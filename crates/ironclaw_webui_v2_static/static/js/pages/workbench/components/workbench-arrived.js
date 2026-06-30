@@ -63,7 +63,7 @@ function openMessage(onOpenMessage, message) {
 // create a reviewable Gmail draft; it never sends. Renders ONLY when Gmail is a
 // live ACTIVE account AND there is unread mail; on empty/error it stays hidden
 // (never a fabricated card).
-function DecisionCard({ message, onOpenMessage, onDraftMessage, onDismiss }) {
+export function DecisionCard({ message, onOpenMessage, onDraftMessage, onDismiss }) {
   const [picking, setPicking] = React.useState(false);
   const when = formatInboxWhen(message.timestamp);
   const metaLine = ['Gmail', message.sender, when].filter(Boolean).join(' · ');

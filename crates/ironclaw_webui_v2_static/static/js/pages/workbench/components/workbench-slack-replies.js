@@ -25,7 +25,7 @@ function slackMeta(item) {
     .join(' · ');
 }
 
-function SlackReplyCard({ item, onReply, onDismiss }) {
+export function SlackReplyCard({ item, onReply, onDismiss }) {
   const [picking, setPicking] = React.useState(false);
   const canDismiss = typeof onDismiss === 'function';
   return html`
