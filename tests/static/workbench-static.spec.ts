@@ -3208,6 +3208,60 @@ test('static workbench: the AUTO-judged home shows an honest empty state when no
   await expect(page.getByTestId('workbench-slack-weighin')).toHaveCount(0);
 });
 
+test('static workbench: with the auto-judged brief active, the Replies filter still shows replies (no blank center)', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    autoBrief: true,
+    connectorAccounts: [
+      { toolkit: 'gmail', status: 'ACTIVE', user_id: 'pg-test' },
+      { toolkit: 'slack', status: 'ACTIVE', user_id: 'pg-test' }
+    ],
+    connectorReads: {
+      gmail: {
+        successful: true,
+        data: {
+          messages: [
+            {
+              messageId: 'm1',
+              threadId: 't1',
+              sender: 'Dana Lee <dana@customer.example>',
+              subject: 'Renewal terms for Q3',
+              snippet: 'net 60',
+              labelIds: ['UNREAD', 'INBOX']
+            }
+          ]
+        }
+      }
+    },
+    timelineMessages: [
+      {
+        kind: 'assistant',
+        content: JSON.stringify({
+          needsYou: [
+            {
+              id: 'm1',
+              source: 'Email',
+              sender: 'Dana Lee',
+              badges: ['Decision'],
+              context: 'Renewal terms need sign-off.',
+              suggestedReply: 'net 45 works.',
+              replyHref: ''
+            }
+          ],
+          worthWeighingIn: []
+        })
+      }
+    ]
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await expect(page.getByTestId('workbench-brief')).toBeVisible({ timeout: 15000 });
+  // Filtering to Replies must NOT strand a blank center: the brief is 'all'-only, so under an
+  // explicit Replies filter the raw reply cards are shown (the user asked for them).
+  await page.getByTestId('workbench-triage-pill-replies').click();
+  await expect(page.getByTestId('workbench-decisions')).toBeVisible();
+});
+
 test('static workbench: real unread mail renders as v13 Needs you cards', async ({ page }) => {
   // v13 fidelity: unread inbox mail is the primary "what needs me" surface and
   // renders as decision cards (subject as the decision, sender + date as the

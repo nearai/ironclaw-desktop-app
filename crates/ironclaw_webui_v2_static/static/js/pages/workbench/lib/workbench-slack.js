@@ -487,7 +487,7 @@ const BLOCKER_RE =
 const DEADLINE_RE =
   /\b(eod|eow|cob|by (today|tomorrow|mon|tue|wed|thu|fri|tonight|noon)|deadline|due (today|tomorrow|by)|time[- ]sensitive)\b/i;
 const SOCIAL_RE =
-  /\b(congrat\w*|welcome|happy (birthday|friday)|kudos|shout[- ]?out|excited to|thrilled to|offsite|lunch|coffee|good morning|on (pto|vacation)|no updates|same as yesterday|anniversar\w*|livestream|tuning in(to)?|reshare|please start using|brand refresh|giving away|watch the recording)\b|[🎉🥳🙌🎂]/u;
+  /\b(congrat\w*|welcome|happy (birthday|friday)|kudos|shout[- ]?out|excited to|thrilled to|offsite|lunch|coffee|good morning|on (pto|vacation)|no updates|same as yesterday|anniversar\w*|livestream|tuning in(to)?|reshare|please start using|brand refresh|watch the recording)\b|[🎉🥳🙌🎂]/u;
 // Legal / regulatory / contract / governance substance — a CLO must weigh in on these
 // however casually they're phrased. This is a POSITIVE relevance signal (folded into the
 // urgency family), NEVER a drop: such a thread ranks higher and is protected from the
@@ -504,7 +504,7 @@ const SOCIAL_RE =
 // substantive signal instead of lexically filtering the noise. (Semantic de-noising of the
 // default-home weigh-in is the LLM radar's job — buildWorthWeighingInPrompt.)
 const LEGAL_RE =
-  /\b(s\.?e\.?c\.?|doj|ftc|finra|sox|regulat\w+|subpoena|injunction|litigation|lawsuit|settlement|indemnit\w+|liabilit\w+|breach|msa|nda|sow|term sheet|addendum|amendment|countersign\w*|auto[- ]?renew\w*|renewal|cap[- ]?table|cease[- ]?and[- ]?desist|charter|bylaws|tos|terms of service|privilege\w*|gdpr|data[- ]processing|dealbreaker)\b|\b(outside|general)\s+counsel\b/i;
+  /\b(s\.?e\.?c\.?|doj|ftc|finra|sox|regulat\w+|subpoena|injunction|litigation|lawsuit|settlement|indemnit\w+|liabilit\w+|breach|msa|nda|sow|term sheet|addendum|amendment|countersign\w*|renew\w*|cap[- ]?table|cease[- ]?and[- ]?desist|charter|bylaws|tos|terms of service|privilege\w*|gdpr|data[- ]processing|dealbreaker)\b|\b(outside|general)\s+counsel\b/i;
 // Financial misconduct / fraud — the single highest-stakes class for a CLO. Folded into the
 // same positive urgency boost as LEGAL_RE (never a drop): a "funds were misappropriated"
 // line in a group DM must surface to the top, not sink. Kept separate for clarity + testing.

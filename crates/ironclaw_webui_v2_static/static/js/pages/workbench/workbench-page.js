@@ -410,8 +410,11 @@ function HomeView(props) {
   // When a briefing is present or being synthesized, IT is the authoritative "what needs you"
   // view (the model judged the same email/Slack signals and dropped the noise). Suppress the
   // raw deterministic decision + Slack sections so the home shows the judged result, not a
-  // second, noisier copy below it.
+  // second, noisier copy below it — but ONLY under the default 'all' view. Under an explicit
+  // "Replies" filter the user asked to see the raw replies, and the brief (which is 'all'-only)
+  // doesn't render there, so suppressing them would strand a blank, inescapable center.
   const briefingActive = Boolean(props.briefing) || Boolean(props.briefingPending);
+  const suppressDeterministic = briefingActive && centerFilter === 'all';
   const triageStatusFilter = triageStatusFilterFor(centerFilter);
   const filterHasContent = centerFilterHasContent(centerFilter, countCtx);
   const activeLabel = CENTER_FILTERS.find((f) => f.id === centerFilter)?.label || '';
@@ -485,7 +488,7 @@ function HomeView(props) {
                 onDismiss=${props.onDismissSlackBlockers}
               />`
             : null}
-          ${visible('replies') && !briefingActive
+          ${visible('replies') && !suppressDeterministic
             ? html`<${WorkbenchDecisions}
                 gmailReady=${props.gmailReady}
                 messages=${props.decisionMessages}
@@ -494,14 +497,14 @@ function HomeView(props) {
                 onDismiss=${props.onDismissDecision}
               />`
             : null}
-          ${visible('replies') && !briefingActive
+          ${visible('replies') && !suppressDeterministic
             ? html`<${WorkbenchSlackReplies}
                 items=${props.slackAwaiting}
                 onReply=${props.onSlackReply}
                 onDismiss=${props.onSlackDismiss}
               />`
             : null}
-          ${visible('replies') && !briefingActive
+          ${visible('replies') && !suppressDeterministic
             ? html`<${WorkbenchSlackReplies}
                 items=${props.slackWeighIn}
                 onReply=${props.onSlackReply}

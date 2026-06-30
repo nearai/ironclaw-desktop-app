@@ -1053,6 +1053,30 @@ test('scoreSlackRelevance: anniversary/livestream/reshare chatter is dampened as
   }
 });
 
+test('scoreSlackRelevance: rights/renews legal idiom is NOT dropped (adversarial over-drop fix)', () => {
+  // A prior SOCIAL_RE "giving away" token false-dropped "giving away our right to sue", and a
+  // missing LEGAL_RE "renew\\w*" token left "the agreement renews silently" unprotected — both
+  // 13x score collapses caught by the review. These must survive.
+  for (const text of [
+    "we're effectively giving away our right to sue here — worth a closer look before we sign",
+    'the agreement renews silently unless we send notice 30 days before the term'
+  ]) {
+    const r = scoreSlackRelevance(
+      {
+        who: 'UCOUNSEL',
+        raw: text,
+        text,
+        ts: tsAgo(0.2),
+        reply_count: 5,
+        reply_users: ['UA', 'UB', 'UC', 'UD']
+      },
+      { selfUserId: 'UME', kind: 'weighin', footprint: buildFootprint([], {}) }
+    );
+    assert.equal(r.isSocial, false, `not social: ${text.slice(0, 36)}`);
+    assert.equal(r.drop, false, `kept, not over-dropped: ${text.slice(0, 36)}`);
+  }
+});
+
 // ---- Legal/regulatory substance is NEVER dropped (adversarial-review regression) -----
 // An adversarial review proved that a lexical "drop announcements" filter false-drops
 // real legal threads, because legal posts share the IDENTICAL broadcast forms ("Hi team",
