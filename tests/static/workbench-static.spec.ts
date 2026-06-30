@@ -4056,8 +4056,8 @@ test('static workbench: Review lists Drive documents and builds a pending grid o
           files: [
             {
               id: 'f1',
-              name: 'Acme NDA.pdf',
-              mimeType: 'application/pdf',
+              name: 'Acme NDA',
+              mimeType: 'application/vnd.google-apps.document',
               modifiedTime: '2026-06-28T10:00:00Z'
             },
             {
@@ -4077,20 +4077,25 @@ test('static workbench: Review lists Drive documents and builds a pending grid o
   // The picker lists the real Drive documents (no fabricated entries).
   const picker = page.getByTestId('workbench-review-picker');
   await expect(picker).toBeVisible();
-  await expect(picker).toContainText('Acme NDA.pdf');
+  await expect(picker).toContainText('Acme NDA');
   await expect(picker).toContainText('Northwind MSA.docx');
+
+  // The non-Google-Doc (.docx) is shown but not selectable yet — honest about the current limit.
+  const checks = page.getByTestId('workbench-review-doc');
+  await expect(checks.nth(1)).toBeDisabled();
+  await expect(picker).toContainText('Google Docs only');
 
   // No grid until a document is chosen.
   await expect(page.getByTestId('workbench-review-grid')).toHaveCount(0);
 
-  // Selecting a document builds a grid row with the 5 NDA columns; every cell is PENDING
+  // Selecting the Google Doc builds a grid row with the 5 NDA columns; every cell is PENDING
   // (no LLM has run, so no fabricated values).
-  await page.getByTestId('workbench-review-doc').first().check();
+  await checks.first().check();
   const grid = page.getByTestId('workbench-review-grid');
   await expect(grid).toBeVisible();
   await expect(grid).toContainText('Governing Law');
   await expect(grid).toContainText('Change of Control');
-  await expect(grid).toContainText('Acme NDA.pdf');
+  await expect(grid).toContainText('Acme NDA');
   await expect(grid.locator('.wb13-rev-pending').first()).toBeVisible();
 });
 
@@ -4102,10 +4107,12 @@ test('static workbench: Review run surfaces an honest error for an unreadable do
     connectorReads: {
       GOOGLEDRIVE_LIST_FILES: {
         successful: true,
-        data: { files: [{ id: 'f1', name: 'Scanned NDA.pdf', mimeType: 'application/pdf' }] }
+        data: {
+          files: [{ id: 'f1', name: 'Acme NDA', mimeType: 'application/vnd.google-apps.document' }]
+        }
       },
-      // a non-Google-Doc body read fails → the extractor must surface an honest error, not a guess
-      GOOGLEDOCS_GET_DOCUMENT_BY_ID: { successful: false, error: 'not a google doc' }
+      // a Google Doc whose body read fails at runtime → honest error, never a fabricated guess
+      GOOGLEDOCS_GET_DOCUMENT_BY_ID: { successful: false, error: 'document unavailable' }
     }
   });
   await page.goto('/v2/workbench?token=workbench-static-token');
@@ -4255,4 +4262,34 @@ test('static workbench: Review supports a custom column — add it, it fills on 
   await cols.getByTestId('workbench-review-col-remove').click();
   await expect(cols).not.toContainText('Indemnity cap');
   await expect(grid.getByRole('columnheader', { name: 'Indemnity cap' })).toHaveCount(0);
+});
+
+test('static workbench: Review is honest when no Drive file is a Google Doc (none selectable, clear note)', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {
+    connectorAccounts: [{ toolkit: 'googledrive', status: 'ACTIVE', user_id: 'pg-test' }],
+    connectorReads: {
+      GOOGLEDRIVE_LIST_FILES: {
+        successful: true,
+        data: {
+          files: [
+            { id: 'p1', name: 'Scanned NDA.pdf', mimeType: 'application/pdf' },
+            { id: 'p2', name: 'Term sheet.xlsx', mimeType: 'application/vnd.ms-excel' }
+          ]
+        }
+      }
+    }
+  });
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByTestId('workbench-nav-review').click();
+
+  const picker = page.getByTestId('workbench-review-picker');
+  await expect(picker).toContainText('Scanned NDA.pdf'); // still listed honestly
+  await expect(page.getByTestId('workbench-review-no-docs')).toBeVisible();
+  // every row is disabled and nothing can be selected, so Run never enables
+  const checks = page.getByTestId('workbench-review-doc');
+  await expect(checks.nth(0)).toBeDisabled();
+  await expect(checks.nth(1)).toBeDisabled();
+  await expect(page.getByTestId('workbench-review-run')).toBeDisabled();
 });

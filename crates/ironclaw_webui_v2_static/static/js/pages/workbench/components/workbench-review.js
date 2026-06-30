@@ -9,7 +9,14 @@ import {
 } from '../lib/workbench-review-columns.js';
 import { runReview } from '../lib/workbench-review-run.js';
 import { makeReviewExtractor, runReviewChatTurn } from '../lib/workbench-review-extract-doc.js';
+import { GOOGLE_DOC_MIME } from '../lib/workbench-drive.js';
 import { ReviewGrid } from './workbench-review-grid.js';
+
+// Tabular Review reads native Google Docs today (the read-only connector path is
+// GOOGLEDOCS_GET_DOCUMENT_BY_ID; PDFs/.docx blobs need server-side text extraction, not yet wired).
+// So the picker marks non-Doc files as not-yet-reviewable up front instead of letting a reviewer
+// select them and get a wall of "couldn't read".
+const isReviewableFile = (file) => file && file.mimeType === GOOGLE_DOC_MIME;
 
 // Tabular Review — review a set of documents across named columns, each cell a
 // {summary, flag, reasoning} the user can scan at a glance. Pattern REIMPLEMENTED from the
@@ -77,7 +84,11 @@ const REVIEW_STYLE = `
   }
   .wb13-review-pick-row + .wb13-review-pick-row { border-top: 1px solid var(--wb-line); }
   .wb13-review-pick-row input { width: 16px; height: 16px; flex: none; }
+  .wb13-review-pick-row.is-unavailable { cursor: default; color: var(--wb-muted); }
+  .wb13-review-pick-row.is-unavailable .wb13-review-pick-name { color: var(--wb-muted); }
   .wb13-review-pick-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .wb13-review-pick-tag { margin-left: auto; flex: none; font-size: 11px; color: var(--wb-faint); white-space: nowrap; }
+  .wb13-review-pick-note { padding: 11px 16px; border-top: 1px solid var(--wb-line); font-size: 12.5px; color: var(--wb-muted); line-height: 1.5; }
   .wb13-review-runbar { display: flex; align-items: center; gap: 12px; }
   .wb13-review-hint { font-size: 13px; color: var(--wb-muted); max-width: 560px; }
   .wb13-review-cols {
@@ -206,8 +217,9 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
       else next.add(id);
       return next;
     });
+  const reviewableDocs = docs.filter(isReviewableFile);
   const selectedDocs = docs
-    .filter((file) => selected.has(file.id))
+    .filter((file) => selected.has(file.id) && isReviewableFile(file))
     .map((file) => ({ id: file.id, name: file.name }));
 
   const onRun = async () => {
@@ -255,19 +267,33 @@ export function ReviewView({ files = [], driveReady = false, driveLoading = fals
           <div className="wb13-review-pick-head">
             Documents<span className="wb13-review-pick-count">${selected.size} selected</span>
           </div>
-          ${docs.map(
-            (file) => html`
-              <label className="wb13-review-pick-row" key=${file.id}>
+          ${docs.map((file) => {
+            const reviewable = isReviewableFile(file);
+            return html`
+              <label
+                className=${`wb13-review-pick-row${reviewable ? '' : ' is-unavailable'}`}
+                key=${file.id}
+              >
                 <input
                   type="checkbox"
                   data-testid="workbench-review-doc"
                   checked=${selected.has(file.id)}
-                  onChange=${() => toggle(file.id)}
+                  disabled=${!reviewable}
+                  onChange=${() => reviewable && toggle(file.id)}
                 />
                 <span className="wb13-review-pick-name" title=${file.name}>${file.name}</span>
+                ${reviewable
+                  ? null
+                  : html`<span className="wb13-review-pick-tag">Google Docs only</span>`}
               </label>
-            `
-          )}
+            `;
+          })}
+          ${docs.length && !reviewableDocs.length
+            ? html`<div className="wb13-review-pick-note" data-testid="workbench-review-no-docs">
+                Tabular Review reads Google Docs today. None of these Drive files are Google Docs
+                yet.
+              </div>`
+            : null}
         </div>
         <div className="wb13-review-cols" data-testid="workbench-review-cols">
           <div className="wb13-review-cols-head">Columns · ${columns.length}</div>
