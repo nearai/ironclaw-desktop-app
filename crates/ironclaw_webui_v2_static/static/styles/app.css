@@ -25,47 +25,47 @@
   --v2-safe-bottom: max(0.75rem, env(safe-area-inset-bottom));
   --v2-safe-top:    max(0.5rem, env(safe-area-inset-top));
 
-  /* Canvas / surfaces */
-  --v2-canvas:        #f6f8fb;
+  /* Canvas / surfaces — warm paper */
+  --v2-canvas:        #faf7f1;
   --v2-canvas-strong: #ffffff;
-  --v2-surface:       #ffffff;
-  --v2-surface-soft:  #f0f4f8;
-  --v2-surface-muted: #e7edf4;
+  --v2-surface:       #fffdf9;
+  --v2-surface-soft:  #f3eddf;
+  --v2-surface-muted: #ebe3d3;
 
   /* Card tokens — used by Card component */
-  --v2-card-bg:     rgba(255, 255, 255, 0.96);
-  --v2-card-border: rgba(24, 38, 55, 0.1);
-  --v2-card-shadow: none;
+  --v2-card-bg:     #fffdf9;
+  --v2-card-border: rgba(61, 50, 34, 0.12);
+  --v2-card-shadow: 0 1px 2px rgba(61, 50, 34, 0.05);
 
-  /* Panel border (nav items, dividers, form borders) */
-  --v2-panel-border: rgba(24, 38, 55, 0.1);
+  /* Panel border (nav items, dividers, form borders) — warm hairline */
+  --v2-panel-border: rgba(61, 50, 34, 0.1);
 
-  /* Rail (input bg in dark) */
-  --v2-rail:    #edf3f8;
-  --v2-input-bg: #ffffff;
+  /* Rail (input bg) */
+  --v2-rail:    #f3eddf;
+  --v2-input-bg: #fffdf9;
 
-  /* Typography */
-  --v2-text:        #263241;
-  --v2-text-strong: #101820;
-  --v2-text-muted:  #5d6b7c;
-  --v2-text-faint:  #67707c;
+  /* Typography — warm ink */
+  --v2-text:        #3b342b;
+  --v2-text-strong: #211c15;
+  --v2-text-muted:  #6f6658;
+  --v2-text-faint:  #8d8475;
   --v2-inverse:     #ffffff;
-  --v2-ink:         #0f1720;
+  --v2-ink:         #211c15;
 
   /* Controls */
   --v2-select-chevron: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20width%3D%2712%27%20height%3D%2712%27%20viewBox%3D%270%200%2012%2012%27%20fill%3D%27none%27%20stroke%3D%27%235f7183%27%20stroke-width%3D%271.8%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M2.5%204.5%206%208l3.5-3.5%27/%3E%3C/svg%3E");
 
-  /* Accent — signal blue (DESIGN.md: the user's hand) */
-  --v2-accent:       #0091fd;
-  --v2-accent-strong:#0077d4;
-  --v2-accent-soft:  rgba(0, 145, 253, 0.12);
-  --v2-accent-text:  #0a64ba;
-  --v2-accent-btn:   #0077d4;
+  /* Accent — the user's hand: refined signal blue */
+  --v2-accent:       #2f6fed;
+  --v2-accent-strong:#2360d4;
+  --v2-accent-soft:  rgba(47, 111, 237, 0.1);
+  --v2-accent-text:  #1f56c2;
+  --v2-accent-btn:   #2f6fed;
 
-  /* The agent's hand (DESIGN.md): gold — generated work, proposals */
-  --v2-gold:      #b07a00;
-  --v2-gold-soft: rgba(251, 191, 36, 0.16);
-  --v2-gold-text: #8a6100;
+  /* The agent's hand: clay — generated work, proposals */
+  --v2-gold:      #c2603a;
+  --v2-gold-soft: rgba(194, 96, 58, 0.12);
+  --v2-gold-text: #a8472a;
 
   /* Semantic colours */
   --v2-positive-soft: rgba(32, 210, 154, 0.13);
