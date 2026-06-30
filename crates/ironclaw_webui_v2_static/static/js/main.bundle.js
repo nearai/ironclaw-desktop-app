@@ -8859,6 +8859,54 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
                 </button>
               </div>`}
           ${""}
+          ${t==="all"&&w>0?l`<div className="wb13-handled-card" data-testid="workbench-handled-card">
+                <style>
+                  .wb13-handled-card {
+                    display: flex;
+                    align-items: center;
+                    gap: 11px;
+                    margin-top: 22px;
+                    padding: 13px 16px;
+                    background: var(--wb-line-2);
+                    border-radius: 12px;
+                  }
+                  .wb13-handled-card .wb13-handled-check {
+                    flex: none;
+                    color: var(--wb-good);
+                  }
+                  .wb13-handled-card .wb13-handled-text {
+                    flex: 1;
+                    font-size: 13px;
+                    line-height: 1.45;
+                    color: var(--wb-ink-2);
+                  }
+                  .wb13-handled-card .wb13-handled-text b {
+                    color: var(--wb-ink);
+                    font-weight: 600;
+                  }
+                </style>
+                <svg
+                  className="wb13-handled-check"
+                  width="17"
+                  height="17"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="m20 6-11 11-5-5"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <div className="wb13-handled-text">
+                  <b>${w} ${w===1?"item":"items"} handled overnight</b> — triaged
+                  and logged with receipts; nothing went out without your approval.
+                </div>
+              </div>`:null}
+          ${""}
           ${t==="all"?l`<${g3}
                 pages=${u}
                 onOpen=${e.onOpenMessage}

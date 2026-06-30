@@ -577,6 +577,12 @@ test('static workbench: receipts feed populates recent receipts when advertised'
   await expect(triage).toContainText('Draft saved for Northwind');
   await expect(triage).toContainText('Gmail draft created; nothing was sent.');
   expect(receiptsRequests).toEqual(['GET /api/webchat/v2/receipts']);
+
+  // Direction B: the handled-overnight summary card closes the triage when work was cleared.
+  const handled = page.getByTestId('workbench-handled-card');
+  await expect(handled).toBeVisible();
+  await expect(handled).toContainText('1 item handled overnight');
+  await expect(handled).toContainText('without your approval');
 });
 
 test('static workbench: global feed stays quiet until the gateway advertises it', async ({

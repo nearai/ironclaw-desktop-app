@@ -571,6 +571,61 @@ function HomeView(props) {
               </div>`
             : null}
           ${
+            /* Handled-overnight summary (Direction B comp): a quiet reassurance card closing the
+               triage — what the agent cleared without needing you. Count = the receipts group
+               (real completed actions); honest summary, no fabricated specifics, and no "View all"
+               yet (there is no receipts-detail view to open). */ ''
+          }
+          ${centerFilter === 'all' && handled > 0
+            ? html`<div className="wb13-handled-card" data-testid="workbench-handled-card">
+                <style>
+                  .wb13-handled-card {
+                    display: flex;
+                    align-items: center;
+                    gap: 11px;
+                    margin-top: 22px;
+                    padding: 13px 16px;
+                    background: var(--wb-line-2);
+                    border-radius: 12px;
+                  }
+                  .wb13-handled-card .wb13-handled-check {
+                    flex: none;
+                    color: var(--wb-good);
+                  }
+                  .wb13-handled-card .wb13-handled-text {
+                    flex: 1;
+                    font-size: 13px;
+                    line-height: 1.45;
+                    color: var(--wb-ink-2);
+                  }
+                  .wb13-handled-card .wb13-handled-text b {
+                    color: var(--wb-ink);
+                    font-weight: 600;
+                  }
+                </style>
+                <svg
+                  className="wb13-handled-check"
+                  width="17"
+                  height="17"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="m20 6-11 11-5-5"
+                    stroke="currentColor"
+                    stroke-width="2.2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <div className="wb13-handled-text">
+                  <b>${handled} ${handled === 1 ? 'item' : 'items'} handled overnight</b> — triaged
+                  and logged with receipts; nothing went out without your approval.
+                </div>
+              </div>`
+            : null}
+          ${
             /* FYI cluster — below everything actionable. "New in Notion" is recent-activity
                 context, not work that needs the user; it sits beneath the Triage cockpit and
                 the owed replies so the column answers "what needs me?" first, then "what
