@@ -210,3 +210,21 @@ export function redlineClauses(origText, revText) {
   }
   return result.filter(Boolean).map((clause, idx) => ({ id: `clause-${idx}`, ...clause }));
 }
+
+// Resolve a redline into final text given per-clause decisions ({clauseId: 'accept' | 'reject'}).
+// ACCEPT (the default) takes the revision: a modified clause becomes its revised wording, an added
+// clause is kept, a removed clause is dropped. REJECT keeps the original: a modified clause reverts,
+// an added clause is dropped, a removed clause is kept. Unchanged clauses always pass through.
+// Pure — a wrong resolution would be a wrong final document, so this is the single source of truth.
+export function resolvedText(clauses, decisions) {
+  const list = Array.isArray(clauses) ? clauses : [];
+  const map = decisions && typeof decisions === 'object' ? decisions : {};
+  return list
+    .map((clause) => {
+      if (!clause || typeof clause !== 'object') return '';
+      const text = map[clause.id] === 'reject' ? clause.before : clause.after;
+      return typeof text === 'string' ? text : '';
+    })
+    .filter((text) => text.length > 0)
+    .join('\n');
+}

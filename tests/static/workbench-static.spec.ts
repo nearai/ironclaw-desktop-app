@@ -4352,3 +4352,37 @@ test('static workbench: the Redline view shows tracked changes per clause (inser
   // The Fee clause is unchanged — no fabricated edits there.
   await expect(page.getByTestId('workbench-redline-summary')).toContainText('changed');
 });
+
+test('static workbench: Redline accept/reject toggles a clause decision and updates the resolved count', async ({
+  page
+}) => {
+  await installWorkbenchMocks(page, {});
+  await page.goto('/v2/workbench?token=workbench-static-token');
+  await page.getByTestId('workbench-nav-redline').click();
+  await page.getByTestId('workbench-redline-original').fill('Term: two years.');
+  await page.getByTestId('workbench-redline-revised').fill('Term: three years.');
+
+  const clause = page.locator('[data-testid="workbench-redline-clause"][data-kind="modified"]');
+  await expect(clause).toHaveAttribute('data-decision', 'accept'); // accepted by default
+  await expect(page.getByTestId('workbench-redline-count')).toContainText(
+    '1 of 1 changes accepted'
+  );
+
+  // Reject → the decision flips and the count reflects a revert to the original wording.
+  await clause.getByTestId('workbench-redline-reject').click();
+  await expect(clause).toHaveAttribute('data-decision', 'reject');
+  await expect(clause.getByTestId('workbench-redline-reject')).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  );
+  await expect(page.getByTestId('workbench-redline-count')).toContainText(
+    'reverted to the original'
+  );
+
+  // Accept again → back to taking the revision.
+  await clause.getByTestId('workbench-redline-accept').click();
+  await expect(clause).toHaveAttribute('data-decision', 'accept');
+  await expect(page.getByTestId('workbench-redline-count')).toContainText(
+    '1 of 1 changes accepted'
+  );
+});

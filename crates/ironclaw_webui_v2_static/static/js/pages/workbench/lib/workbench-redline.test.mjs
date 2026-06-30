@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { tokenize, diffWords, splitClauses, redlineClauses } from './workbench-redline.js';
+import {
+  tokenize,
+  diffWords,
+  splitClauses,
+  redlineClauses,
+  resolvedText
+} from './workbench-redline.js';
 
 // The two reconstruction invariants every diff must satisfy:
 //   equal+delete segments rejoin to the original; equal+insert segments rejoin to the revised.
@@ -165,4 +171,42 @@ test('redlineClauses: identical documents are entirely unchanged', () => {
   const clauses = redlineClauses(doc, doc);
   assert.ok(clauses.every((c) => c.kind === 'unchanged' && c.changed === false));
   assert.equal(clauses.length, 3);
+});
+
+test('resolvedText: accept-all yields the revised document, reject-all yields the original', () => {
+  const orig = 'Term: two years.\nFee: one hundred.\nLaw: Delaware.';
+  const rev = 'Term: three years.\nFee: one hundred.\nNotices: by email.';
+  const clauses = redlineClauses(orig, rev);
+  // accept-all == the revised clauses; reject-all == the original clauses (whitespace normalized
+  // by splitClauses, which is the documented clause-segmentation contract).
+  assert.equal(resolvedText(clauses, {}), splitClauses(rev).join('\n'));
+  const rejectAll = Object.fromEntries(clauses.map((c) => [c.id, 'reject']));
+  assert.equal(resolvedText(clauses, rejectAll), splitClauses(orig).join('\n'));
+});
+
+test('resolvedText: rejecting a modified clause keeps its original wording; accepting keeps the revision', () => {
+  const orig = 'Term: two years.\nLaw: Delaware.';
+  const rev = 'Term: three years.\nLaw: Delaware.';
+  const clauses = redlineClauses(orig, rev);
+  const termId = clauses.find((c) => c.kind === 'modified').id;
+  assert.match(resolvedText(clauses, { [termId]: 'reject' }), /Term: two years\./);
+  assert.match(resolvedText(clauses, { [termId]: 'accept' }), /Term: three years\./);
+});
+
+test('resolvedText: an added clause is kept on accept and dropped on reject; a removed clause is the reverse', () => {
+  const added = redlineClauses('A.\nB.', 'A.\nNEW clause here.\nB.');
+  const addId = added.find((c) => c.kind === 'added').id;
+  assert.match(resolvedText(added, {}), /NEW clause here\./); // accepted by default → kept
+  assert.doesNotMatch(resolvedText(added, { [addId]: 'reject' }), /NEW clause here\./); // dropped
+
+  const removed = redlineClauses('A.\nGONE clause here.\nB.', 'A.\nB.');
+  const remId = removed.find((c) => c.kind === 'removed').id;
+  assert.doesNotMatch(resolvedText(removed, {}), /GONE clause here\./); // accept removal → dropped
+  assert.match(resolvedText(removed, { [remId]: 'reject' }), /GONE clause here\./); // reject → kept
+});
+
+test('resolvedText: tolerant of junk input', () => {
+  assert.equal(resolvedText(null, null), '');
+  assert.equal(resolvedText([], {}), '');
+  assert.equal(resolvedText([{ id: 'x', before: '', after: '' }], {}), '');
 });
