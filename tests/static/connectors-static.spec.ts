@@ -119,12 +119,12 @@ test('static connectors: registry clicks keep slash refs out of lifecycle URLs',
   }
 });
 
-test('static connectors: registry surfaces honest BLOCKED and NEEDS SETUP readiness at rest', async ({
+test('static connectors: registry surfaces honest Blocked and Needs setup readiness at rest', async ({
   page
 }) => {
   // connections-1: a card may not imply readiness the gateway cannot prove. The
   // registry status badge reads a projected connect phase, so an at-rest card
-  // shows BLOCKED (hosted Google OAuth unavailable) or NEEDS SETUP (credentials
+  // shows Blocked (hosted Google OAuth unavailable) or Needs setup (credentials
   // required) instead of a fake "connected" state.
   const calls: CapturedCall[] = [];
   await installConnectorMocks(page, calls, [
@@ -152,13 +152,13 @@ test('static connectors: registry surfaces honest BLOCKED and NEEDS SETUP readin
 
   const gmailCard = page.getByTestId('registry-card-gmail');
   await expect(gmailCard).toBeVisible();
-  await expect(gmailCard.getByText('BLOCKED', { exact: true })).toBeVisible();
-  await expect(gmailCard.getByText('AVAILABLE', { exact: true })).toHaveCount(0);
+  await expect(gmailCard.getByText('Blocked', { exact: true })).toBeVisible();
+  await expect(gmailCard.getByText('Available', { exact: true })).toHaveCount(0);
 
   const notionCard = page.getByTestId('registry-card-notion');
   await expect(notionCard).toBeVisible();
-  await expect(notionCard.getByText('NEEDS SETUP', { exact: true })).toBeVisible();
-  await expect(notionCard.getByText('AVAILABLE', { exact: true })).toHaveCount(0);
+  await expect(notionCard.getByText('Needs setup', { exact: true })).toBeVisible();
+  await expect(notionCard.getByText('Available', { exact: true })).toHaveCount(0);
 
   // At-rest readiness is descriptive only — no install/lifecycle calls fire
   // just from rendering the catalog.

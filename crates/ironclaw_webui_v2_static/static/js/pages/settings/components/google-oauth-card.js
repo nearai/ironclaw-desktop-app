@@ -81,7 +81,7 @@ export function GoogleOauthCard() {
               : 'border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] text-[var(--v2-warning-text)]'
           ].join(' ')}
         >
-          ${savedId ? 'ready' : 'needs client ID'}
+          ${savedId ? 'Ready' : 'Needs client ID'}
         </span>
       </div>
       <p className="mb-3 text-sm leading-relaxed text-[var(--v2-text-muted)]">

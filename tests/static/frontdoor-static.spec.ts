@@ -171,10 +171,15 @@ test('static front door: empty desk keeps zero-state pills neutral and shows at 
     const countPill = section.locator('span').filter({ hasText: /^0$/ });
     await expect(countPill).toHaveCount(1);
     const pillClass = (await countPill.first().getAttribute('class')) || '';
-    expect(pillClass).toContain('var(--v2-surface-soft)');
-    expect(pillClass).toContain('var(--v2-text-muted)');
+    // De-boxed warm-light count: the zero-state reads as quiet faint text, not a
+    // filled chip. onboarding-desk-3 honesty holds — a meaningless "0" never
+    // earns the gold/warning attribution glow reserved for real items.
+    expect(pillClass).toContain('var(--v2-text-faint)');
+    expect(pillClass).not.toContain('var(--v2-surface-soft)');
     expect(pillClass).not.toContain('var(--v2-gold-soft)');
+    expect(pillClass).not.toContain('var(--v2-gold-text)');
     expect(pillClass).not.toContain('var(--v2-warning-soft)');
+    expect(pillClass).not.toContain('var(--v2-warning-text)');
   }
 
   await expect(panel.getByText('Nothing waiting on you.')).toBeVisible();

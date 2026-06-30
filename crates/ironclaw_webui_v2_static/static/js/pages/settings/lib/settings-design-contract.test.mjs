@@ -32,12 +32,15 @@ test('settings status states use semantic desktop tokens', async () => {
   assert.deepEqual(violations, []);
 });
 
-// Settings section eyebrows must share ONE treatment. The cleaned Inference
-// summary uses non-mono `text-xs font-semibold uppercase tracking-[0.08em]`;
-// the shared field-group and language headers rendered on the same scroll must
-// not flip back to the old `font-mono text-[11px]` eyebrow (review 2026-06-12
-// line 549/559: "rationalize Settings typography and reduce mono overuse").
+// Settings section headers must share ONE treatment. The warm-light restyle
+// retired the uppercase eyebrow entirely: the Inference summary now renders the
+// quiet sentence-case section label `text-[13px] font-medium
+// text-[var(--v2-text-muted)]`, and the shared field-group and language headers
+// rendered on the same scroll must match it (no uppercase, no mono). Guards
+// review 2026-06-12 line 549/559 ("rationalize Settings typography and reduce
+// mono overuse") under the new label.
 const monoEyebrowPattern = /font-mono text-\[11px\] uppercase tracking-\[0\.14em\]/;
+const sectionLabelPattern = /text-\[13px\] font-medium text-\[var\(--v2-text-muted\)\]/;
 
 test('shared settings section headers stay non-mono like the inference summary', async () => {
   const fieldSource = await readFile(
@@ -52,15 +55,19 @@ test('shared settings section headers stay non-mono like the inference summary',
   assert.doesNotMatch(
     fieldSource,
     monoEyebrowPattern,
-    'SettingsGroup header must match the non-mono inference eyebrow'
+    'SettingsGroup header must match the non-mono inference label'
   );
   assert.doesNotMatch(
     languageSource,
     monoEyebrowPattern,
-    'Language header must match the non-mono inference eyebrow'
+    'Language header must match the non-mono inference label'
   );
-  assert.match(fieldSource, /text-xs font-semibold uppercase tracking-\[0\.08em\]/);
-  assert.match(languageSource, /text-xs font-semibold uppercase tracking-\[0\.08em\]/);
+  // No uppercase eyebrow survives the warm-light restyle on either header.
+  assert.doesNotMatch(fieldSource, /uppercase/);
+  assert.doesNotMatch(languageSource, /uppercase/);
+  // Both share the canonical sentence-case section label.
+  assert.match(fieldSource, sectionLabelPattern);
+  assert.match(languageSource, sectionLabelPattern);
 });
 
 // Mobile-first touch-target law: the densest control surface in the app must

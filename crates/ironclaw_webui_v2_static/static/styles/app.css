@@ -48,7 +48,7 @@
   --v2-text:        #3b342b;
   --v2-text-strong: #211c15;
   --v2-text-muted:  #6f6658;
-  --v2-text-faint:  #8d8475;
+  --v2-text-faint:  #6f6657;
   --v2-inverse:     #ffffff;
   --v2-ink:         #211c15;
 
@@ -65,7 +65,7 @@
   /* The agent's hand: clay — generated work, proposals */
   --v2-gold:      #c2603a;
   --v2-gold-soft: rgba(194, 96, 58, 0.12);
-  --v2-gold-text: #a8472a;
+  --v2-gold-text: #9b3f24;
 
   /* Semantic colours */
   --v2-positive-soft: rgba(32, 210, 154, 0.13);

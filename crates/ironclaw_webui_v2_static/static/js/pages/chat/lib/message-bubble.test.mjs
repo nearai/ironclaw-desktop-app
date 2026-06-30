@@ -161,8 +161,14 @@ test('plain assistant prose is borderless while user turns keep the blue bubble'
   assert.doesNotMatch(assistantClass, /\bborder(?:-|_|\b)/);
   assert.doesNotMatch(assistantClass, /v2-gold/);
   assert.doesNotMatch(assistantClass, /\brounded-/);
-  assert.match(userClass, /\bbg-signal\/10\b/);
-  assert.match(userClass, /\bborder-signal\/25\b/);
+  // The user turn stays the one distinct blue bubble: warm-light tokens the
+  // soft blue fill + faint blue-tinted hairline instead of the legacy
+  // signal/10 + signal/25 raw classes.
+  assert.match(userClass, /bg-\[var\(--v2-accent-soft\)\]/);
+  assert.match(
+    userClass,
+    /border-\[color-mix\(in_srgb,var\(--v2-accent\)_22%,var\(--v2-panel-border\)\)\]/
+  );
   assert.match(userClass, /rounded-\[18px\]/);
   assert.match(messageShellClass(false, false), /max-w-\[min\(760px,92vw\)\]/);
   assert.match(messageShellClass(true, false), /max-w-\[min\(680px,86vw\)\]/);
@@ -246,9 +252,19 @@ test('assistant markdown work product renders as a first-class artifact panel', 
   assert.doesNotMatch(messageOuterClass(false, false), /\bw-full\b/);
   assert.match(messageShellClass(false, true), /\bw-full\b/);
   assert.match(messageShellClass(false, true), /max-w-\[min\(860px,92vw\)\]/);
-  assert.match(messageBodyClass('assistant', false, true), /bg-\[var\(--v2-card-bg\)\]/);
-  assert.match(messageBodyClass('assistant', false, true), /shadow-\[var\(--v2-card-shadow\)\]/);
-  assert.doesNotMatch(messageBodyClass('assistant', false, false), /bg-\[var\(--v2-card-bg\)\]/);
+  // Generated work product stays a first-class, visually distinct panel: the
+  // warm-light restyle de-boxes to a soft surface + hairline (no heavy card-bg
+  // fill or drop shadow), while plain assistant prose stays borderless.
+  assert.match(messageBodyClass('assistant', false, true), /bg-\[var\(--v2-surface-soft\)\]/);
+  assert.match(
+    messageBodyClass('assistant', false, true),
+    /border border-\[var\(--v2-panel-border\)\]/
+  );
+  assert.doesNotMatch(messageBodyClass('assistant', false, true), /shadow-\[/);
+  assert.doesNotMatch(
+    messageBodyClass('assistant', false, false),
+    /bg-\[var\(--v2-surface-soft\)\]/
+  );
 });
 
 test('assistant work-product panel exposes an explicit generated artifact header', () => {

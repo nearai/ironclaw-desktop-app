@@ -271,17 +271,23 @@ export function SidebarThreads({
             : isError
               ? html`<div
                   role="alert"
-                  className="mx-1 rounded-xl border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-2.5 text-[var(--v2-danger-text)]"
+                  className="mx-1 border-t border-[var(--v2-panel-border)] px-3 pt-3"
                 >
                   <div className="flex items-start gap-2">
-                    <${Icon} name="flag" className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth=${2} />
-                    <p className="text-[12px] leading-snug">Could not load conversations.</p>
+                    <${Icon}
+                      name="flag"
+                      className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--v2-danger-text)]"
+                      strokeWidth=${2}
+                    />
+                    <p className="text-[12px] leading-snug text-[var(--v2-text-muted)]">
+                      Could not load conversations.
+                    </p>
                   </div>
                   ${onRetry &&
                   html`<button
                     type="button"
                     onClick=${() => onRetry()}
-                    className="mt-1.5 inline-flex min-h-[44px] items-center gap-1 rounded-[6px] px-2 py-1 text-[12px] font-medium text-[var(--v2-danger-text)] hover:bg-[color-mix(in_srgb,var(--v2-danger-text)_12%,transparent)]"
+                    className="mt-1 inline-flex min-h-[44px] items-center gap-1 rounded-[6px] px-2 py-1 text-[12px] font-medium text-[var(--v2-accent)] hover:bg-[color-mix(in_srgb,var(--v2-accent)_10%,transparent)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]"
                   >
                     <${Icon} name="retry" className="h-3.5 w-3.5" /> Retry
                   </button>`}

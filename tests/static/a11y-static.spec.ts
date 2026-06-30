@@ -401,7 +401,11 @@ const mixedAutomations = [
   }
 ];
 
-const POSITIVE_GREEN = 'rgb(32, 210, 154)';
+// Warm-light is the default theme, so --v2-positive-text resolves to #077254
+// (the AA-passing light success green) rather than the dark #20d29a. The honesty
+// contract is unchanged: a completed run keeps this success token, distinct from
+// the gold enabled-state and the paused/errored tones.
+const POSITIVE_GREEN = 'rgb(7, 114, 84)';
 
 test('static automations: backed rows attribute enabled state in gold, not the live success tone', async ({
   page

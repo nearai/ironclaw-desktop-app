@@ -113,7 +113,7 @@ test('GoogleOauthCard exposes a stable deep-link target and blocked setup state'
   const cardProps = componentProps(findComponentNode(rendered, 'Card'), 'Card');
 
   assert.equal(cardProps.id, 'google-oauth');
-  assert.ok(scalars.includes('needs client ID'));
+  assert.ok(scalars.includes('Needs client ID'));
   assert.ok(
     scalars.includes(
       'Google connectors are blocked until a Desktop app client ID is saved here. Hosted Google OAuth is not available from this gateway yet.'
@@ -135,8 +135,10 @@ test('GoogleOauthCard renders ready copy when a client id is saved', () => {
   });
   const scalars = collectScalars(rendered);
 
-  assert.ok(scalars.includes('ready'));
+  assert.ok(scalars.includes('Ready'));
   assert.ok(
-    scalars.includes('Gmail and Calendar can now open browser sign-in from the Extensions registry.')
+    scalars.includes(
+      'Gmail and Calendar can now open browser sign-in from the Extensions registry.'
+    )
   );
 });

@@ -147,14 +147,14 @@ export function registryStatusBadge(entry, connectPhase) {
   const phase = connectPhase?.phase || '';
 
   if (phase === 'blocked-google-client-id') {
-    return { tone: 'danger', label: 'BLOCKED' };
+    return { tone: 'danger', label: 'Blocked' };
   }
 
   if (phase === 'needs-token' || connectorSetupGuidance(entry, { connectPhase })?.title) {
-    return { tone: 'warning', label: 'NEEDS SETUP' };
+    return { tone: 'warning', label: 'Needs setup' };
   }
 
-  return { tone: 'muted', label: 'AVAILABLE' };
+  return { tone: 'muted', label: 'Available' };
 }
 
 export function setupReadyForActivation({ secrets = [], fields = [] } = {}) {

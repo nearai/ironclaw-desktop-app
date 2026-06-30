@@ -177,25 +177,28 @@ test('registryStatusBadge flags a blocked Google client id as BLOCKED', () => {
       { package_ref: { id: 'tools/gmail' } },
       { phase: 'blocked-google-client-id' }
     ),
-    { tone: 'danger', label: 'BLOCKED' }
+    { tone: 'danger', label: 'Blocked' }
   );
 });
 
 test('registryStatusBadge flags a needs-token connector as NEEDS SETUP', () => {
-  assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/custom' } }, { phase: 'needs-token' }), {
-    tone: 'warning',
-    label: 'NEEDS SETUP'
-  });
+  assert.deepEqual(
+    registryStatusBadge({ package_ref: { id: 'tools/custom' } }, { phase: 'needs-token' }),
+    {
+      tone: 'warning',
+      label: 'Needs setup'
+    }
+  );
 });
 
 test('registryStatusBadge flags connectors with resting setup guidance as NEEDS SETUP', () => {
   assert.deepEqual(registryStatusBadge({ package_ref: { id: 'mcp-servers/notion' } }), {
     tone: 'warning',
-    label: 'NEEDS SETUP'
+    label: 'Needs setup'
   });
   assert.deepEqual(registryStatusBadge({ package_ref: { id: 'channels/slack' } }), {
     tone: 'warning',
-    label: 'NEEDS SETUP'
+    label: 'Needs setup'
   });
 });
 
@@ -206,23 +209,23 @@ test('registryStatusBadge flags blocked Google before its setup guidance', () =>
       { package_ref: { id: 'tools/google_calendar' } },
       { phase: 'blocked-google-client-id' }
     ),
-    { tone: 'danger', label: 'BLOCKED' }
+    { tone: 'danger', label: 'Blocked' }
   );
 });
 
 test('registryStatusBadge leaves a plain connector AVAILABLE at rest', () => {
   assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/web_search' } }), {
     tone: 'muted',
-    label: 'AVAILABLE'
+    label: 'Available'
   });
   // Google has no resting setup-guidance title, so it reads ready until a phase says otherwise.
   assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/gmail' } }), {
     tone: 'muted',
-    label: 'AVAILABLE'
+    label: 'Available'
   });
   assert.deepEqual(registryStatusBadge({ package_ref: { id: 'tools/web_search' } }, undefined), {
     tone: 'muted',
-    label: 'AVAILABLE'
+    label: 'Available'
   });
 });
 
