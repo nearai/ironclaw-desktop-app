@@ -1027,6 +1027,32 @@ test('scoreSlackRelevance: a high-engagement celebration weigh-in is dropped (so
   assert.equal(r.drop, true, 'vitality alone cannot rescue social chatter');
 });
 
+test('scoreSlackRelevance: anniversary/livestream/reshare chatter is dampened as social (extended SOCIAL_RE)', () => {
+  for (const text of [
+    "This Saturday marks David's 4-year anniversary at NEAR — huge thanks for all he's done.",
+    "I'm tuning into the Consensus livestream, sharing the link for anyone who wants to watch.",
+    'Illia did a great interview — every NEARian should reshare it on X.'
+  ]) {
+    const r = scoreSlackRelevance(
+      {
+        who: 'USTRANGER',
+        raw: text,
+        text,
+        ts: tsAgo(0.2),
+        reply_count: 6,
+        reply_users: ['UA', 'UB', 'UC', 'UD']
+      },
+      { selfUserId: 'UME', kind: 'weighin', footprint: buildFootprint([], {}) }
+    );
+    assert.equal(r.isSocial, true, `social: ${text.slice(0, 30)}`);
+    assert.equal(
+      r.drop,
+      true,
+      'non-legal celebration/livestream/reshare chatter drops even when popular'
+    );
+  }
+});
+
 // ---- Legal/regulatory substance is NEVER dropped (adversarial-review regression) -----
 // An adversarial review proved that a lexical "drop announcements" filter false-drops
 // real legal threads, because legal posts share the IDENTICAL broadcast forms ("Hi team",

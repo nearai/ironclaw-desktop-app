@@ -487,7 +487,7 @@ const BLOCKER_RE =
 const DEADLINE_RE =
   /\b(eod|eow|cob|by (today|tomorrow|mon|tue|wed|thu|fri|tonight|noon)|deadline|due (today|tomorrow|by)|time[- ]sensitive)\b/i;
 const SOCIAL_RE =
-  /\b(congrat\w*|welcome|happy (birthday|friday)|kudos|shout[- ]?out|excited to|thrilled to|offsite|lunch|coffee|good morning|on (pto|vacation)|no updates|same as yesterday)\b|[🎉🥳🙌🎂]/u;
+  /\b(congrat\w*|welcome|happy (birthday|friday)|kudos|shout[- ]?out|excited to|thrilled to|offsite|lunch|coffee|good morning|on (pto|vacation)|no updates|same as yesterday|anniversar\w*|livestream|tuning in(to)?|reshare|please start using|brand refresh|giving away|watch the recording)\b|[🎉🥳🙌🎂]/u;
 // Legal / regulatory / contract / governance substance — a CLO must weigh in on these
 // however casually they're phrased. This is a POSITIVE relevance signal (folded into the
 // urgency family), NEVER a drop: such a thread ranks higher and is protected from the
