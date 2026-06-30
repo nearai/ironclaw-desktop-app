@@ -2,6 +2,7 @@ import { access, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
+import { runStaticStatusTokenLint } from './lint-static-status-tokens.mjs';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const staticRoot = path.join(repoRoot, 'crates', 'ironclaw_webui_v2_static', 'static');
@@ -133,8 +134,16 @@ async function assertBundleFreshness() {
   }
 }
 
+async function assertAliasClassCoverage() {
+  const result = await runStaticStatusTokenLint();
+  if (!result.ok) {
+    fail(`alias colour / status token coverage gate failed:\n${result.errors.join('\n')}`);
+  }
+}
+
 await assertBuildConfig();
 await assertStaticRoot();
 await assertBundleFreshness();
+await assertAliasClassCoverage();
 
 console.log(`Static frontend contract OK: Tauri packages ${path.relative(repoRoot, staticRoot)}`);

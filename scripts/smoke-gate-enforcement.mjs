@@ -1,7 +1,48 @@
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import http from 'node:http';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const i18nDir = path.join(repoRoot, 'crates/ironclaw_webui_v2_static/static/js/i18n');
+
+// The approval gate translates `approval.title` / `approval.approve` /
+// `approval.deny` in every shipped pack (the other approval.* keys live in the
+// i18n BASELINE_MISSING_KEYS allowlist and are intentionally English-only, so we
+// never assert those across locales). We read the literal translated values
+// straight out of each pack so the smoke can demand the localized copy render.
+const APPROVAL_KEYS = ['approval.title', 'approval.approve', 'approval.deny'];
+const SHIPPED_LOCALES = ['en', 'es', 'fr', 'de', 'pt-BR', 'ja', 'ar', 'hi', 'uk', 'zh-CN', 'ko'];
+
+function extractKey(source, key) {
+  const match = source.match(
+    new RegExp(`'${key.replace('.', '\\.')}':\\s*'((?:[^'\\\\]|\\\\.)*)'`)
+  );
+  if (!match) return null;
+  return match[1].replace(/\\'/g, "'").replace(/\\\\/g, '\\');
+}
+
+async function loadLocalizedApprovalCopy() {
+  const map = {};
+  for (const locale of SHIPPED_LOCALES) {
+    const source = await readFile(path.join(i18nDir, `${locale}.js`), 'utf8');
+    const title = extractKey(source, 'approval.title');
+    const approve = extractKey(source, 'approval.approve');
+    const deny = extractKey(source, 'approval.deny');
+    // The composer Send button aria-label is `chat.send`, which is also
+    // translated per locale; capture it so the locale loop can find the button.
+    const send = extractKey(source, 'chat.send');
+    if (!title || !approve || !deny || !send) {
+      throw new Error(`locale ${locale} is missing one of ${APPROVAL_KEYS.join(', ')}, chat.send`);
+    }
+    map[locale] = { title, approve, deny, send };
+  }
+  return map;
+}
+
+const localizedApprovalCopy = await loadLocalizedApprovalCopy();
 
 const staticPort = Number(process.env.GATE_SMOKE_STATIC_PORT || '17632');
 const gatewayPort = Number(process.env.GATE_SMOKE_GATEWAY_PORT || '17633');
@@ -148,6 +189,21 @@ function createGateGateway() {
       for (const client of sseClients) client.end();
       sseClients.clear();
     }, 50);
+  }
+
+  function reset() {
+    for (const client of sseClients) {
+      try {
+        client.end();
+      } catch {
+        // Client already gone.
+      }
+    }
+    sseClients.clear();
+    state.messageRequest = null;
+    state.resolveRequests = [];
+    state.gateSent = false;
+    state.resolved = false;
   }
 
   const server = http.createServer(async (req, res) => {
@@ -308,7 +364,7 @@ function createGateGateway() {
     }
   });
 
-  return { server, state };
+  return { server, state, reset };
 }
 
 function installTauriShim(page) {
@@ -547,6 +603,64 @@ try {
     fullPage: true
   });
 
+  // Localized gate copy: the approval gate must render the user's language, not
+  // fall back to English. Loop every shipped locale that actually translates the
+  // approval keys we assert (`approval.title`/`approve`/`deny` are translated in
+  // all 11 packs — the rest are in i18n BASELINE_MISSING_KEYS and intentionally
+  // English-only, so we never assert those). For each locale we seed
+  // `ironclaw_language`, reload, replay the gate, and require the translated
+  // strings to render. A regression to the English fallback fails the smoke.
+  const localeChecks = [];
+  for (const [locale, expected] of Object.entries(localizedApprovalCopy)) {
+    gateway.reset();
+    await page.evaluate((lang) => {
+      window.localStorage.setItem('ironclaw_language', lang);
+    }, locale);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.locator('textarea').first().waitFor({ timeout: 20_000 });
+
+    const localeComposer = page.locator('textarea').first();
+    await localeComposer.click();
+    await localeComposer.pressSequentially(promptText);
+    // The Send button aria-label (`chat.send`) is itself localized, so select it
+    // by the locale's translated label rather than the English one.
+    const sendSelector = `button[aria-label=${JSON.stringify(expected.send)}]`;
+    await page.waitForFunction((selector) => {
+      const buttons = Array.from(document.querySelectorAll(selector));
+      const button = buttons.at(-1);
+      return button && !button.disabled;
+    }, sendSelector);
+    await page.locator(sendSelector).last().click();
+
+    // The gate's role="group" aria-label is approval.title; assert the localized
+    // value renders instead of the English "Approval required".
+    await page.getByRole('group', { name: expected.title }).waitFor({ timeout: 20_000 });
+    if (expected.title !== 'Approval required') {
+      const englishGate = await page.getByRole('group', { name: 'Approval required' }).count();
+      if (englishGate > 0) {
+        throw new Error(
+          `gate rendered English "Approval required" while locale "${locale}" was active`
+        );
+      }
+    }
+    // Approve / Deny buttons must also be translated.
+    await page.getByRole('button', { name: expected.approve, exact: true }).waitFor({
+      timeout: 20_000
+    });
+    await page.getByRole('button', { name: expected.deny, exact: true }).waitFor({
+      timeout: 20_000
+    });
+
+    localeChecks.push({ locale, title: expected.title });
+
+    // Tear the gate down before the next locale so each iteration replays from a
+    // clean run state.
+    await page.getByRole('button', { name: expected.approve, exact: true }).click();
+    await page.getByText('Gate resolved and run continued.', { exact: true }).waitFor({
+      timeout: 20_000
+    });
+  }
+
   if (errors.length > 0) {
     throw new Error(`browser logged errors: ${JSON.stringify(errors)}`);
   }
@@ -559,7 +673,8 @@ try {
         resolve_url: resolveRequest.url,
         resolve_body: resolveRequest.body,
         gate_screenshot: gateScreenshotPath,
-        resolved_screenshot: resolvedScreenshotPath
+        resolved_screenshot: resolvedScreenshotPath,
+        localized_gate_checks: localeChecks
       },
       null,
       2
