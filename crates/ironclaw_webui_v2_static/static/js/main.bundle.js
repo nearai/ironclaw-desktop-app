@@ -366,24 +366,37 @@ Please change the parent <Route path="${h}"> to <Route path="${h==="/"?"*":`${h}
                 className="flex flex-col gap-1.5 px-1 py-2"
               >
                 <span className="sr-only">Loading conversations…</span>
-                ${[1,2,3,4].map($=>u`<div
+                <div className="flex items-center gap-2 px-1">
+                  <div
+                    aria-hidden="true"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] bg-[var(--v2-surface-muted)] text-[var(--v2-text-faint)]"
+                  >
+                    <${E} name="chat" className="h-4 w-4" />
+                  </div>
+                  <div className="v2-skeleton h-8 flex-1 rounded-[8px]" />
+                </div>
+                ${[2,3,4].map($=>u`<div
                       key=${$}
                       aria-hidden="true"
                       className="v2-skeleton h-8 w-full rounded-[8px]"
                     />`)}
-              </div>`:n?u`<div role="alert" className="px-3 py-2">
-                  <p className="text-[12px] text-[var(--v2-danger-text)]">
-                    Could not load conversations.
-                  </p>
+              </div>`:n?u`<div
+                  role="alert"
+                  className="mx-1 rounded-xl border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-2.5 text-[var(--v2-danger-text)]"
+                >
+                  <div className="flex items-start gap-2">
+                    <${E} name="flag" className="mt-px h-3.5 w-3.5 shrink-0" strokeWidth=${2} />
+                    <p className="text-[12px] leading-snug">Could not load conversations.</p>
+                  </div>
                   ${s&&u`<button
                     type="button"
                     onClick=${()=>s()}
-                    className="mt-1.5 inline-flex min-h-[44px] items-center gap-1 rounded-[6px] px-2 py-1 text-[12px] font-medium text-[var(--v2-accent-text)] hover:bg-[var(--v2-surface-muted)]"
+                    className="mt-1.5 inline-flex min-h-[44px] items-center gap-1 rounded-[6px] px-2 py-1 text-[12px] font-medium text-[var(--v2-danger-text)] hover:bg-[color-mix(in_srgb,var(--v2-danger-text)_12%,transparent)]"
                   >
                     <${E} name="retry" className="h-3.5 w-3.5" /> Retry
                   </button>`}
                 </div>`:u`<div className="px-3 py-2 text-[12px] text-[var(--v2-text-faint)]">
-                  No conversations yet
+                  No conversations yet.
                 </div>`)}
           ${e.length>0&&h===0&&(r||i?u`<div
                 role="status"
