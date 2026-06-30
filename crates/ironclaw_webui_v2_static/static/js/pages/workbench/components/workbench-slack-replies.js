@@ -119,7 +119,7 @@ export function WorkbenchSlackReplies({
   return html`
     <div className="wb13-section wb13-list" data-testid=${testid}>
       <div className="wb13-section-label">
-        <${Icon} name="chat" /> ${title}
+        ${title}
         <span className="wb13-section-count">${list.length}</span>
       </div>
       ${list.map(

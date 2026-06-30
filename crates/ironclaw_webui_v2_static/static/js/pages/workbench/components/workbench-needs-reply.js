@@ -1,4 +1,3 @@
-import { Icon } from '../../../design-system/icons.js';
 import { html } from '../../../lib/html.js';
 import { DecisionCard } from './workbench-arrived.js';
 import { SlackReplyCard } from './workbench-slack-replies.js';
@@ -79,7 +78,7 @@ export function WorkbenchNeedsReply({
         role="heading"
         aria-level="2"
       >
-        <${Icon} name="mail" /> Needs a reply
+        Needs a reply
         <span className="wb13-section-count">${total}</span>
       </div>
       ${emails.map(

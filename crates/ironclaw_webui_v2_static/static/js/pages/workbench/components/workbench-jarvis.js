@@ -107,7 +107,7 @@ export function JarvisView() {
                     </div>`
                   : html`
                       <div className="wb13-section-label">
-                        <${Icon} name="check" /> Owed to you
+                        Owed to you
                         <span className="wb13-section-count">${outstanding.length}</span>
                       </div>
                       ${outstanding.length
@@ -120,7 +120,7 @@ export function JarvisView() {
                           </div>`}
 
                       <div className="wb13-section-label">
-                        <${Icon} name="spark" /> Your commitments
+                        Your commitments
                         <span className="wb13-section-count">${open.length}</span>
                       </div>
                       ${open.length
@@ -133,7 +133,7 @@ export function JarvisView() {
                           </div>`}
 
                       <div className="wb13-section-label">
-                        <${Icon} name="folder" /> Projects
+                        Projects
                         <span className="wb13-section-count">${projects.length}</span>
                       </div>
                       <div

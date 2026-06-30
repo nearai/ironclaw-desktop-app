@@ -1,8 +1,8 @@
-import{a as v}from"./chunk-KN3NV7CC.js";import{e as l}from"./chunk-VNXJL75V.js";import{n as m}from"./chunk-TJ6FHPGI.js";import{a as o}from"./chunk-4INX7S4N.js";import{c as a}from"./chunk-IG4LZQG4.js";import"./chunk-NAT75VSJ.js";async function p(){let e=await m("/api/jarvis/summary");return{configured:!!(e&&e.configured),error:String(e&&e.error||""),projects:Array.isArray(e&&e.projects)?e.projects:[],outstanding:Array.isArray(e&&e.outstanding)?e.outstanding:[],commitments:Array.isArray(e&&e.commitments)?e.commitments:[]}}function u(e){let r=(Array.isArray(e)?e:[]).filter(t=>t&&t.state&&t.state!=="done"&&t.state!=="canceled"),n=t=>t.needsApproval||t.state==="needs_approval"?0:1;return r.slice().sort((t,c)=>n(t)-n(c))}function b(e){return{needs_approval:"Needs approval",todo:"To do",in_progress:"In progress",blocked:"Blocked",done:"Done",canceled:"Canceled"}[String(e||"")]||String(e||"").replace(/_/g," ")||"Open"}function $(e){return e.needsApproval||e.state==="needs_approval"?"is-decision":e.state==="blocked"?"is-blocked":e.state==="done"?"is-done":e.state==="in_progress"?"is-working":"is-reply"}function f(e){let s=String(e||"").trim();return s?`Due ${s.slice(0,10)}`:""}function N({commitment:e}){let s=[e.shortId,f(e.dueDate)].filter(Boolean).join(" \xB7 ");return a`
+import{a as v}from"./chunk-KN3NV7CC.js";import{e as l}from"./chunk-VNXJL75V.js";import{n as m}from"./chunk-TJ6FHPGI.js";import{a as c}from"./chunk-4INX7S4N.js";import{c as a}from"./chunk-IG4LZQG4.js";import"./chunk-NAT75VSJ.js";async function u(){let e=await m("/api/jarvis/summary");return{configured:!!(e&&e.configured),error:String(e&&e.error||""),projects:Array.isArray(e&&e.projects)?e.projects:[],outstanding:Array.isArray(e&&e.outstanding)?e.outstanding:[],commitments:Array.isArray(e&&e.commitments)?e.commitments:[]}}function p(e){let r=(Array.isArray(e)?e:[]).filter(t=>t&&t.state&&t.state!=="done"&&t.state!=="canceled"),n=t=>t.needsApproval||t.state==="needs_approval"?0:1;return r.slice().sort((t,o)=>n(t)-n(o))}function b(e){return{needs_approval:"Needs approval",todo:"To do",in_progress:"In progress",blocked:"Blocked",done:"Done",canceled:"Canceled"}[String(e||"")]||String(e||"").replace(/_/g," ")||"Open"}function N(e){return e.needsApproval||e.state==="needs_approval"?"is-decision":e.state==="blocked"?"is-blocked":e.state==="done"?"is-done":e.state==="in_progress"?"is-working":"is-reply"}function f(e){let s=String(e||"").trim();return s?`Due ${s.slice(0,10)}`:""}function $({commitment:e}){let s=[e.shortId,f(e.dueDate)].filter(Boolean).join(" \xB7 ");return a`
     <div className="wb13-card wb13-card-readable">
       <div className="wb13-card-main">
         <div className="wb13-card-status">
-          <span className=${v("wb13-status-pill",$(e))}>
+          <span className=${v("wb13-status-pill",N(e))}>
             ${b(e.state)}
           </span>
           ${s?a`<span className="wb13-card-when">${s}</span>`:null}
@@ -11,8 +11,8 @@ import{a as v}from"./chunk-KN3NV7CC.js";import{e as l}from"./chunk-VNXJL75V.js";
       </div>
     </div>
   `}function w({items:e,testid:s}){return a`<div className="wb13-section wb13-list" data-testid=${s}>
-    ${e.map((r,n)=>a`<${N} key=${r.id||r.shortId||`c-${n}`} commitment=${r} />`)}
-  </div>`}function I(){let e=l({queryKey:["workbench-jarvis-summary"],queryFn:p,staleTime:6e4,retry:1,throwOnError:!1}),s=e.data||{configured:!1,projects:[],outstanding:[],commitments:[]},r=e.isLoading,n=e.isError,t=s.outstanding||[],c=u(s.commitments),d=s.projects||[];return a`
+    ${e.map((r,n)=>a`<${$} key=${r.id||r.shortId||`c-${n}`} commitment=${r} />`)}
+  </div>`}function I(){let e=l({queryKey:["workbench-jarvis-summary"],queryFn:u,staleTime:6e4,retry:1,throwOnError:!1}),s=e.data||{configured:!1,projects:[],outstanding:[],commitments:[]},r=e.isLoading,n=e.isError,t=s.outstanding||[],o=p(s.commitments),d=s.projects||[];return a`
     <main className="wb13-main">
       <div className="wb13-page">
         <div className="wb13-wrap">
@@ -29,14 +29,14 @@ import{a as v}from"./chunk-KN3NV7CC.js";import{e as l}from"./chunk-VNXJL75V.js";
                       </div>
                     </div>`)}
               </div>`:n?a`<div className="wb13-reader-note is-error" role="alert">
-                  <${o} name="flag" /><span
+                  <${c} name="flag" /><span
                     >jarvis could not be reached. Check the connection and try again.</span
                   >
                 </div>`:s.configured?s.error?a`<div className="wb13-reader-note is-error" role="alert">
-                      <${o} name="flag" /><span>jarvis could not be reached: ${s.error}</span>
+                      <${c} name="flag" /><span>jarvis could not be reached: ${s.error}</span>
                     </div>`:a`
                       <div className="wb13-section-label">
-                        <${o} name="check" /> Owed to you
+                        Owed to you
                         <span className="wb13-section-count">${t.length}</span>
                       </div>
                       ${t.length?a`<${w}
@@ -47,18 +47,18 @@ import{a as v}from"./chunk-KN3NV7CC.js";import{e as l}from"./chunk-VNXJL75V.js";
                           </div>`}
 
                       <div className="wb13-section-label">
-                        <${o} name="spark" /> Your commitments
-                        <span className="wb13-section-count">${c.length}</span>
+                        Your commitments
+                        <span className="wb13-section-count">${o.length}</span>
                       </div>
-                      ${c.length?a`<${w}
-                            items=${c}
+                      ${o.length?a`<${w}
+                            items=${o}
                             testid="workbench-jarvis-commitments"
                           />`:a`<div className="wb13-allclear">
                             No open commitments assigned to you.
                           </div>`}
 
                       <div className="wb13-section-label">
-                        <${o} name="folder" /> Projects
+                        Projects
                         <span className="wb13-section-count">${d.length}</span>
                       </div>
                       <div

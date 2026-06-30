@@ -525,17 +525,19 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
 .wb13-dock-skel-row { display: flex; align-items: center; gap: 9px; }
 .wb13-skel-line.is-dot { height: 8px; width: 8px; border-radius: 999px; flex: none; }
 .wb13-skel-line.is-row { height: 11px; flex: 1; }
+/* One header system for every center group (matches .wb13-triage-group-head): an uppercase,
+   tracked label with an inline "· N" count — no leading icon, so the column reads consistently. */
 .wb13-section-label {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  font-weight: 600;
+  font: 600 10.5px/1 var(--wb-font-body);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
   color: var(--wb-muted);
-  margin: 16px 2px 10px;
+  margin: 22px 2px 8px;
 }
-.wb13-section-label svg { width: 14px; height: 14px; flex: none; }
-.wb13-section-count { margin-left: auto; font-weight: 500; color: var(--wb-faint); }
+.wb13-section-count { margin-left: 7px; font-weight: 600; color: var(--wb-faint); }
+.wb13-section-count::before { content: '·'; margin-right: 6px; }
 .wb13-slack-quote {
   display: flex;
   flex-direction: column;

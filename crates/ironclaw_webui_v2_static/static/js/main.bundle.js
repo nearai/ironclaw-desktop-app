@@ -3908,7 +3908,7 @@ ${me}`;if(O.current.gateKey!==ye&&(O.current={gateKey:ye,credentialRef:null,inFl
   `}function g3({items:e,onReply:t,onDismiss:a,title:n="Slack \xB7 awaiting your reply",testid:r="workbench-slack-replies"}){let o=Array.isArray(e)?e:[];return o.length?l`
     <div className="wb13-section wb13-list" data-testid=${r}>
       <div className="wb13-section-label">
-        <${N} name="chat" /> ${n}
+        ${n}
         <span className="wb13-section-count">${o.length}</span>
       </div>
       ${o.map(i=>l`<${Yg}
@@ -4073,7 +4073,7 @@ ${me}`;if(O.current.gateKey!==ye&&(O.current={gateKey:ye,credentialRef:null,inFl
         role="heading"
         aria-level="2"
       >
-        <${N} name="mail" /> Needs a reply
+        Needs a reply
         <span className="wb13-section-count">${d}</span>
       </div>
       ${s.map(u=>l`<${n3}
@@ -6821,17 +6821,19 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
 .wb13-dock-skel-row { display: flex; align-items: center; gap: 9px; }
 .wb13-skel-line.is-dot { height: 8px; width: 8px; border-radius: 999px; flex: none; }
 .wb13-skel-line.is-row { height: 11px; flex: 1; }
+/* One header system for every center group (matches .wb13-triage-group-head): an uppercase,
+   tracked label with an inline "\xB7 N" count \u2014 no leading icon, so the column reads consistently. */
 .wb13-section-label {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 12px;
-  font-weight: 600;
+  font: 600 10.5px/1 var(--wb-font-body);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
   color: var(--wb-muted);
-  margin: 16px 2px 10px;
+  margin: 22px 2px 8px;
 }
-.wb13-section-label svg { width: 14px; height: 14px; flex: none; }
-.wb13-section-count { margin-left: auto; font-weight: 500; color: var(--wb-faint); }
+.wb13-section-count { margin-left: 7px; font-weight: 600; color: var(--wb-faint); }
+.wb13-section-count::before { content: '\xB7'; margin-right: 6px; }
 .wb13-slack-quote {
   display: flex;
   flex-direction: column;
@@ -8747,7 +8749,7 @@ a.wb13-brief-row-static:hover .wb13-brief-rowtitle { color: var(--wb-accent); }
   .wb13-email-head { grid-template-columns: 1fr; }
   .wb13-pk-head h1 { font-size: 19px; }
 }
-`;var V3=[P3,z3,U3,F3,q3,K3,G3,H3,W3].join("");var ZP=f.default.lazy(()=>import("./chunks/workbench-brief-2JUJT5N6.js").then(e=>({default:e.WorkbenchBrief}))),ez=f.default.lazy(()=>import("./chunks/workbench-library-PA47NC6E.js").then(e=>({default:e.LibraryView}))),tz=f.default.lazy(()=>import("./chunks/workbench-memory-KJUIH2IM.js").then(e=>({default:e.MemoryView}))),az=f.default.lazy(()=>import("./chunks/workbench-history-HW7XSMWJ.js").then(e=>({default:e.HistoryView}))),nz=f.default.lazy(()=>import("./chunks/workbench-chat-view-TG2OIZQJ.js").then(e=>({default:e.ChatView}))),rz=f.default.lazy(()=>import("./chunks/workbench-calendar-QZRHOFGQ.js").then(e=>({default:e.CalendarView}))),oz=f.default.lazy(()=>import("./chunks/workbench-jarvis-DIL4HIMB.js").then(e=>({default:e.JarvisView}))),iz=f.default.lazy(()=>import("./chunks/workbench-review-ORYWSHV2.js").then(e=>({default:e.ReviewView}))),Y3=new Set(["needs-reply","slack","upcoming","github","notion","drive"]),np=Object.freeze({name:"Abhishek Vaidyanathan",title:"Chief Legal Officer",email:"abby.vaidyanathan@gmail.com",channels:["#x-intents","#t-agentmarket","#x-nearai-compliance","#kyc_status","#wallet_status"],voiceSample:["fine to match the NF terms, but i'm not signing uncapped liability on directorship services \u2014 make the liability cap mutual and carve out gross negligence / wilful misconduct on the indemnities. if they won't move, note the residual exposure and we accept it consciously. hold signature until i've seen the final clause.","devhub grant terms don't cover this \u2014 external BD with full crm access needs at minimum an NDA with a non-solicit over anything in the NF pipeline. don't grant access until that's signed."]});function X3(e){if(!e)return"";let t=e.id||(e.channelId&&e.ts?`${e.channelId}:${e.ts}`:"");return t?`slack:${t}`:""}function Q3(e,t){let a=X3(t);return!!(a&&e&&e[a])}function sz({groups:e,hasDecisions:t=!1,statusFilter:a=null,loading:n=!1}){let r=e.filter(s=>s.rows.length>0&&!Y3.has(s.id)&&(!a||a.includes(s.id)));if(!r.length&&n||!r.length&&a||!r.length&&t)return null;if(!r.length)return l`
+`;var V3=[P3,z3,U3,F3,q3,K3,G3,H3,W3].join("");var ZP=f.default.lazy(()=>import("./chunks/workbench-brief-2JUJT5N6.js").then(e=>({default:e.WorkbenchBrief}))),ez=f.default.lazy(()=>import("./chunks/workbench-library-PA47NC6E.js").then(e=>({default:e.LibraryView}))),tz=f.default.lazy(()=>import("./chunks/workbench-memory-KJUIH2IM.js").then(e=>({default:e.MemoryView}))),az=f.default.lazy(()=>import("./chunks/workbench-history-HW7XSMWJ.js").then(e=>({default:e.HistoryView}))),nz=f.default.lazy(()=>import("./chunks/workbench-chat-view-TG2OIZQJ.js").then(e=>({default:e.ChatView}))),rz=f.default.lazy(()=>import("./chunks/workbench-calendar-QZRHOFGQ.js").then(e=>({default:e.CalendarView}))),oz=f.default.lazy(()=>import("./chunks/workbench-jarvis-TA2PJD3N.js").then(e=>({default:e.JarvisView}))),iz=f.default.lazy(()=>import("./chunks/workbench-review-ORYWSHV2.js").then(e=>({default:e.ReviewView}))),Y3=new Set(["needs-reply","slack","upcoming","github","notion","drive"]),np=Object.freeze({name:"Abhishek Vaidyanathan",title:"Chief Legal Officer",email:"abby.vaidyanathan@gmail.com",channels:["#x-intents","#t-agentmarket","#x-nearai-compliance","#kyc_status","#wallet_status"],voiceSample:["fine to match the NF terms, but i'm not signing uncapped liability on directorship services \u2014 make the liability cap mutual and carve out gross negligence / wilful misconduct on the indemnities. if they won't move, note the residual exposure and we accept it consciously. hold signature until i've seen the final clause.","devhub grant terms don't cover this \u2014 external BD with full crm access needs at minimum an NDA with a non-solicit over anything in the NF pipeline. don't grant access until that's signed."]});function X3(e){if(!e)return"";let t=e.id||(e.channelId&&e.ts?`${e.channelId}:${e.ts}`:"");return t?`slack:${t}`:""}function Q3(e,t){let a=X3(t);return!!(a&&e&&e[a])}function sz({groups:e,hasDecisions:t=!1,statusFilter:a=null,loading:n=!1}){let r=e.filter(s=>s.rows.length>0&&!Y3.has(s.id)&&(!a||a.includes(s.id)));if(!r.length&&n||!r.length&&a||!r.length&&t)return null;if(!r.length)return l`
       <div className="wb13-section" data-testid="workbench-triage">
         <div className="wb13-group">
           <div className="wb13-group-title">Needs a decision<span></span></div>
