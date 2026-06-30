@@ -72,7 +72,7 @@ export function ExtensionsPage() {
   if (isLoading) {
     return html`
       <div className="flex h-full flex-col overflow-y-auto">
-        <div className="v2-page-entrance flex-1 p-4 sm:p-6">
+        <div className="v2-page-entrance flex-1 p-4 sm:p-6 lg:p-8">
           <div className="space-y-5">
             ${[1, 2, 3].map(
               (i) => html`

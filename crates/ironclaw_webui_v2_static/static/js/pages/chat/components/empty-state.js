@@ -204,7 +204,7 @@ export function EmptyState({
 
   return html`
     <div
-      className="v2-page-entrance flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-8 lg:px-12"
+      className="v2-page-entrance flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-6 sm:px-6 lg:px-8"
     >
       <div
         className="mx-auto my-auto grid w-full max-w-6xl gap-7 lg:grid-cols-[1.08fr_0.92fr] lg:items-start"
@@ -272,7 +272,7 @@ export function EmptyState({
                     <${Link}
                       key=${thread.thread_id || thread.id}
                       to=${`/chat/${thread.thread_id || thread.id}`}
-                      className="group grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-sm text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
+                      className="group grid min-w-0 grid-cols-[auto_1fr_auto] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2.5 text-sm text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))] hover:text-[var(--v2-accent-text)]"
                     >
                       <${Icon} name="chat" className="h-3.5 w-3.5 shrink-0 opacity-70" />
                       <span className="truncate">${thread.title}</span>
@@ -338,7 +338,7 @@ export function EmptyState({
                   disabled=${suggestionsBlocked}
                   onClick=${() => prefill(item.prompt)}
                   className=${[
-                    'v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-3 text-left',
+                    'v2-button group grid grid-cols-[auto_1fr_auto] items-center gap-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2.5 text-left',
                     suggestionsBlocked
                       ? 'cursor-not-allowed opacity-60'
                       : 'hover:border-[color-mix(in_srgb,var(--v2-accent)_45%,var(--v2-panel-border))]'
@@ -375,7 +375,7 @@ export function EmptyState({
 function FrontDoorPanel({ sinceAway = [], sinceAwayTotal = 0, needsYou, needsYouTotal, handled }) {
   return html`
     <div
-      className="mt-4 grid gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
+      className="mt-4 grid gap-2 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-3"
       data-testid="frontdoor-panel"
     >
       ${sinceAway.length > 0 &&
