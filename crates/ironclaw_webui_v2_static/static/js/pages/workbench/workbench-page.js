@@ -1047,6 +1047,8 @@ export function WorkbenchPage() {
     generateSuggestedReply({
       message,
       voice: effectiveVoiceDirective(WORKBENCH_PROFILE.voiceSample),
+      // Saved Memory prefs shape the draft too (not just the briefing) — read at generate time.
+      memory: readMemoryPrefs(),
       deps: { createThread, sendMessage, fetchTimeline, timezone }
     })
       .then((reply) => {
@@ -1120,6 +1122,7 @@ export function WorkbenchPage() {
     generateSuggestedReply({
       message: { sender: item.who, channel: item.channel, messageText: item.text },
       voice: effectiveVoiceDirective(WORKBENCH_PROFILE.voiceSample),
+      memory: readMemoryPrefs(),
       deps: { createThread, sendMessage, fetchTimeline, timezone }
     })
       .then((reply) => {

@@ -7,9 +7,34 @@
 // The pure helpers (prompt builder, reply extraction) are unit-tested; the
 // orchestrator takes injected deps so it is testable without a live gateway.
 
+// Saved Memory prefs, turned into a directive for the reply turn so what the user saved on the
+// Memory surface actually shapes the drafts it writes (tone + content), not just the briefing.
+// Draft framing (apply-to-this-reply), distinct from the briefing's surfacing framing. Accepts
+// pref objects ({ text }) or strings; bounded so it can't bloat the short turn. Pure; '' when
+// empty. Self-contained (no heavy import into the draft path). Nothing is ever auto-sent — the
+// draft is reviewed in the gated modal — so this guides wording, it does not take an action.
+const REPLY_MEMORY_MAX_ITEMS = 6;
+const REPLY_MEMORY_TEXT_MAX = 200;
+export function replyMemoryBlock(memory) {
+  const items = (Array.isArray(memory) ? memory : [])
+    .map((m) => (typeof m === 'string' ? m : m && m.text))
+    .map((t) =>
+      String(t || '')
+        .replace(/\s+/g, ' ')
+        .trim()
+    )
+    .filter(Boolean)
+    .slice(0, REPLY_MEMORY_MAX_ITEMS)
+    .map((t) =>
+      t.length > REPLY_MEMORY_TEXT_MAX ? `${t.slice(0, REPLY_MEMORY_TEXT_MAX - 1)}…` : t
+    );
+  if (!items.length) return '';
+  return `MY SAVED PREFERENCES (apply the ones relevant to this reply; ignore any that do not fit):\n${items.map((t) => `- ${t}`).join('\n')}`;
+}
+
 // Build the turn prompt from a surfaced message. Caps the quoted body so the turn
 // stays short. Pure.
-export function buildSuggestedReplyPrompt({ sender, subject, body, channel, voice } = {}) {
+export function buildSuggestedReplyPrompt({ sender, subject, body, channel, voice, memory } = {}) {
   const v = String(voice || 'clear, direct, first person, lightly informal').trim();
   const ctx = [];
   if (sender) ctx.push(`From: ${String(sender).trim()}`);
@@ -30,6 +55,8 @@ export function buildSuggestedReplyPrompt({ sender, subject, body, channel, voic
     `Reply directly to the message. No greeting line or signature unless natural. Output ONLY the reply text — no preamble, no surrounding quotes, no labels.`
   ];
   if (multiline) lines.push('', `MY VOICE:`, v);
+  const memBlock = replyMemoryBlock(memory);
+  if (memBlock) lines.push('', memBlock);
   lines.push('', ctx.join('\n'));
   return lines.join('\n');
 }
@@ -84,7 +111,7 @@ function readThreadId(thread) {
 // timeline until the assistant replies (or we time out). Returns the reply text,
 // or '' on any failure/timeout. `deps` = { createThread, sendMessage, fetchTimeline,
 // sleep?, timezone?, maxTries? } — injected so this is testable without a gateway.
-export async function generateSuggestedReply({ message, voice, deps } = {}) {
+export async function generateSuggestedReply({ message, voice, memory, deps } = {}) {
   const d = deps || {};
   if (!d.createThread || !d.sendMessage || !d.fetchTimeline) return '';
   const prompt = buildSuggestedReplyPrompt({
@@ -92,7 +119,8 @@ export async function generateSuggestedReply({ message, voice, deps } = {}) {
     subject: message?.subject,
     body: message?.preview || message?.snippet || message?.body || message?.messageText,
     channel: message?.channel,
-    voice
+    voice,
+    memory
   });
   const sleep = d.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const maxTries = Number.isFinite(d.maxTries) ? d.maxTries : 20;
