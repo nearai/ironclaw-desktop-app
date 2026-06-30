@@ -78,21 +78,10 @@ export function getRegisteredPacks() {
   return { ...packs };
 }
 
-// Only English is imported eagerly by main.js. Other locale packs are
-// discovered as static dynamic imports and loaded the first time a user selects
-// or auto-detects that language.
-const loaders = {
-  es: () => import('../i18n/es.js'),
-  fr: () => import('../i18n/fr.js'),
-  de: () => import('../i18n/de.js'),
-  'pt-BR': () => import('../i18n/pt-BR.js'),
-  ja: () => import('../i18n/ja.js'),
-  ar: () => import('../i18n/ar.js'),
-  hi: () => import('../i18n/hi.js'),
-  uk: () => import('../i18n/uk.js'),
-  'zh-CN': () => import('../i18n/zh-CN.js'),
-  ko: () => import('../i18n/ko.js')
-};
+// Single source of truth for the locale loaders — both the cold-boot preload
+// (loadLanguagePack) and the runtime switch (ensurePack) drive the same map, so
+// a language can never be wired into one path but not the other.
+const loaders = PACK_LOADERS;
 
 const pending = {};
 

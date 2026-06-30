@@ -718,7 +718,10 @@ export function useChat(threadId) {
   );
 
   const loadMore = React.useCallback(() => {
-    if (hasMore && nextCursor) loadHistory(nextCursor);
+    // Return the load promise so MessageList settles its in-flight guard / anchor
+    // on real completion rather than on an immediately-resolved no-op.
+    if (hasMore && nextCursor) return loadHistory(nextCursor);
+    return undefined;
   }, [hasMore, nextCursor, loadHistory]);
 
   // Fork-shape compatibility: `approve(requestId, action, kind)` from

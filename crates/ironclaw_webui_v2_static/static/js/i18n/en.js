@@ -259,8 +259,6 @@ registerPack('en', {
     'Waiting for authorization to complete\u2026 You can close the popup tab once you\u2019ve approved access.',
   'authGate.expiresAt': 'Expires',
   'authGate.oauthExpired': 'Authorization expired — re-open to try again.',
-  'authGate.oauthLinkUnavailable':
-    'Authorization link unavailable. IronClaw could not get a valid sign-in URL from the provider.',
   'authGate.oauthProviderFallback': 'the provider',
   'authGate.pillAuthorize': 'Authorize',
   'authGate.pillEnterToken': 'Enter token',

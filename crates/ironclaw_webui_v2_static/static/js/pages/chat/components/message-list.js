@@ -34,6 +34,10 @@ export function MessageList({
   // Set just before requesting an older page so the post-insert layout effect can
   // restore the read position instead of letting the prepend jump the viewport.
   const prependAnchorRef = React.useRef(null);
+  // Synchronous in-flight guard: onScroll only sees the lagging React isLoading
+  // state, so without this a second scroll-to-top in the same tick could clobber
+  // the anchor mid-load.
+  const loadingMoreRef = React.useRef(false);
   const [atBottom, setAtBottom] = React.useState(true);
 
   React.useLayoutEffect(() => {
@@ -53,14 +57,17 @@ export function MessageList({
   }, [messages]);
 
   const requestLoadMore = React.useCallback(() => {
+    if (loadingMoreRef.current) return;
     const el = containerRef.current;
     // Capture the scroll height before the older page lands so the layout effect
     // can offset scrollTop by exactly the height the prepend added.
     if (el) prependAnchorRef.current = el.scrollHeight;
-    // If the page never lands (fetch rejects, or it dedupes to the same message
-    // array so the layout effect never re-runs), clear the anchor — otherwise a
-    // later bottom-append would consume the stale offset and suppress autoscroll.
-    Promise.resolve(onLoadMore?.()).catch(() => {
+    loadingMoreRef.current = true;
+    // When the load settles: release the guard and drop any anchor the layout
+    // effect did NOT consume (a no-op/dedup load that prepended nothing), so a
+    // later bottom-append can't apply a stale offset and suppress autoscroll.
+    Promise.resolve(onLoadMore?.()).finally(() => {
+      loadingMoreRef.current = false;
       prependAnchorRef.current = null;
     });
   }, [onLoadMore]);

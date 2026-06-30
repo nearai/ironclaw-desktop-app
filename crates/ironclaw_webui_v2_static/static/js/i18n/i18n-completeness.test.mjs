@@ -33,7 +33,6 @@ const BASELINE_MISSING_KEYS = Object.freeze([
   'authGate.expiresAt',
   'authGate.googleHint',
   'authGate.oauthExpired',
-  'authGate.oauthLinkUnavailable',
   'authGate.oauthProviderFallback',
   'authGate.oauthTitle',
   'authGate.oauthWaiting',
@@ -471,7 +470,7 @@ test('every advertised language has a registered pack', () => {
 
 test('i18n baseline is sorted, unique, and references real English keys', () => {
   const englishKeys = Object.keys(packs.en || {}).sort();
-  assert.equal(englishKeys.length, 944);
+  assert.equal(englishKeys.length, 943);
   assert.deepEqual(BASELINE_MISSING_KEYS, sortedUnique(BASELINE_MISSING_KEYS));
 
   const unknownBaselineKeys = BASELINE_MISSING_KEYS.filter((key) => !packs.en?.[key]);
