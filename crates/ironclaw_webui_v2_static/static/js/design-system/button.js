@@ -30,7 +30,7 @@ const BASE =
 
 const SIZES = {
   sm: 'h-8 rounded-[6px] px-3 text-xs',
-  md: 'min-h-[40px] rounded-[8px] px-3.5 text-[13px] md:min-h-[44px] md:px-4 md:text-sm',
+  md: 'min-h-[40px] rounded-[8px] px-3.5 text-sm md:min-h-[44px] md:px-4',
   lg: 'min-h-[48px] rounded-[10px] px-5 text-sm',
   icon: 'h-[40px] w-[40px] rounded-[8px] md:h-[44px] md:w-[44px]',
   'icon-sm': 'h-8 w-8 rounded-[6px]'

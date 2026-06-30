@@ -260,7 +260,7 @@ export function ApprovalCard({ gate, onApprove, onDeny, onAlways }) {
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <span
-            className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--v2-text-faint)]"
+            className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--v2-text-faint)]"
           >
             ${t('projects.card.risk')}
           </span>

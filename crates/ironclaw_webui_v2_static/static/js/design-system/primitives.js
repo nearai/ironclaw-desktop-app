@@ -88,7 +88,7 @@ export function StatCard({
             ${label}
           </div>
           <div
-            className="mt-3 truncate text-[1.75rem] font-medium tracking-[-0.05em] text-[var(--v2-text-strong)] md:text-[2rem]"
+            className="mt-3 truncate text-[1.75rem] font-medium tabular-nums tracking-[-0.05em] text-[var(--v2-text-strong)] md:text-[2rem]"
           >
             ${value}
           </div>
