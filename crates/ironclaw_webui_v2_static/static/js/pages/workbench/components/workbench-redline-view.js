@@ -82,6 +82,10 @@ const REDLINE_STYLE = `
     line-height: 1.5;
     color: var(--wb-muted);
   }
+  /* Touch: the accept/reject toggles are small on a fine pointer — give them a 44px target. */
+  @media (pointer: coarse) {
+    .wb13-rl-decide button { min-height: 44px; padding-left: 14px; padding-right: 14px; }
+  }
 `;
 
 function ClauseText({ segments }) {

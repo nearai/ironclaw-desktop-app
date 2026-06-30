@@ -149,6 +149,12 @@ const REVIEW_STYLE = `
     outline: 2px solid var(--wb-accent, var(--wb-ink));
     outline-offset: 1px;
   }
+  /* Touch: the remove-column control is a tiny glyph on a fine pointer — give it a 44px target. */
+  @media (pointer: coarse) {
+    .wb13-review-col-chip { min-height: 44px; }
+    .wb13-review-col-chip button { width: 44px; height: 44px; font-size: 18px; }
+    .wb13-review-col-add input { min-height: 44px; }
+  }
 `;
 
 function ReviewEmpty({ subline }) {

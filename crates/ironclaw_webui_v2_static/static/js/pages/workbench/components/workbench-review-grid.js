@@ -105,6 +105,14 @@ export function ReviewGrid({ columns = [], documents = [], cells = {} }) {
           padding-top: 8px;
           border-top: 1px dashed var(--wb-line);
         }
+        /* Touch: a short cell summary is a small tap target — give the disclosure a 44px row. */
+        @media (pointer: coarse) {
+          .wb13-rev-evidence > summary {
+            display: flex;
+            align-items: center;
+            min-height: 44px;
+          }
+        }
         .wb13-rev-flag {
           display: inline-block;
           width: 8px;
