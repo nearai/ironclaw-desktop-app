@@ -320,6 +320,24 @@ test('parseBriefJson extracts JSON from a fenced/prose reply and normalizes ever
   assert.equal(out.bestTimes[0].person, 'David');
 });
 
+test('parseBriefJson drops the incoherent "FYI" badge from a Needs-you item, keeping the rest', () => {
+  const out = parseBriefJson(
+    JSON.stringify({
+      needsYou: [
+        {
+          id: 'n1',
+          source: 'Email',
+          sender: 'Dana',
+          context: 'x',
+          badges: ['FYI', 'Decision', 'fyi']
+        }
+      ]
+    })
+  );
+  assert.ok(out);
+  assert.deepEqual(out.needsYou[0].badges, ['Decision'], 'FYI (any case) removed; Decision kept');
+});
+
 test('parseBriefJson: garbage -> null, but a well-formed EMPTY briefing is a valid result (bias to silence)', () => {
   assert.equal(parseBriefJson('I could not build a briefing.'), null);
   assert.equal(parseBriefJson(''), null);

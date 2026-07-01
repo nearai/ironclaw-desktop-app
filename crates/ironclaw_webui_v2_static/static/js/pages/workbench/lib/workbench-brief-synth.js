@@ -188,7 +188,7 @@ export function buildNeedsYouPrompt(bundle, profile = {}, memory) {
   return [
     briefHeader(bundle, profile, memory),
     `You are my chief of staff. JUDGE each candidate and KEEP ONLY the ones that genuinely need ME to reply or decide. DROP everything else — announcements, broadcasts, FYIs, newsletters, automated notifications, social or celebratory posts, "thanks"/acknowledgements, links shared for awareness, and anything where no reply or decision is actually owed by me. A message being addressed to a group or mentioning me in passing is NOT enough — there must be a real ask or decision on me. EXCEPTION — I am a chief legal officer, so NEVER drop a legal, regulatory, fraud, governance, contract, compliance, or litigation matter, even when it is phrased as an announcement, broadcast, or FYI (e.g. "@channel the SEC sent questions", "the board votes Friday on the charter", "MSA auto-renews unless we give notice"): for me those always warrant attention — KEEP them and badge them "Decision" or "time-sensitive" as fits. If the choice is between dropping and keeping a possibly-legal item, KEEP it. Returning an EMPTY needsYou array is correct and expected when nothing truly needs me; do NOT manufacture priorities or pad the list.`,
-    `Output ONLY one JSON object (no prose, no code fence): {needsYou:[{id,source:"Email"|"Slack",sender,channel:"the Slack channel for a Slack item, else empty",badges:["Decision"|"FYI"|"time-sensitive"],context:"2-4 sentences naming the parties, the decision on the table, the current positions, and why it sits on ME specifically",suggestedReply:"a ready reply in MY voice, or empty string if no reply is owed",replyHref,bestWindow}]} — include an object ONLY for the items you KEEP; echo id+channel+replyHref from the candidate; never invent a sender or link.`,
+    `Output ONLY one JSON object (no prose, no code fence): {needsYou:[{id,source:"Email"|"Slack",sender,channel:"the Slack channel for a Slack item, else empty",badges:["Decision"|"time-sensitive"],context:"2-4 sentences naming the parties, the decision on the table, the current positions, and why it sits on ME specifically",suggestedReply:"a ready reply in MY voice, or empty string if no reply is owed",replyHref,bestWindow}]} — include an object ONLY for the items you KEEP (every item here already needs me, so do NOT badge anything "FYI"); echo id+channel+replyHref from the candidate; never invent a sender or link.`,
     `The suggestedReply must be in MY voice: all-lowercase, first-person, decisive, a specific position not a hedge. ${voiceLine}`,
     ``,
     `CONTEXT:`,
@@ -341,7 +341,9 @@ export function parseBriefJson(raw) {
       channel: clip(it.channel, 80).replace(/^#+/, ''),
       badges: asArray(it.badges)
         .map((x) => clip(x, 24))
-        .filter(Boolean),
+        // A Needs-you item already needs the user, so an "FYI" badge is incoherent — drop it
+        // even if the model emits one (belt-and-suspenders with the prompt enum).
+        .filter((x) => x && !/^fyi$/i.test(x.trim())),
       context: clip(it.context, 600),
       suggestedReply: clip(it.suggestedReply, 1200),
       replyHref: String(it.replyHref || ''),
