@@ -44,12 +44,7 @@ import {
   railDismissKey
 } from './lib/workbench-state.js';
 import { readTierOverrides } from './lib/workbench-profile-overrides.js';
-import {
-  readDismissals,
-  dismissRow,
-  learnedIgnoreSenders,
-  clearSenderDismissals
-} from './lib/workbench-dismissals.js';
+import { readDismissals, dismissRow } from './lib/workbench-dismissals.js';
 import { recordEditedVoiceSample, effectiveVoiceDirective } from './lib/workbench-voice-store.js';
 import { readMemoryPrefs } from './lib/workbench-memory-store.js';
 import { selectTriageInbox, answeredThreadIndex } from './lib/workbench-connectors.js';
@@ -1358,10 +1353,6 @@ export function WorkbenchPage() {
   const onDismissSlack = React.useCallback((item, reason) => {
     const key = slackDismissKey(item);
     if (!key) return;
-    // sender stays empty: there is no Slack sender-learning loop, and learnedIgnoreSenders /
-    // the "You" page iterate ALL dismissals by `sender` regardless of the slack: key namespace,
-    // so a Slack who/whoId here would pollute the email-sender learning UI. The namespaced key
-    // still suppresses the item; it just doesn't feed mail-sender learning.
     setDismissals(dismissRow(key, { reason, sender: '' }));
   }, []);
   // Notion "new in Notion" dismiss: file the page away through the SAME store (namespaced
@@ -1374,12 +1365,10 @@ export function WorkbenchPage() {
   }, []);
   // Triage-worthy inbox = what may be surfaced on the Workbench (Needs-a-decision,
   // Arrived). Drops bulk/newsletters/notes (e.g. gemini-notes meeting summaries),
-  // ignore-corrected senders, and rows the user dismissed — mirroring the rail's
-  // Needs-a-reply. The raw inbox still feeds the rail + briefing, which filter
-  // themselves.
-  // The "it learns" set: senders filed ≥2× for sender-level reasons are
-  // auto-suppressed from triage going forward (overridable on the You surface).
-  const learnedIgnore = React.useMemo(() => learnedIgnoreSenders(dismissals), [dismissals]);
+  // explicitly ignore-corrected senders, and rows the user dismissed — mirroring the
+  // rail's Needs-a-reply. There is NO automatic sender muting: what surfaces is decided by
+  // each message's content + actionability (the needs-you judgement), not a sender blocklist.
+  // The raw inbox still feeds the rail + briefing, which filter themselves.
   // Reply-state index: threadId -> latest sent timestamp, so triage can file
   // threads the user already answered (they spoke last).
   const sentThreadIndex = React.useMemo(
@@ -1391,10 +1380,9 @@ export function WorkbenchPage() {
       selectTriageInbox(connectorInbox.messages, {
         overrides: tierOverrides,
         dismissals,
-        learnedIgnore,
         sentThreadIndex
       }),
-    [connectorInbox.messages, tierOverrides, dismissals, learnedIgnore, sentThreadIndex]
+    [connectorInbox.messages, tierOverrides, dismissals, sentThreadIndex]
   );
   // Slack awaiting/weigh-in with dismissed items removed — the Slack equivalent of
   // selectTriageInbox's dismissed-key drop, so a Slack "Not for me" actually sticks.
@@ -1464,13 +1452,6 @@ export function WorkbenchPage() {
     const key = railDismissKey(row);
     if (key === 'rail:|') return;
     setDismissals(dismissRow(key, { reason: 'dismissed-rail', sender: '' }));
-  }, []);
-  // Restore a learned-muted sender from the Memory surface: drop that sender's dismissals so
-  // they fall below the learned-ignore threshold and surface again. Updates the shared
-  // dismissals state so triage re-computes immediately (no reload).
-  const onClearSender = React.useCallback((sender) => {
-    if (!sender) return;
-    setDismissals(clearSenderDismissals(sender));
   }, []);
 
   // Answer a catch-up intent instantly from connector data already loaded —
@@ -1869,7 +1850,7 @@ export function WorkbenchPage() {
                 </div>
               </main>`}
             >
-              <${MemoryView} dismissals=${dismissals} onClearSender=${onClearSender} />
+              <${MemoryView} />
             </${React.Suspense}>`
           : view === 'calendar'
             ? html`<${React.Suspense}

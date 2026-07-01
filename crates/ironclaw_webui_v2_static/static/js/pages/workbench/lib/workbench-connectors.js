@@ -279,7 +279,7 @@ export function isCalendarInviteNoise(message) {
 
 export function selectTriageInbox(
   messages,
-  { overrides = {}, dismissals = {}, learnedIgnore, sentThreadIndex } = {}
+  { overrides = {}, dismissals = {}, sentThreadIndex } = {}
 ) {
   const list = Array.isArray(messages) ? messages : [];
   const norm = {};
@@ -289,7 +289,6 @@ export function selectTriageInbox(
     norm[String(email || '').toLowerCase()] = tier;
   }
   const dismissed = dismissals && typeof dismissals === 'object' ? dismissals : {};
-  const learned = learnedIgnore instanceof Set ? learnedIgnore : new Set();
   const answered = sentThreadIndex instanceof Map ? sentThreadIndex : new Map();
   const filtered = list.filter((message) => {
     if (!message || message.isBulk) return false;
@@ -297,6 +296,9 @@ export function selectTriageInbox(
     if (isCalendarInviteNoise(message)) return false;
     const email = String(message.fromEmail || '').toLowerCase();
     const tier = norm[email];
+    // Explicit per-sender "ignore" (a deliberate correction on the You surface) is honored.
+    // There is NO learned/automatic sender muting — what surfaces is decided by the message's
+    // own content + actionability (the downstream needs-you judgement), not by a sender blocklist.
     if (tier === 'ignore') return false;
     // Thread-aware dismiss: a thread is filed by its threadId (see onDismissDecision), so
     // dismissing the collapsed card drops EVERY message in the thread — otherwise the thread
@@ -305,9 +307,6 @@ export function selectTriageInbox(
     const key = String(message.messageId || message.id || '');
     const tkey = message.threadId ? `thread:${message.threadId}` : '';
     if ((key && dismissed[key]) || (tkey && dismissed[tkey])) return false;
-    // Learned auto-file: a sender repeatedly dismissed as sender-level noise.
-    // An explicit VIP/Respond/FYI correction (any non-ignore tier) overrides it.
-    if (!tier && learned.has(email)) return false;
     // Reply-state gate: filed if you've already replied in-thread (a sent
     // message dated after this inbound). Positive evidence only.
     if (isAnsweredThread(message, answered)) return false;
