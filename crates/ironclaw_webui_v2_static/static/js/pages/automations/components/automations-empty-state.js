@@ -33,18 +33,16 @@ function ExamplePrompt({ promptKey }) {
 
   return html`
     <li
-      className="flex items-center gap-3 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
+      className="flex items-center gap-3 rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
     >
-      <span className="min-w-0 flex-1 text-sm leading-6 text-[var(--v2-text-strong)]">
-        ${text}
-      </span>
+      <span className="min-w-0 flex-1 v2-text-body text-[var(--v2-text-strong)]">${text}</span>
       <button
         type="button"
         onClick=${onCopy}
         aria-label=${copied ? t('automations.empty.copied') : t('automations.empty.copyPrompt')}
         title=${copied ? t('automations.empty.copied') : t('automations.empty.copyPrompt')}
         className=${cn(
-          'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[8px] border border-[var(--v2-panel-border)] text-[var(--v2-text-muted)] hover:border-[color-mix(in_srgb,var(--v2-accent)_30%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)]',
+          'inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] text-[var(--v2-text-muted)] hover:border-[color-mix(in_srgb,var(--v2-accent)_30%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)]',
           'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--v2-accent)]',
           copied && 'text-[var(--v2-positive-text)]'
         )}
@@ -61,17 +59,13 @@ export function AutomationsEmptyState() {
   return html`
     <${Panel} className="p-6 sm:p-8">
       <div className="max-w-2xl">
-        <h2 className="text-2xl font-semibold tracking-tight text-[var(--v2-text-strong)]">
-          ${t('automations.empty.noneTitle')}
-        </h2>
-        <p className="mt-3 text-sm leading-6 text-[var(--v2-text-muted)]">
+        <h2 className="v2-text-title">${t('automations.empty.noneTitle')}</h2>
+        <p className="mt-3 v2-text-body text-[var(--v2-text-muted)]">
           ${t('automations.empty.onboardingDescription')}
         </p>
 
         <div className="mt-6">
-          <div className="text-[12px] font-semibold text-[var(--v2-text-muted)]">
-            ${t('automations.empty.examplesTitle')}
-          </div>
+          <div className="v2-text-label">${t('automations.empty.examplesTitle')}</div>
           <ul className="mt-3 space-y-2">
             ${EXAMPLE_PROMPT_KEYS.map(
               (key) => html`<${ExamplePrompt} key=${key} promptKey=${key} />`

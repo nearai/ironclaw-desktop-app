@@ -5,8 +5,10 @@ import { useChannels } from '../hooks/useChannels.js';
 import { matchesSearch } from '../lib/settings-search.js';
 import { SettingsSearchEmpty } from './settings-search-empty.js';
 
-function BuiltinChannelCard({ name, description, enabled, detail }) {
+function BuiltinChannelCard({ name, description, enabled }) {
   const t = useT();
+  // No raw machine leakage on the user surface (no `SSE:0 · WS:0`,
+  // `ENABLE_HTTP=true`, or CLI invocation strings) — status is text plus one dot.
   return html`
     <div
       className="flex items-start justify-between gap-4 border-t border-[var(--v2-panel-border)] py-4 first:border-0 first:pt-0"
@@ -21,10 +23,6 @@ function BuiltinChannelCard({ name, description, enabled, detail }) {
           />
         </div>
         <div className="mt-1 text-xs text-[var(--v2-text-muted)]">${description}</div>
-        ${detail &&
-        html`<div className="mt-1 font-mono text-[11px] text-[var(--v2-text-faint)]">
-          ${detail}
-        </div>`}
       </div>
     </div>
   `;
@@ -79,29 +77,25 @@ function buildBuiltInChannels(status, t) {
       id: 'web',
       name: t('channels.webGateway'),
       description: t('channels.webGatewayDesc'),
-      enabled: true,
-      detail: 'SSE: ' + (status.sse_connections || 0) + ' · WS: ' + (status.ws_connections || 0)
+      enabled: true
     },
     {
       id: 'http',
       name: t('channels.httpWebhook'),
       description: t('channels.httpWebhookDesc'),
-      enabled: enabledChannels.includes('http'),
-      detail: 'ENABLE_HTTP=true'
+      enabled: enabledChannels.includes('http')
     },
     {
       id: 'cli',
       name: t('channels.cli'),
       description: t('channels.cliDesc'),
-      enabled: enabledChannels.includes('cli'),
-      detail: 'ironclaw run --cli'
+      enabled: enabledChannels.includes('cli')
     },
     {
       id: 'repl',
       name: t('channels.repl'),
       description: t('channels.replDesc'),
-      enabled: enabledChannels.includes('repl'),
-      detail: 'ironclaw run --repl'
+      enabled: enabledChannels.includes('repl')
     }
   ];
 }
@@ -120,8 +114,7 @@ function deriveVisibleChannelGroups({
       t('channels.builtIn'),
       channel.id,
       channel.name,
-      channel.description,
-      channel.detail
+      channel.description
     ])
   );
   const installedNames = new Set(channels.map((c) => c.name));
@@ -225,9 +218,7 @@ export function ChannelsTab({ searchQuery = '' }) {
       ${builtInChannels.length > 0 &&
       html`
         <section className="mt-9 first:mt-0">
-          <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
-            ${t('channels.builtIn')}
-          </h3>
+          <h3 className="v2-text-label mb-3">${t('channels.builtIn')}</h3>
           ${builtInChannels.map(
             (channel) => html`
               <${BuiltinChannelCard}
@@ -235,7 +226,6 @@ export function ChannelsTab({ searchQuery = '' }) {
                 name=${channel.name}
                 description=${channel.description}
                 enabled=${channel.enabled}
-                detail=${channel.detail}
               />
             `
           )}
@@ -244,9 +234,7 @@ export function ChannelsTab({ searchQuery = '' }) {
       ${(visibleChannels.length > 0 || availableRegistry.length > 0) &&
       html`
         <section className="mt-9 first:mt-0">
-          <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
-            ${t('channels.messaging')}
-          </h3>
+          <h3 className="v2-text-label mb-3">${t('channels.messaging')}</h3>
           ${visibleChannels.map(
             (ch) => html`
               <${ExtensionChannelCard}
@@ -264,9 +252,7 @@ export function ChannelsTab({ searchQuery = '' }) {
       ${(visibleMcpServers.length > 0 || availableMcp.length > 0) &&
       html`
         <section className="mt-9 first:mt-0">
-          <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
-            ${t('channels.mcpServers')}
-          </h3>
+          <h3 className="v2-text-label mb-3">${t('channels.mcpServers')}</h3>
           ${visibleMcpServers.map(
             (m) => html`
               <div

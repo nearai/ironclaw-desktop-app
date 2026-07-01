@@ -8,20 +8,20 @@ import { runSummaryView } from '../lib/automations-presenters.js';
 
 const MAX_VISIBLE_DOTS = 8;
 
+// Squint test: only a failed run should jump. Healthy + unknown runs are quiet
+// faint dots; a genuine in-flight run breathes (accent); a failure is the single
+// amber/danger moment. No four-colour run history that reads as decoration.
 const DOT_TONE_CLASS = {
-  ok: 'border-[color-mix(in_srgb,var(--v2-positive-text)_50%,transparent)] bg-[var(--v2-positive-text)]',
-  error:
-    'border-[color-mix(in_srgb,var(--v2-danger-text)_50%,transparent)] bg-[var(--v2-danger-text)]',
-  running:
-    'border-[color-mix(in_srgb,var(--v2-info-text)_60%,transparent)] bg-[var(--v2-info-text)]',
-  unknown:
-    'border-[color-mix(in_srgb,var(--v2-text-muted)_50%,transparent)] bg-[var(--v2-text-muted)]'
+  ok: 'bg-[var(--v2-text-faint)]',
+  error: 'bg-[var(--v2-danger-text)]',
+  running: 'bg-[var(--v2-accent)] v2-breathing-dot',
+  unknown: 'bg-[var(--v2-text-faint)]'
 };
 
 const CHIP_TONE_CLASS = {
-  success: 'text-[var(--v2-positive-text)]',
+  success: 'text-[var(--v2-text-muted)]',
   danger: 'text-[var(--v2-danger-text)]',
-  info: 'text-[var(--v2-info-text)]',
+  info: 'text-[var(--v2-text-muted)]',
   muted: 'text-[var(--v2-text-muted)]'
 };
 
@@ -33,9 +33,7 @@ export function RunDots({ runs = [] }) {
   const t = useT();
   const visibleRuns = runs.slice(0, MAX_VISIBLE_DOTS);
   if (!visibleRuns.length) {
-    return html`<span className="text-xs text-[var(--v2-text-muted)]">
-      ${t('automations.table.noRuns')}
-    </span>`;
+    return html`<span className="v2-text-meta">${t('automations.table.noRuns')}</span>`;
   }
   const overflow = runs.length - visibleRuns.length;
 
@@ -53,7 +51,7 @@ export function RunDots({ runs = [] }) {
             key=${recentRunKey(run)}
             title=${`${run.status_label} - ${run.fired_label}`}
             className=${cn(
-              'h-3 w-3 rounded-full border',
+              'h-2 w-2 shrink-0 rounded-full',
               DOT_TONE_CLASS[run.status] || DOT_TONE_CLASS.unknown
             )}
           />
@@ -61,7 +59,7 @@ export function RunDots({ runs = [] }) {
       )}
       ${overflow > 0 &&
       html`<span
-        className="ml-0.5 font-mono text-[11px] text-[var(--v2-text-muted)]"
+        className="ml-0.5 v2-text-meta"
         title=${t('automations.runs.showingOf', { shown: visibleRuns.length, total: runs.length })}
       >
         +${overflow}
@@ -74,13 +72,13 @@ export function RunHistorySummary({ runs = [], className = '' }) {
   const t = useT();
   const view = runSummaryView(runs, t);
   if (!view.total) {
-    return html`<span className=${cn('text-[11px] text-[var(--v2-text-muted)]', className)}>
+    return html`<span className=${cn('v2-text-meta', className)}>
       ${t('automations.table.noRuns')}
     </span>`;
   }
 
   return html`
-    <div className=${cn('flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]', className)}>
+    <div className=${cn('flex flex-wrap items-center gap-x-2 gap-y-1 v2-text-meta', className)}>
       <span className="text-[var(--v2-text-muted)]">${view.totalText}</span>
       ${view.chips.map(
         (chip) => html`
@@ -105,15 +103,17 @@ export function RecentRunRow({ run, onOpenRun }) {
         <${StatusPill} tone=${run.status_tone} label=${run.status_label} />
       </div>
       <div className="min-w-0">
-        <div className="text-sm font-semibold text-[var(--v2-text-strong)]">${run.fired_label}</div>
-        <div className="mt-1 truncate font-mono text-[11px] text-[var(--v2-text-muted)]">
+        <div className="v2-text-body font-medium text-[var(--v2-text-strong)]">
+          ${run.fired_label}
+        </div>
+        <div className="mt-1 truncate v2-text-meta">
           ${run.thread_id
             ? `${t('automations.detail.thread')} ${run.thread_id}`
             : t('automations.detail.noThread')}
         </div>
         ${run.run_id &&
         html`
-          <div className="mt-1 truncate font-mono text-[11px] text-[var(--v2-text-faint)]">
+          <div className="mt-1 truncate v2-text-meta">
             ${t('automations.detail.run')} ${run.run_id}
           </div>
         `}

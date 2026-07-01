@@ -4,7 +4,25 @@ import { Input } from '../../../design-system/input.js';
 import { isDesktopRuntime } from '../../../lib/api.js';
 import { React, html } from '../../../lib/html.js';
 import { useExtensionSetup, useOauthSetup, useSetupSubmit } from '../hooks/useExtensions.js';
-import { setupReadyForActivation } from '../lib/extension-actions.js';
+import { connectorFamily, setupReadyForActivation } from '../lib/extension-actions.js';
+
+// Signature: every configure modal opens with a one-line scope statement in the
+// GATE voice — what the agent will be able to do, and that nothing leaves this
+// machine without the user's approval. This ties "connect" to the same gate
+// language the approval surface uses.
+const SCOPE_VERB = {
+  gmail: 'read your Gmail',
+  google: 'read your Google account',
+  notion: 'read your Notion',
+  slack: 'read your Slack messages',
+  workspace: 'read your workspace files'
+};
+
+export function connectorScopeStatement(displayName, packageRef) {
+  const family = connectorFamily(packageRef || { id: displayName });
+  const verb = SCOPE_VERB[family] || `use ${displayName}`;
+  return `IronClaw will ${verb}. Nothing leaves this machine without your approval.`;
+}
 
 export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
   const extensionName = extension?.displayName || extension?.packageRef?.id || 'Extension';
@@ -83,7 +101,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
   if (error) {
     return html`
       <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
-        <p className="text-sm text-[var(--v2-danger-text)]">
+        <p className="v2-text-body text-[var(--v2-danger-text)]">
           Failed to load setup: ${error.message}
         </p>
       <//>
@@ -93,7 +111,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
   if (secrets.length === 0 && fields.length === 0) {
     return html`
       <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
-        <p className="text-sm text-[var(--v2-text-muted)]">
+        <p className="v2-text-body text-[var(--v2-text-muted)]">
           No configuration required for this extension.
         </p>
       <//>
@@ -102,9 +120,12 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
 
   return html`
     <${ModalShell} onClose=${onClose} title=${'Configure ' + extensionName}>
+      <p className="mb-4 v2-text-body text-[var(--v2-text-strong)]">
+        ${connectorScopeStatement(extensionName, extension?.packageRef)}
+      </p>
       ${onboarding?.credential_instructions &&
       html`
-        <p className="mb-4 text-sm leading-6 text-[var(--v2-text-muted)]">
+        <p className="mb-4 v2-text-body text-[var(--v2-text-muted)]">
           ${onboarding.credential_instructions}
         </p>
       `}
@@ -140,25 +161,18 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                 className="mb-1.5 flex items-center gap-2 text-sm font-medium text-[var(--v2-text-strong)]"
               >
                 ${secret.prompt || secret.name}
-                ${secret.optional &&
-                html`
-                  <span className="font-mono text-[10px] text-[var(--v2-text-faint)]">
-                    optional
-                  </span>
-                `}
+                ${secret.optional && html` <span className="v2-text-meta"> optional </span> `}
                 ${secret.provided &&
                 html`
-                  <span className="font-mono text-[10px] text-[var(--v2-positive-text)]">
-                    configured
-                  </span>
+                  <span className="v2-text-meta text-[var(--v2-positive-text)]"> configured </span>
                 `}
               </label>
               ${(secret.setup?.kind || 'manual_token') === 'oauth'
                 ? html`
                     <div
-                      className="flex items-center justify-between gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2"
+                      className="flex items-center justify-between gap-3 rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2"
                     >
-                      <span className="text-xs text-[var(--v2-text-muted)]">
+                      <span className="v2-text-body text-[var(--v2-text-muted)]">
                         ${secret.provided
                           ? 'Authorization is configured.'
                           : 'Authorize this provider in a browser popup.'}
@@ -193,11 +207,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                     />
                     ${secret.auto_generate &&
                     !secret.provided &&
-                    html`
-                      <p className="mt-1 text-xs text-[var(--v2-text-faint)]">
-                        Auto-generated if left blank
-                      </p>
-                    `}
+                    html` <p className="mt-1 v2-text-meta">Auto-generated if left blank</p> `}
                   `}
             </div>
           `
@@ -209,12 +219,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
                 className="mb-1.5 flex items-center gap-2 text-sm font-medium text-[var(--v2-text-strong)]"
               >
                 ${field.prompt || field.name}
-                ${field.optional &&
-                html`
-                  <span className="font-mono text-[10px] text-[var(--v2-text-faint)]">
-                    optional
-                  </span>
-                `}
+                ${field.optional && html` <span className="v2-text-meta"> optional </span> `}
               </label>
               <${Input}
                 type="text"
@@ -236,14 +241,14 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
 
       ${onboarding?.credential_next_step &&
       html`
-        <p className="mt-4 text-xs leading-5 text-[var(--v2-text-muted)]">
+        <p className="mt-4 v2-text-body text-[var(--v2-text-muted)]">
           ${onboarding.credential_next_step}
         </p>
       `}
       ${submitMutation.error &&
       html`
         <div
-          className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-2 text-xs text-[var(--v2-danger-text)]"
+          className="mt-4 rounded-[var(--v2-radius-control)] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-2 v2-text-body text-[var(--v2-danger-text)]"
         >
           ${submitMutation.error.message}
         </div>
@@ -251,7 +256,7 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
       ${oauthMutation.error &&
       html`
         <div
-          className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-2 text-xs text-[var(--v2-danger-text)]"
+          className="mt-4 rounded-[var(--v2-radius-control)] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-2 v2-text-body text-[var(--v2-danger-text)]"
         >
           ${oauthMutation.error.message}
         </div>
@@ -259,27 +264,27 @@ export function ConfigureModal({ extension, onActivate, onClose, onSaved }) {
 
       <div className="mt-6 flex items-center justify-end gap-3">
         <${Button} variant="ghost" className="min-h-[44px]" onClick=${onClose}>Cancel<//>
-        ${canActivate &&
-        html`
-          <${Button}
-            variant="primary"
-            className="min-h-[44px]"
-            onClick=${() => onActivate?.(extension)}
-          >
-            Activate
-          <//>
-        `}
-        ${canSave &&
-        html`
-          <${Button}
-            variant=${canActivate ? 'secondary' : 'primary'}
-            className="min-h-[44px]"
-            onClick=${handleSubmit}
-            disabled=${submitMutation.isPending}
-          >
-            ${submitMutation.isPending ? 'Saving…' : 'Save'}
-          <//>
-        `}
+        ${canSave
+          ? html`
+              <${Button}
+                variant="primary"
+                className="min-h-[44px]"
+                onClick=${handleSubmit}
+                disabled=${submitMutation.isPending}
+              >
+                ${submitMutation.isPending ? 'Saving…' : 'Save and activate'}
+              <//>
+            `
+          : canActivate &&
+            html`
+              <${Button}
+                variant="primary"
+                className="min-h-[44px]"
+                onClick=${() => onActivate?.(extension)}
+              >
+                Save and activate
+              <//>
+            `}
       </div>
     <//>
   `;
@@ -343,7 +348,7 @@ function ModalShell({ onClose, title, children }) {
 
   return html`
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/55 p-4 sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby="connector-setup-title"
@@ -356,23 +361,20 @@ function ModalShell({ onClose, title, children }) {
         ref=${panelRef}
         tabindex=${-1}
         data-testid="connector-setup-modal"
-        className="w-full max-w-lg overflow-hidden rounded-[22px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] shadow-[0_24px_60px_rgba(0,0,0,0.35)] outline-none"
+        className="w-full max-w-lg overflow-hidden rounded-[var(--v2-radius-shell)] border border-[var(--v2-panel-border)] border-t-2 border-t-[var(--v2-accent)] bg-[var(--v2-surface-soft)] outline-none"
         onClick=${(e) => e.stopPropagation()}
       >
         <div
           className="flex items-center justify-between gap-4 border-b border-[var(--v2-panel-border)] px-5 py-4"
         >
-          <h3
-            id="connector-setup-title"
-            className="text-lg font-semibold text-[var(--v2-text-strong)]"
-          >
+          <h3 id="connector-setup-title" className="v2-text-title text-[var(--v2-text-strong)]">
             ${title}
           </h3>
           <button
             type="button"
             onClick=${onClose}
             aria-label="Close setup"
-            className="grid h-11 w-11 -mr-1.5 place-items-center rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
+            className="grid h-11 w-11 -mr-1.5 place-items-center rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]"
           >
             <${Icon} name="close" className="h-4 w-4" />
           </button>

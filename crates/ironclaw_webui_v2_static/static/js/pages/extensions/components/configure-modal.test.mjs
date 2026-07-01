@@ -59,6 +59,7 @@ function createConfigureModalHarness() {
     Button: 'Button',
     Icon: 'Icon',
     Input: 'Input',
+    connectorFamily: () => 'gmail',
     globalThis: {},
     html,
     isDesktopRuntime: () => true,
@@ -100,7 +101,11 @@ function createConfigureModalHarness() {
   };
 
   vm.runInNewContext(
-    sourceForTest('./configure-modal.js', ['ConfigureModal', 'ModalShell']),
+    sourceForTest('./configure-modal.js', [
+      'ConfigureModal',
+      'ModalShell',
+      'connectorScopeStatement'
+    ]),
     context
   );
   return context.globalThis.__testExports;
@@ -132,4 +137,22 @@ test('ConfigureModal uses v2 tokenized setup styling and shared inputs', () => {
   assert.equal(templateText.includes('border-white'), false);
   assert.equal(templateText.includes('bg-white/'), false);
   assert.equal(templateText.includes('bg-white['), false);
+
+  // Signature: the modal floats on the shell radius with an accent top-edge
+  // (a "mode" surface) and drops the backdrop blur.
+  const shellText = collectTemplateText([shell]);
+  assert.ok(shellText.includes('rounded-[var(--v2-radius-shell)]'));
+  assert.ok(shellText.includes('border-t-2'));
+  assert.ok(shellText.includes('border-t-[var(--v2-accent)]'));
+  assert.equal(shellText.includes('backdrop-blur'), false);
+  // The v2 type scale replaces ad-hoc eyebrow sizing in the body.
+  assert.ok(templateText.includes('v2-text-body'));
+  assert.equal(templateText.includes('rounded-[22px]'), false);
+});
+
+test('connectorScopeStatement speaks the gate voice per connector family', () => {
+  const { connectorScopeStatement } = createConfigureModalHarness();
+  const line = connectorScopeStatement('Gmail', { id: 'tools/gmail' });
+  assert.ok(line.startsWith('IronClaw will '));
+  assert.ok(line.endsWith('Nothing leaves this machine without your approval.'));
 });

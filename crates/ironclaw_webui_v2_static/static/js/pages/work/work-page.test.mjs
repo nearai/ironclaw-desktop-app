@@ -60,3 +60,55 @@ test('work-page keeps saved items past the first page reachable (filter + show-a
   assert.match(src, /setShowAllWork\(true\)/);
   assert.match(src, /Show all \$\{filteredItems\.length\}/);
 });
+
+// Ironwork rebuild: the export bank is de-boxed to one Copy + one Save original +
+// a single "Export" overflow (Popover menu), never the seven-identical-button wall.
+test('work-page collapses the export bank to Copy + Save original + one Export overflow', async () => {
+  const src = await source();
+
+  // The overflow lives in the shared Popover primitive, opened by an "Export" button.
+  assert.match(src, /import \{ Popover \}/, 'export overflow uses the shared Popover primitive');
+  assert.match(src, /aria-haspopup="menu"/, 'the Export trigger is a real menu button');
+  assert.match(src, /role="menuitem"/, 'each format is a menu item, not a top-level button');
+
+  // The five format writers are still reachable — behavior preserved, chrome collapsed.
+  for (const label of ['Markdown', 'DOCX', 'PDF', 'HTML', 'JSON']) {
+    assert.ok(src.includes(`'${label}'`), `${label} export still wired`);
+  }
+
+  // Copy and Save original remain first-class controls beside the overflow.
+  assert.match(src, /'Copy'/);
+  assert.match(src, /'Save original'/);
+});
+
+// Ironwork rebuild: "What IronClaw did" is the trust centerpiece — a structured,
+// clay-edge-marked section above the body, not a plain bordered list. Clay
+// (--v2-gold) is reserved for agent provenance, so the receipts carry the left edge.
+test('work-page promotes receipts to a clay-edge-marked centerpiece', async () => {
+  const src = await source();
+  assert.match(src, /function WorkReceipts/, 'receipts render through a dedicated component');
+  // The dedicated WorkReceipts section carries the clay (gold) provenance edge and
+  // the receipts test id (order of className vs data-testid is not significant).
+  assert.match(src, /border-l-2 border-l-\[var\(--v2-gold\)\]/);
+  assert.match(src, /data-testid="dossier-receipts"/);
+});
+
+// Ironwork rebuild: the document body is framed by whitespace, not wrapped in a
+// --v2-canvas card box — the reader is the focal content, not a nested panel.
+test('work-page lifts the document body out of the canvas card box', async () => {
+  const src = await source();
+  assert.doesNotMatch(
+    src,
+    /data-testid="saved-work-artifact"[^`]*bg-\[var\(--v2-canvas\)\]/,
+    'the reader body must not sit inside a --v2-canvas card box'
+  );
+});
+
+// Ironwork rebuild: the empty state and the dead-deep-link notice render one shared
+// component so their copy and treatment never drift apart.
+test('work-page renders one shared saved-work notice for empty + not-found', async () => {
+  const src = await source();
+  assert.match(src, /function SavedWorkNotice/, 'a single notice component backs both states');
+  assert.match(src, /testId="saved-work-not-found"/);
+  assert.match(src, /testId="saved-work-empty"/);
+});

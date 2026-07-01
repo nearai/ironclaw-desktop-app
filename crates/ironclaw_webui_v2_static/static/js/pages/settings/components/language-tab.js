@@ -18,17 +18,13 @@ export function LanguageTab({ searchQuery = '' }) {
 
   return html`
     <section>
-      <h3 className="mb-2 text-[13px] font-medium text-[var(--v2-text-muted)]">
-        ${t('lang.title')}
-      </h3>
+      <h3 className="v2-text-label mb-2">${t('lang.title')}</h3>
       <p className="text-sm leading-6 text-[var(--v2-text-muted)]">${t('lang.description')}</p>
 
       <div className="mt-6 border-t border-[var(--v2-panel-border)] py-4">
-        <div className="text-xs text-[var(--v2-text-muted)]">${t('lang.current')}</div>
+        <div className="v2-text-label">${t('lang.current')}</div>
         <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-lg font-semibold text-[var(--v2-text-strong)]"
-            >${current.native}</span
-          >
+          <span className="v2-text-section">${current.native}</span>
           <span className="text-xs text-[var(--v2-text-faint)]">${current.name}</span>
         </div>
       </div>
@@ -39,9 +35,10 @@ export function LanguageTab({ searchQuery = '' }) {
             <button
               key=${l.code}
               type="button"
+              aria-current=${l.code === lang ? 'true' : undefined}
               onClick=${() => setLang(l.code)}
               className=${[
-                'flex min-h-[44px] items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left',
+                'flex min-h-[44px] items-center justify-between gap-3 rounded-[var(--v2-radius-control)] border px-4 py-3 text-left',
                 l.code === lang
                   ? 'border-[color-mix(in_srgb,var(--v2-accent)_35%,var(--v2-panel-border))] bg-[var(--v2-accent-soft)] text-[var(--v2-text-strong)]'
                   : 'border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)] hover:border-[color-mix(in_srgb,var(--v2-accent)_20%,var(--v2-panel-border))] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]'
@@ -51,9 +48,7 @@ export function LanguageTab({ searchQuery = '' }) {
                 <div className="truncate text-sm font-medium">${l.native}</div>
                 <div className="truncate text-[11px] text-[var(--v2-text-faint)]">${l.name}</div>
               </div>
-              <div className="shrink-0 font-mono text-[11px] text-[var(--v2-text-faint)]">
-                ${l.code}
-              </div>
+              <div className="v2-text-meta shrink-0">${l.code}</div>
             </button>
           `
         )}

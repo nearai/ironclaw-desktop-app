@@ -1,8 +1,7 @@
 import { React, html } from '../../../lib/html.js';
-import { Badge } from '../../../design-system/badge.js';
 import { Button } from '../../../design-system/button.js';
 import { Icon } from '../../../design-system/icons.js';
-import { KIND_LABELS, STATE_TONES, STATE_LABELS } from '../lib/extensions-schema.js';
+import { KIND_LABELS } from '../lib/extensions-schema.js';
 import {
   connectorFamily,
   connectorKey,
@@ -12,29 +11,132 @@ import {
   registryStatusBadge
 } from '../lib/extension-actions.js';
 
-/* Hairline row (de-boxed): a connector lives directly on the page as a row
-   separated from its neighbours by a 0.5px hairline — no per-row card. The
-   meta, capability disclosure, and chips are quiet sentence-case text; hover is
-   color-only. Capabilities collapse behind a count disclosure; secondary
-   actions (Configure / Setup / Remove) live in an overflow menu so the resting
-   row stays calm. */
+/* One depth. A connector is a de-boxed hairline row: no per-row card, no
+   shadow, no nested filled panels. Status is a single line of text plus at most
+   one breathing dot for genuine in-flight state. When a connector needs the
+   user, the whole row carries a danger/amber left-rail and a one-line blocker;
+   healthy connectors stay quiet. The per-row primary action is the user's
+   action (accent blue); everything else is overflow. Machine strings
+   (env vars, transports, normalized names, capability chips) live behind a
+   quiet Details disclosure so the resting row reads like a name and a state. */
 
-const CARD = 'flex flex-col border-t border-[var(--v2-panel-border)] py-4 first:border-t-0';
-const META = 'mt-1 flex flex-wrap items-center gap-x-2 text-xs text-[var(--v2-text-faint)]';
-const DESC = 'mt-2 line-clamp-2 text-xs leading-5 text-[var(--v2-text-muted)]';
+const ROW = 'flex flex-col py-4';
+const ROW_RAIL_DANGER =
+  '-mx-3 rounded-[var(--v2-radius-control)] border-l-2 border-[var(--v2-danger-text)] bg-[var(--v2-danger-soft)] px-3';
+const ROW_RAIL_WARNING =
+  '-mx-3 rounded-[var(--v2-radius-control)] border-l-2 border-[var(--v2-warning-text)] bg-[var(--v2-warning-soft)] px-3';
+const META = 'mt-1 flex flex-wrap items-center gap-x-2 v2-text-meta';
+const DESC = 'mt-2 line-clamp-2 v2-text-body text-[var(--v2-text-muted)]';
 const FOOTER = 'mt-3 flex items-center gap-2';
 const DISCLOSURE =
-  'v2-button -my-2 inline-flex min-h-[44px] items-center gap-1.5 border-0 bg-transparent py-2 pr-2 ' +
-  'text-[11px] text-[var(--v2-text-faint)] hover:text-[var(--v2-accent-text)]';
+  '-my-2 inline-flex min-h-[44px] items-center gap-1.5 rounded-[var(--v2-radius-control)] ' +
+  'border-0 bg-transparent py-2 pr-2 v2-text-meta hover:text-[var(--v2-accent-text)]';
 const CHIP =
-  'rounded-[6px] bg-[var(--v2-surface-soft)] ' +
-  'px-1.5 py-0.5 text-[11px] text-[var(--v2-text-muted)]';
+  'rounded-[var(--v2-radius-control)] bg-[var(--v2-surface-soft)] ' +
+  'px-1.5 py-0.5 v2-text-meta text-[var(--v2-text-muted)]';
 const APP_ICON =
-  'grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-[10px] border ' +
-  'border-[var(--v2-panel-border)] bg-[var(--v2-surface)]';
+  'grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-[var(--v2-radius-control)] ' +
+  'border border-[var(--v2-panel-border)] bg-[var(--v2-surface)]';
 
 function packageId(item) {
   return item.package_ref?.id || '';
+}
+
+/* ── Readiness model ──────────────────────────────────────────────────
+   Every list on this surface groups by readiness: connectors that need the
+   user sit in one focal "Needs you" zone at the top; healthy ones sit below.
+   `extensionReadiness` maps a live extension onto that model, and
+   `groupByReadiness` splits a list into { needsYou, healthy } preserving
+   input order within each group. A failed connector never sits at the same
+   altitude as a healthy one. */
+
+const NEEDS_YOU_STATES = new Set([
+  'failed',
+  'auth_required',
+  'setup_required',
+  'pairing_required',
+  'pairing'
+]);
+
+export function extensionState(ext) {
+  return ext?.onboarding_state || ext?.activation_status || (ext?.active ? 'active' : 'installed');
+}
+
+const READINESS_TEXT = {
+  failed: { label: 'Failed', tone: 'danger', blocker: 'Setup failed. Reconfigure to recover.' },
+  auth_required: {
+    label: 'Needs sign-in',
+    tone: 'warning',
+    blocker: 'Sign-in required before the agent can use it.'
+  },
+  setup_required: {
+    label: 'Needs setup',
+    tone: 'warning',
+    blocker: 'Add credentials to finish connecting.'
+  },
+  pairing_required: {
+    label: 'Needs pairing',
+    tone: 'warning',
+    blocker: 'Enter the pairing code to link this app.'
+  },
+  pairing: {
+    label: 'Needs pairing',
+    tone: 'warning',
+    blocker: 'Enter the pairing code to link this app.'
+  },
+  active: { label: 'Active', tone: 'success', blocker: '' },
+  ready: { label: 'Active', tone: 'success', blocker: '' },
+  installed: { label: 'Idle', tone: 'muted', blocker: '' }
+};
+
+export function extensionReadiness(ext) {
+  const state = extensionState(ext);
+  const needsYou = NEEDS_YOU_STATES.has(state);
+  const info = READINESS_TEXT[state] || { label: state, tone: 'muted', blocker: '' };
+  // A live activation error is the truest blocker line — prefer it.
+  const blocker = needsYou ? ext?.activation_error || info.blocker : '';
+  return { state, needsYou, statusLabel: info.label, tone: info.tone, blocker };
+}
+
+export function groupByReadiness(list = []) {
+  const needsYou = [];
+  const healthy = [];
+  for (const ext of list) {
+    (extensionReadiness(ext).needsYou ? needsYou : healthy).push(ext);
+  }
+  return { needsYou, healthy };
+}
+
+/* ── Status line ──────────────────────────────────────────────────────
+   Collapses the old parallel status-pill systems to ONE disciplined
+   status-text + single-dot treatment. The breathing dot appears only for a
+   genuine live state (active/ready). Uses semantic v2 tone tokens — never raw
+   Tailwind colour classes. */
+
+function statusToneClass(tone) {
+  if (tone === 'success') return 'text-[var(--v2-positive-text)]';
+  if (tone === 'danger') return 'text-[var(--v2-danger-text)]';
+  if (tone === 'warning') return 'text-[var(--v2-warning-text)]';
+  if (tone === 'info') return 'text-[var(--v2-info-text)]';
+  if (tone === 'accent') return 'text-[var(--v2-accent-text)]';
+  return 'text-[var(--v2-text-faint)]';
+}
+
+export function StatusText({ label, tone = 'muted', live = false }) {
+  return html`
+    <span
+      className=${['inline-flex items-center gap-1.5 v2-text-label', statusToneClass(tone)].join(
+        ' '
+      )}
+    >
+      ${live &&
+      html`<span
+        aria-hidden="true"
+        className="v2-breathing-dot h-1.5 w-1.5 shrink-0 rounded-full bg-current"
+      />`}
+      ${label}
+    </span>
+  `;
 }
 
 export function connectorIconKind(source) {
@@ -286,7 +388,7 @@ function OverflowMenu({ actions, isBusy }) {
         aria-expanded=${open ? 'true' : 'false'}
         disabled=${isBusy}
         onClick=${() => setOpen((v) => !v)}
-        className="grid h-11 w-11 -mr-1.5 -mt-1.5 place-items-center rounded-md border border-transparent text-[var(--v2-text-faint)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="grid h-11 w-11 -mr-1.5 -mt-1.5 place-items-center rounded-[var(--v2-radius-control)] border border-transparent text-[var(--v2-text-faint)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] disabled:cursor-not-allowed disabled:opacity-50"
       >
         <${Icon} name="more" className="h-4 w-4" strokeWidth=${2.4} />
       </button>
@@ -296,7 +398,7 @@ function OverflowMenu({ actions, isBusy }) {
           ref=${menuRef}
           role="menu"
           onKeyDown=${onMenuKeyDown}
-          className="absolute right-0 top-8 z-10 min-w-[156px] rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-1 shadow-[0_20px_40px_-20px_rgba(0,0,0,0.7)]"
+          className="absolute right-0 top-8 z-10 min-w-[156px] rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-1"
         >
           ${actions.map(
             (action) => html`
@@ -310,7 +412,7 @@ function OverflowMenu({ actions, isBusy }) {
                   action.run();
                 }}
                 className=${[
-                  'flex min-h-[44px] w-full items-center gap-2.5 rounded-[7px] px-2.5 py-1.5 text-left text-[13px] disabled:cursor-not-allowed disabled:opacity-50',
+                  'flex min-h-[44px] w-full items-center gap-2.5 rounded-[var(--v2-radius-control)] px-2.5 py-1.5 text-left v2-text-body disabled:cursor-not-allowed disabled:opacity-50',
                   action.danger
                     ? 'text-[var(--v2-danger-text)] hover:bg-[var(--v2-danger-soft)]'
                     : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)]'
@@ -330,25 +432,24 @@ function OverflowMenu({ actions, isBusy }) {
 function ChipGrid({ items }) {
   if (!items || items.length === 0) return null;
   return html`
-    <div className="mt-3 flex flex-wrap gap-1">
+    <div className="mt-1.5 flex flex-wrap gap-1">
       ${items.map((item) => html`<span key=${item} className=${CHIP}>${item}</span>`)}
     </div>
   `;
 }
 
+/* Setup guidance is a quiet inline note — one depth, no nested filled card.
+   The blocker sentence reads as body text under the row; any setup link is an
+   inline accent link (the user's next physical action). */
 function ConnectorGuidance({ guidance, fallback }) {
   const body = fallback || guidance?.body;
   if (!body && !guidance?.title) return null;
 
   return html`
-    <div
-      className="mt-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-xs leading-5 text-[var(--v2-text-muted)]"
-    >
+    <div className="mt-2 v2-text-body text-[var(--v2-text-muted)]">
       ${guidance?.title &&
-      html`
-        <div className="mb-0.5 font-semibold text-[var(--v2-text-strong)]">${guidance.title}</div>
-      `}
-      ${body && html`<div>${body}</div>`}
+      html`<span className="text-[var(--v2-text-strong)]">${guidance.title} </span>`}
+      ${body}
       ${guidance?.href &&
       html`
         <${Button}
@@ -356,7 +457,7 @@ function ConnectorGuidance({ guidance, fallback }) {
           href=${guidance.href}
           variant="secondary"
           size="sm"
-          className="mt-2 min-h-[44px] px-2.5 text-xs"
+          className="mt-2 min-h-[44px] px-2.5"
         >
           ${guidance.actionLabel || 'Open setup'}
         <//>
@@ -366,15 +467,13 @@ function ConnectorGuidance({ guidance, fallback }) {
 }
 
 export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }) {
-  const state =
-    ext.onboarding_state || ext.activation_status || (ext.active ? 'active' : 'installed');
-  const tone = STATE_TONES[state] || 'muted';
-  const label = STATE_LABELS[state] || state;
+  const readiness = extensionReadiness(ext);
+  const state = readiness.state;
   const kindLabel = KIND_LABELS[ext.kind] || ext.kind;
   const displayName = ext.display_name || packageId(ext);
   const canManage = Boolean(ext.package_ref);
   const tools = ext.tools || [];
-  const [capsOpen, setCapsOpen] = React.useState(false);
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
 
   const setupState = state === 'setup_required' || state === 'auth_required';
   const onboardingHint =
@@ -445,22 +544,37 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
   }
 
   const primary = primaryActions[0];
-  const showFooter = tools.length > 0 || Boolean(primary);
+  const hasDetails = tools.length > 0 || Boolean(kindLabel) || Boolean(ext.version);
+  const showFooter = hasDetails || Boolean(primary);
+
+  // One focal zone: a connector that needs the user carries a tone left-rail so
+  // it never sits at the same altitude as a healthy row.
+  const railClass =
+    readiness.tone === 'danger'
+      ? ROW_RAIL_DANGER
+      : readiness.needsYou
+        ? ROW_RAIL_WARNING
+        : 'border-t border-[var(--v2-panel-border)] first:border-t-0';
 
   return html`
-    <div className=${CARD}>
+    <div
+      className=${[ROW, railClass].join(' ')}
+      data-readiness=${readiness.needsYou ? 'needs-you' : 'healthy'}
+    >
       <div className="flex items-start gap-3">
         <${ConnectorAppIcon} source=${ext} />
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="min-w-0 truncate text-sm font-semibold text-[var(--v2-text-strong)]">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate v2-text-section text-[var(--v2-text-strong)]">
               ${displayName}
             </span>
-            <${Badge} tone=${tone} label=${label} size="sm" />
           </div>
-          <div className=${META}>
-            <span>${kindLabel}</span>
-            ${ext.version && html`<span>· v${ext.version}</span>`}
+          <div className="mt-1">
+            <${StatusText}
+              label=${readiness.statusLabel}
+              tone=${readiness.tone}
+              live=${state === 'active' || state === 'ready'}
+            />
           </div>
         </div>
         ${overflowActions.length > 0 &&
@@ -468,32 +582,27 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
       </div>
 
       ${ext.description && html`<p className=${DESC}>${ext.description}</p>`}
-      ${ext.activation_error &&
-      html`
-        <div
-          className="mt-2 rounded-[10px] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-1.5 text-xs text-[var(--v2-danger-text)]"
-        >
-          ${ext.activation_error}
-        </div>
-      `}
+      ${readiness.blocker &&
+      html`<p className="mt-2 v2-text-body text-[var(--v2-text-strong)]">${readiness.blocker}</p>`}
       <${ConnectorGuidance} guidance=${guidance} fallback=${onboardingHint} />
 
       ${showFooter &&
       html`
         <div className=${FOOTER}>
-          ${tools.length > 0 &&
+          ${hasDetails &&
           html`
             <button
               type="button"
-              aria-expanded=${capsOpen ? 'true' : 'false'}
-              onClick=${() => setCapsOpen((v) => !v)}
+              aria-expanded=${detailsOpen ? 'true' : 'false'}
+              onClick=${() => setDetailsOpen((v) => !v)}
               className=${DISCLOSURE}
             >
-              <${Icon} name="layers" className="h-3.5 w-3.5" />
-              <span>${tools.length} ${tools.length === 1 ? 'capability' : 'capabilities'}</span>
+              <${Icon} name="layers" className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Details</span>
               <${Icon}
                 name="chevron"
-                className=${['h-3 w-3', capsOpen ? 'rotate-180' : ''].join(' ')}
+                aria-hidden="true"
+                className=${['h-3 w-3', detailsOpen ? 'rotate-180' : ''].join(' ')}
               />
             </button>
           `}
@@ -501,7 +610,7 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
           ${primary &&
           html`
             <${Button}
-              variant="secondary"
+              variant="primary"
               size="sm"
               className="min-h-[44px] px-3.5"
               onClick=${primary.run}
@@ -512,9 +621,35 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
           `}
         </div>
       `}
-      ${capsOpen && html`<${ChipGrid} items=${tools} />`}
+      ${detailsOpen &&
+      html`
+        <div className="mt-2 flex flex-col gap-2">
+          <div className=${META}>
+            <span>${kindLabel}</span>
+            ${ext.version && html`<span>· v${ext.version}</span>`}
+          </div>
+          ${tools.length > 0 &&
+          html`
+            <div>
+              <div className="v2-text-label">
+                ${tools.length} ${tools.length === 1 ? 'capability' : 'capabilities'}
+              </div>
+              <${ChipGrid} items=${tools} />
+            </div>
+          `}
+        </div>
+      `}
     </div>
   `;
+}
+
+/* Registry readiness mirrors the installed-row model: a blocked/needs-setup
+   entry is a "needs you" row (danger/amber left-rail + one-line blocker); an
+   available entry is a quiet healthy row. Shared with groupByReadiness via the
+   registryStatusBadge tone. */
+export function registryEntryNeedsYou(entry, connectPhase) {
+  const tone = registryStatusBadge(entry, connectPhase).tone;
+  return tone === 'danger' || tone === 'warning';
 }
 
 export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetup, connectPhase }) {
@@ -522,10 +657,11 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
   const displayName = entry.display_name || packageId(entry);
   const canInstall = Boolean(entry.package_ref);
   const keywords = entry.keywords || [];
-  const [kwOpen, setKwOpen] = React.useState(false);
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
   const connectButton = registryConnectButtonState(connectPhase, entry);
   const guidance = connectorSetupGuidance(entry, { connectPhase });
   const statusBadge = registryStatusBadge(entry, connectPhase);
+  const needsYou = statusBadge.tone === 'danger' || statusBadge.tone === 'warning';
   const runConnectAction = () => {
     if (connectButton.action === 'manual_setup' && onManualSetup) {
       onManualSetup(entry);
@@ -537,63 +673,73 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
     }
     onInstall({ packageRef: entry.package_ref, displayName });
   };
-  const showFooter = keywords.length > 0 || canInstall;
+  const hasDetails = keywords.length > 0 || Boolean(kindLabel) || Boolean(entry.version);
+  const showFooter = hasDetails || canInstall;
+  const blocker =
+    connectPhase?.phase === 'error'
+      ? connectPhase?.message
+      : connectPhase?.phase === 'blocked-google-client-id'
+        ? connectPhase?.message
+        : '';
+
+  const railClass =
+    statusBadge.tone === 'danger'
+      ? ROW_RAIL_DANGER
+      : needsYou
+        ? ROW_RAIL_WARNING
+        : 'border-t border-[var(--v2-panel-border)] first:border-t-0';
+
+  // Only surface the guidance note here when it is NOT already shown as the
+  // blocker line, so the row never repeats itself.
+  const guidanceFallback =
+    connectPhase?.phase === 'blocked-google-client-id' && !blocker ? connectPhase?.message : null;
 
   return html`
     <div
-      className=${CARD}
+      className=${[ROW, railClass].join(' ')}
       data-testid=${`registry-card-${entry.id || packageId(entry)}`}
       data-package-ref=${entry.package_ref?.id || ''}
+      data-readiness=${needsYou ? 'needs-you' : 'healthy'}
     >
       <div className="flex items-start gap-3">
         <${ConnectorAppIcon} source=${entry} />
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="min-w-0 truncate text-sm font-semibold text-[var(--v2-text-strong)]">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate v2-text-section text-[var(--v2-text-strong)]">
               ${displayName}
             </span>
-            <${Badge} tone=${statusBadge.tone} label=${statusBadge.label} size="sm" />
           </div>
-          <div className=${META}>
-            <span>${kindLabel}</span>
-            ${entry.version && html`<span>· v${entry.version}</span>`}
+          <div className="mt-1">
+            <${StatusText}
+              label=${statusBadge.label}
+              tone=${needsYou ? statusBadge.tone : 'muted'}
+            />
           </div>
         </div>
       </div>
 
       ${entry.description && html`<p className=${DESC}>${entry.description}</p>`}
-      ${connectPhase?.phase === 'error' &&
-      connectPhase?.message &&
-      html`
-        <div
-          className="mt-2 rounded-[10px] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-3 py-1.5 text-xs text-[var(--v2-danger-text)]"
-        >
-          ${connectPhase.message}
-        </div>
-      `}
-      <${ConnectorGuidance}
-        guidance=${guidance}
-        fallback=${connectPhase?.phase === 'blocked-google-client-id'
-          ? connectPhase?.message
-          : null}
-      />
+      ${blocker &&
+      html`<p className="mt-2 v2-text-body text-[var(--v2-text-strong)]">${blocker}</p>`}
+      <${ConnectorGuidance} guidance=${guidance} fallback=${guidanceFallback} />
 
       ${showFooter &&
       html`
         <div className=${FOOTER}>
-          ${keywords.length > 0 &&
+          ${hasDetails &&
           html`
             <button
               type="button"
-              aria-expanded=${kwOpen ? 'true' : 'false'}
-              onClick=${() => setKwOpen((v) => !v)}
+              aria-expanded=${detailsOpen ? 'true' : 'false'}
+              onClick=${() => setDetailsOpen((v) => !v)}
               className=${DISCLOSURE}
             >
-              <${Icon} name="list" className="h-3.5 w-3.5" />
-              <span>${keywords.length} ${keywords.length === 1 ? 'keyword' : 'keywords'}</span>
+              <${Icon} name="list" className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Details</span>
               <${Icon}
                 name="chevron"
-                className=${['h-3 w-3', kwOpen ? 'rotate-180' : ''].join(' ')}
+                aria-hidden="true"
+                className=${['h-3 w-3', detailsOpen ? 'rotate-180' : ''].join(' ')}
               />
             </button>
           `}
@@ -623,13 +769,30 @@ export function RegistryCard({ entry, onInstall, isBusy, onConnect, onManualSetu
               disabled=${isBusy || connectButton.disabled}
             >
               ${connectButton.action === 'connect' &&
-              html`<${Icon} name="plus" className="mr-1.5 h-3.5 w-3.5" />`}
+              html`<${Icon} name="plus" className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />`}
               ${connectButton.label}
             <//>
           `}
         </div>
       `}
-      ${kwOpen && html`<${ChipGrid} items=${keywords} />`}
+      ${detailsOpen &&
+      html`
+        <div className="mt-2 flex flex-col gap-2">
+          <div className=${META}>
+            <span>${kindLabel}</span>
+            ${entry.version && html`<span>· v${entry.version}</span>`}
+          </div>
+          ${keywords.length > 0 &&
+          html`
+            <div>
+              <div className="v2-text-label">
+                ${keywords.length} ${keywords.length === 1 ? 'keyword' : 'keywords'}
+              </div>
+              <${ChipGrid} items=${keywords} />
+            </div>
+          `}
+        </div>
+      `}
     </div>
   `;
 }

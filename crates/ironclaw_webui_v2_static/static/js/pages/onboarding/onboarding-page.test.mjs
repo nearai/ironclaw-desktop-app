@@ -11,6 +11,36 @@ const testDir = path.dirname(fileURLToPath(import.meta.url));
 const onboardingPagePath = path.join(testDir, 'onboarding-page.js');
 const emptyStatePath = path.resolve(testDir, '..', 'chat', 'components', 'empty-state.js');
 
+// onboarding-single-cluster — the three NEAR AI Cloud sign-in buttons are
+// written ONCE. Ironwork de-duplication: the ready path and the
+// gateway-unavailable path must share a single AuthActions component rather
+// than shipping two literal copies of the same button group (which drift).
+// The gateway-unavailable path must NOT render a disabled fake-ready sign-in
+// CTA — it leads with the physical next action instead.
+test('onboarding auth cluster is defined once, not duplicated per state', async () => {
+  const source = await readFile(onboardingPagePath, 'utf8');
+
+  // Exactly one shared auth cluster component.
+  const authActionsDefs = source.match(/function AuthActions\b/g) || [];
+  assert.equal(authActionsDefs.length, 1, 'expected exactly one AuthActions component');
+
+  // The GitHub primary sign-in trigger appears once — the single cluster owns it.
+  const githubStarts = source.match(/startNearai\('github'\)/g) || [];
+  assert.equal(
+    githubStarts.length,
+    1,
+    'the GitHub sign-in action must be written once, inside the shared cluster'
+  );
+
+  // The gateway-unavailable branch must not carry its own duplicate button bank
+  // gated on providerAccessBlocked (the old fake-ready sign-in CTA).
+  assert.doesNotMatch(
+    source,
+    /disabled=\$\{providerAccessBlocked/,
+    'gateway-unavailable path must not render a disabled fake-ready sign-in CTA'
+  );
+});
+
 // onboarding-desk-1 — no fake readiness.
 // The green READY badge must reflect a capability the gateway can prove:
 // the provider is the active selection, or it holds a real stored key.
@@ -54,7 +84,8 @@ test('onboarding READY badge is gated on real auth, not pre-auth configured', as
 // (Use Google / Use NEAR Wallet) must match the primary's `md` height, not the
 // 32px `size="sm"` they previously shipped at. The rendered floor is enforced in
 // tests/static/a11y-static.spec.ts; this guards the source so the secondary auth
-// buttons cannot silently regress to `sm`.
+// buttons cannot silently regress to `sm`. After Ironwork de-duplication the
+// cluster is written once, so there is one Google and one Wallet block.
 test('onboarding auth secondary actions use the md tap-target size, not sm', async () => {
   const source = await readFile(onboardingPagePath, 'utf8');
 
@@ -64,7 +95,7 @@ test('onboarding auth secondary actions use the md tap-target size, not sm', asy
   const authSecondaries = buttonBlocks.filter(
     (block) => block.includes("startNearai('google')") || block.includes('startNearaiWallet')
   );
-  assert.ok(authSecondaries.length >= 4, 'expected the Google/Wallet auth buttons to be present');
+  assert.ok(authSecondaries.length >= 2, 'expected the Google/Wallet auth buttons to be present');
   for (const block of authSecondaries) {
     assert.doesNotMatch(
       block,
@@ -76,17 +107,41 @@ test('onboarding auth secondary actions use the md tap-target size, not sm', asy
 });
 
 // onboarding-accent-discipline — gold is the agent's hand (DESIGN.md color law:
-// "Never use gold as decoration"). The first-run trust rows are static product
-// promises, not agent artifacts/receipts, so their icon tiles must not be gold.
-test('onboarding trust-row icon tiles do not use gold as decoration', async () => {
+// "Never use gold as decoration"). The first-run gate-contract line is a static
+// product promise, not an agent artifact/receipt, so it must not use gold. The
+// whole onboarding surface must not paint any gold either (no clay island).
+test('onboarding gate-contract line and surface do not use gold as decoration', async () => {
   const source = await readFile(onboardingPagePath, 'utf8');
 
-  const trustRow = source.match(/function TrustRow\([\s\S]*?\n}/);
-  assert.ok(trustRow, 'expected a TrustRow component');
+  const gateLine = source.match(/function GateContractLine\([\s\S]*?\n}/);
+  assert.ok(gateLine, 'expected a GateContractLine component');
   assert.doesNotMatch(
-    trustRow[0],
+    gateLine[0],
     /var\(--v2-gold/,
-    'TrustRow must not paint its icon tile with gold (reserved for agent work)'
+    'GateContractLine must not use gold (reserved for agent work)'
+  );
+  assert.doesNotMatch(
+    source,
+    /var\(--v2-gold/,
+    'onboarding surface must not use gold anywhere (no clay island)'
+  );
+});
+
+// onboarding-gate-voice — the marketing "three promises" triad is replaced by
+// the product's actual signature: one gate-voice contract line tying first-run
+// to the approval gate. The three trust rows must be gone.
+test('onboarding renders the single gate-voice contract line, not a trust-row triad', async () => {
+  const source = await readFile(onboardingPagePath, 'utf8');
+
+  assert.doesNotMatch(
+    source,
+    /function TrustRow\b/,
+    'the marketing TrustRow triad must be removed'
+  );
+  assert.match(
+    source,
+    /It asks before any external action leaves this machine\./,
+    'expected the gate-voice contract line'
   );
 });
 

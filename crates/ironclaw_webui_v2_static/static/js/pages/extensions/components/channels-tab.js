@@ -1,9 +1,8 @@
-import { StatusPill } from '../../../design-system/primitives.js';
-import { CardLabel } from '../../../design-system/card.js';
-import { html } from '../../../lib/html.js';
+import { React, html } from '../../../lib/html.js';
+import { Icon } from '../../../design-system/icons.js';
 import { SlackChannelPicker } from '../../../components/slack-channel-picker.js';
 import { SlackPairingSection } from '../../../components/slack-pairing-section.js';
-import { ExtensionCard, RegistryCard } from './extension-card.js';
+import { ExtensionCard, RegistryCard, StatusText, groupByReadiness } from './extension-card.js';
 import { PairingSection } from './pairing-section.js';
 import { redeemPairingCode } from '../lib/pairing-api.js';
 
@@ -134,40 +133,40 @@ export function ChannelsTab({
     wsConnections: status.ws_connections
   });
 
+  const { needsYou, healthy } = groupByReadiness(channels);
+
+  const renderChannelRow = (ch) => html`
+    <div key=${packageId(ch)} className="flex flex-col gap-3">
+      <${ExtensionCard}
+        ext=${ch}
+        onActivate=${onActivate}
+        onConfigure=${onConfigure}
+        onRemove=${onRemove}
+        isBusy=${isBusy}
+      />
+      ${isSlackPackage(ch) &&
+      html`<${SlackConnectActionSections} actions=${slackConnectActions} />`}
+      ${(ch.onboarding_state === 'pairing_required' || ch.onboarding_state === 'pairing') &&
+      html` <${PairingSection} channel=${packageId(ch)} /> `}
+    </div>
+  `;
+
   return html`
     <div className="space-y-8">
       ${gatewayOffline &&
       html`
         <div
-          className="rounded-[14px] border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3 text-sm leading-6 text-[var(--v2-warning-text)]"
+          className="rounded-[var(--v2-radius-card)] border-l-2 border-[var(--v2-warning-text)] bg-[var(--v2-warning-soft)] px-4 py-3 v2-text-body text-[var(--v2-warning-text)]"
           role="status"
         >
           IronClaw cannot reach the local gateway yet. Messaging setup will unlock when the gateway
           is available.
         </div>
       `}
+
       <section>
-        <${CardLabel}>Built-in messaging paths<//>
+        <div className="v2-text-label">Connect messaging</div>
         <div className="mt-2">
-          <${BuiltinRow}
-            name="Desktop chat"
-            description="The live chat connection used by this app"
-            enabled=${desktopChatEnabled}
-            statusLabel=${desktopChatStatusLabel}
-            statusTone=${desktopChatStatusTone}
-            detail=${'SSE: ' +
-            (status.sse_connections || 0) +
-            ' · WS: ' +
-            (status.ws_connections || 0)}
-          />
-          <${BuiltinRow}
-            name="External webhook"
-            description="A controlled inbound path for approved external events"
-            enabled=${!gatewayOffline && enabledChannels.includes('http')}
-            statusLabel=${gatewayOffline ? 'unavailable' : undefined}
-            statusTone=${gatewayOffline ? 'warning' : undefined}
-            detail=${gatewayOffline ? null : 'ENABLE_HTTP=true'}
-          />
           <${BuiltinRow}
             name="Slack"
             description="DMs and app mentions from the workspace Slack app"
@@ -195,6 +194,92 @@ export function ChannelsTab({
             `}
           <//>
           <${BuiltinRow}
+            name="Desktop chat"
+            description="The live chat connection used by this app"
+            enabled=${desktopChatEnabled}
+            statusLabel=${desktopChatStatusLabel}
+            statusTone=${desktopChatStatusTone}
+            detail=${'SSE: ' +
+            (status.sse_connections || 0) +
+            ' · WS: ' +
+            (status.ws_connections || 0)}
+          />
+        </div>
+      </section>
+
+      ${needsYou.length > 0 &&
+      html`
+        <section>
+          <div className="v2-text-label text-[var(--v2-warning-text)]">Needs you</div>
+          <div className="mt-2 grid grid-cols-1 gap-4">${needsYou.map(renderChannelRow)}</div>
+        </section>
+      `}
+      ${healthy.length > 0 &&
+      html`
+        <section>
+          <div className="v2-text-label">Connected messaging apps</div>
+          <div className="mt-2 grid grid-cols-1 gap-4">${healthy.map(renderChannelRow)}</div>
+        </section>
+      `}
+      ${channelRegistry.length > 0 &&
+      html`
+        <section>
+          <div className="v2-text-label">Available messaging apps</div>
+          <div className="mt-2 grid grid-cols-1">
+            ${channelRegistry.map(
+              (entry) => html`
+                <${RegistryCard}
+                  key=${packageId(entry)}
+                  entry=${entry}
+                  onInstall=${onInstall}
+                  isBusy=${isBusy}
+                />
+              `
+            )}
+          </div>
+        </section>
+      `}
+
+      <${DeveloperPaths} gatewayOffline=${gatewayOffline} enabledChannels=${enabledChannels} />
+    </div>
+  `;
+}
+
+// Developer inbound paths (webhook / CLI / REPL) are escape hatches, not the
+// common path. They collapse into one "Advanced" disclosure below the primary
+// connect so the resting surface leads with Slack.
+function DeveloperPaths({ gatewayOffline, enabledChannels }) {
+  const [open, setOpen] = React.useState(false);
+  return html`
+    <section className="border-t border-[var(--v2-panel-border)] pt-6">
+      <button
+        type="button"
+        aria-expanded=${open ? 'true' : 'false'}
+        aria-controls="channels-developer-panel"
+        onClick=${() => setOpen((v) => !v)}
+        className="flex min-h-[44px] w-full items-center gap-1.5 rounded-[var(--v2-radius-control)] text-left"
+      >
+        <${Icon}
+          name="chevron"
+          aria-hidden="true"
+          className=${['h-3.5 w-3.5 text-[var(--v2-text-faint)]', open ? 'rotate-180' : ''].join(
+            ' '
+          )}
+        />
+        <span className="v2-text-label">Advanced: developer paths</span>
+      </button>
+      ${open &&
+      html`
+        <div id="channels-developer-panel" className="mt-2">
+          <${BuiltinRow}
+            name="External webhook"
+            description="A controlled inbound path for approved external events"
+            enabled=${!gatewayOffline && enabledChannels.includes('http')}
+            statusLabel=${gatewayOffline ? 'unavailable' : undefined}
+            statusTone=${gatewayOffline ? 'warning' : undefined}
+            detail=${gatewayOffline ? null : 'ENABLE_HTTP=true'}
+          />
+          <${BuiltinRow}
             name="CLI"
             description="Local command bridge for development and debugging"
             enabled=${!gatewayOffline && enabledChannels.includes('cli')}
@@ -211,53 +296,8 @@ export function ChannelsTab({
             detail=${gatewayOffline ? null : 'ironclaw run --repl'}
           />
         </div>
-      </section>
-
-      ${channels.length > 0 &&
-      html`
-        <section>
-          <${CardLabel}>Connected messaging apps<//>
-          <div className="mt-2 grid grid-cols-1 gap-4">
-            ${channels.map(
-              (ch) => html`
-                <div key=${packageId(ch)} className="flex flex-col gap-3">
-                  <${ExtensionCard}
-                    ext=${ch}
-                    onActivate=${onActivate}
-                    onConfigure=${onConfigure}
-                    onRemove=${onRemove}
-                    isBusy=${isBusy}
-                  />
-                  ${isSlackPackage(ch) &&
-                  html`<${SlackConnectActionSections} actions=${slackConnectActions} />`}
-                  ${(ch.onboarding_state === 'pairing_required' ||
-                    ch.onboarding_state === 'pairing') &&
-                  html` <${PairingSection} channel=${packageId(ch)} /> `}
-                </div>
-              `
-            )}
-          </div>
-        </section>
       `}
-      ${channelRegistry.length > 0 &&
-      html`
-        <section>
-          <${CardLabel}>Available messaging apps<//>
-          <div className="mt-2 grid grid-cols-1">
-            ${channelRegistry.map(
-              (entry) => html`
-                <${RegistryCard}
-                  key=${packageId(entry)}
-                  entry=${entry}
-                  onInstall=${onInstall}
-                  isBusy=${isBusy}
-                />
-              `
-            )}
-          </div>
-        </section>
-      `}
-    </div>
+    </section>
   `;
 }
 
@@ -270,19 +310,35 @@ function BuiltinRow({
   statusLabel = enabled ? 'on' : 'off',
   statusTone = enabled ? 'success' : 'muted'
 }) {
+  const [detailsOpen, setDetailsOpen] = React.useState(false);
   return html`
     <div className="border-t border-[var(--v2-panel-border)] py-4 first:border-0 first:pt-0">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-[var(--v2-text-strong)]">${name}</span>
-            <${StatusPill} tone=${statusTone} label=${statusLabel} />
+            <span className="v2-text-section text-[var(--v2-text-strong)]">${name}</span>
           </div>
-          <div className="mt-1 text-xs text-[var(--v2-text-muted)]">${description}</div>
+          <div className="mt-1">
+            <${StatusText} label=${statusLabel} tone=${statusTone} live=${enabled} />
+          </div>
+          <div className="mt-1 v2-text-body text-[var(--v2-text-muted)]">${description}</div>
           ${detail &&
-          html`<div className="mt-1 font-mono text-[11px] text-[var(--v2-text-faint)]">
-            ${detail}
-          </div>`}
+          html`
+            <button
+              type="button"
+              aria-expanded=${detailsOpen ? 'true' : 'false'}
+              onClick=${() => setDetailsOpen((v) => !v)}
+              className="mt-1 inline-flex min-h-[44px] items-center gap-1.5 rounded-[var(--v2-radius-control)] v2-text-meta hover:text-[var(--v2-accent-text)]"
+            >
+              <span>Details</span>
+              <${Icon}
+                name="chevron"
+                aria-hidden="true"
+                className=${['h-3 w-3', detailsOpen ? 'rotate-180' : ''].join(' ')}
+              />
+            </button>
+            ${detailsOpen && html`<div className="mt-1 v2-text-meta">${detail}</div>`}
+          `}
         </div>
       </div>
       ${children}

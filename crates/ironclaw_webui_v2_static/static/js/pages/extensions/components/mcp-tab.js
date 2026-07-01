@@ -1,9 +1,9 @@
 import { React, html } from '../../../lib/html.js';
 import { Button } from '../../../design-system/button.js';
-import { Card, CardLabel } from '../../../design-system/card.js';
 import { FormField, Input } from '../../../design-system/input.js';
+import { Icon } from '../../../design-system/icons.js';
 import { appScopedPath } from '../../../lib/app-path.js';
-import { ExtensionCard, RegistryCard } from './extension-card.js';
+import { ExtensionCard, RegistryCard, groupByReadiness } from './extension-card.js';
 import { validateCustomMcpInput } from '../lib/custom-mcp.js';
 
 function packageId(item) {
@@ -22,16 +22,18 @@ export function McpTab({
   isBusy
 }) {
   const isEmpty = mcpServers.length === 0 && mcpRegistry.length === 0;
+  const { needsYou, healthy } = groupByReadiness(mcpServers);
+
   return html`
     <div className="space-y-8">
-      <${CustomMcpServerCard} onAddCustom=${onAddCustom} isBusy=${isBusy} />
       ${isEmpty &&
       html`
-        <div className="max-w-md py-2">
-          <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">
+        <section className="max-w-md py-2">
+          <div className="v2-text-label">Knowledge apps</div>
+          <h3 className="mt-2 v2-text-title text-[var(--v2-text-strong)]">
             No knowledge apps connected
           </h3>
-          <p className="mt-2 text-sm leading-6 text-[var(--v2-text-muted)]">
+          <p className="mt-2 v2-text-body text-[var(--v2-text-muted)]">
             Connect Notion or another knowledge source from Browse so IronClaw can search team
             context before drafting or deciding.
           </p>
@@ -46,18 +48,38 @@ export function McpTab({
           <//>
           ${loadError &&
           html`
-            <p className="mt-3 text-sm leading-6 text-[var(--v2-warning-text)]" role="status">
+            <p className="mt-3 v2-text-body text-[var(--v2-warning-text)]" role="status">
               The local gateway is unavailable, so app setup cannot start yet.
             </p>
           `}
-        </div>
+        </section>
       `}
-      ${mcpServers.length > 0 &&
+      ${needsYou.length > 0 &&
       html`
         <section>
-          <${CardLabel}>Connected knowledge apps<//>
+          <div className="v2-text-label text-[var(--v2-warning-text)]">Needs you</div>
           <div className="mt-2 grid grid-cols-1">
-            ${mcpServers.map(
+            ${needsYou.map(
+              (ext) => html`
+                <${ExtensionCard}
+                  key=${packageId(ext)}
+                  ext=${ext}
+                  onActivate=${onActivate}
+                  onConfigure=${onConfigure}
+                  onRemove=${onRemove}
+                  isBusy=${isBusy}
+                />
+              `
+            )}
+          </div>
+        </section>
+      `}
+      ${healthy.length > 0 &&
+      html`
+        <section>
+          <div className="v2-text-label">Connected knowledge apps</div>
+          <div className="mt-2 grid grid-cols-1">
+            ${healthy.map(
               (ext) => html`
                 <${ExtensionCard}
                   key=${packageId(ext)}
@@ -75,7 +97,7 @@ export function McpTab({
       ${mcpRegistry.length > 0 &&
       html`
         <section>
-          <${CardLabel}>Available knowledge apps<//>
+          <div className="v2-text-label">Available knowledge apps</div>
           <div className="mt-2 grid grid-cols-1">
             ${mcpRegistry.map(
               (entry) => html`
@@ -90,11 +112,17 @@ export function McpTab({
           </div>
         </section>
       `}
+
+      <${CustomMcpServerDisclosure} onAddCustom=${onAddCustom} isBusy=${isBusy} />
     </div>
   `;
 }
 
-function CustomMcpServerCard({ onAddCustom, isBusy }) {
+// The custom-MCP path is the developer escape hatch, not the common one. It
+// lives below the common path as a collapsed "Advanced" disclosure — one
+// depth, no filled card — so the resting surface leads with connectable apps.
+function CustomMcpServerDisclosure({ onAddCustom, isBusy }) {
+  const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState('');
   const [url, setUrl] = React.useState('');
   const [errors, setErrors] = React.useState({});
@@ -122,88 +150,95 @@ function CustomMcpServerCard({ onAddCustom, isBusy }) {
   );
 
   return html`
-    <${Card}
-      variant="soft"
-      radius="lg"
-      padding="lg"
+    <section
       data-testid="custom-mcp-card"
       data-disabled-reason=${disabledReason}
-      aria-label="Add custom MCP server"
+      className="border-t border-[var(--v2-panel-border)] pt-6"
     >
-      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-        <div>
-          <${CardLabel}>Custom source<//>
-          <h3 className="mt-2 text-lg font-semibold text-[var(--v2-text-strong)]">
-            Add custom MCP server
-          </h3>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--v2-text-muted)]">
+      <button
+        type="button"
+        aria-expanded=${open ? 'true' : 'false'}
+        aria-controls="custom-mcp-panel"
+        onClick=${() => setOpen((v) => !v)}
+        className="flex min-h-[44px] w-full items-center gap-1.5 rounded-[var(--v2-radius-control)] text-left"
+      >
+        <${Icon}
+          name="chevron"
+          aria-hidden="true"
+          className=${['h-3.5 w-3.5 text-[var(--v2-text-faint)]', open ? 'rotate-180' : ''].join(
+            ' '
+          )}
+        />
+        <span className="v2-text-label">Advanced: add custom server</span>
+      </button>
+
+      ${open &&
+      html`
+        <div id="custom-mcp-panel" aria-label="Add custom MCP server" className="mt-3">
+          <p className="max-w-2xl v2-text-body text-[var(--v2-text-muted)]">
             Use an MCP server that does not need sign-in. Sign-in protected custom servers need a
             gateway update before desktop can add them here.
           </p>
-        </div>
-        ${normalizedName &&
-        html`
-          <span
-            className="inline-flex w-fit rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-2.5 py-1 font-mono text-[11px] text-[var(--v2-text-muted)]"
-          >
-            ${normalizedName}
-          </span>
-        `}
-      </div>
 
-      <form
-        className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)_auto]"
-        onSubmit=${handleSubmit}
-      >
-        <${FormField}
-          label="Server name"
-          htmlFor="custom-mcp-name"
-          error=${errors.name}
-          hint="Lowercase slug, for example team-docs."
-        >
-          <${Input}
-            id="custom-mcp-name"
-            data-testid="custom-mcp-name"
-            value=${name}
-            placeholder="team-docs"
-            disabled=${fieldsDisabled}
-            onChange=${(event) => {
-              setName(event.target.value);
-              if (errors.name) setErrors((prev) => ({ ...prev, name: '' }));
-            }}
-          />
-        <//>
-        <${FormField}
-          label="MCP URL"
-          htmlFor="custom-mcp-url"
-          error=${errors.url}
-          hint="HTTPS, or localhost HTTP for local development."
-        >
-          <${Input}
-            id="custom-mcp-url"
-            data-testid="custom-mcp-url"
-            type="url"
-            value=${url}
-            placeholder="https://mcp.example.com/mcp"
-            disabled=${fieldsDisabled}
-            onChange=${(event) => {
-              setUrl(event.target.value);
-              if (errors.url) setErrors((prev) => ({ ...prev, url: '' }));
-            }}
-          />
-        <//>
-        <div className="flex items-end">
-          <${Button}
-            type="submit"
-            data-testid="custom-mcp-submit"
-            disabled=${fieldsDisabled}
-            size="md"
-            className="min-h-[44px] w-full lg:w-auto"
+          <form
+            className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,0.7fr)_minmax(0,1.3fr)_auto]"
+            onSubmit=${handleSubmit}
           >
-            Add MCP server
-          <//>
+            <${FormField}
+              label="Server name"
+              htmlFor="custom-mcp-name"
+              error=${errors.name}
+              hint="Lowercase slug, for example team-docs."
+            >
+              <${Input}
+                id="custom-mcp-name"
+                data-testid="custom-mcp-name"
+                value=${name}
+                placeholder="team-docs"
+                disabled=${fieldsDisabled}
+                onChange=${(event) => {
+                  setName(event.target.value);
+                  if (errors.name) setErrors((prev) => ({ ...prev, name: '' }));
+                }}
+              />
+            <//>
+            <${FormField}
+              label="MCP URL"
+              htmlFor="custom-mcp-url"
+              error=${errors.url}
+              hint="HTTPS, or localhost HTTP for local development."
+            >
+              <${Input}
+                id="custom-mcp-url"
+                data-testid="custom-mcp-url"
+                type="url"
+                value=${url}
+                placeholder="https://mcp.example.com/mcp"
+                disabled=${fieldsDisabled}
+                onChange=${(event) => {
+                  setUrl(event.target.value);
+                  if (errors.url) setErrors((prev) => ({ ...prev, url: '' }));
+                }}
+              />
+            <//>
+            <div className="flex items-end">
+              <${Button}
+                type="submit"
+                data-testid="custom-mcp-submit"
+                variant="primary"
+                disabled=${fieldsDisabled}
+                size="md"
+                className="min-h-[44px] w-full lg:w-auto"
+              >
+                Add MCP server
+              <//>
+            </div>
+          </form>
+
+          ${normalizedName &&
+          html` <p className="mt-2 v2-text-meta">Registers as ${normalizedName}</p> `}
         </div>
-      </form>
-    <//>
+      `}
+    </section>
   `;
 }

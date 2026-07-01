@@ -88,8 +88,15 @@ test('static work product: saved chat artifact reloads in Work route', async ({ 
     'Acme Labs hires Northstar Ops'
   );
   await expect(page.getByRole('button', { name: 'Copy' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'DOCX', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'PDF', exact: true })).toBeVisible();
+  // The seven-button export wall collapsed to Copy + an "Export" overflow menu.
+  // The format writers now live behind that disclosure — still reachable, just
+  // not a wall of top-level buttons. Open it and confirm the formats are there.
+  const exportTrigger = page.getByRole('button', { name: 'Export', exact: true });
+  await expect(exportTrigger).toBeVisible();
+  await exportTrigger.click();
+  const exportMenu = page.getByRole('menu', { name: 'Export format' });
+  await expect(exportMenu.getByRole('menuitem', { name: 'DOCX', exact: true })).toBeVisible();
+  await expect(exportMenu.getByRole('menuitem', { name: 'PDF', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Open thread' })).toHaveAttribute(
     'href',
     '/v2/chat/thread-services'
@@ -375,11 +382,20 @@ test('static work product at 390px: reader has no horizontal overflow and 44px t
     .evaluate((el) => el.scrollWidth - el.clientWidth);
   expect(scrollerOverflow, 'no inner-scroller horizontal overflow at 390px').toBeLessThanOrEqual(1);
 
-  // Export controls + the thread link are real touch targets at 390px (>=44px).
-  for (const name of ['Copy', 'Markdown', 'DOCX', 'PDF', 'HTML', 'JSON']) {
+  // The top-level export controls + the thread link are real touch targets at
+  // 390px (>=44px). The format writers moved behind the "Export" overflow, so the
+  // measured top-level controls are Copy and Export; the format menuitems are
+  // still reachable (asserted below) but live inside the disclosure.
+  for (const name of ['Copy', 'Export']) {
     const box = await page.getByRole('button', { name, exact: true }).boundingBox();
     expect(box, `${name} should have a measurable box`).not.toBeNull();
     expect(box!.height, `${name} height >=44px at 390px`).toBeGreaterThanOrEqual(44);
+  }
+  // The five format writers stay reachable from the overflow at 390px.
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  const exportMenu = page.getByRole('menu', { name: 'Export format' });
+  for (const name of ['Markdown', 'DOCX', 'PDF', 'HTML', 'JSON']) {
+    await expect(exportMenu.getByRole('menuitem', { name, exact: true })).toBeVisible();
   }
   const threadLink = await page.getByRole('link', { name: 'Open thread' }).boundingBox();
   expect(threadLink, 'Open thread should have a measurable box').not.toBeNull();

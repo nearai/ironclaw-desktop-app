@@ -84,7 +84,7 @@ export function ExtensionsPage() {
                     <div className="v2-skeleton h-4 w-40 rounded" />
                     <div className="v2-skeleton mt-2 h-3 w-56 rounded" />
                   </div>
-                  <div className="v2-skeleton h-7 w-16 rounded-full" />
+                  <div className="v2-skeleton h-9 w-24 rounded-[var(--v2-radius-control)]" />
                 </div>
               `
             )}

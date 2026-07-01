@@ -278,6 +278,13 @@ test('static connectors: custom MCP install posts a Reborn URL install payload',
   await expect(page.getByTestId('custom-mcp-card')).toBeVisible();
   await expect(page.getByTestId('custom-mcp-card')).toHaveAttribute('data-disabled-reason', '');
 
+  // Custom MCP is now an "Advanced: add custom server" disclosure; expand it
+  // before its form fields render.
+  await page
+    .getByTestId('custom-mcp-card')
+    .getByRole('button', { name: 'Advanced: add custom server' })
+    .click();
+
   await page.getByTestId('custom-mcp-name').fill('Team Docs');
   await page.getByTestId('custom-mcp-url').fill('https://docs.example.com/mcp');
   await page.getByTestId('custom-mcp-submit').click();
@@ -312,6 +319,10 @@ test('static connectors: custom MCP form blocks insecure remote HTTP before gate
   await installConnectorMocks(page, calls);
 
   await page.goto('/v2/extensions/mcp?token=connector-static-token');
+  await page
+    .getByTestId('custom-mcp-card')
+    .getByRole('button', { name: 'Advanced: add custom server' })
+    .click();
   await page.getByTestId('custom-mcp-name').fill('Team Docs');
   await page.getByTestId('custom-mcp-url').fill('http://docs.example.com/mcp');
   await page.getByTestId('custom-mcp-submit').click();
@@ -376,7 +387,7 @@ test('static connectors: registry surface has no horizontal overflow and 44px ta
 
   const disclosure = page
     .getByTestId('registry-card-gmail')
-    .getByRole('button', { name: /keyword/ });
+    .getByRole('button', { name: 'Details' });
   expect(await tapHeight(disclosure)).toBeGreaterThanOrEqual(44);
 
   const draftPrompt = page.getByRole('link', { name: /^Draft prompt for / }).first();
@@ -420,7 +431,7 @@ test('static connectors: installed card actions stay 44px tappable at 390px', as
   expect(trigger).not.toBeNull();
   expect(Math.min(trigger!.width, trigger!.height)).toBeGreaterThanOrEqual(44);
 
-  const disclosure = page.getByRole('button', { name: /capabilit/ }).first();
+  const disclosure = page.getByRole('button', { name: 'Details' }).first();
   expect(await tapHeight(disclosure)).toBeGreaterThanOrEqual(44);
 
   // Keyboard contract for the overflow menu: opening focuses the first menuitem,

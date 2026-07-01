@@ -1,5 +1,4 @@
 import { Button } from '../../../design-system/button.js';
-import { Icon } from '../../../design-system/icons.js';
 import { html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
 
@@ -22,7 +21,7 @@ export function OAuthProviderButtons({ providers, redirectAfter }) {
 
   return html`
     <div className="mt-6 space-y-3">
-      <div className="flex items-center gap-3 text-[11px] text-[var(--v2-text-faint)]">
+      <div className="v2-text-meta flex items-center gap-3">
         <span className="h-px flex-1 bg-[var(--v2-panel-border)]"></span>
         <span>${t('login.oauthDivider')}</span>
         <span className="h-px flex-1 bg-[var(--v2-panel-border)]"></span>
@@ -36,9 +35,7 @@ export function OAuthProviderButtons({ providers, redirectAfter }) {
               href=${oauthHref(provider, redirectAfter)}
               variant="secondary"
               fullWidth
-              className="gap-2"
             >
-              <${Icon} name="shield" className="h-4 w-4" />
               ${t('login.oauthProvider', {
                 provider: OAUTH_PROVIDER_LABELS[provider] || provider
               })}

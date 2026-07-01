@@ -3,6 +3,9 @@ import { useQuery } from '@tanstack/react-query';
 import { React, html } from '../../lib/html.js';
 import { connectorRead } from '../../lib/api.js';
 import { Icon } from '../../design-system/icons.js';
+import { Badge } from '../../design-system/badge.js';
+import { Button } from '../../design-system/button.js';
+import { Popover } from '../../design-system/popover.js';
 import { normalizeInboxMessages } from '../workbench/lib/workbench-connectors.js';
 import { computeBehaviourProfile } from '../workbench/lib/workbench-profile.js';
 import {
@@ -28,38 +31,15 @@ import {
 const PRIMARY_INBOX_QUERY =
   'in:inbox -category:promotions -category:updates -category:forums -category:social';
 
+// Tier presentation on the shared Badge primitive. The one accent (signal blue)
+// marks VIP — the people whose mail matters most; everything below it is quiet
+// (positive for Respond, muted/faint for FYI and Filed). No hand-rolled chips.
 const TIER_META = {
-  vip: { label: 'VIP', tone: 'var(--v2-accent-text)' },
-  respond: { label: 'Respond', tone: 'var(--v2-good-text, #1d6042)' },
-  fyi: { label: 'FYI', tone: 'var(--v2-text-muted)' },
-  ignore: { label: 'Filed', tone: 'var(--v2-text-faint)' }
+  vip: { label: 'VIP', tone: 'signal' },
+  respond: { label: 'Respond', tone: 'positive' },
+  fyi: { label: 'FYI', tone: 'muted' },
+  ignore: { label: 'Filed', tone: 'muted' }
 };
-
-// Self-contained styles (app-wide --v2-* tokens; Newsreader display per v13). The
-// "You" route does not mount the workbench token sheet, so we own our layout here.
-const YOU_STYLE = `
-.wb13-you { max-width: 760px; margin: 0 auto; padding: 28px 24px 64px; color: var(--v2-text-strong); }
-.wb13-you-head h1 { font-family: "Newsreader", Georgia, serif; font-size: 30px; line-height: 1.15; margin: 0 0 8px; color: var(--v2-text-strong); }
-.wb13-you-lede { color: var(--v2-text-muted); font-size: 14px; line-height: 1.55; margin: 0 0 20px; max-width: 60ch; }
-.wb13-you-stats { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px 0; border-top: 1px solid var(--v2-panel-border); border-bottom: 1px solid var(--v2-panel-border); margin-bottom: 20px; }
-.wb13-you-stats span { color: var(--v2-text-muted); font-size: 13px; }
-.wb13-you-stats b { color: var(--v2-text-strong); font-size: 18px; margin-right: 4px; }
-.wb13-you-section { margin: 20px 0; }
-.wb13-you-section h2 { font-family: "Newsreader", Georgia, serif; font-size: 18px; margin: 0 0 10px; color: var(--v2-text-strong); }
-.wb13-you-patterns { margin: 0; padding-left: 18px; color: var(--v2-text); }
-.wb13-you-patterns li { margin: 4px 0; font-size: 14px; line-height: 1.5; }
-.wb13-you-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--v2-hairline, var(--v2-panel-border)); }
-.wb13-you-badge { flex: none; font: 600 11px/1 var(--v2-font, inherit); border: 1px solid currentColor; border-radius: 6px; padding: 4px 7px; }
-.wb13-you-rowmain { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
-.wb13-you-email { color: var(--v2-text-strong); font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
-.wb13-you-meta { color: var(--v2-text-muted); font-size: 12.5px; }
-.wb13-you-select { flex: none; margin-left: auto; font: 12px var(--v2-font, inherit); color: var(--v2-text-strong); background: var(--v2-input-bg, transparent); border: 1px solid var(--v2-panel-border); border-radius: 7px; padding: 5px 7px; cursor: pointer; }
-.wb13-you-restore { flex: none; margin-left: auto; font: 600 12px var(--v2-font, inherit); color: var(--v2-accent-text, var(--v2-text-strong)); background: transparent; border: 1px solid var(--v2-panel-border); border-radius: 7px; padding: 5px 9px; cursor: pointer; }
-.wb13-you-restore:hover { border-color: color-mix(in srgb, var(--v2-accent) 40%, var(--v2-panel-border)); background: var(--v2-surface-soft, transparent); }
-.wb13-you-empty { color: var(--v2-text-muted); font-size: 14px; padding: 12px 0; }
-.wb13-you-foot { display: flex; align-items: center; gap: 8px; margin-top: 24px; color: var(--v2-text-faint); font-size: 12.5px; }
-.wb13-you-foot svg { width: 15px; height: 15px; }
-`;
 
 // Read up to `pages` × `perPage` messages for a query, following the connector's
 // nextPageToken. Tiering needs a fuller sent window than one page so reply-threads
@@ -107,12 +87,64 @@ async function readProfile({ signal, sentPages = 4, inboxPages = 2 }) {
 
 function TierBadge({ tier }) {
   const meta = TIER_META[tier] || TIER_META.fyi;
-  return html`<span className="wb13-you-badge" style=${{ color: meta.tone, borderColor: meta.tone }}
-    >${meta.label}</span
-  >`;
+  return html`<${Badge} tone=${meta.tone} dot=${false} size="sm" label=${meta.label} />`;
 }
 
 const TIER_LABELS = { vip: 'VIP', respond: 'Respond', fyi: 'FYI', ignore: 'Filed' };
+
+// Tier control on the shared popover/menu primitive — replaces the native <select>
+// (which could not be themed to the graphite system and broke the one-depth rule).
+// The trigger reads as a quiet chip; the accessible name is preserved so tests and
+// screen readers still find "Set tier for <email>".
+function TierMenu({ person, onTierChange }) {
+  const [open, setOpen] = React.useState(false);
+  return html`<${Popover}
+    open=${open}
+    onClose=${() => setOpen(false)}
+    align="end"
+    side="bottom"
+    ariaLabel=${`Set tier for ${person.email}`}
+    className="border-t-2 border-t-[var(--v2-accent)] p-1.5"
+    trigger=${html`<button
+      type="button"
+      aria-haspopup="menu"
+      aria-expanded=${open}
+      aria-label=${`Set tier for ${person.email}`}
+      onClick=${() => setOpen((v) => !v)}
+      className="inline-flex min-h-[36px] items-center gap-1.5 rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] px-2.5 v2-text-meta text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_40%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)]"
+    >
+      ${TIER_LABELS[person.tier] || TIER_LABELS.fyi}
+      <${Icon} name="chevronDown" className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+    </button>`}
+  >
+    <div role="menu" aria-label=${`Tier for ${person.email}`} className="grid min-w-[9rem] gap-0.5">
+      ${TIER_OPTIONS.map(
+        (tier) =>
+          html`<button
+            key=${tier}
+            type="button"
+            role="menuitemradio"
+            aria-checked=${person.tier === tier}
+            onClick=${() => {
+              setOpen(false);
+              onTierChange(person.email, tier);
+            }}
+            className=${[
+              'flex min-h-[36px] items-center justify-between gap-2 rounded-[var(--v2-radius-control)] px-2.5 text-left v2-text-body',
+              person.tier === tier
+                ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
+                : 'text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text-strong)]'
+            ].join(' ')}
+          >
+            ${TIER_LABELS[tier]}
+            ${person.tier === tier
+              ? html`<${Icon} name="check" className="h-4 w-4" aria-hidden="true" />`
+              : ''}
+          </button>`
+      )}
+    </div>
+  <//>`;
+}
 
 function PersonRow({ person, onTierChange }) {
   const latency = person.medianLatencyHrs != null ? `~${person.medianLatencyHrs}h` : null;
@@ -124,22 +156,18 @@ function PersonRow({ person, onTierChange }) {
   ]
     .filter(Boolean)
     .join(' · ');
-  return html`<div className="wb13-you-row">
+  return html`<div
+    className="flex items-center gap-3 border-b border-[var(--v2-panel-border)] py-3 last:border-b-0"
+  >
     <${TierBadge} tier=${person.tier} />
-    <div className="wb13-you-rowmain">
-      <span className="wb13-you-email">${person.email}</span>
-      ${meta ? html`<span className="wb13-you-meta">${meta}</span>` : null}
+    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+      <span
+        className="v2-text-body font-medium text-[var(--v2-text-strong)] [overflow-wrap:anywhere]"
+        >${person.email}</span
+      >
+      ${meta ? html`<span className="v2-text-meta">${meta}</span>` : null}
     </div>
-    <select
-      className="wb13-you-select"
-      aria-label=${`Set tier for ${person.email}`}
-      value=${person.tier}
-      onChange=${(e) => onTierChange(person.email, e.target.value)}
-    >
-      ${TIER_OPTIONS.map(
-        (tier) => html`<option key=${tier} value=${tier}>${TIER_LABELS[tier]}</option>`
-      )}
-    </select>
+    <${TierMenu} person=${person} onTierChange=${onTierChange} />
   </div>`;
 }
 
@@ -189,92 +217,135 @@ export function YouPage() {
   const patterns = (profile && profile.patterns) || [];
   const surfaced = people.filter((person) => person.tier !== 'ignore');
 
+  const stats = [
+    { key: 'vip', label: 'VIP', value: counts.vip || 0 },
+    { key: 'respond', label: 'Respond', value: counts.respond || 0 },
+    { key: 'fyi', label: 'FYI', value: counts.fyi || 0 },
+    { key: 'bulk', label: 'Auto-filed', value: counts.bulk || 0 }
+  ];
+
   return html`<div className="h-full overflow-y-auto">
-    <style>
-      ${YOU_STYLE}
-    </style>
-    <div className="wb13-you" data-testid="workbench-you" aria-label="How you work">
-      <header className="wb13-you-head">
-        <h1>How you work</h1>
-        <p className="wb13-you-lede">
+    <div
+      className="mx-auto max-w-[760px] px-6 pb-16 pt-7"
+      data-testid="workbench-you"
+      aria-label="How you work"
+    >
+      <header>
+        <h1 className="v2-text-display">How you work</h1>
+        <p className="mt-2 max-w-[60ch] v2-text-body text-[var(--v2-text-muted)]">
           Learned from your mail — who you reply to, how fast, and what's auto-filed. Observed and
           yours to correct; nothing is sent.
         </p>
       </header>
 
       ${refining
-        ? html`<p className="wb13-you-meta" style=${{ margin: '0 0 12px' }}>
-            Refining from more of your history…
-          </p>`
+        ? html`<p className="mt-3 v2-text-meta">Refining from more of your history…</p>`
         : null}
       ${query.isLoading
-        ? html`<p className="wb13-you-empty">Reading your recent mail…</p>`
+        ? html`<p className="mt-6 v2-text-body text-[var(--v2-text-muted)]">
+            Reading your recent mail…
+          </p>`
         : query.isError || !profile
-          ? html`<p className="wb13-you-empty">
+          ? html`<p className="mt-6 v2-text-body text-[var(--v2-text-muted)]">
               Couldn't read your mail right now. Connect Gmail or try again.
             </p>`
           : html`
-              <div className="wb13-you-stats">
-                <span><b>${counts.vip || 0}</b> VIP</span>
-                <span><b>${counts.respond || 0}</b> respond</span>
-                <span><b>${counts.fyi || 0}</b> FYI</span>
-                <span><b>${counts.bulk || 0}</b> auto-filed</span>
+              ${
+                /* Focal stat strip: large tabular figures, baseline-aligned, quiet
+              mono labels. Hairline top/bottom, no metric boxes. This is the
+              surface's centerpiece — the shape of how the user works. */ ''
+              }
+              <div
+                className="mt-8 flex flex-wrap gap-x-10 gap-y-4 border-y border-[var(--v2-panel-border)] py-5"
+              >
+                ${stats.map(
+                  (stat) =>
+                    html`<div key=${stat.key} className="flex items-baseline gap-2">
+                      <span
+                        className="text-[28px] font-semibold leading-none tabular-nums text-[var(--v2-text-strong)]"
+                        >${stat.value}</span
+                      >
+                      <span className="v2-text-label">${stat.label}</span>
+                    </div>`
+                )}
               </div>
 
               ${patterns.length
-                ? html`<section className="wb13-you-section" aria-label="Patterns">
-                    <h2>What IronClaw follows</h2>
-                    <ul className="wb13-you-patterns">
-                      ${patterns.map((pattern, i) => html`<li key=${i}>${pattern}</li>`)}
+                ? html`<section className="mt-8" aria-label="Patterns">
+                    <h2 className="v2-text-label">What IronClaw follows</h2>
+                    <ul className="mt-3 grid gap-1.5">
+                      ${patterns.map(
+                        (pattern, i) =>
+                          html`<li
+                            key=${i}
+                            className="flex gap-2.5 v2-text-body text-[var(--v2-text)]"
+                          >
+                            <span
+                              aria-hidden="true"
+                              className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[var(--v2-text-faint)]"
+                            ></span>
+                            <span className="min-w-0">${pattern}</span>
+                          </li>`
+                      )}
                     </ul>
                   </section>`
                 : null}
 
-              <section className="wb13-you-section" aria-label="People">
-                <h2>Who matters to you</h2>
-                ${surfaced.length
-                  ? surfaced.map(
-                      (person) =>
-                        html`<${PersonRow}
-                          key=${person.email}
-                          person=${person}
-                          onTierChange=${onTierChange}
-                        />`
-                    )
-                  : html`<p className="wb13-you-empty">
-                      No correspondents yet — they appear as you exchange mail.
-                    </p>`}
+              <section className="mt-8" aria-label="People">
+                <h2 className="v2-text-label">Who matters to you</h2>
+                <div className="mt-2">
+                  ${surfaced.length
+                    ? surfaced.map(
+                        (person) =>
+                          html`<${PersonRow}
+                            key=${person.email}
+                            person=${person}
+                            onTierChange=${onTierChange}
+                          />`
+                      )
+                    : html`<p className="v2-text-body text-[var(--v2-text-muted)]">
+                        No correspondents yet — they appear as you exchange mail.
+                      </p>`}
+                </div>
               </section>
 
               ${learnedRows.length
-                ? html`<section className="wb13-you-section" aria-label="Auto-filed senders">
-                    <h2>Auto-filed from your dismissals</h2>
-                    <p className="wb13-you-meta" style=${{ margin: '0 0 8px' }}>
+                ? html`<section className="mt-8" aria-label="Auto-filed senders">
+                    <h2 className="v2-text-label">Auto-filed from your dismissals</h2>
+                    <p className="mt-2 v2-text-meta">
                       You filed these often enough that new mail from them is suppressed. Surface
                       one again to undo.
                     </p>
-                    ${learnedRows.map(
-                      (row) =>
-                        html`<div key=${row.email} className="wb13-you-row">
-                          <div className="wb13-you-rowmain">
-                            <span className="wb13-you-email">${row.email}</span>
-                            <span className="wb13-you-meta">filed ${row.count}×</span>
-                          </div>
-                          <button
-                            type="button"
-                            className="wb13-you-restore"
-                            data-testid="workbench-you-surface-again"
-                            onClick=${() => onSurfaceAgain(row.email)}
+                    <div className="mt-2">
+                      ${learnedRows.map(
+                        (row) =>
+                          html`<div
+                            key=${row.email}
+                            className="flex items-center gap-3 border-b border-[var(--v2-panel-border)] py-3 last:border-b-0"
                           >
-                            Surface again
-                          </button>
-                        </div>`
-                    )}
+                            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                              <span
+                                className="v2-text-body font-medium text-[var(--v2-text-strong)] [overflow-wrap:anywhere]"
+                                >${row.email}</span
+                              >
+                              <span className="v2-text-meta">filed ${row.count}×</span>
+                            </div>
+                            <${Button}
+                              variant="secondary"
+                              size="sm"
+                              data-testid="workbench-you-surface-again"
+                              onClick=${() => onSurfaceAgain(row.email)}
+                            >
+                              Surface again
+                            <//>
+                          </div>`
+                      )}
+                    </div>
                   </section>`
                 : null}
 
-              <div className="wb13-you-foot">
-                <${Icon} name="shield" />
+              <div className="mt-10 flex items-center gap-2 v2-text-meta">
+                <${Icon} name="shield" className="h-4 w-4" aria-hidden="true" />
                 <span>Read-only. This shapes how your day is ranked; it never sends anything.</span>
               </div>
             `}

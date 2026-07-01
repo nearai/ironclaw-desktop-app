@@ -24,11 +24,11 @@ const GROUP_ORDER = [
 function GroupHeader({ label, count, dotClass }) {
   return html`
     <div className="mb-2 mt-1 flex items-center gap-2 px-1">
-      <span className=${'h-1.5 w-1.5 rounded-full ' + dotClass} />
-      <span className="text-[13px] font-medium text-[var(--v2-text-muted)]">${label}</span>
-      <span className="text-[13px] text-[var(--v2-text-faint)]">·</span>
-      <span className="text-[13px] tabular-nums text-[var(--v2-text-faint)]">${count}</span>
-      <span className="ml-2 h-px flex-1 bg-[var(--v2-panel-border)]" />
+      <span aria-hidden="true" className=${'h-1.5 w-1.5 rounded-full ' + dotClass} />
+      <span className="v2-text-label">${label}</span>
+      <span aria-hidden="true" className="v2-text-meta">·</span>
+      <span className="v2-text-meta tabular-nums">${count}</span>
+      <span aria-hidden="true" className="ml-2 h-px flex-1 bg-[var(--v2-panel-border)]" />
     </div>
   `;
 }
@@ -40,18 +40,16 @@ export function ActiveModelPanel({ provider, currentModel, onListModels, onApply
   return html`
     <section
       data-testid="active-model-panel"
-      className="mb-4 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-3 sm:p-3.5"
+      className="mb-4 rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-3 sm:p-3.5"
     >
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">Current model</div>
+          <div className="v2-text-label">Current model</div>
           <div className="mt-1 flex min-w-0 flex-wrap items-center gap-2">
             <span className="text-sm font-semibold text-[var(--v2-text-strong)]">
               ${displayName}
             </span>
-            <span
-              className="rounded-full border border-[color-mix(in_srgb,var(--v2-positive-text)_34%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--v2-positive-text)]"
-            >
+            <span className="v2-text-meta text-[var(--v2-positive-text)]">
               ${currentModelLabel || t('llm.none')}
             </span>
           </div>
@@ -115,9 +113,7 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
     <section>
       <div className="mb-4">
         <div>
-          <h3 className="text-[13px] font-medium text-[var(--v2-text-muted)]">
-            ${t('llm.providers')}
-          </h3>
+          <h3 className="v2-text-label">${t('llm.providers')}</h3>
           <p className="mt-1 text-sm text-[var(--v2-text-muted)]">${t('llm.providersDesc')}</p>
         </div>
       </div>
@@ -126,7 +122,7 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
       html`
         <div
           className=${[
-            'mb-4 rounded-md border px-3 py-2 text-sm',
+            'mb-4 rounded-[var(--v2-radius-control)] border px-3 py-2 text-sm',
             actions.message.tone === 'error'
               ? 'border-[color-mix(in_srgb,var(--v2-danger-text)_34%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]'
               : 'border-[color-mix(in_srgb,var(--v2-positive-text)_34%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]'
@@ -150,7 +146,7 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
       ${state.error &&
       html`
         <div
-          className="mb-4 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_36%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-sm text-[var(--v2-warning-text)]"
+          className="mb-4 rounded-[var(--v2-radius-card)] border border-[color-mix(in_srgb,var(--v2-warning-text)_36%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-sm text-[var(--v2-warning-text)]"
           role="status"
         >
           IronClaw cannot reach the local gateway yet. Choose a NEAR AI Cloud sign-in path; the app
@@ -162,7 +158,7 @@ export function ProviderManagement({ settings, gatewayStatus, searchQuery = '' }
         : state.error && !hasProviderRows
           ? html`
               <div
-                className="rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_36%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-sm leading-6 text-[var(--v2-warning-text)]"
+                className="rounded-[var(--v2-radius-card)] border border-[color-mix(in_srgb,var(--v2-warning-text)_36%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-2 text-sm leading-6 text-[var(--v2-warning-text)]"
                 role="status"
               >
                 IronClaw cannot reach NEAR AI Cloud yet. Start the local gateway, then retry from

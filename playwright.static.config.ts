@@ -20,7 +20,9 @@ export default defineConfig({
     command: 'PORT=1420 npm run dev:webui-static',
     url: 'http://127.0.0.1:1420/index.html',
     reuseExistingServer: !process.env.CI,
-    timeout: 60_000
+    // The dev server runs a full prepare (tailwind + esbuild) build on startup,
+    // which can exceed a minute on a loaded machine — wait generously.
+    timeout: 180_000
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }]
 });

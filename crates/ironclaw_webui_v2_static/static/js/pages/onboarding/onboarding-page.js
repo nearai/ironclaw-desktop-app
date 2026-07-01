@@ -11,7 +11,6 @@ import { ProviderLoginStatus } from '../settings/components/provider-login-statu
 import { useProviderManagementActions } from '../settings/hooks/useProviderManagementActions.js';
 import { useProviderLogin } from '../settings/hooks/useProviderLogin.js';
 import { setActiveLlm, testLlmProviderConnection } from '../settings/lib/settings-api.js';
-import { ProviderLogo } from './provider-logos.js';
 
 // First-run model setup. The desktop product contract is NEAR AI Cloud by
 // default; generic Reborn provider support stays hidden until an explicit
@@ -26,82 +25,85 @@ const FEATURED = [
   }
 ];
 
-// One provider row: logo + name/subtitle on the left, the auth action(s) on the
-// right. Stacks vertically on mobile (actions wrap onto their own line) and sits
-// on a single line from `sm` up. NEAR AI Cloud is the only featured provider, so
-// the row always renders the cloud sign-in actions.
-function FeaturedProviderRow({ entry, showReady, login, resuming = false, t }) {
-  const name = t(entry.nameKey);
-  const authBusy = login.nearaiBusy || resuming;
-
-  const actions = html`
-    <${Button}
-      type="button"
-      variant="primary"
-      size="md"
-      fullWidth=${true}
-      className="col-span-2"
-      disabled=${authBusy}
-      onClick=${() => login.startNearai('github')}
-    >
-      ${t('onboarding.continue')}
-    <//>
-    <${Button}
-      type="button"
-      variant="secondary"
-      size="md"
-      fullWidth=${true}
-      disabled=${authBusy}
-      onClick=${() => login.startNearai('google')}
-    >
-      ${t('onboarding.continueGoogle')}
-    <//>
-    <${Button}
-      type="button"
-      variant="secondary"
-      size="md"
-      fullWidth=${true}
-      disabled=${authBusy}
-      onClick=${login.startNearaiWallet}
-    >
-      ${t('onboarding.continueWallet')}
-    <//>
-  `;
-
+// The one NEAR AI Cloud sign-in cluster. Written ONCE and shared by both the
+// ready path (FeaturedProviderRow) and the gateway-unavailable path, so the two
+// states can never drift into two copies of the same three buttons. GitHub is
+// the single blue primary — the user's one action — with Google and NEAR Wallet
+// as quiet secondary paths to the same flow.
+function AuthActions({ login, disabled = false, primaryVariant = 'primary' }) {
+  const t = useT();
+  const busy = disabled || login.nearaiBusy;
   return html`
-    <div className="grid gap-4">
-      <div className="flex min-w-0 items-start gap-3">
-        <${ProviderLogo} id=${entry.id} name=${name} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-[var(--v2-text-strong)]">${name}</span>
-            ${showReady &&
-            html`<${Badge} tone="positive" label=${t('onboarding.ready')} size="sm" />`}
-          </div>
-          <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
-            ${entry.auth === 'nearai' && isDesktopRuntime()
-              ? t('onboarding.providerNearaiDescDesktop')
-              : t(entry.descKey)}
-          </p>
-        </div>
-      </div>
-      <div className="grid grid-cols-2 gap-2">${actions}</div>
+    <div className="grid grid-cols-2 gap-2">
+      <${Button}
+        type="button"
+        variant=${primaryVariant}
+        size="md"
+        fullWidth=${true}
+        className="col-span-2"
+        disabled=${busy}
+        onClick=${() => login.startNearai('github')}
+      >
+        ${t('onboarding.continue')}
+      <//>
+      <${Button}
+        type="button"
+        variant="secondary"
+        size="md"
+        fullWidth=${true}
+        disabled=${busy}
+        onClick=${() => login.startNearai('google')}
+      >
+        ${t('onboarding.continueGoogle')}
+      <//>
+      <${Button}
+        type="button"
+        variant="secondary"
+        size="md"
+        fullWidth=${true}
+        disabled=${busy}
+        onClick=${login.startNearaiWallet}
+      >
+        ${t('onboarding.continueWallet')}
+      <//>
     </div>
   `;
 }
 
-function TrustRow({ icon, title, body }) {
+// Ready path: one quiet provider line (name + honest description + gated READY
+// state) above the shared sign-in cluster. No saturated brand tile — the accent
+// belongs to the user's action, not a logo island.
+function FeaturedProviderRow({ entry, showReady, login, resuming = false, t }) {
+  const name = t(entry.nameKey);
+
+  return html`
+    <div className="grid gap-4">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="v2-text-section">${name}</span>
+          ${showReady &&
+          html`<${Badge} tone="positive" label=${t('onboarding.ready')} size="sm" />`}
+        </div>
+        <p className="v2-text-body mt-1 text-[var(--v2-text-muted)]">
+          ${entry.auth === 'nearai' && isDesktopRuntime()
+            ? t('onboarding.providerNearaiDescDesktop')
+            : t(entry.descKey)}
+        </p>
+      </div>
+      <${AuthActions} login=${login} disabled=${resuming} />
+    </div>
+  `;
+}
+
+// The product's actual signature, in the gate's own voice: first-run ties
+// straight to the approval gate. One line, not a marketing trust-row triad.
+function GateContractLine() {
   return html`
     <div
-      className="grid grid-cols-[auto_1fr] items-start gap-3 border-t border-[var(--v2-panel-border)] py-3.5 first:border-t-0"
+      className="flex items-start gap-2.5 border-t border-[var(--v2-panel-border)] pt-4 text-[var(--v2-text-muted)]"
     >
-      <span className="mt-1 grid h-7 w-7 place-items-center text-[var(--v2-text-muted)]">
-        <${Icon} name=${icon} className="h-4 w-4" />
-      </span>
-      <span>
-        <span className="block text-sm font-medium text-[var(--v2-text-strong)]">${title}</span>
-        <span className="mt-1 block text-sm leading-6 text-[var(--v2-text-muted)]">${body}</span>
-      </span>
+      <${Icon} name="lock" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden=${true} />
+      <p className="v2-text-body">It asks before any external action leaves this machine.</p>
     </div>
   `;
 }
@@ -152,9 +154,7 @@ export function OnboardingPage() {
   const providerSnapshotUnavailable = Boolean(
     state.error || (!providerSnapshotPending && (hasSyntheticProvider || hasOnlyFallbackProvider))
   );
-  const providerAccessBlocked = providerSnapshotPending || providerSnapshotUnavailable;
-  const showFallbackAccess = providerAccessBlocked;
-  const primaryAuthVariant = providerAccessBlocked ? 'secondary' : 'primary';
+  const showFallbackAccess = providerSnapshotPending || providerSnapshotUnavailable;
   const desktopRuntime = isDesktopRuntime();
   const accessStatusTitle = providerSnapshotPending
     ? desktopRuntime
@@ -232,170 +232,101 @@ export function OnboardingPage() {
     };
   }, [state.isLoading, state.providers, state.activeProviderId, navigate, queryClient]);
 
+  // The physical next action for a blocked gateway — start the sidecar or
+  // restart the app — is the honest primary. No disabled fake-ready sign-in.
+  const gatewayActionTitle = desktopRuntime ? 'Restart IronClaw' : 'Start the sidecar';
+
   return html`
     <div className="h-full overflow-y-auto bg-[var(--v2-canvas)]">
       <div
-        className="mx-auto grid min-h-full max-w-6xl gap-7 px-4 py-8 sm:px-6 sm:py-12 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:px-8"
+        className="mx-auto flex min-h-full w-full max-w-md flex-col justify-center gap-8 px-4 py-12 sm:px-6"
       >
-        <div className="max-w-2xl">
-          <div className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
-            NEAR AI Cloud native
-          </div>
-          <h1
-            className="max-w-[16ch] text-[28px] font-semibold leading-[1.06] tracking-[-0.01em] text-[var(--v2-text-strong)] sm:text-[28px]"
-          >
-            ${t('onboarding.title')}
-          </h1>
-          <p className="mt-4 max-w-[58ch] text-[15px] leading-relaxed text-[var(--v2-text-muted)]">
-            ${t('onboarding.subtitle')}
-          </p>
-          <div className="mt-9 hidden lg:grid">
-            <${TrustRow}
-              icon="spark"
-              title=${t('onboarding.promiseModelsTitle')}
-              body=${t('onboarding.promiseModelsBody')}
-            />
-            <${TrustRow}
-              icon="lock"
-              title=${t('onboarding.promiseApprovalsTitle')}
-              body=${t('onboarding.promiseApprovalsBody')}
-            />
-            <${TrustRow}
-              icon="file"
-              title=${t('onboarding.promiseFilesTitle')}
-              body=${t('onboarding.promiseFilesBody')}
-            />
-          </div>
+        <!-- Quiet product lockup: masthead, one sentence, nothing more. -->
+        <div className="grid gap-3">
+          <div className="v2-text-label">NEAR AI Cloud native</div>
+          <h1 className="v2-text-display">${t('onboarding.title')}</h1>
+          <p className="v2-text-body text-[var(--v2-text-muted)]">${t('onboarding.subtitle')}</p>
         </div>
 
-        <div className="grid gap-7">
-          ${resuming &&
-          html`<div
-            className="flex items-center justify-center gap-2 text-sm text-[var(--v2-text-muted)]"
-            role="status"
-            aria-live="polite"
-          >
-            <${Icon} name="pulse" className="h-3.5 w-3.5" />
-            ${t('onboarding.resumingSession')}
-          </div>`}
-          <${Card} variant="soft" radius="lg" className="p-5 sm:p-6">
-            <div className="mb-5 flex items-center justify-between gap-3">
-              <div>
-                <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
-                  ${t('onboarding.accessLabel')}
-                </div>
-                <h2 className="mt-1 text-[20px] font-semibold text-[var(--v2-text-strong)]">
-                  ${t('onboarding.accessTitle')}
-                </h2>
-              </div>
-              <${Badge} tone="muted" label=${t('onboarding.firstRun')} size="sm" />
+        ${resuming &&
+        html`<div
+          className="flex items-center gap-2 text-[var(--v2-text-muted)]"
+          role="status"
+          aria-live="polite"
+        >
+          <${Icon} name="pulse" className="h-3.5 w-3.5" aria-hidden=${true} />
+          <span className="v2-text-body">${t('onboarding.resumingSession')}</span>
+        </div>`}
+
+        <!-- The one dominant action. -->
+        <${Card} variant="soft" radius="lg" className="p-5 sm:p-6">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <div className="grid gap-1">
+              <div className="v2-text-label">${t('onboarding.accessLabel')}</div>
+              <h2 className="v2-text-title">${t('onboarding.accessTitle')}</h2>
             </div>
-            <div className="grid gap-3">
-              ${showFallbackAccess
-                ? html`
-                    <div className="grid gap-3">
-                      <div
-                        className="grid grid-cols-[auto_1fr] gap-3 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-warning-text)_30%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-3"
-                      >
-                        <span
-                          className="grid h-8 w-8 place-items-center rounded-[8px] border border-[color-mix(in_srgb,var(--v2-warning-text)_28%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-warning-text)_12%,transparent)] text-[var(--v2-warning-text)]"
+            <${Badge} tone="muted" label=${t('onboarding.firstRun')} size="sm" />
+          </div>
+          <div className="grid gap-3">
+            ${showFallbackAccess
+              ? html`
+                  <div className="grid gap-4">
+                    <div className="grid gap-1.5">
+                      <div className="flex items-center gap-2 text-[var(--v2-warning-text)]">
+                        <${Icon} name="pulse" className="h-3.5 w-3.5" aria-hidden=${true} />
+                        <span className="v2-text-section text-[var(--v2-text-strong)]"
+                          >${accessStatusTitle}</span
                         >
-                          <${Icon} name="pulse" className="h-3.5 w-3.5" />
-                        </span>
-                        <span>
-                          <span
-                            className="block text-sm font-semibold text-[var(--v2-text-strong)]"
-                          >
-                            ${accessStatusTitle}
-                          </span>
-                          <span
-                            className="mt-0.5 block text-sm leading-6 text-[var(--v2-text-muted)]"
-                          >
-                            ${providerSnapshotPending
-                              ? gatewayPendingCopy
-                              : providerSnapshotUnavailable
-                                ? gatewayUnavailableCopy
-                                : t('onboarding.providerNearaiDescDesktop')}
-                          </span>
-                        </span>
                       </div>
-                      <p className="text-sm leading-6 text-[var(--v2-text-muted)]">
-                        ${gatewayFollowupCopy}
+                      <p className="v2-text-body text-[var(--v2-text-muted)]">
+                        ${providerSnapshotPending
+                          ? gatewayPendingCopy
+                          : providerSnapshotUnavailable
+                            ? gatewayUnavailableCopy
+                            : t('onboarding.providerNearaiDescDesktop')}
                       </p>
-                      <div className="grid grid-cols-2 gap-2">
-                        <${Button}
-                          type="button"
-                          variant=${primaryAuthVariant}
-                          size="md"
-                          fullWidth=${true}
-                          className="col-span-2"
-                          disabled=${providerAccessBlocked || login.nearaiBusy || resuming}
-                          onClick=${() => login.startNearai('github')}
-                        >
-                          ${t('onboarding.continue')}
-                        <//>
-                        <${Button}
-                          type="button"
-                          variant="secondary"
-                          size="md"
-                          fullWidth=${true}
-                          disabled=${providerAccessBlocked || login.nearaiBusy || resuming}
-                          onClick=${() => login.startNearai('google')}
-                        >
-                          ${t('onboarding.continueGoogle')}
-                        <//>
-                        <${Button}
-                          type="button"
-                          variant="secondary"
-                          size="md"
-                          fullWidth=${true}
-                          disabled=${providerAccessBlocked || login.nearaiBusy || resuming}
-                          onClick=${login.startNearaiWallet}
-                        >
-                          ${t('onboarding.continueWallet')}
-                        <//>
-                      </div>
                     </div>
+                    ${providerSnapshotUnavailable
+                      ? html`
+                          <div
+                            className="rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-3.5 py-3"
+                          >
+                            <div className="v2-text-label text-[var(--v2-text-strong)]">
+                              ${gatewayActionTitle}
+                            </div>
+                            <p className="v2-text-body mt-1 text-[var(--v2-text-muted)]">
+                              ${gatewayFollowupCopy}
+                            </p>
+                          </div>
+                        `
+                      : html`<p className="v2-text-body text-[var(--v2-text-muted)]">
+                          ${gatewayFollowupCopy}
+                        </p>`}
+                  </div>
+                `
+              : featured.map(
+                  ({ entry, provider }) => html`
+                    <${FeaturedProviderRow}
+                      key=${entry.id}
+                      entry=${entry}
+                      showReady=${state.activeProviderId === provider.id ||
+                      provider.has_api_key === true}
+                      login=${login}
+                      resuming=${resuming}
+                      t=${t}
+                    />
                   `
-                : featured.map(
-                    ({ entry, provider }) => html`
-                      <${FeaturedProviderRow}
-                        key=${entry.id}
-                        entry=${entry}
-                        showReady=${state.activeProviderId === provider.id ||
-                        provider.has_api_key === true}
-                        login=${login}
-                        resuming=${resuming}
-                        t=${t}
-                      />
-                    `
-                  )}
-            </div>
-          <//>
+                )}
+          </div>
+        <//>
 
-          <${ProviderLoginStatus} login=${login} />
+        <${ProviderLoginStatus} login=${login} />
 
-          <div className="px-1 text-sm leading-6 text-[var(--v2-text-muted)]">
+        <div className="grid gap-4">
+          <${GateContractLine} />
+          <p className="v2-text-body text-[var(--v2-text-muted)]">
             ${t('onboarding.moreInSettings')}
-          </div>
-
-          <div className="grid lg:hidden">
-            <${TrustRow}
-              icon="spark"
-              title=${t('onboarding.promiseModelsTitle')}
-              body=${t('onboarding.promiseModelsBody')}
-            />
-            <${TrustRow}
-              icon="lock"
-              title=${t('onboarding.promiseApprovalsTitle')}
-              body=${t('onboarding.promiseApprovalsBody')}
-            />
-            <${TrustRow}
-              icon="file"
-              title=${t('onboarding.promiseFilesTitle')}
-              body=${t('onboarding.promiseFilesBody')}
-            />
-          </div>
+          </p>
         </div>
       </div>
     </div>

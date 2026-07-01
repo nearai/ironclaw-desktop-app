@@ -133,12 +133,8 @@ export function ProviderCard({
   }, [isActive]);
 
   const inlineMeta = !configured
-    ? html`<span className="font-mono text-[11px] text-[var(--v2-warning-text)]">
-        ${missingLabel}
-      </span>`
-    : html`<span
-        className="hidden truncate font-mono text-[11px] text-[var(--v2-text-faint)] sm:inline"
-      >
+    ? html`<span className="v2-text-meta text-[var(--v2-warning-text)]"> ${missingLabel} </span>`
+    : html`<span className="v2-text-meta hidden truncate sm:inline">
         ${adapterLabel(provider.adapter)} · ${modelLabel || t('llm.none')}
       </span>`;
 
@@ -278,9 +274,6 @@ export function ProviderCard({
             <span className="min-w-0 truncate text-sm font-semibold text-[var(--v2-text-strong)]">
               ${displayName}
             </span>
-            <span className="font-mono text-[11px] text-[var(--v2-text-faint)]"
-              >${provider.id}</span
-            >
             ${isActive && html`<${Badge} tone="positive" label=${t('llm.active')} size="sm" />`}
             ${provider.builtin &&
             !isActive &&
@@ -298,11 +291,11 @@ export function ProviderCard({
             data-testid="llm-provider-chevron"
             aria-label=${expanded ? t('llm.collapseDetails') : t('llm.expandDetails')}
             className=${[
-              'grid h-11 w-11 place-items-center rounded-md text-[var(--v2-text-faint)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)] md:h-7 md:w-7',
+              'grid h-11 w-11 place-items-center rounded-[var(--v2-radius-control)] text-[var(--v2-text-faint)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)] md:h-7 md:w-7',
               expanded ? 'rotate-180' : ''
             ].join(' ')}
           >
-            <${Icon} name="chevron" className="h-4 w-4" />
+            <${Icon} name="chevron" aria-hidden="true" className="h-4 w-4" />
           </button>
         </div>
       </div>
@@ -315,22 +308,16 @@ export function ProviderCard({
         >
           <div className="grid gap-3 text-xs text-[var(--v2-text-muted)] sm:grid-cols-3">
             <div>
-              <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
-                ${t('llm.adapter')}
-              </div>
+              <div className="v2-text-label">${t('llm.adapter')}</div>
               <div className="mt-1 truncate">${adapterLabel(provider.adapter)}</div>
             </div>
             <div>
-              <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
-                ${t('llm.baseUrl')}
-              </div>
-              <div className="mt-1 truncate font-mono">${baseUrl || t('llm.none')}</div>
+              <div className="v2-text-label">${t('llm.baseUrl')}</div>
+              <div className="v2-text-meta mt-1 truncate">${baseUrl || t('llm.none')}</div>
             </div>
             <div>
-              <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
-                ${t('llm.model')}
-              </div>
-              <div className="mt-1 truncate font-mono">${modelLabel || t('llm.none')}</div>
+              <div className="v2-text-label">${t('llm.model')}</div>
+              <div className="v2-text-meta mt-1 truncate">${modelLabel || t('llm.none')}</div>
             </div>
           </div>
           <div

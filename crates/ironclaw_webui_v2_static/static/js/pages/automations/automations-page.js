@@ -48,7 +48,7 @@ export function AutomationsPage() {
           ${automationsState.error &&
           html`
             <div
-              className="rounded-[8px] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]"
+              className="rounded-[var(--v2-radius-control)] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 v2-text-body text-[var(--v2-danger-text)]"
             >
               ${t('automations.error.loadFailed')}
             </div>
@@ -61,21 +61,17 @@ export function AutomationsPage() {
                 html`
                   <div
                     role="status"
-                    className="rounded-[8px] border border-[color-mix(in_srgb,var(--v2-warning-text)_36%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
+                    className="rounded-[var(--v2-radius-control)] border border-[color-mix(in_srgb,var(--v2-warning-text)_36%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-4 py-3"
                   >
-                    <div className="text-sm font-semibold text-[var(--v2-warning-text)]">
+                    <div className="v2-text-body font-semibold text-[var(--v2-warning-text)]">
                       ${t('automations.schedulerOff.title')}
                     </div>
-                    <div className="mt-0.5 text-xs leading-5 text-[var(--v2-warning-text)]">
+                    <div className="mt-0.5 v2-text-meta text-[var(--v2-warning-text)]">
                       ${t('automations.schedulerOff.description')}
                     </div>
                   </div>
                 `}
-                <${AutomationsSummaryStrip}
-                  summary=${automationsState.summary}
-                  activeFilter=${filter}
-                  onSelectFilter=${setFilter}
-                />
+                <${AutomationsSummaryStrip} summary=${automationsState.summary} />
                 <${AutomationDeliveryDefaultsPanel} deliveryState=${deliveryState} />
 
                 ${automationsState.isLoading
@@ -83,7 +79,10 @@ export function AutomationsPage() {
                       <div className="space-y-4">
                         ${[1, 2, 3].map(
                           (index) =>
-                            html`<div key=${index} className="v2-skeleton h-24 rounded-[8px]" />`
+                            html`<div
+                              key=${index}
+                              className="v2-skeleton h-24 rounded-[var(--v2-radius-card)]"
+                            />`
                         )}
                       </div>
                     `

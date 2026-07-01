@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useOutletContext, useSearchParams } from 'react-router';
+import { Badge } from '../../design-system/badge.js';
 import { Button } from '../../design-system/button.js';
 import { Icon } from '../../design-system/icons.js';
+import { Popover } from '../../design-system/popover.js';
 import { React, html } from '../../lib/html.js';
 import { toast } from '../../lib/toast.js';
 import { MarkdownRenderer } from '../chat/components/markdown-renderer.js';
@@ -73,30 +75,45 @@ function findArtifact(item, artifactId) {
   return firstReadyArtifact(item);
 }
 
-function EmptyWorkState({ missing, savedWorkSnapshot }) {
+// One canonical empty/not-found notice. The gold file glyph carries the agent's
+// hand (a saved work product is generated agent work); the copy names the exact
+// next physical action instead of a dead CTA. Both the full-bleed empty page and
+// the in-article dead-deep-link state render this same notice — merged so the two
+// never drift apart (a hostile-review finding). `title`/`body`/`testId` vary; the
+// treatment does not.
+function SavedWorkNotice({ title, body, testId }) {
+  return html`
+    <div
+      className="flex min-h-[60vh] flex-col items-center justify-center px-6 py-10 text-center"
+      data-testid=${testId}
+    >
+      <div
+        className="grid h-12 w-12 place-items-center rounded-[14px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+      >
+        <${Icon} name="file" className="h-5 w-5" />
+      </div>
+      <h1 className="v2-text-title mt-5">${title}</h1>
+      <p className="mt-2 max-w-md v2-text-body text-[var(--v2-text-muted)]">${body}</p>
+      <div className="mt-6">
+        <${Button} as=${Link} to="/chat" variant="primary">Back to chat<//>
+      </div>
+    </div>
+  `;
+}
+
+function EmptyWorkState({ savedWorkSnapshot }) {
   const sourceDetail =
     savedWorkSnapshot?.detail ||
-    'Saved outputs from this desktop profile appear here after you save them from Chat.';
+    'Saved outputs from this desktop profile appear here after you save them from chat.';
   return html`
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="v2-page-entrance flex-1 p-4 sm:p-6">
-        <div
-          className="mx-auto flex min-h-[60vh] max-w-2xl flex-col items-center justify-center text-center"
-        >
-          <div
-            className="grid h-12 w-12 place-items-center rounded-[14px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
-          >
-            <${Icon} name="file" className="h-5 w-5" />
-          </div>
-          <h1 className="mt-5 text-2xl font-semibold text-[var(--v2-text-strong)]">
-            ${missing ? 'Saved work not found' : 'No saved work yet'}
-          </h1>
-          <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
-            ${missing ? 'That saved artifact is no longer in this desktop profile.' : sourceDetail}
-          </p>
-          <div className="mt-6">
-            <${Button} as=${Link} to="/chat" variant="primary">Back to chat<//>
-          </div>
+        <div className="mx-auto max-w-2xl">
+          <${SavedWorkNotice}
+            title="No saved work yet"
+            body=${sourceDetail}
+            testId="saved-work-empty"
+          />
         </div>
       </div>
     </div>
@@ -107,32 +124,16 @@ function EmptyWorkState({ missing, savedWorkSnapshot }) {
 // user can pick a real item) while the reader honestly reports the dead link
 // instead of substituting an unrelated saved artifact.
 function NotFoundArticle() {
-  return html`
-    <div
-      className="flex min-h-[60vh] flex-col items-center justify-center px-6 py-10 text-center"
-      data-testid="saved-work-not-found"
-    >
-      <div
-        className="grid h-12 w-12 place-items-center rounded-[14px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
-      >
-        <${Icon} name="file" className="h-5 w-5" />
-      </div>
-      <h1 className="mt-5 text-2xl font-semibold text-[var(--v2-text-strong)]">
-        Saved work not found
-      </h1>
-      <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
-        That saved artifact is no longer in this desktop profile. Pick another item from the list,
-        or head back to chat.
-      </p>
-      <div className="mt-6">
-        <${Button} as=${Link} to="/chat" variant="primary">Back to chat<//>
-      </div>
-    </div>
-  `;
+  return html`<${SavedWorkNotice}
+    title="Saved work not found"
+    body="That saved artifact is no longer in this desktop profile. Pick another item from the list, or head back to chat."
+    testId="saved-work-not-found"
+  />`;
 }
 
 function WorkExportActions({ item, artifact }) {
   const [busy, setBusy] = React.useState('');
+  const [exportOpen, setExportOpen] = React.useState(false);
   const content = artifactTextContent(artifact);
   const title = artifact?.title || item?.title || 'IronClaw work product';
   const stem = fileStem(title);
@@ -160,24 +161,50 @@ function WorkExportActions({ item, artifact }) {
     }
   };
 
-  // Mobile-first tap-target floor (>=44px at 390px): these export controls were
-  // 36px. The shared app shell, palette, and connectors already enforce a 44px
-  // floor at 390px (keyboard-static.spec.ts); the saved-work controls now match.
+  // De-boxed export bank: one grey Copy + one grey Save original, and a single
+  // "Export" overflow that holds the five format writers behind a menu — not the
+  // seven-identical-button wall the surface used to open with. Grey/ghost for
+  // all of them (no primary here; the surface's single accent is reserved for the
+  // reader's own actions). 44px tap-target floor kept.
   const actionClass =
-    'inline-flex min-h-[44px] items-center gap-2 rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] px-3 text-sm font-medium text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_36%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)] disabled:opacity-60';
+    'inline-flex min-h-[44px] items-center gap-2 rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] px-3 v2-text-body font-medium text-[var(--v2-text)] hover:border-[color-mix(in_srgb,var(--v2-accent)_36%,var(--v2-panel-border))] hover:text-[var(--v2-text-strong)] disabled:opacity-60';
+
+  const exportFormats = content
+    ? [
+        ['Markdown', () => downloadMarkdown(content, `${stem}.md`)],
+        ['DOCX', () => downloadDocx(content, `${stem}.docx`)],
+        ['PDF', () => downloadPdf(content, `${stem}.pdf`)],
+        ['HTML', () => downloadHtml(content, `${stem}.html`)],
+        // JSON export only when there is text content; for binary artifacts
+        // (content === '') it would write a hollow file, so those rely on the
+        // "Save original" control to preserve the real bytes.
+        [
+          'JSON',
+          () =>
+            downloadJson(
+              {
+                role: 'assistant',
+                content,
+                attachments: [
+                  {
+                    kind: 'work_item',
+                    item_id: item?.id,
+                    artifact_id: artifact?.id,
+                    title,
+                    filename: artifact?.filename || null,
+                    mime_type: artifact?.mime_type || null,
+                    size: artifact?.size || null
+                  }
+                ]
+              },
+              `${stem}.json`
+            )
+        ]
+      ]
+    : [];
 
   return html`
-    <div className="flex flex-wrap gap-2">
-      ${originalBlob &&
-      html`<button
-        type="button"
-        className=${actionClass}
-        disabled=${Boolean(busy)}
-        onClick=${() => run('Save original', () => saveBlob(originalBlob, originalFilename))}
-      >
-        <${Icon} name="download" className="h-4 w-4" />
-        ${busy === 'Save original' ? 'Saving...' : 'Save original'}
-      </button>`}
+    <div className="flex flex-wrap items-center gap-2">
       ${content &&
       html`<button
         type="button"
@@ -185,57 +212,60 @@ function WorkExportActions({ item, artifact }) {
         disabled=${Boolean(busy)}
         onClick=${() => run('Copy', () => copyWorkProduct(content))}
       >
-        <${Icon} name="copy" className="h-4 w-4" />
-        ${busy === 'Copy' ? 'Copying...' : 'Copy'}
+        <${Icon} name="copy" className="h-4 w-4" aria-hidden="true" />
+        ${busy === 'Copy' ? 'Copying…' : 'Copy'}
       </button>`}
-      ${(content
-        ? [
-            ['Markdown', 'download', () => downloadMarkdown(content, `${stem}.md`)],
-            ['DOCX', 'download', () => downloadDocx(content, `${stem}.docx`)],
-            ['PDF', 'download', () => downloadPdf(content, `${stem}.pdf`)],
-            ['HTML', 'download', () => downloadHtml(content, `${stem}.html`)],
-            // JSON export only when there is text content; for binary artifacts
-            // (content === '') it would write a hollow file, so those rely on
-            // the "Save original" control above to preserve the real bytes.
-            [
-              'JSON',
-              'download',
-              () =>
-                downloadJson(
-                  {
-                    role: 'assistant',
-                    content,
-                    attachments: [
-                      {
-                        kind: 'work_item',
-                        item_id: item?.id,
-                        artifact_id: artifact?.id,
-                        title,
-                        filename: artifact?.filename || null,
-                        mime_type: artifact?.mime_type || null,
-                        size: artifact?.size || null
-                      }
-                    ]
-                  },
-                  `${stem}.json`
-                )
-            ]
-          ]
-        : []
-      ).map(
-        ([label, icon, action]) => html`
-          <button
-            key=${label}
-            type="button"
-            className=${actionClass}
-            disabled=${Boolean(busy)}
-            onClick=${() => run(`Export ${label}`, action)}
-          >
-            <${Icon} name=${icon} className="h-4 w-4" />
-            ${label}
-          </button>
-        `
-      )}
+      ${originalBlob &&
+      html`<button
+        type="button"
+        className=${actionClass}
+        disabled=${Boolean(busy)}
+        onClick=${() => run('Save original', () => saveBlob(originalBlob, originalFilename))}
+      >
+        <${Icon} name="download" className="h-4 w-4" aria-hidden="true" />
+        ${busy === 'Save original' ? 'Saving…' : 'Save original'}
+      </button>`}
+      ${exportFormats.length > 0 &&
+      html`<${Popover}
+        open=${exportOpen}
+        onClose=${() => setExportOpen(false)}
+        align="start"
+        side="bottom"
+        ariaLabel="Export format"
+        className="border-t-2 border-t-[var(--v2-accent)] p-1.5"
+        trigger=${html`<button
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded=${exportOpen}
+          className=${actionClass}
+          disabled=${Boolean(busy)}
+          onClick=${() => setExportOpen((open) => !open)}
+        >
+          <${Icon} name="download" className="h-4 w-4" aria-hidden="true" />
+          Export
+          <${Icon} name="chevronDown" className="h-3.5 w-3.5 opacity-60" aria-hidden="true" />
+        </button>`}
+      >
+        <div role="menu" aria-label="Export format" className="grid gap-0.5">
+          ${exportFormats.map(
+            ([label, action]) =>
+              html`<button
+                key=${label}
+                type="button"
+                role="menuitem"
+                disabled=${Boolean(busy)}
+                onClick=${() => {
+                  setExportOpen(false);
+                  run(`Export ${label}`, action);
+                }}
+                className="flex min-h-[40px] items-center gap-2.5 rounded-[var(--v2-radius-control)] px-2.5 text-left v2-text-body text-[var(--v2-text)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text-strong)] disabled:opacity-60"
+              >
+                <${Icon} name="download" className="h-4 w-4 opacity-70" aria-hidden="true" />
+                ${label}
+              </button>`
+          )}
+        </div>
+      <//>`}
     </div>
   `;
 }
@@ -248,35 +278,35 @@ function SavedFileArtifactPreview({ artifact }) {
   const kind = generatedFileKindLabel(artifact);
   return html`
     <div
-      className="rounded-[12px] border border-dashed border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-6 text-sm"
+      className="rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] border-l-2 border-l-[var(--v2-gold)] bg-[var(--v2-surface-soft)] p-6"
       data-testid="saved-work-file-artifact"
     >
       <div className="flex min-w-0 flex-wrap items-center gap-3">
         <span
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--v2-radius-card)] border border-[color-mix(in_srgb,var(--v2-gold)_34%,var(--v2-panel-border))] bg-[var(--v2-gold-soft)] text-[var(--v2-gold-text)]"
         >
           <${Icon} name="file" className="h-5 w-5" />
         </span>
         <span className="min-w-[12rem] flex-1">
-          <span
-            className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--v2-gold-text)]"
+          ${
+            /* Gold color set inline, not via a text-[…] utility: .v2-text-label
+            ships its own color in app.css, which loads after the Tailwind layer
+            and (equal specificity, later source order) would otherwise override
+            the gold utility and mute this agent-attribution label to grey. */ ''
+          }
+          <span className="v2-text-label" style=${{ color: 'var(--v2-gold-text)' }}
+            >${kind} file artifact</span
           >
-            <span
-              aria-hidden="true"
-              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
-            ></span>
-            ${kind} file artifact
-          </span>
-          <span className="block truncate text-base font-semibold text-[var(--v2-text-strong)]">
+          <span className="block truncate v2-text-section text-[var(--v2-text-strong)]">
             ${artifact?.filename || artifact?.title || 'Generated file'}
           </span>
-          <span className="block truncate text-xs text-[var(--v2-text-muted)]">
+          <span className="block truncate v2-text-meta">
             ${artifact?.mime_type || 'application/octet-stream'}
             ${artifact?.size_label ? ` · ${artifact.size_label}` : ''}
           </span>
         </span>
       </div>
-      <p className="mt-4 max-w-2xl text-sm leading-6 text-[var(--v2-text-muted)]">
+      <p className="mt-4 max-w-2xl v2-text-body text-[var(--v2-text-muted)]">
         Preview is not available for this binary file in the local reader. The original bytes are
         retained and can be saved from the controls above.
       </p>
@@ -293,12 +323,12 @@ function WorkActivityLedger({ items }) {
   const ledger = buildWorkLedger(items);
   return html`
     <div data-testid="work-activity-ledger">
-      <p className="text-xs leading-5 text-[var(--v2-text-muted)]">
+      <p className="v2-text-body text-[var(--v2-text-muted)]">
         A device-local record of work you have saved and the actions behind it. A full server-side
         audit log is not available on this gateway yet.
       </p>
       ${ledger.length === 0
-        ? html`<p className="mt-4 text-sm text-[var(--v2-text-muted)]">
+        ? html`<p className="mt-4 v2-text-body text-[var(--v2-text-muted)]">
             No activity recorded yet.
           </p>`
         : html`<ol className="mt-4 grid grid-cols-1">
@@ -306,14 +336,16 @@ function WorkActivityLedger({ items }) {
               (entry) => html`
                 <li
                   key=${entry.id}
-                  className="border-t border-[var(--v2-panel-border)] first:border-t-0"
+                  className=${`border-t border-[var(--v2-panel-border)] first:border-t-0 ${
+                    entry.kind === 'saved' ? '' : 'border-l-2 border-l-[var(--v2-gold)] pl-3'
+                  }`}
                 >
                   <${Link}
                     to=${workArtifactHref(entry.matterId, entry.artifactId)}
                     className="grid grid-cols-[auto_1fr_auto] items-center gap-2.5 py-3.5 hover:text-[var(--v2-accent-text)]"
                   >
                     <span
-                      className=${`grid h-7 w-7 shrink-0 place-items-center rounded-[7px] ${
+                      className=${`grid h-7 w-7 shrink-0 place-items-center ${
                         entry.kind === 'saved'
                           ? 'text-[var(--v2-text-faint)]'
                           : 'text-[var(--v2-gold-text)]'
@@ -325,23 +357,16 @@ function WorkActivityLedger({ items }) {
                       />
                     </span>
                     <span className="min-w-0">
-                      <span
-                        className="flex items-center gap-1.5 truncate text-sm text-[var(--v2-text-strong)]"
-                      >
-                        ${entry.kind !== 'saved' &&
-                        html`<span
-                          aria-hidden="true"
-                          className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
-                        ></span>`}
+                      <span className="block truncate v2-text-body text-[var(--v2-text-strong)]">
                         ${entry.kind === 'saved' ? `Saved ${entry.label}` : entry.label}
                       </span>
-                      <span className="block truncate text-xs text-[var(--v2-text-faint)]">
+                      <span className="block truncate v2-text-meta">
                         ${entry.kind === 'saved'
                           ? 'Work product'
                           : `in ${entry.matter}`}${entry.status ? ` · ${entry.status}` : ''}
                       </span>
                     </span>
-                    <span className="shrink-0 text-xs tabular-nums text-[var(--v2-text-faint)]">
+                    <span className="shrink-0 v2-text-meta tabular-nums">
                       ${entry.kind === 'saved' ? readableDate(entry.timestamp) : ''}
                     </span>
                   <//>
@@ -350,6 +375,66 @@ function WorkActivityLedger({ items }) {
             )}
           </ol>`}
     </div>
+  `;
+}
+
+// "What IronClaw did" — the trust centerpiece, not chrome. Each receipt is a
+// structured hairline row (action · target/detail · status), clay-marked on the
+// left edge because these are agent-provenance receipts. Clay is reserved for
+// exactly this: the cooled record of what the agent's hand actually did. No
+// filled status pills — status is quiet text; a genuine in-flight receipt breathes.
+function WorkReceipts({ receipts }) {
+  return html`
+    <section className="border-l-2 border-l-[var(--v2-gold)] pl-4" data-testid="dossier-receipts">
+      ${
+        /* Gold color set inline, not via a text-[…] utility: .v2-text-label ships
+        its own color in app.css, which loads after the Tailwind layer and (equal
+        specificity, later source order) would otherwise override the gold utility
+        and mute this agent-attribution header to grey. */ ''
+      }
+      <div className="v2-text-label" style=${{ color: 'var(--v2-gold-text)' }}>
+        What IronClaw did
+      </div>
+      <ul className="mt-2.5 grid grid-cols-1">
+        ${receipts.map((receipt, index) => {
+          const inFlight = /run|progress|working|pending/i.test(String(receipt.status || ''));
+          return html`
+            <li
+              key=${index}
+              className="grid grid-cols-[auto_1fr_auto] items-baseline gap-x-3 gap-y-0.5 border-t border-[var(--v2-panel-border)] py-2.5 first:border-t-0"
+            >
+              <span className="grid h-5 w-5 place-items-center text-[var(--v2-gold-text)]">
+                <${Icon} name="bolt" className="h-3.5 w-3.5" aria-hidden="true" />
+              </span>
+              <span className="min-w-0">
+                <span className="block v2-text-body font-medium text-[var(--v2-text-strong)]">
+                  ${receipt.label}
+                </span>
+                ${receipt.detail
+                  ? html`<span
+                      className="mt-0.5 block truncate v2-text-meta"
+                      title=${receipt.detail}
+                      >${receipt.detail}</span
+                    >`
+                  : ''}
+              </span>
+              ${receipt.status
+                ? html`<span
+                    className="flex shrink-0 items-center gap-1.5 v2-text-meta text-[var(--v2-text-faint)]"
+                  >
+                    ${inFlight &&
+                    html`<span
+                      aria-hidden="true"
+                      className="v2-breathing-dot h-1.5 w-1.5 shrink-0 rounded-full bg-current"
+                    ></span>`}
+                    ${receipt.status}
+                  </span>`
+                : html`<span></span>`}
+            </li>
+          `;
+        })}
+      </ul>
+    </section>
   `;
 }
 
@@ -404,7 +489,7 @@ export function WorkPage() {
   // empty state. Once items exist, always render the two-pane layout (sidebar +
   // article) — a broken deep link only changes what the article pane shows.
   if (!items.length) {
-    return html`<${EmptyWorkState} missing=${false} savedWorkSnapshot=${savedWorkSnapshot} />`;
+    return html`<${EmptyWorkState} savedWorkSnapshot=${savedWorkSnapshot} />`;
   }
 
   // When the deep link resolves, read that item/artifact; when it does not,
@@ -450,15 +535,17 @@ export function WorkPage() {
         >
           <aside className="h-fit" aria-label="Saved work">
             <div className="px-1 py-2">
-              <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">Saved work</div>
-              <p className="mt-1 text-sm leading-5 text-[var(--v2-text-faint)]">
+              <div className="v2-text-label">Saved work</div>
+              <p className="mt-1 v2-text-body text-[var(--v2-text-faint)]">
                 ${savedWorkSnapshot.detail || 'Local artifacts saved from chat.'}
               </p>
-              <span
-                className="mt-2 inline-flex min-h-[28px] items-center rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-2 text-xs font-semibold text-[var(--v2-text)]"
-              >
-                ${savedWorkSnapshot.statusLabel || savedWorkSnapshot.label || 'Local profile'}
-              </span>
+              <${Badge}
+                tone="muted"
+                dot=${false}
+                size="sm"
+                label=${savedWorkSnapshot.statusLabel || savedWorkSnapshot.label || 'Local profile'}
+                className="mt-2"
+              />
             </div>
             ${items.length > 8 &&
             html`<div className="relative mb-1 px-1">
@@ -476,7 +563,7 @@ export function WorkPage() {
                   setShowAllWork(false);
                 }}
                 placeholder="Search saved work…"
-                className="h-9 min-h-[44px] w-full rounded-[8px] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 text-[13px] text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
+                className="min-h-[44px] w-full rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-input-bg)] pl-8 pr-2 v2-text-body text-[var(--v2-text-strong)] outline-none placeholder:text-[var(--v2-text-faint)] focus:border-[var(--v2-accent)]"
               />
             </div>`}
             <div className="mt-2 grid grid-cols-[minmax(0,1fr)] gap-0.5">
@@ -490,21 +577,21 @@ export function WorkPage() {
                     key=${item.id}
                     to=${href}
                     className=${[
-                      'rounded-[10px] px-3 py-3 text-left text-sm',
+                      'rounded-[var(--v2-radius-control)] px-3 py-3 text-left',
                       active
                         ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-text-strong)]'
                         : 'text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-soft)] hover:text-[var(--v2-text)]'
                     ].join(' ')}
                   >
-                    <span className="block truncate font-semibold">
+                    <span className="block truncate v2-text-body font-semibold">
                       ${item.title || 'Untitled work'}
                     </span>
-                    <span className="mt-1 block text-xs text-[var(--v2-text-faint)]">
+                    <span className="mt-1 block v2-text-meta">
                       ${readableDate(item.updated_at || item.created_at)}
                     </span>
                     ${snippet &&
                     html`<span
-                      className="mt-1 block text-xs leading-5 text-[var(--v2-text-muted)] line-clamp-2"
+                      className="mt-1 block v2-text-body text-[var(--v2-text-muted)] line-clamp-2"
                       >${snippet}</span
                     >`}
                   <//>
@@ -512,14 +599,14 @@ export function WorkPage() {
               })}
             </div>
             ${filteredItems.length === 0 &&
-            html`<p className="px-3 py-3 text-xs text-[var(--v2-text-faint)]">
+            html`<p className="px-3 py-3 v2-text-meta">
               No saved work matches “${workFilter.trim()}”.
             </p>`}
             ${hiddenItemCount > 0 &&
             html`<button
               type="button"
               onClick=${() => setShowAllWork(true)}
-              className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center rounded-[8px] border border-[var(--v2-panel-border)] px-3 text-xs font-medium text-[var(--v2-accent-text)] hover:bg-[var(--v2-surface-soft)]"
+              className="mt-1 inline-flex min-h-[44px] w-full items-center justify-center rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] px-3 v2-text-body font-medium text-[var(--v2-accent-text)] hover:bg-[var(--v2-surface-soft)]"
             >
               Show all ${filteredItems.length}
             </button>`}
@@ -533,22 +620,22 @@ export function WorkPage() {
                     className="border-b border-[var(--v2-panel-border)] pb-5 sm:flex sm:items-start sm:justify-between sm:gap-4"
                   >
                     <div className="min-w-0">
-                      <div
-                        className="flex flex-wrap items-center gap-2 text-xs text-[var(--v2-text-muted)]"
-                      >
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 v2-text-meta">
                         ${
                           /* Gold = the agent's hand (DESIGN.md color meaning). A saved
-                    work product is generated agent work, so the header badge is
-                    gold to match the "Generated document" chip in chat and the
-                    file-artifact preview below — not success-green, which is a
-                    status this surface cannot prove and read inconsistently
-                    against the gold body chip. */ ''
+                    work product is generated agent work, so the eyebrow is gold to
+                    match the "Generated document" chip in chat and the file-artifact
+                    preview below — not success-green, which is a status this surface
+                    cannot prove and read inconsistently against the gold body chip. */ ''
                         }
-                        <span className="flex items-center gap-1.5 text-[var(--v2-gold-text)]">
-                          <span
-                            aria-hidden="true"
-                            className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
-                          ></span>
+                        ${
+                          /* Gold color set inline, not via a text-[…] utility:
+                          .v2-text-label ships its own color in app.css, which
+                          loads after the Tailwind layer and (equal specificity,
+                          later source order) would otherwise override the gold
+                          utility and mute the agent-attribution eyebrow to grey. */ ''
+                        }
+                        <span className="v2-text-label" style=${{ color: 'var(--v2-gold-text)' }}>
                           ${selectedArtifact.type === 'file' || selectedArtifact.data_base64
                             ? `${generatedFileKindLabel(selectedArtifact)} artifact`
                             : selectedArtifact.type === 'document'
@@ -560,12 +647,10 @@ export function WorkPage() {
                         >
                         <span>Source: ${provenance}</span>
                       </div>
-                      <h1
-                        className="mt-3 truncate text-xl font-semibold text-[var(--v2-text-strong)]"
-                      >
+                      <h1 className="mt-3 truncate v2-text-title">
                         ${selectedArtifact.title || selectedItem.title || 'Saved work product'}
                       </h1>
-                      <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
+                      <p className="mt-1 v2-text-body text-[var(--v2-text-muted)]">
                         ${selectedItem.objective || 'Saved work product from chat.'}
                       </p>
                     </div>
@@ -596,7 +681,7 @@ export function WorkPage() {
                     <div
                       role="group"
                       aria-label="Work view"
-                      className="inline-flex rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-0.5"
+                      className="inline-flex rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-0.5"
                     >
                       ${['saved', 'activity'].map(
                         (mode) =>
@@ -606,7 +691,7 @@ export function WorkPage() {
                             aria-pressed=${view === mode}
                             onClick=${() => setView(mode)}
                             className=${[
-                              'min-h-[44px] rounded-[8px] px-3 text-sm font-medium',
+                              'min-h-[44px] rounded-[var(--v2-radius-control)] px-3 v2-text-body font-medium',
                               view === mode
                                 ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
                                 : 'text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]'
@@ -625,61 +710,20 @@ export function WorkPage() {
                             className="border-t border-[var(--v2-panel-border)] pt-4"
                             data-testid="dossier-ask"
                           >
-                            <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
-                              The ask
-                            </div>
+                            <div className="v2-text-label">The ask</div>
                             <p
-                              className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--v2-text)]"
+                              className="mt-2 whitespace-pre-wrap v2-text-body text-[var(--v2-text)]"
                             >
                               ${askEntry.text}
                             </p>
                           </section>`}
-                          ${receipts.length > 0 &&
-                          html`<section
-                            className="border-t border-[var(--v2-panel-border)] pt-4"
-                            data-testid="dossier-receipts"
-                          >
-                            <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
-                              What IronClaw did
-                            </div>
-                            <ul className="mt-2 grid gap-1.5">
-                              ${receipts.map(
-                                (receipt, index) => html`
-                                  <li
-                                    key=${index}
-                                    className="grid grid-cols-[auto_1fr] items-baseline gap-2 text-sm"
-                                  >
-                                    <span
-                                      className="grid h-6 w-6 place-items-center text-[var(--v2-gold-text)]"
-                                    >
-                                      <${Icon} name="bolt" className="h-3.5 w-3.5" />
-                                    </span>
-                                    <span className="min-w-0">
-                                      <span className="font-medium text-[var(--v2-text-strong)]"
-                                        >${receipt.label}</span
-                                      >${receipt.status
-                                        ? html`<span
-                                            className="ml-2 text-xs text-[var(--v2-text-faint)]"
-                                            >${receipt.status}</span
-                                          >`
-                                        : ''}
-                                      ${receipt.detail
-                                        ? html`<span
-                                            className="mt-0.5 block truncate text-xs text-[var(--v2-text-muted)]"
-                                            title=${receipt.detail}
-                                            >${receipt.detail}</span
-                                          >`
-                                        : ''}
-                                    </span>
-                                  </li>
-                                `
-                              )}
-                            </ul>
-                          </section>`}
-                          <div
-                            className="rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-canvas)] p-4 sm:p-6"
-                            data-testid="saved-work-artifact"
-                          >
+                          ${receipts.length > 0 && html`<${WorkReceipts} receipts=${receipts} />`}
+                          ${
+                            /* The document body itself: framed by whitespace, not a
+                          --v2-canvas card box. The reader is the focal content, so it
+                          reads as prose on the desk rather than a nested panel. */ ''
+                          }
+                          <div className="pt-2" data-testid="saved-work-artifact">
                             ${content
                               ? html`<${MarkdownRenderer}
                                   content=${content}

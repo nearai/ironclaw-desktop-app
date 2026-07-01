@@ -128,7 +128,7 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
   const footnoteSegments = interpolateTemplate(t('automations.delivery.footnote'), {
     command: html`<code
       key="cmd"
-      className="rounded px-1.5 py-0.5 font-mono text-[0.6875rem] bg-[var(--v2-surface-muted)] text-[var(--v2-accent-text)]"
+      className="rounded-[var(--v2-radius-control)] px-1.5 py-0.5 font-mono text-[0.6875rem] bg-[var(--v2-surface-muted)] text-[var(--v2-accent-text)]"
     >
       approve &lt;code&gt;
     </code>`
@@ -139,15 +139,9 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
       <div className="flex flex-col gap-5">
         <!-- ── Header ──────────────────────────────────────────────── -->
         <div className="flex flex-col gap-1">
-          <div className="text-[12px] font-semibold text-[var(--v2-text-muted)]">
-            ${t('automations.delivery.eyebrow')}
-          </div>
-          <h2
-            className="mt-1 text-xl font-semibold tracking-[-0.02em] text-[var(--v2-text-strong)]"
-          >
-            ${t('automations.delivery.title')}
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
+          <div className="v2-text-label">${t('automations.delivery.eyebrow')}</div>
+          <h2 className="mt-1 v2-text-title">${t('automations.delivery.title')}</h2>
+          <p className="mt-1 v2-text-body text-[var(--v2-text-muted)]">
             ${t('automations.delivery.explainer')}
           </p>
         </div>
@@ -158,7 +152,7 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
         html`
           <div
             role="alert"
-            className="rounded-xl border border-[color-mix(in_srgb,var(--v2-danger-text)_28%,var(--v2-panel-border))] bg-[color-mix(in_srgb,var(--v2-danger-text)_8%,var(--v2-surface-soft))] px-4 py-3.5"
+            className="rounded-[var(--v2-radius-card)] border border-[color-mix(in_srgb,var(--v2-danger-text)_28%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3.5"
           >
             <div className="flex items-start gap-3">
               <${Icon}
@@ -166,10 +160,10 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
                 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--v2-danger-text)]"
               />
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-[var(--v2-text-strong)]">
+                <div className="v2-text-body font-semibold text-[var(--v2-text-strong)]">
                   ${t('automations.delivery.loadFailedTitle')}
                 </div>
-                <div className="mt-1 text-xs leading-5 text-[var(--v2-text-muted)]">
+                <div className="mt-1 v2-text-meta text-[var(--v2-text-muted)]">
                   ${t('automations.delivery.loadFailedDesc')}
                 </div>
                 <${Button}
@@ -195,14 +189,14 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
         hasCurrentTarget &&
         html`
           <div>
-            <span className="mb-1.5 block text-[12px] font-semibold text-[var(--v2-text-faint)]">
+            <span className="mb-1.5 block v2-text-label">
               ${t('automations.delivery.currentDefault')}
             </span>
             <div
-              className="flex items-center gap-3 rounded-xl border px-4 py-3 bg-[var(--v2-positive-soft)] border-[color-mix(in_srgb,var(--v2-positive-text)_25%,var(--v2-panel-border))]"
+              className="flex items-center gap-3 rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3"
             >
               <span
-                className="flex-1 min-w-0 text-sm font-semibold text-[var(--v2-text-strong)] truncate"
+                className="min-w-0 flex-1 truncate v2-text-body font-medium text-[var(--v2-text-strong)]"
               >
                 ${currentDisplayName}
               </span>
@@ -214,9 +208,7 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
         <!-- ── Radio option rows ────────────────────────────────────── -->
         ${!hasLoadError &&
         html`<div>
-          <span className="mb-1.5 block text-[12px] font-semibold text-[var(--v2-text-faint)]">
-            ${radioSectionLabel}
-          </span>
+          <span className="mb-1.5 block v2-text-label">${radioSectionLabel}</span>
           <div
             className="flex flex-col gap-3"
             role="radiogroup"
@@ -233,7 +225,7 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
                 <label
                   key=${tid}
                   className=${cn(
-                    'flex items-start gap-3.5 rounded-xl border px-4 py-3.5 cursor-pointer',
+                    'flex items-start gap-3.5 rounded-[var(--v2-radius-control)] border px-4 py-3.5 cursor-pointer',
                     'transition-colors duration-100',
                     'bg-[var(--v2-surface-soft)] border-[var(--v2-panel-border)]',
                     'hover:bg-[var(--v2-surface-muted)] hover:border-[color-mix(in_srgb,var(--v2-accent)_30%,var(--v2-panel-border))]',
@@ -251,13 +243,11 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
                     className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--v2-accent)]"
                   />
                   <div className="flex-1 min-w-0">
-                    <div
-                      className="text-sm font-semibold text-[var(--v2-text-strong)] leading-snug"
-                    >
+                    <div className="v2-text-body font-medium text-[var(--v2-text-strong)]">
                       ${label}
                     </div>
                     ${desc &&
-                    html`<div className="mt-0.5 text-xs leading-5 text-[var(--v2-text-muted)]">
+                    html`<div className="mt-0.5 v2-text-meta text-[var(--v2-text-muted)]">
                       ${desc}
                     </div>`}
                   </div>
@@ -277,14 +267,18 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
             ${hasUnpairedTargets &&
             html`
               <div
-                className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3.5 text-sm text-[var(--v2-text-muted)]"
+                className="flex items-center gap-3 rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3.5"
               >
-                <span className="text-base shrink-0 opacity-70">📎</span>
+                <${Icon}
+                  name="link"
+                  className="h-4 w-4 shrink-0 text-[var(--v2-text-faint)]"
+                  aria-hidden="true"
+                />
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm font-semibold text-[var(--v2-text-muted)]">
+                  <span className="v2-text-body font-medium text-[var(--v2-text-muted)]">
                     ${t('automations.delivery.unpairedNotice')}
                   </span>
-                  <div className="mt-0.5 text-xs leading-5 text-[var(--v2-text-faint)]">
+                  <div className="mt-0.5 v2-text-meta">
                     ${t('automations.delivery.unpairedDesc')}
                   </div>
                 </div>
@@ -299,7 +293,7 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
             <!-- Web app only / fallback row -->
             <label
               className=${cn(
-                'flex items-start gap-3.5 rounded-xl border px-4 py-3.5',
+                'flex items-start gap-3.5 rounded-[var(--v2-radius-control)] border px-4 py-3.5',
                 'transition-colors duration-100',
                 'bg-[var(--v2-surface-soft)] border-[var(--v2-panel-border)]',
                 hasTargets
@@ -319,10 +313,10 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
                 className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--v2-accent)]"
               />
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold text-[var(--v2-text-strong)] leading-snug">
+                <div className="v2-text-body font-medium text-[var(--v2-text-strong)]">
                   ${t('automations.delivery.webOption')}
                 </div>
-                <div className="mt-0.5 text-xs leading-5 text-[var(--v2-text-muted)]">
+                <div className="mt-0.5 v2-text-meta text-[var(--v2-text-muted)]">
                   ${t('automations.delivery.webOptionDesc')}
                 </div>
               </div>
@@ -349,7 +343,7 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
           html`
             <span
               role="status"
-              className="flex items-center gap-1.5 text-xs font-semibold text-[var(--v2-positive-text)]"
+              className="flex items-center gap-1.5 v2-text-meta text-[var(--v2-positive-text)]"
             >
               <${Icon} name="check" className="h-3 w-3" />
               ${t('automations.delivery.saved')}
@@ -360,7 +354,7 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
           html`
             <span
               role="alert"
-              className="flex items-center gap-1.5 text-xs font-semibold text-[var(--v2-danger-text)]"
+              className="flex items-center gap-1.5 v2-text-meta text-[var(--v2-danger-text)]"
             >
               <${Icon} name="close" className="h-3 w-3" />
               ${t('automations.delivery.saveFailed')}
@@ -373,7 +367,7 @@ export function AutomationDeliveryDefaultsPanel({ deliveryState }) {
         hasExternalTargets &&
         html`
           <div
-            className="rounded-[10px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3 text-xs leading-relaxed text-[var(--v2-text-faint)]"
+            className="rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-4 py-3 v2-text-meta leading-relaxed"
           >
             ${footnoteSegments}
           </div>

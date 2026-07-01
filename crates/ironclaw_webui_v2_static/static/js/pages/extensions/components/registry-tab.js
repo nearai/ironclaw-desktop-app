@@ -1,7 +1,5 @@
 import { Link } from 'react-router';
 import { Button } from '../../../design-system/button.js';
-import { CardLabel } from '../../../design-system/card.js';
-import { Icon } from '../../../design-system/icons.js';
 import { Input } from '../../../design-system/input.js';
 import { React, html } from '../../../lib/html.js';
 import { useT } from '../../../lib/i18n.js';
@@ -16,7 +14,7 @@ import {
   workflowCatalogStatus
 } from '../lib/registry-readiness.js';
 import { useConnectExtension } from '../hooks/useExtensions.js';
-import { ConnectorAppIcon, RegistryCard } from './extension-card.js';
+import { ConnectorAppIcon, RegistryCard, StatusText } from './extension-card.js';
 
 export function RegistryTab({
   toolRegistry,
@@ -86,15 +84,15 @@ export function RegistryTab({
           size="sm"
           className="min-h-[44px] flex-1"
         />
-        <span className="text-[11px] tabular-nums text-[var(--v2-text-faint)]">
+        <span className="v2-text-meta tabular-nums">
           ${filtered.length} / ${allAvailable.length}
         </span>
       </div>
 
       <section>
-        <${CardLabel}>${t('ext.registry.availableTitle')}<//>
+        <div className="v2-text-label">${t('ext.registry.availableTitle')}</div>
         ${filtered.length === 0
-          ? html`<p className="py-4 text-sm text-[var(--v2-text-muted)]">
+          ? html`<p className="py-4 v2-text-body text-[var(--v2-text-muted)]">
               ${t('ext.registry.noMatch')}
             </p>`
           : html`<div className="mt-2 grid grid-cols-1">
@@ -139,34 +137,24 @@ function CoreConnectionsEmpty({
   return html`
     <div className="space-y-8">
       <section>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="max-w-2xl">
-            <${CardLabel}>Core connections<//>
-            <h3 className="mt-2 text-xl font-semibold text-[var(--v2-text-strong)]">
-              Start with sources that need action.
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-[var(--v2-text-muted)]">
-              ${gatewayOffline
-                ? 'The local gateway is still starting or unavailable. The apps are shown so setup feels predictable; connect buttons unlock when the gateway responds.'
-                : catalogUnavailable
-                  ? 'This gateway did not expose installable app catalog entries yet. The source list stays honest about what can be connected now.'
-                  : 'Installed sources are shown first; missing catalog entries stay marked unavailable instead of pretending they are ready.'}
-            </p>
-          </div>
-          <span
-            className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] px-3 py-1.5 text-xs font-medium text-[var(--v2-warning-text)]"
-          >
-            <${Icon}
-              name=${gatewayOffline || catalogUnavailable ? 'pulse' : 'check'}
-              className="h-3.5 w-3.5"
-            />
-            ${gatewayOffline
+        <div className="flex items-center justify-between gap-3">
+          <div className="v2-text-label">Core connections</div>
+          <${StatusText}
+            label=${gatewayOffline
               ? 'Gateway offline'
               : catalogUnavailable
                 ? 'Catalog unavailable'
                 : 'Catalog empty'}
-          </span>
+            tone="warning"
+          />
         </div>
+        <p className="mt-2 max-w-2xl v2-text-body text-[var(--v2-text-muted)]">
+          ${gatewayOffline
+            ? 'The local gateway is still starting or unavailable. The apps are shown so setup feels predictable; connect buttons unlock when the gateway responds.'
+            : catalogUnavailable
+              ? 'This gateway did not expose installable app catalog entries yet. The source list stays honest about what can be connected now.'
+              : 'Installed sources are shown first; missing catalog entries stay marked unavailable instead of pretending they are ready.'}
+        </p>
       </section>
 
       <${SourceReadinessPanel}
@@ -197,69 +185,78 @@ function CoreConnectionsEmpty({
   `;
 }
 
-function readinessToneClasses(tone) {
-  if (tone === 'danger') {
-    return 'border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]';
-  }
-  if (tone === 'warning') {
-    return 'border-[color-mix(in_srgb,var(--v2-warning-text)_36%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] text-[var(--v2-warning-text)]';
-  }
-  if (tone === 'positive') {
-    return 'border-[color-mix(in_srgb,var(--v2-positive-text)_36%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] text-[var(--v2-positive-text)]';
-  }
-  return 'border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)]';
+const READINESS_NEEDS_YOU_STATES = new Set([
+  'blocked',
+  'needs-setup',
+  'needs-reconnect',
+  'gateway-offline'
+]);
+
+function readinessStatusTone(tone) {
+  if (tone === 'danger') return 'danger';
+  if (tone === 'warning') return 'warning';
+  if (tone === 'positive') return 'success';
+  return 'muted';
 }
 
+// One depth: source readiness is a single bordered section of de-boxed hairline
+// rows, not a shadowed panel full of nested cards. Sources that need the user
+// are grouped into a "Needs you" focal zone at the top with a tone left-rail;
+// available/readable sources sit quietly below.
 function SourceReadinessPanel({ items = [], isBusy = false, onConnect, onManualSetup }) {
   if (!items.length) return null;
-  const hasActionNeeded = items.some(
-    (item) =>
-      item.state === 'blocked' ||
-      item.state === 'needs-setup' ||
-      item.state === 'needs-reconnect' ||
-      item.state === 'gateway-offline'
-  );
+  const needsYou = items.filter((item) => READINESS_NEEDS_YOU_STATES.has(item.state));
+  const ready = items.filter((item) => !READINESS_NEEDS_YOU_STATES.has(item.state));
+
+  const renderRow = (item) => html`
+    <${SourceReadinessRow}
+      key=${item.id}
+      item=${item}
+      isBusy=${isBusy}
+      onConnect=${onConnect}
+      onManualSetup=${onManualSetup}
+    />
+  `;
 
   return html`
     <section
       data-testid="source-readiness-panel"
-      className="rounded-[18px] border border-[var(--v2-panel-border)] bg-[var(--v2-card-bg)] p-5 shadow-[var(--v2-shadow-sm)] sm:p-6"
+      aria-labelledby="source-readiness-heading"
+      className="space-y-6"
     >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div className="max-w-2xl">
-          <p className="text-xs font-semibold text-[var(--v2-accent-text)]">Source readiness</p>
-          <h3 className="mt-2 text-xl font-semibold text-[var(--v2-text-strong)]">
-            ${hasActionNeeded ? 'Fix blocked sources first.' : 'Sources stay quiet until needed.'}
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-[var(--v2-text-muted)]">
-            IronClaw shows the next setup step for sources that need attention and leaves available
-            sources as workbench options.
-          </p>
+      <h3
+        id="source-readiness-heading"
+        className=${[
+          'v2-text-label',
+          needsYou.length > 0 ? 'text-[var(--v2-warning-text)]' : ''
+        ].join(' ')}
+      >
+        ${needsYou.length > 0 ? 'Fix blocked sources first.' : 'Sources'}
+      </h3>
+      ${needsYou.length > 0 &&
+      html`
+        <div>
+          <h4 className="v2-text-label text-[var(--v2-warning-text)]">Needs you</h4>
+          <div className="mt-2 grid grid-cols-1">${needsYou.map(renderRow)}</div>
         </div>
-      </div>
-
-      <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-        ${items.map(
-          (item) => html`
-            <${SourceReadinessCard}
-              key=${item.id}
-              item=${item}
-              isBusy=${isBusy}
-              onConnect=${onConnect}
-              onManualSetup=${onManualSetup}
-            />
-          `
-        )}
-      </div>
+      `}
+      ${ready.length > 0 &&
+      html`
+        <div>
+          <h4 className="v2-text-label">${needsYou.length > 0 ? 'Sources' : 'All sources'}</h4>
+          <div className="mt-2 grid grid-cols-1">${ready.map(renderRow)}</div>
+        </div>
+      `}
     </section>
   `;
 }
 
-function SourceReadinessCard({ item, isBusy, onConnect, onManualSetup }) {
+function SourceReadinessRow({ item, isBusy, onConnect, onManualSetup }) {
   const action = item.action || {};
   const missingHandler =
     (action.kind === 'connect' && !onConnect) || (action.kind === 'manual_setup' && !onManualSetup);
   const disabled = Boolean(isBusy || action.disabled || missingHandler);
+  const needsYou = READINESS_NEEDS_YOU_STATES.has(item.state);
   const runAction = () => {
     if (disabled) return;
     if (action.kind === 'connect' && action.entry && onConnect) {
@@ -270,46 +267,47 @@ function SourceReadinessCard({ item, isBusy, onConnect, onManualSetup }) {
     }
   };
 
+  const railClass =
+    item.tone === 'danger'
+      ? '-mx-3 rounded-[var(--v2-radius-control)] border-l-2 border-[var(--v2-danger-text)] bg-[var(--v2-danger-soft)] px-3'
+      : needsYou
+        ? '-mx-3 rounded-[var(--v2-radius-control)] border-l-2 border-[var(--v2-warning-text)] bg-[var(--v2-warning-soft)] px-3'
+        : 'border-t border-[var(--v2-panel-border)] first:border-t-0';
+
   return html`
-    <article
+    <div
       data-testid=${`source-readiness-${item.id}`}
       data-readiness-state=${item.state}
-      className="flex min-w-0 flex-col rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-4"
+      className=${['flex min-w-0 flex-col py-4', railClass].join(' ')}
     >
       <div className="flex min-w-0 items-start gap-3">
         <${ConnectorAppIcon} source=${item.iconSource} />
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <div className="min-w-0 truncate text-sm font-semibold text-[var(--v2-text-strong)]">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="min-w-0 truncate v2-text-section text-[var(--v2-text-strong)]">
               ${item.displayName}
             </div>
-            <span
-              className=${[
-                'inline-flex shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold',
-                readinessToneClasses(item.tone)
-              ].join(' ')}
-            >
-              ${item.statusLabel}
-            </span>
           </div>
-          <p className="mt-1 text-[11px] text-[var(--v2-text-faint)]">${item.category}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2">
+            <${StatusText} label=${item.statusLabel} tone=${readinessStatusTone(item.tone)} />
+            <span className="v2-text-meta">${item.category}</span>
+          </div>
         </div>
       </div>
 
-      <p className="mt-3 text-sm leading-6 text-[var(--v2-text-muted)]">${item.body}</p>
+      ${item.body &&
+      html`<p className="mt-2 v2-text-body text-[var(--v2-text-muted)]">${item.body}</p>`}
 
-      <div
-        className="mt-auto flex flex-col gap-2 pt-4 sm:flex-row sm:items-center sm:justify-between"
-      >
-        <p className="min-w-0 text-xs leading-5 text-[var(--v2-text-faint)]">${item.nextAction}</p>
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="min-w-0 v2-text-body text-[var(--v2-text-faint)]">${item.nextAction}</p>
         ${action.kind === 'link' &&
         html`
           <${Button}
             as="a"
             href=${action.href}
-            variant=${action.variant || 'secondary'}
+            variant=${needsYou ? 'primary' : action.variant || 'secondary'}
             size="sm"
-            className="min-h-[44px] w-full px-3 text-xs sm:w-auto"
+            className="min-h-[44px] w-full px-3 sm:w-auto"
           >
             ${action.label}
           <//>
@@ -318,17 +316,17 @@ function SourceReadinessCard({ item, isBusy, onConnect, onManualSetup }) {
         html`
           <${Button}
             type="button"
-            variant=${action.variant || 'secondary'}
+            variant=${needsYou ? 'primary' : action.variant || 'secondary'}
             size="sm"
             disabled=${disabled}
             onClick=${runAction}
-            className="min-h-[44px] w-full px-3 text-xs sm:w-auto"
+            className="min-h-[44px] w-full px-3 sm:w-auto"
           >
             ${action.label || 'No action'}
           <//>
         `}
       </div>
-    </article>
+    </div>
   `;
 }
 
@@ -342,27 +340,17 @@ function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable, availabl
 
   return html`
     <section data-testid="acceptance-workflows">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div className="max-w-2xl">
-          <${CardLabel}>Chief-of-staff workflows<//>
-          <h3 className="mt-2 text-xl font-semibold text-[var(--v2-text-strong)]">
-            Start from outcomes, not app setup.
-          </h3>
-          <p className="mt-2 text-sm leading-6 text-[var(--v2-text-muted)]">
-            These are the work loops the connection layer should unlock once the required apps are
-            configured.
-          </p>
-        </div>
-        <span
-          className="inline-flex items-center gap-2 rounded-full border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-1.5 text-xs font-medium text-[var(--v2-text-muted)]"
-        >
-          <${Icon}
-            name=${gatewayOffline || catalogUnavailable ? 'pulse' : 'check'}
-            className="h-3.5 w-3.5"
-          />
-          ${status}
-        </span>
+      <div className="flex items-center justify-between gap-3">
+        <div className="v2-text-label">Chief-of-staff workflows</div>
+        <${StatusText}
+          label=${status}
+          tone=${gatewayOffline || catalogUnavailable ? 'warning' : 'muted'}
+        />
       </div>
+      <p className="mt-2 max-w-2xl v2-text-body text-[var(--v2-text-muted)]">
+        These are the work loops the connection layer should unlock once the required apps are
+        configured.
+      </p>
 
       <div className="mt-5 grid grid-cols-1 gap-3 lg:grid-cols-2">
         ${ACCEPTANCE_WORKFLOWS.map((workflow) => {
@@ -376,22 +364,18 @@ function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable, availabl
             <article
               key=${workflow.id}
               data-testid="acceptance-workflow-card"
-              className="flex h-full flex-col rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-4"
+              className="flex h-full flex-col rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] p-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <h4 className="text-base font-semibold text-[var(--v2-text-strong)]">
+                  <h4 className="v2-text-section text-[var(--v2-text-strong)]">
                     ${workflow.title}
                   </h4>
-                  <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
+                  <p className="mt-1 v2-text-body text-[var(--v2-text-muted)]">
                     ${workflow.outcome}
                   </p>
                 </div>
-                <span
-                  className="shrink-0 rounded-full bg-[var(--v2-surface-soft)] px-2 py-1 text-[11px] font-medium text-[var(--v2-text-faint)]"
-                >
-                  ${workflow.surfaces.length} apps
-                </span>
+                <span className="shrink-0 v2-text-meta">${workflow.surfaces.length} apps</span>
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
@@ -404,13 +388,16 @@ function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable, availabl
                         ? 'missing'
                         : 'available'}
                       className=${[
-                        'inline-flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2 text-[11px] font-medium',
+                        'inline-flex items-center gap-1.5 rounded-[var(--v2-radius-control)] border py-1 pl-1 pr-2 v2-text-meta',
                         missingSurfaceSet.has(surface)
                           ? 'border-[color-mix(in_srgb,var(--v2-warning-text)_34%,var(--v2-panel-border))] bg-[var(--v2-warning-soft)] text-[var(--v2-warning-text)]'
                           : 'border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] text-[var(--v2-text-muted)]'
                       ].join(' ')}
                     >
-                      <${ConnectorAppIcon} source=${connection} className="h-5 w-5 rounded-[6px]" />
+                      <${ConnectorAppIcon}
+                        source=${connection}
+                        className="h-5 w-5 rounded-[var(--v2-radius-control)]"
+                      />
                       <span>${connection?.display_name || surface}</span>
                     </span>
                   `;
@@ -418,24 +405,20 @@ function AcceptanceWorkflowsPanel({ gatewayOffline, catalogUnavailable, availabl
               </div>
 
               <div className="mt-auto flex items-center justify-between gap-3 pt-4">
-                <span
-                  data-workflow-status-tone=${workflowStatus.tone}
-                  className=${[
-                    'text-xs font-medium',
-                    workflowStatus.tone === 'positive'
-                      ? 'text-[var(--v2-positive-text)]'
-                      : workflowStatus.tone === 'warning'
-                        ? 'text-[var(--v2-warning-text)]'
-                        : 'text-[var(--v2-text-faint)] font-normal'
-                  ].join(' ')}
-                >
-                  ${workflowStatus.label}
-                </span>
+                <${StatusText}
+                  label=${workflowStatus.label}
+                  tone=${workflowStatus.tone === 'positive'
+                    ? 'success'
+                    : workflowStatus.tone === 'warning'
+                      ? 'warning'
+                      : 'muted'}
+                />
                 <${Link}
                   to="/chat"
                   state=${{ composerDraft: workflow.prompt }}
                   aria-label=${`Draft prompt for ${workflow.title}`}
-                  className="inline-flex h-11 shrink-0 items-center rounded-[8px] px-3 text-xs font-medium text-[var(--v2-accent-text)] hover:bg-[var(--v2-surface-soft)]"
+                  data-workflow-status-tone=${workflowStatus.tone}
+                  className="inline-flex h-11 shrink-0 items-center rounded-[var(--v2-radius-control)] px-3 v2-text-label text-[var(--v2-accent-text)] hover:bg-[var(--v2-surface-soft)]"
                 >
                   Draft prompt
                 <//>
@@ -462,17 +445,11 @@ function CoreConnectionCard({ entry, gatewayOffline, catalogUnavailable, isBusy,
         <div className="flex min-w-0 items-start gap-3">
           <${ConnectorAppIcon} source=${entry} />
           <div className="min-w-0">
-            <h4 className="text-sm font-semibold text-[var(--v2-text-strong)]">
-              ${entry.display_name}
-            </h4>
-            <p className="mt-1 text-sm leading-6 text-[var(--v2-text-muted)]">
-              ${entry.description}
-            </p>
+            <h4 className="v2-text-section text-[var(--v2-text-strong)]">${entry.display_name}</h4>
+            <p className="mt-1 v2-text-body text-[var(--v2-text-muted)]">${entry.description}</p>
           </div>
         </div>
-        <span className="shrink-0 text-xs text-[var(--v2-text-faint)]">
-          ${coreConnectionKindLabel(entry)}
-        </span>
+        <span className="shrink-0 v2-text-meta">${coreConnectionKindLabel(entry)}</span>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap gap-1.5">
@@ -482,7 +459,7 @@ function CoreConnectionCard({ entry, gatewayOffline, catalogUnavailable, isBusy,
               (keyword) => html`
                 <span
                   key=${keyword}
-                  className="rounded-[6px] bg-[var(--v2-surface-soft)] px-2 py-0.5 text-[11px] text-[var(--v2-text-muted)]"
+                  className="rounded-[var(--v2-radius-control)] bg-[var(--v2-surface-soft)] px-2 py-0.5 v2-text-meta text-[var(--v2-text-muted)]"
                 >
                   ${keyword}
                 </span>

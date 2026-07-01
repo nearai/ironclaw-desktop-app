@@ -99,9 +99,7 @@ export function SkillsTab({ searchQuery = '' }) {
       <div className="space-y-8">
         ${installPanel}
         <section>
-          <h3 className="text-lg font-semibold text-[var(--v2-text-strong)]">
-            ${t('skills.noInstalled')}
-          </h3>
+          <h3 className="v2-text-section">${t('skills.noInstalled')}</h3>
           <p className="mt-2 max-w-md text-sm leading-6 text-[var(--v2-text-muted)]">
             ${t('skills.noInstalledDesc')}
           </p>
@@ -124,9 +122,7 @@ export function SkillsTab({ searchQuery = '' }) {
       ${installPanel}
       <${SkillActionResult} error=${actionError} result=${actionResult} />
       <section>
-        <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
-          ${t('skills.installed')}
-        </h3>
+        <h3 className="v2-text-label mb-3">${t('skills.installed')}</h3>
         ${filteredSkills.map(
           (skill) => html`
             <${SkillCard}
@@ -148,8 +144,8 @@ function SkillActionResult({ error, result }) {
   return html`
     <div
       className=${error
-        ? 'rounded-[12px] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]'
-        : 'rounded-[12px] border border-[color-mix(in_srgb,var(--v2-positive-text)_36%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] px-4 py-3 text-sm text-[var(--v2-positive-text)]'}
+        ? 'rounded-[var(--v2-radius-card)] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]'
+        : 'rounded-[var(--v2-radius-card)] border border-[color-mix(in_srgb,var(--v2-positive-text)_36%,var(--v2-panel-border))] bg-[var(--v2-positive-soft)] px-4 py-3 text-sm text-[var(--v2-positive-text)]'}
     >
       ${error || result}
     </div>

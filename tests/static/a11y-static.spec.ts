@@ -113,7 +113,7 @@ const surfaces: Surface[] = [
     path: '/v2/extensions/channels',
     authenticated: true,
     waitFor: async (page) => {
-      await expect(page.getByText('Built-in messaging paths')).toBeVisible();
+      await expect(page.getByText('Connect messaging')).toBeVisible();
       await expect(page.getByText('Slack').first()).toBeVisible();
     }
   },
@@ -188,7 +188,7 @@ const surfaces: Surface[] = [
     path: '/v2/settings/language',
     authenticated: true,
     waitFor: async (page) => {
-      await expect(page.getByRole('heading', { name: 'Language' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Language', level: 2 })).toBeVisible();
       await expect(page.getByText('English').first()).toBeVisible();
     }
   },
@@ -197,7 +197,7 @@ const surfaces: Surface[] = [
     path: '/v2/settings/tools',
     authenticated: true,
     waitFor: async (page) => {
-      await expect(page.getByRole('heading', { name: 'Tool permissions' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Tools', level: 2 })).toBeVisible();
 
       // No fake readiness: no v2 tools-write endpoint exists (useTools
       // status:'todo'), so editable permission selects must not render over a

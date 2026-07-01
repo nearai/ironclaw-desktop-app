@@ -71,7 +71,7 @@ export function TraceCommonsTab({ searchQuery = '' }) {
   } else if (query.isError) {
     body = html`
       <div
-        className="mt-4 rounded-[12px] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]"
+        className="mt-4 rounded-[var(--v2-radius-card)] border border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))] bg-[var(--v2-danger-soft)] px-4 py-3 text-sm text-[var(--v2-danger-text)]"
       >
         ${t('traceCommons.loadFailed')}
       </div>
@@ -85,11 +85,9 @@ export function TraceCommonsTab({ searchQuery = '' }) {
     // submission, which only exists once there is a hold.
     body = html`
       <div
-        className="mt-4 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-5 py-6"
+        className="mt-4 rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-5 py-6"
       >
-        <div className="text-[15px] font-medium text-[var(--v2-text-strong)]">
-          ${t('traceCommons.emptyTitle')}
-        </div>
+        <div className="v2-text-section">${t('traceCommons.emptyTitle')}</div>
         <p className="mt-1.5 text-sm leading-6 text-[var(--v2-text-muted)]">
           ${t('traceCommons.emptyValueProp')}
         </p>
@@ -143,9 +141,7 @@ export function TraceCommonsTab({ searchQuery = '' }) {
       ${explanations.length > 0 &&
       html`
         <div className="mt-5">
-          <h4 className="mb-2 text-[13px] font-medium text-[var(--v2-text-muted)]">
-            ${t('traceCommons.recentExplanations')}
-          </h4>
+          <h4 className="mb-2 v2-text-label">${t('traceCommons.recentExplanations')}</h4>
           <ul className="ml-4 list-disc space-y-1 text-xs text-[var(--v2-text-muted)]">
             ${explanations.map((line, index) => html`<li key=${index}>${line}</li>`)}
           </ul>
@@ -154,9 +150,7 @@ export function TraceCommonsTab({ searchQuery = '' }) {
       ${holds.length > 0 &&
       html`
         <div className="mt-5">
-          <h4 className="mb-1 text-[13px] font-medium text-[var(--v2-text-muted)]">
-            ${t('traceCommons.heldTitle')}
-          </h4>
+          <h4 className="mb-1 v2-text-label">${t('traceCommons.heldTitle')}</h4>
           <p className="mb-2 text-xs leading-5 text-[var(--v2-text-muted)]">
             ${t('traceCommons.heldDescription')}
           </p>
@@ -165,7 +159,7 @@ export function TraceCommonsTab({ searchQuery = '' }) {
               (hold) => html`
                 <li
                   key=${hold.submission_id}
-                  className="flex items-start justify-between gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2"
+                  className="flex items-start justify-between gap-3 rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2"
                 >
                   <div className="min-w-0">
                     <div className="text-xs text-[var(--v2-text-strong)]">${hold.reason}</div>
@@ -198,9 +192,7 @@ export function TraceCommonsTab({ searchQuery = '' }) {
 
   return html`
     <${Card} padding="md">
-      <h3 className="text-[15px] font-medium text-[var(--v2-text-strong)]">
-        ${t('traceCommons.title')}
-      </h3>
+      <h3 className="v2-text-section">${t('traceCommons.title')}</h3>
       <p className="mt-2 text-sm leading-6 text-[var(--v2-text-muted)]">
         ${t('traceCommons.description')}
       </p>

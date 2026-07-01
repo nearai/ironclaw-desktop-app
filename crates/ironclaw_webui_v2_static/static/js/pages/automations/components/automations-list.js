@@ -31,13 +31,9 @@ export function AutomationsList({
     <div className="space-y-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="text-[13px] font-medium text-[var(--v2-text-muted)]">
-            ${t('automations.eyebrow')}
-          </div>
-          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--v2-text-strong)]">
-            ${t('automations.title')}
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--v2-text-muted)]">
+          <div className="v2-text-label">${t('automations.eyebrow')}</div>
+          <h2 className="mt-2 v2-text-title">${t('automations.title')}</h2>
+          <p className="mt-2 max-w-2xl v2-text-body text-[var(--v2-text-muted)]">
             ${t('automations.description')}
           </p>
           <${Button} as=${Link} to="/chat" variant="ghost" className="mt-3 -ml-3.5">
@@ -59,7 +55,7 @@ export function AutomationsList({
                   aria-pressed=${filter === item.value}
                   onClick=${() => onFilterChange(item.value)}
                   className=${cn(
-                    'flex min-h-[44px] items-center rounded-[8px] px-3.5 text-xs font-medium',
+                    'flex min-h-[44px] items-center rounded-[var(--v2-radius-control)] px-3.5 v2-text-body font-medium',
                     filter === item.value
                       ? 'bg-[var(--v2-accent-soft)] text-[var(--v2-accent-text)]'
                       : 'text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)]'
@@ -76,7 +72,7 @@ export function AutomationsList({
             title=${isRefreshing ? t('automations.refreshing') : t('automations.refresh')}
             disabled=${isRefreshing}
             onClick=${onRefresh}
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-[8px] border border-transparent bg-transparent text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--v2-canvas)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--v2-radius-control)] border border-transparent bg-transparent text-[var(--v2-text-muted)] hover:bg-[var(--v2-surface-muted)] hover:text-[var(--v2-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--v2-accent)]/50 focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--v2-canvas)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <${Icon} name="retry" className=${cn('h-4 w-4', isRefreshing && 'v2-spin')} />
           </button>
@@ -98,21 +94,15 @@ export function AutomationsList({
                 <table className="w-full min-w-[900px] border-collapse">
                   <thead>
                     <tr className="border-b border-[var(--v2-panel-border)] text-left">
-                      <th className="px-1 py-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
-                        ${t('automations.table.name')}
-                      </th>
-                      <th className="px-1 py-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
+                      <th className="px-1 py-3 v2-text-label">${t('automations.table.name')}</th>
+                      <th className="px-1 py-3 v2-text-label">
                         ${t('automations.table.schedule')}
                       </th>
-                      <th className="px-1 py-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
-                        ${t('automations.table.nextRun')}
-                      </th>
-                      <th className="px-1 py-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
+                      <th className="px-1 py-3 v2-text-label">${t('automations.table.nextRun')}</th>
+                      <th className="px-1 py-3 v2-text-label">
                         ${t('automations.table.recentRuns')}
                       </th>
-                      <th className="px-1 py-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
-                        ${t('automations.table.status')}
-                      </th>
+                      <th className="px-1 py-3 v2-text-label">${t('automations.table.status')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -132,30 +122,32 @@ export function AutomationsList({
                               type="button"
                               aria-pressed=${selected}
                               onClick=${() => onSelectAutomation(automation.automation_id)}
-                              className="block w-full min-w-0 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--v2-accent)]"
+                              className="flex w-full min-w-0 items-center gap-2 rounded-[var(--v2-radius-control)] text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--v2-accent)]"
                             >
-                              <div className="flex items-center gap-2">
-                                <span
-                                  aria-hidden="true"
-                                  className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
-                                ></span>
-                                <span
-                                  className="truncate text-sm font-medium text-[var(--v2-text-strong)]"
-                                >
-                                  ${automation.display_name}
-                                </span>
-                              </div>
-                              <div
-                                className="mt-1 truncate font-mono text-[11px] text-[var(--v2-text-faint)]"
+                              ${
+                                /* Gold marks agent-owned work (DESIGN.md). The raw
+                              automation id no longer leaks into the dense row — it
+                              lives behind a copy affordance in the detail panel. */ ''
+                              }
+                              <span
+                                aria-hidden="true"
+                                className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-gold)]"
+                              ></span>
+                              <span
+                                className="truncate v2-text-body font-medium text-[var(--v2-text-strong)]"
                               >
-                                ${automation.automation_id}
-                              </div>
+                                ${automation.display_name}
+                              </span>
                             </button>
                           </td>
-                          <td className="px-1 py-4 align-top text-sm text-[var(--v2-text-muted)]">
+                          <td
+                            className="px-1 py-4 align-top v2-text-body text-[var(--v2-text-muted)]"
+                          >
                             ${automation.schedule_label}
                           </td>
-                          <td className="px-1 py-4 align-top text-sm text-[var(--v2-text-muted)]">
+                          <td
+                            className="px-1 py-4 align-top v2-text-body text-[var(--v2-text-muted)]"
+                          >
                             ${automation.next_run_label}
                           </td>
                           <td className="px-1 py-4 align-top">

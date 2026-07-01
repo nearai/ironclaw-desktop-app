@@ -40,9 +40,13 @@ test('settings status states use semantic desktop tokens', async () => {
 // review 2026-06-12 line 549/559 ("rationalize Settings typography and reduce
 // mono overuse") under the new label.
 const monoEyebrowPattern = /font-mono text-\[11px\] uppercase tracking-\[0\.14em\]/;
-const sectionLabelPattern = /text-\[13px\] font-medium text-\[var\(--v2-text-muted\)\]/;
+// Ironwork type scale: ad-hoc `text-[13px] font-medium` eyebrows are replaced by
+// the single canonical system-label class `.v2-text-label` (13px Geist Mono
+// muted). Section headers across the settings surface must use it — no bespoke
+// per-file eyebrow classes, no uppercase tracking hacks.
+const sectionLabelPattern = /\bv2-text-label\b/;
 
-test('shared settings section headers stay non-mono like the inference summary', async () => {
+test('shared settings section headers use the canonical v2-text-label eyebrow', async () => {
   const fieldSource = await readFile(
     path.join(settingsRoot, 'components', 'settings-field.js'),
     'utf8'
@@ -55,17 +59,17 @@ test('shared settings section headers stay non-mono like the inference summary',
   assert.doesNotMatch(
     fieldSource,
     monoEyebrowPattern,
-    'SettingsGroup header must match the non-mono inference label'
+    'SettingsGroup header must not carry the legacy uppercase mono eyebrow'
   );
   assert.doesNotMatch(
     languageSource,
     monoEyebrowPattern,
-    'Language header must match the non-mono inference label'
+    'Language header must not carry the legacy uppercase mono eyebrow'
   );
-  // No uppercase eyebrow survives the warm-light restyle on either header.
+  // No uppercase eyebrow survives the Ironwork restyle on either header.
   assert.doesNotMatch(fieldSource, /uppercase/);
   assert.doesNotMatch(languageSource, /uppercase/);
-  // Both share the canonical sentence-case section label.
+  // Both share the canonical system-label eyebrow.
   assert.match(fieldSource, sectionLabelPattern);
   assert.match(languageSource, sectionLabelPattern);
 });
@@ -113,7 +117,10 @@ test('language tab renders prose names without monospace plumbing', async () => 
 
   // The English-name labels (current.name / l.name) must not be mono.
   assert.doesNotMatch(languageSource, /font-mono[^`]*\$\{current\.name\}/);
+  assert.doesNotMatch(languageSource, /v2-text-meta[^`]*\$\{current\.name\}/);
   assert.doesNotMatch(languageSource, /font-mono[^`]*\$\{l\.name\}/);
-  // The locale code stays mono on purpose.
-  assert.match(languageSource, /font-mono[^`]*\$\{\s*\n?\s*l\.code/);
+  assert.doesNotMatch(languageSource, /v2-text-meta[^`]*\$\{l\.name\}/);
+  // The locale code stays mono on purpose — now via the canonical .v2-text-meta
+  // machine-value class (Geist Mono), which is the Ironwork home for identifiers.
+  assert.match(languageSource, /v2-text-meta[^`]*\$\{\s*\n?\s*l\.code/);
 });

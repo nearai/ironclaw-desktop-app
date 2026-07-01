@@ -18,7 +18,7 @@ function sourceForTest() {
     }
     lines.push(line.replace(/^export function /, 'function '));
   }
-  return `${lines.join('\n')}\nglobalThis.__testExports = { InferenceTab };`;
+  return `${lines.join('\n')}\nglobalThis.__testExports = { InferenceTab, ModelSourceChip };`;
 }
 
 function html(strings, ...values) {
@@ -113,16 +113,37 @@ function renderInferenceTab({ searchQuery = '' } = {}) {
     isLoading: false,
     searchQuery
   });
-  return { rendered, ProviderManagement };
+  return {
+    rendered,
+    ProviderManagement,
+    ModelSourceChip: context.globalThis.__testExports.ModelSourceChip
+  };
 }
 
-test('InferenceTab renders NEAR AI Cloud setup without a nested disclosure gate', () => {
-  const { rendered, ProviderManagement } = renderInferenceTab();
+test('InferenceTab leads with a single Model Source Chip and demotes multi-provider to Advanced', () => {
+  const { rendered, ProviderManagement, ModelSourceChip } = renderInferenceTab();
   const templateText = collectTemplateText(rendered);
 
+  // The multi-provider taxonomy stays reachable but only behind the native
+  // "Advanced · custom provider" disclosure — never a peer of the connect chip.
   assert.equal(includesComponent(rendered, ProviderManagement), true);
+  assert.ok(templateText.includes('Advanced · custom provider'));
+
+  // Disclosure is a native <details>, not an aria-driven gate, and never uses a
+  // "Hide" affordance on this surface.
   assert.equal(templateText.includes('aria-expanded='), false);
   assert.equal(templateText.includes('Hide'), false);
+
+  // The provider summary now renders through the single ModelSourceChip rather
+  // than a bespoke inline Connect card with a duplicated Google/GitHub bank.
+  let sawChip = false;
+  visit(rendered, (node) => {
+    if (Array.isArray(node.values) && node.values.some((v) => v === ModelSourceChip))
+      sawChip = true;
+  });
+  assert.equal(sawChip, true);
+  assert.equal(templateText.includes('Continue with Google'), false);
+  assert.equal(templateText.includes('Continue with GitHub'), false);
 });
 
 test('English AI setup copy avoids generic provider jargon', () => {

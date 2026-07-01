@@ -71,7 +71,7 @@ export function PairingSection({
   if (isLoading) {
     return html`
       <div
-        className="mt-3 rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
+        className="mt-3 rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
       >
         <div className="v2-skeleton h-3 w-24 rounded" />
       </div>
@@ -80,14 +80,10 @@ export function PairingSection({
 
   return html`
     <div
-      className="mt-3 rounded-[14px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
+      className="mt-3 rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] p-4"
     >
-      <h4 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
-        ${pairingCopy.title}
-      </h4>
-      <p className="mb-4 text-xs leading-5 text-[var(--v2-text-muted)]">
-        ${pairingCopy.instructions}
-      </p>
+      <h4 className="mb-2 v2-text-label">${pairingCopy.title}</h4>
+      <p className="mb-4 v2-text-body text-[var(--v2-text-muted)]">${pairingCopy.instructions}</p>
 
       <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
         <${Input}
@@ -100,8 +96,8 @@ export function PairingSection({
           className="min-w-0 flex-1 font-mono"
         />
         <${Button}
-          variant="secondary"
-          className="h-11 shrink-0 px-3 text-xs"
+          variant="primary"
+          className="h-11 shrink-0 px-3"
           onClick=${handleManualSubmit}
           disabled=${isApproving || !manualCode.trim()}
         >
@@ -110,16 +106,16 @@ export function PairingSection({
       </div>
 
       ${result?.success &&
-      html`<p className="mb-3 text-xs text-[var(--v2-positive-text)]">
+      html`<p className="mb-3 v2-text-body text-[var(--v2-positive-text)]">
         ${result.message || pairingCopy.success}
       </p>`}
       ${result &&
       !result.success &&
-      html`<p className="mb-3 text-xs text-[var(--v2-danger-text)]">
+      html`<p className="mb-3 v2-text-body text-[var(--v2-danger-text)]">
         ${result.message || pairingCopy.error}
       </p>`}
       ${error &&
-      html`<p className="mb-3 text-xs text-[var(--v2-danger-text)]">
+      html`<p className="mb-3 v2-text-body text-[var(--v2-danger-text)]">
         ${pairingErrorMessage(error, pairingCopy.error)}
       </p>`}
       ${showPendingRequests && requests.length > 0
@@ -129,22 +125,22 @@ export function PairingSection({
                 (req) => html`
                   <div
                     key=${req.code || req.id}
-                    className="flex items-center justify-between gap-3 rounded-[12px] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-3 py-2"
+                    className="flex items-center justify-between gap-3 rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface)] px-3 py-2"
                   >
                     <div className="min-w-0">
-                      <span className="font-mono text-sm text-[var(--v2-text-strong)]"
+                      <span className="font-mono v2-text-body text-[var(--v2-text-strong)]"
                         >${req.code || req.id}</span
                       >
                       ${req.label &&
                       html`
-                        <span className="ml-2 text-xs text-[var(--v2-text-muted)]">
+                        <span className="ml-2 v2-text-body text-[var(--v2-text-muted)]">
                           ${req.label}
                         </span>
                       `}
                     </div>
                     <${Button}
-                      variant="secondary"
-                      className="h-11 shrink-0 px-2.5 text-xs"
+                      variant="primary"
+                      className="h-11 shrink-0 px-2.5"
                       onClick=${() => handleApprove(req.code || req.id)}
                       disabled=${isApproving}
                     >
@@ -156,7 +152,7 @@ export function PairingSection({
             </div>
           `
         : showPendingRequests &&
-          html`<p className="text-xs text-[var(--v2-text-muted)]">${t(i18nKeys.empty)}</p>`}
+          html`<p className="v2-text-body text-[var(--v2-text-muted)]">${t(i18nKeys.empty)}</p>`}
     </div>
   `;
 }

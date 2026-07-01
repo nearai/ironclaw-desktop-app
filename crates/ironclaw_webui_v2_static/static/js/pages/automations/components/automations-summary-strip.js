@@ -1,91 +1,28 @@
 import { html } from '../../../lib/html.js';
-import { useT } from '../../../lib/i18n.js';
-import { StatCard } from '../../../design-system/primitives.js';
-import { cn } from '../../../utils/cn.js';
 
-export function AutomationsSummaryStrip({ summary, activeFilter, onSelectFilter }) {
-  const t = useT();
-  const cards = [
-    {
-      key: 'scheduled',
-      label: t('automations.summary.scheduled'),
-      value: summary?.scheduled ?? 0,
-      tone: 'muted',
-      detail: t('automations.summary.scheduledDetail'),
-      filter: 'all'
-    },
-    {
-      key: 'active',
-      // Agent attribution, not a live-success signal: keep the summary tone in
-      // step with the table's gold "Active"/"Scheduled" state pills.
-      label: t('automations.summary.active'),
-      value: summary?.active ?? 0,
-      tone: 'gold',
-      detail: t('automations.summary.activeDetail'),
-      filter: 'active'
-    },
-    {
-      key: 'running',
-      label: t('automations.summary.running'),
-      value: summary?.running ?? 0,
-      tone: 'info',
-      detail: t('automations.summary.runningDetail'),
-      filter: 'running'
-    },
-    {
-      key: 'failures',
-      label: t('automations.summary.failures'),
-      value: summary?.failures ?? 0,
-      tone: (summary?.failures ?? 0) > 0 ? 'danger' : 'success',
-      detail: t('automations.summary.failuresDetail'),
-      filter: (summary?.failures ?? 0) > 0 ? 'failures' : null
-    },
-    {
-      key: 'nextRun',
-      label: t('automations.summary.nextRun'),
-      value: summary?.nextRun || t('automations.summary.none'),
-      tone: 'info',
-      detail: t('automations.summary.nextRunDetail')
-    }
-  ];
+// One honest mono headline instead of a 5-up metric-box strip. The counts read as
+// a single quiet line (Geist Mono via .v2-text-meta); the table below is the focus.
+// Failed jobs are the surface's single accent moment — the "needs review" clause is
+// the only coloured token here, so a squint lands only on real failures. Filtering
+// lives in the list's own filter row, so this line no longer competes for that job.
+export function AutomationsSummaryStrip({ summary }) {
+  const scheduled = summary?.scheduled ?? 0;
+  const active = summary?.active ?? 0;
+  const running = summary?.running ?? 0;
+  const failures = summary?.failures ?? 0;
+
+  const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+  const parts = [plural(scheduled, 'scheduled', 'scheduled'), plural(active, 'active', 'active')];
+  if (running > 0) parts.push(plural(running, 'running', 'running'));
 
   return html`
-    <div className="grid gap-x-7 gap-y-4 sm:grid-cols-2 xl:grid-cols-5">
-      ${cards.map((card) => {
-        const interactive = Boolean(card.filter && onSelectFilter);
-        const isActive = interactive && activeFilter === card.filter;
-        const inner = html`
-          <${StatCard}
-            label=${card.label}
-            value=${card.value}
-            tone=${card.tone}
-            badgeLabel=${t(`automations.badge.${card.tone}`)}
-            detail=${card.detail}
-            showDivider=${false}
-            className="px-0 py-0"
-          />
-        `;
-        if (!interactive) {
-          return html`<div key=${card.key} className="px-0 py-0">${inner}</div>`;
-        }
-        return html`
-          <button
-            key=${card.key}
-            type="button"
-            aria-pressed=${isActive}
-            title=${t('automations.summary.filterAction', { label: card.label })}
-            onClick=${() => onSelectFilter(card.filter)}
-            className=${cn(
-              'rounded-[8px] px-2 py-1.5 text-left',
-              'hover:bg-[var(--v2-surface-muted)]',
-              'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--v2-accent)]',
-              isActive && 'bg-[var(--v2-accent-soft)]/40'
-            )}
-          >
-            ${inner}
-          </button>
-        `;
-      })}
-    </div>
+    <p className="v2-text-meta" data-testid="automations-summary-line">
+      ${parts.join(' · ')}${failures > 0
+        ? html`<span> · </span
+            ><span className="text-[var(--v2-danger-text)]"
+              >${plural(failures, 'needs review', 'need review')}</span
+            >`
+        : ''}
+    </p>
   `;
 }

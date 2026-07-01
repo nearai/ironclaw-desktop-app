@@ -1,6 +1,4 @@
 import { html } from '../../../lib/html.js';
-import { Badge } from '../../../design-system/badge.js';
-import { Card } from '../../../design-system/card.js';
 import { useT } from '../../../lib/i18n.js';
 import { INFERENCE_FIELDS } from '../lib/settings-schema.js';
 import { filterSettingsSections, matchesSearch } from '../lib/settings-search.js';
@@ -27,10 +25,11 @@ export function InferenceTab({
   const backend = 'NEAR AI Cloud';
   const model = gatewayStatus?.llm_model || settings.selected_model || 'NEAR AI Cloud default';
   const readiness = modelExecutionReadiness(gatewayStatus);
-  // When NEAR AI Cloud has not completed a live run, surface a Connect action on
-  // this main panel. The provider-management Connect buttons only render when
-  // NEAR is *not* the active provider, which dead-ends a gateway that reports
-  // NEAR active-but-unverified — so this is the always-reachable sign-in entry.
+  // ONE model source, one connect action. When NEAR AI Cloud has not completed a
+  // live run this chip is the always-reachable sign-in entry (the provider rows
+  // only offer Connect when NEAR is *not* active, which dead-ends a gateway that
+  // reports NEAR active-but-unverified). Multi-provider taxonomy is demoted into
+  // the "Advanced · custom provider" disclosure below.
   const login = useProviderLogin();
   // The embeddings/sampling field cards write through `useSettings.save`, which
   // has no v2 persistence endpoint yet (status:'todo'). Rendering live toggles
@@ -76,64 +75,15 @@ export function InferenceTab({
 
   return html`
     <div className="space-y-8">
-      ${!readiness.verified &&
-      html`
-        <${Card} variant="soft" padding="none" className="p-4 sm:p-5">
-          <h3 className="text-[13px] font-medium text-[var(--v2-text-muted)]">
-            Connect NEAR AI Cloud
-          </h3>
-          <p className="mt-1 text-sm text-[var(--v2-text-muted)]">
-            Sign in to start. IronClaw opens your browser to authorize, then connects automatically,
-            with no API key to copy.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <${Button}
-              type="button"
-              variant="primary"
-              disabled=${login.nearaiBusy}
-              onClick=${() => login.startNearai('google')}
-            >
-              Continue with Google
-            <//>
-            <${Button}
-              type="button"
-              variant="secondary"
-              disabled=${login.nearaiBusy}
-              onClick=${() => login.startNearai('github')}
-            >
-              Continue with GitHub
-            <//>
-          </div>
-          <${ProviderLoginStatus} login=${login} />
-        <//>
-      `}
       ${showProviderSummary &&
       html`
-        <section>
-          <h3 className="mb-3 text-[13px] font-medium text-[var(--v2-text-muted)]">
-            ${t('inference.provider')}
-          </h3>
-          <div className="grid gap-x-6 sm:grid-cols-2">
-            <div className="border-t border-[var(--v2-panel-border)] py-3.5">
-              <div className="text-xs text-[var(--v2-text-muted)]">${t('inference.backend')}</div>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="text-base font-semibold text-[var(--v2-text-strong)]"
-                  >${backend}</span
-                >
-                <${Badge} tone=${readiness.tone} label=${readiness.label} size="sm" />
-              </div>
-              <div className="mt-2 text-xs text-[var(--v2-text-muted)]">
-                ${readiness.description}
-              </div>
-            </div>
-            <div className="border-t border-[var(--v2-panel-border)] py-3.5">
-              <div className="text-xs text-[var(--v2-text-muted)]">${t('inference.model')}</div>
-              <div className="mt-1 text-base font-semibold text-[var(--v2-text-strong)]">
-                ${model || t('inference.none')}
-              </div>
-            </div>
-          </div>
-        </section>
+        <${ModelSourceChip}
+          backend=${backend}
+          model=${model}
+          readiness=${readiness}
+          login=${login}
+          t=${t}
+        />
       `}
       ${showProviderManagement &&
       html`
@@ -143,7 +93,28 @@ export function InferenceTab({
           searchQuery=${searchQuery}
         />
       `}
-      <${GoogleOauthCard} />
+      ${showProviderManagement &&
+      html`
+        <details className="group">
+          <summary
+            className="flex cursor-pointer list-none items-center gap-2 py-1 text-left [&::-webkit-details-marker]:hidden"
+          >
+            <span className="v2-text-label">Advanced · custom provider</span>
+            <span
+              aria-hidden="true"
+              className="text-[var(--v2-text-faint)] transition-transform group-open:rotate-90"
+            >
+              ›
+            </span>
+          </summary>
+          <p className="mt-1 max-w-prose text-sm text-[var(--v2-text-muted)]">
+            Connect a Google account for Workspace tools. Most desktops never need this here.
+          </p>
+          <div className="mt-4">
+            <${GoogleOauthCard} />
+          </div>
+        </details>
+      `}
       ${sections.map(
         (section) => html`
           <${SettingsGroup}
@@ -160,6 +131,83 @@ export function InferenceTab({
   `;
 }
 
+// Compact NEAR AI Cloud state: one runtime, one status line, one action. When
+// unverified it is a single primary Connect (browser SSO) with a quiet wallet
+// fallback — never a duplicated Google/GitHub button bank. When active the
+// runtime + active model read as text; model choice lives in the Advanced
+// disclosure's ActiveModelPanel so this surface stays a single decision.
+export function ModelSourceChip({ backend, model, readiness, login, t }) {
+  const connected = readiness.verified;
+  return html`
+    <section
+      className="rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] p-4 sm:p-5"
+    >
+      <div className="v2-text-label">${t('inference.provider')}</div>
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            ${connected &&
+            html`<span
+              aria-hidden="true"
+              className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--v2-positive-text)]"
+            />`}
+            <span className="v2-text-section">${backend}</span>
+          </div>
+          <div
+            className=${[
+              'mt-1 text-sm',
+              connected ? 'text-[var(--v2-positive-text)]' : 'text-[var(--v2-warning-text)]'
+            ].join(' ')}
+          >
+            ${readiness.label}
+          </div>
+          <p className="mt-1 max-w-prose text-sm text-[var(--v2-text-muted)]">
+            ${readiness.description}
+          </p>
+        </div>
+        ${connected
+          ? html`
+              <div className="text-right">
+                <div className="v2-text-label">${t('inference.model')}</div>
+                <div className="mt-1 text-sm font-medium text-[var(--v2-text-strong)]">
+                  ${model || t('inference.none')}
+                </div>
+              </div>
+            `
+          : html`
+              <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                <${Button}
+                  type="button"
+                  variant="primary"
+                  disabled=${login.nearaiBusy}
+                  onClick=${() => login.startNearai('google')}
+                >
+                  Connect NEAR AI Cloud
+                <//>
+                <${Button}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled=${login.nearaiBusy}
+                  onClick=${login.startNearaiWallet}
+                >
+                  ${t('onboarding.nearWallet')}
+                <//>
+              </div>
+            `}
+      </div>
+      ${!connected &&
+      html`
+        <p className="mt-3 text-xs leading-5 text-[var(--v2-text-faint)]">
+          IronClaw opens your browser to authorize, then connects automatically — no API key to
+          copy.
+        </p>
+      `}
+      <${ProviderLoginStatus} login=${login} />
+    </section>
+  `;
+}
+
 function Skeleton({ className = '' }) {
   return html` <div className=${'v2-skeleton rounded ' + className} /> `;
 }
@@ -167,17 +215,16 @@ function Skeleton({ className = '' }) {
 function SettingsSkeleton() {
   return html`
     <div className="space-y-8">
-      <section>
-        <${Skeleton} className="mb-4 h-3 w-24" />
-        <div className="grid gap-x-6 sm:grid-cols-2">
-          <div className="border-t border-[var(--v2-panel-border)] py-3.5">
-            <${Skeleton} className="h-3 w-16" />
-            <${Skeleton} className="mt-2 h-6 w-28" />
+      <section
+        className="rounded-[var(--v2-radius-card)] border border-[var(--v2-panel-border)] p-4 sm:p-5"
+      >
+        <${Skeleton} className="mb-3 h-3 w-24" />
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <${Skeleton} className="h-5 w-32" />
+            <${Skeleton} className="mt-2 h-3 w-40" />
           </div>
-          <div className="border-t border-[var(--v2-panel-border)] py-3.5">
-            <${Skeleton} className="h-3 w-16" />
-            <${Skeleton} className="mt-2 h-6 w-40" />
-          </div>
+          <${Skeleton} className="h-9 w-44" />
         </div>
       </section>
       ${[1, 2].map(

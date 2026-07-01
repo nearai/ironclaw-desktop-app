@@ -38,25 +38,12 @@ export function LoginPage({ initialToken, error, oauthRedirectAfter = '/v2', onS
         <${Icon} name=${theme === 'dark' ? 'sun' : 'moon'} className="h-4 w-4" />
       <//>
 
-      <!-- Login form (centered) -->
-      <${Card}
-        as="section"
-        radius="lg"
-        padding="md"
-        className="w-full max-w-md p-6 shadow-none sm:p-8"
-      >
-        <div className="mb-8">
-          <p className="mb-3 text-xs font-semibold text-[var(--v2-accent-text)]">
-            ${t('login.tagline')}
-          </p>
-          <h1
-            className="text-5xl font-semibold leading-none tracking-[-0.04em] text-[var(--v2-text-strong)]"
-          >
-            ${t('login.console')}
-          </h1>
-          <p className="mt-4 text-sm leading-6 text-[var(--v2-text-muted)]">
-            ${t('login.secureSub')}
-          </p>
+      <!-- Login form (centered, single column) -->
+      <${Card} as="section" radius="lg" padding="lg" className="w-full max-w-md shadow-none">
+        <div className="mb-8 grid gap-3">
+          <p className="v2-text-label text-[var(--v2-accent-text)]">${t('login.tagline')}</p>
+          <h1 className="v2-text-display">${t('login.console')}</h1>
+          <p className="v2-text-body text-[var(--v2-text-muted)]">${t('login.secureSub')}</p>
         </div>
 
         <form className="space-y-4" onSubmit=${handleSubmit(({ token }) => onSubmit(token))}>
@@ -64,7 +51,6 @@ export function LoginPage({ initialToken, error, oauthRedirectAfter = '/v2', onS
             label=${t('login.tokenLabel')}
             htmlFor="v2-token"
             error=${errors.token?.message ?? ''}
-            hint=${t('login.tokenHint')}
           >
             <${Input}
               id="v2-token"
@@ -79,10 +65,27 @@ export function LoginPage({ initialToken, error, oauthRedirectAfter = '/v2', onS
             />
           <//>
 
+          <!-- Where's my token? A quiet disclosure so the input never dead-ends. -->
+          <details className="group">
+            <summary
+              className="v2-text-label inline-flex cursor-pointer list-none items-center gap-1.5 text-[var(--v2-text-muted)] hover:text-[var(--v2-text-strong)]"
+            >
+              <${Icon}
+                name="chevron"
+                className="h-3.5 w-3.5 transition-transform group-open:rotate-180"
+                aria-hidden=${true}
+              />
+              Where's my token?
+            </summary>
+            <p className="v2-text-body mt-2 pl-5 text-[var(--v2-text-muted)]">
+              ${t('login.tokenHint')}
+            </p>
+          </details>
+
           ${error &&
           html`<p
             className=${cn(
-              'rounded-[10px] border px-3 py-2 text-sm',
+              'rounded-[var(--v2-radius-control)] border px-3 py-2 text-sm',
               'border-[color-mix(in_srgb,var(--v2-danger-text)_36%,var(--v2-panel-border))]',
               'bg-[var(--v2-danger-soft)] text-[var(--v2-danger-text)]'
             )}

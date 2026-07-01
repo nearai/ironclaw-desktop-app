@@ -78,7 +78,7 @@ export function ProviderDialog({
         ${isBuiltin &&
         html`
           <div
-            className="rounded-md border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-[var(--v2-text-muted)]"
+            className="rounded-[var(--v2-radius-control)] border border-[var(--v2-panel-border)] bg-[var(--v2-surface-soft)] px-3 py-2 text-sm text-[var(--v2-text-muted)]"
           >
             ${adapterLabel(provider.adapter)}
           </div>
@@ -155,7 +155,12 @@ export function ProviderDialog({
         <${Button} type="button" variant="ghost" disabled=${busy !== ''} onClick=${onClose}
           >${t('common.cancel')}<//
         >
-        <${Button} type="button" disabled=${busy !== ''} onClick=${formState.submit}>
+        <${Button}
+          type="button"
+          variant="primary"
+          disabled=${busy !== ''}
+          onClick=${formState.submit}
+        >
           ${busy === 'save' ? t('common.saving') : t('common.save')}
         <//>
       <//>
