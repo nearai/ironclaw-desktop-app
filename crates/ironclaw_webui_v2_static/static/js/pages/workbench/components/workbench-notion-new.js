@@ -1,16 +1,13 @@
 import { Icon } from '../../../design-system/icons.js';
 import { html } from '../../../lib/html.js';
 import { cn } from '../../../utils/cn.js';
-import { useConnectorNotionPage } from '../hooks/useWorkbenchConnectors.js';
-import { notionGist } from '../lib/workbench-notion-new.js';
 
-// One card in the "New in Notion" band. Fetches the page's content (read-only) and shows a
-// 1-line gist of what the new page IS — so the band says what the new Project Passport is
-// about, not just that it exists. Honest: a quiet "Reading…" while in flight, no gist line
-// when the page has no readable body.
+// One card in the "New in Notion" band: the page's status (Created/Updated), title, and when.
+// It deliberately does NOT fetch page content for a preview — one content read per card meant a
+// burst of Notion block reads on load that the Notion API rate-limited, which then starved the
+// reader's own read and left opened pages blank. Content is read once, on demand, when the card
+// is opened into the in-app reader.
 function NotionNewCard({ page, onOpen, onDismiss }) {
-  const { page: content, isLoading } = useConnectorNotionPage(String(page.id || ''));
-  const gist = content && content.ok ? notionGist(content.blocks) : '';
   const pageId = String(page.id || '');
   return html`<div className="wb13-notionnew-card" data-testid="workbench-notion-new-card">
     <button
@@ -28,11 +25,6 @@ function NotionNewCard({ page, onOpen, onDismiss }) {
           <span className="wb13-notionnew-name">${page.title}</span>
           ${page.when ? html`<span className="wb13-notionnew-when">${page.when}</span>` : null}
         </div>
-        ${gist
-          ? html`<div className="wb13-notionnew-gist">${gist}</div>`
-          : isLoading
-            ? html`<div className="wb13-notionnew-gist is-loading">Reading…</div>`
-            : null}
       </div>
     </button>
     ${typeof onDismiss === 'function'
