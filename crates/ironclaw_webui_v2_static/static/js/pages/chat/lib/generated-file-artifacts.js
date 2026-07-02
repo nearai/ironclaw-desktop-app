@@ -183,10 +183,13 @@ export function isTextLikeGeneratedFile(artifact = {}) {
   return TEXT_LIKE_EXTENSIONS.has(ext);
 }
 
-export function generatedFileKindLabel(artifact = {}) {
-  const ext = extensionFromFilename(artifact.filename || '');
+export function generatedFileKindLabel(artifact) {
+  // Coerce null AND undefined to {}: a default param only guards undefined, so an
+  // explicit null (a saved note with no file artifact) would throw on .filename.
+  const source = artifact || {};
+  const ext = extensionFromFilename(source.filename || '');
   if (ext) return ext.toUpperCase();
-  const mime = cleanMime(artifact.mime_type || '');
+  const mime = cleanMime(source.mime_type || '');
   if (!mime) return 'FILE';
   return (MIME_EXTENSIONS.get(mime) || mime.split('/').pop() || 'file').toUpperCase();
 }

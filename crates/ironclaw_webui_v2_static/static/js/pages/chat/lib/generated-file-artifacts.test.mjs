@@ -37,7 +37,10 @@ test('generated file artifacts normalize assistant file payloads without user at
   assert.equal(artifacts.length, 1);
   assert.equal(artifacts[0].filename, 'services-agreement.docx');
   assert.equal(generatedFileKindLabel(artifacts[0]), 'DOCX');
-  assert.equal((await buildGeneratedFileBlob(artifacts[0]).text()).includes('PK docx payload'), true);
+  assert.equal(
+    (await buildGeneratedFileBlob(artifacts[0]).text()).includes('PK docx payload'),
+    true
+  );
   assert.deepEqual(
     generatedFileArtifactsForMessage({
       role: 'user',
@@ -61,7 +64,10 @@ test('generated text files produce preview text and binary files keep honest emp
 
   assert.equal(textPreviewForGeneratedFileArtifact(csv), 'name,value\nRevenue,42');
   assert.equal(textPreviewForGeneratedFileArtifact(docx), '');
-  assert.equal(Buffer.from(base64ToBytes(csv.data_base64)).toString('utf8'), 'name,value\nRevenue,42');
+  assert.equal(
+    Buffer.from(base64ToBytes(csv.data_base64)).toString('utf8'),
+    'name,value\nRevenue,42'
+  );
 
   const preview = generatedFilePreviewAttachment(csv);
   assert.equal(preview.filename, 'model.csv');
@@ -79,4 +85,17 @@ test('content-only markdown document metadata does not invent a binary file chip
     }),
     null
   );
+});
+
+test('artifact helpers are null-safe so a note-only saved item never crashes Work', () => {
+  // Regression: opening Work on a saved item with no file artifact selected
+  // `null`, and generatedFileKindLabel(null) threw on `.filename` (a `= {}`
+  // default only guards undefined, not an explicit null) — crashing the reader
+  // under WebKit. Every helper must tolerate a null artifact.
+  assert.equal(generatedFileKindLabel(null), 'FILE');
+  assert.equal(generatedFileKindLabel(undefined), 'FILE');
+  assert.equal(buildGeneratedFileBlob(null), null);
+  assert.equal(textPreviewForGeneratedFileArtifact(null), '');
+  assert.equal(generatedFilePreviewAttachment(null), null);
+  assert.equal(normalizeGeneratedFileArtifact(null), null);
 });

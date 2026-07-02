@@ -636,9 +636,9 @@ export function WorkPage() {
                           utility and mute the agent-attribution eyebrow to grey. */ ''
                         }
                         <span className="v2-text-label" style=${{ color: 'var(--v2-gold-text)' }}>
-                          ${selectedArtifact.type === 'file' || selectedArtifact.data_base64
+                          ${selectedArtifact?.type === 'file' || selectedArtifact?.data_base64
                             ? `${generatedFileKindLabel(selectedArtifact)} artifact`
-                            : selectedArtifact.type === 'document'
+                            : selectedArtifact?.type === 'document'
                               ? 'Saved document'
                               : 'Saved note'}
                         </span>
@@ -648,7 +648,7 @@ export function WorkPage() {
                         <span>Source: ${provenance}</span>
                       </div>
                       <h1 className="mt-3 truncate v2-text-title">
-                        ${selectedArtifact.title || selectedItem.title || 'Saved work product'}
+                        ${selectedArtifact?.title || selectedItem.title || 'Saved work product'}
                       </h1>
                       <p className="mt-1 v2-text-body text-[var(--v2-text-muted)]">
                         ${selectedItem.objective || 'Saved work product from chat.'}

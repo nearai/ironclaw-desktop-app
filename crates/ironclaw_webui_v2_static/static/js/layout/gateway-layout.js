@@ -10,6 +10,7 @@ import { useThreads } from '../pages/chat/hooks/useThreads.js';
 import { Sidebar } from '../components/sidebar.js';
 import { PageHeader } from '../components/page-header.js';
 import { CommandPalette } from '../components/command-palette.js';
+import { RouteErrorBoundary } from '../components/route-error-boundary.js';
 import { ToastViewport } from '../components/toast-viewport.js';
 import { React } from '../lib/html.js';
 import { cn } from '../utils/cn.js';
@@ -112,7 +113,9 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
       ${isWorkbenchSurface
         ? html`
             <main className="min-h-0 min-w-0 flex-1 overflow-hidden">
-              <${Outlet} context=${context} />
+              <${RouteErrorBoundary} key=${location.pathname}>
+                <${Outlet} context=${context} />
+              <//>
             </main>
             <${ToastViewport} />
           `
@@ -156,7 +159,9 @@ export function GatewayLayout({ token, profile, isAdmin, onSignOut }) {
                     llmProviders.refresh?.();
                   }}
                 />
-                <${Outlet} context=${context} />
+                <${RouteErrorBoundary} key=${location.pathname}>
+                  <${Outlet} context=${context} />
+                <//>
               </main>
             </div>
             <${CommandPalette}
