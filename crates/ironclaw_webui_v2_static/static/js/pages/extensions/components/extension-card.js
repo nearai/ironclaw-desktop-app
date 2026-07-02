@@ -442,14 +442,16 @@ function ChipGrid({ items }) {
    The blocker sentence reads as body text under the row; any setup link is an
    inline accent link (the user's next physical action). */
 function ConnectorGuidance({ guidance, fallback }) {
-  const body = fallback || guidance?.body;
-  if (!body && !guidance?.title) return null;
+  // The guidance body is the one actionable next-step line. We deliberately do
+  // NOT render guidance.title — it echoes the status label ("Needs setup" /
+  // "Needs sign-in") already shown above the card, and repeating it read as
+  // triplicated status noise. The setup link is its own block, never inline.
+  const body = guidance?.body || fallback;
+  if (!body && !guidance?.href) return null;
 
   return html`
-    <div className="mt-2 v2-text-body text-[var(--v2-text-muted)]">
-      ${guidance?.title &&
-      html`<span className="text-[var(--v2-text-strong)]">${guidance.title} </span>`}
-      ${body}
+    <div className="mt-2">
+      ${body && html`<p className="v2-text-body text-[var(--v2-text-muted)]">${body}</p>`}
       ${guidance?.href &&
       html`
         <${Button}
@@ -583,7 +585,8 @@ export function ExtensionCard({ ext, onActivate, onConfigure, onRemove, isBusy }
 
       ${ext.description && html`<p className=${DESC}>${ext.description}</p>`}
       ${readiness.blocker &&
-      html`<p className="mt-2 v2-text-body text-[var(--v2-text-strong)]">${readiness.blocker}</p>`}
+      !(guidance?.body || onboardingHint) &&
+      html`<p className="mt-2 v2-text-body text-[var(--v2-text-muted)]">${readiness.blocker}</p>`}
       <${ConnectorGuidance} guidance=${guidance} fallback=${onboardingHint} />
 
       ${showFooter &&

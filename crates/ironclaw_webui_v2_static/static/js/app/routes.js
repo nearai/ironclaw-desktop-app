@@ -73,7 +73,10 @@ export const ADMIN_SUB_ROUTES = [
 ];
 
 export const EXPANDABLE_SUB_ROUTES = {
-  settings: SETTINGS_SUB_ROUTES,
+  // Settings is deliberately NOT expanded in the sidebar: the Settings page mounts
+  // its own in-page tab rail (the chosen IA), so a sidebar sub-nav here would be a
+  // redundant, mismatched second navigation. Bare /settings defaults to the
+  // inference tab, so the single sidebar 'Settings' item is enough.
   extensions: EXTENSIONS_SUB_ROUTES,
   admin: ADMIN_SUB_ROUTES
 };
