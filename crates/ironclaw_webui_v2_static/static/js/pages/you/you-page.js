@@ -4,7 +4,6 @@ import { React, html } from '../../lib/html.js';
 import { connectorRead } from '../../lib/api.js';
 import { Icon } from '../../design-system/icons.js';
 import { Badge } from '../../design-system/badge.js';
-import { Button } from '../../design-system/button.js';
 import { Popover } from '../../design-system/popover.js';
 import { normalizeInboxMessages } from '../workbench/lib/workbench-connectors.js';
 import { computeBehaviourProfile } from '../workbench/lib/workbench-profile.js';
@@ -15,12 +14,6 @@ import {
   setTierOverride,
   TIER_OPTIONS
 } from '../workbench/lib/workbench-profile-overrides.js';
-import {
-  readDismissals,
-  learnedIgnoreSenders,
-  dismissalSignalsBySender,
-  clearSenderDismissals
-} from '../workbench/lib/workbench-dismissals.js';
 
 // The "You" surface — what IronClaw has learned about how you actually work,
 // from your own mail (who you reply to, how fast, who it auto-files). Everything
@@ -198,19 +191,6 @@ export function YouPage() {
     (email, tier) => setOverrides(setTierOverride(email, tier)),
     []
   );
-  // Senders the dismiss-to-learn loop has auto-filed (≥2 sender-level dismissals).
-  // Shown so the learning is transparent + reversible — "Surface again" un-files one.
-  const [dismissals, setDismissals] = React.useState(() => readDismissals());
-  const onSurfaceAgain = React.useCallback(
-    (email) => setDismissals(clearSenderDismissals(email)),
-    []
-  );
-  const learnedRows = React.useMemo(() => {
-    const signals = dismissalSignalsBySender(dismissals);
-    return [...learnedIgnoreSenders(dismissals)]
-      .map((email) => ({ email, count: signals[email]?.count || 0 }))
-      .sort((a, b) => b.count - a.count);
-  }, [dismissals]);
   const rawPeople = profile && Array.isArray(profile.people) ? profile.people : [];
   const people = applyTierOverrides(rawPeople, overrides);
   const counts = profile ? recountTiers(people) : {};
@@ -308,41 +288,6 @@ export function YouPage() {
                       </p>`}
                 </div>
               </section>
-
-              ${learnedRows.length
-                ? html`<section className="mt-8" aria-label="Auto-filed senders">
-                    <h2 className="v2-text-label">Auto-filed from your dismissals</h2>
-                    <p className="mt-2 v2-text-meta">
-                      You filed these often enough that new mail from them is suppressed. Surface
-                      one again to undo.
-                    </p>
-                    <div className="mt-2">
-                      ${learnedRows.map(
-                        (row) =>
-                          html`<div
-                            key=${row.email}
-                            className="flex items-center gap-3 border-b border-[var(--v2-panel-border)] py-3 last:border-b-0"
-                          >
-                            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                              <span
-                                className="v2-text-body font-medium text-[var(--v2-text-strong)] [overflow-wrap:anywhere]"
-                                >${row.email}</span
-                              >
-                              <span className="v2-text-meta">filed ${row.count}×</span>
-                            </div>
-                            <${Button}
-                              variant="secondary"
-                              size="sm"
-                              data-testid="workbench-you-surface-again"
-                              onClick=${() => onSurfaceAgain(row.email)}
-                            >
-                              Surface again
-                            <//>
-                          </div>`
-                      )}
-                    </div>
-                  </section>`
-                : null}
 
               <div className="mt-10 flex items-center gap-2 v2-text-meta">
                 <${Icon} name="shield" className="h-4 w-4" aria-hidden="true" />

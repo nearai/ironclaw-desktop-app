@@ -5,7 +5,8 @@ import {
   buildSuggestedReplyPrompt,
   cleanReplyText,
   extractReplyText,
-  generateSuggestedReply
+  generateSuggestedReply,
+  replyMemoryBlock
 } from './workbench-reply.js';
 
 test('buildSuggestedReplyPrompt includes the context + the output-only instruction', () => {
@@ -26,6 +27,47 @@ test('buildSuggestedReplyPrompt caps the quoted body', () => {
   const p = buildSuggestedReplyPrompt({ body: 'x'.repeat(5000) });
   const msgLine = p.split('\n').find((l) => l.startsWith('Message: '));
   assert.ok(msgLine.length <= 'Message: '.length + 1200, 'body capped to 1200 chars');
+});
+
+test('replyMemoryBlock: empty inputs produce no block', () => {
+  assert.equal(replyMemoryBlock([]), '');
+  assert.equal(replyMemoryBlock(null), '');
+  assert.equal(replyMemoryBlock(['', '  ', { text: '' }]), '');
+});
+
+test('replyMemoryBlock: pref objects + strings render as a bounded bullet list', () => {
+  const block = replyMemoryBlock([
+    { text: 'Keep replies under three sentences', scope: 'Personal' },
+    'Never commit to a date without checking the calendar'
+  ]);
+  assert.match(block, /MY SAVED PREFERENCES/);
+  assert.match(block, /apply the ones relevant to this reply/i);
+  assert.ok(block.includes('- Keep replies under three sentences'));
+  assert.ok(block.includes('- Never commit to a date without checking the calendar'));
+});
+
+test('replyMemoryBlock: caps item count and per-item length', () => {
+  const many = Array.from({ length: 20 }, (_, i) => `pref ${i}`);
+  const block = replyMemoryBlock(many);
+  const bullets = block.split('\n').filter((l) => l.startsWith('- '));
+  assert.ok(bullets.length <= 6, 'at most 6 prefs ride into the short turn');
+  const long = replyMemoryBlock(['y'.repeat(400)]);
+  assert.ok(long.includes('…'));
+});
+
+test('buildSuggestedReplyPrompt: saved memory reaches the draft prompt', () => {
+  const p = buildSuggestedReplyPrompt({
+    sender: 'Dana',
+    body: 'are we good on the renewal?',
+    voice: 'lowercase, decisive',
+    memory: [{ text: 'Always cc legal-ops on renewals' }]
+  });
+  assert.ok(p.includes('Always cc legal-ops on renewals'));
+  assert.match(p, /MY SAVED PREFERENCES/);
+  // No memory => no block leaks in.
+  assert.ok(
+    !buildSuggestedReplyPrompt({ sender: 'Dana', body: 'hi' }).includes('SAVED PREFERENCES')
+  );
 });
 
 test('cleanReplyText strips fences, preamble labels, and surrounding quotes', () => {

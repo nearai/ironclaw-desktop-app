@@ -481,7 +481,7 @@ test('selectTriageInbox keeps human mail but files bulk, ignored senders, and di
   );
 });
 
-test('selectTriageInbox auto-files a learned-ignore sender, unless explicitly corrected', () => {
+test('selectTriageInbox does NOT auto-mute by sender — only an explicit ignore correction files a sender', () => {
   const messages = [
     {
       id: 'n1',
@@ -500,21 +500,18 @@ test('selectTriageInbox auto-files a learned-ignore sender, unless explicitly co
       isBulk: false
     }
   ];
-  const learnedIgnore = new Set(['noisy@vendor.com']);
-  // New mail from a learned-ignore sender is suppressed.
+  // No sender blocklist: a sender is never auto-muted based on past dismissals. What surfaces is
+  // decided by each message's content + actionability downstream, not by who sent it. Both stay.
   assert.deepEqual(
-    selectTriageInbox(messages, { learnedIgnore }).map((m) => m.id),
-    ['k1'],
-    'learned-ignore sender auto-filed; the rest stays'
-  );
-  // An explicit VIP/Respond correction overrides the learned signal.
-  assert.deepEqual(
-    selectTriageInbox(messages, {
-      learnedIgnore,
-      overrides: { 'noisy@vendor.com': 'respond' }
-    }).map((m) => m.id),
+    selectTriageInbox(messages, {}).map((m) => m.id),
     ['n1', 'k1'],
-    'an explicit correction beats the learned auto-file'
+    'nothing is suppressed just because a sender was filed before'
+  );
+  // An EXPLICIT per-sender "ignore" correction (a deliberate choice, not learned) still files them.
+  assert.deepEqual(
+    selectTriageInbox(messages, { overrides: { 'noisy@vendor.com': 'ignore' } }).map((m) => m.id),
+    ['k1'],
+    'an explicit ignore correction is honored'
   );
 });
 

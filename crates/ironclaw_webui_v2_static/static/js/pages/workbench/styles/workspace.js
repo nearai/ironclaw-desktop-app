@@ -699,6 +699,27 @@ export const WORKBENCH_WORKSPACE_STYLE = `.wb13-section { margin-top: 36px; }
 .wb13-notionnew-card:hover {
   border-color: var(--wb-muted);
 }
+.wb13-notionnew-dismiss {
+  flex: none;
+  align-self: flex-start;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--wb-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.wb13-notionnew-dismiss:hover { color: var(--wb-danger); }
+.wb13-notionnew-dismiss:focus-visible { outline: 2px solid var(--wb-accent); outline-offset: 2px; }
+@media (pointer: coarse) {
+  .wb13-notionnew-dismiss { width: 44px; height: 44px; }
+}
 .wb13-notionnew-name {
   flex: 1;
   min-width: 0;

@@ -38,10 +38,15 @@ import { useWorkbenchSourceReadiness } from './hooks/useWorkbenchSourceReadiness
 import { approvalsFeedReadSupported, fetchApprovalsFeed } from './lib/approvals-feed-api.js';
 import { fetchReceiptsFeed, receiptsFeedReadSupported } from './lib/receipts-feed-api.js';
 import { fetchWorkbenchFeed, workbenchFeedReadSupported } from './lib/workbench-feed-api.js';
-import { buildWorkbenchStateRail } from './lib/workbench-state.js';
+import {
+  buildWorkbenchStateRail,
+  filterDismissedRailGroups,
+  railDismissKey
+} from './lib/workbench-state.js';
 import { readTierOverrides } from './lib/workbench-profile-overrides.js';
-import { readDismissals, dismissRow, learnedIgnoreSenders } from './lib/workbench-dismissals.js';
+import { readDismissals, dismissRow } from './lib/workbench-dismissals.js';
 import { recordEditedVoiceSample, effectiveVoiceDirective } from './lib/workbench-voice-store.js';
+import { readMemoryPrefs } from './lib/workbench-memory-store.js';
 import { selectTriageInbox, answeredThreadIndex } from './lib/workbench-connectors.js';
 import { firstArtifact } from './lib/workbench-work-items.js';
 import {
@@ -72,7 +77,9 @@ import {
   selectNewNotionPages,
   readNotionSeen,
   notionSeenAfterViewing,
-  writeNotionSeen
+  writeNotionSeen,
+  notionDismissKey,
+  filterDismissedNotionPages
 } from './lib/workbench-notion-new.js';
 import { recordThreadTitle } from './lib/workbench-thread-titles.js';
 import {
@@ -113,14 +120,6 @@ const CalendarView = React.lazy(() =>
 // like the others so its query client + layout stay out of the cold-start bundle.
 const JarvisView = React.lazy(() =>
   import('./components/workbench-jarvis.js').then((m) => ({ default: m.JarvisView }))
-);
-// Tabular Review — a secondary nav view (legal document review across columns). Lazy-loaded
-// like the others so its grid/orchestration stays out of the cold-start bundle.
-const ReviewView = React.lazy(() =>
-  import('./components/workbench-review.js').then((m) => ({ default: m.ReviewView }))
-);
-const RedlineView = React.lazy(() =>
-  import('./components/workbench-redline-view.js').then((m) => ({ default: m.RedlineView }))
 );
 import { WorkPacketPreview } from './components/workbench-packet.js';
 import { WorkbenchDock, WorkbenchNav, WorkbenchTop } from './components/workbench-shell.js';
@@ -656,6 +655,7 @@ function HomeView(props) {
                 pages=${newNotionPages}
                 onOpen=${props.onOpenMessage}
                 onReviewed=${markNotionReviewed}
+                onDismiss=${props.onDismissNotion}
               />`
             : null}
           ${centerFilter === 'all' && hasReviewableSavedWork
@@ -1034,6 +1034,8 @@ export function WorkbenchPage() {
     generateSuggestedReply({
       message,
       voice: effectiveVoiceDirective(WORKBENCH_PROFILE.voiceSample),
+      // Saved Memory prefs shape the draft too (not just the briefing) — read at generate time.
+      memory: readMemoryPrefs(),
       deps: { createThread, sendMessage, fetchTimeline, timezone }
     })
       .then((reply) => {
@@ -1107,6 +1109,7 @@ export function WorkbenchPage() {
     generateSuggestedReply({
       message: { sender: item.who, channel: item.channel, messageText: item.text },
       voice: effectiveVoiceDirective(WORKBENCH_PROFILE.voiceSample),
+      memory: readMemoryPrefs(),
       deps: { createThread, sendMessage, fetchTimeline, timezone }
     })
       .then((reply) => {
@@ -1350,20 +1353,22 @@ export function WorkbenchPage() {
   const onDismissSlack = React.useCallback((item, reason) => {
     const key = slackDismissKey(item);
     if (!key) return;
-    // sender stays empty: there is no Slack sender-learning loop, and learnedIgnoreSenders /
-    // the "You" page iterate ALL dismissals by `sender` regardless of the slack: key namespace,
-    // so a Slack who/whoId here would pollute the email-sender learning UI. The namespaced key
-    // still suppresses the item; it just doesn't feed mail-sender learning.
     setDismissals(dismissRow(key, { reason, sender: '' }));
+  }, []);
+  // Notion "new in Notion" dismiss: file the page away through the SAME store (namespaced
+  // notion: key), reversible, and never feeds sender-learning (sender stays empty). The new-pages
+  // band filters dismissed ids below so it stays gone across refetches.
+  const onDismissNotion = React.useCallback((pageId) => {
+    const id = String(pageId || '');
+    if (!id) return;
+    setDismissals(dismissRow(notionDismissKey(id), { reason: 'dismissed-notion', sender: '' }));
   }, []);
   // Triage-worthy inbox = what may be surfaced on the Workbench (Needs-a-decision,
   // Arrived). Drops bulk/newsletters/notes (e.g. gemini-notes meeting summaries),
-  // ignore-corrected senders, and rows the user dismissed — mirroring the rail's
-  // Needs-a-reply. The raw inbox still feeds the rail + briefing, which filter
-  // themselves.
-  // The "it learns" set: senders filed ≥2× for sender-level reasons are
-  // auto-suppressed from triage going forward (overridable on the You surface).
-  const learnedIgnore = React.useMemo(() => learnedIgnoreSenders(dismissals), [dismissals]);
+  // explicitly ignore-corrected senders, and rows the user dismissed — mirroring the
+  // rail's Needs-a-reply. There is NO automatic sender muting: what surfaces is decided by
+  // each message's content + actionability (the needs-you judgement), not a sender blocklist.
+  // The raw inbox still feeds the rail + briefing, which filter themselves.
   // Reply-state index: threadId -> latest sent timestamp, so triage can file
   // threads the user already answered (they spoke last).
   const sentThreadIndex = React.useMemo(
@@ -1375,10 +1380,9 @@ export function WorkbenchPage() {
       selectTriageInbox(connectorInbox.messages, {
         overrides: tierOverrides,
         dismissals,
-        learnedIgnore,
         sentThreadIndex
       }),
-    [connectorInbox.messages, tierOverrides, dismissals, learnedIgnore, sentThreadIndex]
+    [connectorInbox.messages, tierOverrides, dismissals, sentThreadIndex]
   );
   // Slack awaiting/weigh-in with dismissed items removed — the Slack equivalent of
   // selectTriageInbox's dismissed-key drop, so a Slack "Not for me" actually sticks.
@@ -1435,6 +1439,20 @@ export function WorkbenchPage() {
       tierOverrides
     ]
   );
+
+  // The rail the user SEES: dismissed FYI/source rows filtered out (reversible). The raw
+  // railGroups still feed briefing/catch-up logic below — a dismissed row is hidden, not
+  // erased from what the agent knows.
+  const railGroupsVisible = React.useMemo(
+    () => filterDismissedRailGroups(railGroups, dismissals),
+    [railGroups, dismissals]
+  );
+  const onDismissRailRow = React.useCallback((row) => {
+    if (!row || typeof row !== 'object') return;
+    const key = railDismissKey(row);
+    if (key === 'rail:|') return;
+    setDismissals(dismissRow(key, { reason: 'dismissed-rail', sender: '' }));
+  }, []);
 
   // Answer a catch-up intent instantly from connector data already loaded —
   // unread inbox, upcoming calendar, Slack blocker search rows, and the
@@ -1622,6 +1640,9 @@ export function WorkbenchPage() {
         synthesizeBriefing({
           briefing: det,
           profile: WORKBENCH_PROFILE,
+          // Saved Memory prefs become a prompt directive so what the user saves actually
+          // steers the briefing (read at run time — the next briefing picks up new saves).
+          memory: readMemoryPrefs(),
           deps: { createThread, sendMessage, fetchTimeline, timezone },
           // Progressive: render the needsYou half (with the deterministic radar) the
           // moment turn A lands, then the final upgrades worthWeighingIn when turn B
@@ -1796,11 +1817,12 @@ export function WorkbenchPage() {
       <div className="wb13-shell">
         <${WorkbenchNav} view=${view} onView=${setView} onSettings=${() => setShowSettings(true)} />
         <${WorkbenchDock}
-          groups=${railGroups}
+          groups=${railGroupsVisible}
           open=${dockOpen}
           loading=${briefingLoadingSources.length > 0}
           onClose=${() => setDockOpen(false)}
           onOpenMessage=${openMessage}
+          onDismissRow=${onDismissRailRow}
           currentUser=${currentUser}
         />
         ${dockOpen
@@ -1818,37 +1840,8 @@ export function WorkbenchPage() {
           onHome=${() => setView('home')}
           onToggleDock=${() => setDockOpen((value) => !value)}
         />
-        ${view === 'review'
+        ${view === 'memory'
           ? html`<${React.Suspense}
-              fallback=${html`<main className="wb13-main">
-                <div className="wb13-page">
-                  <div className="wb13-wide">
-                    <div className="wb13-head"><h1>Review</h1></div>
-                  </div>
-                </div>
-              </main>`}
-            >
-              <${ReviewView}
-                files=${connectorDrive.files}
-                driveReady=${connectedAccounts.driveReady}
-                driveLoading=${connectorDrive.isLoading}
-                driveError=${connectorDrive.isError}
-              />
-            </${React.Suspense}>`
-          : view === 'redline'
-            ? html`<${React.Suspense}
-                fallback=${html`<main className="wb13-main">
-                  <div className="wb13-page">
-                    <div className="wb13-wide">
-                      <div className="wb13-head"><h1>Redline</h1></div>
-                    </div>
-                  </div>
-                </main>`}
-              >
-                <${RedlineView} />
-              </${React.Suspense}>`
-            : view === 'memory'
-              ? html`<${React.Suspense}
               fallback=${html`<main className="wb13-main">
                 <div className="wb13-page">
                   <div className="wb13-wrap">
@@ -1859,8 +1852,8 @@ export function WorkbenchPage() {
             >
               <${MemoryView} />
             </${React.Suspense}>`
-              : view === 'calendar'
-                ? html`<${React.Suspense}
+          : view === 'calendar'
+            ? html`<${React.Suspense}
                 fallback=${html`<main className="wb13-main">
                   <div className="wb13-page">
                     <div className="wb13-wrap">
@@ -1876,8 +1869,8 @@ export function WorkbenchPage() {
                   onConnect=${() => setShowSources(true)}
                 />
               </${React.Suspense}>`
-                : view === 'library'
-                  ? html`<${React.Suspense}
+            : view === 'library'
+              ? html`<${React.Suspense}
                   fallback=${html`<main className="wb13-main">
                     <div className="wb13-page">
                       <div className="wb13-wide">
@@ -1892,8 +1885,8 @@ export function WorkbenchPage() {
                     onView=${setView}
                   />
                 </${React.Suspense}>`
-                  : view === 'projects'
-                    ? html`<${React.Suspense}
+              : view === 'projects'
+                ? html`<${React.Suspense}
                     fallback=${html`<main className="wb13-main">
                       <div className="wb13-page">
                         <div className="wb13-wrap">
@@ -1904,8 +1897,8 @@ export function WorkbenchPage() {
                   >
                     <${JarvisView} />
                   </${React.Suspense}>`
-                    : view === 'history'
-                      ? html`<${React.Suspense}
+                : view === 'history'
+                  ? html`<${React.Suspense}
                       fallback=${html`<main className="wb13-main">
                         <div className="wb13-page">
                           <div className="wb13-wrap">
@@ -1916,8 +1909,8 @@ export function WorkbenchPage() {
                     >
                       <${HistoryView} onReopen=${reopenThread} />
                     </${React.Suspense}>`
-                      : view === 'chat'
-                        ? html`<${React.Suspense}
+                  : view === 'chat'
+                    ? html`<${React.Suspense}
                         fallback=${html`<main className="wb13-main">
                           <div className="wb13-page">
                             <div className="wb13-wrap">
@@ -1928,42 +1921,43 @@ export function WorkbenchPage() {
                       >
                         <${ChatView} work=${startedWork} onView=${setView} />
                       </${React.Suspense}>`
-                        : html`<${HomeView}
-                            commandProps=${commandProps}
-                            startedWork=${startedWork}
-                            briefing=${briefing}
-                            briefingPending=${briefingPending}
-                            onDismissBriefing=${dismissBriefing}
-                            onBriefDraftReply=${onBriefDraftReply}
-                            slackBlockersActive=${slackBlockersActive}
-                            slackBlockers=${slackBlockers}
-                            onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
-                            onOpenMessage=${openMessage}
-                            groups=${railGroups}
-                            savedItems=${savedItems}
-                            packageTab=${packageTab}
-                            onPackageTab=${setPackageTab}
-                            connectorFamilies=${connectedAccounts.families}
-                            connectorsLoading=${connectedAccounts.isLoading}
-                            homeLoading=${connectedAccounts.gmailReady &&
-                            (connectorInbox.isLoading || connectorInbox.isFetching)}
-                            onConnectSources=${() => setShowSources(true)}
-                            slackNeedsReconnect=${connectedAccounts.slackNeedsReconnect}
-                            onReconnectSlack=${() => setShowSources(true)}
-                            gmailReady=${connectedAccounts.gmailReady}
-                            decisionMessages=${triageInbox}
-                            notionPages=${connectorNotion.pages}
-                            slackAwaiting=${slackAwaitingVisible}
-                            slackWeighIn=${slackWeighInVisible}
-                            onSlackReply=${openSlackReply}
-                            onSlackDismiss=${onDismissSlack}
-                            calendarReady=${connectedAccounts.calendarReady}
-                            calendarEvents=${connectorCalendar.events}
-                            calendarError=${connectorCalendar.isError}
-                            onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
-                            onDraftMessage=${openDraftReply}
-                            onDismissDecision=${onDismissDecision}
-                          />`}
+                    : html`<${HomeView}
+                        commandProps=${commandProps}
+                        startedWork=${startedWork}
+                        briefing=${briefing}
+                        briefingPending=${briefingPending}
+                        onDismissBriefing=${dismissBriefing}
+                        onBriefDraftReply=${onBriefDraftReply}
+                        slackBlockersActive=${slackBlockersActive}
+                        slackBlockers=${slackBlockers}
+                        onDismissSlackBlockers=${() => setSlackBlockersActive(false)}
+                        onOpenMessage=${openMessage}
+                        groups=${railGroupsVisible}
+                        savedItems=${savedItems}
+                        packageTab=${packageTab}
+                        onPackageTab=${setPackageTab}
+                        connectorFamilies=${connectedAccounts.families}
+                        connectorsLoading=${connectedAccounts.isLoading}
+                        homeLoading=${connectedAccounts.gmailReady &&
+                        (connectorInbox.isLoading || connectorInbox.isFetching)}
+                        onConnectSources=${() => setShowSources(true)}
+                        slackNeedsReconnect=${connectedAccounts.slackNeedsReconnect}
+                        onReconnectSlack=${() => setShowSources(true)}
+                        gmailReady=${connectedAccounts.gmailReady}
+                        decisionMessages=${triageInbox}
+                        notionPages=${filterDismissedNotionPages(connectorNotion.pages, dismissals)}
+                        onDismissNotion=${onDismissNotion}
+                        slackAwaiting=${slackAwaitingVisible}
+                        slackWeighIn=${slackWeighInVisible}
+                        onSlackReply=${openSlackReply}
+                        onSlackDismiss=${onDismissSlack}
+                        calendarReady=${connectedAccounts.calendarReady}
+                        calendarEvents=${connectorCalendar.events}
+                        calendarError=${connectorCalendar.isError}
+                        onAttachWorkspaceFile=${(file) => attachmentsState.addFiles([file])}
+                        onDraftMessage=${openDraftReply}
+                        onDismissDecision=${onDismissDecision}
+                      />`}
         ${showSources
           ? html`<${WorkbenchSourcesInspector}
               sourceReadiness=${sourceReadiness}
