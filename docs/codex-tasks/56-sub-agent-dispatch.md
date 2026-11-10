@@ -43,7 +43,7 @@ store.
 Verify against baremetal3 (tunnel on 18789, token in env):
 
 ```bash
-TOKEN="62c807bdfa3d40fa7b3b0d141c38e5a6edc0d8839669678c293c9497e821bc3f"
+TOKEN="REDACTED_LOCAL_GATEWAY_TOKEN"
 URL="http://127.0.0.1:18789"
 
 # 1. Does /api/v1/tasks accept POST?

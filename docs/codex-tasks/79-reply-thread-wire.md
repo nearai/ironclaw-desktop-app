@@ -37,7 +37,7 @@ UI (R80, claude) consumes this store.
 Verify against baremetal3 (token in env, tunnel on 18789):
 
 ```bash
-TOKEN="62c807bdfa3d40fa7b3b0d141c38e5a6edc0d8839669678c293c9497e821bc3f"
+TOKEN="REDACTED_LOCAL_GATEWAY_TOKEN"
 URL="http://127.0.0.1:18789"
 THR="$(curl -s -H "Authorization: Bearer $TOKEN" "$URL/api/chat/threads" | jq -r '.threads[0].id')"
 MSG="$(curl -s -H "Authorization: Bearer $TOKEN" "$URL/api/chat/threads/$THR/history" | jq -r '.messages[0].id')"
