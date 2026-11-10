@@ -33,7 +33,7 @@ overlay) lands in B5 (R58, claude).
 ## Probe
 
 ```bash
-TOKEN="62c807bdfa3d40fa7b3b0d141c38e5a6edc0d8839669678c293c9497e821bc3f"
+TOKEN="REDACTED_LOCAL_GATEWAY_TOKEN"
 URL="http://127.0.0.1:18789"
 THR="$(curl -s -H "Authorization: Bearer $TOKEN" "$URL/api/chat/threads" | jq -r '.threads[0].id')"
 
