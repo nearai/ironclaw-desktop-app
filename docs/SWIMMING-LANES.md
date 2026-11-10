@@ -80,7 +80,7 @@ work in its own lane.
    path is already in `.gitignore` (verify before kicking off Wave 1).
 7. **A4, A5, A6, A11, A12 touch the gateway.** They MUST probe the
    real endpoint against baremetal3 (tunnel 18789, token
-   `62c807bdfa3d40fa7b3b0d141c38e5a6edc0d8839669678c293c9497e821bc3f`)
+   `REDACTED_LOCAL_GATEWAY_TOKEN`)
    before writing a TS wrapper. The brief includes the curl command.
    If the endpoint returns 404, the lane is BLOCKED and the brief gets
    converted into "file an upstream issue" instead of a wire impl.
