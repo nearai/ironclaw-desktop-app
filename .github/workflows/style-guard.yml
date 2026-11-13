@@ -5,6 +5,6 @@ jobs:
   hardcoded-colors:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.4.0
       - name: Check for hardcoded accent colors
         run: bash scripts/style-guard.sh
