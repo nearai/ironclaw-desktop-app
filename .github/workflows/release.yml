@@ -14,10 +14,10 @@ jobs:
     env:
       IRONCLAW_REBORN_REF: main
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.4.0
 
       - name: Checkout IronClaw Reborn source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.4.0
         with:
           repository: nearai/ironclaw
           ref: ${{ env.IRONCLAW_REBORN_REF }}
@@ -27,12 +27,12 @@ jobs:
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4.4.0
         with:
           node-version: 22
           cache: npm
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: |
             src-tauri
@@ -164,7 +164,7 @@ jobs:
 
       - name: Create GitHub release
         if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.6.2
         with:
           files: release-artifacts/*
           draft: false
@@ -173,7 +173,7 @@ jobs:
 
       - name: Upload workflow artifacts
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.6.2
         with:
           name: ironclaw-desktop-${{ github.sha }}
           path: release-artifacts/
